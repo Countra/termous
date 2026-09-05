@@ -225,8 +225,7 @@
 }
 
 .streaming-state,
-.run-pending,
-.message-failure {
+.run-pending {
   display: inline-flex;
   align-items: center;
   color: var(--text-muted);
@@ -237,14 +236,6 @@
 .streaming-state svg,
 .run-pending svg {
   animation: agent-conversation-spin 1s linear infinite;
-}
-
-.message-failure {
-  color: var(--danger);
-}
-
-.message-failure[data-status='interrupted_by_steer'] {
-  color: var(--text-muted);
 }
 
 .conversation-empty {

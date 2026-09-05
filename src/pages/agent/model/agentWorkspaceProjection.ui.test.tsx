@@ -57,6 +57,7 @@ describe('Agent 工作区页面投影', () => {
       settings: {
         default_model_id: 'model-missing', default_reasoning_level: 'off',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+        context_compaction_threshold_percent: 80,
         show_turn_token_usage: true, revision: 1,
         created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },
@@ -392,6 +393,30 @@ describe('Agent 工作区页面投影', () => {
     ], run, [])[0]?.usage).toBeUndefined()
   })
 
+  it('失败原因优先使用匹配 Run，历史回放只恢复持久错误码且不借用其他会话详情', () => {
+    const message: AgentMessage = {
+      id: 'message-assistant', session_id: 'session-one', role: 'assistant', status: 'failed',
+      sequence: 2, revision: 1, created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+      parts: [], attachments: [],
+      turn_usage: { run_id: 'agr-history', usage: tokenUsage(0), error_code: 'AGENT_MODEL_TIMEOUT' },
+    }
+    const run = activeRun({
+      status: 'failed', error_code: 'AGENT_MODEL_STREAM_INTERRUPTED', error_message: '  connection closed  ',
+    })
+    expect(projectAgentMessages([message], run, [])[0]).toMatchObject({
+      status: 'failed', error_code: 'AGENT_MODEL_STREAM_INTERRUPTED', error_message: 'connection closed',
+    })
+    for (const otherRun of [undefined, { ...run, session_id: 'other-session' }, { ...run, assistant_message_id: 'other-message' }]) {
+      const historical = projectAgentMessages([message], otherRun, [])[0]
+      expect(historical?.error_code).toBe('AGENT_MODEL_TIMEOUT')
+      expect(historical?.error_message).toBeUndefined()
+    }
+    const streaming = projectAgentMessages([{ ...message, status: 'streaming' }], run, [])[0]
+    expect(streaming?.error_code).toBeUndefined()
+    expect(streaming?.error_message).toBeUndefined()
+    expect(projectAgentMessages([message], { ...run, error_message: 'x'.repeat(5_000) }, [])[0]?.error_message?.length).toBe(4_096)
+  })
+
   it('后继 Run 开始后仍按历史终态元数据展示 steer 中断', () => {
     const message: AgentMessage = {
       id: 'message-steered', session_id: 'session-one', role: 'assistant', status: 'interrupted',
@@ -499,6 +524,7 @@ function modelSnapshot(
     model_display_name: '模型快照',
     provider_revision: 1,
     model_revision: 1,
+    context_compaction_threshold_percent: 80,
     context_window_tokens: 8_192,
     max_output_tokens: 1_024,
     supports_images: false,

@@ -1,5 +1,6 @@
 import type {
   AgentAttachment,
+  AgentCompactionActivity,
   AgentQueueState,
   AgentQueuedTurn,
   AgentQueuedTurnMovePlacement,
@@ -98,6 +99,7 @@ export type AgentWorkspaceMessagePart =
   | AgentWorkspaceTextPart
   | AgentWorkspaceReasoningPart
   | AgentWorkspaceToolPart
+  | { id: string; kind: 'compaction'; activity: AgentCompactionActivity }
 
 export interface AgentWorkspaceMessage {
   id: string
@@ -108,6 +110,8 @@ export interface AgentWorkspaceMessage {
   attachments: AgentAttachment[]
   source_context?: AgentSourceContext
   usage?: AgentUsage
+  error_code?: string
+  error_message?: string
 }
 
 export interface AgentWorkspaceDraftAttachment {

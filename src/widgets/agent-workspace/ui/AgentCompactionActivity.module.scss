@@ -1,0 +1,73 @@
+.activity {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 32px;
+  align-items: center;
+  gap: 2px 12px;
+  margin: 6px 0;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.label {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.metadata {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: 100%;
+  margin-left: auto;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.metadata:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
+  outline-offset: 3px;
+}
+
+.usage,
+.duration {
+  white-space: nowrap;
+}
+
+.duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon {
+  flex: 0 0 14px;
+}
+
+.activity[data-status="started"] .icon {
+  color: var(--accent);
+  animation: compaction-spin 1s linear infinite;
+}
+
+.activity[data-status="failed"] {
+  color: var(--warning);
+}
+
+@keyframes compaction-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity[data-status="started"] .icon {
+    animation: none;
+  }
+}

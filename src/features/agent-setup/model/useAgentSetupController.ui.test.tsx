@@ -30,6 +30,7 @@ describe('useAgentSetupController', () => {
     expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: '', default_reasoning_level: 'off',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       show_turn_token_usage: true, expected_revision: 2,
     }, expect.any(AbortSignal))
     expect(view.result.current.readiness?.settings).toEqual(refreshed.settings)
@@ -57,6 +58,7 @@ describe('useAgentSetupController', () => {
     expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: 'apm-1', default_reasoning_level: 'high',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       show_turn_token_usage: false, expected_revision: 4,
     }, expect.any(AbortSignal))
     expect(view.result.current.readiness?.settings).toEqual(updated)
@@ -506,6 +508,7 @@ function readinessFixture(revision = 1, defaultModelId = '', reasoning: 'off' | 
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
       default_reasoning_level: reasoning, show_turn_token_usage: true, revision,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }

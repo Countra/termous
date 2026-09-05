@@ -483,6 +483,25 @@ test('Run Event 补偿页拒绝跨 Run、跨 generation 和 sequence 缺口', ()
   }), /归属/)
 })
 
+test('steer_applied 在实时与 HTTP 补偿页使用相同严格分支，兼容旧 steer 事件', () => {
+  const received = runEventResponse(1, 'steer', {
+    steer: { client_request_id: 'request-steer', message_id: 'agm-steer', part_id: 'agp-steer' },
+  })
+  const applied = runEventResponse(2, 'steer_applied', {
+    steer_applied: { message_id: 'agm-steer', part_id: 'agp-steer' },
+  })
+  const live = decodeAgentWorkspaceEvent({ type: 'upsert', revision: 1, run_event: applied })
+  assert.equal(live.type === 'upsert' && live.run_event?.kind, 'steer_applied')
+  assert.deepEqual(decodeAgentRunEventPage({ items: [received, applied] }).items.map(({ kind }) => kind), ['steer', 'steer_applied'])
+  for (const payload of [
+    { steer_applied: { message_id: 'agm-steer' } },
+    { steer_applied: { message_id: '', part_id: 'agp-steer' } },
+    { ...applied.payload, steer: received.payload.steer },
+  ]) {
+    assert.throws(() => decodeAgentRunEventPage({ items: [{ ...applied, payload }] }), AgentRuntimeProtocolError)
+  }
+})
+
 function messageResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 'agm-assistant',

@@ -10,6 +10,7 @@ const requiredProviderAdapters = Object.freeze([
 ])
 
 const allowedPiAPIModules = new Set([
+  'lazy.js',
   'constrained-sampling.js',
   'github-copilot-headers.js',
   'openai-completions.js',
@@ -27,6 +28,7 @@ const forbiddenProviderSources = Object.freeze([
 ])
 
 const allowedRuntimePackages = new Set([
+  '@earendil-works/chord',
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
   '@earendil-works/pi-telemetry',

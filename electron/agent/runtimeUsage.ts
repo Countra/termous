@@ -101,23 +101,6 @@ export function addRuntimeUsage(current: RuntimeUsage, increment: RuntimeUsage):
   }
 }
 
-export function sumPiUsage(usages: Usage[]): RuntimeUsage {
-  return usages.reduce(
-    (total, usage) => addRuntimeUsage(total, projectPiUsage(usage)),
-    emptyRuntimeUsage(),
-  )
-}
-
-export function hasRuntimeUsage(value: RuntimeUsage) {
-  return value.input_tokens > 0
-    || value.cache_read_tokens > 0
-    || value.cache_write_tokens > 0
-    || value.output_tokens > 0
-    || value.reasoning_tokens > 0
-    || value.total_tokens > 0
-    || value.estimated
-}
-
 function safeTokenCount(value: number): SafeTokenCount {
   if (!Number.isFinite(value) || value < 0) {
     return { value: 0, adjusted: true }

@@ -8,15 +8,11 @@ import type {
   AgentWorkerStartMessage,
 } from './protocol.ts'
 import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
-import {
-  RuntimeContextSummaryError,
-  type RuntimeContextSummaryResult,
-} from './runtimeContextSummary.ts'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
 import type {
   RuntimeBootstrap,
   RuntimeCheckpointInput,
-  RuntimeContextCheckpoint,
+  RuntimeCheckpointResult,
   RuntimeEventInput,
   RuntimeSteerInput,
   WorkerCoreClientPort,
@@ -68,7 +64,7 @@ class FakeCore implements WorkerCoreClientPort {
     this.lastSequence = input.sequence
     this.order.push(`core:${input.text}`)
     this.steers.push(input)
-    return this.lastSequence
+    return { last_sequence: this.lastSequence, message_id: 'agm_steer', part_id: 'agp_steer' }
   }
 
   async commitCheckpoint(
@@ -76,13 +72,19 @@ class FakeCore implements WorkerCoreClientPort {
     _runtimeBearer: string,
     input: RuntimeCheckpointInput,
     signal?: AbortSignal,
-  ): Promise<RuntimeContextCheckpoint> {
+  ): Promise<RuntimeCheckpointResult> {
     if (signal?.aborted) throw new DOMException('cancelled', 'AbortError')
+    assert.equal(input.sequence, this.lastSequence + 1)
+    this.lastSequence = input.sequence
     this.checkpoints.push(input)
     return {
-      boundary_message_sequence: input.boundary_message_sequence,
-      summary: input.summary,
-      estimated_tokens: 7000,
+      last_sequence: input.sequence,
+      checkpoint: {
+        id: input.compaction_id, version: 2, boundary_message_sequence: 0,
+        summary: input.summary, estimated_tokens: input.tokens_after,
+        retained_tail: [], image_sources: [], run_id: 'agr_test', generation: 1,
+        covered_event_sequence: input.covered_event_sequence,
+      },
     }
   }
 }
@@ -231,6 +233,21 @@ test('bootstrap 期间取消仍消费 Ticket 并持久化 cancelled', async () =
   assert.deepEqual(statuses, ['cancelled'])
 })
 
+test('压缩失败时保留未执行的追加指令，不再次进入失败的 Agent loop', async () => {
+  const fixture = workerFixture()
+  let calls = 0
+  fixture.agent.continue = async () => {
+    calls += 1
+    fixture.agent.queued = calls === 1
+    return 'failed'
+  }
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+  assert.equal(calls, 1)
+  assert.equal(fixture.agent.queued, true)
+  assert.deepEqual(statuses(fixture.core.events), ['running', 'failed'])
+})
+
 test('bootstrap 失败通过 fatal 交给 Supervisor 收口', async () => {
   const fixture = workerFixture()
   fixture.core.bootstrapError = new Error('unavailable')
@@ -331,120 +348,34 @@ test('终态持久化后先通知主进程，再等待运行资源关闭', async
   assert.equal(fixture.finishedState.value, true)
 })
 
-test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边界后的消息', async () => {
+test('Worker 先连接工具，再将完整上下文与冻结阈值交给请求门禁', async () => {
   const order: string[] = []
   let agentBootstrap: RuntimeBootstrap | undefined
-  let agentInitialUsage: CreatePiAgentOptions['initialUsage']
   const fixture = workerFixture(order, {
-    summarizeContext: async () => {
-      order.push('summary')
-      return { summary: '压缩后的历史', usage: summaryUsage() }
-    },
     onConnectMCP: () => order.push('mcp'),
     onCreateAgent: (options) => {
+      order.push('agent')
       agentBootstrap = structuredClone(options.bootstrap)
-      agentInitialUsage = options.initialUsage
+      assert.equal(typeof options.commitCheckpoint, 'function')
     },
   })
   fixture.core.bootstrapValue.context = {
-    estimated_tokens: 7000,
-    warning: true,
-    compression: {
-      boundary_message_sequence: 1,
-      source_hash: 'a'.repeat(64),
-      estimated_tokens: 7000,
-    },
+    estimated_tokens: 7000, warning: true,
+    checkpoint: { boundary_message_sequence: 1, summary: '已提交的历史摘要', estimated_tokens: 1000 },
   }
-  fixture.core.bootstrapValue.messages = [
-    runtimeMessage(1, '旧历史'),
-    runtimeMessage(2, '当前请求'),
-  ]
-  fixture.core.bootstrapValue.session.resource_binding = {
-    kind: 'ssh_session',
-    session_id: 'ses_runtime_test',
-    host_id: 'hst_runtime_test',
-    ssh_profile_id: 'ssh_runtime_test',
-    host_name: 'Production',
-    platform: 'linux',
-    bound_at: '2026-08-31T02:20:30Z',
-  }
-
+  fixture.core.bootstrapValue.model.snapshot.context_compaction_threshold_percent = 75
+  fixture.core.bootstrapValue.model.snapshot.force_context_compression = true
+  fixture.core.bootstrapValue.messages = [runtimeMessage(2, '近期原文'), runtimeMessage(3, '当前请求')]
   fixture.runtime.handleMessage(startMessage())
   await fixture.finished
 
-  assert.deepEqual(order.slice(0, 2), ['summary', 'mcp'])
-  assert.equal(fixture.core.checkpoints.length, 1)
-  assert.equal(fixture.core.checkpoints[0]?.generation, 1)
-  assert.deepEqual(agentBootstrap?.messages.map(({ sequence }) => sequence), [2])
-  assert.equal(agentBootstrap?.context.checkpoint?.summary, '压缩后的历史')
-  assert.equal(agentBootstrap?.context.compression, undefined)
-  assert.equal(agentBootstrap?.session.resource_binding?.session_id, 'ses_runtime_test')
-  assert.deepEqual(agentInitialUsage, summaryUsage())
-  const usageEvent = fixture.core.events.find((event) => event.kind === 'usage')
-  assert.deepEqual(nested(usageEvent?.payload, 'usage'), summaryUsage())
-})
-
-test('上下文摘要失败时保留已产生用量，不连接 MCP 并以 failed 收口当前 Run', async () => {
-  let mcpConnected = false
-  const fixture = workerFixture([], {
-    summarizeContext: async () => {
-      throw new RuntimeContextSummaryError('summary failed', summaryUsage())
-    },
-    onConnectMCP: () => { mcpConnected = true },
-  })
-  fixture.core.bootstrapValue.context = compressionContext()
-
-  fixture.runtime.handleMessage(startMessage())
-  await fixture.finished
-
-  assert.equal(mcpConnected, false)
+  assert.deepEqual(order, ['mcp', 'agent'])
   assert.equal(fixture.core.checkpoints.length, 0)
-  const usageEvent = fixture.core.events.find((event) => event.kind === 'usage')
-  assert.deepEqual(nested(usageEvent?.payload, 'usage'), summaryUsage())
-  assert.deepEqual(statuses(fixture.core.events), ['failed'])
-})
-
-test('上下文摘要返回空值时按压缩失败而非取消收口', async () => {
-  let connectCount = 0
-  const fixture = workerFixture([], {
-    summarizeContext: async () => undefined,
-    onConnectMCP: () => { connectCount += 1 },
-  })
-  fixture.core.bootstrapValue.context = compressionContext()
-  fixture.runtime.handleMessage(startMessage())
-  await fixture.finished
-
-  assert.equal(connectCount, 0)
-  assert.equal(fixture.core.checkpoints.length, 0)
-  assert.deepEqual(statuses(fixture.core.events), ['failed'])
-})
-
-test('上下文摘要期间取消时不提交 Checkpoint，也不连接 MCP', async () => {
-  let mcpConnected = false
-  let summaryStarted = false
-  const fixture = workerFixture([], {
-    summarizeContext: async (_bootstrap, signal) => await new Promise<RuntimeContextSummaryResult>((_resolve, reject) => {
-      summaryStarted = true
-      signal.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
-    }),
-    onConnectMCP: () => { mcpConnected = true },
-  })
-  fixture.core.bootstrapValue.context = compressionContext()
-  fixture.runtime.handleMessage(startMessage())
-  await waitUntil(() => summaryStarted)
-  fixture.runtime.handleMessage({ type: 'abort', run_id: 'agr_test', generation: 1 })
-  await fixture.finished
-
-  assert.equal(mcpConnected, false)
-  assert.equal(fixture.core.checkpoints.length, 0)
-  assert.deepEqual(statuses(fixture.core.events), ['cancelled'])
+  assert.deepEqual(agentBootstrap, fixture.core.bootstrapValue)
+  assert.deepEqual(statuses(fixture.core.events), ['running', 'completed'])
 })
 
 function workerFixture(order: string[] = [], options: {
-  summarizeContext?: (
-    bootstrap: RuntimeBootstrap,
-    signal: AbortSignal,
-  ) => Promise<RuntimeContextSummaryResult | undefined>
   onConnectMCP?: () => void
   onCreateAgent?: (options: CreatePiAgentOptions) => void
 } = {}) {
@@ -471,10 +402,6 @@ function workerFixture(order: string[] = [], options: {
       options.onCreateAgent?.(createOptions)
       return agent
     },
-    summarizeContext: options.summarizeContext ?? (async () => ({
-      summary: '压缩后的历史',
-      usage: summaryUsage(),
-    })),
     send: (message) => {
       outbound.push(message)
       if (message.type === 'steer_ack') order.push(`ack:${message.client_request_id}`)
@@ -502,30 +429,6 @@ function runtimeMessage(sequence: number, text: string): RuntimeBootstrap['messa
       sequence: 1,
       content: { text: { text } },
     }],
-  }
-}
-
-function compressionContext(): RuntimeBootstrap['context'] {
-  return {
-    estimated_tokens: 7000,
-    warning: true,
-    compression: {
-      boundary_message_sequence: 1,
-      source_hash: 'a'.repeat(64),
-      estimated_tokens: 7000,
-    },
-  }
-}
-
-function summaryUsage() {
-  return {
-    input_tokens: 120,
-    cache_read_tokens: 0,
-    cache_write_tokens: 0,
-    output_tokens: 30,
-    reasoning_tokens: 0,
-    total_tokens: 150,
-    estimated: false,
   }
 }
 

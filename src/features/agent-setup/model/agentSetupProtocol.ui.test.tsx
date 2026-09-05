@@ -11,6 +11,18 @@ import {
 } from './agentSetupProtocol.ts'
 
 describe('Agent setup protocol', () => {
+  it('自动压缩阈值兼容旧设置默认 80，并严格限制 50 至 95 的整数', () => {
+    expect(decodeAgentSettings({ ...settingsFixture(), context_compaction_threshold_percent: undefined })
+      .context_compaction_threshold_percent).toBe(80)
+    for (const value of [50, 80, 95]) {
+      expect(decodeAgentSettings({ ...settingsFixture(), context_compaction_threshold_percent: value })
+        .context_compaction_threshold_percent).toBe(value)
+    }
+    for (const value of [49, 96, 80.5, '80', false, null]) {
+      expect(() => decodeAgentSettings({ ...settingsFixture(), context_compaction_threshold_percent: value }))
+        .toThrow(AgentSetupProtocolError)
+    }
+  })
   it('严格解析缺省默认模型、准备状态和 MCP 策略', () => {
     const readiness = decodeAgentReadiness(readinessFixture())
     expect(readiness.settings.default_model_id).toBeUndefined()
@@ -90,6 +102,7 @@ function settingsFixture() {
   return {
     default_reasoning_level: 'off', global_context_window_tokens: 16_384,
     global_max_output_tokens: 4_096, show_turn_token_usage: true, revision: 1,
+    context_compaction_threshold_percent: 80,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }

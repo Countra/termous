@@ -15,6 +15,7 @@ export interface AgentSettings {
   default_reasoning_level: AgentReasoningLevel
   global_context_window_tokens: number
   global_max_output_tokens: number
+  context_compaction_threshold_percent: number
   show_turn_token_usage: boolean
   revision: number
   created_at: string
@@ -375,6 +376,32 @@ export interface AgentMessage {
   parts: AgentMessagePart[]
   attachments: AgentAttachment[]
   turn_usage?: AgentMessageTurnUsage
+  compactions?: AgentCompactionActivity[]
+}
+
+export interface AgentCompactionData {
+  compaction_id: string
+  status: 'started' | 'completed' | 'failed' | 'cancelled'
+  reason: 'threshold' | 'manual'
+  assistant_message_id: string
+  after_part_sequence: number
+  tokens_before: number
+  tokens_after?: number
+  context_window_tokens?: number
+  duration_ms?: number
+  error_code?: string
+}
+
+export interface AgentCompactionActivity extends AgentCompactionData {
+  created_at: string
+}
+
+export interface AgentContextUsageData {
+  estimated_tokens: number
+  context_window_tokens: number
+  estimated: boolean
+  warning: boolean
+  compression_available: boolean
 }
 
 export interface AgentMessageTurnUsage {
@@ -483,6 +510,7 @@ export interface AgentRunModelSnapshot {
   model_revision: number
   context_window_tokens: number
   max_output_tokens: number
+  context_compaction_threshold_percent: number
   supports_images: boolean
   reasoning_control: AgentModelReasoningControl
   supported_reasoning_levels: AgentReasoningLevel[]
@@ -522,7 +550,10 @@ export const agentRunEventKinds = [
   'approval_waiting',
   'approval_resolved',
   'steer',
+  'steer_applied',
   'usage',
+  'compaction',
+  'context_usage',
   'error',
 ] as const
 export type AgentRunEventKind = (typeof agentRunEventKinds)[number]
@@ -566,7 +597,12 @@ export type AgentRunEvent =
   | AgentRunEventBase<'steer', {
       steer: { client_request_id: string; message_id: string; part_id: string }
     }>
+  | AgentRunEventBase<'steer_applied', {
+      steer_applied: { message_id: string; part_id: string }
+    }>
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
+  | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
+  | AgentRunEventBase<'context_usage', { context_usage: AgentContextUsageData }>
   | AgentRunEventBase<'error', { error: { code: string; message: string } }>
 
 export interface AgentRunEventPage {

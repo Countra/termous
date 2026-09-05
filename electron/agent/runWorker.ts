@@ -305,6 +305,9 @@ export class AgentRunWorker {
     if (this.settled || this.failureReported) {
       return
     }
+    const category = this.stopping
+      ? 'forced_stop'
+      : message.category === 'bootstrap_failed' ? 'launch_failed' : 'worker_crash'
     this.failureReported = true
     this.stopping = true
     this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
@@ -314,9 +317,7 @@ export class AgentRunWorker {
         ? 'AGENT_RUNTIME_LAUNCH_FAILED'
         : 'AGENT_RUNTIME_WORKER_FAILED',
     )
-    await this.reportFailure(
-      message.category === 'bootstrap_failed' ? 'launch_failed' : 'worker_crash',
-    )
+    await this.reportFailure(category)
     this.scheduleExitGuard()
   }
 

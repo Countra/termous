@@ -101,6 +101,11 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
   const globalContextWindowTokens = positiveInteger(source.global_context_window_tokens, 'Agent 全局上下文预算无效')
   const globalMaxOutputTokens = positiveInteger(source.global_max_output_tokens, 'Agent 全局最大输出无效')
   validateTokenLimits(globalContextWindowTokens, globalMaxOutputTokens, 'Agent 全局 token 配置无效')
+  const compactionThreshold = source.context_compaction_threshold_percent === undefined
+    ? 80 : source.context_compaction_threshold_percent
+  if (!Number.isSafeInteger(compactionThreshold) || Number(compactionThreshold) < 50 || Number(compactionThreshold) > 95) {
+    throw new AgentSetupProtocolError('Agent 自动压缩阈值必须为 50 至 95 的整数')
+  }
   return {
     default_model_id: source.default_model_id === undefined
       ? undefined
@@ -108,6 +113,7 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
     default_reasoning_level: enumValue<AgentReasoningLevel>(source.default_reasoning_level, agentReasoningLevels, 'Agent 默认推理级别无效'),
     global_context_window_tokens: globalContextWindowTokens,
     global_max_output_tokens: globalMaxOutputTokens,
+    context_compaction_threshold_percent: Number(compactionThreshold),
     show_turn_token_usage: boolean(source.show_turn_token_usage, 'Agent 每轮 Token 用量展示设置无效'),
     revision: positiveInteger(source.revision, 'Agent 设置 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 设置创建时间缺失'),

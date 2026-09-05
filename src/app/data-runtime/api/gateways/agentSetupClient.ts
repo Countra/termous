@@ -40,6 +40,7 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
     default_reasoning_level: AgentReasoningLevel
     global_context_window_tokens: number
     global_max_output_tokens: number
+    context_compaction_threshold_percent: number
     show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal) {

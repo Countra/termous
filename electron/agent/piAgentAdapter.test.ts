@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { RuntimeBootstrap } from './workerCoreClient.ts'
+import type { RuntimeBootstrap, RuntimeEventInput } from './workerCoreClient.ts'
+import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { agentRuntimeProtocolVersion } from '#common/contracts'
 import {
   chatMaxTokensField,
+  createPiAgent,
   createRestrictedProviderFetch,
   createRuntimeModel,
   createRuntimeStreamOptions,
@@ -202,6 +205,146 @@ test('用户附件按 Core 绑定顺序映射为 pi 文本与图片内容', () =
     data: 'iVBORw0KGgo=',
     mimeType: 'image/png',
   })
+})
+
+test('真实 pi 消费追加指令时只发送消息引用，不泄漏持久化回执字段', async () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.messages = [runtimeUserMessage([])]
+  const events: RuntimeEventInput[] = []
+  const writer = new RuntimeEventWriter({
+    start: { type: 'start', protocol_version: agentRuntimeProtocolVersion,
+      core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48),
+      run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+    runtimeBearer: bootstrap.runtime_bearer, initialSequence: 1,
+    onFailure: (error) => { throw error },
+    core: {
+      bootstrap: async () => bootstrap,
+      appendEvents: async (_start, _bearer, batch) => {
+        events.push(...batch)
+        return batch[batch.length - 1]!.sequence
+      },
+      appendSteer: async () => { throw new Error('不应重新保存追加指令') },
+      commitCheckpoint: async () => { throw new Error('不应压缩短上下文') },
+    },
+  })
+  let requests = 0
+  const persisted = { message_id: 'agm_applied', part_id: 'agp_applied', last_sequence: 9 }
+  const agent = createPiAgent({
+    bootstrap, events: writer, skills: testAgentSkillBundle(),
+    mcp: { tools: [], originalName: () => null, close: async () => {} },
+    commitCheckpoint: async () => { throw new Error('不应压缩短上下文') },
+    fetch: async () => {
+      if (requests++ === 0) agent.steer('追加约束', persisted)
+      const chunk = {
+        id: `chatcmpl_${requests}`, object: 'chat.completion.chunk', created: 1, model: 'test-model',
+        choices: [{ index: 0, delta: { role: 'assistant', content: '完成' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 100, completion_tokens: 2, total_tokens: 102 },
+      }
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    },
+  })
+  try {
+    assert.equal(await agent.continue(), 'completed')
+    await writer.flush()
+    assert.equal(requests, 2)
+    assert.deepEqual(events.filter((event) => event.kind === 'steer_applied').map((event) => event.payload), [
+      { steer_applied: { message_id: 'agm_applied', part_id: 'agp_applied' } },
+    ])
+  } finally {
+    agent.close()
+    await writer.close()
+  }
+})
+
+for (const apiMode of ['responses', 'chat_completions'] as const) {
+  test(`真实 ${apiMode} 摘要失败原因经门禁和消息桥落盘，凭据不进入事件`, async () => {
+    const bootstrap = runtimeBootstrap()
+    const secret = 'summary-fixture-key+/value'
+    bootstrap.model.api_key = secret
+    bootstrap.model.snapshot.api_mode = apiMode
+    bootstrap.model.snapshot.force_context_compression = true
+    bootstrap.messages = ['旧记录'.repeat(4000), '近期记录'.repeat(4000), '继续'].map((text, index) => ({
+      ...runtimeUserMessage([], { text }), id: `agm_history_${index}`, sequence: index + 1,
+    }))
+    const original = structuredClone(bootstrap.messages)
+    const events: RuntimeEventInput[] = []
+    const writer = new RuntimeEventWriter({
+      start: { type: 'start', protocol_version: agentRuntimeProtocolVersion,
+        core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48),
+        run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+      runtimeBearer: bootstrap.runtime_bearer, initialSequence: 1,
+      onFailure: (error) => { throw error },
+      core: {
+        bootstrap: async () => bootstrap,
+        appendEvents: async (_start, _bearer, batch) => {
+          events.push(...batch)
+          return batch[batch.length - 1]!.sequence
+        },
+        appendSteer: async () => { throw new Error('不应保存追加指令') },
+        commitCheckpoint: async () => { throw new Error('失败摘要不能提交') },
+      },
+    })
+    let requests = 0
+    const agent = createPiAgent({
+      bootstrap, events: writer, skills: testAgentSkillBundle(),
+      mcp: { tools: [], originalName: () => null, close: async () => {} },
+      commitCheckpoint: async () => { throw new Error('失败摘要不能提交') },
+      fetch: async (_input, init) => {
+        requests += 1
+        const body = JSON.parse(String(init?.body)) as { tools?: unknown[] }
+        assert.equal(body.tools?.length ?? 0, 0)
+        return new Response(JSON.stringify({ error: {
+          code: 'server_error', message: `fixture upstream failure ${secret} ${encodeURIComponent(secret)}`,
+        } }), { status: 503, headers: { 'content-type': 'application/json' } })
+      },
+    })
+    try {
+      assert.equal(await agent.continue(), 'failed')
+      await writer.flush()
+      assert.equal(requests, 1)
+      const error = events.find((event) => event.kind === 'error')?.payload.error as Record<string, unknown>
+      assert.equal(error.code, 'AGENT_RUNTIME_CONTEXT_COMPRESSION_PROVIDER_FAILED')
+      assert.match(String(error.message), /摘要请求失败.*fixture upstream failure/u)
+      assert.match(String(error.message), /原始记录和上次成功摘要仍保留/u)
+      const activities = events.filter((event) => event.kind === 'compaction')
+        .map((event) => event.payload.compaction as Record<string, unknown>)
+      assert.deepEqual(activities.map((activity) => activity.status), ['started', 'failed'])
+      assert.equal(activities[1]!.error_code, error.code)
+      assert.equal(JSON.stringify(events).includes(secret), false)
+      assert.equal(JSON.stringify(events).includes(encodeURIComponent(secret)), false)
+      assert.deepEqual(bootstrap.messages, original)
+    } finally {
+      agent.close()
+      await writer.close()
+    }
+  })
+}
+
+test('恢复同一 assistant 的多个事件片段时跨片段配对工具，不插入伪中断结果', () => {
+  const bootstrap = runtimeBootstrap()
+  const assistant = {
+    id: 'agm_assistant', role: 'assistant' as const, status: 'completed', sequence: 2,
+    created_at: '2026-09-05T00:00:00Z', attachments: [],
+  }
+  bootstrap.messages = [
+    { ...assistant, parts: [runtimePart('tool_call', 1, {
+      tool_call: { tool_call_id: 'call_segmented', tool_name: 'termous.hosts.list', arguments: {} },
+    })] },
+    { ...assistant, parts: [runtimePart('tool_result', 2, {
+      tool_result: { tool_call_id: 'call_segmented', tool_name: 'termous.hosts.list',
+        content: [{ type: 'text', text: '原始工具结果' }], is_error: false },
+    })] },
+    { ...assistant, parts: [runtimePart('text', 3, { text: { text: '后续回复' } })] },
+    { ...runtimeUserMessage([]), sequence: 3 },
+  ]
+  const messages = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap))
+  const results = messages.filter((message) => message.role === 'toolResult')
+  assert.equal(results.length, 1)
+  assert.equal(results[0]!.isError, false)
+  assert.deepEqual(results[0]!.content, [{ type: 'text', text: '原始工具结果' }])
+  assert.deepEqual(messages.map(({ role }) => role), ['assistant', 'toolResult', 'assistant', 'user'])
 })
 
 test('附件水合拒绝模型能力不匹配、非规范 Base64 与非法 UTF-8', () => {

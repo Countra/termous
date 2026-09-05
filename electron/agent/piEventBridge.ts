@@ -14,6 +14,7 @@ import {
 } from './runtimeUsage.ts'
 import { isSkillResourceToolDetails } from './skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
+import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
 
 const maximumDeltaBytes = 240 * 1024
@@ -26,7 +27,9 @@ export interface PiEventBridgeOptions {
   originalToolName: (encodedName: string) => string | null
   now?: () => number
   newPartID?: () => string
-  initialUsage?: RuntimeUsage
+  onToolResult?: (partID: string, message: ToolResultMessage) => void
+  requestFailure?: () => { code: string; message: string } | undefined
+  providerErrorSecrets?: readonly string[]
 }
 
 export interface RuntimeEventSink {
@@ -49,6 +52,9 @@ export class PiEventBridge {
   private messagePartSequence = 0
   private runOutcome: PiRunOutcome = 'completed'
   private usage: RuntimeUsage
+  private readonly onToolResult?: PiEventBridgeOptions['onToolResult']
+  private readonly requestFailure?: PiEventBridgeOptions['requestFailure']
+  private readonly providerErrorSecrets: readonly string[]
 
   constructor(options: PiEventBridgeOptions) {
     this.writer = options.writer
@@ -56,7 +62,10 @@ export class PiEventBridge {
     this.originalToolName = options.originalToolName
     this.now = options.now ?? Date.now
     this.newPartID = options.newPartID ?? (() => `agp_${randomUUID()}`)
-    this.usage = { ...(options.initialUsage ?? emptyRuntimeUsage()) }
+    this.usage = emptyRuntimeUsage()
+    this.onToolResult = options.onToolResult
+    this.requestFailure = options.requestFailure
+    this.providerErrorSecrets = options.providerErrorSecrets ?? []
   }
 
   handle(event: AgentEvent) {
@@ -90,6 +99,15 @@ export class PiEventBridge {
 
   outcome() {
     return this.runOutcome
+  }
+
+  partSequence() {
+    return this.messagePartSequence
+  }
+
+  addUsage(increment: RuntimeUsage) {
+    this.usage = addRuntimeUsage(this.usage, increment)
+    this.writer.push('usage', { usage: { ...this.usage } })
   }
 
   private handleMessageUpdate(event: AssistantMessageEvent) {
@@ -151,15 +169,14 @@ export class PiEventBridge {
         },
       })
     })
-    this.usage = addRuntimeUsage(this.usage, projectPiUsage(message.usage))
-    this.writer.push('usage', { usage: { ...this.usage } })
+    const requestFailure = message.stopReason === 'error' || message.stopReason === 'aborted'
+      ? this.requestFailure?.() : undefined
+    // 门禁阻止触网后 pi 会合成零用量终态，不能据此把已确认的摘要用量降为部分统计。
+    if (!requestFailure) this.addUsage(projectPiUsage(message.usage))
     if (message.stopReason === 'error') {
       this.runOutcome = 'failed'
       this.writer.push('error', {
-        error: {
-          code: 'AGENT_MODEL_REQUEST_FAILED',
-          message: '模型请求失败',
-        },
+        error: requestFailure ?? runtimeProviderFailure(message.errorMessage, this.providerErrorSecrets),
       })
     } else if (message.stopReason === 'aborted') {
       this.runOutcome = 'cancelled'
@@ -167,7 +184,8 @@ export class PiEventBridge {
   }
 
   private persistToolResult(message: ToolResultMessage) {
-    this.pushMessagePart(this.newPartID(), 'tool_result', {
+    const partID = this.newPartID()
+    this.pushMessagePart(partID, 'tool_result', {
       tool_result: {
         tool_call_id: message.toolCallId,
         tool_name: this.requireOriginalToolName(message.toolName),
@@ -175,6 +193,7 @@ export class PiEventBridge {
         is_error: message.isError,
       },
     })
+    this.onToolResult?.(partID, message)
   }
 
   private handleToolStart(toolCallID: string, encodedName: string, args: unknown) {

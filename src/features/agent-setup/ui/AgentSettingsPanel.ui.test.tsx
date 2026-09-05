@@ -15,6 +15,55 @@ import { AgentSettingsPanel } from './AgentSettingsPanel.tsx'
 describe('AgentSettingsPanel', () => {
   beforeEach(() => { document.body.innerHTML = '' })
 
+  it('自动压缩阈值默认 80，校验整数范围并随完整设置保存', async () => {
+    const user = userEvent.setup()
+    const gateway = gatewayFixture()
+    renderPanel(gateway)
+    const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    expect(threshold).toHaveValue('80')
+    fireEvent.change(threshold, { target: { value: '49' } })
+    expect(screen.getByText('settings.agent.compaction.validation')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    fireEvent.change(threshold, { target: { value: '85.5' } })
+    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    fireEvent.change(threshold, { target: { value: '85' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ context_compaction_threshold_percent: 85, expected_revision: 1 }),
+      expect.any(AbortSignal),
+    ))
+  })
+
+  it('自动压缩阈值保存冲突时保留草稿，刷新后使用最新 revision', async () => {
+    const user = userEvent.setup()
+    const initial = readinessFixture(1)
+    const latest = {
+      ...initial,
+      settings: { ...initial.settings, context_compaction_threshold_percent: 75, revision: 2 },
+    }
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
+    vi.mocked(gateway.updateSettings)
+      .mockRejectedValueOnce(new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409))
+      .mockResolvedValue({ ...latest.settings, context_compaction_threshold_percent: 85, revision: 3 })
+    renderPanel(gateway)
+    const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    fireEvent.change(threshold, { target: { value: '85' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await screen.findByText('settings.agent.conflict.defaultsDescription')
+    expect(threshold).toHaveValue('85')
+    const refresh = screen.getByRole('button', { name: 'settings.agent.conflict.refresh' })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    await user.click(refresh)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeEnabled())
+    expect(threshold).toHaveValue('85')
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ context_compaction_threshold_percent: 85, expected_revision: 2 }),
+      expect.any(AbortSignal),
+    ))
+  })
+
   it('首次进入设置时不自动聚焦 Provider 表单', async () => {
     renderPanel(gatewayFixture())
 
@@ -86,6 +135,7 @@ describe('AgentSettingsPanel', () => {
       default_reasoning_level: 'off',
       global_context_window_tokens: 16_384,
       global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       show_turn_token_usage: false,
       expected_revision: 7,
     }, expect.any(AbortSignal)))
@@ -133,6 +183,7 @@ describe('AgentSettingsPanel', () => {
       default_reasoning_level: 'high',
       global_context_window_tokens: 32_768,
       global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       show_turn_token_usage: true,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
@@ -172,6 +223,7 @@ describe('AgentSettingsPanel', () => {
       default_reasoning_level: 'off',
       global_context_window_tokens: 65_536,
       global_max_output_tokens: 8_192,
+      context_compaction_threshold_percent: 80,
       show_turn_token_usage: true,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
@@ -1093,6 +1145,7 @@ function gatewayFixture(options: {
         default_reasoning_level: input.default_reasoning_level,
         global_context_window_tokens: input.global_context_window_tokens,
         global_max_output_tokens: input.global_max_output_tokens,
+        context_compaction_threshold_percent: input.context_compaction_threshold_percent,
         show_turn_token_usage: input.show_turn_token_usage,
         revision: input.expected_revision + 1,
         updated_at: '2026-08-30T00:01:00Z',
@@ -1138,6 +1191,7 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
       default_reasoning_level: 'off', show_turn_token_usage: true, revision,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }

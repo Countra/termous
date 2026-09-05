@@ -1,4 +1,4 @@
-import { ArrowDown, Bot, BrainCircuit, ChevronRight, CircleAlert, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
+import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
 import { memo, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,8 @@ import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
 import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
+import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
+import { AgentMessageFailure } from './AgentMessageFailure.tsx'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
@@ -171,6 +173,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
             {message.parts.map((part) => {
               if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
               if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
+              if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
               if (!part.text.trim()) return null
               return (
                 <details key={part.id} className={styles.reasoning} open={part.streaming || undefined}>
@@ -200,7 +203,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
               </span>
             ) : null}
             {message.status === 'failed' || message.status === 'interrupted' || message.status === 'interrupted_by_steer' ? (
-              <span className={styles['message-failure']} data-status={message.status}><CircleAlert size={14} />{t(`agent.message.${message.status}`)}</span>
+              <AgentMessageFailure message={message} />
             ) : null}
           </div>
           {showTurnTokenUsage
@@ -234,6 +237,10 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const message = messages[messages.length - 1]
   if (!message) return 'empty'
   const parts = message.parts.map((part) => {
+    if (part.kind === 'compaction') {
+      const activity = part.activity
+      return `${part.id}:${activity.status}:${activity.tokens_before}:${activity.tokens_after ?? ''}:${activity.context_window_tokens ?? ''}:${activity.duration_ms ?? ''}`
+    }
     if (part.kind === 'tool') {
       return `${part.id}:${part.status}:${part.duration_ms ?? ''}:${part.summary?.length ?? 0}:${part.detail?.length ?? 0}`
     }
@@ -245,7 +252,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const attachments = message.attachments
     .map((attachment) => `${attachment.id}:${attachment.kind}:${attachment.revision}:${attachment.size_bytes}`)
     .join(',')
-  return `${messages.length}:${message.id}:${message.status}:${parts}:${attachments}:${usage}`
+  return `${messages.length}:${message.id}:${message.status}:${parts}:${attachments}:${usage}:${message.error_code ?? ''}:${message.error_message ?? ''}`
 }
 
 function formatTime(value: string) {

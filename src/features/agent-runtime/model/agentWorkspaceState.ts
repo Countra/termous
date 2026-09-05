@@ -12,6 +12,7 @@ import type { AgentRuntimeStatus } from '#common/contracts'
 import type { AgentWorkspaceEvent } from './agentRuntimeProtocol.ts'
 import type { AgentWorkspaceSessionContextState } from './agentWorkspaceContextTypes.ts'
 import type { AgentWorkspaceSessionUsageState } from './agentWorkspaceUsageTypes.ts'
+import { mergeAgentCompactionActivity } from './agentWorkspaceCompaction.ts'
 
 export type AgentWorkspacePhase = 'idle' | 'loading' | 'ready' | 'reconnecting' | 'degraded'
 
@@ -407,9 +408,35 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
     },
   }, run, event)
   return {
-    state,
+    state: applyAgentContextEvent(state, run, event),
     gap: false,
   }
+}
+
+function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, event: AgentRunEvent): AgentWorkspaceState {
+  if (event.kind === 'context_usage') {
+    if (!current.sessions.some(({ id }) => id === run.session_id)) return current
+    // 旧任务的事件补拉仍需推进游标，但不能覆盖同会话后续任务的实时占用。
+    if (Object.values(current.runs).some((candidate) => (
+      candidate.session_id === run.session_id && candidate.generation > run.generation
+    ))) return current
+    const previous = current.session_contexts[run.session_id]
+    const usage = event.payload.context_usage
+    return {
+      ...current,
+      session_contexts: { ...current.session_contexts, [run.session_id]: {
+        phase: 'ready',
+        compression_pending: usage.compression_available ? previous?.compression_pending ?? false : false,
+        value: { ...previous?.value, ...usage, session_id: run.session_id },
+      } },
+    }
+  }
+  if (event.kind !== 'compaction') return current
+  const messages = current.messages[run.session_id]
+  if (!messages) return current
+  return { ...current, messages: { ...current.messages, [run.session_id]: messages.map((message) => (
+    message.id === run.assistant_message_id ? mergeAgentCompactionActivity(message, event) : message
+  )) } }
 }
 
 function runRequiresReconcile(state: AgentWorkspaceState, run: AgentRun) {
@@ -586,6 +613,7 @@ function replayRuntimeMessageProjection(current: AgentWorkspaceState, sessionId:
     if (run.session_id !== sessionId) continue
     for (const event of current.run_events[run.id] ?? []) {
       state = applyRunEventToMessages(state, run, event)
+      if (event.kind === 'compaction') state = applyAgentContextEvent(state, run, event)
     }
     for (const part of Object.values(current.run_part_overlays[run.id] ?? {})) {
       state = applyPartOverlayToMessages(state, run, part)
@@ -619,6 +647,10 @@ function runEventMessageProjectionValid(
   run: AgentRun,
   event: AgentRunEvent,
 ) {
+  if (event.kind === 'compaction') {
+    return event.payload.compaction.assistant_message_id === run.assistant_message_id
+      && Boolean(current.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id))
+  }
   if (event.kind === 'message_delta') {
     const delta = event.payload.message_delta
     if (delta.message_id !== run.assistant_message_id) return false

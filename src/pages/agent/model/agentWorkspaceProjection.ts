@@ -1,5 +1,6 @@
 import type {
   AgentMessage,
+  AgentCompactionActivity,
   AgentMessagePart,
   AgentModel,
   AgentModelProvider,
@@ -108,9 +109,8 @@ export function projectAgentMessages(
       : undefined
     const messageEvents = messageRun ? events : []
     const streaming = message.status === 'pending' || message.status === 'streaming'
-    const status: AgentWorkspaceMessage['status'] = (
-      messageRun?.error_code ?? message.turn_usage?.error_code
-    ) === 'AGENT_RUN_STEERED'
+    const errorCode = messageRun?.error_code ?? message.turn_usage?.error_code
+    const status: AgentWorkspaceMessage['status'] = errorCode === 'AGENT_RUN_STEERED'
       ? 'interrupted_by_steer'
       : message.status === 'pending' ? 'streaming' : message.status
     const usage = message.role === 'assistant' && !streaming
@@ -125,12 +125,64 @@ export function projectAgentMessages(
       role: message.role,
       status,
       created_at: message.created_at,
-      parts: projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
+      parts: interleaveCompactions(
+        projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
+        message,
+        messageEvents,
+      ),
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
+      error_code: message.role === 'assistant' && !streaming ? errorCode : undefined,
+      error_message: message.role === 'assistant' && !streaming && messageRun && isAgentRunTerminal(messageRun.status)
+        ? messageRun.error_message?.trim().slice(0, 4_096) || undefined
+        : undefined,
     }
   })
+}
+
+function interleaveCompactions(
+  parts: AgentWorkspaceMessagePart[],
+  message: AgentMessage,
+  events: AgentRunEvent[],
+): AgentWorkspaceMessagePart[] {
+  const activities = new Map<string, AgentCompactionActivity>(
+    (message.compactions ?? []).map((activity) => [activity.compaction_id, activity]),
+  )
+  for (const event of events) {
+    if (event.kind !== 'compaction' || event.payload.compaction.assistant_message_id !== message.id) continue
+    const activity = event.payload.compaction
+    const previous = activities.get(activity.compaction_id)
+    // 历史快照可能比补拉的开始事件更新，终态不应倒退成压缩中。
+    if (previous && previous.status !== 'started' && activity.status === 'started') continue
+    activities.set(activity.compaction_id, {
+      ...activity,
+      context_window_tokens: activity.context_window_tokens ?? previous?.context_window_tokens,
+      duration_ms: activity.duration_ms ?? previous?.duration_ms,
+      created_at: previous?.created_at ?? event.created_at,
+    })
+  }
+  if (activities.size === 0) return parts
+  const pending = [...activities.values()].sort((left, right) => (
+    left.after_part_sequence - right.after_part_sequence
+    || left.created_at.localeCompare(right.created_at)
+    || left.compaction_id.localeCompare(right.compaction_id)
+  ))
+  const sequences = new Map(message.parts.map((part) => [part.id, part.sequence]))
+  const result: AgentWorkspaceMessagePart[] = []
+  const appendActivity = (activity: AgentCompactionActivity) => result.push({
+    id: `compaction:${activity.compaction_id}`, kind: 'compaction', activity,
+  })
+  let cursor = 0
+  for (const part of parts) {
+    const sequence = sequences.get(part.id) ?? 0
+    while (cursor < pending.length && pending[cursor]!.after_part_sequence < sequence) {
+      appendActivity(pending[cursor++]!)
+    }
+    result.push(part)
+  }
+  while (cursor < pending.length) appendActivity(pending[cursor++]!)
+  return result
 }
 
 export function latestSessionRun(sessionId: string, runs: Record<string, AgentRun>) {

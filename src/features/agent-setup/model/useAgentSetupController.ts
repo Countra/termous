@@ -175,6 +175,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     default_reasoning_level?: AgentReasoningLevel
     global_context_window_tokens?: number
     global_max_output_tokens?: number
+    context_compaction_threshold_percent?: number
     show_turn_token_usage?: boolean
   }) => {
     if (!readiness) return Promise.reject(new Error('Agent settings are unavailable'))
@@ -194,6 +195,8 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
             ?? currentSettings.global_context_window_tokens,
           global_max_output_tokens: patch.global_max_output_tokens
             ?? currentSettings.global_max_output_tokens,
+          context_compaction_threshold_percent: patch.context_compaction_threshold_percent
+            ?? currentSettings.context_compaction_threshold_percent,
           show_turn_token_usage: patch.show_turn_token_usage ?? currentSettings.show_turn_token_usage,
           expected_revision: currentSettings.revision,
         }, signal)

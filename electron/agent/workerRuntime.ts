@@ -23,16 +23,6 @@ import {
 } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import {
-  applyRuntimeCheckpoint,
-  RuntimeContextSummaryError,
-  summarizeRuntimeContext,
-} from './runtimeContextSummary.ts'
-import {
-  emptyRuntimeUsage,
-  hasRuntimeUsage,
-  type RuntimeUsage,
-} from './runtimeUsage.ts'
-import {
   WorkerCoreClient,
   type RuntimeBootstrap,
   type WorkerCoreClientPort,
@@ -47,7 +37,6 @@ export interface AgentWorkerRuntimeOptions {
   core?: WorkerCoreClientPort
   connectMCP?: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   createAgent?: (options: CreatePiAgentOptions) => PiAgentController
-  summarizeContext?: typeof summarizeRuntimeContext
 }
 
 interface PendingSteer {
@@ -61,7 +50,6 @@ export class AgentWorkerRuntime {
   private readonly core: WorkerCoreClientPort
   private readonly connectMCP: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   private readonly createAgent: (options: CreatePiAgentOptions) => PiAgentController
-  private readonly summarizeContext: typeof summarizeRuntimeContext
   private readonly startupAbort = new AbortController()
   private readonly pendingSteers: PendingSteer[] = []
   private startMessage: AgentWorkerStartMessage | null = null
@@ -82,7 +70,6 @@ export class AgentWorkerRuntime {
     this.core = options.core ?? new WorkerCoreClient()
     this.connectMCP = options.connectMCP ?? connectAgentMCP
     this.createAgent = options.createAgent ?? createPiAgent
-    this.summarizeContext = options.summarizeContext ?? summarizeRuntimeContext
   }
 
   handleMessage(value: unknown) {
@@ -137,7 +124,6 @@ export class AgentWorkerRuntime {
   private async execute(start: AgentWorkerStartMessage) {
     let settled: 'completed' | 'cancelled' | 'failed' | null = null
     let fatal: 'bootstrap_failed' | 'runtime_failed' | null = null
-    let initialUsage = emptyRuntimeUsage()
     try {
       // start 已签发一次性 Ticket 后必须尝试消费；取消由 bootstrap 后的终态事件收口。
       const bootstrap = await this.core.bootstrap(start)
@@ -152,38 +138,6 @@ export class AgentWorkerRuntime {
       if (this.abortRequested) {
         settled = await this.persistTerminalStatus('cancelled')
         return
-      }
-      if (bootstrap.context.compression) {
-        let result
-        try {
-          result = await this.summarizeContext(bootstrap, this.startupAbort.signal)
-        } catch (error) {
-          if (error instanceof RuntimeContextSummaryError) {
-            await this.persistUsage(error.usage)
-          }
-          throw error
-        }
-        if (!result) {
-          throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
-        }
-        initialUsage = result.usage
-        await this.persistUsage(initialUsage)
-        if (this.abortRequested) {
-          settled = await this.persistTerminalStatus('cancelled')
-          return
-        }
-        const checkpoint = await this.core.commitCheckpoint(
-          start,
-          bootstrap.runtime_bearer,
-          {
-            generation: start.generation,
-            boundary_message_sequence: bootstrap.context.compression.boundary_message_sequence,
-            source_hash: bootstrap.context.compression.source_hash,
-            summary: result.summary,
-          },
-          this.startupAbort.signal,
-        )
-        applyRuntimeCheckpoint(bootstrap, checkpoint)
       }
       this.mcp = await this.connectMCP({
         coreBaseURL: start.core_base_url,
@@ -201,7 +155,9 @@ export class AgentWorkerRuntime {
         mcp: this.mcp,
         events: this.events,
         skills: start.skills,
-        initialUsage,
+        commitCheckpoint: (input, signal) => this.core.commitCheckpoint(
+          start, bootstrap.runtime_bearer, input, signal,
+        ),
         onFailure: (error) => this.failRuntime(error),
       })
       this.events.push('status', { status: { status: 'running' } })
@@ -218,7 +174,7 @@ export class AgentWorkerRuntime {
       let outcome = await this.agent.continue()
       while (!this.abortRequested) {
         await this.freezeSteerIntake()
-        if (this.runtimeFailure !== null || !this.agent.hasQueuedMessages()) {
+        if (outcome !== 'completed' || this.runtimeFailure !== null || !this.agent.hasQueuedMessages()) {
           break
         }
         this.steerIntakeOpen = true
@@ -289,9 +245,10 @@ export class AgentWorkerRuntime {
       if (!start || !bootstrap || !events || !agent) {
         throw new Error('AGENT_RUNTIME_STEER_UNAVAILABLE')
       }
+      let persisted: Awaited<ReturnType<WorkerCoreClientPort['appendSteer']>>
       try {
-        await events.writeExternal(async (eventID, sequence) => {
-          const lastSequence = await this.core.appendSteer(
+        persisted = await events.writeExternal(async (eventID, sequence) => {
+          const result = await this.core.appendSteer(
             start,
             bootstrap.runtime_bearer,
             {
@@ -301,17 +258,15 @@ export class AgentWorkerRuntime {
               text: value.text,
             },
           )
-          return { lastSequence, value: undefined }
+          return { lastSequence: result.last_sequence, value: result }
         })
       } catch (error) {
         this.acknowledgeSteer(value.clientRequestID, false, 'AGENT_RUNTIME_STEER_PERSIST_FAILED')
         throw error
       }
-      // 只有 Core 已持久化追加指令后才确认，避免 Renderer 清空尚未落地的草稿。
+      // pi 必须携带已落库消息身份，消费时才能记录准确的恢复顺序。
       this.acknowledgeSteer(value.clientRequestID, true)
-      if (!this.abortRequested) {
-        agent.steer(value.text)
-      }
+      if (!this.abortRequested) agent.steer(value.text, persisted)
     })
     this.steerTail = operation.catch((error) => {
       this.failRuntime(error)
@@ -343,12 +298,6 @@ export class AgentWorkerRuntime {
     events.push('status', { status: { status: outcome } })
     await events.flush()
     return outcome
-  }
-
-  private async persistUsage(usage: RuntimeUsage) {
-    if (!this.events || !hasRuntimeUsage(usage)) return
-    this.events.push('usage', { usage: { ...usage } })
-    await this.events.flush()
   }
 
   private failRuntime(error: unknown) {

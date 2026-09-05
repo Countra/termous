@@ -1,6 +1,14 @@
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { isRecord, validGeneration } from './protocol.ts'
 import {
+  isRuntimeContextCheckpoint,
+  isRuntimeCheckpointInput,
+  type RuntimeContextCheckpoint,
+  type RuntimeCheckpointInput,
+  type RuntimeCheckpointResult,
+} from './runtimeCheckpoint.ts'
+export type { RuntimeContextCheckpoint, RuntimeCheckpointInput, RuntimeCheckpointResult } from './runtimeCheckpoint.ts'
+import {
   isRuntimeMessageAttachmentList,
   type RuntimeMessageAttachment,
 } from './runtimeAttachmentPolicy.ts'
@@ -34,6 +42,8 @@ export interface RuntimeModelSnapshot {
   supports_images: boolean
   reasoning_control: 'none' | 'openai_effort'
   supported_reasoning_levels: RuntimeReasoningLevel[]
+  context_compaction_threshold_percent?: number
+  force_context_compression?: boolean
 }
 
 export type RuntimeReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -97,30 +107,10 @@ export interface RuntimeBootstrap {
   context: RuntimeContextBootstrap
 }
 
-export interface RuntimeContextCheckpoint {
-  boundary_message_sequence: number
-  summary: string
-  estimated_tokens: number
-}
-
-export interface RuntimeContextCompression {
-  boundary_message_sequence: number
-  source_hash: string
-  estimated_tokens: number
-}
-
 export interface RuntimeContextBootstrap {
   estimated_tokens: number
   warning: boolean
   checkpoint?: RuntimeContextCheckpoint
-  compression?: RuntimeContextCompression
-}
-
-export interface RuntimeCheckpointInput {
-  generation: number
-  boundary_message_sequence: number
-  source_hash: string
-  summary: string
 }
 
 export type RuntimeEventKind =
@@ -132,6 +122,9 @@ export type RuntimeEventKind =
   | 'tool_failed'
   | 'usage'
   | 'error'
+  | 'compaction'
+  | 'context_usage'
+  | 'steer_applied'
 
 export interface RuntimeEventInput {
   event_id: string
@@ -148,6 +141,12 @@ export interface RuntimeSteerInput {
   text: string
 }
 
+export interface RuntimeSteerResult {
+  last_sequence: number
+  message_id: string
+  part_id: string
+}
+
 export interface WorkerCoreClientPort {
   bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal): Promise<RuntimeBootstrap>
   appendEvents(
@@ -159,13 +158,13 @@ export interface WorkerCoreClientPort {
     start: AgentWorkerStartMessage,
     runtimeBearer: string,
     input: RuntimeSteerInput,
-  ): Promise<number>
+  ): Promise<RuntimeSteerResult>
   commitCheckpoint(
     start: AgentWorkerStartMessage,
     runtimeBearer: string,
     input: RuntimeCheckpointInput,
     signal?: AbortSignal,
-  ): Promise<RuntimeContextCheckpoint>
+  ): Promise<RuntimeCheckpointResult>
 }
 
 export interface WorkerCoreClientOptions {
@@ -261,10 +260,16 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     )
     if (!isRecord(value)
       || value.last_sequence !== input.sequence
-      || !validGeneration(value.last_sequence)) {
+      || !validGeneration(value.last_sequence)
+      || !validOpaqueIdentifier(value.message_id)
+      || !validOpaqueIdentifier(value.part_id)) {
       throw new WorkerCoreError('AGENT_RUNTIME_STEER_RESPONSE_INVALID')
     }
-    return value.last_sequence
+    return {
+      last_sequence: value.last_sequence,
+      message_id: value.message_id,
+      part_id: value.part_id,
+    }
   }
 
   async commitCheckpoint(
@@ -276,19 +281,31 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     if (!isRuntimeCheckpointInput(input, start.generation)) {
       throw new WorkerCoreError('AGENT_RUNTIME_CHECKPOINT_INVALID')
     }
-    const value = await this.request(
+    const submit = () => this.request(
       start.core_base_url,
       `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-checkpoints`,
       { method: 'POST', body: JSON.stringify(input) },
       runtimeBearer,
       signal,
     )
+    let value: unknown
+    try {
+      value = await submit()
+    } catch (error) {
+      // 网络响应丢失时只重试同一个幂等请求；业务冲突和用户取消不重试。
+      if (signal?.aborted || !(error instanceof WorkerCoreError) || error.status !== 0) throw error
+      value = await submit()
+    }
     if (!isRecord(value) || !isRuntimeContextCheckpoint(value.checkpoint)
-      || value.checkpoint.boundary_message_sequence !== input.boundary_message_sequence
+      || value.last_sequence !== input.sequence
+      || value.checkpoint.version !== 2
+      || value.checkpoint.run_id !== start.run_id
+      || value.checkpoint.generation !== start.generation
+      || value.checkpoint.covered_event_sequence !== input.covered_event_sequence
       || value.checkpoint.summary !== input.summary) {
       throw new WorkerCoreError('AGENT_RUNTIME_CHECKPOINT_RESPONSE_INVALID')
     }
-    return value.checkpoint
+    return { checkpoint: value.checkpoint, last_sequence: input.sequence }
   }
 
   private async request(
@@ -467,40 +484,6 @@ function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBoots
     && Number(value.estimated_tokens) >= 0
     && typeof value.warning === 'boolean'
     && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
-    && (value.compression === undefined || isRuntimeContextCompression(value.compression))
-}
-
-function isRuntimeContextCheckpoint(value: unknown): value is RuntimeContextCheckpoint {
-  return isRecord(value)
-    && Number.isSafeInteger(value.boundary_message_sequence)
-    && Number(value.boundary_message_sequence) > 0
-    && typeof value.summary === 'string'
-    && value.summary.trim().length > 0
-    && Buffer.byteLength(value.summary, 'utf8') <= 256 * 1024
-    && Number.isSafeInteger(value.estimated_tokens)
-    && Number(value.estimated_tokens) >= 0
-}
-
-function isRuntimeContextCompression(value: unknown): value is RuntimeContextCompression {
-  return isRecord(value)
-    && Number.isSafeInteger(value.boundary_message_sequence)
-    && Number(value.boundary_message_sequence) > 0
-    && typeof value.source_hash === 'string'
-    && /^[0-9a-f]{64}$/u.test(value.source_hash)
-    && Number.isSafeInteger(value.estimated_tokens)
-    && Number(value.estimated_tokens) >= 0
-}
-
-function isRuntimeCheckpointInput(value: RuntimeCheckpointInput, generation: number) {
-  return value.generation === generation
-    && isRuntimeContextCompression({
-      boundary_message_sequence: value.boundary_message_sequence,
-      source_hash: value.source_hash,
-      estimated_tokens: 0,
-    })
-    && typeof value.summary === 'string'
-    && value.summary.trim().length > 0
-    && Buffer.byteLength(value.summary, 'utf8') <= 256 * 1024
 }
 
 function isRuntimeMessageView(value: unknown): value is RuntimeMessageView {
@@ -556,6 +539,11 @@ function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
     && Number(value.max_output_tokens) > 0
     && Number(value.max_output_tokens) <= Number(value.context_window_tokens)
     && typeof value.supports_images === 'boolean'
+    && (value.force_context_compression === undefined || typeof value.force_context_compression === 'boolean')
+    && (value.context_compaction_threshold_percent === undefined
+      || (Number.isInteger(value.context_compaction_threshold_percent)
+        && Number(value.context_compaction_threshold_percent) >= 50
+        && Number(value.context_compaction_threshold_percent) <= 95))
     && validReasoningConfiguration(value.reasoning_control, value.supported_reasoning_levels)
 }
 

@@ -5,7 +5,6 @@ import {
   addRuntimeUsage,
   emptyRuntimeUsage,
   projectPiUsage,
-  sumPiUsage,
 } from './runtimeUsage.ts'
 
 test('pi usage 保留输入与缓存明细并保持 reasoning 属于输出', () => {
@@ -116,10 +115,10 @@ test('跨模型调用累计在饱和后保持单调且满足 Runtime usage 不�
 })
 
 test('多次 pi usage 使用同一累计规则', () => {
-  const total = sumPiUsage([
+  const total = [
     usage({ input: 10, output: 4, reasoning: 1, totalTokens: 14 }),
     usage({ input: 8, output: 3, reasoning: 2, totalTokens: 11 }),
-  ])
+  ].reduce((current, increment) => addRuntimeUsage(current, projectPiUsage(increment)), emptyRuntimeUsage())
 
   assert.deepEqual(total, {
     input_tokens: 18,

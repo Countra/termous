@@ -15,6 +15,8 @@ import {
   type AgentApiMode,
   type AgentAttachment,
   type AgentAttachmentState,
+  type AgentCompactionActivity,
+  type AgentCompactionData,
   type AgentJsonValue,
   type AgentMessage,
   type AgentQueueState,
@@ -187,6 +189,14 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     : decodeAgentMessageTurnUsage(source.turn_usage)
   const attachments = array(source.attachments ?? [], 'Agent 消息附件列表无效', 8)
     .map(decodeAgentAttachment)
+  const compactions = source.compactions === undefined ? undefined
+    : array(source.compactions, 'Agent 消息压缩记录无效').map(decodeCompactionActivity)
+  if (compactions) {
+    unique(compactions.map(({ compaction_id }) => compaction_id), 'Agent 消息包含重复压缩记录')
+    if ((compactions.length > 0 && role !== 'assistant') || compactions.some(({ assistant_message_id }) => assistant_message_id !== id)) {
+      throw new AgentRuntimeProtocolError('Agent 消息压缩记录归属无效')
+    }
+  }
   unique(attachments.map(({ id: attachmentId }) => attachmentId), 'Agent 消息包含重复附件 ID')
   if (parts.some(({ message_id }) => message_id !== id)) {
     throw new AgentRuntimeProtocolError('Agent 消息片段归属无效')
@@ -212,6 +222,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     parts,
     attachments,
     turn_usage: turnUsage,
+    ...(compactions ? { compactions } : {}),
   }
 }
 
@@ -307,12 +318,24 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'usage', 'error']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'context_usage']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
   }
   switch (kind) {
+    case 'compaction':
+      return { ...base, kind, payload: { compaction: decodeCompactionData(payload.compaction) } }
+    case 'context_usage': {
+      const usage = record(payload.context_usage, 'Agent 上下文用量事件无效')
+      return { ...base, kind, payload: { context_usage: {
+        estimated_tokens: nonNegativeInteger(usage.estimated_tokens, 'Agent 上下文 Token 估算无效'),
+        context_window_tokens: positiveInteger(usage.context_window_tokens, 'Agent 上下文窗口无效'),
+        estimated: bool(usage.estimated, 'Agent 上下文估算状态无效'),
+        warning: bool(usage.warning, 'Agent 上下文预警状态无效'),
+        compression_available: bool(usage.compression_available, 'Agent 上下文压缩能力无效'),
+      } } }
+    }
     case 'status': {
       const status = record(payload.status, 'Agent status 事件无效')
       return { ...base, kind, payload: { status: { status: enumValue<AgentRunStatus>(status.status, agentRunStatuses, 'Agent status 事件状态无效') } } }
@@ -355,6 +378,13 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
         client_request_id: identifier(steer.client_request_id, 'Agent steer 请求 ID 无效'),
         message_id: identifier(steer.message_id, 'Agent steer Message ID 无效'),
         part_id: identifier(steer.part_id, 'Agent steer Part ID 无效'),
+      } } }
+    }
+    case 'steer_applied': {
+      const steer = record(payload.steer_applied, 'Agent steer applied 事件无效')
+      return { ...base, kind, payload: { steer_applied: {
+        message_id: identifier(steer.message_id, 'Agent steer applied Message ID 无效'),
+        part_id: identifier(steer.part_id, 'Agent steer applied Part ID 无效'),
       } } }
     }
     case 'usage':
@@ -548,6 +578,7 @@ function decodeModelSnapshot(value: unknown): AgentRunModelSnapshot {
     model_revision: positiveInteger(source.model_revision, 'Agent Run 快照模型 revision 无效'),
     context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent Run 上下文窗口无效'),
     max_output_tokens: positiveInteger(source.max_output_tokens, 'Agent Run 输出上限无效'),
+    context_compaction_threshold_percent: decodeCompactionThreshold(source.context_compaction_threshold_percent),
     supports_images: bool(source.supports_images, 'Agent Run 图片能力无效'),
     reasoning_control: reasoningControl,
     supported_reasoning_levels: supportedReasoningLevels,
@@ -566,6 +597,33 @@ function decodeSnapshotReasoningLevels(value: unknown): AgentReasoningLevel[] {
   ))
   unique(levels, 'Agent Run 推理级别集合包含重复值')
   return levels
+}
+
+function decodeCompactionThreshold(value: unknown) {
+  const threshold = value === undefined ? 80 : positiveInteger(value, 'Agent 自动压缩阈值无效')
+  if (threshold < 50 || threshold > 95) throw new AgentRuntimeProtocolError('Agent 自动压缩阈值超出范围')
+  return threshold
+}
+
+function decodeCompactionData(value: unknown): AgentCompactionData {
+  const source = record(value, 'Agent 上下文压缩事件无效')
+  return {
+    compaction_id: identifier(source.compaction_id, 'Agent 压缩 ID 无效'),
+    status: enumValue(source.status, ['started', 'completed', 'failed', 'cancelled'] as const, 'Agent 压缩状态无效'),
+    reason: enumValue(source.reason, ['threshold', 'manual'] as const, 'Agent 压缩原因无效'),
+    assistant_message_id: identifier(source.assistant_message_id, 'Agent 压缩消息 ID 无效'),
+    after_part_sequence: nonNegativeInteger(source.after_part_sequence, 'Agent 压缩位置无效'),
+    tokens_before: nonNegativeInteger(source.tokens_before, 'Agent 压缩前 Token 无效'),
+    tokens_after: optionalNonNegativeInteger(source.tokens_after, 'Agent 压缩后 Token 无效'),
+    context_window_tokens: optionalPositiveInteger(source.context_window_tokens, 'Agent 压缩窗口容量无效'),
+    duration_ms: optionalNonNegativeInteger(source.duration_ms, 'Agent 压缩耗时无效'),
+    error_code: optionalString(source.error_code, 'Agent 压缩错误码无效', 256),
+  }
+}
+
+function decodeCompactionActivity(value: unknown): AgentCompactionActivity {
+  const source = record(value, 'Agent 压缩活动无效')
+  return { ...decodeCompactionData(source), created_at: timestamp(source.created_at, 'Agent 压缩活动时间无效') }
 }
 
 function decodeAgentContextCheckpoint(value: unknown) {

@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react'
-import { Alert, Button, Select, Tooltip } from 'antd'
+import { Alert, Button, InputNumber, Select, Tooltip } from 'antd'
 import { CircleHelp, Save, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -24,11 +24,13 @@ interface DefaultsDraft {
   defaultReasoningLevel: AgentReasoningLevel
   contextWindowTokens: number | null
   maxOutputTokens: number | null
+  compactionThreshold: number | null
 }
 
 interface DefaultsValidation {
   contextWindow?: string
   maxOutput?: string
+  compactionThreshold?: string
 }
 
 const contextWindowPresets = [16_384, 32_768, 65_536, 131_072, 262_144]
@@ -44,6 +46,7 @@ export function AgentGlobalModelDefaults({
   const { t } = useTranslation()
   const contextErrorId = useId()
   const outputErrorId = useId()
+  const compactionErrorId = useId()
   const settings = runtime.readiness?.settings
   const [baselineRevision, setBaselineRevision] = useState(settings?.revision)
   const [baseline, setBaseline] = useState<DefaultsDraft>(() => createDraft(settings))
@@ -65,7 +68,7 @@ export function AgentGlobalModelDefaults({
   const selectedModel = draft.defaultModelId ? modelById.get(draft.defaultModelId) : undefined
   const busy = runtime.loading || runtime.mutation !== null
   const validation = validateDraft(draft, t)
-  const invalid = Boolean(validation.contextWindow || validation.maxOutput)
+  const invalid = Boolean(validation.contextWindow || validation.maxOutput || validation.compactionThreshold)
   const runtimeSettingsConflict = runtime.conflict?.kind === 'settings'
   const ownsRuntimeSettingsConflict = dirty && runtimeSettingsConflict
   const conflictVisible = externalChange || ownsRuntimeSettingsConflict
@@ -106,12 +109,14 @@ export function AgentGlobalModelDefaults({
       || busy
       || draft.contextWindowTokens === null
       || draft.maxOutputTokens === null
+      || draft.compactionThreshold === null
     ) return
     void runtime.updateSettings({
       default_model_id: draft.defaultModelId,
       default_reasoning_level: draft.defaultReasoningLevel,
       global_context_window_tokens: draft.contextWindowTokens,
       global_max_output_tokens: draft.maxOutputTokens,
+      context_compaction_threshold_percent: draft.compactionThreshold,
     }).then((saved) => {
       const next = createDraft(saved)
       setBaselineRevision(saved.revision)
@@ -253,6 +258,29 @@ export function AgentGlobalModelDefaults({
               }))}
             />
           </Field>
+        </div>
+        <div className={styles['compaction-controls']}>
+          <Field
+            label={t('settings.agent.compaction.threshold')}
+            help={t('settings.agent.compaction.description')}
+            error={validation.compactionThreshold}
+            errorId={compactionErrorId}
+          >
+            <InputNumber<number>
+              value={draft.compactionThreshold}
+              aria-valuemin={50}
+              aria-valuemax={95}
+              step={5}
+              suffix="%"
+              disabled={busy}
+              status={validation.compactionThreshold ? 'error' : undefined}
+              aria-label={t('settings.agent.compaction.threshold')}
+              aria-invalid={Boolean(validation.compactionThreshold)}
+              aria-describedby={validation.compactionThreshold ? compactionErrorId : undefined}
+              onChange={(compactionThreshold) => setDraft((current) => ({ ...current, compactionThreshold }))}
+            />
+          </Field>
+          <p className={styles['compaction-hint']}>{t('settings.agent.compaction.hint')}</p>
           <Button
             className={styles.save}
             type="primary"
@@ -334,6 +362,7 @@ function createDraft(settings?: AgentSettings | null): DefaultsDraft {
     defaultReasoningLevel: settings?.default_reasoning_level ?? 'off',
     contextWindowTokens: settings?.global_context_window_tokens ?? 16_384,
     maxOutputTokens: settings?.global_max_output_tokens ?? 4_096,
+    compactionThreshold: settings?.context_compaction_threshold_percent ?? 80,
   }
 }
 
@@ -342,10 +371,17 @@ function sameDraft(left: DefaultsDraft, right: DefaultsDraft) {
     && left.defaultReasoningLevel === right.defaultReasoningLevel
     && left.contextWindowTokens === right.contextWindowTokens
     && left.maxOutputTokens === right.maxOutputTokens
+    && left.compactionThreshold === right.compactionThreshold
 }
 
 function validateDraft(draft: DefaultsDraft, t: (key: string) => string): DefaultsValidation {
   const validation: DefaultsValidation = {}
+  if (!Number.isInteger(draft.compactionThreshold)
+    || draft.compactionThreshold === null
+    || draft.compactionThreshold < 50
+    || draft.compactionThreshold > 95) {
+    validation.compactionThreshold = t('settings.agent.compaction.validation')
+  }
   if (!Number.isInteger(draft.contextWindowTokens) || !Number.isInteger(draft.maxOutputTokens)) {
     if (!Number.isInteger(draft.contextWindowTokens)) {
       validation.contextWindow = t('settings.agent.validation.integerTokens')

@@ -116,6 +116,7 @@ export class AgentWorkspaceController {
     controller: AbortController
     dirty: boolean
     promise: Promise<void>
+    checkpointRun?: AgentStreamNotification
   }>()
   private readonly usageHydrations = new Map<string, {
     controller: AbortController
@@ -435,6 +436,32 @@ export class AgentWorkspaceController {
         }
         const usageSessionId = usageRefreshSession(previousState, result.state, event)
         if (usageSessionId) this.scheduleUsageRefresh(usageSessionId)
+        if (event.type === 'upsert' && event.run_event?.kind === 'context_usage'
+          && result.state.run_event_sequences[event.run_event.run_id] === event.run_event.sequence
+          && result.state.runs[event.run_event.run_id]?.generation === event.run_event.generation) {
+          const contextSessionId = result.state.runs[event.run_event.run_id]?.session_id
+          if (contextSessionId && previousState.session_contexts[contextSessionId]?.value
+            !== result.state.session_contexts[contextSessionId]?.value) {
+            const hydration = this.contextHydrations.get(contextSessionId)
+            // 完成后的回查仍需补齐 checkpoint；占用数字由较新的实时事件保持权威。
+            if (hydration?.checkpointRun?.run_id !== event.run_event.run_id
+              || hydration.checkpointRun.generation !== event.run_event.generation) {
+              hydration?.controller.abort()
+              this.contextHydrations.delete(contextSessionId)
+            }
+          }
+        }
+        if (event.type === 'upsert' && event.run_event?.kind === 'compaction'
+          && event.run_event.payload.compaction.status === 'completed'
+          && result.state.run_event_sequences[event.run_event.run_id] === event.run_event.sequence
+          && result.state.runs[event.run_event.run_id]?.generation === event.run_event.generation) {
+          const contextSessionId = result.state.runs[event.run_event.run_id]?.session_id
+          if (contextSessionId) void this.hydrateContext(contextSessionId, 'refresh', {
+            run_id: event.run_event.run_id,
+            generation: event.run_event.generation,
+            sequence: event.run_event.sequence,
+          })
+        }
         if (result.reconcile_run) {
           void this.hydrateRun(result.reconcile_run.id).catch((error) => this.captureError(error))
         }
@@ -545,7 +572,21 @@ export class AgentWorkspaceController {
     }
     this.commit(result.state)
     if (runUsageRequiresRefresh(currentRun, run)) this.scheduleUsageRefresh(run.session_id)
-    if (isAgentRunTerminal(run.status)) void this.hydrateContext(run.session_id, 'refresh')
+    if (result.state.runs[run.id]?.generation !== run.generation
+      || Object.values(result.state.runs).some((candidate) => (
+        candidate.session_id === run.session_id && candidate.generation > run.generation
+      ))) return
+    const completedCompaction = [...(result.state.run_events[run.id] ?? [])].reverse().find((event) => (
+      event.kind === 'compaction' && event.payload.compaction.status === 'completed'
+    ))
+    if (completedCompaction) {
+      // 断线补拉同样保留摘要回查身份，避免后续实时占用取消 Inspector 的摘要元信息更新。
+      void this.hydrateContext(run.session_id, 'refresh', {
+        run_id: run.id, generation: run.generation, sequence: completedCompaction.sequence,
+      })
+    } else if (isAgentRunTerminal(run.status)) {
+      void this.hydrateContext(run.session_id, 'refresh')
+    }
   }
 
   async enqueueTurn(sessionId: string, prompt: string, attachmentIds: string[] = [], sourceContext?: AgentSourceContext) {
@@ -813,30 +854,49 @@ export class AgentWorkspaceController {
   private hydrateContext(
     sessionId: string,
     mode: 'coalesce' | 'refresh' | 'restart' = 'coalesce',
+    checkpointRun?: AgentStreamNotification,
   ) {
     if (this.disposed) return
     const current = this.contextHydrations.get(sessionId)
     if (current && mode !== 'restart') {
-      if (mode === 'refresh') current.dirty = true
+      if (mode === 'refresh') {
+        current.dirty = true
+        current.checkpointRun = checkpointRun
+      }
       return current.promise
     }
     current?.controller.abort()
     const controller = new AbortController()
-    const entry = { controller, dirty: false, promise: Promise.resolve() }
+    const entry = { controller, dirty: false, promise: Promise.resolve(), checkpointRun }
     entry.promise = (async () => {
       this.commit(beginAgentSessionContextLoad(this.state, sessionId))
       do {
         entry.dirty = false
+        const snapshotAtRequest = this.state.session_contexts[sessionId]?.value
+        const checkpointAtRequest = entry.checkpointRun
         try {
           const context = await this.gateway.context(sessionId, controller.signal)
           if (this.disposed || this.contextHydrations.get(sessionId) !== entry) return
-          if (!entry.dirty) this.commit(acceptAgentSessionContext(this.state, context))
+          const checkpointCurrent = !checkpointAtRequest || (
+            this.state.runs[checkpointAtRequest.run_id]?.generation === checkpointAtRequest.generation
+            && (this.state.run_event_sequences[checkpointAtRequest.run_id] ?? 0) >= checkpointAtRequest.sequence
+            && !Object.values(this.state.runs).some((run) => run.session_id === sessionId && run.generation > checkpointAtRequest.generation)
+          )
+          if (!entry.dirty && checkpointCurrent) {
+            const latest = this.state.session_contexts[sessionId]?.value
+            if (latest === snapshotAtRequest) {
+              this.commit(acceptAgentSessionContext(this.state, context))
+            } else if (checkpointAtRequest && latest && context.checkpoint) {
+              this.commit(acceptAgentSessionContext(this.state, { ...latest, checkpoint: context.checkpoint }))
+            }
+          }
         } catch (error) {
           if (
             !this.disposed
             && this.contextHydrations.get(sessionId) === entry
             && !isAbortError(error)
             && !entry.dirty
+            && this.state.session_contexts[sessionId]?.value === snapshotAtRequest
           ) {
             this.commit(failAgentSessionContextLoad(this.state, sessionId, errorCode(error)))
           }

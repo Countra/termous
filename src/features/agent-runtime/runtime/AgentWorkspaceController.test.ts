@@ -34,6 +34,7 @@ import {
   AgentWorkspaceController,
   AgentWorkspaceControllerError,
 } from './AgentWorkspaceController.ts'
+import { decodeAgentRunEventPage } from '../model/agentRuntimeProtocol.ts'
 
 test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提交内容', async () => {
   const rejectedGateway = new FakeGateway()
@@ -367,6 +368,48 @@ test('连续文本 delta 只在刷新窗口或后续权威事件到达时通知�
   assert.ok(cleared.includes(nextStreamTimer.id))
   unsubscribe()
   controller.close()
+})
+
+test('实时与 HTTP 回查的 steer_applied 推进游标且不会重复插入用户消息', async () => {
+  for (const mode of ['live', 'history'] as const) {
+    const gateway = new FakeGateway()
+    const socket = new FakeSocket()
+    const user = agentMessageFixture({ id: 'agm-steer', role: 'user', sequence: 3, status: 'completed' })
+    const items = [agentMessageFixture(), user]
+    gateway.messagesImpl = async () => ({ items })
+    const received = {
+      ...agentStatusEventFixture(), kind: 'steer',
+      payload: { steer: { client_request_id: 'request-steer', message_id: user.id, part_id: 'agp-steer' } },
+    }
+    const applied = {
+      ...agentStatusEventFixture({ id: 'age-applied', sequence: 2 }), kind: 'steer_applied',
+      payload: { steer_applied: { message_id: user.id, part_id: 'agp-steer' } },
+    }
+    gateway.runImpl = async () => agentRunFixture({ event_sequence: 2, revision: 2 })
+    gateway.runEvents = async () => decodeAgentRunEventPage({ items: [received, applied] })
+    const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+    controller.start()
+    try {
+      await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 2)
+      socket.open()
+      socket.message({
+        type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+      })
+      if (mode === 'live') {
+        socket.message({ type: 'upsert', revision: 1, run_event: received })
+        socket.message({ type: 'upsert', revision: 2, run_event: applied })
+      } else {
+        socket.message({ type: 'upsert', revision: 1, run: agentRunFixture({ event_sequence: 2, revision: 2 }) })
+      }
+      await waitFor(() => controller.getSnapshot().run_event_sequences['agr-run'] === 2)
+      assert.equal(controller.getSnapshot().phase, 'ready', mode)
+      assert.equal(socket.closed, false, mode)
+      assert.deepEqual(controller.getSnapshot().messages['ags-session']?.map(({ id }) => id), items.map(({ id }) => id), mode)
+      assert.deepEqual(controller.getSnapshot().run_events['agr-run']?.map(({ kind }) => kind), ['steer', 'steer_applied'], mode)
+    } finally {
+      controller.close()
+    }
+  }
 })
 
 test('默认流式定时器清理不会把控制器作为原生 clearTimeout 接收者', async () => {
@@ -768,6 +811,193 @@ test('正常 Run upsert 不触发 REST 水合，只有 snapshot 水位需要补�
 
   assert.equal(gateway.runCalls, 0)
   controller.close()
+})
+
+test('实时上下文快照优先于在途 HTTP 查询且保留历史 checkpoint', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  const checkpoint = { boundary_message_sequence: 3, estimated_tokens: 2_000, created_at: agentFixtureTime }
+  gateway.contextImpl = async () => contextFixture({ checkpoint })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+  })
+  const pending = deferred<AgentSessionContext>()
+  gateway.contextImpl = async () => pending.promise
+  const loading = controller.reloadContext('ags-session')
+  socket.message({
+    type: 'upsert', revision: 1,
+    run_event: {
+      id: 'context-live', run_id: 'agr-run', generation: 1, sequence: 1, kind: 'context_usage',
+      created_at: agentFixtureTime,
+      payload: { context_usage: {
+        estimated_tokens: 8_000, context_window_tokens: 32_768,
+        estimated: true, warning: false, compression_available: false,
+      } },
+    },
+  })
+  pending.resolve(contextFixture({ estimated_tokens: 30_000 }))
+  await loading
+  assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 8_000)
+  assert.deepEqual(controller.getSnapshot().session_contexts['ags-session']?.value?.checkpoint, checkpoint)
+  controller.close()
+})
+
+test('压缩完成回查补齐 checkpoint，迟到的 HTTP 占用不会覆盖后续实时快照', async () => {
+  for (const nextState of ['same-run', 'new-run', 'removed-session'] as const) {
+    const gateway = new FakeGateway()
+    const socket = new FakeSocket()
+    const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+    const previousCheckpoint = { boundary_message_sequence: 1, estimated_tokens: 2_000, created_at: agentFixtureTime }
+    const checkpoint = { boundary_message_sequence: 3, estimated_tokens: 7_000, created_at: agentFixtureTime }
+    gateway.contextImpl = async () => contextFixture({ checkpoint: previousCheckpoint })
+    controller.start()
+    try {
+      await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready'
+        && controller.getSnapshot().messages['ags-session']?.length === 1)
+      socket.message({
+        type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+      })
+      const pending = deferred<AgentSessionContext>()
+      gateway.contextImpl = async () => pending.promise
+      for (const [index, status] of ['started', 'completed'].entries()) {
+        socket.message({
+          type: 'upsert', revision: index + 1,
+          run_event: {
+            id: `compaction-${status}`, run_id: 'agr-run', generation: 1, sequence: index + 1,
+            kind: 'compaction', created_at: agentFixtureTime,
+            payload: { compaction: {
+              compaction_id: 'compact-one', status, reason: 'threshold', assistant_message_id: 'agm-assistant',
+              after_part_sequence: 0, tokens_before: 26_000, ...(status === 'completed' ? { tokens_after: 7_000 } : {}),
+            } },
+          },
+        })
+      }
+      const pendingSignal = gateway.contextSignals[gateway.contextSignals.length - 1]!
+      const usage = {
+        estimated_tokens: 8_000, context_window_tokens: 32_768, estimated: true,
+        warning: false, compression_available: false,
+      }
+      socket.message({
+        type: 'upsert', revision: 3,
+        run_event: {
+          id: 'context-live', run_id: 'agr-run', generation: 1, sequence: 3,
+          kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: usage },
+        },
+      })
+      assert.equal(pendingSignal.aborted, false)
+      if (nextState === 'new-run') {
+        socket.message({ type: 'upsert', revision: 4, run: agentRunFixture({ id: 'agr-next', generation: 2 }) })
+        socket.message({
+          type: 'upsert', revision: 5,
+          run_event: {
+            id: 'context-next', run_id: 'agr-next', generation: 2, sequence: 1,
+            kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: usage },
+          },
+        })
+      } else if (nextState === 'removed-session') {
+        socket.message({ type: 'removed', revision: 4, entity: 'session', id: 'ags-session' })
+      }
+      pending.resolve(contextFixture({ estimated_tokens: 26_000, warning: true, checkpoint }))
+      await settle()
+      const context = controller.getSnapshot().session_contexts['ags-session']?.value
+      if (nextState === 'removed-session') {
+        assert.equal(context, undefined)
+      } else {
+        assert.equal(context?.estimated_tokens, 8_000, nextState)
+        assert.equal(context?.warning, false, nextState)
+        assert.deepEqual(context?.checkpoint, nextState === 'same-run' ? checkpoint : previousCheckpoint, nextState)
+      }
+    } finally {
+      controller.close()
+    }
+  }
+})
+
+test('HTTP 补拉压缩完成后补齐摘要元信息，并保留较新的实时占用', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  const checkpoint = { boundary_message_sequence: 3, estimated_tokens: 7_000, created_at: agentFixtureTime }
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready'
+      && controller.getSnapshot().messages['ags-session']?.length === 1)
+    const pending = deferred<AgentSessionContext>()
+    gateway.contextImpl = async () => pending.promise
+    gateway.runImpl = async () => agentRunFixture({ event_sequence: 2 })
+    gateway.runEvents = async () => decodeAgentRunEventPage({ items: ['started', 'completed'].map((status, index) => ({
+      id: `compaction-${status}`, run_id: 'agr-run', generation: 1, sequence: index + 1,
+      kind: 'compaction', created_at: agentFixtureTime,
+      payload: { compaction: {
+        compaction_id: 'compact-one', status, reason: 'threshold', assistant_message_id: 'agm-assistant',
+        after_part_sequence: 0, tokens_before: 26_000, ...(status === 'completed' ? { tokens_after: 7_000 } : {}),
+      } },
+    })) })
+    socket.message({
+      type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+      active_runs: [agentRunFixture({ event_sequence: 2 })],
+    })
+    await waitFor(() => gateway.contextCalls === 2)
+    const pendingSignal = gateway.contextSignals[gateway.contextSignals.length - 1]!
+    socket.message({
+      type: 'upsert', revision: 1,
+      run_event: {
+        id: 'context-live', run_id: 'agr-run', generation: 1, sequence: 3,
+        kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: {
+          estimated_tokens: 8_000, context_window_tokens: 32_768, estimated: true,
+          warning: false, compression_available: false,
+        } },
+      },
+    })
+    assert.equal(pendingSignal.aborted, false)
+    pending.resolve(contextFixture({ estimated_tokens: 26_000, checkpoint }))
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.value?.checkpoint !== undefined)
+    const context = controller.getSnapshot().session_contexts['ags-session']!.value!
+    assert.equal(context.estimated_tokens, 8_000)
+    assert.equal(context.warning, false)
+    assert.deepEqual(context.checkpoint, checkpoint)
+    assert.equal(controller.getSnapshot().messages['ags-session']![0]!.compactions?.[0]?.status, 'completed')
+  } finally {
+    controller.close()
+  }
+})
+
+test('旧任务占用事件不会取消同会话新任务的上下文回查', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+    socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+    socket.message({ type: 'upsert', revision: 1, run: agentRunFixture({ status: 'completed' }) })
+    socket.message({ type: 'upsert', revision: 2, run: agentRunFixture({ id: 'agr-next', generation: 2 }) })
+    const pending = deferred<AgentSessionContext>()
+    gateway.contextImpl = async () => pending.promise
+    const loading = controller.reloadContext('ags-session')
+    const pendingSignal = gateway.contextSignals[gateway.contextSignals.length - 1]!
+    socket.message({
+      type: 'upsert', revision: 3,
+      run_event: {
+        id: 'context-old', run_id: 'agr-run', generation: 1, sequence: 1,
+        kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: {
+          estimated_tokens: 26_000, context_window_tokens: 32_768, estimated: true,
+          warning: true, compression_available: true,
+        } },
+      },
+    })
+    assert.equal(pendingSignal.aborted, false)
+    assert.equal(controller.getSnapshot().run_event_sequences['agr-run'], 1)
+    pending.resolve(contextFixture({ estimated_tokens: 9_000 }))
+    await loading
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 9_000)
+  } finally {
+    controller.close()
+  }
 })
 
 test('活动 Run 进入终态后刷新权威上下文容量', async () => {

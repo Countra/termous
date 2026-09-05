@@ -805,6 +805,30 @@ test('租约过期且续租失败时立即收口活动 Worker', async () => {
   await supervisor.shutdown()
 })
 
+test('用户停止与压缩回写失败并发时按取消收口，不误报 Worker 崩溃', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+  const originalPostMessage = worker.postMessage.bind(worker)
+  worker.postMessage = (message) => {
+    originalPostMessage(message)
+    if ((message as { type?: string }).type === 'abort') {
+      worker.emitMessage({
+        type: 'fatal', protocol_version: agentRuntimeProtocolVersion, ...primaryRun, category: 'runtime_failed',
+      })
+      worker.emitExit(1)
+    }
+  }
+  await supervisor.stopRun(primaryRun)
+  await flushSupervisor()
+  assert.deepEqual(core.failures, [{ ...primaryRun, category: 'forced_stop' }])
+  await supervisor.shutdown()
+})
+
 test('Supervisor 隔离状态订阅异常并幂等处理重复 fatal', async () => {
   const { core, factory, supervisor } = createFixture()
   supervisor.subscribe(() => {

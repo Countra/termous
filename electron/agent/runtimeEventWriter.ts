@@ -104,6 +104,11 @@ export class RuntimeEventWriter {
     this.assertHealthy()
   }
 
+  currentSequence() {
+    this.assertHealthy()
+    return this.sequence
+  }
+
   async writeExternal<T>(
     write: (
       eventID: string,

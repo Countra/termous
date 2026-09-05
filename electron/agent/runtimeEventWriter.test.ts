@@ -40,7 +40,7 @@ class RecordingCore implements WorkerCoreClientPort {
     return last?.sequence ?? 0
   }
 
-  appendSteer(): Promise<number> {
+  appendSteer(): Promise<never> {
     throw new Error('not implemented')
   }
 

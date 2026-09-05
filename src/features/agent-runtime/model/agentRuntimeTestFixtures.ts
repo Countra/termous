@@ -44,6 +44,7 @@ export function agentRunFixture(overrides: Partial<AgentRun> = {}): AgentRun {
       model_revision: 1,
       context_window_tokens: 32_768,
       max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
       supports_images: false,
       reasoning_control: 'openai_effort',
       supported_reasoning_levels: ['off', 'medium'],

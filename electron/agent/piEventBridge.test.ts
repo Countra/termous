@@ -101,7 +101,7 @@ test('pi 事件映射流式片段、签名、Tool 时间线和累计 usage', () 
   assert.equal(usage.total_tokens, 12)
 })
 
-test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
+test('摘要和主 Agent 的 usage 通过同一事件桥顺序累计', () => {
   const sink = new EventSink()
   const bridge = new PiEventBridge({
     writer: sink,
@@ -109,20 +109,23 @@ test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
     originalToolName: (name) => name === 'm_termous_dhosts_dlist'
       ? 'termous.hosts.list'
       : null,
-    initialUsage: {
-      input_tokens: 100,
-      cache_read_tokens: 0,
-      cache_write_tokens: 0,
-      output_tokens: 20,
-      reasoning_tokens: 2,
-      total_tokens: 120,
-      estimated: false,
-    },
+  })
+  bridge.addUsage({
+    input_tokens: 100,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    output_tokens: 20,
+    reasoning_tokens: 2,
+    total_tokens: 120,
+    estimated: false,
   })
 
   bridge.handle({ type: 'message_end', message: assistantMessage() })
 
-  const usage = nested(sink.values.find((value) => value.kind === 'usage')?.payload, 'usage')
+  const usageEvents = sink.values.filter((value) => value.kind === 'usage')
+  assert.equal(usageEvents.length, 2)
+  assert.equal(nested(usageEvents[0]!.payload, 'usage').total_tokens, 120)
+  const usage = nested(usageEvents[1]!.payload, 'usage')
   assert.deepEqual(usage, {
     input_tokens: 105,
     cache_read_tokens: 4,
@@ -134,7 +137,33 @@ test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
   })
 })
 
-test('Provider 失败只写入稳定错误分类', () => {
+for (const stopReason of ['error', 'aborted'] as const) {
+  test(`门禁 ${stopReason} 未触网时不把已确认摘要用量误标为部分统计`, () => {
+    const sink = new EventSink()
+    const bridge = new PiEventBridge({
+      writer: sink, assistantMessageID: 'agm_reply', originalToolName: () => null,
+      requestFailure: () => ({
+        code: 'AGENT_RUNTIME_CONTEXT_COMPRESSION_CHECKPOINT_FAILED', message: '摘要保存未获确认',
+      }),
+    })
+    const summaryUsage = {
+      input_tokens: 100, cache_read_tokens: 0, cache_write_tokens: 0,
+      output_tokens: 20, reasoning_tokens: 2, total_tokens: 120, estimated: false,
+    }
+    bridge.addUsage(summaryUsage)
+    const message = assistantMessage()
+    message.content = []
+    message.stopReason = stopReason
+    message.usage = { ...usage(), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 }
+    bridge.handle({ type: 'message_end', message })
+    const usageEvents = sink.values.filter((value) => value.kind === 'usage')
+    assert.equal(usageEvents.length, 1)
+    assert.deepEqual(nested(usageEvents[0]!.payload, 'usage'), summaryUsage)
+    assert.equal(bridge.outcome(), stopReason === 'error' ? 'failed' : 'cancelled')
+  })
+}
+
+test('Provider 失败保留脱敏详情，隐藏服务地址和凭据', () => {
   const sink = new EventSink()
   const bridge = new PiEventBridge({
     writer: sink,
@@ -150,7 +179,7 @@ test('Provider 失败只写入稳定错误分类', () => {
   assert.equal(bridge.outcome(), 'failed')
   const error = nested(sink.values[sink.values.length - 1]?.payload, 'error')
   assert.equal(error.code, 'AGENT_MODEL_REQUEST_FAILED')
-  assert.equal(error.message, '模型请求失败')
+  assert.equal(error.message, '模型请求失败：[地址已隐藏] returned token=[已隐藏]')
   assert.equal(JSON.stringify(sink.values).includes('secret.example'), false)
 })
 

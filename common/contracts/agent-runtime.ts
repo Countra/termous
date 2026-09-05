@@ -1,4 +1,4 @@
-export const agentRuntimeProtocolVersion = '5' as const
+export const agentRuntimeProtocolVersion = '6' as const
 
 export type AgentSkillsBundleState =
   | 'ready'
