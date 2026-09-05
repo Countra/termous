@@ -308,6 +308,27 @@ test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量
   }), /重复的本轮 Run/)
 })
 
+test('历史本轮时间兼容旧响应和未开始取消，拒绝无效时间而不依赖 Token 数量', () => {
+  const usage = agentRunFixture().usage
+  const completedAt = '2026-08-29T00:00:02.400Z'
+  const decode = (timing: Record<string, unknown>) => decodeAgentMessage(messageResponse({
+    status: 'interrupted',
+    turn_usage: { run_id: 'agr-run', usage, ...timing },
+  })).turn_usage
+
+  assert.deepEqual(decode({}), { run_id: 'agr-run', usage })
+  assert.deepEqual(decode({ started_at: agentFixtureTime, completed_at: completedAt }), {
+    run_id: 'agr-run', usage, started_at: agentFixtureTime, completed_at: completedAt,
+  })
+  assert.equal(decode({ completed_at: completedAt })?.started_at, undefined)
+  assert.equal(decode({ completed_at: completedAt })?.completed_at, completedAt)
+  for (const field of ['started_at', 'completed_at']) {
+    for (const value of ['', 'invalid', null, 0, '999999-01-01T00:00:00Z']) {
+      assert.throws(() => decode({ [field]: value }), AgentRuntimeProtocolError)
+    }
+  }
+})
+
 test('附件协议拒绝无效大小与未知状态', () => {
   assert.equal(decodeAgentAttachment(attachmentResponse()).kind, 'text')
   assert.equal(decodeAgentAttachment(attachmentResponse({ state: 'reserved' })).state, 'reserved')

@@ -317,8 +317,50 @@ test('Run 终态同步收口 assistant 消息状态和本轮 Token 用量', () =
   }).state
   assert.equal(state.messages['ags-session']?.[0]?.status, 'completed')
   assert.deepEqual(state.messages['ags-session']?.[0]?.turn_usage, {
-    run_id: 'agr-run', usage,
+    run_id: 'agr-run', usage, started_at: agentFixtureTime, completed_at: agentFixtureTime,
   })
+})
+
+test('仅终态时间晚到也更新历史元数据，并在后继 Run 替换后保留', () => {
+  let state = workspaceWithRun()
+  const run = agentRunFixture({ status: 'completed', revision: 2 })
+  state = applyAgentWorkspaceEvent(state, { type: 'upsert', revision: 1, run }).state
+  const before = state.messages['ags-session']?.[0]
+  const completedAt = '2026-08-29T00:00:02.400Z'
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 2,
+    run: { ...run, revision: 3, completed_at: completedAt },
+  }).state
+  assert.notEqual(state.messages['ags-session']?.[0], before)
+  assert.equal(state.messages['ags-session']?.[0]?.turn_usage?.completed_at, completedAt)
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 3,
+    run: agentRunFixture({ id: 'agr-next', generation: 2, assistant_message_id: 'agm-next' }),
+  }).state
+  assert.equal(state.active_run_id, 'agr-next')
+  assert.deepEqual(state.messages['ags-session']?.[0]?.turn_usage, {
+    run_id: run.id, usage: run.usage, started_at: agentFixtureTime, completed_at: completedAt,
+  })
+})
+
+test('重连快照后补拉旧消息不会丢失已知终态耗时', () => {
+  const original = agentMessageFixture()
+  let state = workspaceWithRun(original)
+  const run = agentRunFixture({
+    status: 'completed', revision: 2, completed_at: '2026-08-29T00:00:02.400Z',
+  })
+  state = applyAgentWorkspaceEvent(state, { type: 'upsert', revision: 1, run }).state
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'snapshot', revision: 2, sessions: [agentSessionFixture()], active_runs: [],
+  }).state
+  state = replaceAgentMessages(state, original.session_id, [original])
+
+  const restored = state.messages[original.session_id]?.[0]
+  assert.equal(restored?.status, 'completed')
+  assert.deepEqual(restored?.turn_usage, {
+    run_id: run.id, usage: run.usage, started_at: run.started_at, completed_at: run.completed_at,
+  })
+  assert.equal(state.active_run_id, undefined)
 })
 
 test('Run 状态已收口时仍接受后到的本轮 Token 用量', () => {

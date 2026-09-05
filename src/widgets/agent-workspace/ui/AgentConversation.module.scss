@@ -44,16 +44,6 @@
   font-weight: 640;
 }
 
-.message > header time {
-  opacity: 0;
-  transition: opacity 0.14s ease;
-}
-
-.message:hover > header time,
-.message:focus-within > header time {
-  opacity: 1;
-}
-
 .message-content {
   min-width: 0;
   color: var(--text-primary);
@@ -311,7 +301,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .message > header time,
   .reasoning-chevron {
     transition: none;
   }

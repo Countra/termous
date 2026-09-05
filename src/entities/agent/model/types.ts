@@ -452,6 +452,8 @@ export interface AgentMessageTurnUsage {
   run_id: string
   usage: AgentUsage
   error_code?: string
+  started_at?: string
+  completed_at?: string
 }
 
 export interface AgentMessagePage {

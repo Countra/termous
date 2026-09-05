@@ -19,6 +19,7 @@ import type {
   AgentWorkspaceRunStatus,
 } from '../model/types.ts'
 import { isActiveAgentRun } from '../model/types.ts'
+import { useAgentComposerHistory } from '../model/useAgentComposerHistory.ts'
 import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
@@ -27,6 +28,8 @@ import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
   value,
+  sessionKey,
+  inputHistory,
   runStatus,
   disabled,
   stopDisabled,
@@ -79,6 +82,8 @@ export const AgentComposer = memo(function AgentComposer({
   onRemoveResourceBinding,
 }: {
   value: string
+  sessionKey: string
+  inputHistory: readonly string[]
   runStatus: AgentWorkspaceRunStatus
   disabled: boolean
   stopDisabled: boolean
@@ -140,6 +145,9 @@ export const AgentComposer = memo(function AgentComposer({
   const queueMode = active || queuedTurns.some(({ state }) => state === 'queued')
   const editing = Boolean(queuedTurnEdit)
   const inputValue = queuedTurnEdit?.text ?? value
+  const inputHistoryNavigation = useAgentComposerHistory({
+    sessionKey, value: inputValue, history: inputHistory, disabled: editing, onChange,
+  })
   const editingTurn = queuedTurnEdit
     ? queuedTurns.find(({ id }) => id === queuedTurnEdit.turn_id)
     : undefined
@@ -153,6 +161,7 @@ export const AgentComposer = memo(function AgentComposer({
   const blocked = (editing ? disabled : submitDisabled) || attachmentsPending || unsupportedImages
   const submit = () => {
     if (!inputValue.trim() || blocked || runStatus === 'stopping') return
+    inputHistoryNavigation.reset()
     const attachmentIds = attachments.flatMap(({ attachment }) => attachment ? [attachment.id] : [])
     if (editing) onSaveQueuedTurnEdit(attachmentIds)
     else if (queueMode) onQueueTurn(inputValue, attachmentIds, sourceContext)
@@ -284,7 +293,13 @@ export const AgentComposer = memo(function AgentComposer({
           value={inputValue}
           disabled={disabled && (!active || editing)}
           placeholder={t(queueMode ? 'agent.composer.queuePlaceholder' : 'agent.composer.placeholder')}
-          onChange={(event) => editing ? onQueuedTurnEditChange(event.target.value) : onChange(event.target.value)}
+          onChange={(event) => {
+            inputHistoryNavigation.reset()
+            if (editing) onQueuedTurnEditChange(event.target.value)
+            else onChange(event.target.value)
+          }}
+          onPointerDown={inputHistoryNavigation.reset}
+          onCompositionStart={inputHistoryNavigation.reset}
           onPaste={(event) => {
             if (attachmentInputDisabled) return
             const files = clipboardAttachmentFiles(event.clipboardData)
@@ -293,7 +308,8 @@ export const AgentComposer = memo(function AgentComposer({
             onAttachFiles(files)
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            inputHistoryNavigation.onKeyDown(event)
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
               event.preventDefault()
               submit()
             }

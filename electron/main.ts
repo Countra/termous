@@ -803,6 +803,9 @@ function tryCompleteStartup() {
 }
 
 function shouldAutoOpenDevTools() {
+  if (VITE_DEV_SERVER_URL) {
+    return true
+  }
   const candidates = [
     path.join(process.cwd(), WEB_DEBUG_FILE),
     path.join(path.dirname(process.execPath), WEB_DEBUG_FILE),

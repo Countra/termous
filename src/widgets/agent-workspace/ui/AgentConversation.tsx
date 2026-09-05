@@ -14,6 +14,7 @@ import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
 import { AgentMessageFailure } from './AgentMessageFailure.tsx'
+import { AgentMessageActions } from './AgentMessageActions.tsx'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
@@ -144,7 +145,6 @@ const AgentMessageStack = memo(function AgentMessageStack({
         <article key={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
           <header>
             <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
-            <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
           </header>
           <div className={styles['message-content']}>
             {message.source_context ? (
@@ -206,6 +206,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
               <AgentMessageFailure message={message} />
             ) : null}
           </div>
+          <AgentMessageActions message={message} />
           {showTurnTokenUsage
             && message.role === 'assistant'
             && message.status !== 'streaming'
@@ -252,10 +253,5 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const attachments = message.attachments
     .map((attachment) => `${attachment.id}:${attachment.kind}:${attachment.revision}:${attachment.size_bytes}`)
     .join(',')
-  return `${messages.length}:${message.id}:${message.status}:${parts}:${attachments}:${usage}:${message.error_code ?? ''}:${message.error_message ?? ''}`
-}
-
-function formatTime(value: string) {
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+  return `${messages.length}:${message.id}:${message.status}:${parts}:${attachments}:${usage}:${message.duration_ms ?? ''}:${message.error_code ?? ''}:${message.error_message ?? ''}`
 }

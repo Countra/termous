@@ -704,6 +704,8 @@ function applyRunMessageStatus(current: AgentWorkspaceState, run: AgentRun) {
         run_id: run.id,
         usage: run.usage,
         ...(run.error_code ? { error_code: run.error_code } : {}),
+        ...(run.started_at ? { started_at: run.started_at } : {}),
+        ...(run.completed_at ? { completed_at: run.completed_at } : {}),
       }
     : undefined
   const message = messages[index]!
@@ -720,6 +722,8 @@ function messageTurnUsageEqual(
   if (!left || !right) return left === right
   return left.run_id === right.run_id
     && left.error_code === right.error_code
+    && left.started_at === right.started_at
+    && left.completed_at === right.completed_at
     && left.usage.input_tokens === right.usage.input_tokens
     && left.usage.cache_read_tokens === right.usage.cache_read_tokens
     && left.usage.cache_write_tokens === right.usage.cache_write_tokens

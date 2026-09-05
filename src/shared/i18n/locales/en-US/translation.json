@@ -185,6 +185,10 @@
       }
     },
     "message": {
+      "copied": "Copied",
+      "copyFailed": "Copy failed. Try again.",
+      "duration": "Took {{duration}}",
+      "durationHint": "Total time from the start of this run to its end, including tool execution and waiting",
       "you": "You",
       "agent": "Agent",
       "failed": "This response failed",

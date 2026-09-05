@@ -6,9 +6,10 @@ import { AgentConversation } from './AgentConversation.tsx'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, values?: { duration?: string }) => {
       if (key === 'agent.message.turnUsage') return '本轮用量'
       if (key === 'agent.message.turnTotal') return '总量'
+      if (key === 'agent.message.duration') return `${key}:${values?.duration ?? ''}`
       return key
     },
     i18n: { resolvedLanguage: 'zh-CN' },
@@ -47,6 +48,29 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it('每条消息仅在正文下方操作行显示时间，头部不再重复显示', () => {
+    const assistant = { ...message('助手正文'), status: 'completed' as const, duration_ms: 12_000 }
+    const user = { ...message('用户正文'), id: 'message-user', role: 'user' as const, status: 'completed' as const }
+    const view = render(
+      <AgentConversation messages={[user, assistant]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+
+    const articles = view.container.querySelectorAll('article')
+    expect(articles).toHaveLength(2)
+    for (const article of articles) {
+      const time = article.querySelector('time')!
+      const button = within(article).getByRole('button', { name: 'app.copy' })
+      expect(article.querySelectorAll('time')).toHaveLength(1)
+      expect(article.querySelector('header time')).toBeNull()
+      expect(time).toBeVisible()
+      expect(time.parentElement).toContainElement(button)
+      const body = within(article).getByText(article === articles[0] ? '用户正文' : '助手正文')
+      expect(body.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(within(articles[0]).queryByText(/^agent\.message\.duration:/)).not.toBeInTheDocument()
+    expect(within(articles[1]).getByText(/^agent\.message\.duration:.+/)).toBeVisible()
+  })
+
   it.each(activeRunStatuses)(
     '空 Assistant 占位只展示唯一的 %s Run 状态',
     (runStatus) => {
@@ -65,6 +89,11 @@ describe('AgentConversation', () => {
       const status = screen.getAllByText(`agent.status.${runStatus}`)
       expect(status).toHaveLength(1)
       expect(status[0]?.closest('article')).not.toBeNull()
+      const article = status[0]?.closest('article') as HTMLElement
+      expect(article.querySelectorAll('time')).toHaveLength(1)
+      expect(article.querySelector('time')).toBeVisible()
+      expect(article.querySelector('header time')).toBeNull()
+      expect(within(article).queryByRole('button', { name: 'app.copy' })).not.toBeInTheDocument()
       for (const otherStatus of activeRunStatuses) {
         if (otherStatus !== runStatus) {
           expect(screen.queryByText(`agent.status.${otherStatus}`)).not.toBeInTheDocument()
@@ -371,6 +400,41 @@ describe('AgentConversation', () => {
 
     flushAnimationFrames()
     expect(scrollTo).toHaveBeenCalledWith({ top: 1_000 })
+  })
+
+  it('同一终态回复迟到耗时时更新底部操作行，并继续跟随对话尾部', () => {
+    const value = { ...message('已完成'), status: 'completed' as const }
+    const view = render(
+      <AgentConversation messages={[value]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+    const viewport = view.container.querySelector('[role="log"]') as HTMLDivElement
+    const scrollTo = vi.fn()
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 700 },
+      scrollTo: { configurable: true, value: scrollTo },
+    })
+    flushAnimationFrames()
+    scrollTo.mockClear()
+    expect(screen.queryByText(/^agent\.message\.duration:/)).not.toBeInTheDocument()
+
+    view.rerender(
+      <AgentConversation messages={[{ ...value, duration_ms: 12_000 }]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+
+    expect(screen.getByText(/^agent\.message\.duration:.+/)).toBeVisible()
+    flushAnimationFrames()
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1_000 })
+
+    viewport.scrollTop = 100
+    fireEvent.scroll(viewport)
+    scrollTo.mockClear()
+    view.rerender(
+      <AgentConversation messages={[{ ...value, duration_ms: 15_000 }]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+    flushAnimationFrames()
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 
   it('用户消息即使包含异常用量数据也不展示统计', () => {

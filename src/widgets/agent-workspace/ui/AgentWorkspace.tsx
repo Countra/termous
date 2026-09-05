@@ -1,8 +1,9 @@
 import { Drawer, Skeleton } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '#shared/ui'
 import { useAgentWorkspaceBreakpoints } from '../model/useAgentWorkspaceBreakpoints.ts'
+import { agentComposerInputHistory } from '../model/useAgentComposerHistory.ts'
 import { isActiveAgentRun, type AgentWorkspaceProps } from '../model/types.ts'
 import { AgentComposer } from './AgentComposer.tsx'
 import { AgentAttachmentPreview } from './AgentAttachmentPreview.tsx'
@@ -48,6 +49,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     if (item.attachment) setPreviewAttachment(item.attachment)
   }, [])
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
+  const inputHistory = useMemo(() => agentComposerInputHistory(props.messages, props.queued_turns), [props.messages, props.queued_turns])
   const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
@@ -132,6 +134,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         />
         <AgentComposer
           value={props.draft}
+          sessionKey={props.selected_session_id ?? 'new'}
+          inputHistory={inputHistory}
           runStatus={runStatus}
           disabled={props.busy || props.queue_busy}
           stopDisabled={props.stop_busy}

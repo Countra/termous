@@ -138,12 +138,22 @@ export function projectAgentMessages(
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
+      duration_ms: message.role === 'assistant' && !streaming && (!messageRun || isAgentRunTerminal(messageRun.status))
+        ? runDuration(messageRun?.started_at, messageRun?.completed_at)
+          ?? runDuration(message.turn_usage?.started_at, message.turn_usage?.completed_at)
+        : undefined,
       error_code: message.role === 'assistant' && !streaming ? errorCode : undefined,
       error_message: message.role === 'assistant' && !streaming && messageRun && isAgentRunTerminal(messageRun.status)
         ? messageRun.error_message?.trim().slice(0, 4_096) || undefined
         : undefined,
     }
   })
+}
+
+function runDuration(startedAt: string | undefined, completedAt: string | undefined) {
+  if (!startedAt || !completedAt) return undefined
+  const duration = Date.parse(completedAt) - Date.parse(startedAt)
+  return Number.isFinite(duration) && duration >= 0 ? duration : undefined
 }
 
 function interleaveCompactions(

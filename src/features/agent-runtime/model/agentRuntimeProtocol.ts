@@ -748,10 +748,14 @@ function decodeAgentMessageTurnUsage(value: unknown) {
   const errorCode = source.error_code === undefined
     ? undefined
     : utf8(source.error_code, 'Agent 消息本轮错误码无效', 80)
+  const startedAt = optionalTimestamp(source.started_at, 'Agent 消息本轮开始时间无效')
+  const completedAt = optionalTimestamp(source.completed_at, 'Agent 消息本轮完成时间无效')
   return {
     run_id: identifier(source.run_id, 'Agent 消息本轮 Run ID 无效'),
     usage: decodeUsage(source.usage),
     ...(errorCode ? { error_code: errorCode } : {}),
+    ...(startedAt ? { started_at: startedAt } : {}),
+    ...(completedAt ? { completed_at: completedAt } : {}),
   }
 }
 

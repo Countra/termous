@@ -119,6 +119,7 @@ export interface AgentWorkspaceMessage {
   attachments: AgentAttachment[]
   source_context?: AgentSourceContext
   usage?: AgentUsage
+  duration_ms?: number
   error_code?: string
   error_message?: string
 }

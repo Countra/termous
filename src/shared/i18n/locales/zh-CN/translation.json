@@ -185,6 +185,10 @@
       }
     },
     "message": {
+      "copied": "已复制",
+      "copyFailed": "复制失败，请重试",
+      "duration": "用时 {{duration}}",
+      "durationHint": "本轮开始运行到结束的总用时，包括工具执行和等待",
       "you": "你",
       "agent": "AI 助手",
       "failed": "本次回复失败",

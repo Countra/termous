@@ -22,6 +22,77 @@ describe('AgentWorkspace', () => {
     vi.unstubAllGlobals()
   })
 
+  it('输入框回看当前会话用户文本，编辑后保留草稿而不再切换历史', () => {
+    const props = fixtureProps({
+      messages: [{
+        id: 'user-history', role: 'user', status: 'completed', created_at: '2026-09-05T01:00:00Z',
+        parts: [{ id: 'text-history', kind: 'text', text: '上次提问' }], attachments: [],
+      }],
+    })
+    const view = renderWorkspace(props)
+    const textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+    fireEvent.keyDown(textarea, { key: 'ArrowUp' })
+    expect(props.onDraftChange).toHaveBeenLastCalledWith('上次提问')
+    view.rerender(<AntdApp><AgentWorkspace {...props} draft="上次提问" /></AntdApp>)
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' })
+    expect(props.onDraftChange).toHaveBeenLastCalledWith('')
+    view.rerender(<AntdApp><AgentWorkspace {...props} draft="" /></AntdApp>)
+    fireEvent.keyDown(textarea, { key: 'ArrowUp' })
+    view.rerender(<AntdApp><AgentWorkspace {...props} draft="上次提问" /></AntdApp>)
+    fireEvent.change(textarea, { target: { value: '修改后的提问' } })
+    view.rerender(<AntdApp><AgentWorkspace {...props} draft="修改后的提问" /></AntdApp>)
+    const event = createEvent.keyDown(textarea, { key: 'ArrowUp' })
+    fireEvent(textarea, event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(props.onDraftChange).toHaveBeenLastCalledWith('修改后的提问')
+    expect(textarea).toHaveValue('修改后的提问')
+  })
+
+  it('运行中回看只更新草稿，编辑队列时不使用历史输入', () => {
+    const props = fixtureProps({
+      busy: true, queue_busy: true,
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      queued_turns: [queuedTurn('queued-input', 1, { prompt: '等待处理的输入' })],
+    })
+    const view = renderWorkspace(props)
+    const textarea = screen.getByPlaceholderText('agent.composer.queuePlaceholder')
+    expect(textarea).toBeEnabled()
+    fireEvent.keyDown(textarea, { key: 'ArrowUp' })
+    expect(props.onDraftChange).toHaveBeenCalledExactlyOnceWith('等待处理的输入')
+    expect(props.onQueueTurn).not.toHaveBeenCalled()
+    expect(props.onQueuedTurnEditChange).not.toHaveBeenCalled()
+    expect(props.queued_turns[0]?.prompt).toBe('等待处理的输入')
+
+    view.rerender(<AntdApp><AgentWorkspace {...props} busy={false} queue_busy={false}
+      queued_turn_edit={{ turn_id: 'queued-input', text: '', retained_attachment_ids: [] }} /></AntdApp>)
+    const event = createEvent.keyDown(textarea, { key: 'ArrowUp' })
+    fireEvent(textarea, event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(props.onDraftChange).toHaveBeenCalledTimes(1)
+    fireEvent.change(textarea, { target: { value: '编辑队列' } })
+    expect(props.onQueuedTurnEditChange).toHaveBeenCalledExactlyOnceWith('编辑队列')
+    expect(props.onDraftChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('中文候选确认不会误发消息，普通回车仍支持发送和运行中排队', () => {
+    const props = fixtureProps({ draft: '中文输入' })
+    const view = renderWorkspace(props)
+    const textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+    for (const extra of [{ isComposing: true }, { isComposing: false, keyCode: 229 }]) {
+      const event = createEvent.keyDown(textarea, { key: 'Enter', ...extra })
+      fireEvent(textarea, event)
+      expect(props.onSend, JSON.stringify(extra)).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(false)
+    }
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(props.onSend).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+    view.rerender(<AntdApp><AgentWorkspace {...props} sessions={[{ ...props.sessions[0]!, run_status: 'running' }]} /></AntdApp>)
+    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+    expect(props.onQueueTurn).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+  })
+
   it('展示真实 reasoning 与 Tool 时间线并路由发送、排队和停止', async () => {
     const user = userEvent.setup()
     const props = fixtureProps({ draft: 'hello' })
