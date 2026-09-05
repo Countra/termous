@@ -9,6 +9,7 @@ import {
   type JsonValue,
 } from '@earendil-works/pi-agent-core'
 import type { Api, Model, Tool, Usage } from '@earendil-works/pi-ai'
+import { hasValidRuntimeProviderTokens } from './runtimeProviderUsage.ts'
 
 export interface RuntimeCompactionCheckpoint {
   summary: string
@@ -122,7 +123,8 @@ export function runtimeCompactionCalibratedSettings(
 function runtimeCompactionUsageMessages(messages: AgentMessage[], model: Model<Api>) {
   return messages.map((message) => (
     message.role === 'assistant'
-      && (message.model !== model.id || message.provider !== model.provider || message.api !== model.api)
+      && (message.model !== model.id || message.provider !== model.provider || message.api !== model.api
+        || !hasValidRuntimeProviderTokens(message.usage))
       ? clearRuntimeCompactionUsage(message)
       : message
   ))

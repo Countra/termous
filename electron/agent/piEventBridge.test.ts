@@ -163,6 +163,22 @@ for (const stopReason of ['error', 'aborted'] as const) {
   })
 }
 
+test('单次用量只能绑定本次回复尾片段，空回复不会复用上次身份', () => {
+  const bridge = new PiEventBridge({
+    writer: new EventSink(), assistantMessageID: 'agm_reply', originalToolName: () => null,
+    newPartID: () => 'agp_reply',
+  })
+  const first = { ...assistantMessage(), content: [{ type: 'text' as const, text: '已完成' }] }
+  bridge.handle({ type: 'message_start', message: first })
+  bridge.handle({ type: 'message_end', message: first })
+  assert.equal(bridge.lastAssistantPartID(), 'agp_reply')
+  const empty = { ...first, content: [] }
+  bridge.handle({ type: 'message_start', message: empty })
+  assert.equal(bridge.lastAssistantPartID(), undefined)
+  bridge.handle({ type: 'message_end', message: empty })
+  assert.equal(bridge.lastAssistantPartID(), undefined)
+})
+
 test('Provider 失败保留脱敏详情，隐藏服务地址和凭据', () => {
   const sink = new EventSink()
   const bridge = new PiEventBridge({

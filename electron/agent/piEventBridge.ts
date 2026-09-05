@@ -50,6 +50,7 @@ export class PiEventBridge {
   private readonly streamParts = new Map<number, StreamPartRef>()
   private readonly toolStartedAt = new Map<string, number>()
   private messagePartSequence = 0
+  private persistedAssistantPartID: string | undefined
   private runOutcome: PiRunOutcome = 'completed'
   private usage: RuntimeUsage
   private readonly onToolResult?: PiEventBridgeOptions['onToolResult']
@@ -73,6 +74,7 @@ export class PiEventBridge {
       case 'message_start':
         if (event.message.role === 'assistant') {
           this.streamParts.clear()
+          this.persistedAssistantPartID = undefined
         }
         return
       case 'message_update':
@@ -103,6 +105,10 @@ export class PiEventBridge {
 
   partSequence() {
     return this.messagePartSequence
+  }
+
+  lastAssistantPartID() {
+    return this.persistedAssistantPartID
   }
 
   addUsage(increment: RuntimeUsage) {
@@ -142,6 +148,7 @@ export class PiEventBridge {
   }
 
   private persistAssistantMessage(message: AssistantMessage) {
+    this.persistedAssistantPartID = undefined
     message.content.forEach((content, contentIndex) => {
       if (content.type === 'text') {
         const part = this.streamPart(contentIndex, 'text')
@@ -169,6 +176,7 @@ export class PiEventBridge {
         },
       })
     })
+    this.persistedAssistantPartID = this.streamParts.get(message.content.length - 1)?.id
     const requestFailure = message.stopReason === 'error' || message.stopReason === 'aborted'
       ? this.requestFailure?.() : undefined
     // 门禁阻止触网后 pi 会合成零用量终态，不能据此把已确认的摘要用量降为部分统计。

@@ -1025,6 +1025,58 @@ test('活动 Run 进入终态后刷新权威上下文容量', async () => {
   controller.close()
 })
 
+test('新任务发送保留上轮上下文基线，新增输入与最终 Provider 占用按统一口径衔接', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  gateway.contextImpl = async () => contextFixture({ estimated_tokens: 70_000, context_window_tokens: 100_000 })
+  const nextRun = agentRunFixture({
+    generation: 2,
+    model_snapshot: { ...agentRunFixture().model_snapshot, context_window_tokens: 100_000 },
+  })
+  gateway.createRunImpl = async () => nextRun
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+    socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+    socket.message({
+      type: 'upsert', revision: 1,
+      run: agentRunFixture({ id: 'agr-previous', assistant_message_id: 'agm-previous', status: 'completed' }),
+    })
+    const contextCallsBeforeSend = gateway.contextCalls
+    await controller.startRun('ags-session', '继续检查新增输入')
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 70_000)
+    assert.equal(gateway.contextCalls, contextCallsBeforeSend)
+    assert.deepEqual(gateway.started, [{ run_id: nextRun.id, generation: 2 }])
+    for (const [index, tokens] of [71_000, 75_000].entries()) {
+      socket.message({
+        type: 'upsert', revision: index + 2,
+        run_event: {
+          id: `context-${index}`, run_id: nextRun.id, generation: 2, sequence: index + 1,
+          kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: {
+            estimated_tokens: tokens, context_window_tokens: 100_000,
+            estimated: true, warning: true, compression_available: true,
+          } },
+        },
+      })
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, tokens)
+    }
+    const finalContext = deferred<AgentSessionContext>()
+    gateway.contextImpl = async () => finalContext.promise
+    socket.message({
+      type: 'upsert', revision: 4,
+      run: { ...nextRun, status: 'completed', revision: 2, event_sequence: 2, completed_at: agentFixtureTime },
+    })
+    await waitFor(() => gateway.contextCalls === contextCallsBeforeSend + 1)
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 75_000)
+    finalContext.resolve(contextFixture({ estimated_tokens: 75_000, context_window_tokens: 100_000 }))
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 75_000)
+  } finally {
+    controller.close()
+  }
+})
+
 test('连续 usage 事件和 Run 终态合并为一次低频 Token 统计刷新', async () => {
   const gateway = new FakeGateway()
   const socket = new FakeSocket()
@@ -1106,6 +1158,7 @@ test('切换会话模型后重新读取对应上下文窗口', async () => {
   const gateway = new FakeGateway()
   const controller = startedController(gateway)
   await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+  const previousContext = controller.getSnapshot().session_contexts['ags-session']!.value!
   gateway.contextImpl = async () => contextFixture({ context_window_tokens: 65_536 })
 
   await controller.updateSession('ags-session', {
@@ -1119,6 +1172,10 @@ test('切换会话模型后重新读取对应上下文窗口', async () => {
   ))
 
   assert.equal(gateway.contextCalls, 2)
+  const nextContext = controller.getSnapshot().session_contexts['ags-session']!.value!
+  assert.equal(nextContext.estimated_tokens, previousContext.estimated_tokens)
+  assert.equal(nextContext.estimated_tokens / nextContext.context_window_tokens,
+    previousContext.estimated_tokens / previousContext.context_window_tokens / 2)
   controller.close()
 })
 

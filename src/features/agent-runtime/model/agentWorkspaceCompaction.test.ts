@@ -53,24 +53,33 @@ test('压缩事件缺口要求补拉，过期 generation 和错误消息归属�
   assert.equal(old.messages['ags-session']![0]!.compactions, undefined)
 })
 
-test('上下文事件更新窗口占用但不修改累计账单，并保留 checkpoint', () => {
+test('真实压缩后的上下文占用允许降至 30%，不修改累计账单并保留 checkpoint', () => {
   let state = initialState()
   const checkpoint = { boundary_message_sequence: 4, estimated_tokens: 2_000, created_at: agentFixtureTime }
   state.session_contexts['ags-session'] = {
     phase: 'ready', compression_pending: false,
-    value: { session_id: 'ags-session', estimated_tokens: 26_500, context_window_tokens: 32_768,
+    value: { session_id: 'ags-session', estimated_tokens: 75_000, context_window_tokens: 100_000,
       estimated: true, warning: true, compression_available: true, checkpoint },
   }
   state = applyAgentWorkspaceEvent(state, {
     type: 'upsert', revision: 1,
+    run_event: event(1, { tokens_before: 75_000, context_window_tokens: 100_000 }),
+  }).state
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 2,
+    run_event: event(2, { status: 'completed', tokens_before: 75_000, tokens_after: 30_000, context_window_tokens: 100_000 }),
+  }).state
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 3,
     run_event: {
-      ...event(1), kind: 'context_usage', payload: { context_usage: {
-        estimated_tokens: 8_000, context_window_tokens: 32_768,
+      ...event(3), kind: 'context_usage', payload: { context_usage: {
+        estimated_tokens: 30_000, context_window_tokens: 100_000,
         estimated: true, warning: false, compression_available: false,
       } },
     },
   }).state
-  assert.equal(state.session_contexts['ags-session']?.value?.estimated_tokens, 8_000)
+  assert.equal(state.session_contexts['ags-session']?.value?.estimated_tokens, 30_000)
+  assert.equal(state.messages['ags-session']![0]!.compactions?.[0]?.status, 'completed')
   assert.deepEqual(state.session_contexts['ags-session']?.value?.checkpoint, checkpoint)
   assert.equal(state.runs['agr-run']?.usage.total_tokens, 0)
 })

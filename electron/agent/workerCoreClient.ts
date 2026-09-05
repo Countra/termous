@@ -1,5 +1,6 @@
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { isRecord, validGeneration } from './protocol.ts'
+import { isRuntimeProviderUsage, type RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import {
   isRuntimeContextCheckpoint,
   isRuntimeCheckpointInput,
@@ -64,6 +65,7 @@ export interface RuntimeMessageView {
   created_at: string
   parts: RuntimeMessagePart[]
   attachments: RuntimeMessageAttachment[]
+  provider_usage?: RuntimeProviderUsage
 }
 
 export interface RuntimeSSHResourceBinding {
@@ -110,6 +112,7 @@ export interface RuntimeBootstrap {
 export interface RuntimeContextBootstrap {
   estimated_tokens: number
   warning: boolean
+  provider_usage_supported?: boolean
   checkpoint?: RuntimeContextCheckpoint
 }
 
@@ -483,6 +486,7 @@ function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBoots
     && Number.isSafeInteger(value.estimated_tokens)
     && Number(value.estimated_tokens) >= 0
     && typeof value.warning === 'boolean'
+    && (value.provider_usage_supported === undefined || typeof value.provider_usage_supported === 'boolean')
     && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
 }
 
@@ -496,6 +500,10 @@ function isRuntimeMessageView(value: unknown): value is RuntimeMessageView {
     && Array.isArray(value.parts)
     && value.parts.every(isRuntimeMessagePart)
     && isRuntimeMessageAttachmentList(value.attachments)
+    && (value.provider_usage === undefined || (value.role === 'assistant'
+      && isRuntimeProviderUsage(value.provider_usage)
+      && value.parts[value.parts.length - 1]?.id === value.provider_usage.last_part_id
+      && value.parts[value.parts.length - 1]?.kind !== 'tool_result'))
 }
 
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {

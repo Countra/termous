@@ -33,7 +33,14 @@ import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { hydrateRuntimeUserContent } from './runtimeUserContent.ts'
 import { RuntimeContextImages } from './runtimeContextImages.ts'
 import { createRuntimeContextGate, runtimeContextFailureMessage } from './runtimeContextGate.ts'
+import { clearRuntimeCompactionUsage } from './runtimeCompactionPolicy.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult, RuntimeSteerResult } from './workerCoreClient.ts'
+import {
+  restoreRuntimeProviderUsage,
+  runtimeContextFingerprint,
+  runtimeProviderUsage,
+  type RuntimeProviderUsage,
+} from './runtimeProviderUsage.ts'
 
 const unauthenticatedAPIKeySentinel = 'termous-local-no-auth'
 const providerRequestTimeoutMs = 10 * 60_000
@@ -100,6 +107,10 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const images = new RuntimeContextImages(options.bootstrap)
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills)
   const tools = [...options.mcp.tools, createSkillResourceTool(options.skills)]
+  const contextFingerprint = runtimeContextFingerprint(
+    model, systemPrompt, tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
+    options.bootstrap.run.provider_id, options.bootstrap.run.model_id,
+  )
   const streamFn = createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch)
   const bridge = new PiEventBridge({
     writer: options.events,
@@ -127,7 +138,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       model,
       thinkingLevel: options.bootstrap.run.reasoning_level,
       tools,
-      messages: hydrateRuntimeMessages(options.bootstrap, model),
+      messages: hydrateRuntimeMessages(options.bootstrap, model, contextFingerprint),
     },
     convertToLlm: standardMessages,
     transformContext: compaction.transformContext,
@@ -146,9 +157,9 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       return undefined
     },
   })
-  const unsubscribe = agent.subscribe((event) => {
+  const unsubscribe = agent.subscribe((event) =>
     handlePiEvent(event, {
-      handle: (value) => {
+      handle: async (value) => {
         if (value.type === 'message_end' && value.message.role === 'user') {
           const source = steerSources.get(value.message)
           if (source) {
@@ -157,9 +168,16 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
           }
         }
         bridge.handle(value)
+        if (value.type === 'message_end' && value.message.role === 'assistant') {
+          // 旧 Core 严格拒绝未知事件字段，只有启动时明确声明支持才发送可恢复的单次用量。
+          const providerUsage = options.bootstrap.context.provider_usage_supported === true
+            ? runtimeProviderUsage(value.message, bridge.lastAssistantPartID(), contextFingerprint)
+            : undefined
+          await compaction.observeContext(agent.state.messages, providerUsage)
+        }
       },
     }, options.onFailure, () => agent.abort())
-  })
+  )
   let closed = false
 
   return {
@@ -286,14 +304,14 @@ export function chatMaxTokensField(baseURL: string): 'max_tokens' | 'max_complet
   return legacy ? 'max_tokens' : 'max_completion_tokens'
 }
 
-export function handlePiEvent(
+export async function handlePiEvent(
   event: AgentEvent,
-  bridge: Pick<PiEventBridge, 'handle'>,
+  bridge: { handle(event: AgentEvent): void | Promise<void> },
   onFailure: ((error: unknown) => void) | undefined,
   abort: () => void,
 ) {
   try {
-    bridge.handle(event)
+    await bridge.handle(event)
   } catch (error) {
     try {
       onFailure?.(error)
@@ -378,6 +396,7 @@ export function createRuntimeStreamOptions(
 export function hydrateRuntimeMessages(
   bootstrap: RuntimeBootstrap,
   model: RuntimeModel,
+  contextFingerprint?: string,
 ): AgentMessage[] {
   const messages: AgentMessage[] = []
   const pendingToolCalls = new Map<string, string>()
@@ -409,7 +428,14 @@ export function hydrateRuntimeMessages(
       messages.push({ role: 'user', content, timestamp })
       continue
     }
-    hydrateAssistantParts(messages, value.parts, model, timestamp, pendingToolCalls)
+    if (value.provider_usage && value.provider_usage.context_fingerprint !== contextFingerprint) {
+      // 后来的固定上下文变化是失效边界，不能跳过它重新捡回更早的匹配基准。
+      for (let index = 0; index < messages.length; index += 1) {
+        messages[index] = clearRuntimeCompactionUsage(messages[index]!)
+      }
+    }
+    hydrateAssistantParts(messages, value.parts, model, timestamp, pendingToolCalls,
+      value.provider_usage?.context_fingerprint === contextFingerprint ? value.provider_usage : undefined)
   }
   appendInterruptedToolResults(messages, pendingToolCalls, validTimestamp(bootstrap.messages[bootstrap.messages.length - 1]?.created_at ?? new Date(0).toISOString()))
   if (messages.length === 0 || messages[messages.length - 1]?.role === 'assistant') {
@@ -432,8 +458,10 @@ function hydrateAssistantParts(
   model: RuntimeModel,
   timestamp: number,
   pendingToolCalls: Map<string, string>,
+  providerUsage?: RuntimeProviderUsage,
 ) {
   let assistantContent: AssistantMessage['content'] = []
+  let lastAssistantPartID: string | undefined
   const flushAssistant = () => {
     if (assistantContent.length === 0) {
       return
@@ -446,12 +474,13 @@ function hydrateAssistantParts(
       api: model.api,
       provider: model.provider,
       model: model.id,
-      usage: emptyUsage(),
+      usage: providerUsage && providerUsage.last_part_id === lastAssistantPartID ? restoreRuntimeProviderUsage(providerUsage) : emptyUsage(),
       stopReason: content.some((item) => item.type === 'toolCall') ? 'toolUse' : 'stop',
       timestamp,
     })
   }
   for (const part of parts) {
+    if (part.kind !== 'tool_result') lastAssistantPartID = part.id
     switch (part.kind) {
       case 'text':
         assistantContent.push({ type: 'text', text: requiredNestedText(part, 'text') })

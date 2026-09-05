@@ -598,14 +598,28 @@ test('运行时模型完全使用 Run 快照且保留 Provider 目录身份', ()
   assert.equal(bootstrap.model.snapshot.model_revision, 5)
 })
 
-test('pi 监听器异常通知失败并取消 Agent，且不反向抛出', () => {
+test('pi 监听器异常通知失败并取消 Agent，且不反向抛出', async () => {
   const failure = new Error('bridge failed')
   let received: unknown
   let aborted = false
 
-  assert.doesNotThrow(() => handlePiEvent(
+  await assert.doesNotReject(() => handlePiEvent(
     { type: 'agent_start' },
     { handle: () => { throw failure } },
+    (error) => { received = error },
+    () => { aborted = true },
+  ))
+  assert.equal(received, failure)
+  assert.equal(aborted, true)
+})
+
+test('pi 异步占用回调失败时等待通知和取消，不产生未处理拒绝', async () => {
+  const failure = new Error('context write failed')
+  let received: unknown
+  let aborted = false
+  await assert.doesNotReject(() => handlePiEvent(
+    { type: 'agent_start' },
+    { handle: async () => { await Promise.resolve(); throw failure } },
     (error) => { received = error },
     () => { aborted = true },
   ))

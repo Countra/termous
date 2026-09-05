@@ -11,6 +11,7 @@ import {
 } from '@earendil-works/pi-agent-core'
 import type { Api, Model, Tool } from '@earendil-works/pi-ai'
 import type { RuntimeUsage } from './runtimeUsage.ts'
+import type { RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import {
   clearRuntimeCompactionUsage,
   cloneRuntimeCompactionCheckpoint,
@@ -46,6 +47,7 @@ export interface RuntimeCompactionContextUsage {
   estimated: true
   warning: boolean
   compression_available: boolean
+  provider_usage?: RuntimeProviderUsage
 }
 
 export interface RuntimeCompactionCommit<TSource> {
@@ -76,6 +78,7 @@ export interface RuntimeCompactionOptions<TSource> {
 
 export interface RuntimeCompactionController {
   transformContext(messages: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]>
+  observeContext(messages: AgentMessage[], providerUsage?: RuntimeProviderUsage): Promise<void>
   beforeProviderRequest(): void
   checkpoint(): RuntimeCompactionCheckpoint | undefined
   failure(): RuntimeCompactionError | undefined
@@ -96,7 +99,9 @@ export function createRuntimeCompactionController<TSource>(
   let lastContextUsage: string | undefined
   let forceCompression = options.forceCompression === true
 
-  const publishContext = async (messages: AgentMessage[], preparation?: CompactionPreparation) => {
+  const publishContext = async (
+    messages: AgentMessage[], preparation?: CompactionPreparation, providerUsage?: RuntimeProviderUsage,
+  ) => {
     const tokens = runtimeCompactionEstimate(messages, options.model, budget.fixedTokens)
     const usage: RuntimeCompactionContextUsage = {
       estimated_tokens: tokens,
@@ -104,6 +109,7 @@ export function createRuntimeCompactionController<TSource>(
       estimated: true,
       warning: tokens >= Math.min(Math.floor(options.model.contextWindow * 0.7), budget.triggerTokens),
       compression_available: hasRuntimeCompactionPrefix(preparation),
+      ...(providerUsage ? { provider_usage: providerUsage } : {}),
     }
     const fingerprint = JSON.stringify(usage)
     if (fingerprint !== lastContextUsage) {
@@ -111,6 +117,21 @@ export function createRuntimeCompactionController<TSource>(
       lastContextUsage = fingerprint
     }
     return tokens
+  }
+
+  const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
+    const entries = runtimeCompactionEntries(raw, checkpoint)
+    let prepared = prepareCompaction(entries, budget.settings)
+    if (!prepared.ok) throw prepared.error
+    if (!hasRuntimeCompactionPrefix(prepared.value)) {
+      const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
+      if (calibratedSettings) {
+        // 仅补救用量已过门禁但字符估算尚无切点的情况，边界仍由官方算法决定。
+        prepared = prepareCompaction(entries, calibratedSettings)
+        if (!prepared.ok) throw prepared.error
+      }
+    }
+    return prepared.value
   }
 
   const transformContext = async (raw: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]> => {
@@ -123,19 +144,7 @@ export function createRuntimeCompactionController<TSource>(
       projected = runtimeCompactionProjection(raw, checkpoint)
       if (gateFailure) return projected
       throwIfRuntimeCompactionAborted(signal)
-      const entries = runtimeCompactionEntries(raw, checkpoint)
-      let prepared = prepareCompaction(entries, budget.settings)
-      if (!prepared.ok) throw prepared.error
-      let preparation = prepared.value
-      if (!hasRuntimeCompactionPrefix(preparation)) {
-        const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
-        if (calibratedSettings) {
-          // 仅补救用量已过门禁但字符估算尚无切点的情况，边界仍由官方算法决定。
-          prepared = prepareCompaction(entries, calibratedSettings)
-          if (!prepared.ok) throw prepared.error
-          preparation = prepared.value
-        }
-      }
+      const preparation = prepareContext(raw, projected)
       tokensBefore = await publishContext(projected, preparation)
       const forced = forceCompression
       forceCompression = false
@@ -211,6 +220,12 @@ export function createRuntimeCompactionController<TSource>(
 
   return {
     transformContext,
+    observeContext: async (raw, providerUsage) => {
+      if (gateFailure) return
+      const projected = runtimeCompactionProjection(raw, checkpoint)
+      // 回复结束时只刷新窗口占用；压缩仍由下一次 Provider 请求前的唯一门禁执行。
+      await publishContext(projected, prepareContext(raw, projected), providerUsage)
+    },
     beforeProviderRequest: () => {
       if (gateFailure) throw gateFailure
       throwIfRuntimeCompactionAborted(activeSignal)
