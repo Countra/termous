@@ -21,6 +21,10 @@ import {
   decodeAgentRun,
   decodeAgentRunEventPage,
   decodeAgentSession,
+  decodeAgentSessionGroup,
+  decodeAgentSessionGroups,
+  decodeAgentSessionPins,
+  decodeAgentSessionMoveResult,
   decodeAgentSessionContext,
   decodeAgentSessionPage,
   decodeAgentSessionUsage,
@@ -31,6 +35,8 @@ import type {
   AgentSourceContext,
   AgentResourceBindingUpdateInput,
   AgentSessionInput,
+  AgentSessionMetadataInput,
+  AgentSessionMoveInput,
   AgentSessionUpdateInput,
 } from '#entities/agent'
 import { getTermousBridge } from '#shared/bridge'
@@ -50,9 +56,43 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
   sessions(options: AgentSessionListOptions = {}) {
     const query = new URLSearchParams({ limit: String(options.limit ?? 100) })
     if (options.archived !== undefined) query.set('archived', String(options.archived))
+    if (options.query) query.set('query', options.query)
     if (options.cursor) query.set('cursor', options.cursor)
     return this.request<unknown>(`${agentPath}/sessions?${query.toString()}`, { signal: options.signal })
       .then(decodeAgentSessionPage)
+  }
+
+  sessionGroups(signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/session-groups`, { signal }).then(decodeAgentSessionGroups)
+  }
+
+  createSessionGroup(name: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/session-groups`, { method: 'POST', body: { name }, signal }).then(decodeAgentSessionGroup)
+  }
+
+  updateSessionGroup(id: string, input: { name: string; expected_revision: number }, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/session-groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: input, signal }).then(decodeAgentSessionGroup)
+  }
+
+  deleteSessionGroup(id: string, expectedRevision: number, signal?: AbortSignal) {
+    const query = new URLSearchParams({ expected_revision: String(expectedRevision) })
+    return this.request<void>(`${agentPath}/session-groups/${encodeURIComponent(id)}?${query}`, { method: 'DELETE', signal })
+  }
+
+  moveSessionGroup(id: string, input: AgentSessionMoveInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/session-groups/${encodeURIComponent(id)}/move`, { method: 'POST', body: input, signal }).then(decodeAgentSessionGroups)
+  }
+
+  moveSessionPin(id: string, input: AgentSessionMoveInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/pin-move`, { method: 'POST', body: input, signal }).then(decodeAgentSessionPins)
+  }
+
+  moveSession(id: string, input: AgentSessionMoveInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/move`, { method: 'POST', body: input, signal }).then(decodeAgentSessionMoveResult)
+  }
+
+  updateSessionMetadata(id: string, input: AgentSessionMetadataInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/metadata`, { method: 'PATCH', body: input, signal }).then(decodeAgentSession)
   }
 
   session(id: string, signal?: AbortSignal) {

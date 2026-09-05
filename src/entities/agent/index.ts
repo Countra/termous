@@ -85,6 +85,9 @@ export {
   type AgentRunModelSnapshot,
   type AgentRunStatus,
   type AgentSession,
+  type AgentSessionGroup,
+  type AgentSessionMetadataInput,
+  type AgentSessionMoveInput,
   type AgentSessionContext,
   type AgentSessionInput,
   type AgentSessionPage,
@@ -104,3 +107,4 @@ export {
   buildWorkbenchAgentLaunchRequest,
 } from './model/agentLaunchIntent.ts'
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
+export { compareAgentSessionOrder } from './model/sessionOrder.ts'

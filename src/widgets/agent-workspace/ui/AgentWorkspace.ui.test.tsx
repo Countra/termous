@@ -130,7 +130,7 @@ describe('AgentWorkspace', () => {
 
     const queue = screen.getByRole('button', { name: 'agent.composer.queue' })
     expect(queue).toBeEnabled()
-    expect(screen.getByText('Local model')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).getByText('Local model')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(queue)
     expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [], undefined)
@@ -388,7 +388,8 @@ describe('AgentWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'agent.header.returnToQueuedSession' }))
     expect(props.onSelectSession).toHaveBeenCalledWith('session-2')
 
-    await user.click(screen.getAllByRole('button', { name: 'agent.sessions.more' })[1]!)
+    const queuedRow = screen.getByRole('button', { name: /^Queued session/ }).closest<HTMLElement>('[role="listitem"]')!
+    await user.click(within(queuedRow).getByRole('button', { name: 'agent.sessions.more' }))
     expect(screen.getByRole('menuitem', { name: 'agent.sessions.archive' })).toHaveAttribute('aria-disabled', 'true')
     await user.click(screen.getByRole('menuitem', { name: 'app.delete' }))
 

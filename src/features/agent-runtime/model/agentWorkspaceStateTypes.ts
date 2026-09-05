@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentQueueState, AgentQueuedTurn, AgentRun, AgentRunEvent, AgentSession } from '#entities/agent'
+import type { AgentMessage, AgentQueueState, AgentQueuedTurn, AgentRun, AgentRunEvent, AgentSession, AgentSessionGroup } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type { AgentWorkspaceSessionContextState } from './agentWorkspaceContextTypes.ts'
 import type { AgentWorkspaceSessionUsageState } from './agentWorkspaceUsageTypes.ts'
@@ -21,6 +21,7 @@ export interface AgentWorkspaceState {
   snapshot_complete: boolean
   revision: number
   sessions: AgentSession[]
+  session_groups: AgentSessionGroup[]
   runs: Record<string, AgentRun>
   active_run_id?: string
   messages: Record<string, AgentMessage[]>

@@ -9,6 +9,7 @@ import type {
   AgentRun,
   AgentRunEventPage,
   AgentSession,
+  AgentSessionGroup,
   AgentSessionContext,
   AgentSessionPage,
   AgentSessionUsage,
@@ -93,6 +94,27 @@ test('新会话草稿持久化后显式选择创建的会话', async () => {
 
   assert.equal(controller.getSnapshot().selected_session_id, session.id)
   assert.equal(controller.getSnapshot().new_session_selected, false)
+})
+
+test('创建会话在途时的新选择优先于迟到回执，实体仍合入列表', async (context) => {
+  for (const target of ['ags-session', undefined]) await context.test(target ?? 'new-draft', async () => {
+    const gateway = new FakeGateway()
+    const controller = new AgentWorkspaceController({ gateway })
+    await controller.createSession(sessionInput())
+    const pending = deferred<AgentSession>()
+    gateway.createSession = async () => pending.promise
+    const creating = controller.createSession({ ...sessionInput(), title: '创建中的会话' })
+    controller.selectSession(target)
+    const selection = controller.getSnapshot()
+    const created = agentSessionFixture({ id: 'ags-created', title: '创建中的会话' })
+    pending.resolve(created)
+    assert.equal(await creating, created)
+    assert.equal(controller.getSnapshot().selected_session_id, target)
+    assert.equal(controller.getSnapshot().new_session_selected, target === undefined)
+    assert.equal(controller.getSnapshot().selection_intent_revision, selection.selection_intent_revision)
+    assert.ok(controller.getSnapshot().sessions.some(({ id }) => id === created.id))
+    controller.close()
+  })
 })
 
 test('已移除会话的迟到选择不会取消当前会话水合或触发无效请求', async () => {
@@ -1856,7 +1878,373 @@ test('队列分页拒绝跨页重复 ID 或 sequence', async () => {
   controller.close()
 })
 
+test('会话元数据回执保留草稿、上下文和压缩预约，且不覆盖更高版本', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  await controller.reloadContext('ags-session')
+  controller.updateDraft('ags-session', '尚未发送的草稿')
+  controller.setContextCompressionPending('ags-session', true)
+  const context = controller.getSnapshot().session_contexts['ags-session']
+  const pending = deferred<AgentSession>()
+  gateway.updateSessionMetadata = async () => pending.promise
+  const mutation = controller.updateSessionMetadata('ags-session', { title: '旧回执', expected_revision: 1 })
+  socket.message({ type: 'upsert', revision: 1, session: agentSessionFixture({ title: '并发新标题', revision: 3, pinned: true }) })
+  pending.resolve(agentSessionFixture({ title: '旧回执', revision: 2 }))
+  await mutation
+  assert.equal(controller.getSnapshot().sessions[0]?.title, '并发新标题')
+  assert.equal(controller.getSnapshot().drafts['ags-session']?.text, '尚未发送的草稿')
+  assert.equal(controller.getSnapshot().session_contexts['ags-session'], context)
+  controller.close()
+})
+
+test('运行中改名不会占用停止通道，删除事件后迟到的改名不能复活会话', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  socket.message({ type: 'upsert', revision: 1, run: agentRunFixture({ status: 'running' }) })
+  const pending = deferred<AgentSession>()
+  gateway.updateSessionMetadata = async () => pending.promise
+  const mutation = controller.updateSessionMetadata('ags-session', { title: '新标题', expected_revision: 1 })
+  await controller.stopActiveRun()
+  assert.equal(gateway.stopped.length, 1)
+  socket.message({ type: 'removed', revision: 2, entity: 'session', id: 'ags-session' })
+  pending.resolve(agentSessionFixture({ title: '新标题', revision: 2 }))
+  await mutation
+  assert.equal(controller.getSnapshot().sessions.length, 0)
+  controller.close()
+})
+
+test('重连快照移除会话后旧管理回执不能复活实体，后续显式恢复仍可合并', async (context) => {
+  for (const operation of ['metadata', 'pin', 'move'] as const) await context.test(operation, async (subtest) => {
+    const gateway = new FakeGateway()
+    const { controller, socket } = await startControllerWithQueue(gateway, [])
+    subtest.after(() => controller.close())
+    const pending = deferred<AgentSession>()
+    gateway.updateSessionMetadata = async () => pending.promise
+    gateway.moveSessionPin = async () => ({ items: [await pending.promise] })
+    gateway.moveSession = async () => ({ items: [await pending.promise] })
+    const input = { expected_revision: 1, target_id: 'ags-target', target_expected_revision: 1, placement: 'after' as const }
+    const mutation = operation === 'metadata'
+      ? controller.updateSessionMetadata('ags-session', { title: '迟到标题', expected_revision: 1 })
+      : operation === 'pin' ? controller.moveSessionPin('ags-session', input) : controller.moveSession('ags-session', input)
+    gateway.sessionsImpl = async () => ({ items: [] })
+    socket.message({ type: 'snapshot', revision: 1, sessions: [], active_runs: [] })
+    pending.resolve(agentSessionFixture({ title: '迟到标题', revision: 2 }))
+    await mutation
+    assert.deepEqual(controller.getSnapshot().sessions, [])
+    const restored = agentSessionFixture({ title: '主动恢复', revision: 4 })
+    gateway.updateSessionMetadata = async () => restored
+    await controller.updateSessionMetadata('ags-session', { archived: false, expected_revision: 3 })
+    assert.deepEqual(controller.getSnapshot().sessions, [restored])
+  })
+})
+
+test('恢复归档在途遇到重连快照时重新确认，既不复活删除实体也不丢失真实恢复', async (context) => {
+  for (const stillExists of [false, true]) await context.test(String(stillExists), async (subtest) => {
+    const gateway = new FakeGateway()
+    const { controller, socket } = await startControllerWithQueue(gateway, [])
+    subtest.after(() => controller.close())
+    socket.message({ type: 'snapshot', revision: 1, sessions: [], active_runs: [] })
+    const pending = deferred<AgentSession>()
+    gateway.updateSessionMetadata = async () => pending.promise
+    const restoring = controller.updateSessionMetadata('ags-session', { archived: false, expected_revision: 2 })
+    const restored = agentSessionFixture({ title: '恢复回执', revision: 3 })
+    gateway.sessionsImpl = async () => ({ items: stillExists ? [restored] : [] })
+    socket.message({ type: 'snapshot', revision: 2, sessions: [], active_runs: [] })
+    pending.resolve(restored)
+    assert.equal(await restoring, restored)
+    assert.deepEqual(controller.getSnapshot().sessions, stillExists ? [restored] : [])
+  })
+})
+
+test('分组快照移除后，迟到的改名回执不能复活已解散分组', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  const group: AgentSessionGroup = { id: 'asg-group', name: '分组', sort_order: 0, revision: 1, created_at: agentFixtureTime, updated_at: agentFixtureTime }
+  socket.message({ type: 'upsert', revision: 1, session_group: group })
+  const pending = deferred<AgentSessionGroup>()
+  gateway.updateSessionGroup = async () => pending.promise
+  const mutation = controller.updateSessionGroup(group.id, '旧回执', 1)
+  socket.message({ type: 'snapshot', revision: 2, session_groups: [], sessions: [agentSessionFixture()], active_runs: [] })
+  pending.resolve({ ...group, name: '旧回执', revision: 2 })
+  await mutation
+  assert.deepEqual(controller.getSnapshot().session_groups, [])
+  controller.close()
+})
+
+test('权威分组重新出现后清除旧缺失标记，不再阻止后续正常改名回执', async (context) => {
+  for (const confirmation of ['upsert', 'snapshot', 'reload'] as const) await context.test(confirmation, async (subtest) => {
+    const gateway = new FakeGateway()
+    const { controller, socket } = await startControllerWithQueue(gateway, [])
+    subtest.after(() => controller.close())
+    const group = await controller.createSessionGroup('原名称')
+    socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture()], session_groups: [], active_runs: [] })
+    if (confirmation === 'upsert') socket.message({ type: 'upsert', revision: 2, session_group: group })
+    else if (confirmation === 'snapshot') socket.message({ type: 'snapshot', revision: 2, sessions: [agentSessionFixture()], session_groups: [group], active_runs: [] })
+    else await controller.reloadSessionGroups()
+    assert.deepEqual(controller.getSnapshot().session_groups, [group])
+    await controller.updateSessionGroup(group.id, '新名称', group.revision)
+    assert.equal(controller.getSnapshot().session_groups[0]?.name, '新名称')
+  })
+})
+
+test('旧分组查询不能覆盖期间由 HTTP 保存的新版本或新分组', async () => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  await controller.createSessionGroup('原名称')
+  const pending = deferred<{ items: AgentSessionGroup[] }>()
+  gateway.sessionGroups = async () => pending.promise
+  const reading = controller.reloadSessionGroups()
+  await controller.updateSessionGroup('asg-group', '已保存名称', 1)
+  pending.resolve({ items: gateway.groups })
+  await reading
+  assert.equal(controller.getSnapshot().session_groups[0]?.name, '已保存名称')
+  assert.equal(controller.getSnapshot().session_groups[0]?.revision, 2)
+  controller.close()
+})
+
+test('旧会话列表不能覆盖期间通过 HTTP 保存的元数据', async () => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  const pending = deferred<AgentSessionPage>()
+  gateway.sessionsImpl = async () => pending.promise
+  const reading = controller.reload()
+  await controller.updateSessionMetadata('ags-session', { title: '已保存名称', pinned: true, expected_revision: 1 })
+  pending.resolve({ items: [agentSessionFixture()] })
+  await reading
+  assert.equal(controller.getSnapshot().sessions[0]?.title, '已保存名称')
+  assert.equal(controller.getSnapshot().sessions[0]?.pinned, true)
+  controller.close()
+})
+
+test('创建回执跨过已删除该组的快照时回查真实成员资格', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  const pending = deferred<AgentSessionGroup>()
+  gateway.createSessionGroup = async () => pending.promise
+  const creating = controller.createSessionGroup('很快被另一窗口解散')
+  socket.message({ type: 'snapshot', revision: 1, session_groups: [], sessions: [agentSessionFixture()], active_runs: [] })
+  pending.resolve({ id: 'asg-removed', name: '很快被另一窗口解散', sort_order: 0, revision: 1, created_at: agentFixtureTime, updated_at: agentFixtureTime })
+  await creating
+  assert.deepEqual(controller.getSnapshot().session_groups, [])
+  controller.close()
+})
+
+test('HTTP 删除先完成后，迟到的完整置顶列表不能复活已删除会话', async () => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  const pending = deferred<{ items: AgentSession[] }>()
+  gateway.moveSessionPin = async () => pending.promise
+  const moving = controller.moveSessionPin('ags-other', { expected_revision: 1, target_id: 'ags-third', target_expected_revision: 1, placement: 'before' })
+  gateway.sessionsImpl = async () => ({ items: [] })
+  await controller.deleteSession('ags-session', 1)
+  pending.resolve({ items: [agentSessionFixture({ pinned: true, pin_order: 0, revision: 2 })] })
+  await moving
+  assert.equal(controller.getSnapshot().sessions.length, 0)
+  controller.close()
+})
+
+test('旧服务缺少持久位置时按真实活动排序，管理更新时间不影响选中会话', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  const recent = agentSessionFixture({ id: 'ags-recent', last_activity_at: '2026-09-05T01:00:00Z', updated_at: '2026-09-05T01:00:00Z' })
+  socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture({ last_activity_at: agentFixtureTime }), recent], active_runs: [] })
+  controller.selectSession('ags-session')
+  socket.message({ type: 'upsert', revision: 2, session: agentSessionFixture({ title: '改名不跳位', revision: 2, last_activity_at: agentFixtureTime, updated_at: '2026-09-06T01:00:00Z' }) })
+  assert.equal(controller.getSnapshot().sessions[0]?.id, 'ags-recent')
+  assert.equal(controller.getSnapshot().selected_session_id, 'ags-session')
+  controller.close()
+})
+
+test('会话拖动回执保留上下文与草稿，较新标题和聊天活动不会打乱持久顺序', async () => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  await controller.reloadContext('ags-session')
+  controller.setContextCompressionPending('ags-session', true)
+  controller.updateDraft('ags-session', '尚未发送')
+  const context = controller.getSnapshot().session_contexts['ags-session']
+  const pending = deferred<{ items: AgentSession[] }>()
+  gateway.moveSession = async () => pending.promise
+  const moving = controller.moveSession('ags-session', { expected_revision: 1, target_id: 'ags-target', target_expected_revision: 1, placement: 'after' })
+  socket.message({ type: 'upsert', revision: 1, session: agentSessionFixture({ title: '最新标题', sort_order: 1, revision: 3 }) })
+  pending.resolve({ items: [
+    agentSessionFixture({ title: '旧移动回执', sort_order: 1, revision: 2 }),
+    agentSessionFixture({ id: 'ags-target', sort_order: 2, revision: 2 }),
+  ] })
+  await moving
+  socket.message({ type: 'upsert', revision: 2, session: agentSessionFixture({ title: '最新标题', sort_order: 1, revision: 4, last_activity_at: '2026-09-06T01:00:00Z' }) })
+  assert.deepEqual(controller.getSnapshot().sessions.map(({ id }) => id), ['ags-target', 'ags-session'])
+  assert.equal(controller.getSnapshot().sessions[1]?.title, '最新标题')
+  assert.equal(controller.getSnapshot().drafts['ags-session']?.text, '尚未发送')
+  assert.equal(controller.getSnapshot().session_contexts['ags-session'], context)
+  controller.close()
+})
+
+test('分组创建已提交后补读失败仍返回成功，重试读取不会重复创建', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await controller.reload()
+  const pending = deferred<AgentSessionGroup>()
+  const saved: AgentSessionGroup = { id: 'asg-created', name: '已保存分组', sort_order: 0, revision: 1, created_at: agentFixtureTime, updated_at: agentFixtureTime }
+  let writes = 0
+  let reads = 0
+  gateway.createSessionGroup = async () => { writes += 1; return pending.promise }
+  gateway.sessionGroups = async () => {
+    reads += 1
+    throw new AgentWorkspaceControllerError('AGENT_GROUP_REFRESH_FAILED')
+  }
+
+  const creating = controller.createSessionGroup(saved.name)
+  socket.message({ type: 'snapshot', revision: 1, session_groups: [], sessions: [agentSessionFixture()], active_runs: [] })
+  gateway.groups = [saved]
+  pending.resolve(saved)
+
+  assert.equal(await creating, saved)
+  assert.equal(writes, 1)
+  assert.equal(reads, 1)
+  assert.deepEqual(controller.getSnapshot().session_groups, [])
+  assert.equal(controller.getSnapshot().phase, 'degraded')
+  assert.equal(controller.getSnapshot().error_code, 'AGENT_GROUP_REFRESH_FAILED')
+  gateway.sessionGroups = async () => { reads += 1; return { items: gateway.groups } }
+  await controller.reload()
+  assert.equal(writes, 1)
+  assert.equal(reads, 2)
+  assert.deepEqual(controller.getSnapshot().session_groups, [saved])
+  assert.equal(controller.getSnapshot().phase, 'ready')
+  assert.equal(controller.getSnapshot().error_code, undefined)
+})
+
+test('不同会话并发删除时，较新补读取消旧补读不会误报已提交删除失败', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await controller.reload()
+  const other = agentSessionFixture({ id: 'ags-other' })
+  socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture(), other], active_runs: [] })
+  const pending = deferred<AgentSessionPage>()
+  let writes = 0
+  let reads = 0
+  let firstSignal: AbortSignal | undefined
+  gateway.deleteSession = async () => { writes += 1 }
+  gateway.sessionsImpl = async (options) => {
+    reads += 1
+    if (reads === 1) {
+      firstSignal = options.signal
+      return abortable(pending, options.signal)
+    }
+    return { items: [] }
+  }
+
+  const first = controller.deleteSession('ags-session', 1)
+  await waitFor(() => reads === 1)
+  const second = controller.deleteSession(other.id, other.revision)
+  await Promise.all([first, second])
+
+  assert.equal(firstSignal?.aborted, true)
+  assert.equal(writes, 2)
+  assert.equal(reads, 2)
+  assert.deepEqual(controller.getSnapshot().sessions, [])
+  assert.equal(controller.getSnapshot().phase, 'ready')
+  assert.equal(controller.getSnapshot().error_code, undefined)
+})
+
+test('解散分组已提交后等待全部补读，局部失败可通过重新加载恢复', async (context) => {
+  for (const failingRead of ['groups', 'sessions'] as const) await context.test(failingRead, async (subtest) => {
+    const gateway = new FakeGateway()
+    const { controller } = await startControllerWithQueue(gateway, [])
+    subtest.after(() => controller.close())
+    await controller.reload()
+    const group = await controller.createSessionGroup('待解散分组')
+    const member = agentSessionFixture({ group_id: group.id, revision: 2 })
+    gateway.sessionsImpl = async () => ({ items: [member] })
+    await controller.reload()
+    const updated = { ...member, group_id: undefined, revision: 3 }
+    const groupRead = deferred<{ items: AgentSessionGroup[] }>()
+    const sessionRead = deferred<AgentSessionPage>()
+    const failure = new AgentWorkspaceControllerError(`AGENT_${failingRead.toUpperCase()}_REFRESH_FAILED`)
+    let writes = 0
+    gateway.deleteSessionGroup = async () => { writes += 1; gateway.groups = [] }
+    gateway.sessionGroups = async () => {
+      if (failingRead === 'groups') throw failure
+      return groupRead.promise
+    }
+    gateway.sessionsImpl = async (options) => {
+      if (failingRead === 'sessions') throw failure
+      return abortable(sessionRead, options.signal)
+    }
+
+    let settled = false
+    const deleting = controller.deleteSessionGroup(group.id, group.revision).then(
+      () => { settled = true; return undefined },
+      (error: unknown) => { settled = true; return error },
+    )
+    await settle()
+    const completedBeforeOtherRead = settled
+    groupRead.resolve({ items: [] })
+    sessionRead.resolve({ items: [updated] })
+    const error = await deleting
+
+    assert.equal(error, undefined)
+    assert.equal(completedBeforeOtherRead, false)
+    assert.equal(writes, 1)
+    assert.equal(controller.getSnapshot().phase, 'degraded')
+    assert.equal(controller.getSnapshot().error_code, failure.code)
+    assert.equal(controller.getSnapshot().sessions[0]?.revision, failingRead === 'sessions' ? 2 : 3)
+    gateway.sessionGroups = async () => ({ items: gateway.groups })
+    gateway.sessionsImpl = async () => ({ items: [updated] })
+    await controller.reload()
+    assert.equal(writes, 1)
+    assert.deepEqual(controller.getSnapshot().session_groups, [])
+    assert.equal(controller.getSnapshot().sessions[0]?.group_id, undefined)
+    assert.equal(controller.getSnapshot().sessions[0]?.revision, 3)
+    assert.equal(controller.getSnapshot().phase, 'ready')
+    assert.equal(controller.getSnapshot().error_code, undefined)
+  })
+})
+
+test('会话管理写入失败仍拒绝操作，不启动写后补读', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await controller.reload()
+  const failure = new AgentWorkspaceControllerError('AGENT_REVISION_CONFLICT')
+  let reads = 0
+  gateway.sessionGroups = async () => { reads += 1; return { items: [] } }
+  gateway.sessionsImpl = async () => { reads += 1; return { items: [] } }
+  gateway.createSessionGroup = async () => { throw failure }
+  gateway.deleteSession = async () => { throw failure }
+  gateway.deleteSessionGroup = async () => { throw failure }
+
+  await assert.rejects(controller.createSessionGroup('未保存'), (error) => error === failure)
+  await assert.rejects(controller.deleteSession('ags-session', 1), (error) => error === failure)
+  await assert.rejects(controller.deleteSessionGroup('asg-group', 1), (error) => error === failure)
+  assert.equal(reads, 0)
+  assert.equal(controller.getSnapshot().sessions[0]?.id, 'ags-session')
+  assert.equal(controller.getSnapshot().phase, 'ready')
+})
+
 class FakeGateway implements AgentWorkspaceGateway {
+  groups: AgentSessionGroup[] = []
+  sessionGroups: AgentWorkspaceGateway['sessionGroups'] = async () => ({ items: this.groups })
+  createSessionGroup: AgentWorkspaceGateway['createSessionGroup'] = async (name) => {
+    const group = { id: 'asg-group', name, sort_order: 0, revision: 1, created_at: agentFixtureTime, updated_at: agentFixtureTime }
+    this.groups.push(group)
+    return group
+  }
+  updateSessionGroup: AgentWorkspaceGateway['updateSessionGroup'] = async (id, input) => {
+    const group = this.groups.find((value) => value.id === id)
+    assert.ok(group)
+    return { ...group, name: input.name, revision: input.expected_revision + 1 }
+  }
+  deleteSessionGroup: AgentWorkspaceGateway['deleteSessionGroup'] = async (id) => { this.groups = this.groups.filter((group) => group.id !== id) }
+  moveSessionGroup: AgentWorkspaceGateway['moveSessionGroup'] = async () => ({ items: this.groups })
+  moveSessionPin: AgentWorkspaceGateway['moveSessionPin'] = async () => ({ items: [] })
+  moveSession: AgentWorkspaceGateway['moveSession'] = async () => ({ items: [] })
+  updateSessionMetadata: AgentWorkspaceGateway['updateSessionMetadata'] = async (id, input) => {
+    const session = await this.session(id)
+    return { ...session, ...input, revision: input.expected_revision + 1,
+      archived_at: input.archived === undefined ? session.archived_at : input.archived ? agentFixtureTime : undefined }
+  }
   readonly sessionSignals: AbortSignal[] = []
   readonly messageSignals: AbortSignal[] = []
   readonly contextSignals: AbortSignal[] = []

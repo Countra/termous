@@ -1,3 +1,4 @@
+export { useAgentSessionManagement } from './useAgentSessionManagement.ts'
 export {
   AgentRuntimeProtocolError,
   decodeAgentAttachment,
@@ -12,6 +13,10 @@ export {
   decodeAgentRunEvent,
   decodeAgentRunEventPage,
   decodeAgentSession,
+  decodeAgentSessionGroup,
+  decodeAgentSessionGroups,
+  decodeAgentSessionPins,
+  decodeAgentSessionMoveResult,
   decodeAgentResourceBinding,
   decodeAgentSessionContext,
   decodeAgentSessionPage,

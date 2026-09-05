@@ -7,6 +7,8 @@ import type {
   AgentRunEvent,
   AgentSession,
   AgentSessionInput,
+  AgentSessionMetadataInput,
+  AgentSessionMoveInput,
   AgentSessionUpdateInput,
   AgentResourceBindingUpdateInput,
   AgentSourceContext,
@@ -15,6 +17,7 @@ import { isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import { retireWebSocket } from '#shared/websocket'
 import type { AgentWorkspaceGateway } from '../api/agentRuntimeGateway.ts'
+import { loadAgentMessages } from './loadAgentMessages.ts'
 import {
   activeAgentRun,
   applyAgentWorkspaceEvent,
@@ -26,6 +29,7 @@ import {
   replaceAgentQueuedTurns,
   replaceAgentRun,
   replaceAgentSessions,
+  mergeAgentSessionGroups,
   selectAgentSession,
   setAgentDraft,
   setAgentQueuedTurnEdit,
@@ -54,7 +58,7 @@ const usageRefreshDelay = 750
 const streamRenderDelay = 64
 const maximumPageCount = 100
 
-type AgentMutationLane = 'workspace' | 'queue' | 'control'
+type AgentMutationLane = 'workspace' | 'queue' | 'control' | `session:${string}` | `group:${string}` | 'group-create' | 'group-order' | 'pin-order' | 'session-order'
 
 interface AgentStreamNotification {
   run_id: string
@@ -128,6 +132,11 @@ export class AgentWorkspaceController {
   private readonly queuedTurnRequests = new Map<string, { fingerprint: string; clientRequestID: string }>()
   private queueAuthorityVersion = 0
   private readonly mutations = new Map<AgentMutationLane, Promise<unknown>>()
+  private readonly removedSessionIDs = new Set<string>()
+  private readonly removedGroupIDs = new Set<string>()
+  private groupAuthorityVersion = 0
+  private groupReadRequest = 0
+  private sessionAuthorityVersion = 0
   private unsubscribeRuntime?: () => void
 
   constructor(options: AgentWorkspaceControllerOptions) {
@@ -158,6 +167,7 @@ export class AgentWorkspaceController {
     if (this.disposed) return
     this.disposed = true
     this.authorityVersion += 1
+    this.groupAuthorityVersion += 1
     this.hydrateController?.abort()
     this.hydrateController = null
     for (const hydration of this.runHydrations.values()) hydration.controller.abort()
@@ -240,8 +250,10 @@ export class AgentWorkspaceController {
 
   async createSession(input: AgentSessionInput) {
     return await this.runMutation(async () => {
+      const selectionIntent = this.state.selection_intent_revision
       const session = await this.gateway.createSession(input)
-      this.acceptSession(session, true)
+      // 创建期间侧栏仍可操作，迟到回执只能合并实体，不能抢回用户的新选择。
+      this.acceptSession(session, selectionIntent === this.state.selection_intent_revision)
       return session
     })
   }
@@ -257,9 +269,92 @@ export class AgentWorkspaceController {
   async deleteSession(id: string, expectedRevision: number) {
     await this.runMutation(async () => {
       await this.gateway.deleteSession(id, expectedRevision)
+      this.removedSessionIDs.add(id)
+      this.sessionAuthorityVersion += 1
       this.queuedTurnRequests.delete(id)
-      await this.hydrateSessions()
-    })
+      // 写入已提交，补读失败只影响同步状态，不能诱发调用方重复写入。
+      await this.hydrateSessions().catch((error) => this.captureError(error))
+    }, `session:${id}`)
+  }
+
+  async updateSessionMetadata(id: string, input: AgentSessionMetadataInput) {
+    return this.runMutation(async () => {
+      const sessionAuthority = this.sessionAuthorityVersion
+      const session = await this.gateway.updateSessionMetadata(id, input)
+      await this.acceptSessionMutation([session], sessionAuthority)
+      return session
+    }, `session:${id}`)
+  }
+
+  async createSessionGroup(name: string) {
+    return this.runMutation(async () => {
+      const authority = this.groupAuthorityVersion
+      const group = await this.gateway.createSessionGroup(name)
+      const needsRefresh = authority !== this.groupAuthorityVersion && !this.state.session_groups.some(({ id }) => id === group.id)
+      this.groupAuthorityVersion += 1
+      if (!this.disposed && !this.removedGroupIDs.has(group.id)) {
+        if (needsRefresh) await this.reloadSessionGroups().catch((error) => this.captureError(error))
+        else this.commit(mergeAgentSessionGroups(this.state, [group]))
+      }
+      return group
+    }, 'group-create')
+  }
+
+  async updateSessionGroup(id: string, name: string, expectedRevision: number) {
+    return this.runMutation(async () => {
+      const group = await this.gateway.updateSessionGroup(id, { name, expected_revision: expectedRevision })
+      this.groupAuthorityVersion += 1
+      if (!this.disposed && !this.removedGroupIDs.has(id)) this.commit(mergeAgentSessionGroups(this.state, [group]))
+      return group
+    }, `group:${id}`)
+  }
+
+  async deleteSessionGroup(id: string, expectedRevision: number) {
+    return this.runMutation(async () => {
+      await this.gateway.deleteSessionGroup(id, expectedRevision)
+      this.groupAuthorityVersion += 1
+      this.sessionAuthorityVersion += 1
+      this.removedGroupIDs.add(id)
+      // 成员的 revision 由事务统一更新，不能在客户端伪造版本或提前清除归属。
+      await Promise.all([
+        this.reloadSessionGroups().catch((error) => this.captureError(error)),
+        this.hydrateSessions().catch((error) => this.captureError(error)),
+      ])
+    }, `group:${id}`)
+  }
+
+  async moveSessionGroup(id: string, input: AgentSessionMoveInput) {
+    return this.runMutation(async () => {
+      const { items } = await this.gateway.moveSessionGroup(id, input)
+      this.groupAuthorityVersion += 1
+      if (!this.disposed) this.commit(mergeAgentSessionGroups(this.state, items.filter((group) => !this.removedGroupIDs.has(group.id))))
+    }, 'group-order')
+  }
+
+  async moveSessionPin(id: string, input: AgentSessionMoveInput) {
+    return this.runMutation(async () => {
+      const sessionAuthority = this.sessionAuthorityVersion
+      const { items } = await this.gateway.moveSessionPin(id, input)
+      await this.acceptSessionMutation(items, sessionAuthority)
+    }, 'pin-order')
+  }
+
+  async moveSession(id: string, input: AgentSessionMoveInput) {
+    return this.runMutation(async () => {
+      const sessionAuthority = this.sessionAuthorityVersion
+      const { items } = await this.gateway.moveSession(id, input)
+      await this.acceptSessionMutation(items, sessionAuthority)
+    }, 'session-order')
+  }
+
+  async reloadSessionGroups() {
+    const authority = this.groupAuthorityVersion
+    const request = ++this.groupReadRequest
+    const { items } = await this.gateway.sessionGroups()
+    if (!this.disposed && authority === this.groupAuthorityVersion && request === this.groupReadRequest) {
+      for (const group of items) this.removedGroupIDs.delete(group.id)
+      this.commit(mergeAgentSessionGroups({ ...this.state, session_groups: [] }, items))
+    }
   }
 
   async startRun(
@@ -353,6 +448,7 @@ export class AgentWorkspaceController {
     if (run) await this.hydrateRun(run.id)
     const selected = this.state.selected_session_id
     await Promise.all([
+      this.reloadSessionGroups(),
       selected && selected !== run?.session_id
         ? this.hydrateMessages(selected, true)
         : Promise.resolve(),
@@ -409,6 +505,17 @@ export class AgentWorkspaceController {
         if (eventChangesQueueAuthority(event)) this.queueAuthorityVersion += 1
         for (const hydration of this.runHydrations.values()) hydration.dirty = true
         const previousState = this.state
+        if (event.type === 'snapshot' || event.type === 'upsert' && event.session_group
+          || event.type === 'removed' && event.entity === 'session_group') this.groupAuthorityVersion += 1
+        if (event.type === 'removed' && event.entity === 'session') this.removedSessionIDs.add(event.id)
+        if (event.type === 'removed' && event.entity === 'session_group') this.removedGroupIDs.add(event.id)
+        if (event.type === 'upsert' && event.session_group) this.removedGroupIDs.delete(event.session_group.id)
+        if (event.type === 'snapshot') {
+          this.sessionAuthorityVersion += 1
+          const groupIDs = new Set((event.session_groups ?? []).map(({ id }) => id))
+          for (const id of groupIDs) this.removedGroupIDs.delete(id)
+          for (const group of previousState.session_groups) if (!groupIDs.has(group.id)) this.removedGroupIDs.add(group.id)
+        }
         const previousActiveRun = activeAgentRun(previousState)
         const result = applyAgentWorkspaceEvent(previousState, event)
         const streamNotification = this.streamNotificationForEvent(previousState, event)
@@ -507,6 +614,7 @@ export class AgentWorkspaceController {
     const controller = new AbortController()
     this.hydrateController = controller
     const authority = this.authorityVersion
+    const sessionAuthority = this.sessionAuthorityVersion
     try {
       const sessions: AgentSession[] = []
       const cursors = new Set<string>()
@@ -525,10 +633,12 @@ export class AgentWorkspaceController {
         cursor = result.next_cursor
         if (page === maximumPageCount - 1) throw new AgentWorkspaceControllerError('AGENT_SESSION_PAGE_LIMIT')
       }
-      if (!this.disposed && authority === this.authorityVersion) {
+      if (!this.disposed && authority === this.authorityVersion && sessionAuthority === this.sessionAuthorityVersion
+        && this.hydrateController === controller && !controller.signal.aborted) {
         const previousSessionId = this.state.selected_session_id
         const next = replaceAgentSessions(this.state, sessions)
         const changedContextModels = changedContextModelSessions(this.state, next)
+        this.sessionAuthorityVersion += 1
         this.commit(next)
         for (const sessionId of changedContextModels) void this.hydrateContext(sessionId, 'restart')
         this.cancelUsageHydrations(next.selected_session_id)
@@ -1089,34 +1199,7 @@ export class AgentWorkspaceController {
   }
 
   private async loadMessages(sessionId: string, afterSequence: number, signal?: AbortSignal) {
-    const messages: AgentMessage[] = []
-    const messageIDs = new Set<string>()
-    const messageSequences = new Set<number>()
-    const turnUsageRunIDs = new Set<string>()
-    let cursor = afterSequence
-    for (let page = 0; page < maximumPageCount; page += 1) {
-      const result = await this.gateway.messages(sessionId, { afterSequence: cursor, limit: 200, signal })
-      for (const message of result.items) {
-        if (message.session_id !== sessionId) {
-          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_OWNER_INVALID')
-        }
-        if (message.sequence <= cursor || messageIDs.has(message.id) || messageSequences.has(message.sequence)) {
-          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_PAGE_INVALID')
-        }
-        if (message.turn_usage && turnUsageRunIDs.has(message.turn_usage.run_id)) {
-          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_TURN_USAGE_DUPLICATE')
-        }
-        messageIDs.add(message.id)
-        messageSequences.add(message.sequence)
-        if (message.turn_usage) turnUsageRunIDs.add(message.turn_usage.run_id)
-      }
-      messages.push(...result.items)
-      if (!result.next_after_sequence) break
-      if (result.next_after_sequence <= cursor) throw new AgentWorkspaceControllerError('AGENT_MESSAGE_CURSOR_INVALID')
-      cursor = result.next_after_sequence
-      if (page === maximumPageCount - 1) throw new AgentWorkspaceControllerError('AGENT_MESSAGE_PAGE_LIMIT')
-    }
-    return messages
+    return loadAgentMessages(this.gateway, sessionId, afterSequence, signal, (code) => new AgentWorkspaceControllerError(code))
   }
 
   private async loadRunEvents(run: AgentRun, afterSequence: number, signal?: AbortSignal) {
@@ -1165,7 +1248,22 @@ export class AgentWorkspaceController {
     if (!this.disposed) this.commit({ ...this.state, runtime_status: status })
   }
 
+  private async acceptSessionMutation(sessions: AgentSession[], sessionAuthority: number) {
+    if (this.disposed) return
+    // 请求期间完整列表已更新且成员缺失时，补读区分真正恢复与已归档、已删除的旧回执。
+    if (sessionAuthority !== this.sessionAuthorityVersion
+      && sessions.some((session) => !this.removedSessionIDs.has(session.id) && !this.state.sessions.some(({ id }) => id === session.id))) {
+      await this.hydrateSessions().catch((error) => this.captureError(error))
+      return
+    }
+    for (const session of sessions) {
+      this.acceptSession(session)
+    }
+  }
+
   private acceptSession(session: AgentSession, select = false) {
+    if (this.removedSessionIDs.has(session.id)) return
+    this.sessionAuthorityVersion += 1
     const state = replaceAgentSessions(this.state, [
       session,
       ...this.state.sessions,
@@ -1233,6 +1331,7 @@ export class AgentWorkspaceController {
 
   private invalidateHydrations() {
     this.authorityVersion += 1
+    this.groupAuthorityVersion += 1
     this.queueAuthorityVersion += 1
     this.hydrateController?.abort()
     for (const hydration of this.runHydrations.values()) hydration.controller.abort()

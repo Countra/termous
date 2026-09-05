@@ -18,6 +18,8 @@ import {
   AgentRuntimeStartError,
   AgentWorkspaceController,
   useAgentDraftAttachments,
+  useAgentArchives,
+  useAgentSessionManagement,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import {
@@ -28,6 +30,7 @@ import {
 import { termousNotificationClassName } from '#shared/ui'
 import {
   AgentWorkspace,
+  AgentArchiveManager,
   type AgentWorkspaceInspectorState,
   type AgentWorkspaceResourceContext,
 } from '#widgets/agent-workspace'
@@ -75,6 +78,10 @@ export function AgentPage({
   const { notification } = AntdApp.useApp()
   const controller = useMemo(() => new AgentWorkspaceController({ gateway }), [gateway])
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  const management = useAgentSessionManagement(controller, gateway, state.sessions, enabled && active)
+  const [archivesOpen, setArchivesOpen] = useState(false)
+  const archives = useAgentArchives(gateway, archivesOpen && enabled && active, state.sessions)
+  const [draftGroupId, setDraftGroupId] = useState<string>()
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
   const [providers, setProviders] = useState<AgentModelProvider[]>([])
   const [models, setModels] = useState<AgentModel[]>([])
@@ -87,7 +94,6 @@ export function AgentPage({
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
   const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
-  const attachmentDraftSessionIdsRef = useRef(new Set<string>())
   const handledLaunchIntentRef = useRef(0)
   const setupLoadRequestRef = useRef(0)
   const activeSetupEpochRef = useRef(0)
@@ -119,6 +125,15 @@ export function AgentPage({
     () => projectAgentSessions(state.sessions, models, providers, state.runs),
     [models, providers, state.runs, state.sessions],
   )
+  const searchSessions = useMemo(
+    () => projectAgentSessions(management.searchResults, models, providers, state.runs),
+    [management.searchResults, models, providers, state.runs],
+  )
+  const archiveMessages = useMemo(() => projectAgentMessages(archives.messages, undefined, []), [archives.messages])
+
+  useEffect(() => {
+    if (draftGroupId && !state.session_groups.some(({ id }) => id === draftGroupId)) setDraftGroupId(undefined)
+  }, [draftGroupId, state.session_groups])
 
   const acceptSetupSnapshot = useCallback((
     nextReadiness: AgentReadiness,
@@ -308,6 +323,7 @@ export function AgentPage({
   const createDraftSession = useCallback(async (
     sourceContext?: AgentSourceContext,
     resourceReference?: AgentResourceReference,
+    automaticTitle = false,
   ) => {
     const modelId = newSessionModelId
     if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
@@ -315,19 +331,24 @@ export function AgentPage({
     if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
       throw new Error('AGENT_MODEL_UNAVAILABLE')
     }
+    const selectionRevision = controller.getSnapshot().selection_intent_revision
     const session = await controller.createSession({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
+      group_id: sourceContext || resourceReference ? undefined : draftGroupId,
+      auto_title_allowed: automaticTitle && !sourceContext?.title,
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
       resource_reference: resourceReference,
     })
-    controller.selectSession(session.id)
+    const current = controller.getSnapshot()
+    if (current.selected_session_id === session.id && current.selection_intent_revision === selectionRevision + 1
+      && !sourceContext && !resourceReference) setDraftGroupId(undefined)
     return session
-  }, [controller, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
+  }, [controller, draftGroupId, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
 
   const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
     if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
-    const promise = createDraftSession(sourceContext).finally(() => {
+    const promise = createDraftSession(sourceContext, undefined, true).finally(() => {
       if (attachmentDraftSessionPromiseRef.current === promise) {
         attachmentDraftSessionPromiseRef.current = null
       }
@@ -352,18 +373,21 @@ export function AgentPage({
   }, [createDraftSession])
 
   const ensureAttachmentSession = useCallback(async () => {
-    const current = controller.getSnapshot().selected_session_id
-    if (current) return current
-    const newDraft = controller.getSnapshot().drafts.new?.text ?? ''
+    const selection = controller.getSnapshot()
+    if (selection.selected_session_id) return selection.selected_session_id
     const sourceContext = draftSourceContexts.new
     const session = await ensureAttachmentDraftSession(sourceContext)
-    attachmentDraftSessionIdsRef.current.add(session.id)
-    if (newDraft) controller.updateDraft(session.id, newDraft)
-    controller.updateDraft('new', '')
+    const current = controller.getSnapshot()
+    const ownsDraft = current.selected_session_id === session.id
+      && current.selection_intent_revision === selection.selection_intent_revision + 1
+    const newDraft = (ownsDraft ? current : selection).drafts.new?.text ?? ''
+    // 创建期间继续输入的内容跟随原草稿；用户另开草稿后，迟到回执只保存发起时的内容。
+    if (newDraft && !current.drafts[session.id]) controller.updateDraft(session.id, newDraft)
+    if (ownsDraft) controller.updateDraft('new', '')
     if (sourceContext) {
       setDraftSourceContexts((contexts) => {
         const next = { ...contexts, [session.id]: sourceContext }
-        delete next.new
+        if (ownsDraft && contexts.new === sourceContext) delete next.new
         return next
       })
     }
@@ -620,6 +644,29 @@ export function AgentPage({
       ) : null}
       <AgentWorkspace
         sessions={workspaceSessions}
+        session_management={{
+          groups: state.session_groups,
+          pendingIds: management.pendingIds,
+          disabled: !state.snapshot_complete || state.phase === 'reconnecting',
+          searchQuery: management.query,
+          searchResults: searchSessions,
+          searchLoading: management.searchLoading,
+          searchError: management.searchError,
+          onSearchQueryChange: management.setQuery,
+          onSearchRetry: management.reloadSearch,
+          onRename: async (id, title) => { await management.metadata(id, { title }) },
+          onPin: async (id, pinned) => { await management.metadata(id, { pinned }) },
+          onMoveToGroup: async (id, groupId, unpin) => {
+            await management.metadata(id, { group_id: groupId ?? '', ...(unpin ? { pinned: false } : {}) })
+          },
+          onCreateGroup: management.createGroup,
+          onRenameGroup: management.renameGroup,
+          onDeleteGroup: management.deleteGroup,
+          onMoveGroup: management.moveGroup,
+          onMovePin: management.movePin,
+          onMoveSession: management.moveSession,
+          onOpenArchives: () => setArchivesOpen(true),
+        }}
         selected_session_id={state.selected_session_id}
         messages={workspaceMessages}
         models={workspaceModelOptions}
@@ -655,8 +702,9 @@ export function AgentPage({
         )}
         resource_run_blocked={resourceRunBlocked}
         resource_context={resourceContext}
-        onCreateSession={() => {
+        onCreateSession={(groupId) => {
           controller.selectSession(undefined)
+          setDraftGroupId(groupId)
           const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
           const model = modelId ? modelById.get(modelId) : undefined
           setDraftModelId(modelId)
@@ -666,13 +714,11 @@ export function AgentPage({
         onReturnToActiveRun={() => {
           if (activeRun) controller.selectSession(activeRun.session_id)
         }}
-        onArchiveSession={(sessionId) => void perform(async () => {
-          const session = requireSession(state.sessions, sessionId)
+        onArchiveSession={(sessionId) => void (async () => {
           const selection = controller.getSnapshot()
           const nextSessionId = selectionAfterSessionRemoval(workspaceSessions, sessionId)
-          await controller.updateSession(sessionId, updateInput(session, true))
+          await management.metadata(sessionId, { archived: true })
           await draftAttachments.discard(sessionId)
-          attachmentDraftSessionIdsRef.current.delete(sessionId)
           setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
           if (
             selection.selected_session_id === sessionId
@@ -680,14 +726,13 @@ export function AgentPage({
           ) {
             controller.selectSession(nextSessionId)
           }
-        })}
-        onDeleteSession={(sessionId) => void perform(async () => {
-          const session = requireSession(state.sessions, sessionId)
+        })().catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
+        onDeleteSession={(sessionId) => void management.perform([sessionId], async () => {
+          const session = requireSession(controller.getSnapshot().sessions, sessionId)
           await controller.deleteSession(sessionId, session.revision)
           draftAttachments.clear(sessionId)
-          attachmentDraftSessionIdsRef.current.delete(sessionId)
           setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
-        })}
+        }).catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
         onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
             const model = modelById.get(modelId)
@@ -770,23 +815,22 @@ export function AgentPage({
               if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
                 throw new Error('AGENT_MODEL_UNAVAILABLE')
               }
+              const selectionRevision = controller.getSnapshot().selection_intent_revision
               targetSession = await controller.createSession({
                 title: createSessionTitle(message, t('agent.sessions.untitled')),
+                group_id: draftGroupId,
                 model_id: modelId,
                 reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
               })
               controller.updateDraft(targetSession.id, message)
-              controller.updateDraft('new', '')
-              setDraftModelId(readiness.settings.default_model_id
-                || firstRunnableModelId)
-              setDraftReasoningLevel(undefined)
-            }
-            if (attachmentDraftSessionIdsRef.current.has(targetSession.id)) {
-              targetSession = await controller.updateSession(targetSession.id, {
-                ...updateInput(targetSession, false),
-                title: createSessionTitle(message, t('agent.sessions.untitled')),
-              })
-              attachmentDraftSessionIdsRef.current.delete(targetSession.id)
+              const current = controller.getSnapshot()
+              if (current.selected_session_id === targetSession.id && current.selection_intent_revision === selectionRevision + 1) {
+                controller.updateDraft('new', '')
+                setDraftModelId(readiness.settings.default_model_id
+                  || firstRunnableModelId)
+                setDraftReasoningLevel(undefined)
+                setDraftGroupId(undefined)
+              }
             }
             const targetSessionId = targetSession.id
             const clearCommittedDraft = () => {
@@ -906,6 +950,43 @@ export function AgentPage({
             selected.id,
             () => controller.removeResourceBinding(selected.id, selected.revision),
           )
+        }}
+      />
+      <AgentArchiveManager
+        open={archivesOpen && enabled && active}
+        pendingIds={management.pendingIds}
+        sessions={archives.sessions}
+        query={archives.query}
+        listLoading={archives.listLoading}
+        listError={archives.listError}
+        selectedSession={archives.selectedSession}
+        messages={archiveMessages}
+        previewLoading={archives.previewLoading}
+        previewError={archives.previewError}
+        showTurnTokenUsage={readiness.settings.show_turn_token_usage}
+        onClose={() => setArchivesOpen(false)}
+        onQueryChange={archives.setQuery}
+        onSelect={archives.selectSession}
+        onReload={archives.reload}
+        onReloadPreview={archives.reloadPreview}
+        onLoadAttachmentContent={loadAttachmentContent}
+        onRestore={async (session) => {
+          const selection = controller.getSnapshot()
+          try {
+            await management.metadata(session.id, { archived: false }, session)
+            archives.removeSession(session.id)
+            const current = controller.getSnapshot()
+            if (current.selection_intent_revision === selection.selection_intent_revision
+              && current.selected_session_id !== selection.selected_session_id) {
+              controller.selectSession(selection.selected_session_id)
+            }
+          } catch (error) { archives.reload(); throw error }
+        }}
+        onDelete={async (session) => {
+          try {
+            await management.perform([session.id], () => controller.deleteSession(session.id, session.revision))
+            archives.removeSession(session.id)
+          } catch (error) { archives.reload(); throw error }
         }}
       />
     </div>

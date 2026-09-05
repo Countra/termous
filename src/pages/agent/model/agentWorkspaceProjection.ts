@@ -79,6 +79,11 @@ export function projectAgentSessions(
     return {
       id: session.id,
       title: session.title,
+      group_id: session.group_id,
+      pinned: session.pinned,
+      pin_order: session.pin_order,
+      sort_order: session.sort_order,
+      last_activity_at: session.last_activity_at,
       model_id: session.model_id,
       model_name: model?.remote_model_id ?? snapshot?.model_id ?? session.model_id,
       model_alias: model?.display_name ?? snapshot?.model_display_name,

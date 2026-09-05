@@ -304,6 +304,11 @@ export type AgentJsonValue =
 export interface AgentSession {
   id: string
   title: string
+  group_id?: string
+  pinned?: boolean
+  pin_order?: number
+  sort_order?: number
+  last_activity_at?: string
   model_id: string
   reasoning_level: AgentReasoningLevel
   archived_at?: string
@@ -320,6 +325,8 @@ export interface AgentSessionPage {
 
 export interface AgentSessionInput {
   title: string
+  group_id?: string
+  auto_title_allowed?: boolean
   model_id: string
   reasoning_level: AgentReasoningLevel
   resource_reference?: AgentResourceReference
@@ -331,6 +338,30 @@ export interface AgentSessionUpdateInput {
   reasoning_level: AgentReasoningLevel
   archived: boolean
   expected_revision: number
+}
+
+export interface AgentSessionMetadataInput {
+  title?: string
+  group_id?: string
+  pinned?: boolean
+  archived?: boolean
+  expected_revision: number
+}
+
+export interface AgentSessionGroup {
+  id: string
+  name: string
+  sort_order: number
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentSessionMoveInput {
+  expected_revision: number
+  target_id: string
+  target_expected_revision: number
+  placement: 'before' | 'after'
 }
 
 export interface AgentResourceBindingUpdateInput extends AgentResourceReference {

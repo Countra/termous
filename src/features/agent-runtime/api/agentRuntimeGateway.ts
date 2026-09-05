@@ -12,6 +12,9 @@ import type {
   AgentRunEventPage,
   AgentResourceBindingUpdateInput,
   AgentSession,
+  AgentSessionGroup,
+  AgentSessionMetadataInput,
+  AgentSessionMoveInput,
   AgentSessionContext,
   AgentSessionInput,
   AgentSessionPage,
@@ -23,6 +26,7 @@ import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/cont
 
 export interface AgentSessionListOptions {
   archived?: boolean
+  query?: string
   cursor?: string
   limit?: number
   signal?: AbortSignal
@@ -50,6 +54,14 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  sessionGroups(signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
+  createSessionGroup(name: string, signal?: AbortSignal): Promise<AgentSessionGroup>
+  updateSessionGroup(id: string, input: { name: string; expected_revision: number }, signal?: AbortSignal): Promise<AgentSessionGroup>
+  deleteSessionGroup(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
+  moveSessionGroup(id: string, input: AgentSessionMoveInput, signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
+  moveSessionPin(id: string, input: AgentSessionMoveInput, signal?: AbortSignal): Promise<{ items: AgentSession[] }>
+  moveSession(id: string, input: AgentSessionMoveInput, signal?: AbortSignal): Promise<{ items: AgentSession[] }>
+  updateSessionMetadata(id: string, input: AgentSessionMetadataInput, signal?: AbortSignal): Promise<AgentSession>
   sessions(options?: AgentSessionListOptions): Promise<AgentSessionPage>
   session(id: string, signal?: AbortSignal): Promise<AgentSession>
   createSession(input: AgentSessionInput, signal?: AbortSignal): Promise<AgentSession>

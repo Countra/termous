@@ -40,6 +40,7 @@ import {
   type AgentResourceKind,
   type AgentSourceContext,
   type AgentSession,
+  type AgentSessionGroup,
   type AgentSessionContext,
   type AgentSessionPage,
   type AgentSessionUsage,
@@ -49,18 +50,19 @@ import {
 const maxAgentPromptBytes = 1 << 20
 
 export type AgentWorkspaceEvent =
-  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_state?: AgentQueueState }
+  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; session_groups?: AgentSessionGroup[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_state?: AgentQueueState }
   | {
       type: 'upsert'
       revision: number
       session?: AgentSession
+      session_group?: AgentSessionGroup
       run?: AgentRun
       message?: AgentMessage
       run_event?: AgentRunEvent
       queued_turn?: AgentQueuedTurn
       queue_state?: AgentQueueState
     }
-  | { type: 'removed'; revision: number; entity: 'session' | 'run' | 'message' | 'queued_turn'; id: string; session_id?: string }
+  | { type: 'removed'; revision: number; entity: 'session' | 'session_group' | 'run' | 'message' | 'queued_turn'; id: string; session_id?: string }
 
 export class AgentRuntimeProtocolError extends Error {
   constructor(message: string) {
@@ -77,6 +79,11 @@ export function decodeAgentSession(value: unknown): AgentSession {
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
+    ...(source.group_id === undefined ? {} : { group_id: identifier(source.group_id, 'Agent 会话分组 ID 无效') }),
+    ...(source.pinned === undefined ? {} : { pinned: bool(source.pinned, 'Agent 会话置顶状态无效') }),
+    ...(source.pin_order === undefined ? {} : { pin_order: nonNegativeInteger(source.pin_order, 'Agent 会话置顶顺序无效') }),
+    ...(source.sort_order === undefined ? {} : { sort_order: nonNegativeInteger(source.sort_order, 'Agent 会话顺序无效') }),
+    ...(source.last_activity_at === undefined ? {} : { last_activity_at: timestamp(source.last_activity_at, 'Agent 会话活动时间无效') }),
     model_id: identifier(source.model_id, 'Agent 会话模型 ID 无效'),
     reasoning_level: enumValue<AgentReasoningLevel>(source.reasoning_level, agentReasoningLevels, 'Agent 会话推理级别无效'),
     archived_at: optionalTimestamp(source.archived_at, 'Agent 会话归档时间无效'),
@@ -85,6 +92,42 @@ export function decodeAgentSession(value: unknown): AgentSession {
     updated_at: timestamp(source.updated_at, 'Agent 会话更新时间无效'),
     ...(resourceBinding ? { resource_binding: resourceBinding } : {}),
   }
+}
+
+export function decodeAgentSessionGroup(value: unknown): AgentSessionGroup {
+  const source = record(value, 'Agent 会话分组响应无效')
+  const name = utf8(source.name, 'Agent 会话分组名称无效', 256)
+  if (!name.trim() || Array.from(name).length > 64) throw new AgentRuntimeProtocolError('Agent 会话分组名称无效')
+  return {
+    id: identifier(source.id, 'Agent 会话分组 ID 无效'), name,
+    sort_order: nonNegativeInteger(source.sort_order, 'Agent 会话分组顺序无效'),
+    revision: positiveInteger(source.revision, 'Agent 会话分组 revision 无效'),
+    created_at: timestamp(source.created_at, 'Agent 会话分组创建时间无效'),
+    updated_at: timestamp(source.updated_at, 'Agent 会话分组更新时间无效'),
+  }
+}
+
+export function decodeAgentSessionGroups(value: unknown): { items: AgentSessionGroup[] } {
+  const source = record(value, 'Agent 会话分组列表响应无效')
+  const items = array(source.items, 'Agent 会话分组列表无效').map(decodeAgentSessionGroup)
+  unique(items.map(({ id }) => id), 'Agent 会话分组包含重复 ID')
+  return { items }
+}
+
+export function decodeAgentSessionPins(value: unknown): { items: AgentSession[] } {
+  const source = record(value, 'Agent 会话置顶列表响应无效')
+  const items = array(source.items, 'Agent 会话置顶列表无效').map(decodeAgentSession)
+  unique(items.map(({ id }) => id), 'Agent 会话置顶列表包含重复 ID')
+  if (items.some((session) => !session.pinned || session.archived_at)) throw new AgentRuntimeProtocolError('Agent 会话置顶列表成员无效')
+  return { items }
+}
+
+export function decodeAgentSessionMoveResult(value: unknown): { items: AgentSession[] } {
+  const source = record(value, 'Agent 会话移动响应无效')
+  const items = array(source.items, 'Agent 会话移动列表无效').map(decodeAgentSession)
+  unique(items.map(({ id }) => id), 'Agent 会话移动列表包含重复 ID')
+  if (items.some((session) => session.archived_at)) throw new AgentRuntimeProtocolError('Agent 会话移动包含归档成员')
+  return { items }
 }
 
 export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding {
@@ -501,6 +544,7 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
   const revision = nonNegativeInteger(source.revision, 'Agent Workspace revision 无效')
   if (source.type === 'snapshot') {
     const sessions = array(source.sessions, 'Agent Workspace Session 快照无效').map(decodeAgentSession)
+    const groups = decodeAgentSessionGroups({ items: source.session_groups ?? [] }).items
     const activeRuns = array(source.active_runs, 'Agent Workspace Run 快照无效').map(decodeAgentRun)
     const queuedTurns = array(source.queued_turns ?? [], 'Agent Workspace 排队消息快照无效').map(decodeAgentQueuedTurn)
     const queueState = source.queue_state === undefined ? undefined : decodeAgentQueueState(source.queue_state)
@@ -522,15 +566,16 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     if (activeRuns.length > 1 || activeRuns.some(({ status }) => !isAgentRunActive(status))) {
       throw new AgentRuntimeProtocolError('Agent Workspace 活动 Run 快照无效')
     }
-    return { type: source.type, revision, sessions, active_runs: activeRuns, queued_turns: queuedTurns, queue_state: queueState }
+    return { type: source.type, revision, sessions, session_groups: groups, active_runs: activeRuns, queued_turns: queuedTurns, queue_state: queueState }
   }
   if (revision === 0) {
     throw new AgentRuntimeProtocolError('Agent Workspace 增量 revision 无效')
   }
   if (source.type === 'upsert') {
-    const keys = ['session', 'run', 'message', 'run_event', 'queued_turn', 'queue_state'].filter((key) => source[key] !== undefined)
+    const keys = ['session', 'session_group', 'run', 'message', 'run_event', 'queued_turn', 'queue_state'].filter((key) => source[key] !== undefined)
     if (keys.length !== 1) throw new AgentRuntimeProtocolError('Agent Workspace upsert 必须只包含一个实体')
     if (keys[0] === 'session') return { type: source.type, revision, session: decodeAgentSession(source.session) }
+    if (keys[0] === 'session_group') return { type: source.type, revision, session_group: decodeAgentSessionGroup(source.session_group) }
     if (keys[0] === 'run') return { type: source.type, revision, run: decodeAgentRun(source.run) }
     if (keys[0] === 'message') return { type: source.type, revision, message: decodeAgentMessage(source.message) }
     if (keys[0] === 'run_event') return { type: source.type, revision, run_event: decodeAgentRunEvent(source.run_event) }
@@ -538,7 +583,7 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     return { type: source.type, revision, queue_state: decodeAgentQueueState(source.queue_state) }
   }
   if (source.type === 'removed') {
-    const entity = enumValue(source.entity, ['session', 'run', 'message', 'queued_turn'] as const, 'Agent Workspace removed 实体无效')
+    const entity = enumValue(source.entity, ['session', 'session_group', 'run', 'message', 'queued_turn'] as const, 'Agent Workspace removed 实体无效')
     const sessionId = source.session_id === undefined
       ? undefined
       : identifier(source.session_id, 'Agent Workspace removed Session ID 无效')

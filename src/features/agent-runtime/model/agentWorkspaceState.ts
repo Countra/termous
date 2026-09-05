@@ -1,4 +1,5 @@
 import {
+  compareAgentSessionOrder,
   isAgentRunActive,
   isAgentRunTerminal,
   type AgentMessage,
@@ -7,6 +8,7 @@ import {
   type AgentRun,
   type AgentRunEvent,
   type AgentSession,
+  type AgentSessionGroup,
 } from '#entities/agent'
 import type { AgentWorkspaceEvent } from './agentRuntimeProtocol.ts'
 import type { AgentQueuedTurnEditDraft, AgentWorkspaceMergeResult, AgentWorkspaceState } from './agentWorkspaceStateTypes.ts'
@@ -21,6 +23,7 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     snapshot_complete: false,
     revision: 0,
     sessions: [],
+    session_groups: [],
     runs: {},
     messages: {},
     run_events: {},
@@ -44,6 +47,9 @@ export function applyAgentWorkspaceEvent(
   if (event.type === 'snapshot') return applySnapshot(current, event)
   if (event.revision <= current.revision) return { state: current }
   if (event.type === 'removed') {
+    if (event.entity === 'session_group') {
+      return { state: { ...current, revision: event.revision, session_groups: current.session_groups.filter(({ id }) => id !== event.id) } }
+    }
     if (event.entity === 'queued_turn') {
       return { state: removeQueuedTurn({ ...current, revision: event.revision }, event.id, event.session_id) }
     }
@@ -57,6 +63,9 @@ export function applyAgentWorkspaceEvent(
   }
   if (event.session) {
     return { state: upsertSession({ ...current, revision: event.revision }, event.session) }
+  }
+  if (event.session_group) {
+    return { state: mergeAgentSessionGroups({ ...current, revision: event.revision }, [event.session_group]) }
   }
   if (event.message) {
     return { state: upsertMessage({ ...current, revision: event.revision }, event.message) }
@@ -96,6 +105,11 @@ export function replaceAgentSessions(
     }
   }
   return next
+}
+
+export function mergeAgentSessionGroups(current: AgentWorkspaceState, incoming: AgentSessionGroup[]): AgentWorkspaceState {
+  const groups = dedupeByID([...current.session_groups, ...incoming], (left, right) => left.revision >= right.revision ? left : right)
+  return { ...current, session_groups: groups.sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id)) }
 }
 
 export function mergeAgentMessages(
@@ -241,7 +255,7 @@ function applySnapshot(
   current: AgentWorkspaceState,
   event: Extract<AgentWorkspaceEvent, { type: 'snapshot' }>,
 ): AgentWorkspaceMergeResult {
-  let state = replaceAgentSessions({ ...current, revision: event.revision }, event.sessions)
+  let state = replaceAgentSessions({ ...current, revision: event.revision, session_groups: event.session_groups ?? [] }, event.sessions)
   const sessionIDs = new Set(state.sessions.map(({ id }) => id))
   const terminalRuns = Object.fromEntries(Object.entries(state.runs).filter(([, run]) => (
     sessionIDs.has(run.session_id) && !isAgentRunActive(run.status)
@@ -553,9 +567,7 @@ function preferMessage(left: AgentMessage, right: AgentMessage) {
 }
 
 function sortSessions(sessions: AgentSession[]) {
-  return [...sessions].sort((left, right) => (
-    Date.parse(right.updated_at) - Date.parse(left.updated_at) || left.id.localeCompare(right.id)
-  ))
+  return [...sessions].sort(compareAgentSessionOrder)
 }
 
 function replayRuntimeMessageProjection(current: AgentWorkspaceState, sessionId: string) {

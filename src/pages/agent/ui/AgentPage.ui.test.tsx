@@ -1,14 +1,16 @@
 import { App as AntdApp } from 'antd'
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentRun, AgentSession, AgentSSHResourceState } from '#entities/agent'
+import type { AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSSHResourceState } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
+import type { AgentWorkspaceProps } from '#widgets/agent-workspace'
 
 const harness = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
   listeners: new Set<() => void>(),
   workspaceProps: null as Record<string, unknown> | null,
+  archiveProps: null as Record<string, unknown> | null,
   workspaceRenderCount: 0,
   createSession: vi.fn(),
   replaceResourceBinding: vi.fn(),
@@ -16,6 +18,14 @@ const harness = vi.hoisted(() => ({
   startRun: vi.fn(),
   updateDraft: vi.fn(),
   updateSession: vi.fn(),
+  updateSessionMetadata: vi.fn(),
+  reloadSessionGroups: vi.fn(),
+  createSessionGroup: vi.fn(),
+  updateSessionGroup: vi.fn(),
+  deleteSessionGroup: vi.fn(),
+  moveSessionGroup: vi.fn(),
+  moveSessionPin: vi.fn(),
+  moveSession: vi.fn(),
   deleteSession: vi.fn(),
   selectSession: vi.fn(),
   reloadContext: vi.fn(),
@@ -39,7 +49,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('#features/agent-runtime', () => ({
+vi.mock('#features/agent-runtime', async () => ({
+  ...await vi.importActual<typeof import('#features/agent-runtime')>('#features/agent-runtime'),
   AgentRuntimeStartError: class AgentRuntimeStartError extends Error {
     constructor(_code: string, readonly run: { session_id: string }) {
       super(_code)
@@ -54,12 +65,29 @@ vi.mock('#features/agent-runtime', () => ({
       getSnapshot: () => harness.state,
       start: vi.fn(),
       close: vi.fn(),
-      createSession: harness.createSession,
+      createSession: async (input: AgentSessionInput) => {
+        const selectionRevision = harness.state.selection_intent_revision
+        const created = await harness.createSession(input)
+        if (!(harness.state.sessions as AgentSession[]).some(({ id }) => id === created.id)) {
+          harness.state = { ...harness.state, sessions: [created, ...(harness.state.sessions as AgentSession[])] }
+          publishState()
+        }
+        if (harness.state.selection_intent_revision === selectionRevision) harness.selectSession(created.id)
+        return created
+      },
       replaceResourceBinding: harness.replaceResourceBinding,
       removeResourceBinding: harness.removeResourceBinding,
       startRun: harness.startRun,
       updateDraft: harness.updateDraft,
       updateSession: harness.updateSession,
+      updateSessionMetadata: harness.updateSessionMetadata,
+      reloadSessionGroups: harness.reloadSessionGroups,
+      createSessionGroup: harness.createSessionGroup,
+      updateSessionGroup: harness.updateSessionGroup,
+      deleteSessionGroup: harness.deleteSessionGroup,
+      moveSessionGroup: harness.moveSessionGroup,
+      moveSessionPin: harness.moveSessionPin,
+      moveSession: harness.moveSession,
       deleteSession: harness.deleteSession,
       selectSession: harness.selectSession,
       reloadContext: harness.reloadContext,
@@ -82,6 +110,10 @@ vi.mock('#features/agent-runtime', () => ({
 }))
 
 vi.mock('#widgets/agent-workspace', () => ({
+  AgentArchiveManager: (props: Record<string, unknown>) => {
+    harness.archiveProps = props
+    return <div data-testid="agent-archives" />
+  },
   AgentWorkspace: (props: Record<string, unknown>) => {
     harness.workspaceRenderCount += 1
     harness.workspaceProps = props
@@ -95,6 +127,7 @@ describe('AgentPage', () => {
   beforeEach(() => {
     harness.listeners.clear()
     harness.workspaceProps = null
+    harness.archiveProps = null
     harness.workspaceRenderCount = 0
     harness.createSession.mockReset()
     harness.replaceResourceBinding.mockReset()
@@ -104,6 +137,14 @@ describe('AgentPage', () => {
     harness.startRun.mockReset()
     harness.updateDraft.mockReset()
     harness.updateSession.mockReset()
+    harness.updateSessionMetadata.mockReset()
+    harness.reloadSessionGroups.mockReset().mockResolvedValue(undefined)
+    harness.createSessionGroup.mockReset().mockResolvedValue(undefined)
+    harness.updateSessionGroup.mockReset().mockResolvedValue(undefined)
+    harness.deleteSessionGroup.mockReset().mockResolvedValue(undefined)
+    harness.moveSessionGroup.mockReset().mockResolvedValue(undefined)
+    harness.moveSessionPin.mockReset().mockResolvedValue(undefined)
+    harness.moveSession.mockReset().mockResolvedValue(undefined)
     harness.deleteSession.mockReset().mockResolvedValue(undefined)
     harness.selectSession.mockReset()
     harness.reloadContext.mockReset().mockResolvedValue(undefined)
@@ -142,8 +183,15 @@ describe('AgentPage', () => {
       harness.state = { ...harness.state, drafts }
       publishState()
     })
-    harness.createSession.mockImplementation(async () => {
-      const created = { ...sessions[0], id: 'session-created', title: 'Created' }
+    harness.updateSessionMetadata.mockImplementation(async (id: string, input: AgentSessionMetadataInput) => {
+      const current = (harness.state.sessions as AgentSession[]).find((session) => session.id === id)!
+      const updated = { ...current, ...input, revision: current.revision + 1 }
+      harness.state = { ...harness.state, sessions: (harness.state.sessions as AgentSession[]).map((session) => session.id === id ? updated : session) }
+      publishState()
+      return updated
+    })
+    harness.createSession.mockImplementation(async (input: AgentSessionInput) => {
+      const created = { ...sessions[0], id: 'session-created', title: input.title, group_id: input.group_id }
       harness.state = {
         ...harness.state,
         sessions: [created, ...(harness.state.sessions as AgentSession[])],
@@ -158,7 +206,7 @@ describe('AgentPage', () => {
   })
 
   it('归档当前会话后切换到相邻的未归档会话', async () => {
-    harness.updateSession.mockResolvedValue({ ...sessions[0], archived_at: '2026-08-29T02:00:00Z' })
+    harness.updateSessionMetadata.mockResolvedValue({ ...sessions[0], archived_at: '2026-08-29T02:00:00Z' })
     renderPage()
 
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
@@ -167,7 +215,8 @@ describe('AgentPage', () => {
       archive('session-one')
     })
 
-    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(harness.updateSessionMetadata).toHaveBeenCalledWith('session-one', { archived: true, expected_revision: 1 }))
+    expect(harness.updateSession).not.toHaveBeenCalled()
     expect(harness.selectSession).toHaveBeenCalledWith('session-two')
   })
 
@@ -351,7 +400,7 @@ describe('AgentPage', () => {
   })
 
   it('归档非当前会话时保持现有选择', async () => {
-    harness.updateSession.mockResolvedValue({ ...sessions[1], archived_at: '2026-08-29T02:00:00Z' })
+    harness.updateSessionMetadata.mockResolvedValue({ ...sessions[1], archived_at: '2026-08-29T02:00:00Z' })
     renderPage()
 
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
@@ -360,13 +409,13 @@ describe('AgentPage', () => {
       archive('session-two')
     })
 
-    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(harness.updateSessionMetadata).toHaveBeenCalledTimes(1))
     expect(harness.selectSession).not.toHaveBeenCalled()
   })
 
   it('归档响应迟到时不覆盖用户切换到的新会话草稿', async () => {
     const pending = deferred<AgentSession>()
-    harness.updateSession.mockReturnValueOnce(pending.promise)
+    harness.updateSessionMetadata.mockReturnValueOnce(pending.promise)
     renderPage()
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
 
@@ -374,7 +423,7 @@ describe('AgentPage', () => {
       const archive = harness.workspaceProps?.onArchiveSession as (sessionId: string) => void
       archive('session-one')
     })
-    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(harness.updateSessionMetadata).toHaveBeenCalledTimes(1))
     act(() => {
       const create = harness.workspaceProps?.onCreateSession as () => void
       create()
@@ -453,10 +502,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect(harness.discardAttachments).toHaveBeenCalledTimes(1))
   })
 
-  it('附件预建会话首次发送时更新标题并提交附件 ID', async () => {
-    harness.updateSession.mockImplementation(async (sessionId: string, input: { title: string }) => ({
-      ...sessions[0], id: sessionId, title: input.title,
-    }))
+  it('附件预建会话将自动标题交给 Core，首次发送只提交附件 ID', async () => {
     renderPage()
     await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
@@ -475,14 +521,250 @@ describe('AgentPage', () => {
       await send('检查生产连接', ['attachment-one'])
     })
 
-    expect(harness.updateSession).toHaveBeenCalledWith('session-created', expect.objectContaining({
-      title: '检查生产连接',
-      expected_revision: 1,
-    }))
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({ auto_title_allowed: true }))
+    expect(harness.updateSession).not.toHaveBeenCalled()
+    expect(harness.updateSessionMetadata).not.toHaveBeenCalled()
     expect(harness.startRun).toHaveBeenCalledWith(
       'session-created', '检查生产连接', ['attachment-one'], undefined,
     )
     expect(harness.clearAttachments).toHaveBeenCalledWith('session-created')
+  })
+
+  it('组内新会话只记录草稿分组，首发才携带 group_id 创建', async () => {
+    harness.state = { ...harness.state, session_groups: [sessionGroupFixture()] }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    act(() => {
+      const create = harness.workspaceProps?.onCreateSession as (groupId?: string) => void
+      create('group-ops')
+    })
+    expect(harness.createSession).not.toHaveBeenCalled()
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (message: string) => Promise<void>
+      await send('检查磁盘空间')
+    })
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({ group_id: 'group-ops', title: '检查磁盘空间' }))
+    expect(harness.createSession.mock.calls[0]?.[0].auto_title_allowed).not.toBe(true)
+  })
+
+  it('组内附件草稿携带分组，人工命名为新会话后首发不覆盖标题', async () => {
+    harness.state = { ...harness.state, session_groups: [sessionGroupFixture()] }
+    renderPage()
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    act(() => {
+      const create = harness.workspaceProps?.onCreateSession as (groupId?: string) => void
+      create('group-ops')
+    })
+    await act(async () => { await harness.attachmentOptions!.ensureSession() })
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({ group_id: 'group-ops', auto_title_allowed: true }))
+    await act(async () => { await sessionManagement().onRename?.('session-created', '新会话') })
+    expect(harness.updateSessionMetadata).toHaveBeenCalledWith('session-created', { title: '新会话', expected_revision: 1 })
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (message: string, attachments: string[]) => Promise<void>
+      await send('这条提示不能再改标题', ['attachment-one'])
+    })
+    expect(harness.updateSessionMetadata).toHaveBeenCalledTimes(1)
+    expect(harness.updateSession).not.toHaveBeenCalled()
+    expect((harness.state.sessions as AgentSession[]).find(({ id }) => id === 'session-created')?.title).toBe('新会话')
+    expect(harness.startRun).toHaveBeenCalledWith('session-created', '这条提示不能再改标题', ['attachment-one'], undefined)
+  })
+
+  it('附件会话创建期间继续输入，完成后迁移最新草稿', async () => {
+    const pending = deferred<AgentSession>()
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    renderPage()
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    act(() => {
+      (harness.workspaceProps?.onCreateSession as () => void)()
+      harness.updateDraft('new', '原始草稿')
+    })
+    let creating!: Promise<string>
+    act(() => { creating = harness.attachmentOptions!.ensureSession() })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    act(() => { (harness.workspaceProps?.onDraftChange as (value: string) => void)('原始草稿，继续补充约束') })
+    pending.resolve({ ...sessions[0], id: 'session-attachment' })
+    await act(async () => { await creating })
+    expect(harness.workspaceProps?.selected_session_id).toBe('session-attachment')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-attachment', '原始草稿，继续补充约束')
+    expect((harness.state.drafts as Record<string, unknown>).new).toBeUndefined()
+  })
+
+  it('附件创建迟到不抢选另一分组的新草稿，也不清除它的分组归属', async () => {
+    const pending = deferred<AgentSession>()
+    harness.state = { ...harness.state, session_groups: [sessionGroupFixture(), { ...sessionGroupFixture(), id: 'group-other', name: 'Other' }] }
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    renderPage()
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    act(() => {
+      (harness.workspaceProps?.onCreateSession as (id: string) => void)('group-ops')
+      harness.updateDraft('new', '原分组附件草稿')
+    })
+    let creating!: Promise<string>
+    act(() => { creating = harness.attachmentOptions!.ensureSession() })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    act(() => {
+      (harness.workspaceProps?.onCreateSession as (id: string) => void)('group-other')
+      harness.updateDraft('new', '另一个分组的新草稿')
+    })
+    pending.resolve({ ...sessions[0], id: 'session-attachment', group_id: 'group-ops' })
+    await act(async () => { await creating })
+    expect(harness.workspaceProps?.selected_session_id).toBeUndefined()
+    expect(harness.workspaceProps?.draft).toBe('另一个分组的新草稿')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-attachment', '原分组附件草稿')
+    expect(harness.selectSession).not.toHaveBeenCalledWith('session-attachment')
+    await act(async () => {
+      await (harness.workspaceProps?.onSend as (value: string) => Promise<void>)('另一个分组的新草稿')
+    })
+    expect(harness.createSession.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ group_id: 'group-other' }))
+  })
+
+  it('首发创建迟到仍提交原消息，但保留用户另开的新草稿', async () => {
+    const pending = deferred<AgentSession>()
+    harness.state = { ...harness.state, session_groups: [sessionGroupFixture()] }
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    act(() => {
+      (harness.workspaceProps?.onCreateSession as () => void)()
+      harness.updateDraft('new', '已提交的原消息')
+    })
+    let sending!: Promise<void>
+    act(() => { sending = (harness.workspaceProps?.onSend as (text: string) => Promise<void>)('已提交的原消息') })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    act(() => {
+      (harness.workspaceProps?.onCreateSession as (id: string) => void)('group-ops')
+      harness.updateDraft('new', '后开的草稿')
+    })
+    pending.resolve({ ...sessions[0], id: 'session-delayed' })
+    await act(async () => { await sending })
+    expect(harness.startRun).toHaveBeenCalledWith('session-delayed', '已提交的原消息', undefined, undefined)
+    expect(harness.workspaceProps?.selected_session_id).toBeUndefined()
+    expect(harness.workspaceProps?.draft).toBe('后开的草稿')
+    await act(async () => {
+      await (harness.workspaceProps?.onSend as (text: string) => Promise<void>)('后开的草稿')
+    })
+    expect(harness.createSession.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ group_id: 'group-ops' }))
+  })
+
+  it('拖进分组头在一次元数据提交中取消置顶，菜单移组仍保留置顶归属', async () => {
+    harness.state = { ...workspaceState(), session_groups: [sessionGroupFixture()] }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    await act(async () => { await sessionManagement().onMoveToGroup('session-one', 'group-ops', true) })
+    expect(harness.updateSessionMetadata).toHaveBeenNthCalledWith(1, 'session-one', { group_id: 'group-ops', pinned: false, expected_revision: 1 })
+    await act(async () => { await sessionManagement().onMoveToGroup('session-two', 'group-ops') })
+    expect(harness.updateSessionMetadata).toHaveBeenNthCalledWith(2, 'session-two', { group_id: 'group-ops', expected_revision: 1 })
+    await act(async () => { await sessionManagement().onMoveSession('session-one', 'session-two', 'after') })
+    expect(harness.moveSession).toHaveBeenCalledWith('session-one', { expected_revision: 2, target_id: 'session-two', target_expected_revision: 2, placement: 'after' })
+    expect(harness.updateSession).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
+
+  it('运行中元数据保存只锁当前行，输入草稿与其他会话操作保持可用', async () => {
+    const pending = deferred<AgentSession>()
+    const run = runFixture()
+    harness.state = { ...workspaceState(), active_run_id: run.id, runs: { [run.id]: run }, drafts: { 'session-one': { text: '尚未发送', updated_at: 1 } } }
+    harness.updateSessionMetadata.mockReturnValueOnce(pending.promise)
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.draft).toBe('尚未发送'))
+    let rename!: Promise<void>
+    act(() => { rename = sessionManagement().onRename!('session-one', '正在排查') })
+    await waitFor(() => expect(sessionManagement().pendingIds?.has('session-one')).toBe(true))
+    expect(sessionManagement().pendingIds?.has('session-two')).toBe(false)
+    expect(harness.workspaceProps?.busy).toBe(false)
+    expect(sessionManagement().disabled).toBe(false)
+    act(() => {
+      const change = harness.workspaceProps?.onDraftChange as (value: string) => void
+      change('保存标题期间继续输入')
+    })
+    pending.resolve({ ...sessions[0], title: '正在排查', revision: 2 })
+    await act(async () => { await rename })
+    expect(harness.workspaceProps?.draft).toBe('保存标题期间继续输入')
+    expect(harness.selectSession).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
+
+  it('移组清空只发送窄字段，归档面板关闭后仍保留原会话草稿', async () => {
+    harness.state = { ...workspaceState(), drafts: { 'session-one': { text: '保留主会话输入', updated_at: 1 } } }
+    const view = renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    await act(async () => { await sessionManagement().onMoveToGroup?.('session-two', undefined) })
+    expect(harness.updateSessionMetadata).toHaveBeenCalledWith('session-two', { group_id: '', expected_revision: 1 })
+    expect(harness.updateSession).not.toHaveBeenCalled()
+    act(() => sessionManagement().onOpenArchives?.())
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(true))
+    view.rerenderPage({ active: false })
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(false))
+    expect(harness.workspaceProps?.selected_session_id).toBe('session-one')
+    expect(harness.workspaceProps?.draft).toBe('保留主会话输入')
+    view.rerenderPage({ active: true })
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(true))
+    act(() => (harness.archiveProps?.onClose as () => void)())
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(false))
+    expect(harness.workspaceProps?.selected_session_id).toBe('session-one')
+    expect(harness.workspaceProps?.draft).toBe('保留主会话输入')
+    expect(harness.selectSession).not.toHaveBeenCalled()
+  })
+
+  it('无活跃会话时恢复归档会撤回 WS 自动选择并返回原本草稿', async () => {
+    const archived = { ...sessions[0], id: 'session-archived', archived_at: '2026-08-29T03:00:00Z' }
+    harness.state = {
+      ...workspaceState(), sessions: [], selected_session_id: undefined, new_session_selected: false,
+      drafts: { new: { text: '恢复前尚未发送的草稿', updated_at: 1 } },
+    }
+    harness.updateSessionMetadata.mockImplementationOnce(async () => {
+      const restored = { ...archived, archived_at: undefined, revision: 2 }
+      // 首个活跃会话由 WS 自动选中，不代表用户产生了新的选择意图。
+      harness.state = { ...harness.state, sessions: [restored], selected_session_id: restored.id }
+      publishState()
+      return restored
+    })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.draft).toBe('恢复前尚未发送的草稿'))
+    act(() => sessionManagement().onOpenArchives?.())
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(true))
+    await act(async () => {
+      const restore = harness.archiveProps?.onRestore as (session: AgentSession) => Promise<void>
+      await restore(archived)
+    })
+    expect(harness.updateSessionMetadata).toHaveBeenCalledWith(archived.id, { archived: false, expected_revision: 1 })
+    expect(harness.selectSession).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(harness.workspaceProps?.selected_session_id).toBeUndefined()
+    expect(harness.workspaceProps?.draft).toBe('恢复前尚未发送的草稿')
+    expect(harness.createSession).not.toHaveBeenCalled()
+  })
+
+  it('恢复归档等待期间用户主动切换会话，迟到回执不会抢回旧选择', async () => {
+    const archived = { ...sessions[0], id: 'session-archived', archived_at: '2026-08-29T03:00:00Z' }
+    const pending = deferred<AgentSession>()
+    harness.state = { ...workspaceState(), drafts: { 'session-two': { text: '新选择的会话草稿', updated_at: 1 } } }
+    harness.updateSessionMetadata.mockImplementationOnce(async () => {
+      const restored = await pending.promise
+      harness.state = { ...harness.state, sessions: [...(harness.state.sessions as AgentSession[]), restored] }
+      publishState()
+      return restored
+    })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBe('session-one'))
+    act(() => sessionManagement().onOpenArchives?.())
+    await waitFor(() => expect(harness.archiveProps?.open).toBe(true))
+    let restoring!: Promise<void>
+    act(() => {
+      const restore = harness.archiveProps?.onRestore as (session: AgentSession) => Promise<void>
+      restoring = restore(archived)
+    })
+    await waitFor(() => expect(harness.updateSessionMetadata).toHaveBeenCalledOnce())
+    act(() => {
+      const select = harness.workspaceProps?.onSelectSession as (id: string) => void
+      select('session-two')
+    })
+    expect(harness.state.selection_intent_revision).toBe(1)
+    pending.resolve({ ...archived, archived_at: undefined, revision: 2 })
+    await act(async () => { await restoring })
+    expect(harness.selectSession).toHaveBeenCalledExactlyOnceWith('session-two')
+    expect(harness.workspaceProps?.selected_session_id).toBe('session-two')
+    expect(harness.workspaceProps?.draft).toBe('新选择的会话草稿')
   })
 
   it('Run 已创建但 Runtime 启动失败时清理已提交附件和来源上下文', async () => {
@@ -970,7 +1252,7 @@ describe('AgentPage', () => {
   })
 
   it('归档会话时丢弃未绑定附件，删除会话时释放本地附件记录', async () => {
-    harness.updateSession.mockResolvedValue({ ...sessions[0], archived_at: '2026-08-29T03:00:00Z' })
+    harness.updateSessionMetadata.mockResolvedValue({ ...sessions[0], archived_at: '2026-08-29T03:00:00Z' })
     renderPage()
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
 
@@ -1038,6 +1320,7 @@ function workspaceState() {
     snapshot_complete: true,
     revision: 1,
     sessions,
+    session_groups: [],
     runs: {},
     messages: {},
     run_events: {},
@@ -1050,6 +1333,14 @@ function workspaceState() {
     new_session_selected: false,
     selection_intent_revision: 0,
   }
+}
+
+function sessionManagement() {
+  return harness.workspaceProps?.session_management as NonNullable<AgentWorkspaceProps['session_management']>
+}
+
+function sessionGroupFixture() {
+  return { id: 'group-ops', name: 'Ops', sort_order: 0, revision: 1, created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z' }
 }
 
 function queuedTurnFixture(overrides: Partial<AgentQueuedTurn> = {}): AgentQueuedTurn {
@@ -1100,6 +1391,9 @@ function renderPage({
   } as unknown as AgentSetupGateway
   const gateway = {
     updateMcpPolicy: harness.updateMcpPolicy,
+    sessions: vi.fn().mockResolvedValue({ items: [] }),
+    messages: vi.fn().mockResolvedValue({ items: [] }),
+    session: vi.fn(async (id: string) => (harness.state.sessions as AgentSession[]).find((session) => session.id === id)),
   } as unknown as AgentWorkspaceGateway
   const element = (next: {
     launchIntent?: AgentLaunchIntent

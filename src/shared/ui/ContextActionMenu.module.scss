@@ -13,8 +13,10 @@
     var(--inner-highlight);
 }
 
-.root :global(.ant-dropdown-menu-item) {
+.root :global(.ant-dropdown-menu-item),
+.root :global(.ant-dropdown-menu-submenu-title) {
   min-height: 34px;
+  align-items: center;
   border-radius: 9px;
   color: var(--text-secondary);
   padding: 5px 7px !important;
@@ -24,7 +26,9 @@
 }
 
 .root :global(.ant-dropdown-menu-item:hover),
-.root :global(.ant-dropdown-menu-item-active) {
+.root :global(.ant-dropdown-menu-item-active),
+.root :global(.ant-dropdown-menu-submenu-title:hover),
+.root :global(.ant-dropdown-menu-submenu-active) > :global(.ant-dropdown-menu-submenu-title) {
   background: var(--row-hover-bg) !important;
   color: var(--text-primary);
 }
@@ -34,11 +38,16 @@
   color: var(--text-primary);
 }
 
-.root :global(.ant-dropdown-menu-item-disabled) {
+.root :global(.ant-dropdown-menu-item-disabled),
+.root :global(.ant-dropdown-menu-submenu-disabled) > :global(.ant-dropdown-menu-submenu-title) {
   color: var(--text-muted) !important;
   opacity: 0.62;
 }
 
 .root :global(.ant-dropdown-menu-title-content) {
   min-width: 0;
+}
+
+.root :global(.ant-dropdown-menu-submenu-title) {
+  padding-inline-end: 26px !important;
 }

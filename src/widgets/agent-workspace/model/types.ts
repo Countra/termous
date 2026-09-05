@@ -9,6 +9,7 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
+  AgentSessionGroup,
   AgentSSHResourceState,
   AgentSourceContext,
   AgentUsage,
@@ -33,6 +34,11 @@ export type AgentWorkspaceRunStatus =
 export interface AgentWorkspaceSession {
   id: string
   title: string
+  group_id?: string
+  pinned?: boolean
+  pin_order?: number
+  sort_order?: number
+  last_activity_at?: string
   model_id: string
   model_name: string
   model_alias?: string
@@ -181,8 +187,31 @@ export interface AgentWorkspaceInspectorState {
   mcp: AgentWorkspaceMcpState
 }
 
+export interface AgentWorkspaceSessionManagement {
+  groups: AgentSessionGroup[]
+  pendingIds: ReadonlySet<string>
+  disabled: boolean
+  searchQuery: string
+  searchResults: AgentWorkspaceSession[]
+  searchLoading: boolean
+  searchError?: string
+  onSearchQueryChange: (query: string) => void
+  onSearchRetry: () => void
+  onRename: (id: string, title: string) => Promise<void>
+  onPin: (id: string, pinned: boolean) => Promise<void>
+  onMoveToGroup: (id: string, groupId: string | undefined, unpin?: boolean) => Promise<void>
+  onCreateGroup: (name: string) => Promise<void>
+  onRenameGroup: (id: string, name: string) => Promise<void>
+  onDeleteGroup: (id: string) => Promise<void>
+  onMoveGroup: (id: string, targetId: string, placement: 'before' | 'after') => Promise<void>
+  onMovePin: (id: string, targetId: string, placement: 'before' | 'after') => Promise<void>
+  onMoveSession: (id: string, targetId: string, placement: 'before' | 'after') => Promise<void>
+  onOpenArchives: () => void
+}
+
 export interface AgentWorkspaceProps {
   sessions: AgentWorkspaceSession[]
+  session_management?: AgentWorkspaceSessionManagement
   selected_session_id?: string
   messages: AgentWorkspaceMessage[]
   models: AgentWorkspaceModelOption[]
@@ -212,7 +241,7 @@ export interface AgentWorkspaceProps {
   run_blocked: boolean
   resource_run_blocked: boolean
   resource_context?: AgentWorkspaceResourceContext
-  onCreateSession: () => void
+  onCreateSession: (groupId?: string) => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
   onArchiveSession: (sessionId: string) => void

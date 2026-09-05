@@ -74,8 +74,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       sessions={props.sessions}
       selectedSessionId={props.selected_session_id}
       disabled={props.busy || props.run_blocked}
+      {...props.session_management}
       queuedSessionId={queuedSessionId}
-      onCreate={() => { props.onCreateSession(); setSessionsOpen(false) }}
+      onCreate={(groupId) => { props.onCreateSession(groupId); setSessionsOpen(false) }}
       onSelect={(id) => { props.onSelectSession(id); setSessionsOpen(false) }}
       onArchive={(id) => props.onArchiveSession(id)}
       onDelete={setDeleteSessionId}
