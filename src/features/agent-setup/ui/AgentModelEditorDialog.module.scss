@@ -1,10 +1,11 @@
-.modal :global(.ant-modal-content) {
+.modal :global(.ant-modal-container) {
   padding: 0;
   overflow: hidden;
 }
 
 .editor {
   display: grid;
+  min-width: 0;
   max-height: min(780px, calc(100dvh - 48px));
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
@@ -16,7 +17,7 @@
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--border);
-  padding: 16px 18px 14px;
+  padding: 16px 52px 14px 18px;
 }
 
 .header h2 {
@@ -37,8 +38,10 @@
 }
 
 .body {
+  min-width: 0;
   min-height: 0;
   overflow: hidden auto;
+  overscroll-behavior: contain;
   padding: 0 18px;
   scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
   scrollbar-width: thin;
@@ -226,7 +229,7 @@
   font-size: 11px;
 }
 
-.body > :global(.ant-alert) {
+.feedback > :global(.ant-alert) {
   margin: 0 0 12px 144px;
 }
 
@@ -262,7 +265,7 @@
     margin-top: 0;
   }
 
-  .body > :global(.ant-alert),
+  .feedback > :global(.ant-alert),
   .validation {
     margin-left: 0;
   }

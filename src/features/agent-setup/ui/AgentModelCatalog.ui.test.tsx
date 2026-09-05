@@ -89,6 +89,28 @@ describe('AgentModelCatalog', () => {
     expect(within(list).getByText(activeManual.remote_model_id)).toBeInTheDocument()
     expect(within(list).getByText(removedManual.remote_model_id)).toBeInTheDocument()
   })
+
+  it('来源筛选为空时说明没有匹配结果，并可一键恢复目录', async () => {
+    const user = userEvent.setup()
+    render(
+      <AntdApp>
+        <AgentModelCatalog
+          provider={providerFixture()} models={[modelFixture(1)]} disabled={false} refreshing={false}
+          onRefresh={vi.fn()} onAdd={vi.fn()} onEdit={vi.fn()} onTest={vi.fn()}
+          onSetDefault={vi.fn()} onRemove={vi.fn()} onRestore={vi.fn()}
+        />
+      </AntdApp>,
+    )
+    await user.click(screen.getByRole('combobox', { name: 'settings.agent.catalog.sourceFilter' }))
+    await user.click(await screen.findByText('settings.agent.catalog.filterSource.manual'))
+    expect(screen.getByText('settings.agent.catalog.noResults')).toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.catalog.empty')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.clearFilters' }))
+
+    expect(within(screen.getByTestId('agent-model-catalog-list')).getByText('model-1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.agent.catalog.clearFilters' })).not.toBeInTheDocument()
+  })
 })
 
 function providerFixture(): AgentModelProvider {

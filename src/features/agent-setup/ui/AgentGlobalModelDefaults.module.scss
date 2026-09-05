@@ -1,37 +1,61 @@
+.defaults {
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.heading {
+  margin-bottom: 14px;
+}
+
+.heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.heading p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .controls {
   display: grid;
   min-width: 0;
-  gap: 10px;
+  gap: 14px;
 }
 
 .primary-controls,
 .parameter-controls {
   display: grid;
   min-width: 0;
-  align-items: end;
-  gap: 9px;
+  align-items: start;
+  gap: 14px;
 }
 
 .primary-controls {
-  grid-template-columns: minmax(180px, 1.45fr) minmax(132px, 0.55fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .parameter-controls {
-  grid-template-columns: repeat(2, minmax(142px, 1fr));
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .compaction-controls {
   display: grid;
-  grid-template-columns: minmax(142px, 0.7fr) minmax(100px, 1fr) auto;
+  min-width: 0;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
   align-items: start;
-  gap: 9px;
+  gap: 14px;
 }
 
 .compaction-hint {
-  margin: 24px 0 0;
+  margin: 25px 0 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -50,12 +74,11 @@
 }
 
 .field-label > span {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .field :global(.ant-select),
@@ -94,13 +117,43 @@
 
 .field-error {
   color: var(--danger);
-  font-size: 9px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.alert {
+  margin-top: 12px;
+}
+
+.alert :global(.ant-alert-actions) {
+  flex-shrink: 0;
 }
 
 .save {
   min-width: 72px;
-  margin-top: 22px;
 }
 
 .model-option {
@@ -162,49 +215,55 @@
   line-height: 1.45;
 }
 
-@container agent-settings (max-width: 980px) {
-  .save {
-    justify-self: end;
-  }
-}
-
-@container agent-settings (max-width: 760px) {
+@container agent-settings (min-width: 900px) {
   .controls {
-    grid-column: 2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .primary-controls,
+  .parameter-controls {
+    display: contents;
+  }
+
+  .compaction-controls {
+    grid-column: 1 / -1;
   }
 }
 
 @container agent-settings (max-width: 520px) {
-  .primary-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .save {
-    grid-column: 1 / -1;
-  }
-
-  .parameter-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  .primary-controls,
+  .parameter-controls,
   .compaction-controls {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 
   .compaction-hint {
-    grid-row: 2;
-    grid-column: 1 / -1;
     margin: 0;
   }
 
-  .compaction-controls .save {
-    grid-column: 2;
-    margin-top: 22px;
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .save {
-    justify-self: end;
-    margin-top: 0;
+  .actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .alert :global(.ant-alert-section) {
+    min-width: 0;
+  }
+
+  .alert :global(.ant-alert-actions) {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .alert:global(.ant-alert-with-description) {
+    flex-wrap: wrap;
   }
 }
 

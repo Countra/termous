@@ -131,6 +131,35 @@ describe('useAgentSetupController', () => {
     expect(view.result.current.error).toBeNull()
   })
 
+  it.each(['https://example.test/v1/', 'HTTPS://example.test/v1///'])(
+    '保存等价 URL %s 后采用服务端规范化结果，不重新请求模型目录',
+    async (baseUrl) => {
+      const original = providerFixture(4)
+      const saved = providerFixture(5)
+      const gateway = gatewayFixture({ providers: [original] })
+      vi.mocked(gateway.updateModelProvider).mockResolvedValue(saved)
+      vi.mocked(gateway.modelProviders)
+        .mockResolvedValueOnce({ items: [original] })
+        .mockResolvedValue({ items: [saved] })
+      vi.mocked(gateway.refreshProviderModels).mockRejectedValue(new Error('不应发起目录同步'))
+      const view = renderHook(() => useAgentSetupController(gateway))
+      await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+      await act(async () => {
+        await expect(view.result.current.saveProvider({
+          ...providerInput(), base_url: baseUrl,
+        }, original)).resolves.toEqual(saved)
+      })
+
+      expect(gateway.updateModelProvider).toHaveBeenCalledExactlyOnceWith(original.id, {
+        ...providerInput(), base_url: baseUrl, expected_revision: original.revision,
+      }, expect.any(AbortSignal))
+      expect(gateway.refreshProviderModels).not.toHaveBeenCalled()
+      await waitFor(() => expect(view.result.current.providers).toEqual([saved]))
+      expect(view.result.current.error).toBeNull()
+    },
+  )
+
   it('配置已提交后的目录 revision 冲突不归类为编辑冲突', async () => {
     const original = providerFixture(4)
     const saved = {

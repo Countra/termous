@@ -78,6 +78,7 @@ export function AgentModelCatalogRow({
     <article className={`${styles['catalog-row']} ${removed ? styles['is-removed'] : ''}`}>
       <Tooltip
         placement="left"
+        trigger={['hover', 'focus']}
         mouseEnterDelay={0.35}
         rootClassName={`${uiStyles.tooltip} ${styles['catalog-detail-tooltip']}`}
         title={<ModelDetails provider={provider} model={model} />}

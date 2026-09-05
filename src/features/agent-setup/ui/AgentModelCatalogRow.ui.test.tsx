@@ -48,6 +48,18 @@ describe('AgentModelCatalogRow', () => {
     expect(screen.getByText('settings.agent.catalog.detail.lastSeen')).toBeInTheDocument()
     expect(screen.getByText('settings.agent.catalog.detail.context')).toBeInTheDocument()
   })
+
+  it('键盘聚焦模型行时也能读取完整模型详情', async () => {
+    const user = userEvent.setup()
+    renderRow(modelFixture())
+    const modelDetails = screen.getByText('remote-model').parentElement
+
+    await user.tab()
+
+    expect(modelDetails).toHaveFocus()
+    expect(await screen.findByText('settings.agent.catalog.detail.provider')).toBeInTheDocument()
+    expect(screen.getByText('settings.agent.catalog.detail.reasoning')).toBeInTheDocument()
+  })
 })
 
 function renderRow(model: AgentModel, overrides: {

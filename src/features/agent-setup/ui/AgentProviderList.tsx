@@ -67,7 +67,10 @@ export function AgentProviderList({
           >
             <span className={styles['provider-row-icon']}><Cloud size={16} aria-hidden="true" /></span>
             <span className={styles['provider-row-copy']}>
-              <strong>{provider.name}</strong>
+              <span className={styles['provider-row-heading']}>
+                <strong>{provider.name}</strong>
+                <ProviderState provider={provider} />
+              </span>
               <small>{provider.base_url}</small>
               <span className={styles['provider-row-meta']}>
                 <span>{t(`settings.agent.apiMode.${provider.api_mode === 'responses' ? 'responses' : 'chatCompletions'}`)}</span>
@@ -82,7 +85,6 @@ export function AgentProviderList({
                 </span>
               </span>
             </span>
-            <ProviderState provider={provider} />
           </button>
         ))}
       </div>

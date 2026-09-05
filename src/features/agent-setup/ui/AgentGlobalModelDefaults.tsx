@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react'
 import { Alert, Button, InputNumber, Select, Tooltip } from 'antd'
-import { CircleHelp, Save, SlidersHorizontal } from 'lucide-react'
+import { CircleHelp, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   agentReasoningLevels,
@@ -15,7 +15,6 @@ import {
   uiStyles,
 } from '#shared/ui'
 import type { AgentSetupController } from '../model/useAgentSetupController.ts'
-import setupStyles from './AgentSetup.module.scss'
 import styles from './AgentGlobalModelDefaults.module.scss'
 import { AgentTokenLimitInput } from './AgentTokenLimitInput.tsx'
 
@@ -52,6 +51,7 @@ export function AgentGlobalModelDefaults({
   const [baseline, setBaseline] = useState<DefaultsDraft>(() => createDraft(settings))
   const [draft, setDraft] = useState<DefaultsDraft>(() => createDraft(settings))
   const [externalChange, setExternalChange] = useState(false)
+  const [feedback, setFeedback] = useState<'saved' | 'draftPreserved' | null>(null)
   const providerById = useMemo(
     () => new Map(runtime.providers.map((provider) => [provider.id, provider])),
     [runtime.providers],
@@ -84,6 +84,7 @@ export function AgentGlobalModelDefaults({
     setBaseline(next)
     setDraft(next)
     setExternalChange(false)
+    setFeedback(null)
   }, [baselineRevision, dirty, settings])
 
   useLayoutEffect(() => {
@@ -94,23 +95,35 @@ export function AgentGlobalModelDefaults({
 
   const reloadLatest = async () => {
     const snapshot = runtimeSettingsConflict ? await runtime.resolveConflict() : null
+    if (runtimeSettingsConflict && !snapshot) return
     const latestSettings = snapshot?.readiness.settings ?? settings
     const next = createDraft(latestSettings)
     setBaselineRevision(latestSettings.revision)
     setBaseline(next)
     setExternalChange(false)
+    setFeedback('draftPreserved')
+  }
+
+  const reset = () => {
+    const next = createDraft(settings)
+    setBaselineRevision(settings.revision)
+    setBaseline(next)
+    setDraft(next)
+    setExternalChange(false)
+    setFeedback(null)
   }
 
   const save = () => {
     if (
       !dirty
       || invalid
-      || externalChange
+      || conflictVisible
       || busy
       || draft.contextWindowTokens === null
       || draft.maxOutputTokens === null
       || draft.compactionThreshold === null
     ) return
+    setFeedback(null)
     void runtime.updateSettings({
       default_model_id: draft.defaultModelId,
       default_reasoning_level: draft.defaultReasoningLevel,
@@ -123,18 +136,16 @@ export function AgentGlobalModelDefaults({
       setBaseline(next)
       setDraft(next)
       setExternalChange(false)
+      setFeedback('saved')
     }).catch(() => undefined)
   }
 
   return (
-    <section className={setupStyles['agent-setting-row']} aria-labelledby="agent-defaults-title">
-      <span className={setupStyles['agent-setting-icon']} aria-hidden="true">
-        <SlidersHorizontal size={16} />
-      </span>
-      <div className={setupStyles['agent-setting-copy']}>
-        <strong id="agent-defaults-title">{t('settings.agent.defaults.title')}</strong>
-        <span>{t('settings.agent.defaults.description')}</span>
-      </div>
+    <section className={styles.defaults} aria-labelledby="agent-defaults-title">
+      <header className={styles.heading}>
+        <h3 id="agent-defaults-title">{t('settings.agent.defaults.title')}</h3>
+        <p>{t('settings.agent.defaults.description')}</p>
+      </header>
       <div className={styles.controls}>
         <div className={styles['primary-controls']}>
           <Field label={t('settings.agent.defaults.model')}>
@@ -281,28 +292,17 @@ export function AgentGlobalModelDefaults({
             />
           </Field>
           <p className={styles['compaction-hint']}>{t('settings.agent.compaction.hint')}</p>
-          <Button
-            className={styles.save}
-            type="primary"
-            icon={<Save size={14} />}
-            aria-label={t('settings.agent.defaults.save')}
-            loading={runtime.mutation === 'settings'}
-            disabled={busy || !dirty || invalid || externalChange}
-            onClick={save}
-          >
-            {t('app.save')}
-          </Button>
         </div>
       </div>
       {conflictVisible ? (
         <Alert
-          className={setupStyles['agent-setting-alert']}
+          className={styles.alert}
           type="warning"
           showIcon
           title={t('settings.agent.conflict.title')}
           description={t('settings.agent.conflict.defaultsDescription')}
           action={(
-            <Button size="small" loading={runtime.loading} onClick={() => void reloadLatest()}>
+            <Button size="small" loading={runtime.loading} disabled={busy} onClick={() => void reloadLatest()}>
               {t('settings.agent.conflict.refresh')}
             </Button>
           )}
@@ -310,13 +310,37 @@ export function AgentGlobalModelDefaults({
       ) : null}
       {selectedModel && !isAgentModelRunnable(selectedModel, providerById.get(selectedModel.provider_id)) ? (
         <Alert
-          className={setupStyles['agent-setting-alert']}
+          className={styles.alert}
           type="warning"
           showIcon
           title={t('settings.agent.defaults.unavailableTitle')}
           description={t('settings.agent.defaults.unavailableDescription')}
         />
       ) : null}
+      <footer className={styles.footer}>
+        <span className={styles.feedback} role="status" aria-live="polite">
+          {conflictVisible ? null : feedback === 'draftPreserved' && dirty
+            ? t('settings.agent.defaults.draftPreserved')
+            : dirty ? t('settings.agent.defaults.unsaved')
+              : feedback === 'saved' ? t('settings.agent.defaults.saved') : null}
+        </span>
+        <div className={styles.actions}>
+          <Button disabled={busy || !dirty} onClick={reset}>
+            {t('settings.agent.defaults.reset')}
+          </Button>
+          <Button
+            className={styles.save}
+            type="primary"
+            icon={<Save size={14} />}
+            aria-label={t('settings.agent.defaults.save')}
+            loading={runtime.mutation === 'settings'}
+            disabled={busy || !dirty || invalid || conflictVisible}
+            onClick={save}
+          >
+            {t('app.save')}
+          </Button>
+        </div>
+      </footer>
     </section>
   )
 }

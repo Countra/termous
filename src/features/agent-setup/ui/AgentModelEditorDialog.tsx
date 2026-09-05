@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Modal } from 'antd'
 import { Save, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +12,7 @@ import {
   type AgentModelDraft,
   type AgentModelEditorValue,
 } from '../model/agentModelEditorDraft.ts'
-import { agentSetupErrorKey, type AgentSetupErrorKey } from '../model/agentSetupError.ts'
+import { agentSetupErrorKey } from '../model/agentSetupError.ts'
 import { AgentModelConfigurationFields } from './AgentModelConfigurationFields.tsx'
 import styles from './AgentModelEditorDialog.module.scss'
 
@@ -26,9 +26,10 @@ interface AgentModelEditorDialogProps {
   modelMissing: boolean
   modelRemoved?: boolean
   providerMissing: boolean
-  onSaveErrorVisibilityChange?: (visible: boolean) => void
+  conflictError?: Error | null
+  onSaveErrorChange?: (error: unknown | null) => void
   onCancel: () => void
-  onResolveConflict: () => Promise<AgentModel | undefined>
+  onResolveConflict: () => Promise<{ model?: AgentModel } | undefined>
   onSave: (input: AgentModelEditorValue, baseline?: AgentModel) => Promise<void>
 }
 
@@ -42,7 +43,8 @@ export function AgentModelEditorDialog({
   modelMissing,
   modelRemoved = false,
   providerMissing,
-  onSaveErrorVisibilityChange,
+  conflictError,
+  onSaveErrorChange,
   onCancel,
   onResolveConflict,
   onSave,
@@ -53,10 +55,16 @@ export function AgentModelEditorDialog({
   const [externalConflict, setExternalConflict] = useState(false)
   const [baselineRefreshed, setBaselineRefreshed] = useState(false)
   const [validation, setValidation] = useState<string | null>(null)
-  const [saveErrorKey, setSaveErrorKey] = useState<AgentSetupErrorKey | null>(null)
+  const [saveError, setSaveError] = useState<unknown | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const feedbackRef = useRef<HTMLDivElement>(null)
 
   const editing = Boolean(model || baseline)
+  const effectiveError = conflictError && agentSetupErrorKey(conflictError) !== 'settings.agent.error.conflict'
+    ? conflictError
+    : saveError
+  const errorKey = effectiveError === null ? null : agentSetupErrorKey(effectiveError)
   const dirty = useMemo(
     () => isAgentModelDraftDirty(draft, baseline, settings),
     [baseline, draft, settings],
@@ -66,14 +74,29 @@ export function AgentModelEditorDialog({
   const requestClose = () => dirty ? setConfirmClose(true) : onCancel()
 
   useEffect(() => {
+    if (!open || !(validation || errorKey || effectiveConflict)) return
+    const body = bodyRef.current
+    const feedback = feedbackRef.current
+    if (!body || !feedback) return
+    const bodyBounds = body.getBoundingClientRect()
+    const feedbackBounds = feedback.getBoundingClientRect()
+    // 只调整弹窗内部滚动，不让新错误带动背景设置页滚动。
+    if (feedbackBounds.top < bodyBounds.top) {
+      body.scrollTop += feedbackBounds.top - bodyBounds.top
+    } else if (feedbackBounds.bottom > bodyBounds.bottom) {
+      body.scrollTop += Math.min(feedbackBounds.top - bodyBounds.top, feedbackBounds.bottom - bodyBounds.bottom)
+    }
+  }, [effectiveConflict, errorKey, open, validation])
+
+  useEffect(() => {
     if (!dirty) setBaselineRefreshed(false)
   }, [dirty])
 
   useEffect(() => {
-    onSaveErrorVisibilityChange?.(Boolean(saveErrorKey))
-  }, [onSaveErrorVisibilityChange, saveErrorKey])
+    onSaveErrorChange?.(open ? effectiveError : null)
+  }, [effectiveError, onSaveErrorChange, open])
 
-  useEffect(() => () => onSaveErrorVisibilityChange?.(false), [onSaveErrorVisibilityChange])
+  useEffect(() => () => onSaveErrorChange?.(null), [onSaveErrorChange])
 
   useEffect(() => {
     if (!model || !baseline || model.id !== baseline.id || model.revision === baseline.revision) return
@@ -97,21 +120,21 @@ export function AgentModelEditorDialog({
       return
     }
     setValidation(null)
-    setSaveErrorKey(null)
+    setSaveError(null)
     void onSave(toAgentModelEditorValue(draft), baseline).catch((error: unknown) => {
       const errorKey = agentSetupErrorKey(error)
-      if (errorKey !== 'settings.agent.error.conflict') setSaveErrorKey(errorKey)
+      if (errorKey !== 'settings.agent.error.conflict') setSaveError(error)
     })
   }
 
   const resolveConflict = async () => {
-    const latest = await onResolveConflict()
-    if (baseline && !latest) return
-    if (latest) setBaseline(latest)
+    const resolution = await onResolveConflict()
+    if (!resolution || (baseline && !resolution.model)) return
+    if (resolution.model) setBaseline(resolution.model)
     setExternalConflict(false)
     setBaselineRefreshed(true)
     setValidation(null)
-    setSaveErrorKey(null)
+    setSaveError(null)
   }
 
   return (
@@ -140,11 +163,11 @@ export function AgentModelEditorDialog({
           <span>{provider?.name}</span>
         </header>
 
-        <div className={styles.body}>
+        <div ref={bodyRef} className={styles.body}>
           <AgentModelConfigurationFields
             draft={draft}
             setDraft={(next) => {
-              setSaveErrorKey(null)
+              setValidation(null)
               setDraft(next)
             }}
             model={model}
@@ -153,40 +176,42 @@ export function AgentModelEditorDialog({
             busy={busy}
           />
 
-          {model && !model.capabilities_confirmed ? (
-            <Alert type="info" showIcon title={t('settings.agent.modelEditor.conservativeTitle')} />
-          ) : null}
-          {effectiveConflict ? (
-            <Alert
-              type="warning"
-              showIcon
-              title={t('settings.agent.conflict.title')}
-              description={t(modelMissing
-                ? 'settings.agent.conflict.modelDeleted'
-                : modelRemoved
-                  ? 'settings.agent.conflict.modelRemoved'
-                : providerMissing
-                  ? 'settings.agent.conflict.providerDeleted'
-                  : 'settings.agent.conflict.editorDescription')}
-              action={resourceMissing ? undefined : (
-                <Button size="small" loading={busy} onClick={() => void resolveConflict()}>
-                  {t('settings.agent.conflict.refresh')}
-                </Button>
-              )}
-            />
-          ) : null}
-          {baselineRefreshed && dirty ? (
-            <Alert type="info" showIcon title={t('settings.agent.conflict.draftPreserved')} />
-          ) : null}
-          {saveErrorKey ? (
-            <Alert
-              type="error"
-              showIcon
-              title={t('settings.agent.operationFailed')}
-              description={t(saveErrorKey)}
-            />
-          ) : null}
-          {validation ? <p className={styles.validation} role="alert">{validation}</p> : null}
+          <div ref={feedbackRef} className={styles.feedback}>
+            {model && !model.capabilities_confirmed ? (
+              <Alert type="info" showIcon title={t('settings.agent.modelEditor.conservativeTitle')} />
+            ) : null}
+            {effectiveConflict ? (
+              <Alert
+                type="warning"
+                showIcon
+                title={t('settings.agent.conflict.title')}
+                description={t(modelMissing
+                  ? 'settings.agent.conflict.modelDeleted'
+                  : modelRemoved
+                    ? 'settings.agent.conflict.modelRemoved'
+                  : providerMissing
+                    ? 'settings.agent.conflict.providerDeleted'
+                    : 'settings.agent.conflict.editorDescription')}
+                action={resourceMissing ? undefined : (
+                  <Button size="small" loading={busy} onClick={() => void resolveConflict()}>
+                    {t('settings.agent.conflict.refresh')}
+                  </Button>
+                )}
+              />
+            ) : null}
+            {baselineRefreshed && dirty ? (
+              <Alert type="info" showIcon title={t('settings.agent.conflict.draftPreserved')} />
+            ) : null}
+            {errorKey ? (
+              <Alert
+                type="error"
+                showIcon
+                title={t('settings.agent.operationFailed')}
+                description={t(errorKey)}
+              />
+            ) : null}
+            {validation ? <p className={styles.validation} role="alert">{validation}</p> : null}
+          </div>
         </div>
 
         <footer className={styles.footer}>

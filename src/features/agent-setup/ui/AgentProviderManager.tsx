@@ -25,9 +25,11 @@ type PendingNavigation =
 export function AgentProviderManager({
   runtime,
   onEditorConflictVisibilityChange,
+  onErrorVisibilityChange,
 }: {
   runtime: AgentSetupController
   onEditorConflictVisibilityChange: (visible: boolean) => void
+  onErrorVisibilityChange: (visible: boolean) => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -47,7 +49,8 @@ export function AgentProviderManager({
   const [testModelId, setTestModelId] = useState<string>()
   const [testingProviderId, setTestingProviderId] = useState<string>()
   const [refreshingProviderId, setRefreshingProviderId] = useState<string>()
-  const [modelSaveErrorVisible, setModelSaveErrorVisible] = useState(false)
+  const [modelSaveError, setModelSaveError] = useState<unknown>(null)
+  const [providerSaveError, setProviderSaveError] = useState<unknown>(null)
   const [selectedProviderSnapshot, setSelectedProviderSnapshot] = useState<AgentModelProvider | undefined>(
     () => runtime.providers[0],
   )
@@ -121,6 +124,7 @@ export function AgentProviderManager({
   }, [editModel])
 
   const navigate = (target: PendingNavigation) => {
+    if (busy) return
     if (dirty) {
       setPendingNavigation(target)
       return
@@ -160,9 +164,13 @@ export function AgentProviderManager({
     const relevantConflict = runtime.conflict?.kind === 'model'
       && runtime.conflict.operation === 'edit'
       && runtime.conflict.modelId === editingModel.id
-    if (!relevantConflict) return modelById.get(editingModel.id)
+    if (!relevantConflict) {
+      const latest = modelById.get(editingModel.id)
+      return latest ? { model: latest } : undefined
+    }
     const snapshot = await runtime.resolveConflict()
-    return snapshot?.models.find(({ id }) => id === editingModel.id)
+    const latest = snapshot?.models.find(({ id }) => id === editingModel.id)
+    return latest ? { model: latest } : undefined
   }
 
   const saveProvider = async (
@@ -273,11 +281,20 @@ export function AgentProviderManager({
     || editModelMissing
     || editModelRemoved
     || modelProviderMissing
+  const providerSaveErrorVisible = Boolean(
+    (creating || activeTab === 'connection') && providerSaveError && runtime.error === providerSaveError,
+  )
+  const modelSaveErrorVisible = Boolean(
+    (creatingModel || editingModel) && modelSaveError && runtime.error === modelSaveError,
+  )
   useEffect(() => {
     onEditorConflictVisibilityChange(Boolean(
-      providerEditorConflict || modelEditorConflict || modelSaveErrorVisible,
+      providerEditorConflict || modelEditorConflict,
     ))
-  }, [modelEditorConflict, modelSaveErrorVisible, onEditorConflictVisibilityChange, providerEditorConflict])
+  }, [modelEditorConflict, onEditorConflictVisibilityChange, providerEditorConflict])
+  useEffect(() => {
+    onErrorVisibilityChange(modelSaveErrorVisible || providerSaveErrorVisible)
+  }, [modelSaveErrorVisible, onErrorVisibilityChange, providerSaveErrorVisible])
   const providerContainsDefault = Boolean(selectedProvider && runtime.models.some((model) => (
     model.provider_id === selectedProvider.id
     && model.id === runtime.readiness?.settings.default_model_id
@@ -344,6 +361,7 @@ export function AgentProviderManager({
               items={[
                 {
                   key: 'connection',
+                  disabled: busy,
                   className: styles['provider-connection-pane'],
                   label: (
                     <span className={styles['provider-tab-label']}>
@@ -364,6 +382,7 @@ export function AgentProviderManager({
                       onDirtyChange={setDirty}
                       onResolveConflict={resolveProviderConflict}
                       onSave={saveProvider}
+                      onSaveErrorChange={setProviderSaveError}
                       onTest={() => selectedProvider
                         ? testProvider(selectedProvider)
                         : Promise.resolve()}
@@ -372,6 +391,7 @@ export function AgentProviderManager({
                 },
                 ...(!creating && selectedProvider ? [{
                   key: 'catalog',
+                  disabled: busy,
                   className: styles['provider-catalog-pane'],
                   label: (
                     <span className={styles['provider-tab-label']}>
@@ -431,7 +451,8 @@ export function AgentProviderManager({
         modelMissing={editModelMissing}
         modelRemoved={editModelRemoved}
         providerMissing={modelProviderMissing}
-        onSaveErrorVisibilityChange={setModelSaveErrorVisible}
+        conflictError={modelEditorConflict ? runtime.error : undefined}
+        onSaveErrorChange={setModelSaveError}
         onCancel={() => {
           setCreatingModel(false)
           setEditModelId(undefined)
@@ -439,8 +460,8 @@ export function AgentProviderManager({
         }}
         onResolveConflict={creatingModel
           ? async () => {
-              await runtime.resolveConflict()
-              return undefined
+              const snapshot = await runtime.resolveConflict()
+              return snapshot?.providers.some(({ id }) => id === selectedId) ? {} : undefined
             }
           : resolveModelConflict}
         onSave={async (input, baseline) => {

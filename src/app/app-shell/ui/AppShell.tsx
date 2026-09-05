@@ -44,13 +44,13 @@ export interface AppShellProps {
 
 const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
-  { key: 'agent' as const, icon: Bot },
   { key: 'remote-desktop' as const, icon: MonitorPlay },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
   { key: 'files' as const, icon: FolderTree },
   { key: 'forwards' as const, icon: Route },
   { key: 'snippets' as const, icon: FileCode2 },
+  { key: 'agent' as const, icon: Bot },
 ]
 
 const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {

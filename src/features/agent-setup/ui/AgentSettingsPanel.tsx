@@ -13,6 +13,7 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
   const { t } = useTranslation()
   const runtime = useAgentSetupController(gateway)
   const [editorConflictVisible, setEditorConflictVisible] = useState(false)
+  const [editorErrorVisible, setEditorErrorVisible] = useState(false)
   const [defaultsConflictVisible, setDefaultsConflictVisible] = useState(false)
 
   if (runtime.loading && !runtime.readiness) {
@@ -40,6 +41,8 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
   }
 
   const localEditorOwnsConflict = editorConflictVisible || defaultsConflictVisible
+  const errorBelongsToConflict = Boolean(runtime.conflict
+    && agentSetupErrorKey(runtime.error) === 'settings.agent.error.conflict')
 
   return (
     <div className={styles.stack}>
@@ -55,7 +58,8 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
             </Button>
           )}
         />
-      ) : runtime.error && !localEditorOwnsConflict ? (
+      ) : null}
+      {runtime.error && !editorErrorVisible && !errorBelongsToConflict ? (
         <Alert
           type="error"
           showIcon
@@ -73,6 +77,7 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
       <AgentProviderManager
         runtime={runtime}
         onEditorConflictVisibilityChange={setEditorConflictVisible}
+        onErrorVisibilityChange={setEditorErrorVisible}
       />
 
     </div>

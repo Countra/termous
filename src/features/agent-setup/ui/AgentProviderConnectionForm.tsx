@@ -8,6 +8,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  TriangleAlert,
   Undo2,
   Unlink2,
 } from 'lucide-react'
@@ -18,6 +19,7 @@ import type {
   AgentModelProviderInput,
 } from '#entities/agent'
 import { ConfirmDialog, customSelectStyles, uiStyles } from '#shared/ui'
+import { agentSetupErrorKey } from '../model/agentSetupError.ts'
 import styles from './AgentProviderForm.module.scss'
 
 interface ProviderDraft {
@@ -40,6 +42,7 @@ interface AgentProviderConnectionFormProps {
   onDirtyChange: (dirty: boolean) => void
   onResolveConflict: () => Promise<AgentModelProvider | undefined>
   onSave: (input: AgentModelProviderInput, baseline?: AgentModelProvider) => Promise<void>
+  onSaveErrorChange?: (error: unknown | null) => void
   onTest: () => Promise<void>
 }
 
@@ -54,6 +57,7 @@ export function AgentProviderConnectionForm({
   onDirtyChange,
   onResolveConflict,
   onSave,
+  onSaveErrorChange,
   onTest,
 }: AgentProviderConnectionFormProps) {
   const { t } = useTranslation()
@@ -62,9 +66,12 @@ export function AgentProviderConnectionForm({
   const [externalConflict, setExternalConflict] = useState(false)
   const [baselineRefreshed, setBaselineRefreshed] = useState(false)
   const [validation, setValidation] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<unknown>(null)
   const [confirmHttp, setConfirmHttp] = useState(false)
   const apiKeyControlId = useId()
   const nameInputRef = useRef<InputRef>(null)
+  const feedbackRef = useRef<HTMLDivElement>(null)
+  const saveErrorKey = saveError ? agentSetupErrorKey(saveError) : null
 
   const dirty = useMemo(() => isDraftDirty(draft, baseline), [baseline, draft])
   const effectiveConflict = conflicted || externalConflict
@@ -83,6 +90,15 @@ export function AgentProviderConnectionForm({
         : apiKeyState === 'notConfigured' ? 'not-configured' : 'configured'
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => {
+    onSaveErrorChange?.(saveError)
+  }, [onSaveErrorChange, saveError])
+  useEffect(() => () => onSaveErrorChange?.(null), [onSaveErrorChange])
+  useEffect(() => {
+    if (!validation && !saveErrorKey) return
+    feedbackRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    feedbackRef.current?.focus({ preventScroll: true })
+  }, [validation, saveErrorKey])
+  useEffect(() => {
     if (!dirty) setBaselineRefreshed(false)
   }, [dirty])
   useEffect(() => {
@@ -100,6 +116,7 @@ export function AgentProviderConnectionForm({
     setExternalConflict(false)
     setBaselineRefreshed(false)
     setValidation(null)
+    setSaveError(null)
     setConfirmHttp(false)
   }, [baseline, draft, provider])
 
@@ -111,19 +128,29 @@ export function AgentProviderConnectionForm({
       return
     }
     setValidation(null)
+    setSaveError(null)
     if (isInsecureHttp(draft.baseUrl) && !confirmInsecureHttp) {
       setConfirmHttp(true)
       return
     }
     void onSave(toInput(draft, confirmInsecureHttp), baseline)
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        const key = agentSetupErrorKey(error)
+        if (key !== 'settings.agent.error.conflict') setSaveError(error)
+      })
       .finally(() => setConfirmHttp(false))
   }
 
   const reset = () => {
     setDraft(createDraft(baseline))
     setValidation(null)
+    setSaveError(null)
     setConfirmHttp(false)
+  }
+
+  const updateDraft = (patch: Partial<ProviderDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }))
+    setValidation(null)
   }
 
   const resolveConflict = async () => {
@@ -133,6 +160,7 @@ export function AgentProviderConnectionForm({
     setExternalConflict(false)
     setBaselineRefreshed(true)
     setValidation(null)
+    setSaveError(null)
     setConfirmHttp(false)
   }
 
@@ -152,7 +180,7 @@ export function AgentProviderConnectionForm({
                 maxLength={80}
                 disabled={busy}
                 placeholder={t('settings.agent.providerEditor.namePlaceholder')}
-                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) => updateDraft({ name: event.target.value })}
               />
             </Field>
             <Field label={t('settings.agent.providerEditor.enabled')}>
@@ -164,7 +192,7 @@ export function AgentProviderConnectionForm({
                   size="small"
                   checked={draft.enabled}
                   disabled={busy}
-                  onChange={(enabled) => setDraft((current) => ({ ...current, enabled }))}
+                  onChange={(enabled) => updateDraft({ enabled })}
                 />
               </div>
             </Field>
@@ -187,7 +215,7 @@ export function AgentProviderConnectionForm({
                   { value: 'responses', label: t('settings.agent.apiMode.responses') },
                   { value: 'chat_completions', label: t('settings.agent.apiMode.chatCompletions') },
                 ]}
-                onChange={(apiMode) => setDraft((current) => ({ ...current, apiMode }))}
+                onChange={(apiMode) => updateDraft({ apiMode })}
               />
             </Field>
             <Field label={t('settings.agent.providerEditor.baseUrl')}>
@@ -196,7 +224,7 @@ export function AgentProviderConnectionForm({
                 maxLength={2048}
                 disabled={busy}
                 placeholder="https://api.example.com/v1"
-                onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))}
+                onChange={(event) => updateDraft({ baseUrl: event.target.value })}
               />
             </Field>
             <div className={`${styles['provider-field']} ${styles['is-wide']}`}>
@@ -218,7 +246,7 @@ export function AgentProviderConnectionForm({
                     size="small"
                     icon={<Undo2 size={14} aria-hidden="true" />}
                     disabled={busy}
-                    onClick={() => setDraft((current) => ({ ...current, removeApiKey: false }))}
+                    onClick={() => updateDraft({ removeApiKey: false })}
                   >
                     {t('settings.agent.apiKey.undoRemove')}
                   </Button>
@@ -235,8 +263,10 @@ export function AgentProviderConnectionForm({
                     placeholder={t(baseline?.api_key_configured
                       ? 'settings.agent.apiKey.configuredPlaceholder'
                       : 'settings.agent.apiKey.optionalPlaceholder')}
-                    onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value }))}
-                    onPressEnter={() => submit(false)}
+                    onChange={(event) => updateDraft({ apiKey: event.target.value })}
+                    onPressEnter={(event) => {
+                      if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) submit(false)
+                    }}
                   />
                   {baseline?.api_key_configured ? (
                     <Button
@@ -244,11 +274,10 @@ export function AgentProviderConnectionForm({
                       danger
                       icon={<Unlink2 size={14} aria-hidden="true" />}
                       disabled={busy}
-                      onClick={() => setDraft((current) => ({
-                        ...current,
+                      onClick={() => updateDraft({
                         apiKey: '',
                         removeApiKey: true,
-                      }))}
+                      })}
                     >
                       {t('settings.agent.apiKey.remove')}
                     </Button>
@@ -272,8 +301,10 @@ export function AgentProviderConnectionForm({
 
         {isInsecureHttp(draft.baseUrl) ? (
           <Alert
+            className={styles['http-warning']}
             type="warning"
             showIcon
+            icon={<TriangleAlert size={16} aria-hidden="true" />}
             title={t('settings.agent.providerEditor.httpRiskTitle')}
             description={t('settings.agent.providerEditor.httpRisk')}
           />
@@ -308,7 +339,12 @@ export function AgentProviderConnectionForm({
         {baselineRefreshed && dirty ? (
           <Alert type="info" showIcon title={t('settings.agent.conflict.draftPreserved')} />
         ) : null}
-        {validation ? <p className={styles.validation} role="alert">{validation}</p> : null}
+        {validation || saveErrorKey ? (
+          <div ref={feedbackRef} className={styles.feedback} tabIndex={-1}>
+            <Alert type="error" showIcon title={validation ?? t('settings.agent.operationFailed')}
+              description={saveErrorKey ? t(saveErrorKey) : undefined} />
+          </div>
+        ) : null}
 
         <footer className={styles['provider-form-footer']}>
           <div className={styles['provider-form-test']}>

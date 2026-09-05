@@ -245,9 +245,9 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
       if (isCurrent()) setProviders((items) => upsert(items, saved))
 
       const catalogChanged = !current
-        || current.api_mode !== input.api_mode
-        || current.base_url !== input.base_url
-        || (!current.enabled && input.enabled)
+        || current.api_mode !== saved.api_mode
+        || current.base_url !== saved.base_url
+        || (!current.enabled && saved.enabled)
         || input.api_key !== undefined
         || input.remove_api_key === true
       if (saved.enabled && catalogChanged) {

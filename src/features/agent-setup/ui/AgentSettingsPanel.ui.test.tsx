@@ -987,6 +987,13 @@ describe('AgentSettingsPanel', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
 
     expect(await screen.findByText('settings.agent.error.modelCapabilityConflict')).toBeInTheDocument()
+    const editor = screen.getByRole('dialog')
+    fireEvent.change(within(editor).getByLabelText('settings.agent.modelEditor.displayName'), {
+      target: { value: '继续编辑的模型草稿' },
+    })
+    expect(within(editor).getByText('settings.agent.error.modelCapabilityConflict')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.agent.error.modelCapabilityConflict')).toHaveLength(1)
+    expect(gateway.updateModel).toHaveBeenCalledTimes(1)
   })
 
   it('手工新增模型冲突时在编辑弹窗内展示准确错误且不误报 revision 冲突', async () => {
@@ -1008,6 +1015,49 @@ describe('AgentSettingsPanel', () => {
     expect(await within(editor).findByText('settings.agent.error.modelIdConflict')).toBeInTheDocument()
     expect(screen.queryByText('settings.agent.error.conflict')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.agent.conflict.description')).not.toBeInTheDocument()
+  })
+
+  it('新增模型冲突读取失败不误报换基线成功，重试成功后才允许保存', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const refreshed = providerFixture(2)
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.createModel)
+      .mockRejectedValueOnce(new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409))
+      .mockResolvedValue({ model: modelFixture(), provider_revision: 3 })
+    vi.mocked(gateway.modelProviders)
+      .mockResolvedValueOnce({ items: [provider] }).mockResolvedValue({ items: [refreshed] })
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.add' }))
+    const editor = screen.getByRole('dialog')
+    const modelId = within(editor).getByLabelText('settings.agent.modelEditor.modelId')
+    fireEvent.change(modelId, { target: { value: 'draft-model' } })
+    const save = within(editor).getByRole('button', { name: 'app.save' })
+    await user.click(save)
+    const refresh = await within(editor).findByRole('button', { name: 'settings.agent.conflict.refresh' })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    vi.mocked(gateway.readiness).mockRejectedValueOnce(new Error('暂时无法读取设置'))
+    await user.click(refresh)
+
+    expect(await within(editor).findByText('settings.agent.error.generic')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.agent.error.generic')).toHaveLength(1)
+    await waitFor(() => expect(refresh).toBeEnabled())
+    expect(within(editor).queryByText('settings.agent.conflict.draftPreserved')).not.toBeInTheDocument()
+    expect(save).toBeDisabled()
+    expect(modelId).toHaveValue('draft-model')
+    await user.click(refresh)
+    expect(await within(editor).findByText('settings.agent.conflict.draftPreserved')).toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.error.generic')).not.toBeInTheDocument()
+    await waitFor(() => expect(save).toBeEnabled())
+    await user.click(save)
+
+    await waitFor(() => expect(gateway.createModel).toHaveBeenLastCalledWith(
+      provider.id, expect.objectContaining({ remote_model_id: 'draft-model', expected_revision: 2 }),
+      expect.any(AbortSignal),
+    ))
+    expect(gateway.createModel).toHaveBeenCalledTimes(2)
   })
 
   it('非 revision 的 HTTP 409 按稳定业务错误码展示', async () => {
@@ -1066,6 +1116,211 @@ describe('AgentSettingsPanel', () => {
 
     expect(screen.getByText('settings.agent.providerEditor.httpRiskTitle')).toBeInTheDocument()
     expect(screen.getByText('settings.agent.providerEditor.httpRisk')).toBeInTheDocument()
+  })
+
+  it('默认设置冲突读取失败时保留草稿并公开可重试的读取错误', async () => {
+    const user = userEvent.setup()
+    const gateway = gatewayFixture()
+    vi.mocked(gateway.updateSettings).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    renderPanel(gateway)
+    const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    fireEvent.change(threshold, { target: { value: '85' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await screen.findByText('settings.agent.conflict.defaultsDescription')
+    const refresh = screen.getByRole('button', { name: 'settings.agent.conflict.refresh' })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    vi.mocked(gateway.readiness).mockRejectedValueOnce(
+      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
+    )
+    await user.click(refresh)
+
+    expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.agent.error.vaultLocked')).toHaveLength(1)
+    expect(threshold).toHaveValue('85')
+    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(screen.getByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
+    await waitFor(() => expect(refresh).toBeEnabled())
+    await user.click(refresh)
+    await waitFor(() => expect(screen.queryByText('settings.agent.error.vaultLocked')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeEnabled())
+    expect(threshold).toHaveValue('85')
+  })
+
+  it('HTTP 确认后保存失败仅在连接表单反馈一次并保留后续编辑草稿', async () => {
+    const user = userEvent.setup()
+    const provider = { ...providerFixture(), base_url: 'http://127.0.0.1:11434/v1' }
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
+      new TermousApiError('duplicate name', 'AGENT_MODEL_PROVIDER_NAME_CONFLICT', 409),
+    )
+    renderPanel(gateway)
+    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
+    fireEvent.change(name, { target: { value: 'HTTP 草稿' } })
+    fireEvent.change(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey'), {
+      target: { value: 'draft-secret' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(gateway.updateModelProvider).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'settings.agent.confirmHttp.confirm' }))
+
+    expect(await screen.findByText('settings.agent.error.providerNameConflict')).toBeInTheDocument()
+    const pane = name.closest<HTMLElement>('[role="tabpanel"]')!
+    expect(within(pane).getByText('settings.agent.error.providerNameConflict')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.agent.operationFailed')).toHaveLength(1)
+    expect(gateway.updateModelProvider).toHaveBeenCalledWith(provider.id, expect.objectContaining({
+      name: 'HTTP 草稿', base_url: provider.base_url, api_key: 'draft-secret',
+      confirm_insecure_http: true, expected_revision: provider.revision,
+    }), expect.any(AbortSignal))
+    expect(name).toHaveValue('HTTP 草稿')
+    expect(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey')).toHaveValue('draft-secret')
+
+    fireEvent.change(name, { target: { value: 'HTTP 修正草稿' } })
+    expect(name).toHaveValue('HTTP 修正草稿')
+    expect(within(pane).getByText('settings.agent.error.providerNameConflict')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.agent.operationFailed')).toHaveLength(1)
+    expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
+  })
+
+  it('HTTPS 保存失败将焦点移至表单反馈且保留草稿', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
+      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
+    )
+    renderPanel(gateway)
+    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
+    fireEvent.change(name, { target: { value: 'HTTPS 草稿' } })
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    const failure = await screen.findByText('settings.agent.error.vaultLocked')
+    await waitFor(() => expect(failure.closest('[tabindex="-1"]')).toHaveFocus())
+    expect(screen.getAllByText('settings.agent.error.vaultLocked')).toHaveLength(1)
+    expect(name).toHaveValue('HTTPS 草稿')
+    expect(screen.getByLabelText('settings.agent.providerEditor.baseUrl')).toHaveValue(provider.base_url)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('Provider 旧保存错误不遮住随后全局默认设置的其他错误', async () => {
+    const user = userEvent.setup()
+    const gateway = gatewayFixture({ providers: [providerFixture()] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
+      new TermousApiError('duplicate name', 'AGENT_MODEL_PROVIDER_NAME_CONFLICT', 409),
+    )
+    vi.mocked(gateway.updateSettings).mockRejectedValue(
+      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
+    )
+    renderPanel(gateway)
+    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
+    fireEvent.change(name, { target: { value: '尚未保存的 Provider' } })
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await screen.findByText('settings.agent.error.providerNameConflict')
+    const saveDefaults = screen.getByRole('button', { name: 'settings.agent.defaults.save' })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'settings.agent.compaction.threshold' }), {
+      target: { value: '85' },
+    })
+    await waitFor(() => expect(saveDefaults).toBeEnabled())
+    await user.click(saveDefaults)
+
+    expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
+    const pane = name.closest<HTMLElement>('[role="tabpanel"]')!
+    expect(within(pane).getByText('settings.agent.error.providerNameConflict')).toBeInTheDocument()
+    expect(within(pane).queryByText('settings.agent.error.vaultLocked')).not.toBeInTheDocument()
+    expect(name).toHaveValue('尚未保存的 Provider')
+    expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
+    expect(gateway.updateSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('Provider 待处理冲突不遮住随后全局默认设置的独立失败', async () => {
+    const user = userEvent.setup()
+    const gateway = gatewayFixture({ providers: [providerFixture()] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    vi.mocked(gateway.updateSettings).mockRejectedValue(
+      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
+    )
+    renderPanel(gateway)
+    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
+    fireEvent.change(name, { target: { value: '冲突中的 Provider 草稿' } })
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await screen.findByText('settings.agent.conflict.editorDescription')
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'settings.agent.compaction.threshold' }), {
+      target: { value: '85' },
+    })
+    const saveDefaults = screen.getByRole('button', { name: 'settings.agent.defaults.save' })
+    await waitFor(() => expect(saveDefaults).toBeEnabled())
+    await user.click(saveDefaults)
+
+    expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
+    expect(screen.getByText('settings.agent.conflict.editorDescription')).toBeInTheDocument()
+    const refresh = screen.getByText('settings.agent.conflict.refresh').closest('button')
+    expect(refresh).toBeInTheDocument()
+    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
+    expect(name).toHaveValue('冲突中的 Provider 草稿')
+    expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
+    expect(gateway.updateSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('Provider 保存期间禁用连接和目录页签且不会弹出放弃草稿导航', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const saved = { ...provider, revision: 2, name: '保存中的 Provider' }
+    const pending = deferred<AgentModelProvider>()
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.updateModelProvider).mockReturnValue(pending.promise)
+    vi.mocked(gateway.modelProviders).mockResolvedValueOnce({ items: [provider] })
+      .mockResolvedValue({ items: [saved] })
+    renderPanel(gateway)
+    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
+    fireEvent.change(name, { target: { value: saved.name } })
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    const connection = screen.getByRole('tab', { name: 'settings.agent.providers.connectionTab' })
+    const catalog = screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' })
+    expect(connection).toHaveAttribute('aria-disabled', 'true')
+    expect(catalog).toHaveAttribute('aria-disabled', 'true')
+    await user.click(catalog)
+    expect(connection).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('settings.agent.providers.discardTitle')).not.toBeInTheDocument()
+    expect(name).toHaveValue(saved.name)
+
+    pending.resolve(saved)
+    await waitFor(() => expect(catalog).not.toHaveAttribute('aria-disabled', 'true'))
+    expect(connection).not.toHaveAttribute('aria-disabled', 'true')
+    expect(connection).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('settings.agent.providerEditor.name')).toHaveValue(saved.name)
+  })
+
+  it('API Key 输入法确认回车不保存而普通回车仍提交', async () => {
+    const gateway = gatewayFixture({ providers: [providerFixture()] })
+    const pending = deferred<AgentModelProvider>()
+    vi.mocked(gateway.updateModelProvider).mockReturnValue(pending.promise)
+    renderPanel(gateway)
+    const apiKey = await screen.findByLabelText('settings.agent.providerEditor.optionalApiKey')
+    fireEvent.change(apiKey, { target: { value: 'new-secret' } })
+
+    fireEvent.keyDown(apiKey, { key: 'Enter', code: 'Enter', keyCode: 13, isComposing: true })
+    fireEvent.keyUp(apiKey, { key: 'Enter', code: 'Enter', keyCode: 13 })
+    fireEvent.keyDown(apiKey, { key: 'Enter', code: 'Enter', keyCode: 229 })
+    fireEvent.keyUp(apiKey, { key: 'Enter', code: 'Enter', keyCode: 229 })
+    expect(gateway.updateModelProvider).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(apiKey).toHaveValue('new-secret')
+
+    fireEvent.keyDown(apiKey, { key: 'Enter', code: 'Enter', keyCode: 13 })
+    fireEvent.keyUp(apiKey, { key: 'Enter', code: 'Enter', keyCode: 13 })
+    await waitFor(() => expect(gateway.updateModelProvider).toHaveBeenCalledWith(
+      'apv-1', expect.objectContaining({ api_key: 'new-secret', expected_revision: 1 }),
+      expect.any(AbortSignal),
+    ))
+    expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
+    pending.resolve(providerFixture(2, true))
+    await waitFor(() => expect(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey')).toHaveValue(''))
   })
 
   it('Provider 测试请求失败时就近通知并保留 revision 冲突入口', async () => {

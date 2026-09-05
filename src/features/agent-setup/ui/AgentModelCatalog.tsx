@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Alert, Empty } from 'antd'
+import { Alert, Button, Empty } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AgentModel,
@@ -45,6 +45,7 @@ export function AgentModelCatalog({
   const [state, setState] = useState<AgentModelListState>('active')
   const [source, setSource] = useState<AgentModelSource | 'all'>('all')
   const visible = useMemo(() => filterModels(models, query, state, source), [models, query, source, state])
+  const filtered = Boolean(query.trim()) || source !== 'all' || state !== 'active'
   const status = !provider.enabled ? 'disabled'
     : provider.refresh_status === 'ready' && provider.last_refresh_error_code ? 'readyWarning'
       : provider.refresh_status
@@ -68,14 +69,20 @@ export function AgentModelCatalog({
         {visible.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={query
+            description={query.trim() || source !== 'all'
               ? t('settings.agent.catalog.noResults')
               : t(state === 'removed'
                 ? 'settings.agent.catalog.noRemoved'
                 : provider.refresh_status === 'never'
                   ? 'settings.agent.catalog.neverEmpty'
                   : 'settings.agent.catalog.empty')}
-          />
+          >
+            {filtered ? (
+              <Button size="small" onClick={() => { setQuery(''); setState('active'); setSource('all') }}>
+                {t('settings.agent.catalog.clearFilters')}
+              </Button>
+            ) : null}
+          </Empty>
         ) : visible.map((model) => (
           <AgentModelCatalogRow
             key={model.id}

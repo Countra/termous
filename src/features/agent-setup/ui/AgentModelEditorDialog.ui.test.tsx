@@ -3,6 +3,8 @@ import { App as AntdApp } from 'antd'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { TermousApiError } from '#shared/api'
+import styles from './AgentModelEditorDialog.module.scss'
 import {
   agentReasoningLevels,
   type AgentModel,
@@ -123,6 +125,52 @@ describe('AgentModelEditorDialog', () => {
       supported_reasoning_levels: ['off', 'low', 'medium'],
     }), expect.objectContaining({ id: 'model' }))
   })
+
+  it.each(['validation', 'save'] as const)('新的 %s 错误只滚动弹窗内部，保留底部保存与关闭动作', async (failure) => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => { throw new TermousApiError('model exists', 'AGENT_MODEL_ID_CONFLICT', 409) })
+    renderEditor({ onSave })
+    const body = document.querySelector(`.${styles.body}`) as HTMLElement
+    const feedback = document.querySelector(`.${styles.feedback}`) as HTMLElement
+    Object.defineProperty(body, 'getBoundingClientRect', { value: () => new DOMRect(0, 100, 660, 250) })
+    Object.defineProperty(feedback, 'getBoundingClientRect', { value: () => new DOMRect(0, 550, 660, 120) })
+    if (failure === 'validation') {
+      await user.type(screen.getByLabelText('settings.agent.modelEditor.displayName'), '未填写模型 ID')
+    } else {
+      await user.type(screen.getByLabelText('settings.agent.modelEditor.modelId'), 'duplicate-model')
+    }
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    expect(await screen.findByText(failure === 'validation'
+      ? 'settings.agent.validation.modelId' : 'settings.agent.error.modelIdConflict')).toBeInTheDocument()
+    expect(body.scrollTop).toBe(320)
+    expect(document.documentElement.scrollTop).toBe(0)
+    expect(body).not.toContainElement(screen.getByRole('button', { name: 'app.save' }))
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'app.cancel' })).toBeEnabled()
+    expect(onSave).toHaveBeenCalledTimes(failure === 'validation' ? 0 : 1)
+  })
+
+  it('修正模型字段后清除旧校验反馈，并在再次提交时重新校验', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => undefined)
+    renderEditor({ onSave })
+    await user.type(screen.getByLabelText('settings.agent.modelEditor.displayName'), '新增模型')
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(screen.getByText('settings.agent.validation.modelId')).toBeInTheDocument()
+
+    const modelId = screen.getByLabelText('settings.agent.modelEditor.modelId')
+    await user.type(modelId, 'valid-model')
+    expect(screen.queryByText('settings.agent.validation.modelId')).not.toBeInTheDocument()
+    await user.clear(modelId)
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(screen.getByText('settings.agent.validation.modelId')).toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+
+    await user.type(modelId, 'valid-model')
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ remote_model_id: 'valid-model' }), undefined)
+  })
 })
 
 function renderEditor({
@@ -144,7 +192,7 @@ function renderEditor({
         modelMissing={false}
         providerMissing={false}
         onCancel={vi.fn()}
-        onResolveConflict={vi.fn(async () => model)}
+        onResolveConflict={vi.fn(async () => ({ model }))}
         onSave={onSave}
       />
     </AntdApp>,

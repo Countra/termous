@@ -1,12 +1,8 @@
 import { useState } from 'react'
 import { Button, Switch } from 'antd'
 import {
-  BrainCircuit,
-  ChartNoAxesColumnIncreasing,
-  Check,
   CircleAlert,
   RefreshCw,
-  ShieldCheck,
   Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -39,18 +35,13 @@ export function AgentRuntimeSettings({
 
   return (
     <>
-      <section className={`${styles.surface} ${styles['runtime-surface']}`}>
+      <section className={styles.surface}>
         <header className={`${styles['section-header']} ${styles['runtime-header']}`}>
           <div className={styles['runtime-heading']}>
-            <span className={styles['runtime-icon']} aria-hidden="true">
-              <BrainCircuit size={18} />
-            </span>
-            <div>
-              <div className={styles['section-title']}>
-                <h2>{t('settings.agent.readiness.title')}</h2>
-              </div>
-              <p className={styles['section-hint']}>{t('settings.agent.readiness.description')}</p>
+            <div className={styles['section-title']}>
+              <h2>{t('settings.agent.readiness.title')}</h2>
             </div>
+            <p className={styles['section-hint']}>{t('settings.agent.readiness.description')}</p>
           </div>
           <div className={styles['runtime-controls']}>
             <span
@@ -88,9 +79,6 @@ export function AgentRuntimeSettings({
           />
 
           <section className={styles['agent-setting-row']} aria-labelledby="agent-turn-usage-title">
-            <span className={styles['agent-setting-icon']} aria-hidden="true">
-              <ChartNoAxesColumnIncreasing size={16} />
-            </span>
             <div className={styles['agent-setting-copy']}>
               <strong id="agent-turn-usage-title">{t('settings.agent.turnUsage.title')}</strong>
               <span>{t('settings.agent.turnUsage.description')}</span>
@@ -112,9 +100,6 @@ export function AgentRuntimeSettings({
           </section>
 
           <section className={styles['agent-setting-row']} aria-labelledby="agent-policy-title">
-            <span className={styles['agent-setting-icon']} aria-hidden="true">
-              <ShieldCheck size={16} />
-            </span>
             <div className={styles['agent-setting-copy']}>
               <strong id="agent-policy-title">{t('settings.agent.policy.title')}</strong>
               <span>{t('settings.agent.policy.description')}</span>
@@ -182,12 +167,6 @@ function ReadinessItem({ label, component }: {
   const { t } = useTranslation()
   return (
     <div className={styles['readiness-item']}>
-      <span
-        className={`${styles['readiness-icon']} ${styles[`is-${component.status}`]}`}
-        aria-hidden="true"
-      >
-        {component.status === 'ready' ? <Check size={14} /> : <CircleAlert size={14} />}
-      </span>
       <span className={styles['readiness-copy']}>
         <strong>{label}</strong>
         <span className={`${styles['readiness-state']} ${styles[`is-${component.status}`]}`}>
