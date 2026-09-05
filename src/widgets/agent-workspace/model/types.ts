@@ -1,6 +1,9 @@
 import type {
   AgentAttachment,
   AgentCompactionActivity,
+  AgentContextCompressionStatus,
+  AgentContextLastSnapshot,
+  AgentContextUsageBasis,
   AgentQueueState,
   AgentQueuedTurn,
   AgentQueuedTurnMovePlacement,
@@ -134,6 +137,10 @@ export interface AgentWorkspaceContextState {
   warning: boolean
   compression_available: boolean
   compression_pending: boolean
+  assessment?: 'ready' | 'pending'
+  basis?: AgentContextUsageBasis
+  compression_status?: AgentContextCompressionStatus
+  last_snapshot?: AgentContextLastSnapshot
   checkpoint?: {
     estimated_tokens: number
     created_at: string

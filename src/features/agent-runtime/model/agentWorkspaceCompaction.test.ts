@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentCompactionData, AgentRunEvent } from '#entities/agent'
-import { applyAgentWorkspaceEvent, createAgentWorkspaceState, mergeAgentRunEvents, replaceAgentMessages, type AgentWorkspaceState } from './agentWorkspaceState.ts'
+import { applyAgentWorkspaceEvent, createAgentWorkspaceState, mergeAgentRunEvents, replaceAgentMessages, replaceAgentSessions, type AgentWorkspaceState } from './agentWorkspaceState.ts'
+import { acceptAgentSessionContext } from './agentWorkspaceContext.ts'
 import { agentFixtureTime, agentMessageFixture, agentRunFixture, agentSessionFixture } from './agentRuntimeTestFixtures.ts'
 import { decodeAgentMessage, decodeAgentRunEvent } from './agentRuntimeProtocol.ts'
 
@@ -108,6 +109,69 @@ test('旧任务上下文补拉只推进游标，不覆盖同会话较新任务�
     assert.equal(state.session_contexts['ags-session']?.value?.estimated_tokens, sameSession ? 8_000 : 26_000)
     assert.equal(state.session_contexts['ags-session']?.value === previous, sameSession)
   }
+})
+
+test('切模型后没有新任务时，旧终态任务补拉仅更新参考；切回原模型仍由 HTTP 确认', () => {
+  let state = initialState()
+  const session = agentSessionFixture()
+  const oldRun = agentRunFixture({ status: 'completed', revision: 2 })
+  state.runs[oldRun.id] = oldRun
+  state = acceptAgentSessionContext(state, {
+    session_id: session.id, model_id: session.model_id, assessment: 'ready',
+    estimated_tokens: 70_000, context_window_tokens: 100_000, estimated: true,
+    warning: true, compression_available: true, compression_status: 'available',
+  })
+  state.session_contexts[session.id]!.compression_pending = true
+  state = replaceAgentSessions(state, [{ ...session, model_id: 'apm-next', revision: 2 }])
+  const usageEvent = (sequence: number): AgentRunEvent => ({
+    ...event(sequence), kind: 'context_usage', payload: { context_usage: {
+      estimated_tokens: 75_000, context_window_tokens: 100_000, estimated: true,
+      warning: true, compression_available: false, compression_status: 'unavailable', basis: 'provider_usage',
+    } },
+  })
+  state = mergeAgentRunEvents(state, oldRun, [usageEvent(1)]).state
+  assert.equal(state.run_event_sequences[oldRun.id], 1)
+  assert.equal(state.session_contexts[session.id]?.value?.model_id, 'apm-next')
+  assert.equal(state.session_contexts[session.id]?.value?.assessment, 'pending')
+  assert.equal(state.session_contexts[session.id]?.value?.estimated_tokens, 0)
+  assert.equal(state.session_contexts[session.id]?.value?.last_snapshot?.estimated_tokens, 75_000)
+  assert.equal(state.session_contexts[session.id]?.compression_pending, true)
+  state = replaceAgentSessions(state, [{ ...session, revision: 3 }])
+  state = mergeAgentRunEvents(state, oldRun, [usageEvent(2)]).state
+  assert.equal(state.session_contexts[session.id]?.value?.assessment, 'pending')
+  assert.equal(state.run_event_sequences[oldRun.id], 2)
+  state = acceptAgentSessionContext(state, {
+    session_id: session.id, model_id: session.model_id, assessment: 'ready',
+    estimated_tokens: 76_000, context_window_tokens: 100_000, estimated: true,
+    warning: true, compression_available: false, compression_status: 'unknown',
+  })
+  assert.equal(state.session_contexts[session.id]?.value?.assessment, 'ready')
+  assert.equal(state.session_contexts[session.id]?.compression_pending, true)
+})
+
+test('当前模型新运行的上下文事件解除待评估并更新参考，旧模型事件不覆盖已评估值', () => {
+  let state = initialState()
+  const session = agentSessionFixture()
+  state = replaceAgentSessions(state, [{ ...session, model_id: 'apm-next', revision: 2 }])
+  const newRun = agentRunFixture({
+    id: 'agr-next', model_id: 'apm-next', generation: 2,
+    model_snapshot: { ...agentRunFixture().model_snapshot, model_display_name: 'GLM' },
+  })
+  const usageEvent: AgentRunEvent = {
+    ...event(1), run_id: newRun.id, generation: 2, kind: 'context_usage', payload: { context_usage: {
+      estimated_tokens: 20_000, context_window_tokens: 200_000, estimated: true,
+      warning: false, compression_available: false, compression_status: 'unknown', basis: 'pi_estimate',
+    } },
+  }
+  state = mergeAgentRunEvents(state, newRun, [usageEvent]).state
+  const value = state.session_contexts[session.id]?.value
+  assert.equal(value?.assessment, 'ready')
+  assert.equal(value?.last_snapshot?.model_name, 'GLM')
+  assert.equal(value?.last_snapshot?.context_window_tokens, 200_000)
+  assert.equal(value?.last_snapshot?.estimated_tokens, 20_000)
+  const oldRun = agentRunFixture({ status: 'completed', revision: 2 })
+  state = mergeAgentRunEvents(state, oldRun, [{ ...usageEvent, run_id: oldRun.id, generation: 1 }]).state
+  assert.equal(state.session_contexts[session.id]?.value, value)
 })
 
 test('压缩协议支持位置零和持久活动，拒绝错误分支、状态及跨消息活动', () => {

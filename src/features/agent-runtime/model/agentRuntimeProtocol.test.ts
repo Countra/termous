@@ -421,6 +421,42 @@ test('会话上下文协议严格校验归属、容量和 Checkpoint', () => {
   }), /创建时间/)
 })
 
+test('上下文协议兼容旧字段，并严格保留模型评估状态、估算来源和原模型参考', () => {
+  const legacy = {
+    session_id: 'ags-session', estimated_tokens: 0, context_window_tokens: 200_000,
+    estimated: true, warning: false, compression_available: false,
+  }
+  assert.deepEqual(decodeAgentSessionContext(legacy), legacy)
+  const pending = {
+    ...legacy, model_id: 'apm-next', assessment: 'pending', compression_status: 'unknown',
+    last_snapshot: { model_id: 'apm-old', model_name: 'GPT', estimated_tokens: 75_000, context_window_tokens: 100_000, basis: 'provider_usage' },
+  }
+  assert.deepEqual(decodeAgentSessionContext(pending), pending)
+  for (const basis of ['pi_estimate', 'provider_usage']) {
+    const ready = { ...legacy, model_id: 'apm-next', assessment: 'ready', basis, compression_status: 'unavailable' }
+    assert.deepEqual(decodeAgentSessionContext(ready), ready)
+    const event = decodeAgentWorkspaceEvent({
+      type: 'upsert', revision: 1, run_event: {
+        id: 'are-one', run_id: 'agr-run', generation: 1, sequence: 1, kind: 'context_usage',
+        created_at: agentFixtureTime, payload: { context_usage: { ...legacy, basis, compression_status: 'unknown' } },
+      },
+    })
+    assert.equal(event.type, 'upsert')
+    assert.equal(event.type === 'upsert' && event.run_event?.kind === 'context_usage'
+      && event.run_event.payload.context_usage.basis, basis)
+  }
+  for (const patch of [
+    { estimated_tokens: undefined }, { estimated_tokens: null }, { estimated_tokens: 1 },
+    { assessment: 'invalid' }, { basis: 'invalid' }, { basis: 'pi_estimate' }, { basis: 'provider_usage' }, { warning: true },
+    { compression_status: 'available' }, { compression_status: 'unavailable' },
+    { last_snapshot: { ...pending.last_snapshot, context_window_tokens: 0 } },
+    { last_snapshot: { ...pending.last_snapshot, model_id: '' } },
+    { last_snapshot: { ...pending.last_snapshot, estimated_tokens: -1 } },
+  ]) assert.throws(() => decodeAgentSessionContext({ ...pending, ...patch }))
+  assert.throws(() => decodeAgentSessionContext({ ...legacy, compression_status: 'available' }))
+  assert.throws(() => decodeAgentSessionContext({ ...legacy, compression_available: true, compression_status: 'unknown' }))
+})
+
 test('会话 Token 统计严格校验归属和聚合关系', () => {
   const response = {
     session_id: 'ags-session',

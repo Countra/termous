@@ -8,53 +8,12 @@ import {
   type AgentRunEvent,
   type AgentSession,
 } from '#entities/agent'
-import type { AgentRuntimeStatus } from '#common/contracts'
 import type { AgentWorkspaceEvent } from './agentRuntimeProtocol.ts'
-import type { AgentWorkspaceSessionContextState } from './agentWorkspaceContextTypes.ts'
-import type { AgentWorkspaceSessionUsageState } from './agentWorkspaceUsageTypes.ts'
+import type { AgentQueuedTurnEditDraft, AgentWorkspaceMergeResult, AgentWorkspaceState } from './agentWorkspaceStateTypes.ts'
 import { mergeAgentCompactionActivity } from './agentWorkspaceCompaction.ts'
+import { acceptAgentContextUsage, markAgentSessionContextPending } from './agentWorkspaceContext.ts'
 
-export type AgentWorkspacePhase = 'idle' | 'loading' | 'ready' | 'reconnecting' | 'degraded'
-
-export interface AgentComposerDraft {
-  text: string
-  updated_at: number
-}
-
-export interface AgentQueuedTurnEditDraft {
-  turn_id: string
-  text: string
-  retained_attachment_ids: string[]
-}
-
-export interface AgentWorkspaceState {
-  phase: AgentWorkspacePhase
-  snapshot_complete: boolean
-  revision: number
-  sessions: AgentSession[]
-  runs: Record<string, AgentRun>
-  active_run_id?: string
-  messages: Record<string, AgentMessage[]>
-  run_events: Record<string, AgentRunEvent[]>
-  run_event_sequences: Record<string, number>
-  run_part_overlays: Record<string, Record<string, AgentMessage['parts'][number]>>
-  drafts: Record<string, AgentComposerDraft>
-  queued_turns: Record<string, AgentQueuedTurn[]>
-  queue_states: Record<string, AgentQueueState>
-  queued_turn_edits: Record<string, AgentQueuedTurnEditDraft>
-  session_contexts: Record<string, AgentWorkspaceSessionContextState>
-  session_usages: Record<string, AgentWorkspaceSessionUsageState>
-  selected_session_id?: string
-  new_session_selected: boolean
-  selection_intent_revision: number
-  runtime_status?: AgentRuntimeStatus
-  error_code?: string
-}
-
-export interface AgentWorkspaceMergeResult {
-  state: AgentWorkspaceState
-  reconcile_run?: { id: string; generation: number }
-}
+export type { AgentComposerDraft, AgentQueuedTurnEditDraft, AgentWorkspaceMergeResult, AgentWorkspacePhase, AgentWorkspaceState } from './agentWorkspaceStateTypes.ts'
 
 export function createAgentWorkspaceState(): AgentWorkspaceState {
   return {
@@ -123,13 +82,20 @@ export function replaceAgentSessions(
   const sorted = sortSessions(dedupeByID(sessions, preferSession))
   const selection = reconcileSessionSelection(current, sorted)
   const sessionIDs = new Set(sorted.map(({ id }) => id))
-  return {
+  let next: AgentWorkspaceState = {
     ...current,
     sessions: sorted,
     session_contexts: Object.fromEntries(Object.entries(current.session_contexts).filter(([id]) => sessionIDs.has(id))),
     session_usages: Object.fromEntries(Object.entries(current.session_usages).filter(([id]) => sessionIDs.has(id))),
     ...selection,
   }
+  for (const session of sorted) {
+    const previous = current.sessions.find(({ id }) => id === session.id)
+    if (previous && previous.model_id !== session.model_id) {
+      next = markAgentSessionContextPending(next, session.id, session.model_id, previous.model_id)
+    }
+  }
+  return next
 }
 
 export function mergeAgentMessages(
@@ -306,16 +272,10 @@ function applySnapshot(
 function upsertSession(current: AgentWorkspaceState, session: AgentSession) {
   const existing = current.sessions.find((item) => item.id === session.id)
   if (existing && existing.revision >= session.revision) return current
-  const sessions = sortSessions([
+  return replaceAgentSessions(current, [
     session,
     ...current.sessions.filter((item) => item.id !== session.id),
   ])
-  const selection = reconcileSessionSelection(current, sessions)
-  return {
-    ...current,
-    sessions,
-    ...selection,
-  }
 }
 
 function upsertMessage(current: AgentWorkspaceState, message: AgentMessage) {
@@ -420,16 +380,7 @@ function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, eve
     if (Object.values(current.runs).some((candidate) => (
       candidate.session_id === run.session_id && candidate.generation > run.generation
     ))) return current
-    const previous = current.session_contexts[run.session_id]
-    const usage = event.payload.context_usage
-    return {
-      ...current,
-      session_contexts: { ...current.session_contexts, [run.session_id]: {
-        phase: 'ready',
-        compression_pending: usage.compression_available ? previous?.compression_pending ?? false : false,
-        value: { ...previous?.value, ...usage, session_id: run.session_id },
-      } },
-    }
+    return acceptAgentContextUsage(current, run, event.payload.context_usage)
   }
   if (event.kind !== 'compaction') return current
   const messages = current.messages[run.session_id]

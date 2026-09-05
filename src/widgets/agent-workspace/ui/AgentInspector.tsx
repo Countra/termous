@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import type { AgentWorkspaceInspectorState } from '../model/types.ts'
 import styles from './AgentInspector.module.scss'
 import { AgentTokenUsage } from './AgentTokenUsage.tsx'
+import { formatAgentTokenCount } from './agentTokenUsageFormat.ts'
 
 export function AgentInspector({
   inspector,
@@ -31,6 +32,17 @@ export function AgentInspector({
   onClose: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const pending = inspector.context.assessment === 'pending'
+  const compressionStatus = inspector.context.compression_status
+    ?? (!inspector.context.has_snapshot ? 'unknown' : inspector.context.compression_available ? 'available' : 'unavailable')
+  const reference = inspector.context.last_snapshot
+  const referencePercent = reference && reference.context_window_tokens > 0
+    ? new Intl.NumberFormat(i18n.resolvedLanguage, { style: 'percent', maximumFractionDigits: 1 })
+      .format(reference.estimated_tokens / reference.context_window_tokens)
+    : undefined
+  const basisKey = inspector.context.basis === 'provider_usage' ? 'providerBasis'
+    : inspector.context.basis === 'pi_estimate' ? 'contentEstimate'
+      : inspector.context.estimated ? 'estimated' : 'measured'
   const usage = inspector.context.has_snapshot && inspector.context.context_window_tokens > 0
     ? Math.min(100, Math.round(inspector.context.used_tokens / inspector.context.context_window_tokens * 100))
     : 0
@@ -53,11 +65,26 @@ export function AgentInspector({
         <header><CircleGauge size={15} /><h3>{t('agent.inspector.context')}</h3></header>
         {inspector.context.phase === 'unavailable' ? (
           <p className={styles['inspector-empty']}>{t('agent.inspector.contextUnavailable')}</p>
+        ) : pending ? (
+          <div className={styles['context-pending']} role="status">
+            <strong>{t('agent.inspector.contextPending')}</strong>
+            <span>{t('agent.inspector.contextPendingHint')}</span>
+            {inspector.context.context_window_tokens > 0 ? <span>{t('agent.inspector.currentContextWindow', {
+              window: formatTokens(inspector.context.context_window_tokens),
+            })}</span> : null}
+            {reference && referencePercent ? (
+              <p className={styles['context-reference']}>{t('agent.inspector.lastContextReference', {
+                model: reference.model_name, percent: referencePercent,
+                tokens: formatAgentTokenCount(reference.estimated_tokens, i18n.resolvedLanguage),
+                window: formatAgentTokenCount(reference.context_window_tokens, i18n.resolvedLanguage),
+              })}</p>
+            ) : null}
+          </div>
         ) : inspector.context.phase === 'loading' && !inspector.context.has_snapshot ? (
           <Skeleton className={styles['context-skeleton']} active title={false} paragraph={{ rows: 2 }} />
         ) : inspector.context.has_snapshot ? (
           <div className={styles['context-usage']}>
-            <div><strong>{usage}%</strong><span>{t(inspector.context.estimated ? 'agent.inspector.estimated' : 'agent.inspector.measured')}</span></div>
+            <div><strong>{usage}%</strong><span>{t(`agent.inspector.${basisKey}`)}</span></div>
             <Progress
               percent={usage}
               showInfo={false}
@@ -65,9 +92,10 @@ export function AgentInspector({
               railColor="var(--row-hover-bg)"
             />
             <p>{formatTokens(inspector.context.used_tokens)} / {formatTokens(inspector.context.context_window_tokens)} token</p>
+            {inspector.context.basis === 'provider_usage' ? <p>{t('agent.inspector.providerBasisHint')}</p> : null}
           </div>
         ) : null}
-        {inspector.context.warning && inspector.context.has_snapshot ? (
+        {!pending && inspector.context.warning && inspector.context.has_snapshot ? (
           <div className={styles['context-warning']}>
             <AlertTriangle size={14} aria-hidden="true" />
             <span>{t('agent.inspector.contextWarning')}</span>
@@ -91,15 +119,16 @@ export function AgentInspector({
               <strong>{t('agent.inspector.compressNext')}</strong>
               <span>{t(inspector.context.compression_pending
                 ? 'agent.inspector.compressPending'
-                : inspector.context.compression_available
+                : compressionStatus === 'unknown' ? 'agent.inspector.compressUnknown'
+                : compressionStatus === 'available'
                   ? 'agent.inspector.compressAvailable'
                   : 'agent.inspector.compressUnavailable')}</span>
             </div>
             <Switch
               checked={inspector.context.compression_pending}
               disabled={disabled
-                || inspector.context.phase === 'loading'
-                || (!inspector.context.compression_available && !inspector.context.compression_pending)}
+                || inspector.context.phase === 'loading' && compressionStatus !== 'unknown'
+                || compressionStatus === 'unavailable' && !inspector.context.compression_pending}
               aria-label={t('agent.inspector.compressNext')}
               onChange={(checked) => onContextCompressionPendingChange(checked)}
             />

@@ -17,6 +17,7 @@ import {
   type AgentAttachmentState,
   type AgentCompactionActivity,
   type AgentCompactionData,
+  type AgentContextUsageData,
   type AgentJsonValue,
   type AgentMessage,
   type AgentQueueState,
@@ -118,13 +119,27 @@ export function decodeAgentSessionContext(
   const checkpoint = source.checkpoint === undefined
     ? undefined
     : decodeAgentContextCheckpoint(source.checkpoint)
+  const usage = decodeContextUsageFields(source)
+  const assessment = source.assessment === undefined ? undefined
+    : enumValue(source.assessment, ['ready', 'pending'] as const, 'Agent 上下文评估状态无效')
+  if (assessment === 'pending' && (usage.estimated_tokens !== 0 || usage.warning || usage.compression_available || usage.basis !== undefined
+    || usage.compression_status !== undefined && usage.compression_status !== 'unknown')) {
+    throw new AgentRuntimeProtocolError('Agent 待评估上下文不能包含当前模型占用结论')
+  }
+  const previous = source.last_snapshot === undefined ? undefined
+    : record(source.last_snapshot, 'Agent 上下文参考快照无效')
   return {
     session_id: sessionId,
-    estimated_tokens: nonNegativeInteger(source.estimated_tokens, 'Agent 会话上下文 Token 估算无效'),
-    context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent 会话上下文窗口无效'),
-    estimated: bool(source.estimated, 'Agent 会话上下文估算状态无效'),
-    warning: bool(source.warning, 'Agent 会话上下文预警状态无效'),
-    compression_available: bool(source.compression_available, 'Agent 会话上下文整理能力无效'),
+    ...usage,
+    ...(assessment ? { assessment } : {}),
+    ...(source.model_id === undefined ? {} : { model_id: identifier(source.model_id, 'Agent 上下文模型 ID 无效') }),
+    ...(previous ? { last_snapshot: {
+      model_id: identifier(previous.model_id, 'Agent 参考快照模型 ID 无效'),
+      model_name: utf8(previous.model_name, 'Agent 参考快照模型名称无效', 200),
+      estimated_tokens: nonNegativeInteger(previous.estimated_tokens, 'Agent 参考快照 Token 估算无效'),
+      context_window_tokens: positiveInteger(previous.context_window_tokens, 'Agent 参考快照窗口无效'),
+      ...(previous.basis === undefined ? {} : { basis: decodeContextUsageBasis(previous.basis) }),
+    } } : {}),
     ...(checkpoint ? { checkpoint } : {}),
   }
 }
@@ -328,13 +343,7 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
       return { ...base, kind, payload: { compaction: decodeCompactionData(payload.compaction) } }
     case 'context_usage': {
       const usage = record(payload.context_usage, 'Agent 上下文用量事件无效')
-      return { ...base, kind, payload: { context_usage: {
-        estimated_tokens: nonNegativeInteger(usage.estimated_tokens, 'Agent 上下文 Token 估算无效'),
-        context_window_tokens: positiveInteger(usage.context_window_tokens, 'Agent 上下文窗口无效'),
-        estimated: bool(usage.estimated, 'Agent 上下文估算状态无效'),
-        warning: bool(usage.warning, 'Agent 上下文预警状态无效'),
-        compression_available: bool(usage.compression_available, 'Agent 上下文压缩能力无效'),
-      } } }
+      return { ...base, kind, payload: { context_usage: decodeContextUsageFields(usage) } }
     }
     case 'status': {
       const status = record(payload.status, 'Agent status 事件无效')
@@ -597,6 +606,28 @@ function decodeSnapshotReasoningLevels(value: unknown): AgentReasoningLevel[] {
   ))
   unique(levels, 'Agent Run 推理级别集合包含重复值')
   return levels
+}
+
+function decodeContextUsageBasis(value: unknown) {
+  return enumValue(value, ['pi_estimate', 'provider_usage'] as const, 'Agent 上下文占用来源无效')
+}
+
+function decodeContextUsageFields(source: Record<string, unknown>): AgentContextUsageData {
+  const available = bool(source.compression_available, 'Agent 上下文压缩能力无效')
+  const status = source.compression_status === undefined ? undefined
+    : enumValue(source.compression_status, ['unknown', 'available', 'unavailable'] as const, 'Agent 上下文压缩评估无效')
+  if (status !== undefined && available !== (status === 'available')) {
+    throw new AgentRuntimeProtocolError('Agent 上下文压缩能力与评估状态不一致')
+  }
+  return {
+    estimated_tokens: nonNegativeInteger(source.estimated_tokens, 'Agent 上下文 Token 估算无效'),
+    context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent 上下文窗口无效'),
+    estimated: bool(source.estimated, 'Agent 上下文估算状态无效'),
+    warning: bool(source.warning, 'Agent 上下文预警状态无效'),
+    compression_available: available,
+    ...(source.basis === undefined ? {} : { basis: decodeContextUsageBasis(source.basis) }),
+    ...(status === undefined ? {} : { compression_status: status }),
+  }
 }
 
 function decodeCompactionThreshold(value: unknown) {

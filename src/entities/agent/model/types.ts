@@ -396,12 +396,25 @@ export interface AgentCompactionActivity extends AgentCompactionData {
   created_at: string
 }
 
+export type AgentContextUsageBasis = 'pi_estimate' | 'provider_usage'
+export type AgentContextCompressionStatus = 'unknown' | 'available' | 'unavailable'
+
 export interface AgentContextUsageData {
   estimated_tokens: number
   context_window_tokens: number
   estimated: boolean
   warning: boolean
   compression_available: boolean
+  basis?: AgentContextUsageBasis
+  compression_status?: AgentContextCompressionStatus
+}
+
+export interface AgentContextLastSnapshot {
+  model_id: string
+  model_name: string
+  estimated_tokens: number
+  context_window_tokens: number
+  basis?: AgentContextUsageBasis
 }
 
 export interface AgentMessageTurnUsage {
@@ -421,13 +434,11 @@ export interface AgentContextCheckpoint {
   created_at: string
 }
 
-export interface AgentSessionContext {
+export interface AgentSessionContext extends AgentContextUsageData {
   session_id: string
-  estimated_tokens: number
-  context_window_tokens: number
-  estimated: boolean
-  warning: boolean
-  compression_available: boolean
+  assessment?: 'ready' | 'pending'
+  model_id?: string
+  last_snapshot?: AgentContextLastSnapshot
   checkpoint?: AgentContextCheckpoint
 }
 

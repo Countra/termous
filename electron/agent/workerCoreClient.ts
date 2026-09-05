@@ -113,6 +113,7 @@ export interface RuntimeContextBootstrap {
   estimated_tokens: number
   warning: boolean
   provider_usage_supported?: boolean
+  context_assessment_supported?: boolean
   checkpoint?: RuntimeContextCheckpoint
 }
 
@@ -487,6 +488,7 @@ function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBoots
     && Number(value.estimated_tokens) >= 0
     && typeof value.warning === 'boolean'
     && (value.provider_usage_supported === undefined || typeof value.provider_usage_supported === 'boolean')
+    && (value.context_assessment_supported === undefined || typeof value.context_assessment_supported === 'boolean')
     && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
 }
 

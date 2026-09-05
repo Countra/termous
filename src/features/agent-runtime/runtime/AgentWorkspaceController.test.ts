@@ -1154,29 +1154,193 @@ test('手工刷新 Token 统计会清除同会话尚未执行的合并定时器'
   controller.close()
 })
 
-test('切换会话模型后重新读取对应上下文窗口', async () => {
+test('切换模型立即待评估并保留原窗口参考，快速切回不接受迟到的模型评估', async () => {
   const gateway = new FakeGateway()
+  gateway.contextImpl = async () => contextFixture({ model_id: 'apm-model', assessment: 'ready' })
   const controller = startedController(gateway)
   await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
   const previousContext = controller.getSnapshot().session_contexts['ags-session']!.value!
-  gateway.contextImpl = async () => contextFixture({ context_window_tokens: 65_536 })
+  const next = deferred<AgentSessionContext>()
+  gateway.contextImpl = async () => next.promise
+  try {
+    await controller.updateSession('ags-session', {
+      ...sessionInput(), model_id: 'apm-larger-model', archived: false, expected_revision: 1,
+    })
+    const pending = controller.getSnapshot().session_contexts['ags-session']!.value!
+    assert.equal(pending.assessment, 'pending')
+    assert.equal(pending.estimated_tokens, 0)
+    assert.equal(pending.last_snapshot?.estimated_tokens, previousContext.estimated_tokens)
+    assert.equal(pending.last_snapshot?.context_window_tokens, previousContext.context_window_tokens)
+    controller.setContextCompressionPending('ags-session', true)
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+    const returned = deferred<AgentSessionContext>()
+    gateway.contextImpl = async () => returned.promise
+    await controller.updateSession('ags-session', {
+      ...sessionInput(), model_id: 'apm-model', archived: false, expected_revision: 2,
+    })
+    assert.equal(gateway.contextSignals[1]?.aborted, true)
+    next.resolve(contextFixture({ model_id: 'apm-larger-model', assessment: 'ready', context_window_tokens: 65_536 }))
+    await settle()
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.model_id, 'apm-model')
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.assessment, 'pending')
+    returned.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready', compression_available: false, compression_status: 'unknown' }))
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.context_window_tokens, 32_768)
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+    assert.equal(gateway.contextCalls, 3)
+  } finally {
+    controller.close()
+  }
+})
 
-  await controller.updateSession('ags-session', {
-    ...sessionInput(),
-    model_id: 'apm-larger-model',
-    archived: false,
-    expected_revision: 1,
-  })
-  await waitFor(() => (
-    controller.getSnapshot().session_contexts['ags-session']?.value?.context_window_tokens === 65_536
-  ))
+test('HTTP 会话回查发现模型变化时重启评估，旧模型在途查询不能阻塞恢复', async () => {
+  for (const mode of ['session', 'sessions'] as const) {
+    const gateway = new FakeGateway()
+    gateway.contextImpl = async () => contextFixture({ model_id: 'apm-model', assessment: 'ready' })
+    const controller = startedController(gateway)
+    const stale = deferred<AgentSessionContext>()
+    try {
+      await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+      gateway.contextImpl = async () => stale.promise
+      const oldLoading = controller.reloadContext('ags-session')
+      const oldSignal = gateway.contextSignals[gateway.contextSignals.length - 1]!
+      const changed = agentSessionFixture({ model_id: 'apm-next', revision: 7 })
+      gateway.sessionImpl = async () => changed
+      gateway.sessionsImpl = async () => ({ items: [changed] })
+      gateway.contextImpl = async () => contextFixture({
+        model_id: 'apm-next', assessment: 'ready', estimated_tokens: 23_000,
+        context_window_tokens: 65_536, compression_available: false, compression_status: 'unknown',
+      })
+      const refreshing = mode === 'session' ? controller.reloadSession(changed.id) : controller.reload()
+      await settle()
+      assert.equal(gateway.contextCalls, 3, mode)
+      assert.equal(oldSignal.aborted, true, mode)
+      await refreshing
+      stale.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready' }))
+      await oldLoading
+      const context = controller.getSnapshot().session_contexts[changed.id]
+      assert.equal(context?.phase, 'ready', mode)
+      assert.equal(context?.value?.model_id, changed.model_id, mode)
+      assert.equal(context?.value?.estimated_tokens, 23_000, mode)
+      await controller.reloadSession(changed.id)
+      assert.equal(gateway.contextCalls, 3, '未改变模型的回查不重复评估')
+    } finally {
+      stale.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready' }))
+      controller.close()
+    }
+  }
+})
 
-  assert.equal(gateway.contextCalls, 2)
-  const nextContext = controller.getSnapshot().session_contexts['ags-session']!.value!
-  assert.equal(nextContext.estimated_tokens, previousContext.estimated_tokens)
-  assert.equal(nextContext.estimated_tokens / nextContext.context_window_tokens,
-    previousContext.estimated_tokens / previousContext.context_window_tokens / 2)
-  controller.close()
+test('显式刷新上下文不复用同模型旧窗口配置的在途查询', async () => {
+  const gateway = new FakeGateway()
+  const stale = deferred<AgentSessionContext>()
+  gateway.contextImpl = async () => stale.promise
+  const controller = startedController(gateway)
+  try {
+    await waitFor(() => gateway.contextCalls === 1)
+    const oldSignal = gateway.contextSignals[0]!
+    gateway.contextImpl = async () => contextFixture({ model_id: 'apm-model', assessment: 'pending',
+      estimated_tokens: 0, context_window_tokens: 65_536, warning: false,
+      compression_available: false, compression_status: 'unknown',
+    })
+    const refreshed = controller.reloadContext('ags-session')
+    assert.equal(oldSignal.aborted, true)
+    assert.equal(gateway.contextCalls, 2)
+    await refreshed
+    stale.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready' }))
+    await settle()
+    const context = controller.getSnapshot().session_contexts['ags-session']
+    assert.equal(context?.phase, 'ready')
+    assert.equal(context?.value?.assessment, 'pending')
+    assert.equal(context?.value?.context_window_tokens, 65_536)
+  } finally {
+    stale.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready' }))
+    controller.close()
+  }
+})
+
+test('终态历史占用不能回退已知评估，迟到的最终用量通过权威回查更新', async () => {
+  const gateway = new FakeGateway()
+  gateway.contextImpl = async () => contextFixture({ model_id: 'apm-model', assessment: 'ready',
+    estimated_tokens: 75_000, context_window_tokens: 100_000 })
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+    socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+    socket.message({ type: 'upsert', revision: 1, run: agentRunFixture({ status: 'completed' }) })
+    controller.setContextCompressionPending('ags-session', true)
+    for (const [index, tokens] of [50_000, 80_000].entries()) {
+      const previous = controller.getSnapshot().session_contexts['ags-session']!.value!
+      const response = deferred<AgentSessionContext>()
+      gateway.contextImpl = async () => response.promise
+      const calls = gateway.contextCalls
+      const event = { type: 'upsert', revision: index * 2 + 2, run_event: {
+        id: `terminal-context-${index}`, run_id: 'agr-run', generation: 1, sequence: index + 1,
+        kind: 'context_usage', created_at: agentFixtureTime, payload: { context_usage: {
+          estimated_tokens: tokens, context_window_tokens: 100_000, estimated: true,
+          warning: true, compression_available: false, compression_status: 'unavailable', basis: 'provider_usage',
+        } },
+      } }
+      socket.message(event)
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value, previous)
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+      assert.equal(gateway.contextCalls, calls + 1)
+      socket.message({ ...event, revision: index * 2 + 3 })
+      assert.equal(gateway.contextCalls, calls + 1, '重复终态事件不重复回查')
+      response.resolve(contextFixture({ model_id: 'apm-model', assessment: 'ready',
+        estimated_tokens: index === 0 ? 77_000 : 80_000, context_window_tokens: 100_000,
+        compression_available: false, compression_status: 'unknown',
+      }))
+      await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, index === 0 ? 77_000 : 80_000)
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+    }
+  } finally {
+    controller.close()
+  }
+})
+
+test('待评估时旧任务参考事件不取消当前模型请求，成功与失败都能正确收口', async () => {
+  for (const fail of [false, true]) {
+    const gateway = new FakeGateway()
+    const socket = new FakeSocket()
+    const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+    controller.start()
+    try {
+      await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+      socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+      socket.message({ type: 'upsert', revision: 1, run: agentRunFixture({ status: 'completed' }) })
+      const pending = deferred<AgentSessionContext>()
+      gateway.contextImpl = async () => pending.promise
+      await controller.updateSession('ags-session', {
+        ...sessionInput(), model_id: 'apm-next', archived: false, expected_revision: 1,
+      })
+      controller.setContextCompressionPending('ags-session', true)
+      socket.message({ type: 'upsert', revision: 2, run_event: {
+        id: 'are-context', run_id: 'agr-run', generation: 1, sequence: 1, kind: 'context_usage',
+        created_at: agentFixtureTime, payload: { context_usage: {
+          estimated_tokens: 75_000, context_window_tokens: 100_000, estimated: true,
+          warning: true, compression_available: false, compression_status: 'unavailable', basis: 'provider_usage',
+        } },
+      } })
+      assert.equal(gateway.contextSignals[1]?.aborted, false)
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.assessment, 'pending')
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.last_snapshot?.estimated_tokens, 75_000)
+      if (fail) pending.reject(new Error('NETWORK_ERROR'))
+      else pending.resolve(contextFixture({
+        model_id: 'apm-next', assessment: 'pending', estimated_tokens: 0, context_window_tokens: 200_000,
+        warning: false, compression_available: false, compression_status: 'unknown',
+      }))
+      await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === (fail ? 'error' : 'ready'))
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+      assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.assessment, 'pending')
+      if (!fail) assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.context_window_tokens, 200_000)
+    } finally {
+      controller.close()
+    }
+  }
 })
 
 test('消息分页拒绝跨页重复的本轮 Run 用量', async () => {
@@ -1227,7 +1391,8 @@ test('WebSocket 外部变更会话模型后重启已加载的上下文水合', a
       type: 'snapshot', revision: 0,
       sessions: [agentSessionFixture()], active_runs: [],
     })
-    gateway.contextImpl = async () => contextFixture({ context_window_tokens: 65_536 })
+    const pending = deferred<AgentSessionContext>()
+    gateway.contextImpl = async () => pending.promise
 
     socket.message(eventType === 'snapshot'
       ? {
@@ -1246,6 +1411,10 @@ test('WebSocket 外部变更会话模型后重启已加载的上下文水合', a
           }),
         })
 
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.assessment, 'pending', eventType)
+    assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.last_snapshot?.context_window_tokens, 32_768, eventType)
+    pending.resolve(contextFixture({ model_id: 'apm-external-model', assessment: 'pending', context_window_tokens: 65_536,
+      estimated_tokens: 0, warning: false, compression_available: false, compression_status: 'unknown' }))
     await waitFor(() => (
       controller.getSnapshot().session_contexts['ags-session']?.value?.context_window_tokens === 65_536
     ))

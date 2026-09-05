@@ -120,7 +120,11 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     },
     onUsage: (usage) => { options.bridge.addUsage(usage) },
     onContextUsage: (usage) => {
-      options.events.push('context_usage', { context_usage: { ...usage } })
+      // 能力位独立于原生用量恢复，避免新版字段被严格解码的旧 Core 拒绝。
+      const { basis, compression_status, ...legacy } = usage
+      options.events.push('context_usage', { context_usage: options.bootstrap.context.context_assessment_supported === true
+        ? { ...legacy, basis, compression_status }
+        : legacy })
     },
   })
 }

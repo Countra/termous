@@ -97,8 +97,20 @@ export function runtimeCompactionEstimate(
   model: Model<Api>,
   fixedTokens: number,
 ) {
+  return runtimeCompactionAssessment(messages, model, fixedTokens).tokens
+}
+
+export function runtimeCompactionAssessment(
+  messages: AgentMessage[],
+  model: Model<Api>,
+  fixedTokens: number,
+) {
   const estimate = estimateContextTokens(runtimeCompactionUsageMessages(messages, model))
-  return estimate.tokens + (estimate.lastUsageIndex === null ? fixedTokens : 0)
+  // 来源取决于 pi 实际使用的基准；后续门禁不一定携带新的 Provider 用量事件。
+  return {
+    tokens: estimate.tokens + (estimate.lastUsageIndex === null ? fixedTokens : 0),
+    basis: estimate.lastUsageIndex === null ? 'pi_estimate' as const : 'provider_usage' as const,
+  }
 }
 
 export function runtimeCompactionCalibratedSettings(

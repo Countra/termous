@@ -15,6 +15,7 @@ import type { RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import {
   clearRuntimeCompactionUsage,
   cloneRuntimeCompactionCheckpoint,
+  runtimeCompactionAssessment,
   runtimeCompactionBudget,
   runtimeCompactionCalibratedSettings,
   runtimeCompactionEntries,
@@ -47,6 +48,8 @@ export interface RuntimeCompactionContextUsage {
   estimated: true
   warning: boolean
   compression_available: boolean
+  basis: 'pi_estimate' | 'provider_usage'
+  compression_status: 'unknown' | 'available' | 'unavailable'
   provider_usage?: RuntimeProviderUsage
 }
 
@@ -93,6 +96,8 @@ export function createRuntimeCompactionController<TSource>(
     options.systemPrompt,
     options.tools,
   )
+  const hasCompactionCapacity = budget.availableTokens > 0
+    && budget.settings.reserveTokens > 0 && budget.settings.keepRecentTokens > 0
   let checkpoint = options.initialCheckpoint && cloneRuntimeCompactionCheckpoint(options.initialCheckpoint)
   let gateFailure: RuntimeCompactionError | undefined
   let activeSignal: AbortSignal | undefined
@@ -102,13 +107,16 @@ export function createRuntimeCompactionController<TSource>(
   const publishContext = async (
     messages: AgentMessage[], preparation?: CompactionPreparation, providerUsage?: RuntimeProviderUsage,
   ) => {
-    const tokens = runtimeCompactionEstimate(messages, options.model, budget.fixedTokens)
+    const { tokens, basis } = runtimeCompactionAssessment(messages, options.model, budget.fixedTokens)
+    const compressionAvailable = hasCompactionCapacity && hasRuntimeCompactionPrefix(preparation)
     const usage: RuntimeCompactionContextUsage = {
       estimated_tokens: tokens,
       context_window_tokens: options.model.contextWindow,
       estimated: true,
       warning: tokens >= Math.min(Math.floor(options.model.contextWindow * 0.7), budget.triggerTokens),
-      compression_available: hasRuntimeCompactionPrefix(preparation),
+      compression_available: compressionAvailable,
+      basis,
+      compression_status: compressionAvailable ? 'available' : 'unavailable',
       ...(providerUsage ? { provider_usage: providerUsage } : {}),
     }
     const fingerprint = JSON.stringify(usage)
@@ -150,8 +158,7 @@ export function createRuntimeCompactionController<TSource>(
       forceCompression = false
       if (!forced && tokensBefore < budget.triggerTokens) return projected
       if (forced && tokensBefore < budget.triggerTokens && !hasRuntimeCompactionPrefix(preparation)) return projected
-      if (budget.availableTokens <= 0 || budget.settings.reserveTokens <= 0
-        || budget.settings.keepRecentTokens <= 0 || !hasRuntimeCompactionPrefix(preparation)) {
+      if (!hasCompactionCapacity || !hasRuntimeCompactionPrefix(preparation)) {
         throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
       }
       throwIfRuntimeCompactionAborted(signal)
@@ -196,7 +203,7 @@ export function createRuntimeCompactionController<TSource>(
       projected = nextProjection
       started = false
       await options.onActivity({ status: 'completed', reason, tokensBefore, tokensAfter })
-      await publishContext(projected)
+      await publishContext(projected, prepareContext(raw, projected))
       throwIfRuntimeCompactionAborted(signal)
       return projected
     } catch (error) {

@@ -22,6 +22,7 @@ export {
 } from './agentRuntimeProtocol.ts'
 export {
   acceptAgentSessionContext,
+  agentContextCompressionStatus,
   beginAgentSessionContextLoad,
   failAgentSessionContextLoad,
   setAgentContextCompressionPending,

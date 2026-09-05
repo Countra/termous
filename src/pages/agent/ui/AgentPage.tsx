@@ -533,6 +533,9 @@ export function AgentPage({
   ) && selectedModel.supported_reasoning_levels.includes(selectedReasoningLevel))
   const selectedContext = selected ? state.session_contexts[selected.id] : undefined
   const contextSnapshot = selectedContext?.value
+  const contextPending = contextSnapshot?.assessment === 'pending'
+  const contextReference = contextSnapshot?.last_snapshot
+  const referenceModel = contextReference ? modelById.get(contextReference.model_id) : undefined
   const selectedUsage = selected ? state.session_usages[selected.id] : undefined
   const queuedTurnCounts = Object.fromEntries(Object.entries(state.queued_turns ?? {}).map(([sessionId, turns]) => [
     sessionId,
@@ -544,11 +547,21 @@ export function AgentPage({
       phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
       has_snapshot: Boolean(contextSnapshot),
       used_tokens: contextSnapshot?.estimated_tokens ?? 0,
-      context_window_tokens: contextSnapshot?.context_window_tokens ?? 0,
+      context_window_tokens: contextPending
+        ? selectedModel?.effective_context_window_tokens ?? contextSnapshot?.context_window_tokens ?? 0
+        : contextSnapshot?.context_window_tokens ?? 0,
       estimated: contextSnapshot?.estimated ?? true,
       warning: contextSnapshot?.warning ?? false,
       compression_available: contextSnapshot?.compression_available ?? false,
       compression_pending: selectedContext?.compression_pending ?? false,
+      assessment: contextSnapshot?.assessment,
+      basis: contextSnapshot?.basis,
+      compression_status: contextSnapshot?.compression_status,
+      last_snapshot: contextReference ? {
+        ...contextReference,
+        model_name: contextReference.model_name === contextReference.model_id
+          ? referenceModel?.display_name ?? contextReference.model_name : contextReference.model_name,
+      } : undefined,
       checkpoint: contextSnapshot?.checkpoint,
       error_code: selectedContext?.error_code,
     },

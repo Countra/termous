@@ -17,6 +17,8 @@ for (const apiMode of ['chat_completions', 'responses'] as const) {
     const first = await executeFixture(bootstrap, 70_000)
     const firstFinal = first.contexts[first.contexts.length - 1]!
     assert.equal(firstFinal.estimated_tokens, 70_000)
+    assert.equal(firstFinal.basis, 'provider_usage')
+    assert.equal(first.contexts[0]!.basis, 'pi_estimate')
     assert.ok(firstFinal.provider_usage)
     assert.equal(firstFinal.provider_usage.cache_read_tokens, 60_000)
     const parts = first.events.filter((event) => event.kind === 'message_part')
@@ -40,6 +42,8 @@ for (const apiMode of ['chat_completions', 'responses'] as const) {
     const second = await executeFixture(next, 75_000)
     assert.ok(second.contexts[0]!.estimated_tokens >= 70_000)
     assert.ok(second.contexts[0]!.estimated_tokens < 70_100)
+    assert.equal(second.contexts[0]!.basis, 'provider_usage')
+    assert.equal(second.contexts[0]!.provider_usage, undefined)
     assert.equal(second.contexts[second.contexts.length - 1]!.estimated_tokens, 75_000)
     assert.equal(second.requests, 1)
     assert.equal(second.events.some((event) => event.kind === 'compaction'), false)
@@ -77,9 +81,22 @@ test('bootstrap 拒绝不可恢复的单次用量，不把用户或工具结果�
 test('旧 Core 未声明支持时只发送已有占用字段，仍在最终回复后更新数据', async () => {
   const bootstrap = usageBootstrap('chat_completions')
   delete bootstrap.context.provider_usage_supported
+  delete bootstrap.context.context_assessment_supported
   const result = await executeFixture(bootstrap, 70_000)
   assert.equal(result.contexts[result.contexts.length - 1]!.estimated_tokens, 70_000)
   assert.ok(result.contexts.every((usage) => usage.provider_usage === undefined))
+  assert.ok(result.contexts.every((usage) => usage.basis === undefined && usage.compression_status === undefined))
+})
+
+test('只支持用量恢复的 Core 不接收新评估字段，非法能力声明被拒绝', async () => {
+  const bootstrap = usageBootstrap('chat_completions')
+  delete bootstrap.context.context_assessment_supported
+  const result = await executeFixture(bootstrap, 70_000)
+  assert.ok(result.contexts[result.contexts.length - 1]!.provider_usage)
+  assert.ok(result.contexts.every((usage) => usage.basis === undefined && usage.compression_status === undefined))
+  const invalid = { ...bootstrap, context: { ...bootstrap.context, context_assessment_supported: 'true' } }
+  const client = new WorkerCoreClient({ fetch: async () => Response.json(invalid) })
+  await assert.rejects(client.bootstrap(fixtureStart(bootstrap)), /AGENT_RUNTIME_BOOTSTRAP_INVALID/u)
 })
 
 test('用量观察不打断未执行工具，工具结果越过阈值后在下一主请求前压缩', async () => {
@@ -226,6 +243,6 @@ function usageBootstrap(apiMode: RuntimeBootstrap['model']['snapshot']['api_mode
       provider_id: 'amp_provider', provider_name: 'Fixture', model_display_name: 'Fixture', provider_revision: 1, model_revision: 1,
       context_window_tokens: 100_000, max_output_tokens: 4096, supports_images: false,
       reasoning_control: 'none', supported_reasoning_levels: ['off'] } },
-    context: { estimated_tokens: 100, warning: false, provider_usage_supported: true },
+    context: { estimated_tokens: 100, warning: false, provider_usage_supported: true, context_assessment_supported: true },
   }
 }

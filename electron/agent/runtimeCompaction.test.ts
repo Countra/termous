@@ -39,6 +39,47 @@ test('估算只信任同模型用量，无用量时补入系统和工具固定�
   assert.equal(response.usage.totalTokens, 500)
 })
 
+test('占用来源跟随 pi 的有效基准，后续门禁无需重复携带原生用量', async () => {
+  const harness = createCompactionTestHarness()
+  const raw = [compactionTestUser('1234')]
+  await harness.controller.transformContext(raw)
+  assert.equal(harness.contexts[0]!.basis, 'pi_estimate')
+  assert.equal(harness.contexts[0]!.compression_status, 'unavailable')
+  raw.push(compactionTestAssistant('已完成', 500))
+  await harness.controller.observeContext(raw)
+  assert.equal(harness.contexts[1]!.basis, 'provider_usage')
+  assert.equal(harness.contexts[1]!.provider_usage, undefined)
+  raw.push(compactionTestUser('5678'))
+  await harness.controller.transformContext(raw)
+  assert.equal(harness.contexts[2]!.basis, 'provider_usage')
+  assert.equal(harness.contexts[2]!.estimated_tokens, 501)
+  assert.equal(harness.contexts[2]!.provider_usage, undefined)
+})
+
+test('模型变化回退 pi 估算，最大输出预留不计入已占用量', async () => {
+  const raw = [compactionTestAssistant('answer', 500), compactionTestUser('1234')]
+  for (const maxTokens of [1000, 4000]) {
+    const harness = createCompactionTestHarness({
+      model: { ...compactionTestModel, id: 'other-model', maxTokens },
+      systemPrompt: 'system'.repeat(100),
+    })
+    await harness.controller.transformContext(raw)
+    assert.equal(harness.contexts[0]!.basis, 'pi_estimate')
+    assert.equal(harness.contexts[0]!.estimated_tokens, 153)
+    assert.equal(harness.requests.length, 0)
+  }
+})
+
+test('固定开销耗尽预算时不把可摘要前缀误报为可整理', async () => {
+  const harness = createCompactionTestHarness({ systemPrompt: 'x'.repeat(32000) })
+  const raw = [compactionTestUser('开始'), compactionTestAssistant('继续'), compactionTestUser('检查')]
+  await harness.controller.transformContext(raw)
+  assert.equal(harness.contexts[0]!.compression_status, 'unavailable')
+  assert.equal(harness.contexts[0]!.compression_available, false)
+  assert.throws(() => harness.controller.beforeProviderRequest(), /COMPRESSION_UNAVAILABLE/u)
+  assert.equal(harness.requests.length, 0)
+})
+
 test('低于阈值不请求摘要，相同上下文指标不重复发布', async () => {
   const harness = createCompactionTestHarness()
   const raw = [compactionTestUser('检查服务状态')]
@@ -66,6 +107,10 @@ test('每个 Provider 前压缩并先提交，再替换投影和更新状态', a
   assert.equal(harness.commits[0]!.usage.input_tokens, 100)
   assert.ok(harness.commits[0]!.tokensAfter < 6400)
   assert.equal(harness.contexts.length, 2)
+  assert.equal(harness.contexts[0]!.basis, 'provider_usage')
+  assert.equal(harness.contexts[1]!.basis, 'pi_estimate')
+  assert.equal(harness.contexts[1]!.compression_status,
+    harness.contexts[1]!.compression_available ? 'available' : 'unavailable')
   assert.equal(harness.activities[0]!.reason, 'threshold')
 })
 

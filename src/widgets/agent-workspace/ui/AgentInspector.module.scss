@@ -122,6 +122,28 @@
   line-height: 1;
 }
 
+.context-pending {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+.context-pending strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 630;
+}
+
+.context-reference {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .context-skeleton {
   padding-block: 2px;
 }

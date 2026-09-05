@@ -33,6 +33,7 @@ import {
 } from '../model/agentWorkspaceState.ts'
 import {
   acceptAgentSessionContext,
+  agentContextCompressionStatus,
   beginAgentSessionContextLoad,
   failAgentSessionContextLoad,
   setAgentContextCompressionPending,
@@ -209,14 +210,15 @@ export class AgentWorkspaceController {
       throw new AgentWorkspaceControllerError('AGENT_SESSION_NOT_FOUND')
     }
     const context = this.state.session_contexts[sessionId]
-    if (pending && !context?.value?.compression_available) {
+    if (pending && agentContextCompressionStatus(context?.value) === 'unavailable') {
       throw new AgentWorkspaceControllerError('AGENT_CONTEXT_COMPRESSION_UNAVAILABLE')
     }
     this.commit(setAgentContextCompressionPending(this.state, sessionId, pending))
   }
 
   reloadContext(sessionId: string) {
-    return this.hydrateContext(sessionId)
+    // 显式刷新可能来自模型配置变更；重发查询时保留尚待补齐的压缩元信息。
+    return this.hydrateContext(sessionId, 'restart', this.contextHydrations.get(sessionId)?.checkpointRun)
   }
 
   reloadUsage(sessionId: string) {
@@ -246,12 +248,8 @@ export class AgentWorkspaceController {
 
   async updateSession(id: string, input: AgentSessionUpdateInput) {
     return await this.runMutation(async () => {
-      const previousModelId = this.state.sessions.find((session) => session.id === id)?.model_id
       const session = await this.gateway.updateSession(id, input)
       this.acceptSession(session)
-      if (previousModelId && previousModelId !== session.model_id) {
-        void this.hydrateContext(id, 'restart')
-      }
       return session
     })
   }
@@ -439,8 +437,12 @@ export class AgentWorkspaceController {
         if (event.type === 'upsert' && event.run_event?.kind === 'context_usage'
           && result.state.run_event_sequences[event.run_event.run_id] === event.run_event.sequence
           && result.state.runs[event.run_event.run_id]?.generation === event.run_event.generation) {
-          const contextSessionId = result.state.runs[event.run_event.run_id]?.session_id
-          if (contextSessionId && previousState.session_contexts[contextSessionId]?.value
+          const contextRun = result.state.runs[event.run_event.run_id]!
+          const contextSessionId = contextRun.session_id
+          const currentModel = contextRun.model_id === result.state.sessions.find(({ id }) => id === contextSessionId)?.model_id
+          if (currentModel
+            && result.state.session_contexts[contextSessionId]?.value?.assessment !== 'pending'
+            && previousState.session_contexts[contextSessionId]?.value
             !== result.state.session_contexts[contextSessionId]?.value) {
             const hydration = this.contextHydrations.get(contextSessionId)
             // 完成后的回查仍需补齐 checkpoint；占用数字由较新的实时事件保持权威。
@@ -450,13 +452,22 @@ export class AgentWorkspaceController {
               this.contextHydrations.delete(contextSessionId)
             }
           }
+          if (currentModel && isAgentRunTerminal(contextRun.status)
+            && (previousState.run_event_sequences[contextRun.id] ?? 0) < event.run_event.sequence
+            && !Object.values(result.state.runs).some((run) => run.session_id === contextSessionId && run.generation > contextRun.generation)) {
+            // Run 可能已先进入终态，迟到的最后一条用量仍需回查；不能依赖 active 到 terminal 的转换。
+            void this.hydrateContext(contextSessionId, 'refresh')
+          }
         }
         if (event.type === 'upsert' && event.run_event?.kind === 'compaction'
           && event.run_event.payload.compaction.status === 'completed'
           && result.state.run_event_sequences[event.run_event.run_id] === event.run_event.sequence
           && result.state.runs[event.run_event.run_id]?.generation === event.run_event.generation) {
           const contextSessionId = result.state.runs[event.run_event.run_id]?.session_id
-          if (contextSessionId) void this.hydrateContext(contextSessionId, 'refresh', {
+          if (contextSessionId
+            && result.state.runs[event.run_event.run_id]?.model_id === result.state.sessions.find(({ id }) => id === contextSessionId)?.model_id
+            && !(result.state.session_contexts[contextSessionId]?.value?.assessment === 'pending'
+              && isAgentRunTerminal(result.state.runs[event.run_event.run_id]!.status))) void this.hydrateContext(contextSessionId, 'refresh', {
             run_id: event.run_event.run_id,
             generation: event.run_event.generation,
             sequence: event.run_event.sequence,
@@ -517,7 +528,9 @@ export class AgentWorkspaceController {
       if (!this.disposed && authority === this.authorityVersion) {
         const previousSessionId = this.state.selected_session_id
         const next = replaceAgentSessions(this.state, sessions)
+        const changedContextModels = changedContextModelSessions(this.state, next)
         this.commit(next)
+        for (const sessionId of changedContextModels) void this.hydrateContext(sessionId, 'restart')
         this.cancelUsageHydrations(next.selected_session_id)
         if (previousSessionId !== next.selected_session_id) {
           if (next.selected_session_id) void this.hydrateUsage(next.selected_session_id)
@@ -573,6 +586,7 @@ export class AgentWorkspaceController {
     this.commit(result.state)
     if (runUsageRequiresRefresh(currentRun, run)) this.scheduleUsageRefresh(run.session_id)
     if (result.state.runs[run.id]?.generation !== run.generation
+      || run.model_id !== result.state.sessions.find(({ id }) => id === run.session_id)?.model_id
       || Object.values(result.state.runs).some((candidate) => (
         candidate.session_id === run.session_id && candidate.generation > run.generation
       ))) return
@@ -872,11 +886,21 @@ export class AgentWorkspaceController {
       this.commit(beginAgentSessionContextLoad(this.state, sessionId))
       do {
         entry.dirty = false
+        const modelAtRequest = this.state.sessions.find(({ id }) => id === sessionId)?.model_id
         const snapshotAtRequest = this.state.session_contexts[sessionId]?.value
         const checkpointAtRequest = entry.checkpointRun
+        const assessmentUnchanged = () => {
+          const latest = this.state.session_contexts[sessionId]?.value
+          // 旧模型只补充参考时，当前模型的评估请求仍负责成功与失败收口。
+          return latest === snapshotAtRequest || latest?.assessment === 'pending'
+            && snapshotAtRequest?.assessment === 'pending' && latest.model_id === snapshotAtRequest.model_id
+        }
         try {
-          const context = await this.gateway.context(sessionId, controller.signal)
+          const response = await this.gateway.context(sessionId, controller.signal)
           if (this.disposed || this.contextHydrations.get(sessionId) !== entry) return
+          if (this.state.sessions.find(({ id }) => id === sessionId)?.model_id !== modelAtRequest
+            || response.model_id !== undefined && response.model_id !== modelAtRequest) return
+          const context = { ...response, model_id: response.model_id ?? modelAtRequest }
           const checkpointCurrent = !checkpointAtRequest || (
             this.state.runs[checkpointAtRequest.run_id]?.generation === checkpointAtRequest.generation
             && (this.state.run_event_sequences[checkpointAtRequest.run_id] ?? 0) >= checkpointAtRequest.sequence
@@ -884,7 +908,7 @@ export class AgentWorkspaceController {
           )
           if (!entry.dirty && checkpointCurrent) {
             const latest = this.state.session_contexts[sessionId]?.value
-            if (latest === snapshotAtRequest) {
+            if (assessmentUnchanged()) {
               this.commit(acceptAgentSessionContext(this.state, context))
             } else if (checkpointAtRequest && latest && context.checkpoint) {
               this.commit(acceptAgentSessionContext(this.state, { ...latest, checkpoint: context.checkpoint }))
@@ -896,7 +920,7 @@ export class AgentWorkspaceController {
             && this.contextHydrations.get(sessionId) === entry
             && !isAbortError(error)
             && !entry.dirty
-            && this.state.session_contexts[sessionId]?.value === snapshotAtRequest
+            && assessmentUnchanged()
           ) {
             this.commit(failAgentSessionContextLoad(this.state, sessionId, errorCode(error)))
           }
@@ -1146,7 +1170,9 @@ export class AgentWorkspaceController {
       session,
       ...this.state.sessions,
     ])
+    const changedContextModels = changedContextModelSessions(this.state, state)
     this.commit(select ? selectAgentSession(state, session.id) : state)
+    for (const sessionId of changedContextModels) void this.hydrateContext(sessionId, 'restart')
     if (select) {
       this.cancelUsageHydrations(session.id)
       void this.hydrateUsage(session.id)
