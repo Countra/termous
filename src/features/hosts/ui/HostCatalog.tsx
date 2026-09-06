@@ -252,7 +252,7 @@ function HostCatalogRow({ item, active, getHostIconUrl, onSelect }: { item: Host
       <HostAvatar host={item} getIconUrl={getHostIconUrl} size={34} iconSize={17} />
       <span className="host-catalog-row-copy">
         <Tooltip title={item.name}><strong>{item.name}</strong></Tooltip>
-        <span><small>{ssh ? formatSSHProfileEndpoint(ssh) : t('hosts.access.ssh.empty')}</small>{tags[0] ? <Tooltip title={tags.join(', ')}><em>{tags[0]}{tags.length > 1 ? ` +${tags.length - 1}` : ''}</em></Tooltip> : null}</span>
+        <span><small>{ssh ? formatSSHProfileEndpoint(ssh) : t('hosts.access.hostInfo')}</small>{tags[0] ? <Tooltip title={tags.join(', ')}><em>{tags[0]}{tags.length > 1 ? ` +${tags.length - 1}` : ''}</em></Tooltip> : null}</span>
       </span>
       {ssh ? <AuthMethodBadge method={ssh.auth_method} compact /> : null}
     </button>

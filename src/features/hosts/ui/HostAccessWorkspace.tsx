@@ -34,7 +34,7 @@ import {
   WorkspaceEmptyState,
 } from '#shared/ui'
 import type { HostManagementData } from '../model/types.ts'
-import { useHostAccessWorkspaceController } from '../model/useHostAccessWorkspaceController.ts'
+import { useHostAccessWorkspaceController, type HostDetailView } from '../model/useHostAccessWorkspaceController.ts'
 import { HostAssetForm } from './HostAssetForm.tsx'
 import { HostEditorShell } from './HostEditorShell.tsx'
 import styles from './HostAccessWorkspace.module.scss'
@@ -44,6 +44,8 @@ interface HostAccessWorkspaceProps {
   data: HostManagementData
   gateway: HostAccessWorkspaceGateway
   openAccessIntentKey?: number
+  initialView?: HostDetailView
+  initialConnectionSetupConsidered?: boolean
   onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
   getHostIconUrl: (iconId: string) => string
@@ -62,6 +64,8 @@ export function HostAccessWorkspace({
   data,
   gateway,
   openAccessIntentKey = 0,
+  initialView,
+  initialConnectionSetupConsidered,
   onAccessIntentHandled,
   actionBusy,
   getHostIconUrl,
@@ -77,12 +81,15 @@ export function HostAccessWorkspace({
   const { t } = useTranslation()
   const [deleteHostConfirmOpen, setDeleteHostConfirmOpen] = useState(false)
   const handledAccessIntentKeyRef = useRef(0)
+  const contentRef = useRef<HTMLDivElement>(null)
   const controller = useHostAccessWorkspaceController({
     hostId: host.id,
     fallbackHost: host,
     gateway,
     t,
     openAccessIntentKey,
+    initialView,
+    initialConnectionSetupConsidered,
     onDirtyChange,
     onProtectedIconIdChange,
   })
@@ -235,6 +242,7 @@ export function HostAccessWorkspace({
   return (
     <>
       <HostEditorShell
+        contentRef={contentRef}
         mode="edit"
         title={controller.assetDraft.name.trim() || catalog?.host.name || host.name}
         iconId={controller.assetDraft.icon_id}
@@ -311,6 +319,16 @@ export function HostAccessWorkspace({
           t,
         })}
       </HostEditorShell>
+      <ConfirmDialog
+        open={controller.connectionSetupPromptOpen}
+        title={t('hosts.connectionSetup.title')}
+        description={t('hosts.connectionSetup.description')}
+        confirmLabel={t('hosts.connectionSetup.go')}
+        cancelLabel={t('hosts.connectionSetup.skip')}
+        onConfirm={controller.goToConnectionSetup}
+        onCancel={controller.dismissConnectionSetup}
+        onAfterClose={() => contentRef.current?.focus()}
+      />
       <ConfirmDialog
         open={deleteHostConfirmOpen}
         title={t('hosts.access.deleteHostTitle')}

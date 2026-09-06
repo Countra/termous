@@ -11,6 +11,7 @@ import {
   type HostAccessCatalog,
   type HostAsset,
   type HostAssetInput,
+  type HostProvisionInput,
 } from '#entities/host-asset'
 import type {
   Host,
@@ -33,7 +34,7 @@ import {
   type SSHAccessProfileReferences,
 } from '#entities/ssh-access-profile'
 import type { GroupReorderItem } from '#shared/model'
-import { TermousApiTransport } from '#shared/api'
+import { TermousApiError, TermousApiTransport } from '#shared/api'
 import { normalizeArray } from './responseNormalizers'
 
 export class HostClient extends TermousApiTransport {
@@ -198,6 +199,23 @@ export class HostClient extends TermousApiTransport {
 
   hostAsset(id: string) {
     return this.request<HostAsset>(`/api/v1/host-assets/${encodeURIComponent(id)}`)
+  }
+
+  async provisionHost(input: HostProvisionInput) {
+    const submit = () => this.request<HostAccessCatalog>('/api/v1/host-assets/provision', {
+      method: 'POST', body: input,
+    })
+    let catalog: HostAccessCatalog
+    try {
+      catalog = await submit()
+    } catch (cause) {
+      if (!(cause instanceof TermousApiError)
+        || !['NETWORK_ERROR', 'REQUEST_TIMEOUT'].includes(cause.code)) throw cause
+      // 响应可能丢失，只重发同一快照一次；稳定请求 ID 防止重复创建。
+      // 同一 ID 不能证明内容相同，冲突必须保留给界面核对，不能把旧目录当作本次保存结果。
+      catalog = await submit()
+    }
+    return normalizeHostAccessCatalog(catalog)
   }
 
   updateHostAsset(id: string, expectedUpdatedAt: string, input: HostAssetInput) {

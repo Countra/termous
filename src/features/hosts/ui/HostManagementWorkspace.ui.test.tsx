@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Host } from '#entities/host'
-import type { HostAsset } from '#entities/host-asset'
-import type { HostAccessWorkspaceGateway } from '#features/host-access'
+import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
+import type { HostAccessWorkspaceGateway, HostProvisionGateway } from '#features/host-access'
 import { HostManagementWorkspace } from './HostManagementWorkspace.tsx'
 
 vi.mock('./HostAccessWorkspace', async () => {
@@ -11,11 +11,15 @@ vi.mock('./HostAccessWorkspace', async () => {
     HostAccessWorkspace: ({
       host,
       openAccessIntentKey,
+      initialView,
+      initialConnectionSetupConsidered,
       onBack,
       onDirtyChange,
     }: {
       host: HostAsset
       openAccessIntentKey?: number
+      initialView?: 'asset' | 'access'
+      initialConnectionSetupConsidered?: boolean
       onBack: () => void
       onDirtyChange: (dirty: boolean) => void
     }) => {
@@ -23,6 +27,8 @@ vi.mock('./HostAccessWorkspace', async () => {
       return (
         <div>
           <output data-testid="access-draft">{draft}</output>
+          <output data-testid="initial-view">{initialView ?? 'asset'}</output>
+          <output data-testid="initial-setup-considered">{String(Boolean(initialConnectionSetupConsidered))}</output>
           <output data-testid="access-intent">{`${host.id}:${openAccessIntentKey ?? 0}`}</output>
           <button
             type="button"
@@ -77,7 +83,8 @@ function assetFromHost(source: Host): HostAsset {
   }
 }
 
-const accessGateway: HostAccessWorkspaceGateway = {
+const accessGateway: HostAccessWorkspaceGateway & HostProvisionGateway = {
+  provisionHost: vi.fn(),
   loadCatalog: vi.fn(),
   listSSHProfiles: vi.fn(),
   updateHostAsset: vi.fn(),
@@ -99,7 +106,238 @@ const accessGateway: HostAccessWorkspaceGateway = {
   sshProfileReachabilityEventsUrl: vi.fn(),
 }
 
+function createProps() {
+  return {
+    data: {
+      hosts: [], hostAssets: [], sshAccessProfiles: [], groups: [], proxies: [],
+      credentials: [], hostIcons: [], sessions: [], fileSessions: [], forwards: [],
+      remoteDesktopSessions: [],
+    },
+    selectedHostId: '', actionBusy: false, createIntentKey: 1,
+    accessGateway: { ...accessGateway, provisionHost: vi.fn() },
+    onSelectHost: vi.fn(), onDelete: vi.fn(), onCreateGroup: vi.fn(),
+    onRenameGroup: vi.fn(), onDeleteGroup: vi.fn(), onReorderGroups: vi.fn(),
+    onCreateProxy: vi.fn(), onUpdateProxy: vi.fn(), onDeleteProxy: vi.fn(),
+    onUploadHostIcon: vi.fn(), onRenameHostIcon: vi.fn(), onReorderHostIcons: vi.fn(),
+    onDeleteHostIcon: vi.fn(), getHostIconUrl: () => '',
+  }
+}
+
+function confirmHostOnlySave() {
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'hosts.creation.saveHostOnly' }))
+}
+
 describe('主机管理工作区', () => {
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+  })
+
+  it('没有凭据和 SSH 配置也可创建，迟到的列表快照不使编辑器退回新建', async () => {
+    const props = createProps()
+    const saved = assetFromHost(host)
+    props.accessGateway.provisionHost.mockResolvedValue({ host: saved, ssh: [], files: [], remote_desktops: [] })
+    const view = render(<HostManagementWorkspace {...props} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: '  测试主机  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    confirmHostOnlySave()
+    expect(await screen.findByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(props.accessGateway.provisionHost).toHaveBeenCalledExactlyOnceWith({
+      client_request_id: expect.any(String),
+      host: {
+        name: '测试主机', platform: 'linux', group_id: '', icon_id: '',
+        tags: [], favorite: false, note: '',
+      },
+      ssh: [], remote_desktops: [],
+    })
+    expect(screen.getByTestId('initial-view')).toHaveTextContent('asset')
+    expect(screen.getByTestId('initial-setup-considered')).toHaveTextContent('true')
+    expect(props.onSelectHost).toHaveBeenCalledWith(saved.id)
+
+    view.rerender(<HostManagementWorkspace {...props} selectedHostId={saved.id} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(saved.name)
+    view.rerender(<HostManagementWorkspace {...props} selectedHostId={saved.id} data={{ ...props.data, hostAssets: [saved] }} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(props.accessGateway.provisionHost).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['asset', 'connections'] as const)('已有多主机时快照迟到仍保持新主机及 %s 页签', async (section) => {
+    const defaults = createProps()
+    const originalAssets = [assetFromHost(host), assetFromHost(secondHost)]
+    const saved = { ...assetFromHost(host), id: 'host-c', name: '新建主机 C' }
+    const props = {
+      ...defaults,
+      createIntentKey: 0,
+      selectedHostId: secondHost.id,
+      data: { ...defaults.data, hostAssets: originalAssets },
+    }
+    props.accessGateway.provisionHost.mockResolvedValue({ host: saved, ssh: [], files: [], remote_desktops: [] })
+    const view = render(<HostManagementWorkspace {...props} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(secondHost.name)
+    fireEvent.click(screen.getByRole('button', { name: 'hosts.addHost' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: saved.name } })
+    if (section === 'connections') {
+      fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
+    }
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    confirmHostOnlySave()
+    expect(await screen.findByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(props.onSelectHost).toHaveBeenCalledWith(saved.id)
+
+    view.rerender(<HostManagementWorkspace {...props} selectedHostId={saved.id} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(screen.getByTestId('initial-view')).toHaveTextContent(section === 'asset' ? 'asset' : 'access')
+    expect(screen.getByTestId('initial-setup-considered')).toHaveTextContent('true')
+    expect(screen.getByTestId('access-intent')).toHaveTextContent(`${saved.id}:0`)
+
+    view.rerender(<HostManagementWorkspace {...props} selectedHostId={saved.id} data={{ ...props.data, hostAssets: [...originalAssets, saved] }} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(screen.getByTestId('initial-view')).toHaveTextContent(section === 'asset' ? 'asset' : 'access')
+    expect(screen.getByTestId('initial-setup-considered')).toHaveTextContent('true')
+    expect(props.accessGateway.provisionHost).toHaveBeenCalledTimes(1)
+  })
+
+  it('整体保存失败保留主机草稿和页签，重试成功保持连接页', async () => {
+    const props = createProps()
+    props.accessGateway.provisionHost.mockRejectedValueOnce(new Error('service unavailable'))
+      .mockResolvedValueOnce({ host: assetFromHost(host), ssh: [], files: [], remote_desktops: [] })
+    render(<HostManagementWorkspace {...props} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: host.name } })
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    confirmHostOnlySave()
+    expect(await screen.findByText('service unavailable')).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.hostInfo' }))
+    expect(screen.getByRole('textbox', { name: 'hosts.name' })).toHaveValue(host.name)
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(await screen.findByTestId('access-draft')).toHaveTextContent(host.name)
+    expect(props.accessGateway.provisionHost).toHaveBeenCalledTimes(2)
+    expect(props.accessGateway.provisionHost.mock.calls[1][0]).toEqual(props.accessGateway.provisionHost.mock.calls[0][0])
+  })
+
+  it('仅切换连接页不视作已选择，保存空连接仍需明确确认', async () => {
+    const props = createProps()
+    const saved = assetFromHost(host)
+    props.accessGateway.provisionHost.mockResolvedValue({ host: saved, ssh: [], files: [], remote_desktops: [] })
+    render(<HostManagementWorkspace {...props} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: saved.name } })
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.hostInfo' }))
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    confirmHostOnlySave()
+    expect(await screen.findByTestId('access-draft')).toHaveTextContent(saved.name)
+    expect(screen.getByTestId('initial-view')).toHaveTextContent('asset')
+    expect(screen.getByTestId('initial-setup-considered')).toHaveTextContent('true')
+  })
+
+  it('创建请求期间不能通过目录切走，成功后仅创建一次', async () => {
+    const props = createProps()
+    let resolve!: (catalog: HostAccessCatalog) => void
+    props.accessGateway.provisionHost.mockImplementation(() => new Promise<HostAccessCatalog>((done) => { resolve = done }))
+    const saved = assetFromHost(secondHost)
+    render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetFromHost(host)] }} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: saved.name } })
+    const submit = screen.getByRole('button', { name: 'app.save' })
+    fireEvent.click(submit)
+    fireEvent.click(submit)
+    expect(props.accessGateway.provisionHost).not.toHaveBeenCalled()
+    confirmHostOnlySave()
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(host.name) }))
+    expect(props.accessGateway.provisionHost).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('access-draft')).not.toBeInTheDocument()
+    await act(async () => { resolve({ host: saved, ssh: [], files: [], remote_desktops: [] }) })
+    await waitFor(() => expect(screen.getByTestId('access-draft')).toHaveTextContent(saved.name))
+  })
+
+  it.each(['success', 'failure'] as const)('创建 %s 时同步通知保存锁并在结束后释放', async (outcome) => {
+    const props = createProps()
+    const onSavingChange = vi.fn()
+    let resolve!: (catalog: HostAccessCatalog) => void
+    let reject!: (cause: Error) => void
+    props.accessGateway.provisionHost.mockImplementation(() => {
+      expect(onSavingChange).toHaveBeenLastCalledWith(true)
+      return new Promise<HostAccessCatalog>((done, fail) => { resolve = done; reject = fail })
+    })
+    render(<HostManagementWorkspace {...props} onSavingChange={onSavingChange} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: host.name } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    confirmHostOnlySave()
+    expect(onSavingChange.mock.calls).toEqual([[true]])
+    await act(async () => {
+      if (outcome === 'success') resolve({ host: assetFromHost(host), ssh: [], files: [], remote_desktops: [] })
+      else reject(new Error('保存失败'))
+    })
+    expect(onSavingChange.mock.calls).toEqual([[true], [false]])
+    if (outcome === 'failure') {
+      expect(screen.getByRole('textbox', { name: 'hosts.name' })).toHaveValue(host.name)
+      expect(screen.getByText('保存失败')).toBeVisible()
+    }
+  })
+
+  it('卸载时释放保存锁，迟到成功不覆盖新页面选择或再次解除新挂载锁', async () => {
+    const props = createProps()
+    const onSavingChange = vi.fn()
+    let resolve!: (catalog: HostAccessCatalog) => void
+    props.accessGateway.provisionHost.mockImplementation(() => new Promise<HostAccessCatalog>((done) => { resolve = done }))
+    const view = render(<HostManagementWorkspace {...props} onSavingChange={onSavingChange} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.name' }), { target: { value: host.name } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    confirmHostOnlySave()
+    expect(onSavingChange).toHaveBeenLastCalledWith(true)
+    view.unmount()
+    expect(onSavingChange.mock.calls).toEqual([[true], [false]])
+    await act(async () => resolve({ host: assetFromHost(host), ssh: [], files: [], remote_desktops: [] }))
+    expect(props.onSelectHost).not.toHaveBeenCalled()
+    expect(onSavingChange.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('已选主机被外部删除且无草稿时，切换到仍存在的主机', () => {
+    const props = { ...createProps(), createIntentKey: 0, selectedHostId: secondHost.id }
+    const assetA = assetFromHost(host)
+    const assetB = assetFromHost(secondHost)
+    const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA, assetB] }} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(secondHost.name)
+    view.rerender(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA] }} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(host.name)
+    expect(screen.queryByRole('textbox', { name: 'hosts.name' })).not.toBeInTheDocument()
+    expect(props.onSelectHost).toHaveBeenCalledExactlyOnceWith(host.id)
+  })
+
+  it('主机被外部删除时保留脏编辑器，确认离开才释放草稿且不把删除项放回目录', () => {
+    const props = { ...createProps(), createIntentKey: 0, selectedHostId: secondHost.id }
+    const assetA = assetFromHost(host)
+    const assetB = assetFromHost(secondHost)
+    const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA, assetB] }} />)
+    fireEvent.click(screen.getByRole('button', { name: '修改访问草稿' }))
+    view.rerender(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA] }} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent('未保存访问草稿')
+    expect(screen.getByTestId('access-intent')).toHaveTextContent('host-b:0')
+    expect(screen.queryByRole('button', { name: new RegExp(secondHost.name) })).not.toBeInTheDocument()
+    expect(props.onSelectHost).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(host.name) }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(screen.getByTestId('access-draft')).toHaveTextContent('未保存访问草稿')
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(host.name) }))
+    fireEvent.click(screen.getByRole('button', { name: 'hosts.discardAndContinue' }))
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(host.name)
+  })
+
+  it('最后一台主机外部删除后返回目录，保留原编辑器而不自动开始新建', () => {
+    const props = { ...createProps(), createIntentKey: 0, selectedHostId: host.id }
+    const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetFromHost(host)] }} />)
+    view.rerender(<HostManagementWorkspace {...props} />)
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(host.name)
+    expect(screen.queryByRole('textbox', { name: 'hosts.name' })).not.toBeInTheDocument()
+    expect(document.querySelector('.hosts-management-workspace')).toHaveAttribute('data-active-view', 'catalog')
+    expect(props.onSelectHost).toHaveBeenCalledExactlyOnceWith('')
+  })
+
   it('旧主机投影为空时仍可选择和管理纯资产', () => {
     const asset = assetFromHost(host)
     render(
@@ -121,7 +359,6 @@ describe('主机管理工作区', () => {
         actionBusy={false}
         accessGateway={accessGateway}
         onSelectHost={vi.fn()}
-        onSave={vi.fn()}
         onDelete={vi.fn()}
         onCreateGroup={vi.fn()}
         onRenameGroup={vi.fn()}
@@ -139,7 +376,7 @@ describe('主机管理工作区', () => {
     )
 
     expect(screen.getByTestId('access-draft')).toHaveTextContent(asset.name)
-    expect(screen.getByText('hosts.access.ssh.empty')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: new RegExp(asset.name) })).toBeInTheDocument()
   })
 
   it('确认放弃访问草稿后重置隐藏编辑器状态', () => {
@@ -162,7 +399,6 @@ describe('主机管理工作区', () => {
         actionBusy={false}
         accessGateway={accessGateway}
         onSelectHost={vi.fn()}
-        onSave={vi.fn()}
         onDelete={vi.fn()}
         onCreateGroup={vi.fn()}
         onRenameGroup={vi.fn()}
@@ -211,7 +447,6 @@ describe('主机管理工作区', () => {
       accessGateway,
       onSelectHost,
       onAccessIntentHandled,
-      onSave: vi.fn(),
       onDelete: vi.fn(),
       onCreateGroup: vi.fn(),
       onRenameGroup: vi.fn(),
@@ -270,7 +505,7 @@ describe('主机管理工作区', () => {
     expect(screen.getByTestId('access-draft')).toHaveTextContent('备用主机')
   })
 
-  it('重新进入新增流程时重置分段和上一轮校验状态', () => {
+  it('重新进入新增流程时重置页签和上一轮校验状态', () => {
     const props = {
       data: {
         hosts: [],
@@ -287,8 +522,8 @@ describe('主机管理工作区', () => {
       },
       selectedHostId: '',
       actionBusy: false,
+      accessGateway,
       onSelectHost: vi.fn(),
-      onSave: vi.fn(),
       onDelete: vi.fn(),
       onCreateGroup: vi.fn(),
       onRenameGroup: vi.fn(),
@@ -307,12 +542,9 @@ describe('主机管理工作区', () => {
       <HostManagementWorkspace {...props} createIntentKey={1} />,
     )
 
-    fireEvent.change(screen.getByRole('textbox', { name: /^hosts.name/ }), {
-      target: { value: '临时主机' },
-    })
-    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
-    fireEvent.click(screen.getByRole('button', { name: 'app.create' }))
-    expect(screen.getByText('hosts.validation.addressRequired')).toBeVisible()
+    fireEvent.change(screen.getByRole('textbox', { name: 'hosts.note' }), { target: { value: '尚未命名的草稿' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(screen.getByText('hosts.access.errors.required')).toBeVisible()
 
     view.rerender(
       <HostManagementWorkspace {...props} createIntentKey={2} />,
@@ -320,6 +552,7 @@ describe('主机管理工作区', () => {
     fireEvent.click(screen.getByRole('button', { name: 'hosts.discardAndContinue' }))
 
     expect(screen.getByRole('tab', { name: 'hosts.access.hostInfo' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByText('hosts.validation.addressRequired')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'hosts.note' })).toHaveValue('')
+    expect(screen.queryByText('hosts.access.errors.required')).not.toBeInTheDocument()
   })
 })

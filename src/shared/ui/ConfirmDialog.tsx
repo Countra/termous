@@ -19,6 +19,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onSecondary?: () => void
   onCancel: () => void
+  onAfterClose?: () => void
 }
 
 export function ConfirmDialog({
@@ -37,6 +38,7 @@ export function ConfirmDialog({
   onConfirm,
   onSecondary,
   onCancel,
+  onAfterClose,
 }: ConfirmDialogProps) {
   const { t } = useTranslation()
   const busy = confirmLoading || secondaryLoading
@@ -52,6 +54,7 @@ export function ConfirmDialog({
       closable={showCloseButton && !busy}
       closeIcon={<X size={16} aria-hidden="true" />}
       destroyOnHidden
+      afterClose={onAfterClose}
       mask={{ closable: !busy }}
       keyboard={!busy}
       className={`${styles.modal} confirm-modal`}

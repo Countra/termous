@@ -3,6 +3,7 @@ import type { FileAccessProfileMetadataInput } from '#entities/file-access-profi
 import {
   hostAssetToInput,
   type HostAssetInput,
+  type HostProvisionInput,
 } from '#entities/host-asset'
 import type {
   HostIconReorderItem,
@@ -12,6 +13,7 @@ import type {
 import type { RemoteDesktopAccessProfileInput } from '#entities/remote-desktop'
 import type { SSHAccessProfileInput } from '#entities/ssh-access-profile'
 import type { GroupReorderItem } from '#shared/model'
+import { TermousApiError } from '#shared/api'
 import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
 import {
   mergeHostReachabilityEvent,
@@ -138,6 +140,17 @@ export function createHostCommands({ api, hostAssets, load, setData }: HostComma
     fileAccessProfile: (id: string) => api.fileAccessProfile(id),
     remoteDesktopAccessProfiles: (hostId?: string) => api.remoteDesktopAccessProfiles(hostId),
     remoteDesktopAccessProfile: (id: string) => api.remoteDesktopAccessProfile(id),
+    async provisionHost(input: HostProvisionInput) {
+      const catalog = await api.provisionHost(input).catch(async (cause: unknown) => {
+        if (cause instanceof TermousApiError && cause.code === 'HOST_ASSET_CONFLICT' && cause.details?.host_id) {
+          // 已创建但响应不确定时刷新目录供用户核对，仍抛出冲突以保留当前草稿。
+          await load('silent')
+        }
+        throw cause
+      })
+      await load('silent')
+      return catalog
+    },
     async updateHostAsset(id: string, expectedUpdatedAt: string, input: HostAssetInput) {
       const asset = await api.updateHostAsset(id, expectedUpdatedAt, input)
       await load('silent')

@@ -1,6 +1,6 @@
 import { Button, Input, Select, Switch } from 'antd'
 import { Images, Plus, Star } from 'lucide-react'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   HostAvatar,
@@ -20,7 +20,6 @@ interface HostAssetFormProps {
   data: HostManagementData
   draft: HostAssetInput
   nameError?: string
-  nameHint?: string
   autoFocusName?: boolean
   disabled: boolean
   getHostIconUrl: (iconId: string) => string
@@ -44,7 +43,6 @@ export function HostAssetForm({
   data,
   draft,
   nameError,
-  nameHint,
   autoFocusName = false,
   disabled,
   getHostIconUrl,
@@ -59,6 +57,14 @@ export function HostAssetForm({
   const nameControlId = useId()
   const nameFeedbackId = useId()
   const groupControlId = useId()
+  const latest = useRef({ draft, onChange })
+  latest.current = { draft, onChange }
+  const mounted = useRef(true)
+  const groupCreationInFlight = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const tagOptions = useMemo(
     () => buildHostDirectoryTagOptions(
       buildHostDirectoryItems(data.hostAssets, data.sshAccessProfiles),
@@ -76,6 +82,7 @@ export function HostAssetForm({
   )
 
   const createGroup = async () => {
+    if (disabled || groupCreationInFlight.current) return
     const name = normalizeGroupName(groupDraft)
     if (!name) return
     const existing = data.groups.find((group) => (
@@ -87,16 +94,23 @@ export function HostAssetForm({
       setGroupCreatorOpen(false)
       return
     }
+    groupCreationInFlight.current = true
+    const originalGroupId = draft.group_id
     setCreatingGroup(true)
     try {
       const group = await onCreateGroup(name)
-      onChange({ ...draft, group_id: group.id })
+      if (!mounted.current) return
+      // 用户等待期间若已选择其他分组，迟到结果不能覆盖新的选择。
+      if (latest.current.draft.group_id === originalGroupId) {
+        latest.current.onChange({ ...latest.current.draft, group_id: group.id })
+      }
       setGroupDraft('')
       setGroupCreatorOpen(false)
     } catch {
       return
     } finally {
-      setCreatingGroup(false)
+      groupCreationInFlight.current = false
+      if (mounted.current) setCreatingGroup(false)
     }
   }
 
@@ -113,12 +127,11 @@ export function HostAssetForm({
               autoFocus={autoFocusName}
               status={nameError ? 'error' : undefined}
               aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameError || nameHint ? nameFeedbackId : undefined}
+              aria-describedby={nameError ? nameFeedbackId : undefined}
               disabled={disabled}
               onChange={(event) => onChange({ ...draft, name: event.target.value })}
             />
             {nameError ? <small id={nameFeedbackId} className="host-editor-field-error" role="alert">{nameError}</small> : null}
-            {!nameError && nameHint ? <small id={nameFeedbackId} className="host-editor-field-hint">{nameHint}</small> : null}
           </div>
           <HostSelectField
             label={t('hosts.platform.label')}

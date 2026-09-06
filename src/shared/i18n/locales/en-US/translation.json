@@ -2068,7 +2068,37 @@
     "accessSection": "Connection and authentication",
     "connectionSection": "Connection",
     "authSection": "Authentication",
-    "nameHint": "If left blank, the host address will be used after saving.",
+    "connectionSetup": {
+      "title": "Host saved without connections",
+      "description": "Would you like to open connection settings now? You can also add a connection later.",
+      "go": "Add a connection",
+      "skip": "Not now"
+    },
+    "creation": {
+      "noConnectionsTitle": "No connections yet",
+      "noConnectionsDescription": "Save the host on its own, or continue configuring connections.",
+      "saveHostOnly": "Save host only",
+      "draft": "Draft",
+      "incomplete": "Incomplete",
+      "unnamed": "Untitled connection",
+      "backToConnections": "Back to connections",
+      "fileEmpty": "An SFTP profile is added automatically with each SSH profile",
+      "fixIncomplete": "Complete the highlighted host or connection settings before saving.",
+      "invalid": "Check this setting",
+      "deleteBlocked": "Other connections still reference this SSH profile. Update their routes before deleting it.",
+      "discardDescription": "Discard the host information and all connection drafts? None of these changes will be saved.",
+      "defaultAction": "Set {{name}} as default",
+      "editAction": "Edit {{name}}",
+      "deleteAction": "Delete {{name}}",
+      "errors": {
+        "missing": "The selected configuration no longer exists. Select another one.",
+        "type_mismatch": "The credential does not match the authentication method.",
+        "self_reference": "An SSH profile cannot use itself as a jump host.",
+        "cycle": "The jump route contains a cycle. Update the reference.",
+        "nested_jump": "Multiple jump levels are not supported. Select an SSH profile without a jump host.",
+        "consumer_route_locked": "This SSH profile is already used as a jump host and cannot have another jump host."
+      }
+    },
     "access": {
       "title": "Access methods",
       "hostInfo": "Host info",

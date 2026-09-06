@@ -1,5 +1,5 @@
 import type { FileAccessProfile, FileAccessProfileMetadataInput } from '#entities/file-access-profile'
-import type { HostAccessCatalog, HostAsset, HostAssetInput } from '#entities/host-asset'
+import type { HostAccessCatalog, HostAsset, HostAssetInput, HostProvisionInput } from '#entities/host-asset'
 import type { HostReachability } from '#entities/host'
 import type {
   RemoteDesktopAccessProfile,
@@ -11,6 +11,10 @@ import type {
   SSHAccessProfileInput,
   SSHAccessProfileReferences,
 } from '#entities/ssh-access-profile'
+
+export interface HostProvisionGateway {
+  provisionHost: (input: HostProvisionInput) => Promise<HostAccessCatalog>
+}
 
 export interface HostAccessManagementGateway {
   loadCatalog: (hostId: string) => Promise<HostAccessCatalog>

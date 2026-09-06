@@ -120,14 +120,21 @@
 .footer {
   width: 100%;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .footer-leading {
   min-width: 1px;
+  max-width: 100%;
+}
+
+.footer-leading:empty {
+  display: none;
 }
 
 .footer-actions {
+  margin-left: auto;
   justify-content: flex-end;
   gap: 8px;
 }

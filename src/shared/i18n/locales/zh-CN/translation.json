@@ -2059,7 +2059,37 @@
     "accessSection": "连接与认证",
     "connectionSection": "连接信息",
     "authSection": "认证信息",
-    "nameHint": "名称留空时，保存后将使用主机地址。",
+    "connectionSetup": {
+      "title": "主机已保存，尚未添加连接",
+      "description": "是否前往连接配置添加连接？也可以稍后再添加。",
+      "go": "去添加连接",
+      "skip": "暂不添加"
+    },
+    "creation": {
+      "noConnectionsTitle": "还未添加连接",
+      "noConnectionsDescription": "可以先保存主机，也可以继续配置连接。",
+      "saveHostOnly": "仅保存主机",
+      "draft": "草稿",
+      "incomplete": "未完成",
+      "unnamed": "未命名连接",
+      "backToConnections": "返回连接列表",
+      "fileEmpty": "添加 SSH 后自动生成 SFTP 配置",
+      "fixIncomplete": "请补全标记的主机或连接配置后，再统一保存。",
+      "invalid": "请检查此项配置",
+      "deleteBlocked": "其他连接仍引用此 SSH，请先修改相关连接的路由后再删除。",
+      "discardDescription": "将放弃主机信息及全部连接草稿，已填写的内容不会保存。",
+      "defaultAction": "将 {{name}} 设为默认",
+      "editAction": "编辑 {{name}}",
+      "deleteAction": "删除 {{name}}",
+      "errors": {
+        "missing": "所选配置已不存在，请重新选择",
+        "type_mismatch": "凭据类型与认证方式不匹配，请重新选择",
+        "self_reference": "不能将自身作为跳板",
+        "cycle": "跳板路由存在循环，请修改引用",
+        "nested_jump": "暂不支持多级跳板，请选择未使用跳板的 SSH",
+        "consumer_route_locked": "此 SSH 已作为其他连接的跳板，不能再设置上级跳板"
+      }
+    },
     "access": {
       "title": "访问方式",
       "hostInfo": "主机信息",

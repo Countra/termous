@@ -1,5 +1,6 @@
 export type {
   HostAccessManagementGateway,
+  HostProvisionGateway,
   HostAccessWorkspaceGateway,
   HostAccessProfileEditorIntent,
   HostAccessProfileKind,

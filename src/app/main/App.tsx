@@ -21,6 +21,7 @@ import {
 import {
   useSSHProfileReachability,
   type HostAccessWorkspaceGateway,
+  type HostProvisionGateway,
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
@@ -71,7 +72,7 @@ import {
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
-import type { Host, HostGroup, HostIcon, HostIconReorderItem, HostInput } from '#entities/host'
+import type { HostGroup, HostIcon, HostIconReorderItem } from '#entities/host'
 import type { GroupReorderItem, PageKey } from '#shared/model'
 import type { LocalShell, Session, SessionSnapshotEvent } from '#entities/session'
 import styles from './App.module.scss'
@@ -221,7 +222,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     eventsUrl: fileSessionEventsUrl,
     onSnapshot: actions.applyFileSessionSnapshot,
   })
-  const [page, setPage] = useState<PageKey>('workbench')
+  const [page, setCurrentPage] = useState<PageKey>('workbench')
+  const [hostSaving, setHostSaving] = useState(false)
+  const hostSavingRef = useRef(false)
+  const handleHostSavingChange = useCallback((saving: boolean) => {
+    hostSavingRef.current = saving
+    setHostSaving(saving)
+  }, [])
+  const setPage = useCallback((nextPage: PageKey) => {
+    // 聚合创建提交后无法撤回，异步连接回调也不能在此期间卸载草稿页。
+    if (hostSavingRef.current) return
+    setCurrentPage(nextPage)
+  }, [])
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
@@ -288,6 +300,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     nextPage: PageKey,
     options?: { settingsTab?: SettingsPageTabKey },
   ) => {
+    if (hostSavingRef.current) return
     if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
     if (nextPage === page) {
       return
@@ -301,14 +314,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
   }, [navigateToPage])
 
   const launchAgent = useCallback((request: AgentLaunchRequest) => {
-    if (agentLaunchPendingRef.current) return
+    if (hostSavingRef.current || agentLaunchPendingRef.current) return
     agentLaunchPendingRef.current = true
     nextAgentLaunchIntentKeyRef.current += 1
     setAgentLaunchIntent(assignAgentLaunchIntentKey(
@@ -438,9 +451,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   )
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
-  const hostAccessGateway = useMemo<HostAccessWorkspaceGateway>(() => ({
+  const hostAccessGateway = useMemo<HostAccessWorkspaceGateway & HostProvisionGateway>(() => ({
     loadCatalog: (hostId) => hostAccessActionsRef.current.hostAccessCatalog(hostId),
     listSSHProfiles: () => hostAccessActionsRef.current.sshAccessProfiles(),
+    provisionHost: (...input) => hostAccessActionsRef.current.provisionHost(...input),
     updateHostAsset: (...input) => hostAccessActionsRef.current.updateHostAsset(...input),
     createSSHProfile: (...input) => hostAccessActionsRef.current.createSSHAccessProfile(...input),
     updateSSHProfile: (...input) => hostAccessActionsRef.current.updateSSHAccessProfile(...input),
@@ -616,14 +630,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       console.error('等待端口转发重启终态失败', error)
     })
   }, [actions, notification, runAction, t])
-
-  const saveHost = (id: string | null, input: HostInput): Promise<Host | undefined> =>
-    runAction(async () => {
-      if (id) {
-        return actions.updateHost(id, input)
-      }
-      return actions.createHost(input)
-    }, t('app.save'))
 
   const createHostGroup = async (name: string): Promise<HostGroup> => {
     setActionBusy(true)
@@ -938,16 +944,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const openHostCreate = () => {
+    if (hostSavingRef.current) return
     setPage('hosts')
     setHostCreateIntentKey((current) => current + 1)
   }
 
   const openHostEdit = (hostId: string) => {
+    if (hostSavingRef.current) return
     setSelectedHostId(hostId)
     setPage('hosts')
   }
 
   const openHostAccess = (hostId: string) => {
+    if (hostSavingRef.current) return
     nextHostAccessIntentKeyRef.current += 1
     setSelectedHostId(hostId)
     setHostAccessIntent({
@@ -1012,7 +1021,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   const openHostLauncher = useCallback((intent: HostLauncherIntent) => {
-    if (actionBusy) {
+    if (actionBusy || hostSavingRef.current) {
       return
     }
     setHostLauncherState((current) => (
@@ -1047,7 +1056,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     })
 
   const openLocalTerminalFromTopbar = (shell: LocalShell) => {
-    if (actionBusy) {
+    if (actionBusy || hostSavingRef.current) {
       return
     }
     setPage('workbench')
@@ -1055,6 +1064,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const handleTrayCommand = useCallback((command: TrayCommand) => {
+    if (hostSavingRef.current) return
     if (command.type === 'open-host-launcher') {
       openHostLauncher('terminal')
       return
@@ -1069,7 +1079,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         setPage('workbench')
       })
     }
-  }, [actions, openHostLauncher, runAction])
+  }, [actions, openHostLauncher, runAction, setPage])
 
   const { buildInfo, nativeCoreFatal } = useDesktopBridgeRuntime({
     initialBuildInfo: developmentUpdateSimulation?.buildInfo ?? null,
@@ -1142,7 +1152,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       appVersion={appVersion}
                       windowCloseBehavior={data.settings.window.close_behavior}
                       sidebarCollapsed={sidebarCollapsed}
-                      actionBusy={actionBusy}
+                      actionBusy={actionBusy || hostSaving}
                       onNavigate={navigateToPage}
                       onOpenConnectionLauncher={openTerminalSessionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
@@ -1230,7 +1240,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       {page === 'hosts' ? (
                         <HostsPage
                           data={hostManagementData}
-                          selectedHostId={selectedHostAssetIdStable}
+                          selectedHostId={selectedHostId || selectedHostAssetIdStable}
                           createIntentKey={hostCreateIntentKey}
                           accessIntent={hostAccessIntent}
                           onAccessIntentHandled={(key) => {
@@ -1241,7 +1251,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           actionBusy={actionBusy}
                           accessGateway={hostAccessGateway}
                           onSelectHost={setSelectedHostId}
-                          onSave={saveHost}
                           onDelete={(id) => runAction(async () => {
                             await actions.deleteHost(id)
                             return true
@@ -1265,6 +1274,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onDeleteHostIcon={deleteHostIcon}
                           getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setHostsDirty}
+                          onSavingChange={handleHostSavingChange}
                           onLaunchAgent={launchAgent}
                         />
                       ) : null}
@@ -1440,6 +1450,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           setPendingPage(null)
         }}
         onConfirm={() => {
+          if (hostSavingRef.current) return
           const nextPage = pendingPage
           setPendingPage(null)
           if (page === 'hosts') {

@@ -392,7 +392,7 @@ test('主机头像样式由 Host Module 承载，旧全局选择器保持清零'
 
 test('主机表单与启动入口显式挂载共享控件 Module', () => {
   const hostCatalogSource = source('../features/hosts/ui/HostCatalog.tsx')
-  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostCreateEditor.tsx')
   const hostAssetFormSource = source('../features/hosts/ui/HostAssetForm.tsx')
   const hostLauncherSource = source('../features/hosts/ui/HostLauncherModal.tsx')
   const hostLauncherFiltersSource = source('../features/hosts/ui/HostLauncherAdvancedFilters.tsx')
@@ -450,7 +450,7 @@ test('失效的管理表单规则离开兼容层，现行布局由共置 Module 
   const managementWorkspaceSource = source('../shared/ui/ManagementWorkspace.tsx')
   const managementWorkspaceStyles = source('../shared/ui/ManagementWorkspace.module.scss')
   const hostWorkspaceSource = source('../features/hosts/ui/HostManagementWorkspace.tsx')
-  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostCreateEditor.tsx')
   const hostAssetFormSource = source('../features/hosts/ui/HostAssetForm.tsx')
   const hostEditorShellSource = source('../features/hosts/ui/HostEditorShell.tsx')
   const hostEditorShellStyles = source('../features/hosts/ui/HostEditorShell.module.scss')

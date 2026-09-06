@@ -2,6 +2,7 @@ import { expect, test, vi } from 'vitest'
 import type { Host } from '#entities/host'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import { TermousApiError } from '#shared/api'
 import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
 import type { SetAppData } from '../model/runtimeTypes'
 import { createHostCommands } from './hostCommands'
@@ -84,6 +85,26 @@ test('删除主机分组后通过权威快照刷新资产版本', async () => {
 
   expect(api.deleteHostGroup).toHaveBeenCalledWith('grp_a')
   expect(load).toHaveBeenCalledWith('silent')
+})
+
+test('整份创建只在成功或发现已保存请求时刷新目录，冲突仍保留给编辑器', async () => {
+  const host = hostAsset()
+  const catalog: HostAccessCatalog = { host, ssh: [], files: [], remote_desktops: [] }
+  const input = { client_request_id: crypto.randomUUID(), host: {
+    name: host.name, platform: host.platform, icon_id: '', group_id: '', tags: [], favorite: false, note: '',
+  }, ssh: [], remote_desktops: [] }
+  const conflict = new TermousApiError('该创建请求已经保存', 'HOST_ASSET_CONFLICT', 409, { host_id: host.id })
+  const failure = new Error('create failed')
+  const api = { provisionHost: vi.fn().mockResolvedValueOnce(catalog).mockRejectedValueOnce(failure).mockRejectedValueOnce(conflict) }
+  const load = vi.fn().mockResolvedValue(undefined)
+  const commands = createHostCommands({ api: api as unknown as HostCommandGateway, hostAssets: [], load, setData: vi.fn() as unknown as SetAppData })
+  await expect(commands.provisionHost(input)).resolves.toBe(catalog)
+  expect(load).toHaveBeenCalledExactlyOnceWith('silent')
+  load.mockClear()
+  await expect(commands.provisionHost(input)).rejects.toBe(failure)
+  expect(load).not.toHaveBeenCalled()
+  await expect(commands.provisionHost(input)).rejects.toBe(conflict)
+  expect(load).toHaveBeenCalledExactlyOnceWith('silent')
 })
 
 test('Profile 只读查询直接透传，写入成功后才触发静默对账', async () => {

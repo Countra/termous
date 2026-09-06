@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessManagementGateway } from '#features/host-access'
 import { TermousApiError } from '#shared/api'
-import { useHostAccessWorkspaceController } from './useHostAccessWorkspaceController.ts'
+import { useHostAccessWorkspaceController, type HostDetailView } from './useHostAccessWorkspaceController.ts'
 
 function legacyHost(id: string, name = id): HostAsset {
   return {
@@ -114,10 +114,14 @@ function ControllerHarness({
   host,
   api,
   openAccessIntentKey = 0,
+  initialView,
+  initialConnectionSetupConsidered,
 }: {
   host: HostAsset
   api: HostAccessManagementGateway
   openAccessIntentKey?: number
+  initialView?: HostDetailView
+  initialConnectionSetupConsidered?: boolean
 }) {
   const controller = useHostAccessWorkspaceController({
     hostId: host.id,
@@ -125,6 +129,8 @@ function ControllerHarness({
     gateway: api,
     t: (key) => key,
     openAccessIntentKey,
+    initialView,
+    initialConnectionSetupConsidered,
   })
   return (
     <div>
@@ -133,6 +139,10 @@ function ControllerHarness({
       <output data-testid="asset-validation-visible">{String(controller.assetValidationVisible)}</output>
       <output data-testid="profile-validation-visible">{String(controller.profileValidationVisible)}</output>
       <output data-testid="view">{controller.view}</output>
+      <output data-testid="editor">{controller.editor?.kind ?? ''}</output>
+      <output data-testid="dirty">{String(controller.assetDirty || controller.profileDirty)}</output>
+      <output data-testid="connection-setup-prompt">{String(controller.connectionSetupPromptOpen)}</output>
+      <output data-testid="refreshing">{String(controller.refreshing)}</output>
       <output data-testid="pending">{String(Boolean(controller.pendingNavigation))}</output>
       <output data-testid="error">{controller.mutationError}</output>
       <output data-testid="catalog-error">{controller.error?.message ?? ''}</output>
@@ -142,6 +152,7 @@ function ControllerHarness({
       <output data-testid="vnc-ssh-profile">{controller.vncDraft.ssh_profile_id}</output>
       <output data-testid="vnc-target-auth-mutation">{controller.vncTargetAuthDraft.mutation}</output>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: 'Local draft' })}>edit-asset</button>
+      <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: 'Renamed again' })}>edit-asset-again</button>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: '' })}>invalidate-asset</button>
       <button type="button" onClick={() => void controller.saveAsset()}>save-asset</button>
       <button
@@ -154,6 +165,11 @@ function ControllerHarness({
         save-asset-twice
       </button>
       <button type="button" onClick={() => controller.requestView('access')}>open-access</button>
+      <button type="button" onClick={() => controller.requestView('asset')}>open-asset</button>
+      <button type="button" onClick={controller.requestCloseEditor}>close-editor</button>
+      <button type="button" onClick={() => void controller.reload()}>reload</button>
+      <button type="button" onClick={controller.dismissConnectionSetup}>dismiss-setup</button>
+      <button type="button" onClick={controller.goToConnectionSetup}>go-to-setup</button>
       <button type="button" onClick={controller.confirmPendingNavigation}>confirm-navigation</button>
       <button type="button" onClick={() => controller.requestEditor({ kind: 'ssh', mode: 'create' })}>create-ssh</button>
       <button type="button" onClick={() => controller.setSSHDraft({ ...controller.sshDraft, port: null })}>invalidate-ssh</button>
@@ -273,7 +289,6 @@ describe('主机访问方式 Controller', () => {
     expect(screen.getByTestId('asset-validation-visible')).toHaveTextContent('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'open-access' }))
-    fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
     fireEvent.click(screen.getByRole('button', { name: 'create-ssh' }))
     expect(screen.getByTestId('profile-validation-visible')).toHaveTextContent('false')
     fireEvent.click(screen.getByRole('button', { name: 'invalidate-ssh' }))
@@ -319,7 +334,7 @@ describe('主机访问方式 Controller', () => {
     expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
   })
 
-  it('脏资产草稿拦截视图切换并在确认后恢复基线', async () => {
+  it('主机信息与连接页面切换保留资产草稿且不隐式保存', async () => {
     const api = gateway(catalog('host-a'))
     render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
     await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
@@ -327,15 +342,15 @@ describe('主机访问方式 Controller', () => {
     fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
     await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft'))
     fireEvent.click(screen.getByRole('button', { name: 'open-access' }))
-    expect(screen.getByTestId('view')).toHaveTextContent('asset')
-    expect(screen.getByTestId('pending')).toHaveTextContent('true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
     expect(screen.getByTestId('view')).toHaveTextContent('access')
-    expect(screen.getByTestId('asset-name')).toHaveTextContent('host-a')
+    expect(screen.getByTestId('pending')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
+    expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
+    expect(screen.getByTestId('dirty')).toHaveTextContent('true')
+    expect(api.updateHostAsset).not.toHaveBeenCalled()
   })
 
-  it('外部访问视图意图复用脏草稿确认且同一 key 只消费一次', async () => {
+  it('外部访问视图意图保留主机草稿且同一 key 只消费一次', async () => {
     const api = gateway(catalog('host-a'))
     const view = render(
       <ControllerHarness host={legacyHost('host-a')} api={api} />,
@@ -352,12 +367,9 @@ describe('主机访问方式 Controller', () => {
       />,
     )
 
-    expect(screen.getByTestId('view')).toHaveTextContent('asset')
-    expect(screen.getByTestId('pending')).toHaveTextContent('true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
     expect(screen.getByTestId('view')).toHaveTextContent('access')
-    expect(screen.getByTestId('asset-name')).toHaveTextContent('host-a')
+    expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
+    fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
 
     view.rerender(
       <ControllerHarness
@@ -366,8 +378,23 @@ describe('主机访问方式 Controller', () => {
         openAccessIntentKey={1}
       />,
     )
-    expect(screen.getByTestId('view')).toHaveTextContent('access')
+    expect(screen.getByTestId('view')).toHaveTextContent('asset')
     expect(screen.getByTestId('pending')).toHaveTextContent('false')
+  })
+
+  it('关闭脏连接草稿仍需确认，确认后保留未保存的主机信息', async () => {
+    const api = gateway(catalog('host-a'))
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'create-ssh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'fill-ssh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'close-editor' }))
+    expect(screen.getByTestId('pending')).toHaveTextContent('true')
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
+    expect(screen.getByTestId('editor')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
+    expect(screen.getByTestId('dirty')).toHaveTextContent('true')
   })
 
   it('创建 SSH 后重载权威 Catalog 并展示伴生 SFTP', async () => {
@@ -476,5 +503,166 @@ describe('主机访问方式 Controller', () => {
     expect(screen.getByTestId('vnc-ssh-profile')).toBeEmptyDOMElement()
     fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
     expect(api.createRemoteDesktopProfile).not.toHaveBeenCalled()
+  })
+})
+
+describe('空连接保存提示', () => {
+  it('创建流程已选择无连接保存时，目录失败重试和后续改名保存均不重复提示', async () => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const pending = deferred<HostAccessCatalog>()
+    vi.mocked(api.loadCatalog).mockRejectedValueOnce(new Error('catalog unavailable')).mockReturnValueOnce(pending.promise)
+    vi.mocked(api.updateHostAsset).mockResolvedValue({ ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' })
+    const props = { host: source.host, api, initialConnectionSetupConsidered: true }
+    const view = render(<ControllerHarness {...props} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-error')).toHaveTextContent('catalog unavailable'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'reload' }))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    await act(async () => pending.resolve(source))
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(screen.getByTestId('editor')).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('false'))
+    view.rerender(<ControllerHarness {...props} />)
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(api.updateHostAsset).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['dismiss-setup', 'go-to-setup'])('正常编辑已有空连接主机仍在保存后提示，选择 %s 后不重复', async (choice) => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const firstSaved = { ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' }
+    const secondSaved = { ...source.host, name: 'Renamed again', updated_at: '2026-08-25T00:00:02Z' }
+    vi.mocked(api.updateHostAsset).mockResolvedValueOnce(firstSaved).mockResolvedValueOnce(secondSaved)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source)
+      .mockResolvedValueOnce({ ...source, host: firstSaved }).mockResolvedValueOnce({ ...source, host: secondSaved })
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('true'))
+    fireEvent.click(screen.getByRole('button', { name: choice }))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(screen.getByTestId('view')).toHaveTextContent(choice === 'go-to-setup' ? 'access' : 'asset')
+    fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset-again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('false'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(api.updateHostAsset).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['initial-access', 'visited-access'])('已%s时空连接保存不再提示', async (path) => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const pending = deferred<HostAccessCatalog>()
+    vi.mocked(api.loadCatalog).mockReturnValueOnce(pending.promise)
+    vi.mocked(api.updateHostAsset).mockResolvedValue({ ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' })
+    render(<ControllerHarness host={source.host} api={api} initialView={path === 'initial-access' ? 'access' : 'asset'} />)
+    if (path === 'visited-access') fireEvent.click(screen.getByRole('button', { name: 'open-access' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
+    await act(async () => pending.resolve(source))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('false'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+  })
+
+  it('已打开连接编辑器后保存空连接主机不再提示', async () => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    vi.mocked(api.updateHostAsset).mockResolvedValue({ ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' })
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'create-ssh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'close-editor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('false'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(api.createSSHProfile).not.toHaveBeenCalled()
+  })
+
+  it.each(['ssh', 'files', 'remote_desktops'] as const)('存在%s配置时不把主机误判成无连接', async (kind) => {
+    const complete = catalog('host-a', { remote_desktops: [remoteDesktopProfile('host-a')] })
+    const source = catalog('host-a', { ssh: [], files: [], remote_desktops: [], [kind]: complete[kind] })
+    const api = gateway(source)
+    vi.mocked(api.updateHostAsset).mockResolvedValue({ ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' })
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('false'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+  })
+
+  it('保存失败不消费提示资格，成功重试后才按最新目录提示', async () => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const saved = { ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' }
+    vi.mocked(api.updateHostAsset).mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce(saved)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockResolvedValue({ ...source, host: saved })
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent('write failed'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(api.loadCatalog).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('true'))
+    expect(api.updateHostAsset).toHaveBeenCalledTimes(2)
+    expect(api.loadCatalog).toHaveBeenCalledTimes(2)
+  })
+
+  it('保存后的目录重载失败不使用旧空目录提示，后续重试成功再提示', async () => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const saved = { ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' }
+    const pending = deferred<HostAccessCatalog>()
+    vi.mocked(api.updateHostAsset).mockResolvedValue(saved)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockRejectedValueOnce(new Error('refresh failed')).mockReturnValueOnce(pending.promise)
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(screen.getByTestId('catalog-error')).toHaveTextContent('refresh failed'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
+    fireEvent.click(screen.getByRole('button', { name: 'reload' }))
+    expect(screen.getByTestId('refreshing')).toHaveTextContent('true')
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    await act(async () => pending.resolve({ ...source, host: saved }))
+    await waitFor(() => expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('true'))
+  })
+
+  it('保存后等待目录完成，若其他操作已添加连接则不提示', async () => {
+    const source = catalog('host-a', { ssh: [], files: [] })
+    const api = gateway(source)
+    const saved = { ...source.host, name: 'Local draft', updated_at: '2026-08-25T00:00:01Z' }
+    const pending = deferred<HostAccessCatalog>()
+    vi.mocked(api.updateHostAsset).mockResolvedValue(saved)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockReturnValueOnce(pending.promise)
+    render(<ControllerHarness host={source.host} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
+    await waitFor(() => expect(screen.getByTestId('refreshing')).toHaveTextContent('true'))
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
+    await act(async () => pending.resolve({ ...source, host: saved, remote_desktops: [remoteDesktopProfile('host-a')] }))
+    expect(screen.getByTestId('refreshing')).toHaveTextContent('false')
+    expect(screen.getByTestId('connection-setup-prompt')).toHaveTextContent('false')
   })
 })

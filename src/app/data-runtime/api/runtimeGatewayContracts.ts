@@ -50,6 +50,7 @@ import type {
   HostAccessCatalog,
   HostAsset,
   HostAssetInput,
+  HostProvisionInput,
 } from '#entities/host-asset'
 import type { LocalShell, Session } from '#entities/session'
 import type {
@@ -145,6 +146,7 @@ export interface HostCommandGateway {
   refreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<HostReachability[]>
   hostAssets: () => Promise<HostAsset[]>
   hostAsset: (id: string) => Promise<HostAsset>
+  provisionHost: (input: HostProvisionInput) => Promise<HostAccessCatalog>
   updateHostAsset: (
     id: string,
     expectedUpdatedAt: string,

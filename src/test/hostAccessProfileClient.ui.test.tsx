@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
 import type { FileAccessProfile } from '#entities/file-access-profile'
-import type { HostAsset, HostAssetInput } from '#entities/host-asset'
+import type { HostAccessCatalog, HostAsset, HostAssetInput, HostProvisionInput } from '#entities/host-asset'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
@@ -19,6 +19,7 @@ function createGateways() {
 describe('主机访问 Profile HTTP 合同', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('归一化空集合并对资产与各类 Profile 稳定排序', async () => {
@@ -56,6 +57,91 @@ describe('主机访问 Profile HTTP 合同', () => {
       pathname: '/api/v1/hosts/host%2Fid/access-profiles',
       method: 'GET',
     })
+  })
+
+  it('聚合创建使用一个请求提交主机、连接引用和认证草稿', async () => {
+    const input = provisionInput()
+    const catalog = provisionCatalog(input)
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(catalog), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createGateways().hosts.provisionHost(input)).resolves.toEqual(catalog)
+
+    expect(requestAt(fetchMock, 0)).toEqual({
+      pathname: '/api/v1/host-assets/provision', search: '', method: 'POST', body: input,
+    })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('响应丢失后重发原请求，冲突仍保留错误而不把同 ID 当作草稿已保存', async () => {
+    const input = provisionInput()
+    const catalog = provisionCatalog(input)
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('connection lost'))
+      .mockResolvedValueOnce(provisionConflict(catalog.host.id))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createGateways().hosts.provisionHost(input)).rejects.toMatchObject({ code: 'HOST_ASSET_CONFLICT' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(requestAt(fetchMock, 1)).toEqual(requestAt(fetchMock, 0))
+  })
+
+  it('超时只重试一次相同请求并返回完整目录', async () => {
+    vi.useFakeTimers()
+    const input = provisionInput()
+    const catalog = provisionCatalog(input)
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_url: URL, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(catalog), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const assertion = expect(createGateways().hosts.provisionHost(input)).resolves.toEqual(catalog)
+
+    await vi.advanceTimersByTimeAsync(12_000)
+    await assertion
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(requestAt(fetchMock, 1)).toEqual(requestAt(fetchMock, 0))
+  })
+
+  it.each([
+    { status: 409, code: 'HOST_ASSET_CONFLICT' },
+    { status: 400, code: 'VALIDATION_ERROR' },
+  ])('首次明确 $code 不重试也不当作创建成功', async ({ status, code }) => {
+    const input = provisionInput()
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { code, message: 'rejected', details: { host_id: provisionCatalog(input).host.id } },
+    }), { status }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createGateways().hosts.provisionHost(input)).rejects.toMatchObject({ code })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('重试冲突中的主机 ID 不匹配时不读取其他主机', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('connection lost'))
+      .mockResolvedValueOnce(provisionConflict('hst_other'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createGateways().hosts.provisionHost(provisionInput())).rejects.toMatchObject({
+      code: 'HOST_ASSET_CONFLICT', details: { host_id: 'hst_other' },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('连续网络失败在一次重试后结束，保持错误交给草稿层', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('connection lost'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(createGateways().hosts.provisionHost(provisionInput())).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(requestAt(fetchMock, 1)).toEqual(requestAt(fetchMock, 0))
   })
 
   it('精确编码路径、查询参数和所有版本化写请求', async () => {
@@ -262,6 +348,47 @@ function requestAt(fetchMock: ReturnType<typeof vi.fn>, index: number) {
     method: init.method,
     body: init.body ? JSON.parse(String(init.body)) : undefined,
   }
+}
+
+function provisionInput(): HostProvisionInput {
+  return {
+    client_request_id: '3a76c45d-c609-44ea-922a-47a70c7e95aa',
+    host: {
+      name: 'Aggregate host', platform: 'linux', icon_id: '', group_id: '',
+      tags: [], favorite: false, note: '包含连接草稿',
+    },
+    ssh: [{
+      draft_id: 'draft:ssh', name: 'Terminal', address: 'server.example.com', port: 22,
+      username: 'root', auth_method: 'password', credential_id: 'cred_a',
+      proxy_id: '', jump_ssh_profile_id: '', fingerprint: '', fingerprint_policy: 'confirm_on_change',
+      is_default: true, file_name: 'Project files', file_is_default: true,
+    }],
+    remote_desktops: [{
+      draft_id: 'draft:vnc', name: 'Desktop', description: '', route: 'ssh_tunnel',
+      route_config_version: 1, ssh_draft_id: 'draft:ssh', protocol: 'vnc', protocol_config_version: 1,
+      vnc: {
+        target_host: '127.0.0.1', port: 5900, shared: true,
+        default_view_only: false, default_display_mode: 'fit',
+      },
+      target_auth_password: 'fixture-password', is_default: true,
+    }],
+  }
+}
+
+function provisionCatalog(input: HostProvisionInput): HostAccessCatalog {
+  const id = `hst_${input.client_request_id.replace(/-/g, '').toLowerCase()}`
+  return {
+    host: { ...hostAsset(id, input.host.name), ...input.host },
+    ssh: [{ ...sshProfile('ssh_created', 0), host_id: id }],
+    files: [{ ...fileProfile('file_created', 0), host_id: id, sftp: { ssh_profile_id: 'ssh_created' } }],
+    remote_desktops: [{ ...remoteProfile('vnc_created', 0), host_id: id, route: 'ssh_tunnel', ssh_profile_id: 'ssh_created' }],
+  }
+}
+
+function provisionConflict(hostId: string) {
+  return new Response(JSON.stringify({
+    error: { code: 'HOST_ASSET_CONFLICT', message: 'already created', details: { host_id: hostId } },
+  }), { status: 409 })
 }
 
 function hostAsset(id: string, name: string): HostAsset {

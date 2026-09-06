@@ -63,6 +63,8 @@ interface ControllerOptions {
   gateway: HostAccessManagementGateway
   t: (key: string, options?: Record<string, unknown>) => string
   openAccessIntentKey?: number
+  initialView?: HostDetailView
+  initialConnectionSetupConsidered?: boolean
   onDirtyChange?: (dirty: boolean) => void
   onProtectedIconIdChange?: (iconId: string) => void
 }
@@ -73,12 +75,14 @@ export function useHostAccessWorkspaceController({
   gateway,
   t,
   openAccessIntentKey = 0,
+  initialView = 'asset',
+  initialConnectionSetupConsidered = false,
   onDirtyChange,
   onProtectedIconIdChange,
 }: ControllerOptions) {
   const catalogState = useHostAccessCatalog(hostId, gateway)
   const reloadCatalog = catalogState.reload
-  const [view, setView] = useState<HostDetailView>('asset')
+  const [view, setView] = useState<HostDetailView>(initialView)
   const initialAssetDraft = useMemo(() => hostAssetToInput(fallbackHost), [fallbackHost])
   const [assetDraft, setAssetDraft] = useState<HostAssetInput>(initialAssetDraft)
   const [assetBaseline, setAssetBaseline] = useState<HostAssetInput>(initialAssetDraft)
@@ -102,6 +106,28 @@ export function useHostAccessWorkspaceController({
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfileDeleteTarget | null>(null)
   const consumedAccessIntentKeyRef = useRef(0)
+  const [connectionSetupPromptOpen, setConnectionSetupPromptOpen] = useState(false)
+  const connectionSetupConsideredRef = useRef(initialConnectionSetupConsidered || initialView === 'access')
+  const pendingConnectionSetupRef = useRef(false)
+
+  const dismissConnectionSetup = useCallback(() => {
+    connectionSetupConsideredRef.current = true
+    pendingConnectionSetupRef.current = false
+    setConnectionSetupPromptOpen(false)
+  }, [])
+
+  useEffect(() => {
+    const catalog = catalogState.catalog
+    if (!pendingConnectionSetupRef.current || connectionSetupConsideredRef.current
+      || !catalog || catalog.host.id !== hostId || catalogState.loading
+      || catalogState.refreshing || catalogState.error || operationBusy) return
+    // 仅使用保存后成功读取的目录；刷新失败留待重试，不能把未知连接状态视为空。
+    pendingConnectionSetupRef.current = false
+    connectionSetupConsideredRef.current = true
+    if (catalog.ssh.length + catalog.files.length + catalog.remote_desktops.length === 0) {
+      setConnectionSetupPromptOpen(true)
+    }
+  }, [catalogState.catalog, catalogState.error, catalogState.loading, catalogState.refreshing, hostId, operationBusy])
 
   const assetDirty = useMemo(
     () => !hostAssetInputsEqual(assetDraft, assetBaseline),
@@ -209,9 +235,10 @@ export function useHostAccessWorkspaceController({
       setVNCBaseline(next)
       setVNCPersistedProfile(source ?? null)
     }
+    dismissConnectionSetup()
     setView('access')
     setEditor(intent)
-  }, [catalogState.catalog, hostId, t])
+  }, [catalogState.catalog, dismissConnectionSetup, hostId, t])
 
   const discardProfile = useCallback(() => {
     if (editor?.kind === 'ssh') setSSHDraft(sshBaseline)
@@ -227,6 +254,7 @@ export function useHostAccessWorkspaceController({
   const applyNavigation = useCallback((navigation: PendingNavigation) => {
     if (navigation.type === 'view') {
       if (navigation.view === 'asset') setEditor(null)
+      else dismissConnectionSetup()
       setView(navigation.view)
     } else if (navigation.type === 'editor') {
       applyEditor(navigation.intent)
@@ -237,16 +265,16 @@ export function useHostAccessWorkspaceController({
       setProfileSubmitted(false)
       setMutationError('')
     }
-  }, [applyEditor])
+  }, [applyEditor, dismissConnectionSetup])
 
   const requestNavigation = useCallback((navigation: PendingNavigation) => {
-    const currentDirty = editor ? profileDirty : view === 'asset' ? assetDirty : false
-    if (currentDirty) {
+    // 切换主机信息和连接页保留主机草稿；替换连接草稿时仍需确认。
+    if (editor && profileDirty) {
       setPendingNavigation(navigation)
       return
     }
     applyNavigation(navigation)
-  }, [applyNavigation, assetDirty, editor, profileDirty, view])
+  }, [applyNavigation, editor, profileDirty])
 
   useEffect(() => {
     if (
@@ -263,14 +291,9 @@ export function useHostAccessWorkspaceController({
     const navigation = pendingNavigation
     if (!navigation) return
     if (editor) discardProfile()
-    else if (view === 'asset') {
-      setAssetDraft(assetBaseline)
-      setAssetSubmitted(false)
-      setMutationError('')
-    }
     setPendingNavigation(null)
     applyNavigation(navigation)
-  }, [applyNavigation, assetBaseline, discardProfile, editor, pendingNavigation, view])
+  }, [applyNavigation, discardProfile, editor, pendingNavigation])
 
   const execute = useCallback(async (action: () => Promise<void>) => {
     if (operationBusyRef.current) return false
@@ -316,6 +339,7 @@ export function useHostAccessWorkspaceController({
       setAssetDraft(next)
       setAssetBaseline(next)
       setAssetSubmitted(false)
+      pendingConnectionSetupRef.current = !connectionSetupConsideredRef.current
       await catalogState.reload()
     })
   }, [assetDraft, assetErrors, catalogState, execute, gateway])
@@ -464,6 +488,12 @@ export function useHostAccessWorkspaceController({
 
   return {
     ...catalogState,
+    connectionSetupPromptOpen,
+    dismissConnectionSetup,
+    goToConnectionSetup: () => {
+      dismissConnectionSetup()
+      requestNavigation({ type: 'view', view: 'access' })
+    },
     view,
     assetDraft,
     assetDirty,

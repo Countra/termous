@@ -45,6 +45,7 @@
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   grid-column: 1 / -1;
   align-items: center;
   justify-content: flex-end;

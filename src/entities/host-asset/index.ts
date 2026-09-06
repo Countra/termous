@@ -13,3 +13,4 @@ export type {
   HostAssetInput,
   HostAssetValidationErrors,
 } from './model/types.ts'
+export type { HostProvisionInput, HostProvisionSSHInput, HostProvisionDesktopInput } from './model/provision.ts'
