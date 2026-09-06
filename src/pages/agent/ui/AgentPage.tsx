@@ -954,6 +954,7 @@ export function AgentPage({
       />
       <AgentArchiveManager
         open={archivesOpen && enabled && active}
+        groups={state.session_groups}
         pendingIds={management.pendingIds}
         sessions={archives.sessions}
         query={archives.query}

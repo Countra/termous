@@ -575,6 +575,7 @@ describe('AgentPage', () => {
     harness.createSession.mockImplementationOnce(() => pending.promise)
     renderPage()
     await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    await waitFor(() => expect(harness.workspaceProps?.onCreateSession).toBeTypeOf('function'))
     act(() => {
       (harness.workspaceProps?.onCreateSession as () => void)()
       harness.updateDraft('new', '原始草稿')
@@ -596,6 +597,7 @@ describe('AgentPage', () => {
     harness.createSession.mockImplementationOnce(() => pending.promise)
     renderPage()
     await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    await waitFor(() => expect(harness.workspaceProps?.onCreateSession).toBeTypeOf('function'))
     act(() => {
       (harness.workspaceProps?.onCreateSession as (id: string) => void)('group-ops')
       harness.updateDraft('new', '原分组附件草稿')

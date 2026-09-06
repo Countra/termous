@@ -1,17 +1,19 @@
-import { Alert, Button, Dropdown, Input, Modal, Spin } from 'antd'
-import { Archive, ArrowLeft, ArchiveRestore, MoreHorizontal, Search, Trash2 } from 'lucide-react'
+import { Alert, Button, Dropdown, Modal, Spin, Tooltip } from 'antd'
+import { Archive, ArrowLeft, ArchiveRestore, MessageSquare, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentAttachment, AgentSession } from '#entities/agent'
+import type { AgentAttachment, AgentSession, AgentSessionGroup } from '#entities/agent'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import { AgentAttachmentPreview } from './AgentAttachmentPreview.tsx'
 import { AgentConversation } from './AgentConversation.tsx'
+import { AgentArchiveSessionList } from './AgentArchiveSessionList.tsx'
 import styles from './AgentArchiveManager.module.scss'
 
 export interface AgentArchiveManagerProps {
   open: boolean
   sessions: AgentSession[]
+  groups?: AgentSessionGroup[]
   query: string
   listLoading: boolean
   listError?: string
@@ -42,6 +44,7 @@ export function AgentArchiveManager(props: AgentArchiveManagerProps) {
       footer={null}
       destroyOnHidden
       className={`termous-modal ${styles.modal}`}
+      rootClassName="termous-modal-root"
       onCancel={props.onClose}
     >
       {props.open ? <ArchiveContents {...props} /> : null}
@@ -50,11 +53,11 @@ export function AgentArchiveManager(props: AgentArchiveManagerProps) {
 }
 
 function ArchiveContents({
-  sessions, query, listLoading, listError, selectedSession, messages,
+  sessions, groups, query, listLoading, listError, selectedSession, messages,
   previewLoading, previewError, pendingIds, showTurnTokenUsage, onQueryChange, onSelect,
   onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent,
 }: AgentArchiveManagerProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [previewAttachment, setPreviewAttachment] = useState<AgentAttachment>()
   const [deleteSession, setDeleteSession] = useState<AgentSession>()
   const [pendingSessionIds, setPendingSessionIds] = useState<ReadonlySet<string>>(new Set())
@@ -62,8 +65,7 @@ function ArchiveContents({
   const operationsInFlight = useRef(new Set<string>())
   const mounted = useRef(true)
   const backButton = useRef<HTMLButtonElement>(null)
-  const listButton = useRef<HTMLButtonElement>(null)
-  const previousSelected = useRef<string | undefined>(undefined)
+  const previewTitle = useRef<HTMLHeadingElement>(null)
   const selectedSessionId = selectedSession?.id
   const busy = selectedSessionId ? pendingSessionIds.has(selectedSessionId) || pendingIds?.has(selectedSessionId) : false
   const deleteBusy = deleteSession ? pendingSessionIds.has(deleteSession.id) || pendingIds?.has(deleteSession.id) : false
@@ -78,9 +80,10 @@ function ArchiveContents({
 
   useEffect(() => {
     setPreviewAttachment(undefined)
-    if (selectedSessionId) backButton.current?.focus()
-    else if (previousSelected.current) listButton.current?.focus()
-    previousSelected.current = selectedSessionId
+    if (!selectedSessionId) return
+    // 窄窗口聚焦返回按钮，宽窗口聚焦标题，避免把焦点交给已隐藏的按钮。
+    if (backButton.current?.getClientRects().length) backButton.current.focus({ preventScroll: true })
+    else previewTitle.current?.focus({ preventScroll: true })
   }, [selectedSessionId])
 
   const perform = async (session: AgentSession, operation: AgentArchiveManagerProps['onDelete']) => {
@@ -103,49 +106,29 @@ function ArchiveContents({
     <div className={styles.manager}>
       <div className={`${styles.layout} ${selectedSession ? styles['has-preview'] : ''}`}>
         <section className={styles.sidebar} aria-label={t('agent.archives.title')}>
-          <div className={styles.search}>
-            <Input
-              allowClear
-              prefix={<Search size={14} aria-hidden="true" />}
-              value={query}
-              placeholder={t('agent.archives.search')}
-              aria-label={t('agent.archives.search')}
-              onChange={(event) => onQueryChange(event.target.value)}
-            />
-          </div>
+          <AgentArchiveSessionList
+            sessions={sessions}
+            groups={groups}
+            query={query}
+            loading={listLoading}
+            failed={Boolean(listError)}
+            selectedId={selectedSessionId}
+            onQueryChange={onQueryChange}
+            onSelect={onSelect}
+          />
           {listError ? (
             <ArchiveError label={t('agent.archives.listFailed')} onRetry={onReload} />
           ) : null}
-          <div className={styles.list} role="list" aria-busy={listLoading}>
-            {listLoading ? <ArchiveLoading label={t('agent.archives.loading')} /> : null}
-            {!listLoading && !listError && sessions.length === 0 ? (
-              <p className={styles.placeholder}>{t(query.trim() ? 'agent.archives.noResults' : 'agent.archives.empty')}</p>
-            ) : null}
-            {sessions.map((session, index) => (
-              <div role="listitem" key={session.id}>
-                <button
-                  ref={index === 0 ? listButton : undefined}
-                  type="button"
-                  className={styles.row}
-                  aria-current={session.id === selectedSession?.id ? 'true' : undefined}
-                  onClick={() => onSelect(session.id)}
-                >
-                  <Archive size={14} aria-hidden="true" />
-                  <span>
-                    <strong>{session.title}</strong>
-                    <time dateTime={session.archived_at}>{formatArchiveDate(session.archived_at, i18n.resolvedLanguage)}</time>
-                  </span>
-                </button>
-              </div>
-            ))}
-          </div>
         </section>
         <section className={styles.preview} aria-label={selectedSession?.title ?? t('agent.archives.select')}>
           {selectedSession ? (
             <>
               <div className={styles['preview-header']}>
                 <Button ref={backButton} className={styles.back} type="text" icon={<ArrowLeft size={15} />} aria-label={t('agent.archives.back')} onClick={() => onSelect()} />
-                <strong className={styles['preview-title']}>{selectedSession.title}</strong>
+                <div className={styles['preview-heading']}>
+                  <h2 ref={previewTitle} tabIndex={-1} className={styles['preview-title']} title={selectedSession.title}>{selectedSession.title}</h2>
+                  <p className={styles.notice}>{t('agent.archives.readonly')}</p>
+                </div>
                 <div className={styles['preview-actions']}>
                   <Button size="small" icon={<ArchiveRestore size={14} />} loading={busy} onClick={() => void perform(selectedSession, onRestore)}>{t('agent.archives.restore')}</Button>
                   <Dropdown
@@ -154,27 +137,40 @@ function ArchiveContents({
                     classNames={{ root: contextActionMenuPopupClassName }}
                     menu={{ items: [{ key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') }], onClick: () => setDeleteSession(selectedSession) }}
                   >
-                    <Button type="text" size="small" icon={<MoreHorizontal size={15} />} disabled={busy} aria-label={t('agent.sessions.more')} />
+                    <Tooltip title={t('agent.sessions.more')}>
+                      <Button type="text" size="small" icon={<MoreHorizontal size={16} />} disabled={busy} aria-label={t('agent.sessions.more')} />
+                    </Tooltip>
                   </Dropdown>
                 </div>
               </div>
-              <p className={styles.notice}>{t('agent.archives.readonly')}</p>
               {failedSessionIds.has(selectedSession.id) ? <Alert type="error" showIcon title={t('agent.archives.operationFailed')} /> : null}
-              {previewError ? <ArchiveError label={t('agent.archives.previewFailed')} onRetry={onReloadPreview} /> : previewLoading ? (
-                <ArchiveLoading label={t('agent.archives.loadingPreview')} />
-              ) : (
-                <AgentConversation
-                  sessionKey={`archive:${selectedSession.id}`}
-                  messages={messages}
-                  loading={false}
-                  runStatus="idle"
-                  showTurnTokenUsage={showTurnTokenUsage}
-                  onPreviewAttachment={setPreviewAttachment}
-                  onLoadAttachmentContent={onLoadAttachmentContent}
-                />
-              )}
+              <div className={styles['preview-body']}>
+                {previewError ? <ArchiveError label={t('agent.archives.previewFailed')} onRetry={onReloadPreview} /> : previewLoading ? (
+                  <ArchiveLoading label={t('agent.archives.loadingPreview')} />
+                ) : messages.length === 0 ? (
+                  <div className={styles.placeholder}><MessageSquare size={24} aria-hidden="true" /><p>{t('agent.archives.emptyHistory')}</p></div>
+                ) : (
+                  <AgentConversation
+                    sessionKey={`archive:${selectedSession.id}`}
+                    messages={messages}
+                    loading={false}
+                    runStatus="idle"
+                    showTurnTokenUsage={showTurnTokenUsage}
+                    onPreviewAttachment={setPreviewAttachment}
+                    onLoadAttachmentContent={onLoadAttachmentContent}
+                  />
+                )}
+              </div>
             </>
-          ) : <p className={styles.placeholder}><Archive size={24} aria-hidden="true" />{t('agent.archives.select')}</p>}
+          ) : (
+            <div className={styles['preview-body']}>
+              <div className={styles.placeholder}>
+                <MessageSquare size={28} aria-hidden="true" />
+                <p>{t('agent.archives.select')}</p>
+                <span>{t('agent.archives.readonly')}</span>
+              </div>
+            </div>
+          )}
         </section>
       </div>
       <AgentAttachmentPreview attachment={previewAttachment} onClose={() => setPreviewAttachment(undefined)} onLoad={onLoadAttachmentContent} />
@@ -210,10 +206,4 @@ function ArchiveError({ label, onRetry }: { label: string; onRetry: () => void }
 
 function ArchiveLoading({ label }: { label: string }) {
   return <div className={styles.loading} role="status"><Spin size="small" /><span>{label}</span></div>
-}
-
-function formatArchiveDate(value?: string, locale?: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date.toLocaleDateString(locale) : ''
 }

@@ -192,4 +192,66 @@ describe('AgentArchiveManager', () => {
     expect(props.onRestore).not.toHaveBeenCalled()
     expect(props.onDelete).not.toHaveBeenCalled()
   })
+
+  it('列表显示原分组归属和归档日期，分组不存在时回退未分组', () => {
+    const grouped = { ...archivedSession(), group_id: 'group-one' }
+    const orphaned = { ...archivedSession('two'), group_id: 'removed-group' }
+    render(<AgentArchiveManager {...propsFixture({
+      sessions: [grouped, orphaned],
+      groups: [{ id: 'group-one', name: '服务器维护', sort_order: 0, revision: 1, created_at: grouped.created_at, updated_at: grouped.updated_at }],
+    })} />)
+    const groupedRow = screen.getByRole('button', { name: /归档 archive-one/ })
+    expect(within(groupedRow).getByText('服务器维护')).toBeInTheDocument()
+    expect(groupedRow.querySelector('time')).toHaveAttribute('dateTime', grouped.archived_at)
+    const orphanedRow = screen.getByRole('button', { name: /归档 two/ })
+    expect(within(orphanedRow).getByText('agent.sessions.ungrouped')).toBeInTheDocument()
+    expect(screen.queryByText('removed-group')).not.toBeInTheDocument()
+  })
+
+  it('返回定位刚查看的会话，目标移除后依次回退首行和搜索框', async () => {
+    const first = archivedSession()
+    const second = archivedSession('two')
+    const props = propsFixture({ sessions: [first, second], selectedSession: second })
+    const view = render(<AgentArchiveManager {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.archives.back' }))
+    view.rerender(<AgentArchiveManager {...props} selectedSession={undefined} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /归档 two/ })).toHaveFocus())
+
+    view.rerender(<AgentArchiveManager {...props} />)
+    view.rerender(<AgentArchiveManager {...props} sessions={[first]} selectedSession={undefined} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /归档 archive-one/ })).toHaveFocus())
+
+    view.rerender(<AgentArchiveManager {...props} sessions={[first]} selectedSession={first} />)
+    view.rerender(<AgentArchiveManager {...props} sessions={[]} selectedSession={undefined} />)
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'agent.archives.search' })).toHaveFocus())
+  })
+
+  it('搜索清除预览时保留输入焦点，无结果可直接清空查询', async () => {
+    const props = propsFixture({ selectedSession: archivedSession() })
+    const view = render(<AgentArchiveManager {...props} />)
+    const search = screen.getByRole('textbox', { name: 'agent.archives.search' })
+    act(() => search.focus())
+    fireEvent.change(search, { target: { value: '不存在' } })
+    view.rerender(<AgentArchiveManager {...props} sessions={[]} selectedSession={undefined} query="不存在" listLoading />)
+    await waitFor(() => expect(search).toHaveFocus())
+    view.rerender(<AgentArchiveManager {...props} sessions={[]} selectedSession={undefined} query="不存在" />)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.archives.clearSearch' }))
+    expect(props.onQueryChange).toHaveBeenLastCalledWith('')
+    expect(props.onRestore).not.toHaveBeenCalled()
+    expect(props.onDelete).not.toHaveBeenCalled()
+  })
+
+  it('空归档使用只读历史空态，加载和失败时不提前展示空会话', () => {
+    const props = propsFixture({ selectedSession: archivedSession(), previewLoading: true })
+    const view = render(<AgentArchiveManager {...props} />)
+    expect(screen.getByText('agent.archives.loadingPreview')).toBeInTheDocument()
+    expect(screen.queryByText('agent.archives.emptyHistory')).not.toBeInTheDocument()
+    view.rerender(<AgentArchiveManager {...props} previewLoading={false} previewError="NETWORK_ERROR" />)
+    expect(screen.getByText('agent.archives.previewFailed')).toBeInTheDocument()
+    expect(screen.queryByText('agent.archives.emptyHistory')).not.toBeInTheDocument()
+    view.rerender(<AgentArchiveManager {...props} previewLoading={false} />)
+    expect(screen.getByText('agent.archives.emptyHistory')).toBeInTheDocument()
+    expect(screen.queryByText('agent.empty.title')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.archives.restore' })).toBeEnabled()
+  })
 })

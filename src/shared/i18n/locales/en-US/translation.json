@@ -104,6 +104,11 @@
     },
     "archives": {
       "title": "Archived conversations",
+      "all": "All archived",
+      "results": "Search results",
+      "clearSearch": "Clear search",
+      "archivedAt": "Archived on {{date}}",
+      "emptyHistory": "No messages in this conversation",
       "search": "Search archived titles",
       "empty": "No archived conversations",
       "noResults": "No matching archived conversations",
