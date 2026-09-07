@@ -157,6 +157,7 @@ default_web_dir="$(cd "$script_dir/../.." && pwd -P)"
 web_dir="$(resolve_existing_directory "${TERMOUS_WEB_DIR:-}" "$default_web_dir" "TERMOUS_WEB_DIR")"
 workspace_dir="$(dirname "$web_dir")"
 core_dir="$(resolve_existing_directory "${TERMOUS_CORE_DIR:-}" "$workspace_dir/backend" "TERMOUS_CORE_DIR")"
+skills_dir="$(resolve_existing_directory "${TERMOUS_SKILLS_DIR:-}" "$workspace_dir/termous-skills/skills" "TERMOUS_SKILLS_DIR")"
 target_os="${TERMOUS_TARGET_OS:-}"
 target_arch="${TERMOUS_ARCH:-}"
 build_phase="$(resolve_build_phase)"
@@ -215,11 +216,14 @@ fi
 echo "Termous $target_os/$target_arch build"
 echo "webDir=$web_dir"
 echo "coreDir=$core_dir"
+echo "skillsDir=$skills_dir"
 echo "outputDir=$output_dir"
 echo "version=$version"
 echo "phase=$build_phase"
 
 export VITE_TERMOUS_APP_VERSION="$version"
+export TERMOUS_SKILLS_DIR="$skills_dir"
+export TERMOUS_CORE_DIR="$core_dir"
 clear_publish_credentials
 disable_code_signing
 
@@ -259,6 +263,7 @@ if [[ "$build_phase" == "all" || "$build_phase" == "package" ]]; then
     fi
   done
 
+  run_step "Prepare Agent Skills bundle" "$web_dir" pnpm run build:skills
   run_step "Build $target_os package" "$web_dir" node \
     scripts/ci/build-local-package.mjs \
     --output "$installer_dir" \

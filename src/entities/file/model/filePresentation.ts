@@ -1,4 +1,9 @@
-import type { RemoteFileEntry, TransferStatus, TransferTask } from './types.ts'
+import type {
+  RemoteFileEntry,
+  TransferOrigin,
+  TransferStatus,
+  TransferTask,
+} from './types.ts'
 import { normalizeRemotePosixPath } from '#shared/path'
 
 export function transferDisplayName(task: TransferTask) {
@@ -77,9 +82,22 @@ export function transferStatusClass(status: TransferStatus) {
   return `is-${status.replace(/_/g, '-')}`
 }
 
+export function resolveTransferOrigin(task: Pick<TransferTask, 'origin'>): TransferOrigin {
+  return task.origin === 'mcp' ? 'mcp' : 'app'
+}
+
 export function transferProgress(task: TransferTask) {
   if (task.status === 'completed') {
     return 100
   }
   return Math.max(0, Math.min(100, Math.round(task.progress_percent || 0)))
+}
+
+export function isTransferRelatedToFileSession(
+  task: TransferTask,
+  fileSessionId: string,
+) {
+  return task.file_session_id === fileSessionId
+    || task.source_file_session_id === fileSessionId
+    || task.target_file_session_id === fileSessionId
 }

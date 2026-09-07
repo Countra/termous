@@ -1,12 +1,17 @@
 import { act, renderHook } from '@testing-library/react'
 import { expect, test, vi, type Mock } from 'vitest'
-import type { FileSession, FileSessionClosureState } from '#entities/file'
+import type {
+  FileSession,
+  FileSessionClosureState,
+  FileSessionConnectInput,
+} from '#entities/file'
 import { useFileSessionCoordinator } from './useFileSessionCoordinator'
 
 function fileSession(id: string, overrides: Partial<FileSession> = {}): FileSession {
   return {
     id,
     host_id: `host-${id}`,
+    origin: 'app',
     status: 'connected',
     phase: 'ready',
     current_path: '/',
@@ -25,12 +30,7 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-type ConnectFileSession = (
-  hostId: string,
-  sourceSessionId?: string,
-  initialPath?: string,
-  replacedFileSessionId?: string,
-) => Promise<FileSession>
+type ConnectFileSession = (input: FileSessionConnectInput) => Promise<FileSession>
 
 type CloseFileSession = (fileSessionId: string) => Promise<void>
 type FileSessionIdCallback = (fileSessionId: string) => void
@@ -77,17 +77,38 @@ test('替换连接完成时不抢回用户已经切换的文件标签', async ()
   })
 
   await act(async () => undefined)
-  const connecting = harness.result.current.connectAndActivateFileSession(
-    replaced.host_id,
-    undefined,
-    undefined,
-    replaced.id,
-  )
+  const connecting = harness.result.current.connectAndActivateFileSession({
+    hostId: replaced.host_id,
+    replacedFileSessionId: replaced.id,
+  })
   act(() => harness.result.current.activateFileSession(selected.id))
   await act(async () => request.resolve(replacement))
   await connecting
 
   expect(harness.result.current.activeFileSession?.id).toBe(selected.id)
+})
+
+test('外部 MCP 会话实时加入时不抢占当前文件标签', async () => {
+  const active = fileSession('active')
+  const external = fileSession('external', { origin: 'mcp' })
+  const connectFileSession = vi.fn<ConnectFileSession>()
+  const closeFileSession = vi.fn<CloseFileSession>(async () => undefined)
+  const view = renderHook(
+    ({ fileSessions }) => useFileSessionCoordinator({
+      fileSessions,
+      fileSessionClosures: {},
+      connectFileSession,
+      closeFileSession,
+      supersedeFileSessionRecovery: vi.fn(),
+      onCloseError: vi.fn(),
+    }),
+    { initialProps: { fileSessions: [active] } },
+  )
+
+  await act(async () => undefined)
+  expect(view.result.current.activeFileSession?.id).toBe(active.id)
+  view.rerender({ fileSessions: [active, external] })
+  expect(view.result.current.activeFileSession?.id).toBe(active.id)
 })
 
 test('已关闭的本地快照只终止恢复并选择可用标签', async () => {

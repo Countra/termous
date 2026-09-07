@@ -1,0 +1,328 @@
+.form {
+  container-name: vnc-profile-editor;
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.section {
+  padding: 18px 22px 20px;
+}
+
+.section + .section {
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.section-inner {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+.section-heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.section-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.section-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.section-copy h3 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: 0;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+}
+
+.identity-grid {
+  row-gap: 8px;
+}
+
+.profile-name-field {
+  grid-column: 1 / span 5;
+}
+
+.description-field {
+  grid-column: 1 / span 9;
+}
+
+.ssh-route-field {
+  grid-column: span 6;
+}
+
+.target-field,
+.port-field {
+  grid-column: span 3;
+}
+
+.connection-grid[data-route='direct'] .target-field {
+  grid-column: span 9;
+}
+
+.profile-name-field,
+.ssh-route-field,
+.target-field,
+.port-field {
+  grid-template-rows: 15px 40px minmax(14px, auto);
+}
+
+.ssh-route-field > :global(.custom-select),
+.target-field > :global(.custom-select) {
+  display: contents;
+}
+
+.route-setting {
+  display: grid;
+  min-width: 0;
+  min-height: 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  align-items: center;
+  gap: 24px;
+}
+
+.route-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.route-options:global(.ant-segmented) {
+  width: 100%;
+}
+
+.connection-details {
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-top: 14px;
+}
+
+.field > label:first-child,
+.field :global(.field-label) {
+  display: block;
+  height: 15px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 15px;
+}
+
+.profile-name-field :global(.ant-input),
+.ssh-route-field :global(.ant-select),
+.ssh-route-field :global(.ant-select-selector),
+.target-field :global(.ant-input),
+.target-field :global(.ant-select),
+.target-field :global(.ant-select-selector),
+.port-field :global(.ant-input-number) {
+  height: 40px;
+  min-height: 40px;
+}
+
+.field :global(.ant-input-number) {
+  width: 100%;
+}
+
+.field :global(.ant-input),
+.field :global(.ant-input-number),
+.field :global(.ant-select-selector),
+.field :global(textarea.ant-input) {
+  min-height: 40px;
+  border-color: var(--border) !important;
+  background: var(--input-bg) !important;
+  box-shadow: none !important;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.field :global(.ant-input-number-input) {
+  height: 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+.description-field :global(textarea.ant-input) {
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  resize: none;
+}
+
+.field :global(.ant-input:focus),
+.field :global(.ant-input-number-focused),
+.field :global(.ant-select-focused .ant-select-selector) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+
+.field[data-invalid='true'] :global(.ant-select-selector) {
+  border-color: var(--danger) !important;
+}
+
+.feedback {
+  min-height: 14px;
+  color: transparent;
+  font-size: 10px;
+  line-height: 14px;
+  visibility: hidden;
+}
+
+.feedback.error {
+  color: var(--danger);
+  visibility: visible;
+}
+
+.viewer-layout {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 7fr) minmax(320px, 5fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.mode-setting,
+.setting-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.mode-setting {
+  align-content: start;
+  gap: 8px;
+}
+
+.setting-copy {
+  gap: 2px;
+}
+
+.setting-copy strong,
+.switch-setting strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 670;
+}
+
+.setting-copy small,
+.switch-setting small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.behavior-settings {
+  display: grid;
+  min-width: 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-left: 22px;
+}
+
+.switch-setting {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-block: 5px;
+}
+
+.switch-setting + .switch-setting {
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+.switch-setting > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+@container vnc-profile-editor (max-width: 700px) {
+  .route-setting {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+@container vnc-profile-editor (max-width: 640px) {
+  .section {
+    padding: 16px 16px 18px;
+  }
+}
+
+@container vnc-profile-editor (max-width: 560px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .profile-name-field,
+  .ssh-route-field,
+  .description-field,
+  .target-field,
+  .connection-grid[data-route='direct'] .target-field,
+  .port-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@container vnc-profile-editor (max-width: 720px) {
+  .viewer-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .behavior-settings {
+    border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+    border-left: 0;
+    padding-top: 8px;
+    padding-left: 0;
+  }
+}
+
+@container vnc-profile-editor (max-width: 380px) {
+  .display-options :global(.ant-segmented-item-icon) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field :global(.ant-input),
+  .field :global(.ant-input-number),
+  .field :global(.ant-select-selector) {
+    transition: none;
+  }
+}

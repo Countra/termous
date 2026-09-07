@@ -3,7 +3,7 @@ import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ForwardInstance } from '#entities/forward'
 import { formatBytes } from '#shared/format'
-import { formatForwardDuration } from '../model/forwardTiming'
+import { formatForwardDateTime, formatForwardDuration } from '../model/forwardTiming'
 import { mapForwardTraffic } from '../model/forwardThroughput'
 import { useForwardThroughput } from '../model/useForwardThroughput'
 import styles from './ForwardManagement.module.scss'
@@ -73,7 +73,12 @@ export function ForwardRuntimeMetrics({
       />
       {showTiming ? (
         <>
-          <Metric icon={<Clock3 size={13} />} label={t('forwards.startedAt')} value={formatTime(forward.started_at)} />
+          <Metric
+            icon={<Clock3 size={13} />}
+            label={t('forwards.startedAt')}
+            value={formatTime(forward.started_at)}
+            detailValue={formatForwardDateTime(forward.started_at)}
+          />
           <Metric icon={<Timer size={13} />} label={t('forwards.duration')} value={formatForwardDuration(forward.started_at, now)} />
         </>
       ) : null}
@@ -91,6 +96,7 @@ function Metric({
   totalLabel,
   rateActive = false,
   tone,
+  detailValue,
 }: {
   className?: string
   icon: ReactNode
@@ -101,8 +107,10 @@ function Metric({
   totalLabel?: string
   rateActive?: boolean
   tone?: 'sent' | 'received'
+  detailValue?: string
 }) {
   const detailRef = useRef<HTMLSpanElement>(null)
+  const hasDetail = Boolean(rate || detailValue)
   const positionDetail = (target: HTMLSpanElement) => {
     const detail = detailRef.current
     if (!detail) {
@@ -155,22 +163,25 @@ function Metric({
       className={scopedClassName(
         'forward-runtime-metric',
         rate ? 'has-rate' : '',
+        hasDetail ? 'has-detail' : '',
         rateActive ? 'is-rate-active' : '',
         tone ? `is-${tone}` : '',
         className,
       )}
       role="group"
-      aria-label={rate && rateLabel ? `${label}: ${value}; ${rateLabel}: ${rate}` : `${label}: ${value}`}
-      tabIndex={rate ? 0 : undefined}
-      onFocus={rate ? (event) => positionDetail(event.currentTarget) : undefined}
-      onBlur={rate ? () => {
+      aria-label={rate && rateLabel
+        ? `${label}: ${value}; ${rateLabel}: ${rate}`
+        : `${label}: ${detailValue || value}`}
+      tabIndex={hasDetail ? 0 : undefined}
+      onFocus={hasDetail ? (event) => positionDetail(event.currentTarget) : undefined}
+      onBlur={hasDetail ? () => {
         if (detailRef.current?.matches(':popover-open')) {
           detailRef.current.hidePopover()
         }
       } : undefined}
-      onPointerEnter={rate ? (event) => positionDetail(event.currentTarget) : undefined}
-      onPointerLeave={rate ? (event) => hideDetail(event.currentTarget) : undefined}
-      onKeyDown={rate ? (event) => {
+      onPointerEnter={hasDetail ? (event) => positionDetail(event.currentTarget) : undefined}
+      onPointerLeave={hasDetail ? (event) => hideDetail(event.currentTarget) : undefined}
+      onKeyDown={hasDetail ? (event) => {
         if (event.key === 'Escape') {
           if (detailRef.current?.matches(':popover-open')) {
             detailRef.current.hidePopover()
@@ -191,20 +202,6 @@ function Metric({
               <i aria-hidden="true" />
               <strong>{rate}</strong>
             </span>
-            <span ref={detailRef} className={scopedClassName('forward-runtime-metric-detail')} aria-hidden="true" popover="manual">
-              <span className={scopedClassName('forward-runtime-metric-detail-heading')}>
-                <i />
-                <strong>{label}</strong>
-              </span>
-              <span className={scopedClassName('forward-runtime-metric-detail-row')}>
-                <small>{totalLabel}</small>
-                <b>{value}</b>
-              </span>
-              <span className={scopedClassName('forward-runtime-metric-detail-row', 'is-rate')}>
-                <small>{rateLabel}</small>
-                <b>{rate}</b>
-              </span>
-            </span>
           </>
         ) : (
           <>
@@ -212,6 +209,30 @@ function Metric({
             <strong className={scopedClassName('forward-runtime-value')}>{value}</strong>
           </>
         )}
+        {hasDetail ? (
+          <span ref={detailRef} className={scopedClassName('forward-runtime-metric-detail')} aria-hidden="true" popover="manual">
+            <span className={scopedClassName('forward-runtime-metric-detail-heading')}>
+              <i />
+              <strong>{label}</strong>
+            </span>
+            {rate ? (
+              <>
+                <span className={scopedClassName('forward-runtime-metric-detail-row')}>
+                  <small>{totalLabel}</small>
+                  <b>{value}</b>
+                </span>
+                <span className={scopedClassName('forward-runtime-metric-detail-row', 'is-rate')}>
+                  <small>{rateLabel}</small>
+                  <b>{rate}</b>
+                </span>
+              </>
+            ) : (
+              <strong className={scopedClassName('forward-runtime-metric-detail-time')}>
+                {detailValue}
+              </strong>
+            )}
+          </span>
+        ) : null}
       </span>
     </span>
   )

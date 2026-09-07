@@ -22,7 +22,18 @@ import type {
   ForwardStartRequest,
 } from '#entities/forward'
 import type { Host } from '#entities/host'
-import type { ForwardManagementData } from '../model/types'
+import {
+  buildForwardFailureAgentLaunchRequest,
+  type AgentLaunchRequest,
+} from '#entities/agent'
+import {
+  selectDefaultSSHAccessProfile,
+  sortSSHAccessProfiles,
+} from '#entities/ssh-access-profile'
+import type {
+  ForwardManagementData,
+  ForwardTemporaryIntent,
+} from '../model/types'
 import { useForwardDurationTick } from '../model/forwardTiming'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -43,13 +54,15 @@ type ForwardModeFilter = 'all' | ForwardMode
 export interface ForwardManagementWorkspaceProps {
   data: ForwardManagementData
   actionBusy: boolean
-  temporaryIntent?: { key: number; hostId: string } | null
+  temporaryIntent?: ForwardTemporaryIntent | null
+  onTemporaryIntentHandled: (key: number) => void
   onCreateProfile: (input: ForwardProfileInput) => Promise<ForwardProfile>
   onUpdateProfile: (id: string, input: ForwardProfileInput) => Promise<ForwardProfile>
   onDeleteProfile: (id: string) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface ForwardFormState {
@@ -57,6 +70,7 @@ interface ForwardFormState {
   description: string
   mode: ForwardMode
   host_id: string
+  ssh_profile_id: string
   bind_host: string
   bind_port: number | null
   target_host: string
@@ -68,24 +82,27 @@ const defaultForm: ForwardFormState = {
   description: '',
   mode: 'local',
   host_id: '',
+  ssh_profile_id: '',
   bind_host: '127.0.0.1',
   bind_port: 8080,
   target_host: '127.0.0.1',
   target_port: 80,
 }
 
-const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'stopping'])
+const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'reconnecting', 'stopping'])
 
 export function ForwardManagementWorkspace({
   data,
   actionBusy,
   temporaryIntent,
+  onTemporaryIntentHandled,
   onCreateProfile,
   onUpdateProfile,
   onDeleteProfile,
   onStartForward,
   onRestartForward,
   onStopForward,
+  onLaunchAgent,
 }: ForwardManagementWorkspaceProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -97,8 +114,18 @@ export function ForwardManagementWorkspace({
   const [modeFilter, setModeFilter] = useState<ForwardModeFilter>('all')
   const consumedTemporaryIntentKeyRef = useRef<number | null>(null)
   const hostOptions = useMemo(
-    () => data.hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}:${host.port}` })),
+    () => data.hosts.map((host) => ({ value: host.id, label: host.name })),
     [data.hosts],
+  )
+  const sshProfileOptions = useMemo(
+    () => sortSSHAccessProfiles(data.sshAccessProfiles)
+      .filter((profile) => profile.host_id === form.host_id)
+      .map((profile) => ({
+        value: profile.id,
+        label: profile.name,
+        description: `${profile.username}@${profile.address}:${profile.port}`,
+      })),
+    [data.sshAccessProfiles, form.host_id],
   )
   const hostLookup = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
   const runningForwards = useMemo(
@@ -128,14 +155,14 @@ export function ForwardManagementWorkspace({
   const openCreateProfile = () => {
     setEditorMode('profile')
     setEditingProfile(null)
-    setForm({ ...defaultForm, host_id: data.hosts[0]?.id ?? '' })
+    setForm(createForwardForm(data, data.hosts[0]?.id ?? ''))
     setEditorOpen(true)
   }
 
   const openTemporaryForward = () => {
     setEditorMode('temporary')
     setEditingProfile(null)
-    setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: data.hosts[0]?.id ?? '' })
+    setForm(createForwardForm(data, data.hosts[0]?.id ?? '', t('forwards.temporaryDefaultName')))
     setEditorOpen(true)
   }
 
@@ -149,9 +176,15 @@ export function ForwardManagementWorkspace({
     consumedTemporaryIntentKeyRef.current = temporaryIntent.key
     setEditorMode('temporary')
     setEditingProfile(null)
-    setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: temporaryIntent.hostId })
+    setForm(createForwardForm(
+      data,
+      temporaryIntent.hostId,
+      t('forwards.temporaryDefaultName'),
+      temporaryIntent.sshProfileId,
+    ))
     setEditorOpen(true)
-  }, [t, temporaryIntent])
+    onTemporaryIntentHandled(temporaryIntent.key)
+  }, [data, onTemporaryIntentHandled, t, temporaryIntent])
 
   const openEditProfile = (profile: ForwardProfile) => {
     setEditorMode('profile')
@@ -161,6 +194,7 @@ export function ForwardManagementWorkspace({
       description: profile.description ?? '',
       mode: profile.mode,
       host_id: profile.host_id,
+      ssh_profile_id: profile.ssh_profile_id ?? '',
       bind_host: profile.bind_host,
       bind_port: profile.bind_port,
       target_host: profile.target_host ?? '127.0.0.1',
@@ -217,7 +251,7 @@ export function ForwardManagementWorkspace({
 
   return (
     <section className={`${scopedClassName('forwarding-page')} ${styles.root}`}>
-      <div className={scopedClassName('forwarding-commandbar')}>
+      <div className={scopedClassName('forwarding-commandbar')} data-tour="forwards-overview">
         <div className={scopedClassName('forwarding-command-primary')}>
           <div className={scopedClassName('forwarding-overview-strip')} aria-label={t('forwards.overview')}>
             <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />
@@ -314,6 +348,19 @@ export function ForwardManagementWorkspace({
                   actionBusy={actionBusy}
                   onRestart={() => onRestartForward(forward.id)}
                   onStop={() => onStopForward(forward.id)}
+                  onLaunchAgent={onLaunchAgent ? () => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
+                    hostId: forward.host_id,
+                    forwardId: forward.id,
+                    forwardProfileId: forward.profile_id,
+                    status: forward.status,
+                    title: t('agent.launch.title.forwardFailure', {
+                      name: forward.name || t(`forwards.modeName.${forward.mode}`),
+                    }),
+                    summary: t('agent.launch.summary.forwardFailure', {
+                      status: t(`forwards.status.${forward.status}`),
+                      phase: t(`forwards.phaseName.${forward.phase}`),
+                    }),
+                  })) : undefined}
                 />
               ))}
             </div>
@@ -371,6 +418,12 @@ export function ForwardManagementWorkspace({
         <ForwardEditorForm
           form={form}
           hostOptions={hostOptions}
+          sshProfileOptions={sshProfileOptions}
+          onHostChange={(hostId) => setForm((current) => ({
+            ...current,
+            host_id: hostId,
+            ssh_profile_id: selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? '',
+          }))}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
         />
       </Modal>
@@ -381,10 +434,14 @@ export function ForwardManagementWorkspace({
 function ForwardEditorForm({
   form,
   hostOptions,
+  sshProfileOptions,
+  onHostChange,
   onChange,
 }: {
   form: ForwardFormState
   hostOptions: Array<{ value: string; label: string; description?: string }>
+  sshProfileOptions: Array<{ value: string; label: string; description?: string }>
+  onHostChange: (hostId: string) => void
   onChange: (patch: Partial<ForwardFormState>) => void
 }) {
   const { t } = useTranslation()
@@ -398,7 +455,7 @@ function ForwardEditorForm({
           <span className={scopedClassName('forwarding-editor-section-title')}>{t('forwards.basicInfo')}</span>
         </header>
         <div className={scopedClassName('forwarding-editor-basic-grid')}>
-          <label className={scopedClassName('forward-field')}>
+          <label className={scopedClassName('forward-field', 'is-name')}>
             <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.name')}</span>
             <Input
               id="forward-name"
@@ -414,8 +471,17 @@ function ForwardEditorForm({
             label={t('forwards.host')}
             value={form.host_id}
             options={hostOptions}
-            onChange={(value) => onChange({ host_id: value })}
+            onChange={onHostChange}
             disabled={hostOptions.length === 0}
+          />
+          <CustomSelect
+            className={scopedClassName('forwarding-modal-select')}
+            popupClassName={scopedClassName('forwarding-select-popup')}
+            label={t('forwards.sshProfile')}
+            value={form.ssh_profile_id}
+            options={sshProfileOptions}
+            onChange={(value) => onChange({ ssh_profile_id: value })}
+            disabled={sshProfileOptions.length === 0}
           />
         </div>
         <label className={scopedClassName('forward-field')}>
@@ -480,7 +546,8 @@ function ForwardProfileRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const startHint = running ? t('forwards.running') : t('forwards.start')
+  const runtimeStatus = running?.status === 'running' ? 'connected' : 'connecting'
+  const startHint = running ? t(`forwards.status.${running.status}`) : t('forwards.start')
   const secondary = [host?.name ?? t('fields.none'), profile.description].filter(Boolean).join(' · ')
 
   return (
@@ -497,7 +564,7 @@ function ForwardProfileRow({
           </Tooltip>
         </div>
         <div className={scopedClassName('forwarding-row-actions')}>
-          {running ? <StatusBadge status="connected" label={t('forwards.running')} /> : null}
+          {running ? <StatusBadge status={runtimeStatus} label={t(`forwards.status.${running.status}`)} /> : null}
           <Tooltip
             title={startHint}
             mouseEnterDelay={0.3}
@@ -574,6 +641,7 @@ function ForwardRuntimeRow({
   actionBusy,
   onRestart,
   onStop,
+  onLaunchAgent,
 }: {
   forward: ForwardInstance
   hostName: string
@@ -581,6 +649,7 @@ function ForwardRuntimeRow({
   actionBusy: boolean
   onRestart: () => Promise<void>
   onStop: () => Promise<void>
+  onLaunchAgent?: () => void
 }) {
   const { t } = useTranslation()
   const modeLabel = t(`forwards.modeName.${forward.mode}`)
@@ -601,6 +670,7 @@ function ForwardRuntimeRow({
             disabled={actionBusy}
             onRestart={onRestart}
             onStop={onStop}
+            onLaunchAgent={onLaunchAgent}
           />
         </div>
       </div>
@@ -724,6 +794,7 @@ function formToInput(form: ForwardFormState): ForwardProfileInput {
     description: form.description.trim(),
     mode: form.mode,
     host_id: form.host_id,
+    ssh_profile_id: form.ssh_profile_id,
     bind_host: form.bind_host.trim(),
     bind_port: Number(form.bind_port),
     target_host: form.mode === 'dynamic' ? '' : form.target_host.trim(),
@@ -738,6 +809,9 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
   if (!form.host_id) {
     return t('forwards.validation.host')
   }
+  if (!form.ssh_profile_id) {
+    return t('forwards.validation.sshProfile')
+  }
   if (!validPort(form.bind_port)) {
     return t('forwards.validation.bindPort')
   }
@@ -749,6 +823,35 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
   }
   return ''
 }
+
+function createForwardForm(
+  data: ForwardManagementData,
+  hostId: string,
+  name = '',
+  requestedSSHProfileId?: string,
+): ForwardFormState {
+  return {
+    ...defaultForm,
+    name,
+    host_id: hostId,
+    ssh_profile_id: initialSSHProfileId(data, hostId, requestedSSHProfileId),
+  }
+}
+
+function initialSSHProfileId(
+  data: ForwardManagementData,
+  hostId: string,
+  requestedSSHProfileId: string | undefined,
+) {
+  if (requestedSSHProfileId !== undefined) {
+    const matches = data.sshAccessProfiles.filter((profile) => (
+      profile.id === requestedSSHProfileId && profile.host_id === hostId
+    ))
+    return matches.length === 1 ? requestedSSHProfileId : ''
+  }
+  return selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? ''
+}
+
 
 function validPort(value: number | null) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535

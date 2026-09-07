@@ -2,7 +2,7 @@ export type ForwardMode = 'local' | 'remote' | 'dynamic'
 
 export type ForwardScope = 'session' | 'background_once' | 'background_profile'
 
-export type ForwardStatus = 'starting' | 'waiting_host_trust' | 'running' | 'stopping' | 'stopped' | 'failed'
+export type ForwardStatus = 'starting' | 'waiting_host_trust' | 'running' | 'reconnecting' | 'stopping' | 'stopped' | 'failed'
 
 export type ForwardPhase =
   | 'queued'
@@ -12,6 +12,7 @@ export type ForwardPhase =
   | 'waiting_host_trust'
   | 'starting_listener'
   | 'ready'
+  | 'waiting_retry'
   | 'stopping'
   | 'stopped'
   | 'failed'
@@ -22,6 +23,7 @@ export interface ForwardProfile {
   description?: string
   mode: ForwardMode
   host_id: string
+  ssh_profile_id?: string
   bind_host: string
   bind_port: number
   target_host?: string
@@ -35,6 +37,7 @@ export interface ForwardProfileInput {
   description: string
   mode: ForwardMode
   host_id: string
+  ssh_profile_id?: string
   bind_host: string
   bind_port: number
   target_host: string
@@ -46,6 +49,7 @@ export interface ForwardStartRequest {
   scope?: ForwardScope
   session_id?: string
   host_id?: string
+  ssh_profile_id?: string
   name?: string
   description?: string
   mode?: ForwardMode
@@ -60,6 +64,7 @@ export interface ForwardInstance {
   profile_id?: string
   session_id?: string
   host_id?: string
+  ssh_profile_id?: string
   name: string
   description?: string
   mode: ForwardMode
@@ -82,6 +87,9 @@ export interface ForwardInstance {
   started_at: string
   stopped_at?: string
   last_error?: string
+  reconnect_attempt?: number
+  reconnect_max_attempts?: number
+  next_reconnect_at?: string
 }
 
 export interface ForwardEvent {

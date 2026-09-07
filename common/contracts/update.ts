@@ -135,7 +135,9 @@ export interface UpdateManagerOptions {
 }
 
 export interface UpdateRuntimeSummary {
+  agent_runs: number
   ssh_sessions: number
+  remote_desktop_sessions: number
   file_sessions: number
   forwards: number
   transfers: number

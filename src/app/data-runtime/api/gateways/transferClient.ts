@@ -1,5 +1,5 @@
 import type { AppConfig } from '#common/contracts';
-import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, TransferTask } from '#entities/file';
+import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, RemoteCopyTransferInput, TransferTask } from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 
 export class TransferClient extends TermousApiTransport {
@@ -14,11 +14,21 @@ createLocalFileGrant(source: LocalGrantSource, paths: string[]) {
     })
   }
 
+  releaseLocalFileGrant(id: string) {
+    return this.request<void>(`/api/v1/local-file-grants/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
 transfers() {
     return this.request<TransferTask[]>('/api/v1/transfers')
   }
 
-createUploadTransfer(hostId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+createUploadTransfer(
+  hostId: string,
+  localGrantId: string,
+  remoteDir: string,
+  overwritePolicy: OverwritePolicy = 'rename',
+  overwriteItemIds: string[] = [],
+) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
       body: {
@@ -26,11 +36,18 @@ createUploadTransfer(hostId: string, localGrantId: string, remoteDir: string, ov
         local_grant_id: localGrantId,
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
+        ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
       },
     })
   }
 
-createFileSessionUploadTransfer(fileSessionId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+createFileSessionUploadTransfer(
+  fileSessionId: string,
+  localGrantId: string,
+  remoteDir: string,
+  overwritePolicy: OverwritePolicy = 'rename',
+  overwriteItemIds: string[] = [],
+) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
       body: {
@@ -38,6 +55,7 @@ createFileSessionUploadTransfer(fileSessionId: string, localGrantId: string, rem
         local_grant_id: localGrantId,
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
+        ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
       },
     })
   }
@@ -54,7 +72,7 @@ createDownloadTransfer(hostId: string, remotePaths: string[], localDir: string, 
     })
   }
 
-createFileSessionDownloadTransfer(
+  createFileSessionDownloadTransfer(
     fileSessionId: string,
     remotePaths: string[],
     localDir: string,
@@ -73,7 +91,14 @@ createFileSessionDownloadTransfer(
     })
   }
 
-retryTransfer(id: string) {
+  createRemoteCopyTransfer(input: RemoteCopyTransferInput) {
+    return this.request<TransferTask>('/api/v1/transfers/remote-copy', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  retryTransfer(id: string) {
     return this.request<TransferTask>(`/api/v1/transfers/${encodeURIComponent(id)}/retry`, { method: 'POST' })
   }
 

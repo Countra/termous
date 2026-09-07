@@ -1,0 +1,31 @@
+.preview {
+  display: grid;
+  min-height: 220px;
+  max-height: min(68vh, 720px);
+  place-items: center;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.preview img {
+  display: block;
+  max-width: 100%;
+  max-height: min(64vh, 680px);
+  object-fit: contain;
+}
+
+.preview pre {
+  width: 100%;
+  min-height: 220px;
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  padding: 14px;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

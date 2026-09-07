@@ -1,6 +1,11 @@
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
+  AgentQueuedTurnSteerRequest,
+  AgentRuntimeCommandResult,
+  AgentRuntimeRunRef,
+  AgentRuntimeStatus,
+  AgentRuntimeSteerRequest,
   CoreFatalEvent,
   DataPortabilityProgress,
   ExternalUrlOpenResult,
@@ -14,6 +19,7 @@ import type {
   UpdateRuntimeSummaryReportContext,
   UpdateSnapshot,
 } from '#common/contracts'
+import { agentRuntimeIPCChannels } from './agent/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
 } from './updateRuntimeSummaryRefresh'
@@ -118,6 +124,27 @@ const bridge = {
       const listener = (_event: Electron.IpcRendererEvent, fatal: CoreFatalEvent) => callback(fatal)
       ipcRenderer.on('core:fatal', listener)
       return () => ipcRenderer.removeListener('core:fatal', listener)
+    },
+  },
+  agentRuntime: {
+    getStatus: () => ipcRenderer.invoke(agentRuntimeIPCChannels.getStatus) as Promise<AgentRuntimeStatus>,
+    start: (request: AgentRuntimeRunRef) =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.start, request) as Promise<AgentRuntimeCommandResult>,
+    stop: (request: AgentRuntimeRunRef) =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.stop, request) as Promise<AgentRuntimeCommandResult>,
+    steer: (request: AgentRuntimeSteerRequest) =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.steer, request) as Promise<AgentRuntimeCommandResult>,
+    wake: () =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.wake) as Promise<AgentRuntimeCommandResult>,
+    steerQueuedTurn: (request: AgentQueuedTurnSteerRequest) =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.steerQueuedTurn, request) as Promise<AgentRuntimeCommandResult>,
+    onStatus: (callback: (status: AgentRuntimeStatus) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: AgentRuntimeStatus,
+      ) => callback(status)
+      ipcRenderer.on(agentRuntimeIPCChannels.status, listener)
+      return () => ipcRenderer.removeListener(agentRuntimeIPCChannels.status, listener)
     },
   },
   startup: {

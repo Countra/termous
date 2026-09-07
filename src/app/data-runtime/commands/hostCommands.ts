@@ -1,8 +1,20 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
-import type { HostIconReorderItem, HostInput, HostReachabilityEvent } from '#entities/host'
+import type { FileAccessProfileMetadataInput } from '#entities/file-access-profile'
+import {
+  hostAssetToInput,
+  type HostAssetInput,
+  type HostProvisionInput,
+} from '#entities/host-asset'
+import type {
+  HostIconReorderItem,
+  HostInput,
+  HostReachabilityEvent,
+} from '#entities/host'
+import type { RemoteDesktopAccessProfileInput } from '#entities/remote-desktop'
+import type { SSHAccessProfileInput } from '#entities/ssh-access-profile'
 import type { GroupReorderItem } from '#shared/model'
+import { TermousApiError } from '#shared/api'
 import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
-import { hostToInput } from '#entities/host'
 import {
   mergeHostReachabilityEvent,
   mergeHostReachabilityStates,
@@ -19,12 +31,12 @@ import type { AppData } from '../model/appData'
 
 interface HostCommandDependencies {
   api: HostCommandGateway
-  hosts: AppData['hosts']
+  hostAssets: AppData['hostAssets']
   load: (mode?: LoadMode) => Promise<void>
   setData: SetAppData
 }
 
-export function createHostCommands({ api, hosts, load, setData }: HostCommandDependencies) {
+export function createHostCommands({ api, hostAssets, load, setData }: HostCommandDependencies) {
   return {
     async uploadHostIcon(file: File) {
       const icon = await api.uploadHostIcon(file)
@@ -65,11 +77,7 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
     },
     async deleteHostGroup(id: string) {
       await api.deleteHostGroup(id)
-      setData((current) => ({
-        ...current,
-        groups: current.groups.filter((group) => group.id !== id),
-        hosts: current.hosts.map((host) => (host.group_id === id ? { ...host, group_id: '' } : host)),
-      }))
+      await load('silent')
     },
     async reorderHostGroups(items: GroupReorderItem[]) {
       const groups = await api.reorderHostGroups(items)
@@ -105,19 +113,108 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
       return host
     },
     async toggleHostFavorite(hostId: string) {
-      const host = hosts.find((item) => item.id === hostId)
-      if (!host) {
+      const asset = hostAssets.find((item) => item.id === hostId)
+      if (!asset) {
         return
       }
-      const nextHost = await api.updateHost(host.id, { ...hostToInput(host), favorite: !host.favorite })
-      setData((current) => ({
-        ...current,
-        hosts: current.hosts.map((item) => (item.id === nextHost.id ? nextHost : item)),
-      }))
+      await api.updateHostAsset(
+        asset.id,
+        asset.updated_at,
+        { ...hostAssetToInput(asset), favorite: !asset.favorite },
+      )
+      await load('silent')
     },
     async deleteHost(id: string) {
       await api.deleteHost(id)
       await load('silent')
+    },
+    hostAssets: () => api.hostAssets(),
+    hostAsset: (id: string) => api.hostAsset(id),
+    hostAccessCatalog: (hostId: string) => api.hostAccessCatalog(hostId),
+    sshAccessProfiles: (hostId?: string) => api.sshAccessProfiles(hostId),
+    sshAccessProfile: (id: string) => api.sshAccessProfile(id),
+    inspectSSHAccessProfileReferences: (id: string) => (
+      api.inspectSSHAccessProfileReferences(id)
+    ),
+    fileAccessProfiles: (hostId?: string) => api.fileAccessProfiles(hostId),
+    fileAccessProfile: (id: string) => api.fileAccessProfile(id),
+    remoteDesktopAccessProfiles: (hostId?: string) => api.remoteDesktopAccessProfiles(hostId),
+    remoteDesktopAccessProfile: (id: string) => api.remoteDesktopAccessProfile(id),
+    async provisionHost(input: HostProvisionInput) {
+      const catalog = await api.provisionHost(input).catch(async (cause: unknown) => {
+        if (cause instanceof TermousApiError && cause.code === 'HOST_ASSET_CONFLICT' && cause.details?.host_id) {
+          // 已创建但响应不确定时刷新目录供用户核对，仍抛出冲突以保留当前草稿。
+          await load('silent')
+        }
+        throw cause
+      })
+      await load('silent')
+      return catalog
+    },
+    async updateHostAsset(id: string, expectedUpdatedAt: string, input: HostAssetInput) {
+      const asset = await api.updateHostAsset(id, expectedUpdatedAt, input)
+      await load('silent')
+      return asset
+    },
+    async createSSHAccessProfile(hostId: string, input: SSHAccessProfileInput) {
+      const provisioned = await api.createSSHAccessProfile(hostId, input)
+      await load('silent')
+      return provisioned
+    },
+    async updateSSHAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: SSHAccessProfileInput,
+    ) {
+      const profile = await api.updateSSHAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async deleteSSHAccessProfile(id: string, expectedUpdatedAt: string) {
+      await api.deleteSSHAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+    },
+    async setDefaultSSHAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultSSHAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
+    },
+    async updateFileAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: FileAccessProfileMetadataInput,
+    ) {
+      const profile = await api.updateFileAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async setDefaultFileAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultFileAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
+    },
+    async createRemoteDesktopAccessProfile(input: RemoteDesktopAccessProfileInput) {
+      const profile = await api.createRemoteDesktopAccessProfile(input)
+      await load('silent')
+      return profile
+    },
+    async updateRemoteDesktopAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: RemoteDesktopAccessProfileInput,
+    ) {
+      const profile = await api.updateRemoteDesktopAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async deleteRemoteDesktopAccessProfile(id: string, expectedUpdatedAt: string) {
+      await api.deleteRemoteDesktopAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+    },
+    async setDefaultRemoteDesktopAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultRemoteDesktopAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
     },
     async refreshHostReachability(hostIds: string[] = [], force = false) {
       const states = await api.refreshHostReachability(hostIds, force)

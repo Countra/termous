@@ -1,6 +1,10 @@
 import { Button, Tabs, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  ComponentPropsWithoutRef,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import styles from './FeatureSidePanel.module.scss'
 import sidePanelStyles from './SidePanelControls.module.scss'
 
@@ -11,7 +15,8 @@ export interface FeatureSidePanelTab<Key extends string> {
   children: ReactNode
 }
 
-interface FeatureSidePanelProps<Key extends string> {
+interface FeatureSidePanelProps<Key extends string>
+  extends Omit<ComponentPropsWithoutRef<'aside'>, 'children'> {
   activeKey: Key
   ariaLabel: string
   collapsed: boolean
@@ -41,6 +46,7 @@ export function FeatureSidePanel<Key extends string>({
   onActiveKeyChange,
   onCollapsedChange,
   onResizePointerDown,
+  ...asideProps
 }: FeatureSidePanelProps<Key>) {
   const popupRootClassName = [
     popupClassName.split(/\s+/u).includes(legacyPopupClassName)
@@ -62,7 +68,7 @@ export function FeatureSidePanel<Key extends string>({
     .join(' ')
 
   return (
-    <aside className={classes}>
+    <aside {...asideProps} className={classes}>
       {onResizePointerDown ? (
         <div
           className={`${sidePanelStyles['resize-edge']} ${sidePanelStyles['resize-edge-left']}`}
@@ -70,15 +76,17 @@ export function FeatureSidePanel<Key extends string>({
           onPointerDown={onResizePointerDown}
         />
       ) : null}
-      <Tooltip title={collapsed ? expandLabel : collapseLabel}>
-        <Button
-          type="text"
-          className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-right']}`}
-          onClick={() => onCollapsedChange(!collapsed)}
-          aria-label={collapsed ? expandLabel : collapseLabel}
-          icon={collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-        />
-      </Tooltip>
+      <div className={`${sidePanelStyles['panel-toggle-zone']} ${sidePanelStyles['panel-toggle-zone-right']}`}>
+        <Tooltip title={collapsed ? expandLabel : collapseLabel}>
+          <Button
+            type="text"
+            className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-right']}`}
+            onClick={() => onCollapsedChange(!collapsed)}
+            aria-label={collapsed ? expandLabel : collapseLabel}
+            icon={collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+          />
+        </Tooltip>
+      </div>
       {collapsed ? (
         <div className={`${styles['details-collapsed-rail']} details-collapsed-rail`} aria-label={ariaLabel}>
           {tabs.map((item) => (

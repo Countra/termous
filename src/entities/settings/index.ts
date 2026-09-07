@@ -5,6 +5,11 @@ export {
   syncImportedFontFaces,
 } from './model/terminalFonts.ts'
 export {
+  connectionSettingsEqual,
+  defaultConnectionSettings,
+  normalizeConnectionSettings,
+} from './model/connectionSettings.ts'
+export {
   completionProviderIds,
   completionProviderSettingsSignature,
   completionSettingsEqual,

@@ -11,32 +11,35 @@ import type {
   ConnectionProxy,
   ConnectionProxyInput,
 } from '#entities/connection-proxy'
+import type { HostAccessWorkspaceGateway, HostProvisionGateway } from '#features/host-access'
+import type { AgentLaunchRequest } from '#entities/agent'
 import {
-  createBlankHostInput,
-  hostInputsEqual,
-  hostToInput,
-  normalizeHostInput,
-  validateHostInput,
-  type Host,
   type HostGroup,
   type HostIcon,
   type HostIconReorderItem,
-  type HostInput,
 } from '#entities/host'
+import type { HostAsset, HostProvisionInput } from '#entities/host-asset'
 import { HostCatalog } from './HostCatalog'
-import { HostEditor } from './HostEditor'
+import { HostAccessWorkspace } from './HostAccessWorkspace'
+import { HostCreateEditor } from './HostCreateEditor'
 import { HostIconManagerModal } from './HostIconManagerModal'
 import { ProxyManagerModal } from './ProxyManagerModal'
 import type { HostManagementData } from '../model/types.ts'
+import { buildHostDirectoryItems } from '../model/hostDirectory.ts'
+import type { HostDetailView } from '../model/useHostAccessWorkspaceController.ts'
+import type { HostEditorSection } from './HostEditorShell.tsx'
 import styles from './HostManagement.module.scss'
 
 export interface HostManagementWorkspaceProps {
   data: HostManagementData
   selectedHostId: string
-  createIntentKey?: number
+  entryIntent?: HostManagementEntryIntent | null
+  onEntryIntentHandled?: (key: number) => void
+  accessIntent?: HostAccessIntent | null
+  onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
+  accessGateway: HostAccessWorkspaceGateway & HostProvisionGateway
   onSelectHost: (hostId: string) => void
-  onSave: (id: string | null, input: HostInput) => Promise<Host | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
   onCreateGroup: (name: string) => Promise<HostGroup>
   onRenameGroup: (id: string, name: string) => Promise<HostGroup | undefined>
@@ -53,7 +56,22 @@ export interface HostManagementWorkspaceProps {
   onReorderHostIcons: (items: HostIconReorderItem[]) => Promise<HostIcon[]>
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
+  onDirtyChange?: (dirty: boolean) => void
+  onSavingChange?: (saving: boolean) => void
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
+
+export interface HostAccessIntent {
+  key: number
+  hostId: string
+}
+
+export type HostManagementEntryTarget =
+  | { mode: 'catalog' }
+  | { mode: 'create' }
+  | { mode: 'edit'; hostId: string }
+
+export type HostManagementEntryIntent = HostManagementEntryTarget & { key: number }
 
 type HostIntent =
   | { type: 'select'; hostId: string; external?: boolean }
@@ -63,10 +81,13 @@ type HostIntent =
 export function HostManagementWorkspace({
   data,
   selectedHostId,
-  createIntentKey = 0,
+  entryIntent = null,
+  onEntryIntentHandled,
+  accessIntent = null,
+  onAccessIntentHandled,
   actionBusy,
+  accessGateway,
   onSelectHost,
-  onSave,
   onDelete,
   onCreateGroup,
   onRenameGroup,
@@ -80,69 +101,127 @@ export function HostManagementWorkspace({
   onReorderHostIcons,
   onDeleteHostIcon,
   getHostIconUrl,
+  onDirtyChange,
+  onSavingChange,
+  onLaunchAgent,
 }: HostManagementWorkspaceProps) {
   const { t } = useTranslation()
-  const initialHost = data.hosts.find((host) => host.id === selectedHostId)
-  const initialInput = initialHost ? normalizeHostInput(hostToInput(initialHost)) : createBlankHostInput()
-  const [editingId, setEditingId] = useState<string | null>(initialHost?.id ?? null)
-  const [draft, setDraft] = useState<HostInput>(initialInput)
-  const [baseline, setBaseline] = useState<HostInput>(initialInput)
-  const [activeView, setActiveView] = useState<ManagementWorkspaceView>(initialHost ? 'editor' : 'catalog')
+  const initialEntryIntentRef = useRef(entryIntent)
+  const initialEntryIntent = initialEntryIntentRef.current
+  const initialEntryMode = initialEntryIntent?.mode
+  const initialAssetId = initialEntryIntent?.mode === 'edit'
+    ? initialEntryIntent.hostId
+    : (initialEntryIntent ? '' : selectedHostId)
+  const initialAsset = data.hostAssets.find((host) => host.id === initialAssetId)
+  const [editingId, setEditingId] = useState<string | null>(initialAsset?.id ?? null)
+  const [editingAssetSnapshot, setEditingAssetSnapshot] = useState(initialAsset)
+  const [createdAsset, setCreatedAsset] = useState<HostAsset>()
+  const [initialView, setInitialView] = useState<HostDetailView>('asset')
+  const [initialConnectionSetupConsidered, setInitialConnectionSetupConsidered] = useState(false)
+  const [activeView, setActiveView] = useState<ManagementWorkspaceView>(
+    initialEntryMode === 'create' || initialAsset ? 'editor' : 'catalog',
+  )
   const [groupManagerOpen, setGroupManagerOpen] = useState(false)
   const [proxyManagerOpen, setProxyManagerOpen] = useState(false)
   const [iconManagerOpen, setIconManagerOpen] = useState(false)
   const [pendingIntent, setPendingIntent] = useState<HostIntent | null>(null)
   const [saveInFlight, setSaveInFlight] = useState(false)
-  const lastCreateIntentRef = useRef(0)
-  const ignoredExternalSelectionRef = useRef('')
-  const dirty = useMemo(() => !hostInputsEqual(draft, baseline), [baseline, draft])
-  const editingHost = useMemo(() => data.hosts.find((host) => host.id === editingId), [data.hosts, editingId])
-  const groupItemCounts = useMemo(() => data.hosts.reduce<Record<string, number>>((counts, host) => {
+  const saveInFlightRef = useRef(false)
+  const mountedRef = useRef(false)
+  const onSavingChangeRef = useRef(onSavingChange)
+  onSavingChangeRef.current = onSavingChange
+  const [accessDirty, setAccessDirty] = useState(false)
+  const [accessProtectedIconId, setAccessProtectedIconId] = useState('')
+  const [accessWorkspaceRevision, setAccessWorkspaceRevision] = useState(0)
+  const [createWorkspaceRevision, setCreateWorkspaceRevision] = useState(0)
+  const lastEntryIntentRef = useRef(initialEntryIntentRef.current?.key ?? 0)
+  const acknowledgedEntryIntentRef = useRef(0)
+  const ignoredExternalSelectionRef = useRef(
+    initialEntryMode === 'catalog' || initialEntryMode === 'create' ? selectedHostId : '',
+  )
+  const dirty = accessDirty
+  const busy = actionBusy || saveInFlight
+  // 创建响应先用于编辑器，避免工作区快照尚未同步时退回新建页。
+  const hostAssets = useMemo(() => createdAsset && !data.hostAssets.some((host) => host.id === createdAsset.id)
+    ? [...data.hostAssets, createdAsset] : data.hostAssets, [createdAsset, data.hostAssets])
+  const directoryItems = useMemo(
+    () => buildHostDirectoryItems(hostAssets, data.sshAccessProfiles),
+    [hostAssets, data.sshAccessProfiles],
+  )
+  const listedEditingAsset = useMemo(
+    () => hostAssets.find((host) => host.id === editingId),
+    [hostAssets, editingId],
+  )
+  // 已打开的资产从全局目录消失时保留编辑器实例，避免尚未处理的草稿被替换成空白新建。
+  const editingAsset = listedEditingAsset
+    ?? (editingAssetSnapshot?.id === editingId ? editingAssetSnapshot : undefined)
+  const groupItemCounts = useMemo(() => hostAssets.reduce<Record<string, number>>((counts, host) => {
     if (host.group_id) counts[host.group_id] = (counts[host.group_id] ?? 0) + 1
     return counts
-  }, {}), [data.hosts])
-  const validCredentialIds = useMemo(() => new Set(data.credentials
-    .filter((credential) => credential.type === (draft.auth_method === 'password' ? 'password' : 'private_key'))
-    .map((credential) => credential.id)), [data.credentials, draft.auth_method])
-  const errors = useMemo(() => {
-    const next = validateHostInput(draft, {
-      address: t('hosts.validation.addressRequired'),
-      port: t('hosts.validation.portRange'),
-      username: t('hosts.validation.usernameRequired'),
-      credentialId: t('hosts.validation.credentialRequired'),
-    })
-    if (draft.credential_id && !validCredentialIds.has(draft.credential_id)) {
-      next.credentialId = t('hosts.validation.credentialMismatch')
+  }, {}), [hostAssets])
+
+  useEffect(() => {
+    if (createdAsset && data.hostAssets.some((host) => host.id === createdAsset.id)) setCreatedAsset(undefined)
+  }, [createdAsset, data.hostAssets])
+
+  useEffect(() => {
+    if (listedEditingAsset) setEditingAssetSnapshot(listedEditingAsset)
+  }, [listedEditingAsset])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      onSavingChangeRef.current?.(false)
     }
-    if (draft.proxy_id && !data.proxies.some((proxy) => proxy.id === draft.proxy_id)) {
-      next.proxyId = t('hosts.validation.proxyMissing')
-    }
-    return next
-  }, [data.proxies, draft, t, validCredentialIds])
+  }, [])
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => () => {
+    onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const loadHost = useCallback((hostId: string, updateParent = true) => {
-    const host = data.hosts.find((item) => item.id === hostId)
-    if (!host) {
+    const asset = hostAssets.find((item) => item.id === hostId)
+    if (!asset) {
       return
     }
-    const input = normalizeHostInput(hostToInput(host))
-    setEditingId(host.id)
-    setDraft(input)
-    setBaseline(input)
+    setEditingId(asset.id)
+    setEditingAssetSnapshot(asset)
+    setInitialView('asset')
+    setInitialConnectionSetupConsidered(false)
     setActiveView('editor')
+    setAccessDirty(false)
+    setAccessProtectedIconId('')
     ignoredExternalSelectionRef.current = ''
-    if (updateParent && selectedHostId !== host.id) {
-      onSelectHost(host.id)
+    if (updateParent && selectedHostId !== asset.id) {
+      onSelectHost(asset.id)
     }
-  }, [data.hosts, onSelectHost, selectedHostId])
+  }, [hostAssets, onSelectHost, selectedHostId])
+
+  useEffect(() => {
+    if (!editingId || !editingAssetSnapshot || listedEditingAsset || dirty || busy) return
+    const remaining = hostAssets[0]
+    if (remaining) {
+      loadHost(remaining.id)
+      return
+    }
+    setActiveView('catalog')
+    if (selectedHostId === editingId) onSelectHost('')
+  }, [busy, dirty, editingAssetSnapshot, editingId, hostAssets, listedEditingAsset, loadHost, onSelectHost, selectedHostId])
 
   const startCreate = useCallback(() => {
     ignoredExternalSelectionRef.current = selectedHostId
-    const input = createBlankHostInput()
     setEditingId(null)
-    setDraft(input)
-    setBaseline(input)
+    setInitialView('asset')
+    setInitialConnectionSetupConsidered(false)
     setActiveView('editor')
+    setCreateWorkspaceRevision((current) => current + 1)
+    setAccessDirty(false)
+    setAccessProtectedIconId('')
   }, [selectedHostId])
 
   const applyIntent = useCallback((intent: HostIntent) => {
@@ -154,11 +233,19 @@ export function HostManagementWorkspace({
       startCreate()
       return
     }
-    setDraft(baseline)
     setActiveView('catalog')
-  }, [baseline, loadHost, startCreate])
+    setInitialView('asset')
+    setInitialConnectionSetupConsidered(false)
+    if (accessDirty) {
+      setAccessWorkspaceRevision((current) => current + 1)
+      setCreateWorkspaceRevision((current) => current + 1)
+      setAccessDirty(false)
+      setAccessProtectedIconId('')
+    }
+  }, [accessDirty, loadHost, startCreate])
 
   const requestIntent = useCallback((intent: HostIntent) => {
+    if (saveInFlightRef.current) return
     if (intent.type === 'select' && intent.hostId === editingId) {
       setActiveView('editor')
       return
@@ -174,6 +261,12 @@ export function HostManagementWorkspace({
     if (saveInFlight) {
       return
     }
+    if (
+      entryIntent?.mode === 'edit'
+      && entryIntent.hostId === selectedHostId
+    ) {
+      return
+    }
     if (selectedHostId && selectedHostId === editingId) {
       ignoredExternalSelectionRef.current = ''
       return
@@ -182,71 +275,83 @@ export function HostManagementWorkspace({
       return
     }
     requestIntent({ type: 'select', hostId: selectedHostId, external: true })
-  }, [editingId, requestIntent, saveInFlight, selectedHostId])
+  }, [editingId, entryIntent, requestIntent, saveInFlight, selectedHostId])
 
   useEffect(() => {
-    if (createIntentKey <= 0 || createIntentKey === lastCreateIntentRef.current) {
+    if (!entryIntent || entryIntent.key === acknowledgedEntryIntentRef.current) {
       return
     }
-    lastCreateIntentRef.current = createIntentKey
-    requestIntent({ type: 'create' })
-  }, [createIntentKey, requestIntent])
-
-  useEffect(() => {
-    if (!editingHost || dirty) {
-      return
-    }
-    const next = normalizeHostInput(hostToInput(editingHost))
-    if (!hostInputsEqual(next, baseline)) {
-      setDraft(next)
-      setBaseline(next)
-    }
-  }, [baseline, dirty, editingHost])
-
-  const save = async () => {
-    setSaveInFlight(true)
-    try {
-      const saved = await onSave(editingId, normalizeHostInput(draft))
-      if (!saved) {
+    if (entryIntent.key !== lastEntryIntentRef.current) {
+      if (saveInFlight) {
         return
       }
-      const next = normalizeHostInput(hostToInput(saved))
+      lastEntryIntentRef.current = entryIntent.key
+      requestIntent(entryIntent.mode === 'edit'
+        ? { type: 'select', hostId: entryIntent.hostId, external: true }
+        : { type: entryIntent.mode === 'create' ? 'create' : 'back' })
+    }
+    acknowledgedEntryIntentRef.current = entryIntent.key
+    onEntryIntentHandled?.(entryIntent.key)
+  }, [entryIntent, onEntryIntentHandled, requestIntent, saveInFlight])
+
+  const createHost = async (input: HostProvisionInput, section: HostEditorSection) => {
+    if (saveInFlightRef.current) return
+    saveInFlightRef.current = true
+    onSavingChangeRef.current?.(true)
+    setSaveInFlight(true)
+    try {
+      const { host: saved } = await accessGateway.provisionHost(input)
+      if (!mountedRef.current) return
+      setCreatedAsset(saved)
+      setEditingAssetSnapshot(saved)
       setEditingId(saved.id)
-      setDraft(next)
-      setBaseline(next)
+      setInitialView(section === 'connections' ? 'access' : 'asset')
+      setInitialConnectionSetupConsidered(true)
+      setAccessDirty(false)
+      setAccessProtectedIconId('')
       onSelectHost(saved.id)
     } finally {
-      setSaveInFlight(false)
+      saveInFlightRef.current = false
+      if (mountedRef.current) {
+        setSaveInFlight(false)
+        onSavingChangeRef.current?.(false)
+      }
     }
   }
 
   const removeCurrentHost = async () => {
     if (!editingId) {
-      return
+      return false
     }
-    const currentIndex = data.hosts.findIndex((host) => host.id === editingId)
+    const currentIndex = hostAssets.findIndex((host) => host.id === editingId)
     const removed = await onDelete(editingId)
     if (!removed) {
-      return
+      return false
     }
-    const remaining = data.hosts.filter((host) => host.id !== editingId)
+    const remaining = hostAssets.filter((host) => host.id !== editingId)
+    if (createdAsset?.id === editingId) setCreatedAsset(undefined)
     const next = remaining[Math.min(currentIndex, remaining.length - 1)]
     if (next) {
       loadHost(next.id)
     } else {
-      const empty = createBlankHostInput()
       setEditingId(null)
-      setDraft(empty)
-      setBaseline(empty)
+      setInitialView('asset')
+      setInitialConnectionSetupConsidered(false)
       setActiveView('catalog')
+      setAccessDirty(false)
+      setAccessProtectedIconId('')
       onSelectHost('')
     }
+    return true
   }
 
   const cancelPendingIntent = () => {
     if (pendingIntent?.type === 'select' && pendingIntent.external) {
       ignoredExternalSelectionRef.current = pendingIntent.hostId
       onSelectHost(editingId ?? '')
+      if (accessIntent?.hostId === pendingIntent.hostId) {
+        onAccessIntentHandled?.(accessIntent.key)
+      }
     }
     setPendingIntent(null)
   }
@@ -258,8 +363,40 @@ export function HostManagementWorkspace({
         activeView={activeView}
         catalogLabel={t('hosts.list')}
         editorLabel={t('hosts.editor')}
-        catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />}
-        editor={<HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={dirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />}
+        catalog={<HostCatalog items={directoryItems} groups={data.groups} selectedHostId={editingId} actionBusy={busy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />}
+        editor={editingAsset ? (
+          <HostAccessWorkspace
+            key={`${editingAsset.id}:${accessWorkspaceRevision}`}
+            host={editingAsset}
+            data={data}
+            gateway={accessGateway}
+            initialView={initialView}
+            initialConnectionSetupConsidered={initialConnectionSetupConsidered}
+            openAccessIntentKey={
+              accessIntent?.hostId === editingAsset.id ? accessIntent.key : 0
+            }
+            onAccessIntentHandled={onAccessIntentHandled}
+            actionBusy={busy}
+            getHostIconUrl={getHostIconUrl}
+            onBack={() => requestIntent({ type: 'back' })}
+            onDeleteHost={removeCurrentHost}
+            onCreateGroup={onCreateGroup}
+            onManageProxies={() => setProxyManagerOpen(true)}
+            onManageIcons={() => setIconManagerOpen(true)}
+            onDirtyChange={setAccessDirty}
+            onProtectedIconIdChange={setAccessProtectedIconId}
+            onLaunchAgent={onLaunchAgent}
+          />
+        ) : (
+          <HostCreateEditor
+            key={`new:${createWorkspaceRevision}`} data={data} busy={busy}
+            getHostIconUrl={getHostIconUrl} onBack={() => requestIntent({ type: 'back' })}
+            onCreate={createHost} onDirtyChange={setAccessDirty}
+            onProtectedIconIdChange={setAccessProtectedIconId}
+            onCreateGroup={onCreateGroup} onManageIcons={() => setIconManagerOpen(true)}
+            onManageProxies={() => setProxyManagerOpen(true)}
+          />
+        )}
       />
       <GroupManagerModal
         open={groupManagerOpen}
@@ -293,19 +430,13 @@ export function HostManagementWorkspace({
         onClose={() => setProxyManagerOpen(false)}
         onCreate={onCreateProxy}
         onUpdate={onUpdateProxy}
-        onDelete={async (id) => {
-          const deleted = await onDeleteProxy(id)
-          if (deleted && draft.proxy_id === id) {
-            setDraft((current) => ({ ...current, proxy_id: '' }))
-          }
-          return deleted
-        }}
+        onDelete={onDeleteProxy}
       />
       <HostIconManagerModal
         open={iconManagerOpen}
         hostIcons={data.hostIcons}
-        hosts={data.hosts}
-        protectedIconIds={dirty && draft.icon_id ? [draft.icon_id] : []}
+        hosts={hostAssets}
+        protectedIconIds={accessProtectedIconId ? [accessProtectedIconId] : []}
         actionBusy={actionBusy}
         getIconUrl={getHostIconUrl}
         onClose={() => setIconManagerOpen(false)}

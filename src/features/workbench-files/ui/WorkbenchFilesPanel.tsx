@@ -21,6 +21,7 @@ import {
   FolderOpen,
   FolderPlus,
   FolderRoot,
+  FolderSearch2,
   LoaderCircle,
   MoreHorizontal,
   PencilLine,
@@ -33,6 +34,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type DragEvent,
@@ -40,28 +42,54 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
+import { writeClipboardText } from '#shared/clipboard'
 import type { FileGateway } from '#features/files'
-import { useTransferRuntime } from '#features/transfers'
 import {
+  createUploadWithConflictDecision,
+  RemoteCopyModal,
+  UploadConflictDialog,
+  validateRemoteCopySource,
+  type RemoteCopyCreateRequest,
+  type RemoteCopyCreateDirectoryRequest,
+  type RemoteCopyDirectoryRequest,
+  type RemoteCopyOverwriteConfirmation,
+  type RemoteCopySourceSnapshot,
+  useTransferRuntime,
+  useUploadConflictDecision,
+} from '#features/transfers'
+import {
+  advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
+  formatRemoteFilePathsForClipboard,
+  isAdvancedRenameSourceSessionCurrent,
+  loadAdvancedRenameModal,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   runRemoteFileAction,
+  snapshotRemoteFileActionSelection,
+  useGlobalFileSearchRuntime,
+  validateAdvancedRenameSource,
+  type AdvancedRenameSourceSnapshot,
+  type GlobalFileSearchRevealResult,
+  type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
   RemotePermissionModal,
 } from '#features/remote-file'
 import type { AppTheme as ThemeMode, TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Session } from '#entities/session'
 import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkInput,
   FileSession,
+  FileSessionConnectInput,
   LocalGrantSource,
   RemoteFileEntry,
+  TransferTask,
 } from '#entities/file'
-import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
+import { joinPath, normalizeRemotePath, normalizeRemotePosixPath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
 import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
@@ -84,6 +112,11 @@ import {
   type FileSessionRecoveryState,
 } from '../model/workbenchFileSessionLifecycle'
 import { isLocalFileDrag } from '../model/workbenchFileDrag'
+import {
+  hasPendingTransferForDirectory,
+  refreshCompletedTransferPath,
+  trackCompletedTransferPath,
+} from '../model/workbenchTransferState'
 import styles from './WorkbenchFilesPanel.module.scss'
 import controlsStyles from './WorkbenchFileControls.module.scss'
 import fileListStyles from './WorkbenchFileList.module.scss'
@@ -91,6 +124,7 @@ import transferStyles from './WorkbenchTransferBar.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
+const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 const imagePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg)$/i
 const panelClassName = (className: string) => [className, styles[className]].filter(Boolean).join(' ')
 const controlsClassName = (className: string) => [panelClassName(className), controlsStyles[className]].filter(Boolean).join(' ')
@@ -99,6 +133,7 @@ const transferClassName = (className: string) => `${className} ${transferStyles[
 
 interface WorkbenchFilesPanelProps {
   api: FileGateway
+  getHostIconUrl: (iconId: string) => string
   data: WorkbenchFilesData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   session: Session | null
@@ -115,12 +150,7 @@ interface WorkbenchFilesPanelProps {
   ) => Promise<FileBookmark>
   pathNavigationIntent: WorkbenchFilesPathNavigationIntent | null
   onConsumePathNavigationIntent: (requestId: number) => void
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onReconnectSession: (session: Session) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
@@ -128,6 +158,7 @@ interface WorkbenchFilesPanelProps {
 
 interface WorkbenchFilesData {
   hosts: Host[]
+  fileAccessProfiles: FileAccessProfile[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
   fileSessions: FileSession[]
@@ -152,6 +183,7 @@ export function WorkbenchFilesPanel(props: WorkbenchFilesPanelProps) {
 
 function WorkbenchFilesPanelContent({
   api,
+  getHostIconUrl,
   data,
   fileSessionClosures,
   session,
@@ -172,7 +204,70 @@ function WorkbenchFilesPanelContent({
 }: WorkbenchFilesPanelProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
+  const globalFileSearchRuntime = useGlobalFileSearchRuntime()
+  const globalFileSearchInstanceId = useId()
+  const globalFileSearchOwnerId = `workbench.files:${globalFileSearchInstanceId}`
   const runtime = useTransferRuntime()
+  const runtimeTransfers = runtime.transfers
+  const remoteCopyRefreshVersion = runtime.remoteCopyRefreshVersion
+  const consumeRemoteCopyRefreshEvents = runtime.consumeRemoteCopyRefreshEvents
+  const listRemoteCopyDirectories = useCallback(({
+    fileSessionId,
+    path,
+    rememberPath,
+    signal,
+  }: RemoteCopyDirectoryRequest) => (
+    api.listFileSessionFiles(fileSessionId, path, { rememberPath, signal })
+  ), [api])
+  const createRemoteCopyDirectory = useCallback(({
+    fileSessionId,
+    path,
+  }: RemoteCopyCreateDirectoryRequest) => (
+    api.mkdirFileSessionFile(fileSessionId, path)
+  ), [api])
+  const createRemoteCopyTransfer = useCallback((request: RemoteCopyCreateRequest) => api.createRemoteCopyTransfer({
+    source_file_session_id: request.sourceFileSessionId,
+    source_connection_generation: request.sourceConnectionGeneration,
+    target_file_session_id: request.targetFileSessionId,
+    target_connection_generation: request.targetConnectionGeneration,
+    source_paths: request.sourcePaths,
+    target_dir: request.targetDir,
+    target_dir_mode: request.targetDirMode,
+    overwrite_policy: request.overwritePolicy,
+  }), [api])
+  const confirmRemoteCopyOverwrite = useCallback((
+    confirmation: RemoteCopyOverwriteConfirmation,
+  ) => new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (confirmed: boolean) => {
+      if (!settled) {
+        settled = true
+        resolve(confirmed)
+      }
+    }
+    modal.confirm({
+      title: t('files.remoteCopy.overwriteConfirmTitle'),
+      content: t(confirmation.mode === 'batch'
+        ? 'files.remoteCopy.overwriteConfirmBatchDescription'
+        : 'files.remoteCopy.overwriteConfirmDescription', {
+        count: confirmation.sourceCount,
+        ...(confirmation.mode === 'single'
+          ? { host: confirmation.targetHostName }
+          : { targets: confirmation.targetCount }),
+        path: confirmation.targetPath,
+      }),
+      okText: t('files.remoteCopy.overwriteConfirmAction'),
+      cancelText: t('app.cancel'),
+      okButtonProps: { danger: true },
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      onOk: () => finish(true),
+      onCancel: () => finish(false),
+      afterClose: () => finish(false),
+    })
+  }), [modal, t])
+  const uploadConflictDecision = useUploadConflictDecision()
+  const cancelPendingUploadConflict = uploadConflictDecision.cancelPending
   const closing = Boolean(session?.id && closingSessionIds.has(session.id))
   const files = useWorkbenchSessionFiles({
     api,
@@ -195,6 +290,9 @@ function WorkbenchFilesPanelContent({
     : null
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
+  const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
+  const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
+  const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
@@ -211,7 +309,25 @@ function WorkbenchFilesPanelContent({
   const breadcrumbViewportRef = useRef<HTMLDivElement>(null)
   const breadcrumbPinnedToEndRef = useRef(true)
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
-  const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
+  const remoteCopyRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
+  const completedUploadPathsRef = useRef(new Map<string, Map<string, number>>())
+  const completedDirectoryRefreshesRef = useRef(new Set<string>())
+  const handleRemoteCopyCreated = useCallback((tasks: TransferTask[]) => {
+    for (const task of tasks) {
+      if (task.target_file_session_id) {
+        remoteCopyRefreshTasksRef.current.set(task.id, {
+          fileSessionId: task.target_file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+      runtime.upsertTransfer(task)
+    }
+    notification.success({
+      title: t('files.transferCreated'),
+      duration: 2,
+      className: termousNotificationClassName,
+    })
+  }, [notification, runtime, t])
   const pathNavigationRequestRef = useRef<{
     requestId: number
     fileSessionId: string
@@ -231,6 +347,36 @@ function WorkbenchFilesPanelContent({
   navigateDirectoryRef.current = files.navigateDirectory
   reconnectFileSessionRef.current = files.reconnect
   consumePathNavigationIntentRef.current = onConsumePathNavigationIntent
+  useEffect(() => {
+    if (!remoteCopySource) {
+      return
+    }
+    const sourceSession = data.fileSessions.find((item) => item.id === remoteCopySource.fileSessionId)
+    if (
+      !sourceSession
+      || sourceSession.status !== 'connected'
+      || sourceSession.host_id !== remoteCopySource.hostId
+      || (sourceSession.connection_generation ?? 0) !== remoteCopySource.connectionGeneration
+    ) {
+      setRemoteCopySource(null)
+    }
+  }, [data.fileSessions, remoteCopySource])
+  useEffect(() => {
+    if (!advancedRenameSource) {
+      return
+    }
+    if (!isAdvancedRenameSourceSessionCurrent(advancedRenameSource, files.fileSession, closing)) {
+      setAdvancedRenameSource(null)
+    }
+  }, [advancedRenameSource, closing, files.fileSession])
+  useEffect(() => {
+    cancelPendingUploadConflict()
+  }, [
+    files.fileSession?.connection_generation,
+    files.fileSession?.id,
+    files.fileSession?.status,
+    cancelPendingUploadConflict,
+  ])
   const followTerminal = Boolean(files.viewState?.followTerminal)
   const cwdPendingPath = files.connected
     ? files.viewState?.pendingTerminalPath || (
@@ -281,6 +427,101 @@ function WorkbenchFilesPanelContent({
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
+  const globalFileSearchContextRef = useRef({
+    enabled,
+    closing,
+    fileSession: files.fileSession,
+    loadDirectory: files.loadDirectory,
+    setFollowTerminal: files.setFollowTerminal,
+  })
+  globalFileSearchContextRef.current = {
+    enabled,
+    closing,
+    fileSession: files.fileSession,
+    loadDirectory: files.loadDirectory,
+    setFollowTerminal: files.setFollowTerminal,
+  }
+
+  const revealGlobalFileSearchResult = useCallback(async (
+    source: GlobalFileSearchSource,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<GlobalFileSearchRevealResult> => {
+    const normalizedPath = normalizeRemotePosixPath(path)
+    const context = globalFileSearchContextRef.current
+    if (
+      !normalizedPath
+      || signal.aborted
+      || !context.enabled
+      || context.closing
+      || context.fileSession?.id !== source.fileSessionId
+      || context.fileSession.status !== 'connected'
+      || (context.fileSession.connection_generation ?? 0) !== source.connectionGeneration
+    ) {
+      return { status: 'cancelled' }
+    }
+
+    let targetPresent = false
+    let loadError = ''
+    const loaded = await context.loadDirectory(parentPath(normalizedPath), {
+      signal,
+      onCommitted: (listing) => {
+        targetPresent = listing.entries.some((entry) => (
+          normalizeRemotePosixPath(entry.path) === normalizedPath
+        ))
+      },
+      onError: (description) => {
+        loadError = description
+      },
+    })
+    const latest = globalFileSearchContextRef.current
+    if (
+      signal.aborted
+      || !latest.enabled
+      || latest.closing
+      || latest.fileSession?.id !== source.fileSessionId
+      || latest.fileSession.status !== 'connected'
+      || (latest.fileSession.connection_generation ?? 0) !== source.connectionGeneration
+    ) {
+      return { status: 'cancelled' }
+    }
+    if (!loaded) {
+      return loadError
+        ? { status: 'failed', description: loadError }
+        : { status: 'cancelled' }
+    }
+    if (!targetPresent) {
+      return { status: 'missing' }
+    }
+    latest.setFollowTerminal(false)
+    setGlobalFileSearchRevealPath(normalizedPath)
+    return { status: 'revealed' }
+  }, [])
+
+  const settleGlobalFileSearchReveal = useCallback((path: string) => {
+    setGlobalFileSearchRevealPath((current) => current === path ? null : current)
+  }, [])
+
+  useEffect(() => {
+    setGlobalFileSearchRevealPath(null)
+  }, [fileSessionConnectionGeneration, fileSessionId])
+
+  useEffect(() => {
+    if (!enabled || closing || !files.connected) {
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      setGlobalFileSearchRevealPath(null)
+    }
+  }, [
+    closing,
+    enabled,
+    files.connected,
+    globalFileSearchOwnerId,
+    globalFileSearchRuntime,
+  ])
+
+  useEffect(() => () => {
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+  }, [globalFileSearchOwnerId, globalFileSearchRuntime])
   const syncMessage = syncStatusMessage(
     syncStatus,
     files.viewState?.syncError ?? '',
@@ -585,10 +826,27 @@ function WorkbenchFilesPanelContent({
   }, [editingPath])
 
   useEffect(() => {
-    if (uploadRefreshTasksRef.current.size === 0 && completedUploadPathsRef.current.size === 0) {
-      return
-    }
-    const byId = new Map(runtime.transfers.map((task) => [task.id, task]))
+    const byId = new Map(runtimeTransfers.map((task) => [task.id, task]))
+    consumeRemoteCopyRefreshEvents('workbench-files').forEach((event) => {
+      trackCompletedTransferPath(
+        completedUploadPathsRef.current,
+        event.targetFileSessionId,
+        normalizeRemotePath(event.targetPath),
+        completedDirectoryRefreshesRef.current,
+      )
+    })
+    runtimeTransfers.forEach((task) => {
+      if (
+        task.type === 'remote_copy'
+        && (task.status === 'queued' || task.status === 'running')
+        && task.target_file_session_id
+      ) {
+        remoteCopyRefreshTasksRef.current.set(task.id, {
+          fileSessionId: task.target_file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+    })
     for (const [taskId, tracked] of uploadRefreshTasksRef.current) {
       const task = byId.get(taskId)
       if (!task) {
@@ -600,25 +858,58 @@ function WorkbenchFilesPanelContent({
       }
       uploadRefreshTasksRef.current.delete(taskId)
       if (task.status === 'completed') {
-        const paths = completedUploadPathsRef.current.get(tracked.fileSessionId) ?? new Set<string>()
-        paths.add(tracked.targetPath)
-        completedUploadPathsRef.current.set(tracked.fileSessionId, paths)
+        trackCompletedTransferPath(
+          completedUploadPathsRef.current,
+          tracked.fileSessionId,
+          tracked.targetPath,
+          completedDirectoryRefreshesRef.current,
+        )
+      }
+    }
+    for (const [taskId, tracked] of remoteCopyRefreshTasksRef.current) {
+      const task = byId.get(taskId)
+      if (!task) {
+        remoteCopyRefreshTasksRef.current.delete(taskId)
+        continue
+      }
+      if (task.status === 'queued' || task.status === 'running') {
+        continue
+      }
+      remoteCopyRefreshTasksRef.current.delete(taskId)
+      if (task.status === 'completed' || task.partial === true) {
+        trackCompletedTransferPath(
+          completedUploadPathsRef.current,
+          tracked.fileSessionId,
+          tracked.targetPath,
+          completedDirectoryRefreshesRef.current,
+        )
       }
     }
     if (!fileSessionId) {
       return
     }
-    const hasPendingCurrentSession = [...uploadRefreshTasksRef.current.values()]
-      .some((tracked) => tracked.fileSessionId === fileSessionId)
-    if (hasPendingCurrentSession) {
+    const hasPendingCurrentDirectory = hasPendingTransferForDirectory([
+      ...uploadRefreshTasksRef.current.values(),
+      ...remoteCopyRefreshTasksRef.current.values(),
+    ], fileSessionId, currentPath)
+    if (hasPendingCurrentDirectory) {
       return
     }
-    const completedPaths = completedUploadPathsRef.current.get(fileSessionId)
-    completedUploadPathsRef.current.delete(fileSessionId)
-    if (completedPaths?.has(currentPath)) {
-      void loadDirectory(currentPath)
-    }
-  }, [currentPath, fileSessionId, loadDirectory, runtime.transfers])
+    void refreshCompletedTransferPath(
+      completedUploadPathsRef.current,
+      completedDirectoryRefreshesRef.current,
+      fileSessionId,
+      currentPath,
+      loadDirectory,
+    )
+  }, [
+    currentPath,
+    fileSessionId,
+    loadDirectory,
+    consumeRemoteCopyRefreshEvents,
+    remoteCopyRefreshVersion,
+    runtimeTransfers,
+  ])
 
   const notifyFailure = () => notification.error({
     title: t('files.operationFailed'),
@@ -639,19 +930,55 @@ function WorkbenchFilesPanelContent({
   }
 
   const uploadPaths = async (source: LocalGrantSource, paths: string[], targetPath?: string) => {
-    if (!files.fileSession?.id || paths.length === 0) {
+    const requestSession = fileSessionRef.current
+    if (!requestSession?.id || requestSession.status !== 'connected' || paths.length === 0) {
       return
     }
+    const fileSessionId = requestSession.id
+    const connectionGeneration = requestSession.connection_generation ?? 0
     const remoteDir = normalizeRemotePath(targetPath || currentPath)
-    await runAction(async () => {
-      const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createFileSessionUploadTransfer(files.fileSession!.id, grant.id, remoteDir, 'rename')
+
+    const isCurrentUploadSession = () => {
+      const currentSession = fileSessionRef.current
+      return currentSession?.id === fileSessionId
+        && currentSession.status === 'connected'
+        && (currentSession.connection_generation ?? 0) === connectionGeneration
+    }
+
+    try {
+      const task = await createUploadWithConflictDecision({
+        source,
+        paths,
+        targetPath: remoteDir,
+        createGrant: api.createLocalFileGrant,
+        releaseGrant: api.releaseLocalFileGrant,
+        stat: (path) => api.statFileSessionFile(fileSessionId, path),
+        requestPolicy: uploadConflictDecision.requestPolicy,
+        isCurrent: isCurrentUploadSession,
+        createUpload: (grantId, overwriteItemIds) => api.createFileSessionUploadTransfer(
+          fileSessionId,
+          grantId,
+          remoteDir,
+          'rename',
+          overwriteItemIds,
+        ),
+      })
+      if (!task) {
+        return
+      }
       uploadRefreshTasksRef.current.set(task.id, {
-        fileSessionId: files.fileSession!.id,
+        fileSessionId,
         targetPath: remoteDir,
       })
       runtime.upsertTransfer(task)
-    }, t('files.transferCreated'))
+      notification.success({
+        title: t('files.transferCreated'),
+        duration: 2,
+        className: termousNotificationClassName,
+      })
+    } catch {
+      notifyFailure()
+    }
   }
 
   const downloadPaths = async (paths: string[]) => {
@@ -762,13 +1089,87 @@ function WorkbenchFilesPanelContent({
   })
 
   const menuFor = (entry: RemoteFileEntry): MenuProps => ({
-    items: buildRemoteFileActionMenu(entry, t),
+    items: buildRemoteFileActionMenu(entry, t, { includeAdvancedRename: false }),
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
-      files.setSelectedPaths([entry.path])
+      const selectedPaths = files.viewState?.selectedPaths ?? []
+      const actionPaths = selectedPaths.includes(entry.path)
+        ? [...selectedPaths]
+        : [entry.path]
+      if (!selectedPaths.includes(entry.path)) {
+        files.setSelectedPaths([entry.path])
+      }
+      const openRemoteCopy = () => {
+        if (!files.fileSession) {
+          return
+        }
+        const snapshot = snapshotRemoteFileActionSelection(
+          entry,
+          selectedPaths,
+          files.entries,
+        )
+        if (!snapshot) {
+          notification.error({
+            title: t('files.operationFailed'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        if (!validateRemoteCopySource(snapshot.entries).valid) {
+          notification.warning({
+            title: t('files.remoteCopy.unsupportedSelection'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        setRemoteCopySource({
+          hostId: files.fileSession.host_id,
+          fileSessionId: files.fileSession.id,
+          connectionGeneration: files.fileSession.connection_generation ?? 0,
+          entries: snapshot.entries,
+        })
+      }
+      const openAdvancedRename = () => {
+        if (closing || !files.connected || !files.fileSession || !files.viewState?.listing) {
+          return
+        }
+        const snapshot = snapshotRemoteFileActionSelection(entry, selectedPaths, files.entries)
+        if (!snapshot) {
+          notification.error({
+            title: t('files.operationFailed'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        const sourceValidation = validateAdvancedRenameSource(snapshot.entries)
+        if (!sourceValidation.valid) {
+          notification.warning({
+            title: sourceValidation.reason === 'too_many'
+              ? t('files.advancedRename.selectionLimit', { limit: advancedRenameSourceLimit })
+              : t('files.advancedRename.unsupportedSelection'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        setAdvancedRenameSource({
+          fileSessionId: files.fileSession.id,
+          connectionGeneration: files.fileSession.connection_generation ?? 0,
+          directory: normalizeRemotePath(files.viewState.listing.path || currentPath),
+          entries: snapshot.entries,
+        })
+      }
       const handlers: RemoteFileActionHandlers = {
         openFile: (target) => void openEntry(target),
         download: (target) => void downloadPaths([target.path]),
+        sendToHost: openRemoteCopy,
         copy: (target) => {
           if (files.fileSession) {
             setRemoteClipboard({ mode: 'copy', hostId: files.fileSession.host_id, paths: [target.path] })
@@ -779,8 +1180,13 @@ function WorkbenchFilesPanelContent({
             setRemoteClipboard({ mode: 'cut', hostId: files.fileSession.host_id, paths: [target.path] })
           }
         },
+        copyAbsolutePath: () => void runAction(
+          () => writeClipboardText(formatRemoteFilePathsForClipboard(actionPaths)),
+          t('files.absolutePathCopied', { count: actionPaths.length }),
+        ),
         permissions: setPermissionEntry,
         rename: renameEntry,
+        advancedRename: openAdvancedRename,
         delete: deleteEntry,
       }
       runRemoteFileAction(entry, String(key), handlers)
@@ -1002,6 +1408,33 @@ function WorkbenchFilesPanelContent({
                 icon={<RefreshCw className={directoryRefreshing ? `${uiStyles['is-spinning']} ${panelClassName('is-spinning')}` : ''} size={14} />}
                 disabled={directoryLoading || !files.connected}
                 onClick={() => void files.loadDirectory(currentPath)}
+              />
+            </Tooltip>
+            <Tooltip title={t('files.globalSearch.action')}>
+              <Button
+                type="text"
+                className={panelClassName('workbench-files-icon-button')}
+                aria-label={t('files.globalSearch.action')}
+                icon={<FolderSearch2 size={14} aria-hidden="true" />}
+                disabled={directoryNavigationLocked}
+                onClick={() => {
+                  if (!files.fileSession) {
+                    return
+                  }
+                  const source: GlobalFileSearchSource = {
+                    fileSessionId: files.fileSession.id,
+                    connectionGeneration: files.fileSession.connection_generation ?? 0,
+                    hostName: sessionHost?.name ?? files.fileSession.host_id,
+                    currentPath,
+                  }
+                  globalFileSearchRuntime.openSearch({
+                    ownerId: globalFileSearchOwnerId,
+                    source,
+                    onReveal: (path, signal) => (
+                      revealGlobalFileSearchResult(source, path, signal)
+                    ),
+                  })
+                }}
               />
             </Tooltip>
             <Tooltip title={t('workbench.manageFiles')}>
@@ -1375,12 +1808,14 @@ function WorkbenchFilesPanelContent({
         pendingPath={pendingDirectoryPath}
         listRef={files.listRef}
         menuFor={menuFor}
-        onSelect={(entry) => files.setSelectedPaths([entry.path])}
+        onSelectPaths={files.setSelectedPaths}
         onOpen={openEntry}
         onScroll={files.recordScroll}
         onUploadDrop={(target, event) => void uploadDrop(target, event)}
         onUploadFiles={() => void uploadPickedFiles()}
         uploading={uploadPicking}
+        revealPath={globalFileSearchRevealPath}
+        onRevealSettled={settleGlobalFileSearchReveal}
       />
       <div className={panelClassName('workbench-file-transfer-overlay')}>
         <WorkbenchTransferBar
@@ -1389,6 +1824,55 @@ function WorkbenchFilesPanelContent({
           onActionError={notifyFailure}
         />
       </div>
+      <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
+      {remoteCopySource ? (
+        <RemoteCopyModal
+          open
+          source={remoteCopySource}
+          hosts={data.hosts}
+          fileSessions={data.fileSessions}
+          getHostIconUrl={getHostIconUrl}
+          listDirectories={listRemoteCopyDirectories}
+          createDirectory={createRemoteCopyDirectory}
+          createRemoteCopy={createRemoteCopyTransfer}
+          confirmOverwrite={confirmRemoteCopyOverwrite}
+          onCreated={handleRemoteCopyCreated}
+          onClose={() => setRemoteCopySource(null)}
+        />
+      ) : null}
+      {advancedRenameSource ? (
+        <Suspense fallback={null}>
+          <AdvancedRenameModal
+            api={api}
+            open
+            source={advancedRenameSource}
+            onClose={() => setAdvancedRenameSource(null)}
+            onCompleted={() => {
+              const source = advancedRenameSource
+              setAdvancedRenameSource(null)
+              if (
+                files.fileSession?.id === source.fileSessionId
+                && (files.fileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                files.setSelectedPaths([])
+                void files.loadDirectory(source.directory)
+              }
+            }}
+            onDirectoryRefresh={() => {
+              const source = advancedRenameSource
+              if (
+                files.fileSession?.id === source.fileSessionId
+                && (files.fileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                return files.loadDirectory(source.directory).then(() => undefined)
+              }
+              return undefined
+            }}
+          />
+        </Suspense>
+      ) : null}
       <RemotePermissionModal
         entry={permissionEntry}
         open={Boolean(permissionEntry)}

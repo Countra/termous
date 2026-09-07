@@ -1,0 +1,226 @@
+.capability-shell,
+.capability-loading,
+.install-progress,
+.capability-missing,
+.capability-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.capability-shell {
+  display: grid;
+  padding: 16px 18px;
+}
+
+.capability-shell > * {
+  height: 100%;
+}
+
+.capability-loading {
+  display: grid;
+  align-content: center;
+  gap: 20px;
+  padding: 56px max(28px, 18%);
+}
+
+.capability-loading-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.install-progress {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.install-progress-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.install-progress strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.install-progress > span:not(.install-progress-icon) {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.install-steps {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 22px 0 0;
+  padding: 0;
+  color: var(--text-muted);
+  counter-reset: install-step;
+  font-size: 10px;
+  list-style: none;
+}
+
+.install-steps li {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  counter-increment: install-step;
+}
+
+.install-steps li::before {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  content: counter(install-step);
+}
+
+.install-steps li:not(:last-child)::after {
+  position: absolute;
+  top: 11px;
+  left: calc(50% + 17px);
+  width: 46px;
+  height: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.install-steps li.is-active,
+.install-steps li.is-complete {
+  color: var(--accent);
+}
+
+.install-steps li.is-active::before,
+.install-steps li.is-complete::before {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--accent-soft);
+}
+
+.capability-missing {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 0 18px 16px;
+}
+
+.capability-empty {
+  border: 0;
+  background: transparent;
+}
+
+.capability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.capability-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  margin: 0;
+  overflow: hidden;
+}
+
+.capability-facts > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.capability-facts > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.capability-facts dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.capability-facts dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spinner {
+  animation: global-file-search-capability-spin 0.85s linear infinite;
+}
+
+@keyframes global-file-search-capability-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (width <= 700px) {
+  .capability-loading,
+  .install-progress,
+  .capability-missing,
+  .capability-empty {
+    min-height: 0;
+  }
+
+  .capability-shell {
+    padding: 12px;
+  }
+
+  .capability-missing {
+    overflow-y: auto;
+    padding: 0 12px 12px;
+  }
+
+  .capability-actions {
+    display: grid;
+    width: min(100%, 280px);
+  }
+
+  .capability-actions :global(.ant-btn) {
+    width: 100%;
+  }
+
+  .capability-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .capability-facts > div + div {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.8s;
+  }
+}

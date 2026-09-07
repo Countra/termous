@@ -250,7 +250,9 @@ export function createDevelopmentUpdateSimulationStore(
         operation_generation: snapshot.operation_generation,
         summary_revision: 1,
         summary: {
+          agent_runs: 1,
           ssh_sessions: 1,
+          remote_desktop_sessions: 1,
           file_sessions: 1,
           forwards: 0,
           transfers: 0,

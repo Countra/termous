@@ -75,55 +75,6 @@ export function shouldNotifyFileSessionRecoveryFailure(
   return true
 }
 
-export interface SourceSessionContext {
-  hostId: string
-  status: Session['status']
-}
-
-export function buildSourceSessionContexts(sessions: Session[]) {
-  const contexts = new Map<string, SourceSessionContext>()
-  for (const session of sessions) {
-    if (session.kind !== 'ssh' || !session.host_id) {
-      continue
-    }
-    contexts.set(session.id, {
-      hostId: session.host_id,
-      status: session.status,
-    })
-  }
-  return contexts
-}
-
-export function isCurrentSourceSession(
-  contexts: Map<string, SourceSessionContext>,
-  sourceSessionId: string,
-  hostId: string,
-) {
-  const source = contexts.get(sourceSessionId)
-  return source?.status === 'connected' && source.hostId === hostId
-}
-
-export function canApplyCreatedFileSession(
-  created: FileSession,
-  contexts: Map<string, SourceSessionContext>,
-  sourceSessionId: string,
-  hostId: string,
-) {
-  return isCurrentSourceSession(contexts, sourceSessionId, hostId)
-    && created.source_session_id === sourceSessionId
-    && created.host_id === hostId
-}
-
-export function canUseSourceFileSession(
-  contexts: Map<string, SourceSessionContext>,
-  sourceSessionId: string,
-  hostId: string,
-  closingSourceSessionIds: ReadonlySet<string>,
-) {
-  return !closingSourceSessionIds.has(sourceSessionId)
-    && isCurrentSourceSession(contexts, sourceSessionId, hostId)
-}
-
 export function resolveSourceFileSession(
   sourceAvailable: boolean,
   override: FileSession | undefined,

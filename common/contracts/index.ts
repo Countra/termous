@@ -1,4 +1,15 @@
 export type {
+  AgentRuntimeCommandResult,
+  AgentRuntimeRunRef,
+  AgentRuntimeState,
+  AgentRuntimeStatus,
+  AgentRuntimeSteerRequest,
+  AgentQueuedTurnSteerRequest,
+  AgentSkillsBundleState,
+  AgentSkillsBundleStatus,
+} from './agent-runtime.ts'
+export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
+export type {
   AppBuildInfo,
   AppConfig,
   AppLanguage,
@@ -14,6 +25,7 @@ export type {
 } from './application'
 export type {
   AppearanceSettings,
+  ConnectionSettings,
   CompletionProviderId,
   CompletionProviderSettings,
   CompletionSettings,

@@ -43,6 +43,7 @@ export function WorkbenchDetailsPanel({
       activeKey={activeKey}
       ariaLabel={t('workbench.currentConnection')}
       className={snippetStyles['workbench-panel-root']}
+      data-tour="workbench-tools"
       collapsed={collapsed}
       collapseLabel={t('app.collapse')}
       expandLabel={t('app.expand')}

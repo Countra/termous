@@ -134,6 +134,7 @@ describe('ProxyManagerModal 行为合同', () => {
 
     expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('proxies.new')
     expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('app.add')
+    expect(screen.queryByText('proxies.newHint')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'app.create' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'app.delete' })).not.toBeInTheDocument()
 

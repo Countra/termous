@@ -4,6 +4,9 @@ import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
+import { mcpScopes } from '#entities/mcp-access'
+import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
+import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
 type TranslationTree = Record<string, unknown>
 
@@ -27,6 +30,51 @@ test('代码中的字面量翻译键均已配置', () => {
     }
   }
   assert.deepEqual([...missing].sort(), [])
+})
+
+test('使用向导动态步骤键拥有完整双语翻译', () => {
+  for (const [locale, translations] of [['zh-CN', zhCN], ['en-US', enUS]] as const) {
+    const steps = buildProductTourSteps((key) => {
+      const value = translationValue(translations, key)
+      assert.equal(typeof value, 'string', `${locale}: ${key}`)
+      return value as string
+    })
+    assert.equal(steps.length, 22, locale)
+  }
+})
+
+test('顶部空会话标签使用统一的双语文案', () => {
+  assert.equal(translationValue(zhCN, 'app.noSessions'), '暂无会话')
+  assert.equal(translationValue(enUS, 'app.noSessions'), 'No sessions')
+})
+
+test('公共布尔值详情文案拥有完整双语翻译', () => {
+  assert.equal(translationValue(zhCN, 'app.yes'), '是')
+  assert.equal(translationValue(zhCN, 'app.no'), '否')
+  assert.equal(translationValue(enUS, 'app.yes'), 'Yes')
+  assert.equal(translationValue(enUS, 'app.no'), 'No')
+})
+
+test('中文界面统一使用 AI 助手产品名称', () => {
+  assert.equal(translationValue(zhCN, 'nav.agent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'agent.message.agent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.tabAgent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.mcp.builtinAgentName'), 'Termous AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.mcp.managedByAgent'), 'AI 助手托管')
+
+  const productNameKeys = flattenKeys(zhCN).filter((key) => (
+    key === 'nav.agent'
+    || key.startsWith('agent.')
+    || key === 'settings.tabAgent'
+    || key.startsWith('settings.agent.')
+    || key === 'settings.mcp.builtinAgentName'
+    || key === 'settings.mcp.managedByAgent'
+  ))
+  const legacyKeys = productNameKeys.filter((key) => {
+    const value = translationValue(zhCN, key)
+    return typeof value === 'string' && /\bAgent\b/u.test(value)
+  })
+  assert.deepEqual(legacyKeys, [])
 })
 
 test('端口转发实时速度文案和格式保持一致', () => {
@@ -132,6 +180,36 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
       assert.equal(typeof translationValue(zhCN, key), 'string', key)
       assert.equal(typeof translationValue(enUS, key), 'string', key)
     }
+  }
+})
+
+test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
+  for (const scope of mcpScopes) {
+    const key = scope.replace(':', '_')
+    assertBilingualString(`settings.mcp.scope.${key}`)
+    assertBilingualString(`settings.mcp.scopeDescription.${key}`)
+  }
+  for (const group of [
+    'hosts',
+    'sessions',
+    'commands',
+    'sftp',
+    'system',
+    'processes',
+    'services',
+    'docker',
+    'crontab',
+    'forwarding',
+    'snippets',
+  ]) {
+    assertBilingualString(`settings.mcp.permissionGroup.${group}`)
+    assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)
+  }
+})
+
+test('选择性备份恢复数据集拥有完整双语文案', () => {
+  for (const dataset of portabilityDatasets) {
+    assertBilingualString(`settings.data.datasets.${dataset}`)
   }
 })
 

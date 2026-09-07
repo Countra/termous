@@ -223,6 +223,61 @@
   box-shadow: none;
 }
 
+.inline-management-action:global(.ant-btn) {
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding-inline: 7px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.inline-management-action:global(.ant-btn) :global(.ant-btn-icon) {
+  display: inline-grid;
+  place-items: center;
+  margin: 0;
+  color: inherit;
+}
+
+.inline-management-action:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):hover,
+.inline-management-action:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.inline-management-action:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.inline-management-action:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface-subtle));
+  color: var(--accent);
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.inline-management-action:global(.ant-btn):disabled,
+.inline-management-action:global(.ant-btn):global(.ant-btn-disabled) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
 .field {
   display: grid;
   align-content: start;

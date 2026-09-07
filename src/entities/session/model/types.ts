@@ -1,4 +1,9 @@
-export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
+export type SessionStatus =
+  | 'connecting'
+  | 'waiting_host_trust'
+  | 'connected'
+  | 'disconnected'
+  | 'failed'
 
 export type InventoryStatus = 'idle' | 'collecting' | 'ready' | 'failed' | 'unsupported'
 
@@ -82,6 +87,8 @@ export type SessionPhase =
   | 'disconnected'
 
 export type SessionKind = 'ssh' | 'local'
+
+export type SessionOrigin = 'app' | 'mcp'
 
 export type LocalShell = 'powershell' | 'cmd'
 
@@ -203,8 +210,11 @@ export interface LinuxNetworkInfo {
 export interface Session {
   id: string
   kind: SessionKind
+  origin: SessionOrigin
   host_id?: string
+  ssh_profile_id?: string
   jump_host_id?: string
+  jump_ssh_profile_id?: string
   proxy_id?: string
   status: SessionStatus
   status_message?: string

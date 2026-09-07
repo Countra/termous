@@ -1,15 +1,63 @@
 import type {
+  AdvancedRenameExecuteInput,
+  AdvancedRenamePlanInput,
+  AdvancedRenamePreview,
   FileOperationTask,
+  FileRenamePreset,
+  FileRenamePresetInput,
+  FileNameSearchCapability,
+  FileNameSearchInstallRequest,
+  FileNameSearchRequest,
+  FileNameSearchResult,
   FileSession,
   LocalFileGrant,
   LocalGrantSource,
   LocalTreeEntry,
   OverwritePolicy,
+  RemoteCopyTransferInput,
   RemoteDirectoryListing,
   RemoteFileEntry,
   RemoteTextSaveRequest,
   TransferTask,
 } from '#entities/file'
+
+export interface AdvancedRenameGateway {
+  fileRenamePresets: () => Promise<FileRenamePreset[]>
+  createFileRenamePreset: (input: FileRenamePresetInput) => Promise<FileRenamePreset>
+  updateFileRenamePreset: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: FileRenamePresetInput,
+  ) => Promise<FileRenamePreset>
+  deleteFileRenamePreset: (id: string, expectedUpdatedAt: string) => Promise<void>
+  previewFileSessionBatchRename: (
+    fileSessionId: string,
+    input: AdvancedRenamePlanInput,
+    signal?: AbortSignal,
+  ) => Promise<AdvancedRenamePreview>
+  createFileSessionBatchRename: (
+    fileSessionId: string,
+    input: AdvancedRenameExecuteInput,
+  ) => Promise<FileOperationTask>
+}
+
+export interface FileNameSearchGateway {
+  fileNameSearchCapability: (
+    fileSessionId: string,
+    connectionGeneration: number,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchCapability>
+  searchFileSessionNames: (
+    fileSessionId: string,
+    input: FileNameSearchRequest,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchResult>
+  installFileNameSearch: (
+    fileSessionId: string,
+    input: FileNameSearchInstallRequest,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchCapability>
+}
 
 export interface FileSessionGateway {
   getFileSession: (id: string) => Promise<FileSession>
@@ -17,7 +65,7 @@ export interface FileSessionGateway {
   listFileSessionFiles: (
     fileSessionId: string,
     path: string,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; rememberPath?: boolean },
   ) => Promise<RemoteDirectoryListing>
   statFileSessionFile: (
     fileSessionId: string,
@@ -81,11 +129,13 @@ export interface FileTransferGateway {
     source: LocalGrantSource,
     paths: string[],
   ) => Promise<LocalFileGrant>
+  releaseLocalFileGrant: (id: string) => Promise<void>
   createFileSessionUploadTransfer: (
     fileSessionId: string,
     localGrantId: string,
     remoteDir: string,
     overwritePolicy?: OverwritePolicy,
+    overwriteItemIds?: string[],
   ) => Promise<TransferTask>
   createFileSessionDownloadTransfer: (
     fileSessionId: string,
@@ -94,6 +144,7 @@ export interface FileTransferGateway {
     overwritePolicy?: OverwritePolicy,
     signal?: AbortSignal,
   ) => Promise<TransferTask>
+  createRemoteCopyTransfer: (input: RemoteCopyTransferInput) => Promise<TransferTask>
   retryTransfer: (id: string) => Promise<TransferTask>
   deleteTransfer: (id: string) => Promise<void>
 }
@@ -115,5 +166,7 @@ export type FileGateway = FileSessionGateway
   & FileOperationGateway
   & FileTransferGateway
   & LocalPathMappingGateway
+  & AdvancedRenameGateway
+  & FileNameSearchGateway
 
 export type LocalDownloadGateway = LocalPathMappingGateway

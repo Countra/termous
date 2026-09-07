@@ -34,6 +34,17 @@ export function formatForwardDuration(startedAt: string, now: number) {
   return `${minutes}:${padTime(seconds)}`
 }
 
+export function formatForwardDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  return [
+    `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}`,
+    `${padTime(date.getHours())}:${padTime(date.getMinutes())}:${padTime(date.getSeconds())}`,
+  ].join(' ')
+}
+
 function padTime(value: number) {
   return String(value).padStart(2, '0')
 }

@@ -10,6 +10,7 @@ import { buildUpdateRuntimeSummary } from '../app/update-runtime/updateRuntimeSu
 test('更新安装影响摘要统计仍会被退出流程中断的远程资源', () => {
   const sessions = [
     { kind: 'ssh', status: 'connecting' },
+    { kind: 'ssh', status: 'waiting_host_trust' },
     { kind: 'ssh', status: 'connected' },
     { kind: 'ssh', status: 'failed' },
     { kind: 'local', status: 'connected' },
@@ -24,19 +25,24 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
     { status: 'starting' },
     { status: 'waiting_host_trust' },
     { status: 'running' },
+    { status: 'reconnecting' },
     { status: 'stopping' },
   ] as ForwardInstance[]
 
   assert.deepEqual(buildUpdateRuntimeSummary({
     activeTransferCount: 4,
+    agentRunCount: 1,
     fileSessions,
     forwards,
     sessions,
-    transferSnapshotComplete: true,
+    remoteDesktopCount: 2,
+    runtimeSnapshotComplete: true,
   }), {
-    ssh_sessions: 2,
+    agent_runs: 1,
+    ssh_sessions: 3,
+    remote_desktop_sessions: 2,
     file_sessions: 3,
-    forwards: 4,
+    forwards: 5,
     transfers: 4,
     transfers_complete: true,
   })
@@ -45,11 +51,14 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
 test('更新安装影响摘要限制异常的传输数量', () => {
   const summary = buildUpdateRuntimeSummary({
     activeTransferCount: Number.POSITIVE_INFINITY,
+    agentRunCount: Number.POSITIVE_INFINITY,
     fileSessions: [],
     forwards: [],
     sessions: [],
-    transferSnapshotComplete: false,
+    remoteDesktopCount: 0,
+    runtimeSnapshotComplete: false,
   })
+  assert.equal(summary.agent_runs, 0)
   assert.equal(summary.transfers, 0)
   assert.equal(summary.transfers_complete, false)
 })

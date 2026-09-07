@@ -183,6 +183,91 @@ describe('领域 API HTTP transport 合同', () => {
     expect(init.headers).toEqual({ 'X-Termous-Token': 'test-token' })
   })
 
+  it('文件会话上传仅提交用户确认过的覆盖项并支持释放临时授权', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'transfer-id' }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createGateways().files.createFileSessionUploadTransfer(
+      'file-session/id',
+      'grant-id',
+      '/srv/releases',
+      'rename',
+      ['item-1'],
+    )
+    await createGateways().files.releaseLocalFileGrant('grant/id')
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(url.toString()).toBe(`${API_BASE_URL}/api/v1/transfers/upload`)
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(JSON.stringify({
+      file_session_id: 'file-session/id',
+      local_grant_id: 'grant-id',
+      remote_dir: '/srv/releases',
+      overwrite_policy: 'rename',
+      overwrite_item_ids: ['item-1'],
+    }))
+    const [releaseUrl, releaseInit] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(releaseUrl.toString()).toBe(`${API_BASE_URL}/api/v1/local-file-grants/grant%2Fid`)
+    expect(releaseInit.method).toBe('DELETE')
+  })
+
+  it('跨主机目录浏览不记忆路径并精确提交双端会话快照', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        host_id: 'target-host',
+        file_session_id: 'target-session',
+        path: '/srv/target path',
+        parent_path: '/srv',
+        entries: [],
+        read_at: '2026-08-15T00:00:00Z',
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'remote-copy-id' }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const files = createGateways().files
+    const abortController = new AbortController()
+
+    await files.listFileSessionFiles(
+      'target-session/id',
+      '/srv/target path',
+      { rememberPath: false, signal: abortController.signal },
+    )
+    await files.createRemoteCopyTransfer({
+      source_file_session_id: 'source-session/id',
+      source_connection_generation: 7,
+      target_file_session_id: 'target-session/id',
+      target_connection_generation: 11,
+      source_paths: ['/srv/a.txt', '/srv/folder'],
+      target_dir: '/srv/target path',
+      target_dir_mode: 'create_if_missing',
+      overwrite_policy: 'skip',
+    })
+
+    const [browseUrl, browseInit] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(browseUrl.toString()).toBe(
+      `${API_BASE_URL}/api/v1/file-sessions/target-session%2Fid/files?path=%2Fsrv%2Ftarget+path&remember_path=false`,
+    )
+    expect(browseInit.method).toBe('GET')
+    expect(browseInit.signal).toBeInstanceOf(AbortSignal)
+    expect(browseInit.signal?.aborted).toBe(false)
+    expect(browseInit.body).toBeUndefined()
+
+    const [createUrl, createInit] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(createUrl.toString()).toBe(`${API_BASE_URL}/api/v1/transfers/remote-copy`)
+    expect(createInit.method).toBe('POST')
+    expect(createInit.body).toBe(JSON.stringify({
+      source_file_session_id: 'source-session/id',
+      source_connection_generation: 7,
+      target_file_session_id: 'target-session/id',
+      target_connection_generation: 11,
+      source_paths: ['/srv/a.txt', '/srv/folder'],
+      target_dir: '/srv/target path',
+      target_dir_mode: 'create_if_missing',
+      overwrite_policy: 'skip',
+    }))
+  })
+
   it('按主机图标库合同列出、改名、排序和删除图标', async () => {
     const icon = {
       id: 'icon/id',

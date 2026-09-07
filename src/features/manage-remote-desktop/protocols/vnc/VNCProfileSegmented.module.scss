@@ -1,0 +1,61 @@
+.control:global(.ant-segmented) {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  padding: 3px;
+}
+
+.control :global(.ant-segmented-group) {
+  min-height: 32px;
+}
+
+.control :global(.ant-segmented-item) {
+  min-width: 0;
+  min-height: 32px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.control :global(.ant-segmented-item-label) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 620;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.control :global(.ant-segmented-item-selected) {
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.control :global(.ant-segmented-item-icon) {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  place-items: center;
+  line-height: 0;
+}
+
+.control :global(.ant-segmented-item-icon + *) {
+  min-width: 0;
+  margin-inline-start: 0;
+}
+
+.control :global(.ant-segmented-item-icon svg) {
+  display: block;
+}

@@ -6,14 +6,10 @@ import {
   selectFileSessionCloseFallback,
   type FileSession,
   type FileSessionClosureState,
+  type FileSessionConnectInput,
 } from '#entities/file'
 
-type ConnectFileSession = (
-  hostId: string,
-  sourceSessionId?: string,
-  initialPath?: string,
-  replacedFileSessionId?: string,
-) => Promise<FileSession>
+type ConnectFileSession = (input: FileSessionConnectInput) => Promise<FileSession>
 
 interface UseFileSessionCoordinatorOptions {
   fileSessions: FileSession[]
@@ -86,23 +82,13 @@ export function useFileSessionCoordinator({
     setActiveFileSessionId(fileSessionId)
   }, [])
 
-  const connectAndActivateFileSession = useCallback<ConnectFileSession>(async (
-    hostId,
-    sourceSessionId,
-    initialPath,
-    replacedFileSessionId,
-  ) => {
-    const fileSession = await connectFileSession(
-      hostId,
-      sourceSessionId,
-      initialPath,
-      replacedFileSessionId,
-    )
+  const connectAndActivateFileSession = useCallback<ConnectFileSession>(async (input) => {
+    const fileSession = await connectFileSession(input)
     retiredFileSessionIdsRef.current.delete(fileSession.id)
     setActiveFileSessionId((current) => selectActiveFileSessionAfterConnect(
       current,
       fileSession.id,
-      replacedFileSessionId,
+      input.replacedFileSessionId,
     ))
     return fileSession
   }, [connectFileSession])

@@ -61,7 +61,7 @@ test('主机连接入口只通过统一窗口快捷键适配器触发', () => {
   assert.match(appSource, /<ShortcutRuntimeProvider settings=\{data\.settings\.shortcuts\}>/)
   assert.match(
     appSource,
-    /<ShortcutWindowAdapter handlers=\{\{[\s\S]*?'app\.host_launcher\.open'[\s\S]*?openContextualHostLauncher\(\)/,
+    /<ShortcutWindowAdapter handlers=\{\{[\s\S]*?'app\.host_launcher\.open'[\s\S]*?openTerminalSessionLauncher\(\)/,
   )
   assert.doesNotMatch(appSource, /isHostLauncherShortcut/)
   assert.doesNotMatch(appSource, /addEventListener\('keydown'/)

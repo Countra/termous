@@ -29,11 +29,13 @@ test('会话和单次后台转发保留原作用域及端点配置', () => {
     scope: 'session',
     session_id: 'session-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
   })
   assert.deepEqual(buildForwardRestartRequest(sessionForward), {
     scope: 'session',
     session_id: 'session-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'local',
@@ -53,6 +55,7 @@ test('会话和单次后台转发保留原作用域及端点配置', () => {
     scope: 'background_once',
     session_id: undefined,
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'dynamic',
@@ -176,6 +179,7 @@ test('启动响应与事件竞态时采用最新事件快照', () => {
 test('等待主机信任和停止过程不是启动终态', () => {
   assert.equal(isForwardStartSettledStatus('starting'), false)
   assert.equal(isForwardStartSettledStatus('waiting_host_trust'), false)
+  assert.equal(isForwardStartSettledStatus('reconnecting'), false)
   assert.equal(isForwardStartSettledStatus('stopping'), false)
   assert.equal(isForwardStartSettledStatus('running'), true)
   assert.equal(isForwardStartSettledStatus('stopped'), true)
@@ -208,6 +212,10 @@ test('运行实例允许重启和停止，过渡状态只允许停止或全部�
     restart: false,
     stop: true,
   })
+  assert.deepEqual(forwardRuntimeActionAvailability('reconnecting'), {
+    restart: false,
+    stop: true,
+  })
   assert.deepEqual(forwardRuntimeActionAvailability('stopping'), {
     restart: false,
     stop: false,
@@ -218,6 +226,7 @@ function createForward(patch: Partial<ForwardInstance> = {}): ForwardInstance {
   return {
     id: 'forward-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'local',

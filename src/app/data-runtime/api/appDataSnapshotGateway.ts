@@ -13,11 +13,16 @@ export function loadAppDataSnapshot(api: AppDataSnapshotGateway) {
     api.hostIcons(),
     api.connectionProxies(),
     api.hosts(),
+    api.hostAssets(),
     api.hostReachability(),
     api.credentials(),
     api.sessions(),
     api.fileSessions(),
+    api.sshAccessProfiles(),
+    api.fileAccessProfiles(),
     api.forwardProfiles(),
     api.forwards(),
+    api.remoteDesktopProfiles(),
+    api.remoteDesktopSessions(),
   ])
 }

@@ -1,0 +1,602 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import type {
+  AgentModel,
+  AgentModelProvider,
+  AgentReadiness,
+  AgentSettings,
+} from '#entities/agent'
+import { TermousApiError } from '#shared/api'
+import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
+import { useAgentSetupController } from './useAgentSetupController.ts'
+
+describe('useAgentSetupController', () => {
+  it('按最新 revision 保存显式默认模型并重新读取 readiness', async () => {
+    const first = readinessFixture(2, 'apm-1', 'high')
+    const refreshed = readinessFixture(3, '', 'off')
+    const gateway = gatewayFixture({ readiness: first })
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(first).mockResolvedValue(refreshed)
+    vi.mocked(gateway.updateSettings).mockResolvedValue(refreshed.settings)
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await view.result.current.updateSettings({
+        default_model_id: '',
+        default_reasoning_level: 'off',
+      })
+    })
+
+    expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: '', default_reasoning_level: 'off',
+      global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
+      show_turn_token_usage: true, expected_revision: 2,
+    }, expect.any(AbortSignal))
+    expect(view.result.current.readiness?.settings).toEqual(refreshed.settings)
+  })
+
+  it('切换每轮 Token 展示时完整保留当前默认设置', async () => {
+    const readiness = readinessFixture(4, 'apm-1', 'high')
+    const updated = {
+      ...readiness.settings,
+      show_turn_token_usage: false,
+      revision: 5,
+    }
+    const gateway = gatewayFixture({ readiness })
+    vi.mocked(gateway.updateSettings).mockResolvedValue(updated)
+    vi.mocked(gateway.readiness)
+      .mockResolvedValueOnce(readiness)
+      .mockResolvedValue({ ...readiness, settings: updated })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await view.result.current.updateSettings({ show_turn_token_usage: false })
+    })
+
+    expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: 'apm-1', default_reasoning_level: 'high',
+      global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
+      show_turn_token_usage: false, expected_revision: 4,
+    }, expect.any(AbortSignal))
+    expect(view.result.current.readiness?.settings).toEqual(updated)
+  })
+
+  it('全局设置 revision 冲突后自动对账并保留冲突状态', async () => {
+    const original = readinessFixture(4, 'apm-1', 'high')
+    const latest = readinessFixture(5, 'apm-1', 'off')
+    const gateway = gatewayFixture({ readiness: original })
+    vi.mocked(gateway.readiness)
+      .mockResolvedValueOnce(original)
+      .mockResolvedValue(latest)
+    vi.mocked(gateway.updateSettings).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.updateSettings({
+        default_reasoning_level: 'low',
+      })).rejects.toThrow('revision conflict')
+    })
+
+    await waitFor(() => expect(view.result.current.readiness?.settings).toEqual(latest.settings))
+    expect(view.result.current.error).toBeNull()
+    expect(view.result.current.conflict).toEqual({ kind: 'settings' })
+  })
+
+  it('创建 Provider 时原子保存密钥并使用服务端 revision 刷新目录', async () => {
+    const created = providerFixture(1, true, 'stale')
+    const refreshed = providerFixture(2, true, 'ready')
+    const gateway = gatewayFixture()
+    vi.mocked(gateway.createModelProvider).mockResolvedValue(created)
+    vi.mocked(gateway.refreshProviderModels).mockResolvedValue(refreshed)
+    vi.mocked(gateway.modelProviders).mockResolvedValueOnce({ items: [] }).mockResolvedValue({ items: [refreshed] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await view.result.current.saveProvider({ ...providerInput(), api_key: 'one-time-secret' })
+    })
+
+    expect(gateway.createModelProvider).toHaveBeenCalledWith(
+      { ...providerInput(), api_key: 'one-time-secret' }, expect.any(AbortSignal),
+    )
+    expect(gateway.refreshProviderModels).toHaveBeenCalledWith(created.id, 1, expect.any(AbortSignal))
+    await waitFor(() => expect(view.result.current.providers).toEqual([refreshed]))
+  })
+
+  it('Provider 与密钥已保存但目录刷新失败时保留权威结果并返回分阶段错误', async () => {
+    const original = providerFixture(4, false, 'ready')
+    const keyed = providerFixture(5, true, 'stale')
+    const failed = { ...providerFixture(6, true, 'stale'), last_refresh_error_code: 'authentication_failed' }
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.updateModelProvider).mockResolvedValue(keyed)
+    vi.mocked(gateway.refreshProviderModels).mockResolvedValue(failed)
+    vi.mocked(gateway.modelProviders).mockResolvedValueOnce({ items: [original] }).mockResolvedValue({ items: [failed] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.saveProvider({
+        ...providerInput(), api_key: 'one-time-secret',
+      }, original))
+        .rejects.toMatchObject({ name: 'AgentProviderProvisionError', stage: 'refresh' })
+    })
+
+    await waitFor(() => expect(view.result.current.providers).toEqual([failed]))
+    expect(view.result.current.error).toBeNull()
+  })
+
+  it.each(['https://example.test/v1/', 'HTTPS://example.test/v1///'])(
+    '保存等价 URL %s 后采用服务端规范化结果，不重新请求模型目录',
+    async (baseUrl) => {
+      const original = providerFixture(4)
+      const saved = providerFixture(5)
+      const gateway = gatewayFixture({ providers: [original] })
+      vi.mocked(gateway.updateModelProvider).mockResolvedValue(saved)
+      vi.mocked(gateway.modelProviders)
+        .mockResolvedValueOnce({ items: [original] })
+        .mockResolvedValue({ items: [saved] })
+      vi.mocked(gateway.refreshProviderModels).mockRejectedValue(new Error('不应发起目录同步'))
+      const view = renderHook(() => useAgentSetupController(gateway))
+      await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+      await act(async () => {
+        await expect(view.result.current.saveProvider({
+          ...providerInput(), base_url: baseUrl,
+        }, original)).resolves.toEqual(saved)
+      })
+
+      expect(gateway.updateModelProvider).toHaveBeenCalledExactlyOnceWith(original.id, {
+        ...providerInput(), base_url: baseUrl, expected_revision: original.revision,
+      }, expect.any(AbortSignal))
+      expect(gateway.refreshProviderModels).not.toHaveBeenCalled()
+      await waitFor(() => expect(view.result.current.providers).toEqual([saved]))
+      expect(view.result.current.error).toBeNull()
+    },
+  )
+
+  it('配置已提交后的目录 revision 冲突不归类为编辑冲突', async () => {
+    const original = providerFixture(4)
+    const saved = {
+      ...providerFixture(5, false, 'stale'),
+      base_url: 'https://new.example.test/v1',
+    }
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.updateModelProvider).mockResolvedValue(saved)
+    vi.mocked(gateway.refreshProviderModels).mockRejectedValue(
+      new TermousApiError('conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    vi.mocked(gateway.modelProviders).mockResolvedValueOnce({ items: [original] }).mockResolvedValue({ items: [saved] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.saveProvider({
+        ...providerInput(), base_url: saved.base_url,
+      }, original)).rejects.toMatchObject({
+        name: 'AgentProviderProvisionError', stage: 'refresh',
+      })
+    })
+
+    expect(view.result.current.conflict).toBeNull()
+    await waitFor(() => expect(view.result.current.providers).toEqual([saved]))
+  })
+
+  it('revision 冲突保留 Provider 投影并公开可恢复的冲突状态', async () => {
+    const original = providerFixture(4)
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(new TermousApiError('conflict', 'AGENT_REVISION_CONFLICT', 409))
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.saveProvider({ ...providerInput(), name: 'Draft' }, original)).rejects.toThrow('conflict')
+    })
+
+    expect(view.result.current.providers).toEqual([original])
+    expect(view.result.current.conflict).toEqual({
+      kind: 'provider', operation: 'edit', providerId: original.id,
+    })
+  })
+
+  it('Provider 普通保存失败后对账不清除原始错误', async () => {
+    const original = providerFixture(4)
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(new Error('network failed'))
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.saveProvider({
+        ...providerInput(), name: 'Draft',
+      }, original)).rejects.toThrow('network failed')
+    })
+
+    await waitFor(() => expect(gateway.modelProviders).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+    expect(view.result.current.error?.message).toBe('network failed')
+    expect(view.result.current.providers).toEqual([original])
+  })
+
+  it('Provider 保存与后续对账都失败时仍保留原始保存错误', async () => {
+    const original = providerFixture(4)
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(new Error('mutation failed'))
+    vi.mocked(gateway.readiness)
+      .mockResolvedValueOnce(readinessFixture())
+      .mockRejectedValue(new Error('reconcile failed'))
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.saveProvider({
+        ...providerInput(), name: 'Draft',
+      }, original)).rejects.toThrow('mutation failed')
+    })
+
+    await waitFor(() => expect(gateway.readiness).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+    expect(view.result.current.error?.message).toBe('mutation failed')
+    expect(view.result.current.providers).toEqual([original])
+  })
+
+  it('手工新增模型使用当前 Provider revision 并刷新目录基线', async () => {
+    const provider = providerFixture(4)
+    const refreshedProvider = providerFixture(5)
+    const created = {
+      ...modelFixture(),
+      remote_model_id: 'manual-model',
+      display_name: 'manual-model',
+      source: 'manual' as const,
+    }
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.createModel).mockResolvedValue({ model: created, provider_revision: 5 })
+    vi.mocked(gateway.modelProviders)
+      .mockResolvedValueOnce({ items: [provider] })
+      .mockResolvedValue({ items: [refreshedProvider] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValue({ items: [created] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await view.result.current.createModel(provider, modelInput(created.remote_model_id))
+    })
+
+    expect(gateway.createModel).toHaveBeenCalledWith(provider.id, {
+      ...modelInput(created.remote_model_id),
+      expected_revision: provider.revision,
+    }, expect.any(AbortSignal))
+    await waitFor(() => expect(view.result.current.providers).toEqual([refreshedProvider]))
+    expect(view.result.current.models).toEqual([created])
+  })
+
+  it('连续新增模型时立即使用服务端返回的 Provider revision', async () => {
+    const provider = providerFixture(4)
+    const first = {
+      ...modelFixture(),
+      id: 'mdl_first',
+      remote_model_id: 'manual-first',
+      display_name: 'manual-first',
+      source: 'manual' as const,
+    }
+    const second = {
+      ...modelFixture(),
+      id: 'mdl_second',
+      remote_model_id: 'manual-second',
+      display_name: 'manual-second',
+      source: 'manual' as const,
+    }
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.createModel)
+      .mockResolvedValueOnce({ model: first, provider_revision: 5 })
+      .mockResolvedValueOnce({ model: second, provider_revision: 7 })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+    vi.mocked(gateway.readiness).mockImplementation(() => new Promise(() => undefined))
+
+    await act(async () => {
+      await view.result.current.createModel(provider, modelInput(first.remote_model_id))
+    })
+    expect(view.result.current.providers[0]?.revision).toBe(5)
+
+    await act(async () => {
+      const currentProvider = view.result.current.providers[0]
+      if (!currentProvider) throw new Error('Provider 未加载')
+      await view.result.current.createModel(currentProvider, modelInput(second.remote_model_id))
+    })
+
+    expect(gateway.createModel).toHaveBeenNthCalledWith(1, provider.id, {
+      ...modelInput(first.remote_model_id),
+      expected_revision: 4,
+    }, expect.any(AbortSignal))
+    expect(gateway.createModel).toHaveBeenNthCalledWith(2, provider.id, {
+      ...modelInput(second.remote_model_id),
+      expected_revision: 5,
+    }, expect.any(AbortSignal))
+    expect(view.result.current.providers[0]?.revision).toBe(7)
+  })
+
+  it('新增模型响应丢失后重新读取 Provider revision 与已提交模型', async () => {
+    const provider = providerFixture(4)
+    const committedProvider = providerFixture(5)
+    const committedModel = {
+      ...modelFixture(1),
+      remote_model_id: 'manual-committed',
+      display_name: 'manual-committed',
+      source: 'manual' as const,
+    }
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.createModel).mockRejectedValue(new Error('response lost'))
+    vi.mocked(gateway.modelProviders)
+      .mockResolvedValueOnce({ items: [provider] })
+      .mockResolvedValue({ items: [committedProvider] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValue({ items: [committedModel] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(view.result.current.createModel(
+        provider,
+        modelInput(committedModel.remote_model_id),
+      )).rejects.toThrow('response lost')
+    })
+
+    await waitFor(() => expect(view.result.current.providers).toEqual([committedProvider]))
+    expect(view.result.current.models).toEqual([committedModel])
+    expect(view.result.current.error?.message).toBe('response lost')
+  })
+
+  it('编辑模型响应丢失后重新读取已提交 revision', async () => {
+    const provider = providerFixture(4)
+    const original = modelFixture(3)
+    const committed = { ...original, display_name: 'Committed model', revision: 4 }
+    const gateway = gatewayFixture({ providers: [provider], models: [original] })
+    vi.mocked(gateway.updateModel).mockRejectedValue(new Error('response lost'))
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [original] })
+      .mockResolvedValue({ items: [committed] })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.models).toEqual([original]))
+
+    await act(async () => {
+      await expect(view.result.current.saveModel(original, {
+        display_name: committed.display_name,
+        parameter_mode: original.parameter_mode,
+        context_window_tokens: original.context_window_tokens,
+        max_output_tokens: original.max_output_tokens,
+        default_reasoning_level: original.default_reasoning_level,
+        supports_images: original.supports_images,
+        reasoning_control: original.reasoning_control,
+        supported_reasoning_levels: original.supported_reasoning_levels,
+        capabilities_confirmed: true,
+      })).rejects.toThrow('response lost')
+    })
+
+    await waitFor(() => expect(view.result.current.models).toEqual([committed]))
+    expect(view.result.current.error?.message).toBe('response lost')
+  })
+
+  it('移除与恢复模型始终携带对应记录的 revision', async () => {
+    const provider = providerFixture(3)
+    const original = modelFixture(3)
+    const removed = {
+      ...original,
+      removed_at: '2026-08-30T00:00:00Z',
+      revision: 4,
+    }
+    const restored = { ...original, revision: 5 }
+    const gateway = gatewayFixture({ providers: [provider], models: [original] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [original] })
+      .mockResolvedValueOnce({ items: [removed] })
+      .mockResolvedValue({ items: [restored] })
+    vi.mocked(gateway.restoreModel).mockResolvedValue(restored)
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.models).toEqual([original]))
+
+    await act(async () => {
+      await view.result.current.removeModel(original)
+    })
+    expect(gateway.removeModel).toHaveBeenCalledWith(
+      original.id, original.revision, expect.any(AbortSignal),
+    )
+    await waitFor(() => expect(view.result.current.models).toEqual([removed]))
+
+    await act(async () => {
+      await view.result.current.restoreModel(removed)
+    })
+    expect(gateway.restoreModel).toHaveBeenCalledWith(
+      removed.id, removed.revision, expect.any(AbortSignal),
+    )
+    await waitFor(() => expect(view.result.current.models).toEqual([restored]))
+  })
+
+  it('模型移除 revision 冲突后自动对账最新模型基线', async () => {
+    const provider = providerFixture(3)
+    const original = modelFixture(3)
+    const latest = { ...original, display_name: 'Server model', revision: 4 }
+    const gateway = gatewayFixture({ providers: [provider], models: [original] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [original] })
+      .mockResolvedValue({ items: [latest] })
+    vi.mocked(gateway.removeModel).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.models).toEqual([original]))
+
+    await act(async () => {
+      await expect(view.result.current.removeModel(original)).rejects.toThrow('revision conflict')
+    })
+
+    await waitFor(() => expect(view.result.current.models).toEqual([latest]))
+    expect(view.result.current.error).toBeNull()
+    expect(view.result.current.conflict).toEqual({
+      kind: 'model', operation: 'remove', modelId: original.id,
+    })
+  })
+
+  it('卸载时取消在途 mutation 且不再写入状态', async () => {
+    const gateway = gatewayFixture()
+    const pending = deferred<AgentSettings>()
+    let receivedSignal: AbortSignal | undefined
+    vi.mocked(gateway.updateSettings).mockImplementation((_input, signal) => {
+      receivedSignal = signal
+      return pending.promise
+    })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    const mutation = view.result.current.updateSettings({
+      default_model_id: '',
+      default_reasoning_level: 'off',
+    })
+    await waitFor(() => expect(receivedSignal).toBeDefined())
+    view.unmount()
+    expect(receivedSignal?.aborted).toBe(true)
+    pending.resolve(readinessFixture(99).settings)
+    await expect(mutation).rejects.toMatchObject({ code: 'REQUEST_ABORTED' })
+  })
+
+  it('卸载时取消 Provider 目录刷新且不把取消包装为同步失败', async () => {
+    const created = providerFixture(1, true, 'stale')
+    const gateway = gatewayFixture()
+    const pending = deferred<AgentModelProvider>()
+    let receivedSignal: AbortSignal | undefined
+    vi.mocked(gateway.createModelProvider).mockResolvedValue(created)
+    vi.mocked(gateway.refreshProviderModels).mockImplementation((_id, _revision, signal) => {
+      receivedSignal = signal
+      return pending.promise
+    })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    const mutation = view.result.current.saveProvider({
+      ...providerInput(), api_key: 'one-time-secret',
+    })
+    await waitFor(() => expect(receivedSignal).toBeDefined())
+    view.unmount()
+    expect(receivedSignal?.aborted).toBe(true)
+    pending.reject(new TermousApiError('请求已取消', 'REQUEST_ABORTED', 0))
+
+    await expect(mutation).rejects.toMatchObject({ code: 'REQUEST_ABORTED' })
+  })
+})
+
+function gatewayFixture(options: {
+  readiness?: AgentReadiness
+  providers?: AgentModelProvider[]
+  models?: AgentModel[]
+} = {}): AgentSetupGateway {
+  const readiness = options.readiness ?? readinessFixture()
+  const providers = options.providers ?? []
+  const models = options.models ?? []
+  return {
+    settings: vi.fn(async () => readiness.settings),
+    updateSettings: vi.fn(async () => readiness.settings),
+    readiness: vi.fn(async () => readiness),
+    setup: vi.fn(async () => readiness),
+    updateMcpPolicy: vi.fn(async () => readiness.mcp_policy!),
+    modelProviders: vi.fn(async () => ({ items: providers })),
+    createModelProvider: vi.fn(async (input) => ({ ...providerFixture(), ...input })),
+    updateModelProvider: vi.fn(async (_id, input) => ({ ...providerFixture(input.expected_revision + 1), ...input })),
+    deleteModelProvider: vi.fn(async () => undefined),
+    testModelProvider: vi.fn(async () => ({ status: 'ready' as const, latency_ms: 20, model_count: models.length, message: '' })),
+    refreshProviderModels: vi.fn(async () => providerFixture(2, false, 'ready')),
+    models: vi.fn(async () => ({ items: models })),
+    model: vi.fn(async () => models[0] ?? modelFixture()),
+    createModel: vi.fn(async (_providerId, input) => ({
+      model: { ...modelFixture(), ...input, source: 'manual' as const },
+      provider_revision: input.expected_revision + 1,
+    })),
+    updateModel: vi.fn(async (_id, input) => ({ ...modelFixture(input.expected_revision + 1), ...input })),
+    removeModel: vi.fn(async () => undefined),
+    restoreModel: vi.fn(async () => modelFixture(2)),
+    testModel: vi.fn(async () => ({ status: 'ready' as const, latency_ms: 20, model_id: 'gpt-test', message: '' })),
+  }
+}
+
+function readinessFixture(revision = 1, defaultModelId = '', reasoning: 'off' | 'high' = 'off'): AgentReadiness {
+  return {
+    status: defaultModelId ? 'ready' : 'needs_setup',
+    mcp_runtime: { status: 'ready', message: '' },
+    mcp_client: { status: 'ready', message: '' },
+    skills_bundle: { status: 'ready', message: '' },
+    default_model: { status: defaultModelId ? 'ready' : 'missing', message: '' },
+    mcp_policy: { client_id: 'client-1', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 },
+    settings: {
+      ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
+      default_reasoning_level: reasoning, show_turn_token_usage: true, revision,
+      global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
+      created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
+    },
+  }
+}
+
+function providerInput() {
+  return {
+    name: 'Provider', api_mode: 'responses' as const, base_url: 'https://example.test/v1',
+    enabled: true, confirm_insecure_http: false,
+  }
+}
+
+function modelInput(remoteModelId: string) {
+  return {
+    remote_model_id: remoteModelId,
+    display_name: remoteModelId,
+    parameter_mode: 'inherit_global' as const,
+    context_window_tokens: 16_384,
+    max_output_tokens: 4_096,
+    default_reasoning_level: 'off' as const,
+    supports_images: false,
+    reasoning_control: 'none' as const,
+    supported_reasoning_levels: ['off' as const],
+    capabilities_confirmed: true as const,
+  }
+}
+
+function providerFixture(
+  revision = 1,
+  apiKeyConfigured = false,
+  refreshStatus: AgentModelProvider['refresh_status'] = 'ready',
+): AgentModelProvider {
+  return {
+    id: 'apv-1', name: 'Provider', api_mode: 'responses', base_url: 'https://example.test/v1',
+    enabled: true, api_key_configured: apiKeyConfigured, refresh_status: refreshStatus, revision,
+    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
+  }
+}
+
+function modelFixture(revision = 1): AgentModel {
+  return {
+    id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'gpt-test', display_name: 'GPT Test',
+    availability: 'available', source: 'sync', parameter_mode: 'custom',
+    context_window_tokens: 8192, max_output_tokens: 1024, default_reasoning_level: 'off',
+    reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'minimal', 'low', 'medium', 'high'],
+    supports_images: false, supports_reasoning: true, capabilities_confirmed: false,
+    effective_context_window_tokens: 8192, effective_max_output_tokens: 1024,
+    effective_default_reasoning_level: 'off',
+    first_seen_at: '2026-08-28T00:00:00Z', last_seen_at: '2026-08-28T00:00:00Z', revision,
+    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}

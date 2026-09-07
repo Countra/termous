@@ -71,9 +71,9 @@ export function CredentialCatalog({
           ]}
           onChange={(value) => setFilter(value as CredentialCatalogFilter)}
         />
-        <div className={styles['credential-catalog-actions']}>
+        <div className={styles['credential-catalog-actions']} data-tour="vault-actions">
           <Button icon={<Wand2 size={15} />} disabled={actionBusy} onClick={onGenerateKey}>{t('vault.generateKey')}</Button>
-          <ConnectionActionButton icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>{t('vault.addCredential')}</ConnectionActionButton>
+          <ConnectionActionButton data-tour="vault-add" icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>{t('vault.addCredential')}</ConnectionActionButton>
         </div>
         {hasFilters ? (
           <Button type="text" size="small" className={styles['credential-clear-filter']} icon={<X size={13} />} onClick={() => { setQuery(''); setFilter('all') }}>

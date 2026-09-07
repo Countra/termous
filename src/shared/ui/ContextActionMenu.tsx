@@ -18,12 +18,14 @@ export function ContextActionMenu({
   popupClassName,
 }: ContextActionMenuProps) {
   const hasItems = Array.isArray(items) && items.length > 0
+  // Menu 的 rootClassName 会传到独立子菜单 Portal，Dropdown 的浮层类只覆盖主菜单。
+  const menuClassName = [contextActionMenuPopupClassName, popupClassName].filter(Boolean).join(' ')
 
   return (
     <Dropdown
       trigger={!disabled && hasItems ? ['contextMenu'] : []}
-      classNames={{ root: [contextActionMenuPopupClassName, popupClassName].filter(Boolean).join(' ') }}
-      menu={{ items, onClick }}
+      classNames={{ root: menuClassName }}
+      menu={{ items, onClick, rootClassName: menuClassName }}
       disabled={disabled || !hasItems}
     >
       {children}

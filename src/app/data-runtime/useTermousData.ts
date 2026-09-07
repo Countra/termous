@@ -9,16 +9,20 @@ import type {
   ForwardEvent,
   ForwardInstance,
 } from '#entities/forward'
+import type { SessionSnapshotEvent } from '#entities/session'
 import { sortCodeSnippetGroups } from '#entities/snippet'
+import { sortHostAssets } from '#entities/host-asset'
 import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
 import {
   cleanupSuppressedFileSessionRecoveryResult,
   filterSuppressedFileSessions,
+  releaseConfirmedFileSessionCloseSuppressions,
   isFileSessionRecoverySupersededError,
   runQueuedFileSessionRecoveryOperation,
   supersedeQueuedFileSessionRecovery,
   type FileSessionClosureState,
+  type FileSessionSnapshotEvent,
   filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
 } from '#entities/file'
@@ -26,6 +30,26 @@ import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,
 } from './model/sessionInventoryState'
+import {
+  affectedSessionIds,
+  decideSessionSnapshot,
+  initialSessionSnapshotCursor,
+} from './model/sessionSnapshotState'
+import {
+  affectedFileSessionIds,
+  decideFileSessionSnapshot,
+  initialFileSessionSnapshotCursor,
+  reconcileVisibleAuthoritativeFileSessionSnapshot,
+} from './model/fileSessionSnapshotState'
+import {
+  beginSnippetReload,
+  canApplySnippetReload,
+  initialSnippetRuntimeCursor,
+  recoverFailedSnippetReload,
+  resetSnippetEventRevision,
+  snippetStateChangedSince,
+  type SnippetReloadCheckpoint,
+} from './model/snippetRuntimeState'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
@@ -41,8 +65,8 @@ import {
   type LoadMode,
 } from './model/appDataState'
 import {
+  reconcileForwardReloadSnapshot,
   reconcileForwardStartCompletions,
-  visibleForwards,
   type ForwardStartCompletionWaiter,
 } from './model/forwardRuntimeState'
 import { createCredentialCommands } from './commands/credentialCommands'
@@ -50,16 +74,19 @@ import { createFileCatalogCommands } from './commands/fileCatalogCommands'
 import { createFileSessionCommands } from './commands/fileSessionCommands'
 import { createForwardCommands } from './commands/forwardCommands'
 import { createForwardProfileCommands } from './commands/forwardProfileCommands'
+import { createRemoteDesktopProfileCommands } from './commands/remoteDesktopProfileCommands'
 import { createHostCommands } from './commands/hostCommands'
 import { createSessionCommands } from './commands/sessionCommands'
 import { createSettingsCommands } from './commands/settingsCommands'
 import { createSnippetCommands } from './commands/snippetCommands'
 import { loadAppDataSnapshot } from './api/appDataSnapshotGateway'
+import { reconcileHostRecentTimestamps } from './model/hostRecentState.ts'
 import type { AppData } from './model/appData'
 import type { Session } from './model/sessionTypes'
 
 export function useTermousData() {
   const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
+  const [runtimeConfigReady, setRuntimeConfigReady] = useState(false)
   const [data, setData] = useState<AppData>(initialData)
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -72,14 +99,28 @@ export function useTermousData() {
   const fileSessionRecoveryCloseEpochsRef = useRef(new Map<string, number>())
   const fileSessionRecoveryQueuesRef = useRef(new Map<string, Promise<void>>())
   const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
+  const closeSuppressedFileSessionIdsRef = useRef(new Set<string>())
   const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
   const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const sessionSnapshotCursorRef = useRef(initialSessionSnapshotCursor)
+  const sessionSnapshotSessionsRef = useRef(data.sessions)
   const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
+  const fileSessionSnapshotCursorRef = useRef(initialFileSessionSnapshotCursor)
+  const fileSessionSnapshotRevisionBaselineRef = useRef(new Map<string, number>())
+  const fileSessionSnapshotKnownIdsRef = useRef(new Set<string>())
+  const fileSessionSnapshotSessionsRef = useRef(data.fileSessions)
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const forwardReloadChangeTrackersRef = useRef(new Set<Set<string>>())
   const forwardEventRevisionsRef = useRef(new Map<string, number>())
   const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
+  const snippetRuntimeCursorRef = useRef(initialSnippetRuntimeCursor)
+  const snippetReloadPendingRef = useRef<{
+    gateways: RuntimeGateways
+    checkpoint: SnippetReloadCheckpoint
+  } | null>(null)
+  const snippetReloadLoopRef = useRef<Promise<void> | null>(null)
   const completionSettingsMutationRef = useRef(0)
   const completionSettingsPendingWritesRef = useRef(0)
   const completionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
@@ -90,6 +131,16 @@ export function useTermousData() {
   const completionSettingsRef = useRef(data.settings.completion)
   const completionSettingsConfirmedRef = useRef(data.settings.completion)
   completionSettingsRef.current = data.settings.completion
+  const connectionSettingsMutationRef = useRef(0)
+  const connectionSettingsPendingWritesRef = useRef(0)
+  const connectionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!connectionSettingsWriteQueueRef.current) {
+    connectionSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const connectionSettingsWriteQueue = connectionSettingsWriteQueueRef.current
+  const connectionSettingsRef = useRef(data.settings.connection)
+  const connectionSettingsConfirmedRef = useRef(data.settings.connection)
+  connectionSettingsRef.current = data.settings.connection
   const shortcutSettingsMutationRef = useRef(0)
   const shortcutSettingsPendingWritesRef = useRef(0)
   const shortcutSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
@@ -104,6 +155,8 @@ export function useTermousData() {
     new Map<string, ForwardStartCompletionWaiter>(),
   )
   const loadRevisionRef = useRef(0)
+  sessionSnapshotSessionsRef.current = data.sessions
+  fileSessionSnapshotSessionsRef.current = data.fileSessions
   data.sessions.forEach((session) => {
     if (!inventoryStateSignaturesRef.current.has(session.id)) {
       inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
@@ -187,9 +240,15 @@ export function useTermousData() {
   ) => {
     const loadRevision = loadRevisionRef.current + 1
     loadRevisionRef.current = loadRevision
+    const changedForwardIds = new Set<string>()
+    forwardReloadChangeTrackersRef.current.add(changedForwardIds)
     const completionSettingsReloadCheckpoint = {
       generation: completionSettingsMutationRef.current,
       hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
+    }
+    const connectionSettingsReloadCheckpoint = {
+      generation: connectionSettingsMutationRef.current,
+      hadPendingWrites: connectionSettingsPendingWritesRef.current > 0,
     }
     const shortcutSettingsReloadCheckpoint = {
       generation: shortcutSettingsMutationRef.current,
@@ -197,6 +256,7 @@ export function useTermousData() {
     }
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
+    const snippetGenerationBaseline = snippetRuntimeCursorRef.current.generation
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -220,12 +280,17 @@ export function useTermousData() {
         hostIcons,
         proxies,
         hosts,
+        hostAssets,
         hostReachability,
         credentials,
         sessions,
         fileSessions,
+        sshAccessProfiles,
+        fileAccessProfiles,
         forwardProfiles,
         forwards,
+        remoteDesktopProfiles,
+        remoteDesktopSessions,
       ] = await loadAppDataSnapshot(runtimeGateways.snapshot)
       if (loadRevision !== loadRevisionRef.current) {
         return
@@ -246,6 +311,15 @@ export function useTermousData() {
       if (canApplyReloadedCompletion) {
         completionSettingsConfirmedRef.current = nextSettings.completion
         completionSettingsRef.current = nextSettings.completion
+      }
+      const canApplyReloadedConnection = canApplyReloadedValue(
+        connectionSettingsReloadCheckpoint,
+        connectionSettingsMutationRef.current,
+        connectionSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedConnection) {
+        connectionSettingsConfirmedRef.current = nextSettings.connection
+        connectionSettingsRef.current = nextSettings.connection
       }
       const canApplyReloadedShortcuts = canApplyReloadedValue(
         shortcutSettingsReloadCheckpoint,
@@ -278,21 +352,35 @@ export function useTermousData() {
           sessionEventRevisionsRef.current,
         )
         const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        const canApplyReloadedSnippets = !snippetStateChangedSince(
+          snippetRuntimeCursorRef.current,
+          snippetGenerationBaseline,
+        )
         const mergedSettings = {
           ...nextSettings,
           completion: canApplyReloadedCompletion
             ? nextSettings.completion
             : current.settings.completion,
+          connection: canApplyReloadedConnection
+            ? nextSettings.connection
+            : current.settings.connection,
           shortcuts: canApplyReloadedShortcuts
             ? nextSettings.shortcuts
             : current.settings.shortcuts,
         }
+        const recentHosts = reconcileHostRecentTimestamps(
+          current.hosts,
+          hosts ?? [],
+          current.hostAssets,
+          sortHostAssets(hostAssets ?? []),
+        )
         return {
           settings: mergedSettings,
           groups: groups ?? [],
           hostIcons: sortHostIcons(hostIcons ?? []),
           proxies: sortConnectionProxies(proxies ?? []),
-          hosts: hosts ?? [],
+          hosts: recentHosts.hosts,
+          hostAssets: recentHosts.hostAssets,
           credentials: credentials ?? [],
           sessions: nextSessions,
           fileSessions: filterFileSessionsByActiveSources(
@@ -307,10 +395,20 @@ export function useTermousData() {
             ),
             activeSourceSessionIds,
           ),
+          sshAccessProfiles: sshAccessProfiles ?? [],
+          fileAccessProfiles: fileAccessProfiles ?? [],
           forwardProfiles: forwardProfiles ?? [],
-          forwards: visibleForwards(forwards ?? []),
-          snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
-          snippets: snippets ?? [],
+          forwards: reconcileForwardReloadSnapshot(
+            current.forwards,
+            forwards ?? [],
+            changedForwardIds,
+          ),
+          remoteDesktopProfiles: remoteDesktopProfiles ?? [],
+          remoteDesktopSessions: remoteDesktopSessions ?? [],
+          snippetGroups: canApplyReloadedSnippets
+            ? sortCodeSnippetGroups(snippetGroups ?? [])
+            : current.snippetGroups,
+          snippets: canApplyReloadedSnippets ? snippets ?? [] : current.snippets,
           fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
           fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
           localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
@@ -337,6 +435,7 @@ export function useTermousData() {
         setError(publicMessage(loadError))
       }
     } finally {
+      forwardReloadChangeTrackersRef.current.delete(changedForwardIds)
       if (loadRevision === loadRevisionRef.current) {
         setInitializing(false)
         setRefreshing(false)
@@ -350,21 +449,223 @@ export function useTermousData() {
   )
 
   const reloadForwardsWithGateways = useCallback(async (runtimeGateways: RuntimeGateways) => {
-    const forwards = await runtimeGateways.forwards.forwards()
-    reconcileForwardStartCompletions(
-      forwardStartCompletionWaitersRef.current,
-      forwardEventSnapshotsRef.current,
-      forwardEventRevisionsRef.current,
-      forwards ?? [],
-    )
-    setData((current) => ({ ...current, forwards: visibleForwards(forwards ?? []) }))
-    setLastUpdatedAt(new Date().toISOString())
+    const changedForwardIds = new Set<string>()
+    forwardReloadChangeTrackersRef.current.add(changedForwardIds)
+    try {
+      const forwards = await runtimeGateways.forwards.forwards()
+      reconcileForwardStartCompletions(
+        forwardStartCompletionWaitersRef.current,
+        forwardEventSnapshotsRef.current,
+        forwardEventRevisionsRef.current,
+        forwards ?? [],
+      )
+      setData((current) => ({
+        ...current,
+        forwards: reconcileForwardReloadSnapshot(
+          current.forwards,
+          forwards ?? [],
+          changedForwardIds,
+        ),
+      }))
+      setLastUpdatedAt(new Date().toISOString())
+    } finally {
+      forwardReloadChangeTrackersRef.current.delete(changedForwardIds)
+    }
   }, [])
 
   const reloadForwards = useCallback(
     () => reloadForwardsWithGateways(gateways),
     [gateways, reloadForwardsWithGateways],
   )
+
+  const reloadSnippetsWithGateways = useCallback(async (
+    runtimeGateways: RuntimeGateways,
+    eventRevision: number | null = null,
+  ) => {
+    const decision = beginSnippetReload(snippetRuntimeCursorRef.current, eventRevision)
+    snippetRuntimeCursorRef.current = decision.cursor
+    if (!decision.checkpoint) {
+      return
+    }
+    snippetReloadPendingRef.current = {
+      gateways: runtimeGateways,
+      checkpoint: decision.checkpoint,
+    }
+    if (!snippetReloadLoopRef.current) {
+      const drain = async () => {
+        while (snippetReloadPendingRef.current) {
+          const request = snippetReloadPendingRef.current
+          snippetReloadPendingRef.current = null
+          try {
+            const [snippetGroups, snippets] = await Promise.all([
+              request.gateways.snippets.codeSnippetGroups(),
+              request.gateways.snippets.codeSnippets(),
+            ])
+            if (canApplySnippetReload(snippetRuntimeCursorRef.current, request.checkpoint)) {
+              setData((current) => ({
+                ...current,
+                snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
+                snippets: snippets ?? [],
+              }))
+              setLastUpdatedAt(new Date().toISOString())
+            }
+          } catch (reloadError) {
+            if (!snippetReloadPendingRef.current) {
+              snippetRuntimeCursorRef.current = recoverFailedSnippetReload(
+                snippetRuntimeCursorRef.current,
+                request.checkpoint,
+              )
+              throw reloadError
+            }
+          }
+        }
+      }
+      const loop = drain().finally(() => {
+        if (snippetReloadLoopRef.current === loop) {
+          snippetReloadLoopRef.current = null
+        }
+      })
+      snippetReloadLoopRef.current = loop
+    }
+    await snippetReloadLoopRef.current
+  }, [])
+
+  const reloadSnippets = useCallback(
+    (eventRevision?: number) => reloadSnippetsWithGateways(gateways, eventRevision ?? null),
+    [gateways, reloadSnippetsWithGateways],
+  )
+
+  const resetSnippetEventCursor = useCallback(() => {
+    snippetRuntimeCursorRef.current = resetSnippetEventRevision(
+      snippetRuntimeCursorRef.current,
+    )
+    snippetReloadPendingRef.current = null
+  }, [])
+
+  const applySessionSnapshot = useCallback((
+    event: SessionSnapshotEvent,
+    generation: number,
+  ) => {
+    const decision = decideSessionSnapshot(
+      sessionSnapshotCursorRef.current,
+      event,
+      generation,
+    )
+    sessionSnapshotCursorRef.current = decision.cursor
+    if (!decision.accepted) {
+      return false
+    }
+
+    const previousSessions = sessionSnapshotSessionsRef.current
+    const nextSessions = event.sessions
+    const nextSessionIds = new Set(nextSessions.map((session) => session.id))
+    affectedSessionIds(previousSessions, nextSessions).forEach((sessionId) => {
+      bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+      if (!nextSessionIds.has(sessionId)) {
+        inventoryRequestRevisionsRef.current.delete(sessionId)
+        inventoryEventRevisionsRef.current.delete(sessionId)
+        inventoryStateSignaturesRef.current.delete(sessionId)
+      }
+    })
+    nextSessions.forEach((session) => {
+      const signature = sessionInventorySignature(session)
+      if (inventoryStateSignaturesRef.current.get(session.id) !== signature) {
+        inventoryStateSignaturesRef.current.set(session.id, signature)
+        bumpSessionRevision(inventoryEventRevisionsRef.current, session.id)
+      }
+    })
+
+    sessionSnapshotSessionsRef.current = nextSessions
+    setData((current) => ({
+      ...current,
+      sessions: nextSessions,
+      fileSessions: filterFileSessionsByActiveSources(
+        current.fileSessions,
+        nextSessionIds,
+      ),
+    }))
+    setActiveSession((current) => reconcileActiveSession(current, nextSessions, 'initial'))
+    return true
+  }, [])
+
+  const applyFileSessionSnapshot = useCallback((
+    event: FileSessionSnapshotEvent,
+    generation: number,
+  ) => {
+    const previousCursor = fileSessionSnapshotCursorRef.current
+    const decision = decideFileSessionSnapshot(
+      previousCursor,
+      event,
+      generation,
+    )
+    fileSessionSnapshotCursorRef.current = decision.cursor
+    if (!decision.accepted) {
+      return false
+    }
+    const instanceChanged = previousCursor.instanceId !== null
+      && previousCursor.instanceId !== event.instance_id
+    if (instanceChanged) {
+      fileSessionSnapshotKnownIdsRef.current.clear()
+      fileSessionSnapshotRevisionBaselineRef.current.clear()
+    }
+
+    const previousSessions = fileSessionSnapshotSessionsRef.current
+    const visibleSessions = filterSuppressedFileSessions(
+      event.sessions,
+      suppressedFileSessionIdsRef.current,
+    )
+    releaseConfirmedFileSessionCloseSuppressions(
+      closeSuppressedFileSessionIdsRef.current,
+      event.sessions,
+    )
+    const revisionBaseline = new Map(fileSessionSnapshotRevisionBaselineRef.current)
+    const latestRevisions = new Map(fileSessionEventRevisionsRef.current)
+    const bumpedSessionIds = new Set(affectedFileSessionIds(
+      previousSessions,
+      visibleSessions,
+    ))
+    bumpedSessionIds.forEach((sessionId) => {
+      bumpSessionRevision(fileSessionEventRevisionsRef.current, sessionId)
+    })
+    setData((current) => {
+      const nextSessions = reconcileVisibleAuthoritativeFileSessionSnapshot(
+        current.fileSessions,
+        visibleSessions,
+        new Set(current.sessions.map((session) => session.id)),
+        revisionBaseline,
+        latestRevisions,
+        fileSessionSnapshotKnownIdsRef.current,
+        instanceChanged,
+        closeSuppressedFileSessionIdsRef.current,
+      )
+      const activeSourceSessionIds = new Set(
+        current.sessions.map((session) => session.id),
+      )
+      visibleSessions.forEach((session) => {
+        if (!session.source_session_id || activeSourceSessionIds.has(session.source_session_id)) {
+          fileSessionSnapshotKnownIdsRef.current.add(session.id)
+        }
+      })
+      affectedFileSessionIds(current.fileSessions, nextSessions).forEach((sessionId) => {
+        if (!bumpedSessionIds.has(sessionId)) {
+          bumpedSessionIds.add(sessionId)
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, sessionId)
+          if (fileSessionSnapshotCursorRef.current === decision.cursor) {
+            fileSessionSnapshotRevisionBaselineRef.current.set(
+              sessionId,
+              fileSessionEventRevisionsRef.current.get(sessionId) ?? 0,
+            )
+          }
+        }
+      })
+      fileSessionSnapshotSessionsRef.current = nextSessions
+      return { ...current, fileSessions: nextSessions }
+    })
+    fileSessionSnapshotRevisionBaselineRef.current = new Map(
+      fileSessionEventRevisionsRef.current,
+    )
+    return true
+  }, [])
 
   useEffect(() => () => {
     const waiters = [...forwardStartCompletionWaitersRef.current.values()]
@@ -385,6 +686,7 @@ export function useTermousData() {
           return
         }
         setGateways(runtimeGateways)
+        setRuntimeConfigReady(true)
         void loadWithGateways(runtimeGateways, 'initial')
       })
       .catch((runtimeError) => {
@@ -405,6 +707,10 @@ export function useTermousData() {
       reload: () => load('background'),
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
+      reloadSnippetsSilent: (eventRevision?: number) => reloadSnippets(eventRevision),
+      resetSnippetEventCursor,
+      applySessionSnapshot,
+      applyFileSessionSnapshot,
       ...createSettingsCommands({
         api: gateways.settings,
         currentSettings: data.settings,
@@ -414,6 +720,11 @@ export function useTermousData() {
         completionSettingsWriteQueue,
         completionSettings: completionSettingsRef,
         confirmedCompletionSettings: completionSettingsConfirmedRef,
+        connectionSettingsMutation: connectionSettingsMutationRef,
+        connectionSettingsPendingWrites: connectionSettingsPendingWritesRef,
+        connectionSettingsWriteQueue,
+        connectionSettings: connectionSettingsRef,
+        confirmedConnectionSettings: connectionSettingsConfirmedRef,
         shortcutSettingsMutation: shortcutSettingsMutationRef,
         shortcutSettingsPendingWrites: shortcutSettingsPendingWritesRef,
         shortcutSettingsWriteQueue,
@@ -423,16 +734,23 @@ export function useTermousData() {
       ...createSnippetCommands(gateways.snippets, setData),
       ...createFileCatalogCommands(gateways.fileCatalog, setData),
       ...createForwardProfileCommands(gateways.forwards, setData),
+      ...createRemoteDesktopProfileCommands(
+        gateways.remoteDesktop,
+        data.remoteDesktopProfiles,
+        setData,
+        load,
+      ),
       ...createForwardCommands({
         api: gateways.forwards,
         forwards: data.forwards,
         setData,
         setForwardErrorEvent,
+        forwardReloadChangeTrackers: forwardReloadChangeTrackersRef.current,
         forwardStartCompletionWaiters: forwardStartCompletionWaitersRef.current,
         forwardEventRevisions: forwardEventRevisionsRef.current,
         forwardEventSnapshots: forwardEventSnapshotsRef.current,
       }),
-      ...createHostCommands({ api: gateways.hosts, hosts: data.hosts, load, setData }),
+      ...createHostCommands({ api: gateways.hosts, hostAssets: data.hostAssets, load, setData }),
       ...createCredentialCommands(gateways.credentials, load),
       ...createSessionCommands({
         sessionApi: gateways.sessions,
@@ -460,6 +778,7 @@ export function useTermousData() {
         fileSessionRecoveryCloseEpochs: fileSessionRecoveryCloseEpochsRef.current,
         fileSessionRecoveryQueues: fileSessionRecoveryQueuesRef.current,
         suppressedFileSessionIds: suppressedFileSessionIdsRef.current,
+        closeSuppressedFileSessionIds: closeSuppressedFileSessionIdsRef.current,
         fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
         releaseFileSessionRecoveryEpoch,
         scheduleSuppressedFileSessionCleanup: (fileSessionId, originalSessionId) => {
@@ -474,22 +793,28 @@ export function useTermousData() {
     }),
     [
       gateways,
+      applySessionSnapshot,
+      applyFileSessionSnapshot,
       completionSettingsWriteQueue,
+      connectionSettingsWriteQueue,
       shortcutSettingsWriteQueue,
       data.fileSessions,
       data.forwards,
-      data.hosts,
+      data.hostAssets,
+      data.remoteDesktopProfiles,
       data.settings,
       data.sessions,
       load,
       releaseFileSessionRecoveryEpoch,
       reloadForwards,
+      reloadSnippets,
+      resetSnippetEventCursor,
       scheduleSuppressedFileSessionCleanup,
       supersedeFileSessionRecoveryOperation,
     ],
   )
 
-  return { gateways, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+  return { gateways, runtimeConfigReady, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
 }
 
 function publicMessage(error: unknown) {

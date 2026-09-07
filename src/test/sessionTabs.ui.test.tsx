@@ -137,6 +137,25 @@ describe('会话标签行为标记', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('来源标识独立于主图标且不会重复进入可访问名称', () => {
+    render(
+      <SessionTabButton
+        active
+        role="tab"
+        icon={<span data-testid="primary-icon" />}
+        sourceIndicator={<span data-testid="source-icon" />}
+        label="会话 A"
+      />,
+    )
+
+    const tab = screen.getByRole('tab', { name: '会话 A' })
+    const indicator = tab.querySelector('[data-session-source-indicator]')
+    expect(indicator).toHaveAttribute('aria-hidden', 'true')
+    expect(indicator?.parentElement).toBe(tab)
+    expect(screen.getByTestId('primary-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('source-icon')).toBeInTheDocument()
+  })
+
   it('关闭当前标签后通过数据标记把焦点恢复到新的活动标签', async () => {
     render(<SessionTabsHarness />)
 

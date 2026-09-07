@@ -97,6 +97,9 @@ export function ShortcutWindowAdapter({ handlers }: ShortcutWindowAdapterProps) 
       (event, context) => handlersRef.current[actionId]?.(event, context) ?? 'fallthrough',
     ))
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isShortcutExclusiveTarget(event.target)) {
+        return
+      }
       const result = runtime.dispatch(event, {
         adapterId: 'window',
         handlerContextIds: [windowContextId],
@@ -131,5 +134,12 @@ export function ShortcutWindowAdapter({ handlers }: ShortcutWindowAdapterProps) 
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false
-  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
+  return Boolean(target.closest(
+    'input, textarea, select, [contenteditable="true"]',
+  ))
+}
+
+function isShortcutExclusiveTarget(target: EventTarget | null) {
+  return target instanceof Element
+    && Boolean(target.closest('[data-termous-shortcut-exclusive="true"]'))
 }

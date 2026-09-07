@@ -25,6 +25,11 @@ export type CommandDispatchOutputControlEvent =
   | CommandDispatchOutputGapEvent
   | CommandDispatchOutputEndedEvent
 
+export interface CommandDispatchLatestTaskEvent {
+  type: 'command_dispatch_latest_snapshot' | 'command_dispatch_latest_update'
+  task: CommandDispatchTask | null
+}
+
 const taskStatuses = new Set<CommandDispatchTaskStatus>([
   'queued',
   'validating',
@@ -97,6 +102,21 @@ export function decodeCommandDispatchTaskEvent(value: unknown): CommandDispatchT
     type: event.type,
     task: decodeCommandDispatchTask(event.task),
   }
+}
+
+export function decodeCommandDispatchLatestTaskEvent(value: unknown): CommandDispatchLatestTaskEvent | null {
+  const event = optionalRecord(value)
+  if (
+    !event
+    || (event.type !== 'command_dispatch_latest_snapshot'
+      && event.type !== 'command_dispatch_latest_update')
+  ) {
+    return null
+  }
+  if (event.task === null && event.type === 'command_dispatch_latest_snapshot') {
+    return { type: event.type, task: null }
+  }
+  return { type: event.type, task: decodeCommandDispatchTask(event.task) }
 }
 
 export function decodeCommandDispatchOutputControl(

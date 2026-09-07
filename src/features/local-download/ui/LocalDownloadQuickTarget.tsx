@@ -92,6 +92,7 @@ function LocalDownloadQuickTarget({
         aria-label={accessibleLabel}
         aria-controls="files-bottom-drawer"
         aria-expanded={expanded}
+        data-tour="files-local-directory"
         onClick={onOpen}
         onDragEnterCapture={drop.onRootDragEnterCapture}
         onDragOverCapture={drop.onRootDragOverCapture}

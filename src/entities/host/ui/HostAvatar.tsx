@@ -1,5 +1,5 @@
 import { Server } from 'lucide-react'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Host } from '../model/types.ts'
 import styles from './HostAvatar.module.scss'
 
@@ -12,6 +12,8 @@ interface HostAvatarProps {
   decorative?: boolean
   alt?: string
   loading?: 'eager' | 'lazy'
+  fallbackIcon?: ReactNode
+  compact?: boolean
 }
 
 export function HostAvatar({
@@ -23,6 +25,8 @@ export function HostAvatar({
   decorative = true,
   alt,
   loading,
+  fallbackIcon,
+  compact = false,
 }: HostAvatarProps) {
   const iconId = host?.icon_id?.trim() ?? ''
   const [failedSrc, setFailedSrc] = useState('')
@@ -38,7 +42,7 @@ export function HostAvatar({
     <span
       className={`${styles['host-avatar']} host-avatar ${
         src ? `${styles['has-custom-icon']} has-custom-icon` : 'is-default-icon'
-      } ${className}`.trim()}
+      } ${compact ? styles['is-compact'] : ''} ${className}`.trim()}
       style={style}
       aria-hidden={decorative ? 'true' : undefined}
     >
@@ -51,7 +55,9 @@ export function HostAvatar({
           onError={() => setFailedSrc(src)}
         />
       ) : (
-        <Server size={iconSize ?? Math.max(14, Math.round((size ?? 30) * 0.52))} aria-hidden="true" />
+        fallbackIcon ?? (
+          <Server size={iconSize ?? Math.max(14, Math.round((size ?? 30) * 0.52))} aria-hidden="true" />
+        )
       )}
     </span>
   )

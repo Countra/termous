@@ -48,6 +48,12 @@ function fileSession(
   return {
     id,
     host_id: `host-${id}`,
+    file_access_profile_id: `file-profile-${id}`,
+    ssh_profile_id: `ssh-profile-${id}`,
+    engine: 'sftp',
+    namespace: 'posix',
+    capabilities: ['browse'],
+    origin: 'app',
     status: 'connected',
     phase: 'ready',
     current_path: '/',
@@ -90,6 +96,39 @@ afterEach(() => {
 })
 
 describe('文件会话状态同步合同', () => {
+  it('禁用时不创建远程请求，运行中禁用会释放订阅并停止轮询', async () => {
+    const session = fileSession('first', { status: 'connecting', phase: 'dialing' })
+    const gateway = createGateway(async () => session)
+    const onUpdateFileSession = vi.fn()
+    const view = renderHook(
+      ({ enabled }) => useFileSessionStatusSync({
+        enabled,
+        gateway,
+        fileSessions: [session],
+        closingFileSessionIds: new Set(),
+        onUpdateFileSession,
+      }),
+      { initialProps: { enabled: false } },
+    )
+
+    await act(async () => Promise.resolve())
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    expect(gateway.getFileSession).not.toHaveBeenCalled()
+
+    view.rerender({ enabled: true })
+    await act(async () => Promise.resolve())
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(gateway.getFileSession).toHaveBeenCalledOnce()
+
+    const socket = FakeWebSocket.instances[0]!
+    socket.open()
+    view.rerender({ enabled: false })
+    expect(socket.closeCalls).toBe(1)
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(gateway.getFileSession).toHaveBeenCalledOnce()
+  })
+
   it('每个可用会话只建立一个事件流，关闭或终止后立即释放', () => {
     const first = fileSession('first')
     const second = fileSession('second')
@@ -171,6 +210,34 @@ describe('文件会话状态同步合同', () => {
     }))
 
     expect(onUpdateFileSession).not.toHaveBeenCalled()
+    expect(socket.closeCalls).toBe(1)
+  })
+
+  it('单会话事件为旧 Core 回填 app 来源并拒绝未知来源', () => {
+    const gateway = createGateway()
+    const onUpdateFileSession = vi.fn()
+    renderHook(() => useFileSessionStatusSync({
+      gateway,
+      fileSessions: [fileSession('first')],
+      closingFileSessionIds: new Set(),
+      onUpdateFileSession,
+    }))
+    const socket = FakeWebSocket.instances[0]!
+    socket.open()
+    const legacySession = { ...fileSession('first') } as Partial<FileSession>
+    delete legacySession.origin
+
+    socket.receive(JSON.stringify({ type: 'updated', session: legacySession }))
+    expect(onUpdateFileSession).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'first',
+      origin: 'app',
+    }))
+
+    socket.receive(JSON.stringify({
+      type: 'updated',
+      session: { ...legacySession, origin: 'external' },
+    }))
+    expect(onUpdateFileSession).toHaveBeenCalledTimes(1)
     expect(socket.closeCalls).toBe(1)
   })
 

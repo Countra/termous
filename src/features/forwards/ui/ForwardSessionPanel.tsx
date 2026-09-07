@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest } from '#entities/forward'
-import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import {
+  buildForwardFailureAgentLaunchRequest,
+  type AgentLaunchRequest,
+} from '#entities/agent'
 import type { ForwardSessionContext } from '../model/types'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -21,13 +25,14 @@ const scopedClassName = (...classNames: string[]) => classNames
 
 export interface ForwardSessionPanelProps {
   session: ForwardSessionContext | null
-  host?: Host
+  sshProfile?: SSHAccessProfile
   forwards: ForwardInstance[]
   enabled: boolean
   actionBusy: boolean
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface SessionForwardForm {
@@ -48,22 +53,24 @@ const defaultSessionForwardForm: SessionForwardForm = {
 
 const forwardStatusPriority: Record<ForwardInstance['status'], number> = {
   running: 0,
-  starting: 1,
-  waiting_host_trust: 2,
-  stopping: 3,
-  failed: 4,
-  stopped: 5,
+  reconnecting: 1,
+  starting: 2,
+  waiting_host_trust: 3,
+  stopping: 4,
+  failed: 5,
+  stopped: 6,
 }
 
 export function ForwardSessionPanel({
   session,
-  host,
+  sshProfile,
   forwards,
   enabled,
   actionBusy,
   onStartForward,
   onRestartForward,
   onStopForward,
+  onLaunchAgent,
 }: ForwardSessionPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -158,7 +165,9 @@ export function ForwardSessionPanel({
     )
   }
 
-  const sessionTarget = host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')
+  const sessionTarget = sshProfile
+    ? `${sshProfile.username}@${sshProfile.address}:${sshProfile.port}`
+    : t('fields.none')
 
   return (
     <section className={`${scopedClassName('forward-session-panel')} ${styles.root}`}>
@@ -233,6 +242,19 @@ export function ForwardSessionPanel({
               actionBusy={actionBusy}
               onRestart={() => onRestartForward(forward.id)}
               onStop={() => onStopForward(forward.id)}
+              onLaunchAgent={onLaunchAgent ? () => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
+                hostId: forward.host_id,
+                forwardId: forward.id,
+                forwardProfileId: forward.profile_id,
+                status: forward.status,
+                title: t('agent.launch.title.forwardFailure', {
+                  name: forward.name || t(`forwards.modeName.${forward.mode}`),
+                }),
+                summary: t('agent.launch.summary.forwardFailure', {
+                  status: t(`forwards.status.${forward.status}`),
+                  phase: t(`forwards.phaseName.${forward.phase}`),
+                }),
+              })) : undefined}
             />
           ))
         )}
@@ -247,12 +269,14 @@ function SessionForwardRow({
   actionBusy,
   onRestart,
   onStop,
+  onLaunchAgent,
 }: {
   forward: ForwardInstance
   enabled: boolean
   actionBusy: boolean
   onRestart: () => Promise<void>
   onStop: () => Promise<void>
+  onLaunchAgent?: () => void
 }) {
   const { t } = useTranslation()
   const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : forward.status === 'stopped' ? 'disconnected' : 'connecting'
@@ -271,6 +295,7 @@ function SessionForwardRow({
             disabled={actionBusy}
             onRestart={onRestart}
             onStop={onStop}
+            onLaunchAgent={onLaunchAgent}
           />
         </div>
       </div>

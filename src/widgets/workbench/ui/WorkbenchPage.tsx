@@ -33,10 +33,12 @@ import type { CodeSnippet } from '#entities/snippet'
 import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
 import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
+import type { AgentLaunchRequest } from '#entities/agent'
 import type {
   FileBookmark,
   FileBookmarkInput,
   FileSession,
+  FileSessionConnectInput,
   FileSessionClosureState,
 } from '#entities/file'
 import { commandDockHeightLimits, parseCommandDockHeight } from '../model/commandDockHeight'
@@ -158,17 +160,13 @@ export interface WorkbenchPageProps {
   actionBusy: boolean
   onOpenConnectionLauncher: () => void
   onConnect: (hostId: string) => Promise<void>
+  onConnectSSHProfile: (sshProfileId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<boolean>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
   onManageBookmarks: (session: Session) => Promise<void>
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
   onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
@@ -181,6 +179,7 @@ export interface WorkbenchPageProps {
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export function WorkbenchPage({
@@ -205,6 +204,7 @@ export function WorkbenchPage({
   actionBusy,
   onOpenConnectionLauncher,
   onConnect,
+  onConnectSSHProfile,
   onSelectSession,
   onDisconnect,
   onRefreshInventory,
@@ -220,6 +220,7 @@ export function WorkbenchPage({
   onStartForward,
   onRestartForward,
   onStopForward,
+  onLaunchAgent,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -348,6 +349,9 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? hostView.hosts.find((host) => host.id === activeSession.host_id) : undefined
+  const sessionSSHProfile = activeSession?.ssh_profile_id
+    ? hostView.sshAccessProfiles.find((profile) => profile.id === activeSession.ssh_profile_id)
+    : undefined
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(sessionView.sessions, sessionTabPreferences),
     [sessionTabPreferences, sessionView.sessions],
@@ -374,7 +378,9 @@ export function WorkbenchPage({
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
       : sessionHost
-        ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
+        ? sessionSSHProfile
+          ? `${sessionSSHProfile.username}@${sessionSSHProfile.address}:${sessionSSHProfile.port}`
+          : t('workbench.connectionOverview.profileUnavailable')
         : t('workbench.noHost')
   const startedAt = activeSession?.started_at ? formatWorkbenchTime(activeSession.started_at) : t('fields.none')
   const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
@@ -388,9 +394,11 @@ export function WorkbenchPage({
     fileBookmarkGroups: filesView.fileBookmarkGroups,
     fileBookmarks: filesView.fileBookmarks,
     fileSessions: filesView.fileSessions,
+    fileAccessProfiles: filesView.fileAccessProfiles,
   }), [
     filesView.fileBookmarkGroups,
     filesView.fileBookmarks,
+    filesView.fileAccessProfiles,
     filesView.fileSessions,
     hostView.hosts,
     sessionView.sessions,
@@ -658,12 +666,12 @@ export function WorkbenchPage({
 
   const duplicateSessionFromMenu = useCallback(
     async (session: Session) => {
-      if (actionBusy || session.kind !== 'ssh' || !session.host_id) {
+      if (actionBusy || session.kind !== 'ssh' || !session.ssh_profile_id) {
         return
       }
-      await onConnect(session.host_id)
+      await onConnectSSHProfile(session.ssh_profile_id)
     },
-    [actionBusy, onConnect],
+    [actionBusy, onConnectSSHProfile],
   )
   const connectQuickHost = useCallback(
     async (hostId: string) => {
@@ -712,6 +720,17 @@ export function WorkbenchPage({
     }
   }, [activeSession?.id, clearActiveSearch, commitTerminalSearch, focusSession])
 
+  const handleTerminalCleared = useCallback((sessionId: string) => {
+    const current = terminalSearchRef.current
+    if (!current.open || current.sessionId !== sessionId) {
+      return
+    }
+    commitTerminalSearch({
+      ...current,
+      result: createEmptyTerminalSearchResult(),
+    })
+  }, [commitTerminalSearch])
+
   const openTerminalSearch = useCallback((sessionId: string, initialQuery = '') => {
     const current = terminalSearchRef.current
     if (current.sessionId && current.sessionId !== sessionId) {
@@ -752,34 +771,6 @@ export function WorkbenchPage({
     },
     [activeSession?.id, onSelectSession, openTerminalSearch],
   )
-  const handleSessionTabMenuAction = useCallback(
-    (action: SessionTabMenuAction, session: Session) => {
-      if (action === 'search') {
-        requestSessionSearch(session.id)
-      } else if (action === 'duplicate') {
-        void duplicateSessionFromMenu(session)
-      } else if (action === 'split') {
-        splitSessionFromMenu(session.id)
-      } else if (action === 'rename') {
-        openRenameSession(session)
-      } else if (action === 'pin') {
-        toggleSessionPinned(session.id)
-      } else if (action === 'color') {
-        setColorSessionId(session.id)
-      } else if (action === 'reset') {
-        resetSessionTabPreference(session.id)
-      }
-    },
-    [
-      duplicateSessionFromMenu,
-      openRenameSession,
-      requestSessionSearch,
-      resetSessionTabPreference,
-      splitSessionFromMenu,
-      toggleSessionPinned,
-    ],
-  )
-
   const openPathInWorkbenchFiles = useCallback((session: Session, path: string) => {
     const normalizedPath = normalizeRemotePosixPath(path)
     if (
@@ -1091,28 +1082,59 @@ export function WorkbenchPage({
   )
 
   const reconnectActiveSession = useCallback(async () => {
-    if (!activeSession?.host_id || actionBusy) {
+    if (!activeSession?.ssh_profile_id || actionBusy) {
       return
     }
     const previousSessionId = activeSession.id
-    const hostId = activeSession.host_id
+    const sshProfileId = activeSession.ssh_profile_id
     if (!await closeSessionTab(previousSessionId)) {
       return
     }
-    await onConnect(hostId)
-  }, [actionBusy, activeSession?.host_id, activeSession?.id, closeSessionTab, onConnect])
+    await onConnectSSHProfile(sshProfileId)
+  }, [actionBusy, activeSession?.id, activeSession?.ssh_profile_id, closeSessionTab, onConnectSSHProfile])
 
   const reconnectSession = useCallback(
     async (session: Session) => {
-      if (!session.host_id || actionBusy) {
+      if (!session.ssh_profile_id || actionBusy) {
         return
       }
       if (!await closeSessionTab(session.id)) {
         return
       }
-      await onConnect(session.host_id)
+      await onConnectSSHProfile(session.ssh_profile_id)
     },
-    [actionBusy, closeSessionTab, onConnect],
+    [actionBusy, closeSessionTab, onConnectSSHProfile],
+  )
+
+  const handleSessionTabMenuAction = useCallback(
+    (action: SessionTabMenuAction, session: Session) => {
+      if (action === 'search') {
+        requestSessionSearch(session.id)
+      } else if (action === 'duplicate') {
+        void duplicateSessionFromMenu(session)
+      } else if (action === 'restart') {
+        void reconnectSession(session)
+      } else if (action === 'split') {
+        splitSessionFromMenu(session.id)
+      } else if (action === 'rename') {
+        openRenameSession(session)
+      } else if (action === 'pin') {
+        toggleSessionPinned(session.id)
+      } else if (action === 'color') {
+        setColorSessionId(session.id)
+      } else if (action === 'reset') {
+        resetSessionTabPreference(session.id)
+      }
+    },
+    [
+      duplicateSessionFromMenu,
+      openRenameSession,
+      reconnectSession,
+      requestSessionSearch,
+      resetSessionTabPreference,
+      splitSessionFromMenu,
+      toggleSessionPinned,
+    ],
   )
 
   useEffect(() => {
@@ -1368,6 +1390,7 @@ export function WorkbenchPage({
           onResize={handleTerminalResize}
           onReconnectSession={reconnectSession}
           onSearchSession={requestSessionSearch}
+          onTerminalCleared={handleTerminalCleared}
           onOpenFilesAtPath={openPathInWorkbenchFiles}
           onCloseSession={closeSessionTab}
           onCommandDockHeightChange={setCommandDockHeight}
@@ -1395,11 +1418,13 @@ export function WorkbenchPage({
                 onOpenFiles={onOpenFiles}
                 onReconnect={reconnectActiveSession}
                 onClose={closeSessionTab}
+                onLaunchAgent={onLaunchAgent}
               />
           ),
           files: (
               <WorkbenchFilesPanel
                 api={fileGateway}
+                getHostIconUrl={getHostIconUrl}
                 data={workbenchFilesData}
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}
@@ -1470,13 +1495,14 @@ export function WorkbenchPage({
           forwards: (
               <ForwardSessionPanel
                 session={activeSession}
-                host={sessionHost}
+                sshProfile={sessionSSHProfile}
                 forwards={forwards}
                 enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}
                 onStartForward={onStartForward}
                 onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
+                onLaunchAgent={onLaunchAgent}
               />
           ),
           aliases: (

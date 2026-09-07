@@ -53,6 +53,14 @@ test('工作台文件面板保留固定布局、滚动边界和传输条避让',
     transferStyles,
     /\.workbench-file-transfer\s*\{[^}]*min-height:\s*50px;/s,
   )
+  assert.match(
+    transferStyles,
+    /\.workbench-file-transfer\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 5%, var\(--app-bg-elevated\)\);/s,
+  )
+  assert.match(
+    transferStyles,
+    /\.workbench-file-transfer\.is-failed\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 6%, var\(--app-bg-elevated\)\);/s,
+  )
 })
 
 test('工作台文件控件保留紧凑尺寸与 Popover 滚动上限', () => {
@@ -107,6 +115,11 @@ test('工作台文件运行时查询不依赖样式类名', () => {
   assert.match(listSource, /querySelector\('\[data-workbench-file-transfer\]'\)/)
   assert.doesNotMatch(listSource, /closest\('\.workbench-files-panel'\)/)
   assert.doesNotMatch(listSource, /querySelector\('\.workbench-file-transfer'\)/)
+})
+
+test('工作台文件夹行不重复显示类型文字且文件仍显示大小', () => {
+  assert.match(listSource, /\{directory \? null : formatBytes\(entry\.size\)\}/)
+  assert.doesNotMatch(listSource, /directory \? t\('files\.kindName\.directory'\)/)
 })
 
 test('工作台文件样式保持原级联顺序且不覆盖面板定位', () => {

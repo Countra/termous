@@ -17,10 +17,34 @@ import {
   requireReleaseVersion,
   validateUpdateManifest,
 } from './release-manifest-contract.mjs'
+import { validateAgentSkillsBundleDirectory } from '../agent/validate-skills-bundle.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const scriptDirectory = path.dirname(scriptPath)
 const defaultWebDirectory = path.resolve(scriptDirectory, '..', '..')
+export const packagedThirdPartyFiles = Object.freeze([
+  'THIRD_PARTY_NOTICES.txt',
+  'licenses/pi-LICENSE.txt',
+  'licenses/OpenAI-SDK-LICENSE.txt',
+  'licenses/OpenAI-qs-LICENSE.txt',
+  'licenses/diff-LICENSE.txt',
+  'licenses/partial-json-LICENSE.txt',
+  'licenses/MCP-Client-LICENSE.txt',
+  'licenses/eventsource-parser-LICENSE.txt',
+  'licenses/pkce-challenge-LICENSE.txt',
+  'licenses/Zod-LICENSE.txt',
+  'licenses/TypeBox-LICENSE.txt',
+  'licenses/react-markdown-LICENSE.txt',
+  'licenses/remark-gfm-LICENSE.txt',
+  'licenses/driver.js-LICENSE.txt',
+  'licenses/noVNC-LICENSE.txt',
+  'licenses/noVNC-AUTHORS.txt',
+  'licenses/noVNC/LICENSE.BSD-2-Clause',
+  'licenses/noVNC/LICENSE.BSD-3-Clause',
+  'licenses/noVNC/LICENSE.MPL-2.0',
+  'licenses/noVNC/LICENSE.OFL-1.1',
+  'licenses/noVNC-pako-LICENSE.txt',
+])
 
 export const publishCredentialNames = Object.freeze([
   'GH_TOKEN',
@@ -188,10 +212,29 @@ export async function validatePackageArtifacts({
   for (const corePath of corePaths) {
     await assertFile(corePath, `包内 Core ${coreName}`)
   }
+  const packagedResources = packagedResourcesDirectory(
+    root,
+    normalizedPlatform,
+    normalizedArch,
+  )
+  const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
+  const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
+  await assertFile(skillsManifestPath, '包内 Agent Skills manifest')
+  await validateAgentSkillsBundleDirectory(skillsDirectory)
+  const skillsManifestPaths = [skillsManifestPath]
+  const packagedApplication = path.dirname(packagedResources)
+  const thirdPartyNoticePaths = []
+  for (const relativePath of packagedThirdPartyFiles) {
+    const noticePath = path.join(packagedApplication, ...relativePath.split('/'))
+    await assertFile(noticePath, `包内第三方声明 ${relativePath}`)
+    thirdPartyNoticePaths.push(noticePath)
+  }
 
   return {
     appUpdatePaths,
     corePaths,
+    skillsManifestPaths,
+    thirdPartyNoticePaths,
     manifestPath,
     files: expected.files.map((fileName) => path.join(root, fileName)),
   }
@@ -423,6 +466,22 @@ function expectedArtifacts(platform, arch, version) {
   }
 }
 
+function packagedResourcesDirectory(root, platform, arch) {
+  if (platform === 'win32') {
+    return path.join(root, 'win-unpacked', 'resources')
+  }
+  if (platform === 'linux') {
+    return path.join(root, 'linux-unpacked', 'resources')
+  }
+  return path.join(
+    root,
+    arch === 'arm64' ? 'mac-arm64' : 'mac',
+    'Termous.app',
+    'Contents',
+    'Resources',
+  )
+}
+
 async function readPackageJson(webDirectory) {
   const packagePath = path.join(webDirectory, 'package.json')
   let content
@@ -455,11 +514,11 @@ async function assertDirectory(filePath, label) {
 async function assertFile(filePath, label) {
   let info
   try {
-    info = await stat(filePath)
+    info = await lstat(filePath)
   } catch (error) {
     throw new Error(`${label}不存在: ${filePath}`, { cause: error })
   }
-  if (!info.isFile() || info.size <= 0) {
+  if (!info.isFile() || info.isSymbolicLink() || info.size <= 0) {
     throw new Error(`${label}不是有效文件: ${filePath}`)
   }
 }

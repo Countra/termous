@@ -18,6 +18,7 @@ export function buildForwardRestartRequest(forward: ForwardInstance): ForwardSta
     scope: forward.scope,
     session_id: forward.session_id,
     host_id: forward.host_id,
+    ssh_profile_id: forward.ssh_profile_id,
     name: forward.name,
     description: forward.description,
     mode: forward.mode,
@@ -91,6 +92,7 @@ export function forwardRuntimeActionAvailability(status: ForwardStatus) {
     restart: status === 'running',
     stop: status === 'starting'
       || status === 'waiting_host_trust'
-      || status === 'running',
+      || status === 'running'
+      || status === 'reconnecting',
   }
 }

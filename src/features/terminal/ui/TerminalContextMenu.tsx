@@ -2,6 +2,7 @@ import { Dropdown, type MenuProps } from 'antd'
 import {
   ClipboardPaste,
   Copy,
+  Eraser,
   ExternalLink,
   FolderOpen,
   Link2,
@@ -41,6 +42,7 @@ const actionIcons: Record<TerminalContextMenuActionKey, LucideIcon> = {
   copy_selection: Copy,
   find_selection: Search,
   paste: ClipboardPaste,
+  clear: Eraser,
   select_all: TextSelect,
   find: Search,
 }
@@ -54,6 +56,7 @@ const actionTranslationKeys: Record<TerminalContextMenuActionKey, string> = {
   copy_selection: 'terminal.contextMenu.copy',
   find_selection: 'terminal.contextMenu.findSelection',
   paste: 'terminal.contextMenu.paste',
+  clear: 'terminal.contextMenu.clear',
   select_all: 'terminal.contextMenu.selectAll',
   find: 'terminal.contextMenu.find',
 }

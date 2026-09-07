@@ -36,6 +36,7 @@ function normalizeBuildStep(step) {
   if (
     normalized.name === "Checkout Termous"
     || normalized.name === "Checkout pinned Termous Core"
+    || normalized.name === "Checkout pinned Termous Skills"
   ) {
     delete normalized.with.ref;
   }
@@ -54,11 +55,29 @@ function normalizeBuildStep(step) {
   return normalized;
 }
 
+function matrixEntryPattern(entry) {
+  const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(
+    [
+      `platform:\\s+"${escape(entry.platform)}",`,
+      `target_os:\\s+"${escape(entry.target_os)}",`,
+      `arch:\\s+"${escape(entry.arch)}",`,
+      `runner:\\s+"${escape(entry.runner)}"`,
+    ].join("\\s+"),
+    "u",
+  );
+}
+
 test("全部前端分支 push 都会触发 CI", async () => {
   const { workflow } = await loadWorkflow();
   assert.deepEqual(workflow.on.push.branches, ["**"]);
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.ok(Object.hasOwn(workflow.on, "workflow_dispatch"));
+  assert.equal(workflow.jobs.web.needs, undefined);
+  assert.ok(
+    stepsFor(workflow, "web").some(({ name }) => name === "Typecheck"),
+    "基础 Web 质量门禁必须独立运行",
+  );
 });
 
 test("Core 优先使用前端同名分支并在缺失时回退 main", async () => {
@@ -73,11 +92,10 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.equal(
     resolver.if,
     "github.repository == 'Countra/termous' && "
-      + "github.ref_type == 'branch' && "
-      + "(github.event_name == 'push' || "
-      + "github.event_name == 'workflow_dispatch')",
+      + "(github.event_name != 'pull_request' || "
+      + "github.event.pull_request.head.repo.full_name == github.repository)",
   );
-  assert.equal(resolverStep.env.FRONTEND_BRANCH, "${{ github.ref_name }}");
+  assert.equal(resolverStep.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
   assert.equal(resolverStep.env.DEFAULT_CORE_BRANCH, "main");
   assert.match(script, /matching: ref/u);
   assert.match(script, /fallback: ref/u);
@@ -100,6 +118,7 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
     "GraphQL 错误必须在分支回退前失败",
   );
   assert.deepEqual(resolver.outputs, {
+    matrix: "${{ steps.matrix.outputs.matrix }}",
     sha: "${{ steps.core.outputs.sha }}",
   });
 
@@ -116,7 +135,100 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.equal(coreCheckout.with["persist-credentials"], false);
 });
 
-test("提交构建复用 Release 的四平台打包路径", async () => {
+test("公开 Skills 无需专用读取凭据并固定为不可变提交", async () => {
+  const { workflow } = await loadWorkflow();
+  const resolver = workflow.jobs["resolve-skills"];
+  const step = stepsFor(workflow, "resolve-skills").find(
+    ({ name }) => name === "Resolve matching branch or main",
+  );
+  assert.ok(step);
+  assert.equal(resolver.if, "github.repository == 'Countra/termous'");
+  assert.equal(step.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
+  assert.equal(step.env.DEFAULT_SKILLS_BRANCH, "main");
+  assert.equal(
+    step.env.SKILLS_REPOSITORY,
+    "Countra/termous-skills",
+  );
+  assert.equal(step.env.GH_TOKEN, undefined);
+  assert.equal(JSON.stringify(resolver).includes("${{ secrets."), false);
+  assert.match(step.run, /git ls-remote --refs --heads/u);
+  assert.match(step.run, /\$GITHUB_SERVER_URL\/\$SKILLS_REPOSITORY\.git/u);
+  assert.match(step.run, /refs\/heads\/\$FRONTEND_BRANCH/u);
+  assert.match(step.run, /refs\/heads\/\$DEFAULT_SKILLS_BRANCH/u);
+  assert.match(step.run, /if \[\[ -n "\$matching_sha" \]\]; then/u);
+  assert.match(step.run, /selected_branch="\$FRONTEND_BRANCH"/u);
+  assert.match(step.run, /selected_sha="\$matching_sha"/u);
+  assert.match(step.run, /selected_branch="\$DEFAULT_SKILLS_BRANCH"/u);
+  assert.match(step.run, /selected_sha="\$fallback_sha"/u);
+  assert.match(step.run, /\^\[0-9a-f\]\{40\}\$/u);
+  assert.equal(resolver.outputs.sha, "${{ steps.skills.outputs.sha }}");
+
+  for (const jobName of ["web-renderer", "build"]) {
+    const checkout = stepsFor(workflow, jobName).find(
+      ({ name }) => name === "Checkout pinned Termous Skills",
+    );
+    assert.ok(checkout);
+    assert.equal(
+      checkout.with.repository,
+      "Countra/termous-skills",
+    );
+    assert.equal(checkout.with.ref, "${{ needs.resolve-skills.outputs.sha }}");
+    assert.equal(checkout.with.path, "termous-skills");
+    assert.equal(checkout.with.token, undefined);
+    assert.equal(checkout.with["persist-credentials"], false);
+  }
+  const rendererBuild = stepsFor(workflow, "web-renderer").find(
+    ({ name }) => name === "Build renderer",
+  );
+  assert.ok(rendererBuild);
+  assert.equal(
+    rendererBuild.env.TERMOUS_SKILLS_DIR,
+    "${{ github.workspace }}/termous-skills/skills",
+  );
+  assert.equal(workflow.jobs.build.env.TERMOUS_SKILLS_DIR, "${{ github.workspace }}/termous-skills/skills");
+});
+
+test("fork PR 保留基础质量门禁并跳过需要私有 Core 的 Renderer 构建", async () => {
+  const { workflow } = await loadWorkflow();
+  assert.equal(workflow.jobs.web.needs, undefined);
+  assert.deepEqual(workflow.jobs["web-renderer"].needs, [
+    "resolve-core",
+    "resolve-skills",
+  ]);
+  assert.equal(workflow.jobs["web-renderer"].if, undefined);
+  assert.equal(workflow.jobs.build.if, undefined);
+  const rendererSteps = stepsFor(workflow, "web-renderer");
+  assert.ok(rendererSteps.some(({ name }) => name === "Build renderer"));
+  const rendererCheckout = rendererSteps.find(({ name }) => name === "Checkout");
+  assert.equal(
+    rendererCheckout?.uses,
+    "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+  );
+  const rendererPnpm = rendererSteps.find(({ name }) => name === "Setup pnpm");
+  assert.equal(
+    rendererPnpm?.uses,
+    "pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320",
+  );
+  const rendererNode = rendererSteps.find(({ name }) => name === "Setup Node.js");
+  assert.equal(
+    rendererNode?.uses,
+    "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e",
+  );
+  assert.equal(
+    stepsFor(workflow, "web").some(({ name }) => name === "Build renderer"),
+    false,
+  );
+  assert.match(
+    workflow.jobs["resolve-core"].if,
+    /head\.repo\.full_name == github\.repository/u,
+  );
+  assert.equal(
+    workflow.jobs["resolve-skills"].if,
+    "github.repository == 'Countra/termous'",
+  );
+});
+
+test("提交构建按分支选择平台并复用 Release 打包路径", async () => {
   const { workflow } = await loadWorkflow();
   const { workflow: releaseWorkflow } = await loadWorkflow(
     releaseWorkflowUrl,
@@ -125,12 +237,36 @@ test("提交构建复用 Release 的四平台打包路径", async () => {
   const build = workflow.jobs.build;
   const releaseBuild = releaseWorkflow.jobs.build;
 
-  assert.equal(build.needs, "resolve-core");
-  assert.deepEqual(build.strategy, releaseBuild.strategy);
+  assert.deepEqual(build.needs, ["resolve-core", "resolve-skills"]);
+  assert.deepEqual(build.strategy, {
+    "fail-fast": releaseBuild.strategy["fail-fast"],
+    matrix: "${{ fromJSON(needs.resolve-core.outputs.matrix) }}",
+  });
+
+  const matrixStep = stepsFor(workflow, "resolve-core").find(
+    ({ name }) => name === "Resolve platform matrix",
+  );
+  assert.ok(matrixStep);
+  assert.equal(matrixStep.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
+  const branchGate = matrixStep.run.indexOf('if $branch == "main" then');
+  assert.ok(branchGate >= 0, "macOS 矩阵必须由 main 分支条件控制");
+  for (const entry of releaseBuild.strategy.matrix.include) {
+    const match = matrixEntryPattern(entry).exec(matrixStep.run);
+    assert.ok(match, `提交构建缺少 ${entry.platform}-${entry.arch} 平台配置`);
+    if (entry.platform === "macos") {
+      assert.ok(match.index > branchGate, `${entry.arch} macOS 必须仅加入 main 矩阵`);
+    } else {
+      assert.ok(match.index < branchGate, `${entry.platform} 必须在所有分支构建`);
+    }
+  }
+  assert.match(matrixStep.run, /else\s+\[\]\s+end/u);
+  assert.match(matrixStep.run, /echo "matrix=\$matrix" >> "\$GITHUB_OUTPUT"/u);
+
   for (const name of [
     "TERMOUS_ARCH",
     "TERMOUS_CORE_DIR",
     "TERMOUS_OUTPUT_DIR",
+    "TERMOUS_SKILLS_DIR",
     "TERMOUS_TARGET_OS",
     "TERMOUS_WEB_DIR",
   ]) {

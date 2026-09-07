@@ -1,7 +1,6 @@
 .page {
   display: grid;
   width: 100%;
-  max-width: 980px;
   height: 100%;
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
@@ -39,29 +38,23 @@
   overflow: hidden;
 }
 
-.tabs :global(.ant-tabs-content-holder),
-.tabs :global(.ant-tabs-body-holder),
-.tabs :global(.ant-tabs-content),
-.tabs :global(.ant-tabs-body),
-.tabs :global(.ant-tabs-tabpane) {
+.tabs > :global(.ant-tabs-body-holder) {
   min-width: 0;
   min-height: 0;
-}
-
-.tabs :global(.ant-tabs-content-holder),
-.tabs :global(.ant-tabs-body-holder) {
   flex: 1 1 auto;
   overflow: hidden;
 }
 
-.tabs :global(.ant-tabs-content),
-.tabs :global(.ant-tabs-body),
-.tabs :global(.ant-tabs-tabpane) {
+// 只约束设置页自己的页签，避免覆盖 Provider 等内层页签的滚动边界。
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body),
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body) > :global(.ant-tabs-content) {
+  min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
 }
 
-.tabs :global(.ant-tabs-nav) {
+.tabs > :global(.ant-tabs-nav) {
   flex: 0 0 auto;
   margin-bottom: 12px;
 }

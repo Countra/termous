@@ -1,0 +1,207 @@
+.workspace {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: 252px minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--inner-highlight);
+  container-name: agent-workspace;
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.workspace.has-inspector {
+  grid-template-columns: 252px minmax(420px, 1fr) 296px;
+}
+
+.workspace.has-sessions-overlay {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.main {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 48px minmax(0, 1fr) auto;
+  background: color-mix(in srgb, var(--surface) 97%, var(--app-bg));
+}
+
+.header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--terminal-toolbar) 92%, transparent);
+  gap: 14px;
+  padding: 0 10px 0 14px;
+}
+
+.header-title,
+.header-controls,
+.active-run-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.header-title {
+  flex: 1 1 auto;
+  gap: 8px;
+}
+
+.header-heading {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.header-heading > strong,
+.header-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-heading > strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 18px;
+}
+
+.header-meta {
+  min-height: 15px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.run-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  gap: 6px;
+}
+
+.run-status > i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.run-status[data-status='queued'] > i,
+.run-status[data-status='starting'] > i,
+.run-status[data-status='running'] > i {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.run-status[data-status='waiting-approval'] > i,
+.run-status[data-status='stopping'] > i {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.run-status[data-status='failed'],
+.run-status[data-status='interrupted'] {
+  color: var(--danger);
+}
+
+.run-status[data-status='failed'] > i,
+.run-status[data-status='interrupted'] > i {
+  background: var(--danger);
+}
+
+.header-controls {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.active-run-actions {
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 44%, transparent);
+  gap: 1px;
+  margin-right: 2px;
+  padding: 1px 2px;
+}
+
+.active-run-actions :global(.ant-btn) {
+  height: 26px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding-inline: 6px;
+}
+
+.active-run-actions :global(.ant-btn-icon) {
+  display: inline-flex;
+}
+
+.header-icon-button:global(.ant-btn) {
+  display: inline-flex;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  padding: 0;
+}
+
+.header-icon-button:global(.ant-btn):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.drawer :global(.ant-drawer-content),
+.drawer :global(.ant-drawer-body) {
+  background: var(--surface);
+}
+
+.drawer :global(.ant-drawer-body) {
+  min-height: 0;
+  padding: 0;
+}
+
+.drawer :global([data-agent-panel]) {
+  height: 100%;
+  border: 0;
+}
+
+.skeleton {
+  grid-column: 1 / -1;
+  padding: 28px;
+}
+
+@container agent-workspace (width <= 720px) {
+  .header {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .header-meta,
+  .active-run-label {
+    display: none;
+  }
+
+  .header-heading {
+    display: block;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-status > i {
+    box-shadow: none !important;
+  }
+}

@@ -63,6 +63,7 @@ interface TerminalSplitWorkspaceProps {
   onResize?: (cols: number, rows: number) => void
   onReconnectSession?: (session: Session) => void
   onSearchSession?: (sessionId: string, initialQuery?: string) => void
+  onTerminalCleared?: (sessionId: string) => void
   onOpenFilesAtPath?: (session: Session, path: string) => void
   onCloseSession?: (session: Session) => void
 }
@@ -91,6 +92,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       onResize,
       onReconnectSession,
       onSearchSession,
+      onTerminalCleared,
       onOpenFilesAtPath,
       onCloseSession,
     },
@@ -313,6 +315,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               onActivate={() => activatePane(node)}
               onReconnect={session && session.kind === 'ssh' && session.host_id ? () => onReconnectSession?.(session) : undefined}
               onSearch={onSearchSession}
+              onTerminalCleared={onTerminalCleared}
               onOpenPath={onOpenFilesAtPath}
               onClose={session ? () => onCloseSession?.(session) : undefined}
             />
@@ -359,6 +362,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         onOpenFilesAtPath,
         onReconnectSession,
         onSearchSession,
+        onTerminalCleared,
         onResize,
         placeholder,
         searchPanel,

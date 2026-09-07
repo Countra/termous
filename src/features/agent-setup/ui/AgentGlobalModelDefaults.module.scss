@@ -1,0 +1,274 @@
+.defaults {
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.heading {
+  margin-bottom: 14px;
+}
+
+.heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.heading p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.controls {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.primary-controls,
+.parameter-controls {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 14px;
+}
+
+.primary-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.parameter-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compaction-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.compaction-hint {
+  margin: 25px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.field-label {
+  display: flex;
+  min-width: 0;
+  min-height: 16px;
+  align-items: center;
+  gap: 4px;
+}
+
+.field-label > span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.field :global(.ant-select),
+.field :global(.ant-input-number) {
+  width: 100%;
+}
+
+.field-help {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: help;
+  padding: 0;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.field-help:hover,
+.field-help:focus-visible {
+  background: var(--row-hover-bg);
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.field-help:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.alert {
+  margin-top: 12px;
+}
+
+.alert :global(.ant-alert-actions) {
+  flex-shrink: 0;
+}
+
+.save {
+  min-width: 72px;
+}
+
+.model-option {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.model-option strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-option em {
+  color: var(--warning);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.model-detail-tooltip:global(.ant-tooltip) {
+  max-width: min(288px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.model-detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.model-detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  width: min(268px, calc(100vw - 24px));
+  max-width: none;
+  padding: 10px 11px;
+}
+
+.model-detail {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.model-detail > strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.model-detail > span {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@container agent-settings (min-width: 900px) {
+  .controls {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .primary-controls,
+  .parameter-controls {
+    display: contents;
+  }
+
+  .compaction-controls {
+    grid-column: 1 / -1;
+  }
+}
+
+@container agent-settings (max-width: 520px) {
+  .primary-controls,
+  .parameter-controls,
+  .compaction-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .compaction-hint {
+    margin: 0;
+  }
+
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .alert :global(.ant-alert-section) {
+    min-width: 0;
+  }
+
+  .alert :global(.ant-alert-actions) {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .alert:global(.ant-alert-with-description) {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-help {
+    transition: none;
+  }
+}

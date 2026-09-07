@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import styles from './ManagementWorkspace.module.scss'
 
 export type ManagementWorkspaceView = 'catalog' | 'editor'
@@ -12,11 +12,10 @@ interface ManagementWorkspaceProps {
   editorLabel?: string
 }
 
-interface ManagementPanelProps {
+interface ManagementPanelProps extends Omit<ComponentPropsWithoutRef<'section'>, 'children'> {
   header: ReactNode
   children: ReactNode
   footer?: ReactNode
-  className?: string
   bodyClassName?: string
 }
 
@@ -59,9 +58,13 @@ export function ManagementPanel({
   footer,
   className,
   bodyClassName,
+  ...sectionProps
 }: ManagementPanelProps) {
   return (
-    <section className={['management-panel', styles['management-panel'], className].filter(Boolean).join(' ')}>
+    <section
+      {...sectionProps}
+      className={['management-panel', styles['management-panel'], className].filter(Boolean).join(' ')}
+    >
       <header className={`management-panel-header ${styles['management-panel-header']}`}>{header}</header>
       <div
         className={['management-panel-body', styles['management-panel-body'], bodyClassName].filter(Boolean).join(' ')}

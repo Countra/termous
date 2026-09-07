@@ -1,6 +1,7 @@
 import type {
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   Settings,
   ShortcutSettingsPatch,
   TerminalSettings,
@@ -11,6 +12,7 @@ import { changeLanguage } from '#shared/i18n'
 import {
   applyShortcutSettingsPatch,
   completionSettingsEqual,
+  connectionSettingsEqual,
   normalizeSettings,
   shortcutSettingsEqual,
 } from '#features/settings'
@@ -27,6 +29,11 @@ interface SettingsCommandDependencies {
   completionSettingsWriteQueue: SerialMutationQueue
   completionSettings: MutableValue<CompletionSettings>
   confirmedCompletionSettings: MutableValue<CompletionSettings>
+  connectionSettingsMutation: MutableValue<number>
+  connectionSettingsPendingWrites: MutableValue<number>
+  connectionSettingsWriteQueue: SerialMutationQueue
+  connectionSettings: MutableValue<ConnectionSettings>
+  confirmedConnectionSettings: MutableValue<ConnectionSettings>
   shortcutSettingsMutation: MutableValue<number>
   shortcutSettingsPendingWrites: MutableValue<number>
   shortcutSettingsWriteQueue: SerialMutationQueue
@@ -43,6 +50,11 @@ export function createSettingsCommands({
   completionSettingsWriteQueue,
   completionSettings,
   confirmedCompletionSettings,
+  connectionSettingsMutation,
+  connectionSettingsPendingWrites,
+  connectionSettingsWriteQueue,
+  connectionSettings,
+  confirmedConnectionSettings,
   shortcutSettingsMutation,
   shortcutSettingsPendingWrites,
   shortcutSettingsWriteQueue,
@@ -131,6 +143,57 @@ export function createSettingsCommands({
         completionSettingsPendingWrites.current = Math.max(
           0,
           completionSettingsPendingWrites.current - 1,
+        )
+      }
+    },
+    async setConnectionSettings(connection: ConnectionSettings) {
+      const mutation = connectionSettingsMutation.current + 1
+      connectionSettingsMutation.current = mutation
+      connectionSettingsPendingWrites.current += 1
+      connectionSettings.current = connection
+      setData((current) => ({ ...current, settings: { ...current.settings, connection } }))
+      try {
+        const settings = normalizeSettings(await connectionSettingsWriteQueue.enqueue(
+          () => api.updateConnectionSettings(connection),
+        ))
+        confirmedConnectionSettings.current = settings.connection
+        if (connectionSettingsMutation.current !== mutation) {
+          return
+        }
+        if (!connectionSettingsEqual(connectionSettings.current, connection)) {
+          return
+        }
+        connectionSettings.current = settings.connection
+        setData((current) => (
+          connectionSettingsEqual(current.settings.connection, connection)
+            ? {
+                ...current,
+                settings: { ...current.settings, connection: settings.connection },
+              }
+            : current
+        ))
+      } catch (updateError) {
+        if (connectionSettingsMutation.current !== mutation) {
+          return
+        }
+        if (!connectionSettingsEqual(connectionSettings.current, connection)) {
+          throw updateError
+        }
+        const confirmedConnection = confirmedConnectionSettings.current
+        connectionSettings.current = confirmedConnection
+        setData((current) => (
+          connectionSettingsEqual(current.settings.connection, connection)
+            ? {
+                ...current,
+                settings: { ...current.settings, connection: confirmedConnection },
+              }
+            : current
+        ))
+        throw updateError
+      } finally {
+        connectionSettingsPendingWrites.current = Math.max(
+          0,
+          connectionSettingsPendingWrites.current - 1,
         )
       }
     },

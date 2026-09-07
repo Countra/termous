@@ -63,7 +63,7 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 结构迁移必须保持以下合同：
 
-- Provider 顺序为 `TermousUi -> Update -> Shortcut -> FilesWorkspace -> Transfer -> Terminal -> AppShell`。
+- Provider 顺序为 `TermousUi -> Update -> Shortcut -> FilesWorkspace -> Transfer -> Terminal -> CommandDispatch -> McpAccess -> AppShell`。
 - Workbench 始终挂载，仅通过 `inert`、`active=false` 和样式隐藏，不能改为条件渲染。
 - Terminal Runtime、xterm DOM、parking host 和 transport 保持单实例所有权。
 - `main` 与 `update` 两个 Renderer Surface 的动态入口保持不变。

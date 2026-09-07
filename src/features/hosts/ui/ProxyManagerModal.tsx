@@ -291,7 +291,6 @@ export function ProxyManagerModal({
                   </Tooltip>
                 )}
               />
-              <p>{editingProxy ? editingProxy.url : t('proxies.newHint')}</p>
             </div>
           </header>
           <div className={styles['proxy-manager-form']}>

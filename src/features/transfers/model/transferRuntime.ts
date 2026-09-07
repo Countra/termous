@@ -1,7 +1,17 @@
 import { createContext, useContext } from 'react'
-import type { TransferTask } from '#entities/file'
+import { resolveTransferOrigin, type TransferTask } from '#entities/file'
 
-const transferHistoryLimit = 200
+const transferHistoryLimitPerOrigin = 200
+const remoteCopyRefreshHistoryLimit = 200
+
+export type RemoteCopyRefreshConsumer = 'files-workspace' | 'workbench-files'
+
+export interface RemoteCopyRefreshEvent {
+  sequence: number
+  taskId: string
+  targetFileSessionId: string
+  targetPath: string
+}
 
 export interface TransferRuntimeApi {
   transfers: () => Promise<TransferTask[]>
@@ -13,9 +23,13 @@ export interface TransferRuntimeValue {
   activeTransfers: TransferTask[]
   connected: boolean
   initialized: boolean
+  remoteCopyRefreshVersion: number
   refresh: () => Promise<void>
   upsertTransfer: (task: TransferTask) => void
   removeTransfer: (id: string) => void
+  consumeRemoteCopyRefreshEvents: (
+    consumer: RemoteCopyRefreshConsumer,
+  ) => RemoteCopyRefreshEvent[]
 }
 
 export const TransferRuntimeContext = createContext<TransferRuntimeValue | null>(null)
@@ -111,16 +125,35 @@ export function sortTransfers(transfers: TransferTask[]) {
 
   const activeTransfers: TransferTask[] = []
   const historyTransfers: TransferTask[] = []
+  const historyCounts = { app: 0, mcp: 0 }
   for (const task of sorted) {
     if (isActiveTransfer(task)) {
       activeTransfers.push(task)
       continue
     }
-    if (historyTransfers.length < transferHistoryLimit) {
+    const origin = resolveTransferOrigin(task)
+    if (historyCounts[origin] < transferHistoryLimitPerOrigin) {
       historyTransfers.push(task)
+      historyCounts[origin] += 1
     }
   }
   return [...activeTransfers, ...historyTransfers]
+}
+
+export function shouldRefreshRemoteCopyTarget(task: TransferTask) {
+  return task.type === 'remote_copy'
+    && Boolean(task.target_file_session_id)
+    && (
+      task.status === 'completed'
+      || (
+        (task.status === 'failed' || task.status === 'cancelled')
+        && task.partial === true
+      )
+    )
+}
+
+export function limitRemoteCopyRefreshEvents(events: RemoteCopyRefreshEvent[]) {
+  return events.slice(-remoteCopyRefreshHistoryLimit)
 }
 
 function isActiveTransfer(task: TransferTask) {

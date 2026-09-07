@@ -1,4 +1,4 @@
-import { AlertCircle, CircleDot } from 'lucide-react'
+import { AlertCircle, CircleDot, RotateCw } from 'lucide-react'
 import { Progress, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardInstance } from '#entities/forward'
@@ -16,7 +16,10 @@ interface ForwardStateFeedbackProps {
 
 export function ForwardStateFeedback({ forward, compact = false }: ForwardStateFeedbackProps) {
   const { t } = useTranslation()
-  const transitioning = forward.status === 'starting' || forward.status === 'waiting_host_trust' || forward.status === 'stopping'
+  const transitioning = forward.status === 'starting'
+    || forward.status === 'waiting_host_trust'
+    || forward.status === 'reconnecting'
+    || forward.status === 'stopping'
 
   if (!transitioning && forward.status !== 'failed') {
     return null
@@ -56,10 +59,21 @@ export function ForwardStateFeedback({ forward, compact = false }: ForwardStateF
     >
       <div className={scopedClassName('forward-state-feedback-copy')}>
         <span>
-          <CircleDot size={13} aria-hidden="true" />
+          {forward.status === 'reconnecting'
+            ? <RotateCw size={13} aria-hidden="true" />
+            : <CircleDot size={13} aria-hidden="true" />}
           {t(`forwards.phaseName.${forward.phase}`)}
         </span>
-        <strong>{Math.max(0, Math.min(100, forward.progress || 0))}%</strong>
+        {forward.status === 'reconnecting' && forward.reconnect_max_attempts
+          ? (
+              <strong>
+                {t('forwards.reconnectAttempt', {
+                  attempt: forward.reconnect_attempt ?? 0,
+                  total: forward.reconnect_max_attempts,
+                })}
+              </strong>
+            )
+          : <strong>{Math.max(0, Math.min(100, forward.progress || 0))}%</strong>}
       </div>
       <Progress percent={Math.max(0, Math.min(100, forward.progress || 0))} showInfo={false} status="active" />
     </div>

@@ -184,7 +184,9 @@ export class UpdateRuntimeSummaryPublisher {
 
 export function runtimeSummarySignature(summary: UpdateRuntimeSummary) {
   return [
+    summary.agent_runs,
     summary.ssh_sessions,
+    summary.remote_desktop_sessions,
     summary.file_sessions,
     summary.forwards,
     summary.transfers,

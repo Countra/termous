@@ -208,6 +208,9 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
     'resize-edge',
     'resize-edge-left',
     'resize-edge-right',
+    'panel-toggle-zone',
+    'panel-toggle-zone-left',
+    'panel-toggle-zone-right',
     'panel-side-toggle',
     'panel-side-toggle-left',
     'panel-side-toggle-right',
@@ -217,6 +220,34 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
 
   assert.match(publicEntry, /default as sidePanelStyles.*SidePanelControls\.module\.scss/)
   assert.match(featureSidePanelSource, /import sidePanelStyles from '\.\/SidePanelControls\.module\.scss'/)
+  assert.match(
+    controlsStyles,
+    /\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-toggle-zone\s*\{[^}]*width:\s*10px;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-toggle-zone:hover \.panel-side-toggle:global\(\.ant-btn\)[^{]*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-side-toggle:global\(\.ant-btn\):focus-visible\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /@media \(hover:\s*none\), \(pointer:\s*coarse\)\s*\{[\s\S]*?\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*1;/,
+  )
+  assert.match(
+    controlsStyles,
+    /@media \(hover:\s*none\), \(pointer:\s*coarse\)\s*\{[\s\S]*?\.panel-toggle-zone\s*\{[^}]*width:\s*32px;[^}]*\}[\s\S]*?\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*width:\s*32px;[^}]*height:\s*44px;/,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel\.is-resizing \.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
+  )
 
   assert.match(globalStyles, /^body\[data-panel-resizing='true'\]\s*\{/m)
   assert.doesNotMatch(globalStyles, /^\.(?:context-panel|details-panel)(?=[\s.,:{])/m)
@@ -225,6 +256,13 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   assert.doesNotMatch(globalStyles, /^\.host-context-panel\.is-(?:content-collapsed|resizing)\b/m)
   assert.doesNotMatch(globalStyles, /^\.host-context-panel\.is-collapsed \.panel-heading\b/m)
   assert.doesNotMatch(globalStyles, /^\.panel-heading(?:\s|\{)/m)
+
+  for (const relativePath of [
+    '../shared/ui/SidePanelControls.module.scss',
+    '../features/hosts/ui/HostLauncherModal.module.scss',
+  ]) {
+    assert.doesNotMatch(source(relativePath), /var\(--surface-(?:base|elevated|hover)\b/)
+  }
 })
 
 test('主窗口全局规则通过 Surface 标记隔离，通知使用显式 Module class', () => {
@@ -265,19 +303,24 @@ test('AntD 下拉虚拟列表统一使用紧凑滚动条', () => {
 
 test('共享下拉菜单使用不透明主题背景', () => {
   const customSelectStyles = source('../shared/ui/CustomSelect.module.scss')
+  const contextActionMenuStyles = source('../shared/ui/ContextActionMenu.module.scss')
 
   assert.match(globalStyles, /:root\s*\{[^}]*--termous-dropdown-bg:\s*#20242d;/s)
   assert.match(globalStyles, /:root\[data-theme="light"\]\s*\{[^}]*--termous-dropdown-bg:\s*#fff;/s)
   assert.match(
     customSelectStyles,
-    /\.select-popup:global\(\.ant-select-dropdown\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+    /\.select-popup:global\(\.ant-select-dropdown\),\s*\.select-dropdown:global\(\.ant-select-dropdown\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
   )
   assert.match(
     customSelectStyles,
-    /\.select-popup :global\(\.rc-virtual-list\),[^}]*\.select-popup :global\(\.rc-virtual-list-holder-inner\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+    /\.select-popup :global\(\.rc-virtual-list\),[^}]*\.select-dropdown :global\(\.rc-virtual-list-holder-inner\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+  )
+  assert.match(
+    contextActionMenuStyles,
+    /\.root :global\(\.ant-dropdown-menu\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
   )
   assert.doesNotMatch(
-    customSelectStyles,
+    `${customSelectStyles}\n${contextActionMenuStyles}`,
     /background:\s*var\(--surface-strong\)/,
   )
 })
@@ -295,6 +338,28 @@ test('凭据库密码框仅由外层容器承载字段背景', () => {
   assert.doesNotMatch(sshKeyDialogStyles, /\.ssh-key-form-field :global\(\.ant-input\),/)
 })
 
+test('凭据库操作区统一直接子按钮高度', () => {
+  const credentialStyles = source('../features/vault/ui/CredentialManagement.module.scss')
+
+  assert.match(
+    credentialStyles,
+    /\.credential-catalog-actions > button:global\(\.ant-btn\)\s*\{[^}]*height:\s*34px;[^}]*min-height:\s*34px;/s,
+  )
+})
+
+test('本地下载浏览区仅在存在面包屑时预留导航轨道', () => {
+  const localDownloadStyles = source('../features/local-download/ui/LocalDownloadConsole.module.scss')
+
+  assert.match(
+    localDownloadStyles,
+    /\.local-download-console-mappings,\s*\.local-download-console-browser\s*\{[^}]*grid-template-rows:\s*39px minmax\(0, 1fr\);/s,
+  )
+  assert.match(
+    localDownloadStyles,
+    /\.local-download-console-browser\.has-breadcrumbs\s*\{[^}]*grid-template-rows:\s*39px 35px minmax\(0, 1fr\);/s,
+  )
+})
+
 test('生产 TypeScript 不再直接使用旧通知样式字面量', () => {
   const legacyConsumers = globSync(['**/*.ts', '**/*.tsx'], { cwd: sourceRoot })
     .filter((relativePath) => !relativePath.startsWith('test/'))
@@ -308,11 +373,27 @@ test('生产 TypeScript 不再直接使用旧通知样式字面量', () => {
 test('主机头像样式由 Host Module 承载，旧全局选择器保持清零', () => {
   const hostAvatarSource = source('../entities/host/ui/HostAvatar.tsx')
   const hostAvatarStyles = source('../entities/host/ui/HostAvatar.module.scss')
+  const sessionTabStyles = source('../shared/ui/SessionTabs.module.scss')
 
   assert.match(hostAvatarSource, /styles\['has-custom-icon'\]/)
   assert.match(hostAvatarStyles, /\.host-avatar\.host-avatar\s*\{[^}]*--host-avatar-size:\s*30px;[^}]*display:\s*inline-grid;/s)
   assert.match(hostAvatarStyles, /\.host-avatar\.has-custom-icon\s*\{/)
-
+  assert.match(
+    hostAvatarStyles,
+    /\.host-avatar\.is-compact\s*\{[^}]*--host-avatar-border:\s*0;[^}]*--host-avatar-bg-local:\s*transparent;[^}]*overflow:\s*visible;/s,
+  )
+  assert.match(
+    hostAvatarStyles,
+    /\.host-avatar\.is-compact img\s*\{[^}]*width:\s*calc\(var\(--host-avatar-size\) - 2px\);[^}]*height:\s*calc\(var\(--host-avatar-size\) - 2px\);[^}]*object-fit:\s*contain;/s,
+  )
+  assert.match(
+    sessionTabStyles,
+    /\.session-tab-leading\s*\{[^}]*isolation:\s*isolate;[^}]*overflow:\s*visible;/s,
+  )
+  assert.match(
+    sessionTabStyles,
+    /\.session-tab-leading \.session-dot\s*\{[^}]*z-index:\s*1;[^}]*border:\s*1\.5px solid var\(--session-tab-surface\);/s,
+  )
   for (const selector of [
     /^\.host-stack(?:\s|,|\{)/m,
     /^\.host-filter-(?:panel|primary-row|meta|clear|tags)(?:\s|\.|\{)/m,
@@ -333,8 +414,10 @@ test('主机头像样式由 Host Module 承载，旧全局选择器保持清零'
 
 test('主机表单与启动入口显式挂载共享控件 Module', () => {
   const hostCatalogSource = source('../features/hosts/ui/HostCatalog.tsx')
-  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostCreateEditor.tsx')
+  const hostAssetFormSource = source('../features/hosts/ui/HostAssetForm.tsx')
   const hostLauncherSource = source('../features/hosts/ui/HostLauncherModal.tsx')
+  const hostLauncherFiltersSource = source('../features/hosts/ui/HostLauncherAdvancedFilters.tsx')
   const proxyManagerSource = source('../features/hosts/ui/ProxyManagerModal.tsx')
   const quickConnectSource = source('../features/hosts/ui/SessionQuickConnect.tsx')
   const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
@@ -344,15 +427,16 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   assert.match(hostCatalogSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostCatalogSource, /uiStyles\['search-input'\]/)
 
-  assert.match(hostEditorSource, /styles\['host-icon-select-popup'\]/)
-  assert.match(hostEditorSource, /styles\['host-icon-select-option'\]/)
-  assert.match(hostEditorSource, /customSelectStyles\.select/)
-  assert.match(hostEditorSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostEditorSource, /HostAssetForm/)
+  assert.match(hostAssetFormSource, /styles\['host-icon-select-popup'\]/)
+  assert.match(hostAssetFormSource, /styles\['host-icon-select-option'\]/)
+  assert.match(hostAssetFormSource, /customSelectStyles\.select/)
+  assert.match(hostAssetFormSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostManagementStyles, /\.host-icon-select-option\s*\{[^}]*align-items:\s*center;/s)
 
   assert.match(hostLauncherSource, /confirmDialogStyles\['modal-root'\]/)
-  assert.match(hostLauncherSource, /customSelectStyles\.select/)
-  assert.match(hostLauncherSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostLauncherFiltersSource, /customSelectStyles\.select/)
+  assert.match(hostLauncherFiltersSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostLauncherSource, /uiStyles\['search-input'\]/)
   assert.match(hostLauncherStyles, /@keyframes :global\(host-launcher-filter-in\)/)
   assert.match(hostLauncherStyles, /@keyframes :global\(termous-reachability-pulse\)/)
@@ -388,8 +472,12 @@ test('失效的管理表单规则离开兼容层，现行布局由共置 Module 
   const managementWorkspaceSource = source('../shared/ui/ManagementWorkspace.tsx')
   const managementWorkspaceStyles = source('../shared/ui/ManagementWorkspace.module.scss')
   const hostWorkspaceSource = source('../features/hosts/ui/HostManagementWorkspace.tsx')
-  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostCreateEditor.tsx')
+  const hostAssetFormSource = source('../features/hosts/ui/HostAssetForm.tsx')
+  const hostEditorShellSource = source('../features/hosts/ui/HostEditorShell.tsx')
+  const hostEditorShellStyles = source('../features/hosts/ui/HostEditorShell.module.scss')
   const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
+  const primitiveStyles = source('../shared/ui/Primitives.module.scss')
 
   for (const selector of [
     'list-panel',
@@ -421,11 +509,18 @@ test('失效的管理表单规则离开兼容层，现行布局由共置 Module 
   assert.match(managementWorkspaceStyles, /\.management-panel\s*\{[^}]*border-radius:\s*14px;/s)
 
   assert.match(hostWorkspaceSource, /styles\['workspace-root'\]/)
-  assert.match(hostEditorSource, /className="host-icon-inline-manage"/)
-  assert.match(hostEditorSource, /className="host-group-editor-control"/)
-  assert.match(hostEditorSource, /className="host-group-editor-create"/)
+  assert.match(hostEditorSource, /HostEditorShell/)
+  assert.match(hostEditorSource, /HostAssetForm/)
+  assert.match(hostAssetFormSource, /uiStyles\['inline-management-action'\]/)
+  assert.match(hostAssetFormSource, /className="host-group-editor-control"/)
+  assert.match(hostAssetFormSource, /className="host-group-editor-create"/)
+  assert.match(hostAssetFormSource, /styles\['favorite-setting'\]/)
+  assert.match(hostEditorShellSource, /ManagementFilterTabs/)
+  assert.match(hostEditorShellStyles, /\.header\s*\{[^}]*grid-template-columns:/s)
   assert.match(hostManagementStyles, /\.workspace-root:global\(\.hosts-management-workspace\)/)
-  assert.match(hostManagementStyles, /\.host-icon-inline-manage\.ant-btn/)
+  assert.match(primitiveStyles, /\.inline-management-action:global\(\.ant-btn\)/)
   assert.match(hostManagementStyles, /\.host-group-editor-control\s*\{/)
   assert.match(hostManagementStyles, /\.host-group-editor-create\s*\{/)
+  assert.match(hostManagementStyles, /\.favorite-setting\s*\{[^}]*grid-template-columns:\s*30px minmax\(0, 1fr\) auto;/s)
+  assert.match(hostManagementStyles, /\.favorite-setting\s*>\s*:global\(\.ant-switch\)\s*\{[^}]*width:\s*fit-content;[^}]*justify-self:\s*end;/s)
 })

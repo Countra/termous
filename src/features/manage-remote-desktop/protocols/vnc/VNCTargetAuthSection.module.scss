@@ -1,0 +1,222 @@
+.section {
+  min-width: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding: 18px 22px 20px;
+}
+
+.section-inner {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+.section-heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.section-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.section-copy,
+.status-copy > span,
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.section-copy h3 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: 0;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-copy strong,
+.field > span {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: 0;
+}
+
+.status-copy small,
+.field > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.auth-layout {
+  display: grid;
+  min-width: 0;
+}
+
+.mode-setting {
+  display: grid;
+  min-width: 0;
+  min-height: 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  align-items: center;
+  gap: 24px;
+}
+
+.mode-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.auth-detail {
+  display: grid;
+  min-width: 0;
+  min-height: 90px;
+  align-items: center;
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-top: 12px;
+}
+
+.status {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.status-copy {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.status-copy > svg {
+  margin-top: 1px;
+  color: var(--text-muted);
+}
+
+.status[data-state='saved'] .status-copy > svg {
+  color: var(--success);
+}
+
+.status[data-state='removing'] .status-copy > svg {
+  color: var(--warning);
+}
+
+.replace-action:global(.ant-btn),
+.editor > :global(.ant-btn) {
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.replace-action:global(.ant-btn) {
+  color: var(--text-secondary);
+}
+
+.replace-action:global(.ant-btn):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 28%, transparent) !important;
+  color: var(--accent) !important;
+}
+
+.editor {
+  display: grid;
+  width: min(100%, 680px);
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.field {
+  gap: 6px;
+}
+
+.field :global(.ant-input-affix-wrapper) {
+  height: 40px;
+  min-height: 40px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  box-shadow: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.field :global(.ant-input-affix-wrapper-focused) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.field :global(.ant-input-prefix) {
+  color: var(--text-muted);
+}
+
+.field > small {
+  min-height: 15px;
+}
+
+.editor > :global(.ant-btn) {
+  margin-top: 21px;
+}
+
+.error {
+  color: var(--danger) !important;
+}
+
+@container vnc-profile-editor (max-width: 640px) {
+  .section {
+    padding: 16px 16px 18px;
+  }
+
+  .mode-setting {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+@container vnc-profile-editor (max-width: 420px) {
+  .status,
+  .editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-detail {
+    min-height: 124px;
+  }
+
+  .replace-action:global(.ant-btn),
+  .editor > :global(.ant-btn) {
+    justify-self: start;
+  }
+
+  .editor > :global(.ant-btn) {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field :global(.ant-input-affix-wrapper) {
+    transition: none;
+  }
+}

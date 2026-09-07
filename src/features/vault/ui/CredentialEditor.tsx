@@ -82,9 +82,10 @@ export function CredentialEditor({
     <ManagementPanel
       className={styles['credential-editor']}
       bodyClassName={styles['credential-editor-body']}
+      data-tour="credential-editor"
       header={(
         <div className={styles['credential-editor-heading']}>
-          <Button type="text" className={styles['credential-editor-back']} icon={<ArrowLeft size={17} />} aria-label={t('vault.backToList')} onClick={onBack} />
+          <Button type="text" className={styles['credential-editor-back']} data-tour="credential-back" icon={<ArrowLeft size={17} />} aria-label={t('vault.backToList')} onClick={onBack} />
           <span className={[
             styles['credential-editor-avatar'],
             draft.type === 'private_key_passphrase' ? styles['is-private-key-passphrase'] : '',

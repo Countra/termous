@@ -12,6 +12,7 @@ import type {
 import {
   defaultAppearanceSettings,
   defaultCompletionSettings,
+  defaultConnectionSettings,
   defaultShortcutSettings,
   defaultTerminalSettings,
   defaultWindowSettings,
@@ -26,20 +27,26 @@ const initialSettings: Settings = {
   appearance: defaultAppearanceSettings,
   terminal: defaultTerminalSettings,
   completion: defaultCompletionSettings,
+  connection: defaultConnectionSettings,
   shortcuts: defaultShortcutSettings,
   window: defaultWindowSettings,
 }
 
 export const initialData: AppData = {
   hosts: [],
+  hostAssets: [],
   groups: [],
   hostIcons: [],
   proxies: [],
   credentials: [],
   sessions: [],
   fileSessions: [],
+  sshAccessProfiles: [],
+  fileAccessProfiles: [],
   forwardProfiles: [],
   forwards: [],
+  remoteDesktopProfiles: [],
+  remoteDesktopSessions: [],
   snippetGroups: [],
   snippets: [],
   fileBookmarkGroups: [],
@@ -146,24 +153,6 @@ export function upsertSession(sessions: Session[], next: Session) {
     return sessions.map((session) => (session.id === next.id ? next : session))
   }
   return [...sessions, next]
-}
-
-export function markHostRecentlyConnected(
-  hosts: AppData['hosts'],
-  sessions: Session[],
-  sessionId: string,
-  patch: Partial<Session>,
-) {
-  const sessionsWithPatch = sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session))
-  const updatedSession = sessionsWithPatch.find((session) => session.id === sessionId)
-  if (updatedSession?.kind !== 'ssh' || updatedSession.status !== 'connected' || !updatedSession.host_id) {
-    return { hosts, sessions: sessionsWithPatch }
-  }
-  const connectedAt = updatedSession.connected_at ?? new Date().toISOString()
-  return {
-    hosts: hosts.map((host) => (host.id === updatedSession.host_id ? { ...host, last_connected_at: connectedAt } : host)),
-    sessions: sessionsWithPatch,
-  }
 }
 
 export function upsertFileBookmarkGroup(groups: FileBookmarkGroup[], next: FileBookmarkGroup) {

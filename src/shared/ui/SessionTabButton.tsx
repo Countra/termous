@@ -8,6 +8,7 @@ interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 
   active?: boolean
   empty?: boolean
   icon: ReactNode
+  sourceIndicator?: ReactNode
   label: ReactNode
   status?: string
   statusLabel?: string
@@ -31,6 +32,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     empty = false,
     className,
     icon,
+    sourceIndicator,
     label,
     status,
     statusLabel,
@@ -138,6 +140,15 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
             aria-disabled={disabled || closing || undefined}
             tabIndex={tabIndex ?? (active ? 0 : -1)}
           >
+            {sourceIndicator ? (
+              <span
+                className={styles['session-tab-source-indicator']}
+                data-session-source-indicator=""
+                aria-hidden="true"
+              >
+                {sourceIndicator}
+              </span>
+            ) : null}
             <span className={styles['session-tab-content']}>
               {leading}
               <span className={styles['session-tab-label']}>{label}</span>

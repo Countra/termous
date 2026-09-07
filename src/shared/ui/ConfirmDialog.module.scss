@@ -45,6 +45,7 @@
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   grid-column: 1 / -1;
   align-items: center;
   justify-content: flex-end;
@@ -92,7 +93,7 @@
 }
 
 .modal :global(.ant-modal-close):hover {
-  background: var(--surface-hover);
+  background: var(--row-hover-bg);
   color: var(--text-primary);
 }
 

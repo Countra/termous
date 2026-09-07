@@ -118,7 +118,7 @@ test("Workflow、Job 与 checkout 保持最小权限", async () => {
   }
 });
 
-test("Metadata 在环境审批前固定标签与两个仓库提交", async () => {
+test("Metadata 在环境审批前固定标签与三个仓库提交", async () => {
   const { workflow } = await loadWorkflow();
   assert.deepEqual(workflow.concurrency, {
     group: "release",
@@ -132,6 +132,7 @@ test("Metadata 在环境审批前固定标签与两个仓库提交", async () =>
     "core_sha",
     "prerelease",
     "release_date",
+    "skills_sha",
     "tag",
     "termous_sha",
     "version",
@@ -149,12 +150,53 @@ test("Metadata 在环境审批前固定标签与两个仓库提交", async () =>
   assert.equal(metadataSource.includes("\\+"), false);
   assert.deepEqual(workflow.jobs["prepare-release"].outputs, {
     core_sha: "${{ needs.metadata.outputs.core_sha }}",
+    skills_sha: "${{ needs.metadata.outputs.skills_sha }}",
     prerelease: "${{ needs.metadata.outputs.prerelease }}",
     release_date: "${{ needs.metadata.outputs.release_date }}",
     tag: "${{ needs.metadata.outputs.tag }}",
     termous_sha: "${{ needs.metadata.outputs.termous_sha }}",
     version: "${{ needs.metadata.outputs.version }}",
   });
+  const skillsCheckout = stepsFor(workflow, "build").find(
+    ({ name }) => name === "Checkout pinned Termous Skills",
+  );
+  assert.equal(skillsCheckout.with.ref, "${{ needs.prepare-release.outputs.skills_sha }}");
+  assert.equal(
+    workflow.jobs.build.env.TERMOUS_SKILLS_DIR,
+    "${{ github.workspace }}/termous-skills/skills",
+  );
+});
+
+test("公开 Skills checkout 不依赖专用读取凭据", async () => {
+  const { workflow } = await loadWorkflow();
+  const cases = [
+    {
+      jobName: "metadata",
+      stepName: "Checkout Termous Skills",
+      ref: "${{ github.event.inputs.skills_ref || vars.TERMOUS_SKILLS_REF || steps.release.outputs.tag }}",
+    },
+    {
+      jobName: "build",
+      stepName: "Checkout pinned Termous Skills",
+      ref: "${{ needs.prepare-release.outputs.skills_sha }}",
+    },
+  ];
+
+  for (const { jobName, stepName, ref } of cases) {
+    const checkout = stepsFor(workflow, jobName).find(
+      ({ name }) => name === stepName,
+    );
+    assert.ok(checkout, `${jobName} 缺少 ${stepName}`);
+    assert.equal(
+      checkout.with.repository,
+      "Countra/termous-skills",
+    );
+    assert.equal(checkout.with.ref, ref);
+    assert.equal(checkout.with.path, "termous-skills");
+    assert.equal(checkout.with.token, undefined);
+    assert.equal(checkout.with["persist-credentials"], false);
+    assert.equal(JSON.stringify(checkout).includes("${{ secrets."), false);
+  }
 });
 
 test("平台构建完成后才使用内置 Token 上传 Draft 资产", async () => {

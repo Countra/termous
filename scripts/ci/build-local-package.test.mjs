@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import {
   mkdtemp,
   mkdir,
+  lstat,
   readFile,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -15,6 +18,7 @@ import { stringify as stringifyYaml } from 'yaml'
 import { hashRegularFile } from './release-manifest-contract.mjs'
 import {
   createElectronBuilderArguments,
+  packagedThirdPartyFiles,
   runLocalPackage,
   sanitizePublishEnvironment,
   validatePackageArtifacts,
@@ -39,6 +43,47 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
   assert.equal(config.mac.identity, null)
   assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)
+  const expectedSources = new Map([
+    ['THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'],
+    ['licenses/pi-LICENSE.txt', 'third_party_licenses/pi-LICENSE.txt'],
+    ['licenses/OpenAI-SDK-LICENSE.txt', 'third_party_licenses/OpenAI-SDK-LICENSE.txt'],
+    ['licenses/OpenAI-qs-LICENSE.txt', 'third_party_licenses/OpenAI-qs-LICENSE.txt'],
+    ['licenses/diff-LICENSE.txt', 'third_party_licenses/diff-LICENSE.txt'],
+    ['licenses/partial-json-LICENSE.txt', 'third_party_licenses/partial-json-LICENSE.txt'],
+    ['licenses/MCP-Client-LICENSE.txt', 'node_modules/@modelcontextprotocol/client/LICENSE'],
+    ['licenses/eventsource-parser-LICENSE.txt', 'third_party_licenses/eventsource-parser-LICENSE.txt'],
+    ['licenses/pkce-challenge-LICENSE.txt', 'third_party_licenses/pkce-challenge-LICENSE.txt'],
+    ['licenses/Zod-LICENSE.txt', 'third_party_licenses/Zod-LICENSE.txt'],
+    ['licenses/TypeBox-LICENSE.txt', 'node_modules/typebox/license'],
+    ['licenses/react-markdown-LICENSE.txt', 'node_modules/react-markdown/license'],
+    ['licenses/remark-gfm-LICENSE.txt', 'node_modules/remark-gfm/license'],
+    ['licenses/driver.js-LICENSE.txt', 'node_modules/driver.js/license'],
+    ['licenses/noVNC-LICENSE.txt', 'node_modules/@novnc/novnc/LICENSE.txt'],
+    ['licenses/noVNC-AUTHORS.txt', 'node_modules/@novnc/novnc/AUTHORS'],
+    ['licenses/noVNC-pako-LICENSE.txt', 'node_modules/@novnc/novnc/vendor/pako/LICENSE'],
+  ])
+  const actualSources = new Map(
+    config.extraFiles.map(({ from, to }) => [to, from]),
+  )
+  const noticeText = await readFile('THIRD_PARTY_NOTICES.txt', 'utf8')
+  for (const [destination, source] of expectedSources) {
+    assert.equal(actualSources.get(destination), source, destination)
+    const sourceInfo = await lstat(source)
+    assert.equal(sourceInfo.isFile(), true, source)
+    assert.equal(sourceInfo.isSymbolicLink(), false, source)
+    assert.equal(sourceInfo.size > 0, true, source)
+    if (destination !== 'THIRD_PARTY_NOTICES.txt') {
+      assert.equal(noticeText.includes(destination), true, destination)
+    }
+  }
+  assert.deepEqual(
+    config.extraFiles.find(({ to }) => to === 'licenses/noVNC'),
+    {
+      from: 'node_modules/@novnc/novnc/docs',
+      to: 'licenses/noVNC',
+      filter: ['LICENSE*'],
+    },
+  )
   assert.equal(
     config.mac.artifactName,
     '${productName}-${version}-macos-${arch}.${ext}',
@@ -116,8 +161,147 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       })
       assert.equal(result.appUpdatePaths.length, 1)
       assert.equal(result.corePaths.length, 1)
+      assert.equal(result.skillsManifestPaths.length, 1)
+      assert.equal(
+        result.thirdPartyNoticePaths.length,
+        packagedThirdPartyFiles.length,
+      )
       assert.equal(result.files.length >= 2, true)
     }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-decoy-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    const packagedSkills = path.join(
+      root,
+      'win-unpacked',
+      'resources',
+      'agent',
+      'skills',
+    )
+    const decoySkills = path.join(
+      root,
+      'decoy',
+      'resources',
+      'agent',
+      'skills',
+    )
+    await mkdir(path.dirname(decoySkills), { recursive: true })
+    await rename(packagedSkills, decoySkills)
+
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /包内 Agent Skills manifest不存在/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    await rm(path.join(root, 'win-unpacked', 'licenses', 'pi-LICENSE.txt'))
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /第三方声明 licenses[/\\]pi-LICENSE\.txt不存在/u,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-tour-license-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    await rm(path.join(
+      root,
+      'win-unpacked',
+      'licenses',
+      'driver.js-LICENSE.txt',
+    ))
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /第三方声明 licenses[/\\]driver\.js-LICENSE\.txt不存在/u,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝符号链接形式的第三方许可证', async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-link-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    const sourcePath = path.join(root, 'license-source.txt')
+    const licensePath = path.join(
+      root,
+      'win-unpacked',
+      'licenses',
+      'pi-LICENSE.txt',
+    )
+    await rm(licensePath)
+    await writeFile(sourcePath, 'fixture-license')
+    try {
+      await symlink(sourcePath, licensePath, 'file')
+    } catch (error) {
+      if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+        context.skip('当前系统不允许创建测试用文件符号链接')
+        return
+      }
+      throw error
+    }
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /第三方声明 licenses[/\\]pi-LICENSE\.txt不是有效文件/u,
+    )
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -377,5 +561,43 @@ async function writeCompleteFixture({
       platform === 'win32' ? 'termous-core.exe' : 'termous-core',
     ),
     'fixture-core',
+  )
+  const applicationDirectory = path.dirname(resourcesDirectory)
+  for (const relativePath of packagedThirdPartyFiles) {
+    const targetPath = path.join(applicationDirectory, ...relativePath.split('/'))
+    await mkdir(path.dirname(targetPath), { recursive: true })
+    await writeFile(targetPath, `fixture:${relativePath}`)
+  }
+  const skillsDirectory = path.join(resourcesDirectory, 'agent', 'skills')
+  const skillPath = path.join(skillsDirectory, 'termous-test', 'SKILL.md')
+  await mkdir(path.dirname(skillPath), { recursive: true })
+  const skillContent = 'fixture-skill'
+  await writeFile(skillPath, skillContent, 'utf8')
+  const catalog = [{
+    name: 'termous-test',
+    description: 'Fixture skill',
+    entry_uri: 'skill://termous-test/SKILL.md',
+  }]
+  const resources = [{
+    uri: 'skill://termous-test/SKILL.md',
+    path: 'termous-test/SKILL.md',
+    sha256: createHash('sha256').update(skillContent).digest('hex'),
+    size: Buffer.byteLength(skillContent),
+    media_type: 'text/markdown; charset=utf-8',
+  }]
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    format_version: 1,
+    catalog,
+    resources: resources.map(({ uri, sha256, size, media_type }) => ({ uri, sha256, size, media_type })),
+  })).digest('hex')
+  await writeFile(
+    path.join(skillsDirectory, 'manifest.json'),
+    JSON.stringify({
+      format_version: 1,
+      fingerprint,
+      catalog,
+      resources,
+    }),
+    'utf8',
   )
 }

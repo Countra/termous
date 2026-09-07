@@ -41,6 +41,29 @@ export function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
 }
 
+export function reconcileForwardReloadSnapshot(
+  currentForwards: ForwardInstance[],
+  authoritativeForwards: ForwardInstance[],
+  changedForwardIds: ReadonlySet<string>,
+) {
+  const merged = new Map(
+    visibleForwards(authoritativeForwards).map((forward) => [forward.id, forward]),
+  )
+  if (changedForwardIds.size === 0) {
+    return [...merged.values()].sort(sortForwards)
+  }
+  const currentById = new Map(currentForwards.map((forward) => [forward.id, forward]))
+  for (const forwardId of changedForwardIds) {
+    const current = currentById.get(forwardId)
+    if (current && !shouldRemoveForward(current)) {
+      merged.set(forwardId, current)
+    } else {
+      merged.delete(forwardId)
+    }
+  }
+  return [...merged.values()].sort(sortForwards)
+}
+
 export function settleForwardStartCompletion(
   waiters: Map<string, ForwardStartCompletionWaiter>,
   snapshots: Map<string, ForwardInstance>,
@@ -116,6 +139,9 @@ export function shouldRemoveForward(forward: ForwardInstance) {
 
 export function shouldEmitForwardError(event: ForwardEvent) {
   if (event.type === 'snapshot') {
+    return false
+  }
+  if (event.forward.status === 'reconnecting') {
     return false
   }
   if (event.type === 'error' || event.forward.status === 'failed') {

@@ -1,4 +1,5 @@
-import { Select } from 'antd'
+import { Select, type SelectProps } from 'antd'
+import { useId } from 'react'
 import styles from './CustomSelect.module.scss'
 
 export interface SelectOption {
@@ -7,7 +8,10 @@ export interface SelectOption {
   description?: string
 }
 
-interface CustomSelectProps {
+interface CustomSelectProps extends Pick<
+  SelectProps<string>,
+  'status' | 'aria-invalid' | 'aria-describedby'
+> {
   label: string
   value: string
   options: SelectOption[]
@@ -27,14 +31,26 @@ export function CustomSelect({
   id,
   className,
   popupClassName,
+  status,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: CustomSelectProps) {
+  const generatedId = useId()
+  const controlId = id ?? `${generatedId}-control`
+  const labelId = `${generatedId}-label`
   return (
-    <label className={[styles['custom-select'], 'custom-select', className].filter(Boolean).join(' ')}>
-      <span className={`${styles['field-label']} field-label`}>{label}</span>
+    <div className={[styles['custom-select'], 'custom-select', className].filter(Boolean).join(' ')}>
+      <label id={labelId} htmlFor={controlId} className={`${styles['field-label']} field-label`}>
+        {label}
+      </label>
       <Select
-        id={id}
+        id={controlId}
         value={value}
         disabled={disabled}
+        status={status}
+        aria-labelledby={labelId}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         classNames={{
           popup: {
             root: [styles['select-popup'], 'termous-select-popup', popupClassName].filter(Boolean).join(' '),
@@ -60,6 +76,6 @@ export function CustomSelect({
           )
         }}
       />
-    </label>
+    </div>
   )
 }

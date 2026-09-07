@@ -4,10 +4,12 @@ export type {
 } from './api/commandDispatchGateway.ts'
 export {
   CommandDispatchProtocolError,
+  decodeCommandDispatchLatestTaskEvent,
   decodeCommandDispatchOutputControl,
   decodeCommandDispatchTask,
   decodeCommandDispatchTaskEvent,
   type CommandDispatchOutputControlEvent,
+  type CommandDispatchLatestTaskEvent,
 } from './model/commandDispatchProtocol.ts'
 export {
   connectedSSHSessionIds,

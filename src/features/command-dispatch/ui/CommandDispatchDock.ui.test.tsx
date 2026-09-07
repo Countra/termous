@@ -75,6 +75,18 @@ describe('会话命令台输入与指定目标交互', () => {
     expect(paste.defaultPrevented).toBe(true)
   })
 
+  it('无任务时分别说明会话结果与终端回显区域', () => {
+    const { container } = renderDock()
+    const resultsEmpty = container.querySelector('[data-command-dispatch-empty="results"]')
+    const mirrorEmpty = container.querySelector('[data-command-dispatch-empty="mirror"]')
+
+    expect(resultsEmpty).toHaveTextContent('commandDispatch.results')
+    expect(resultsEmpty).toHaveTextContent('commandDispatch.noResults')
+    expect(mirrorEmpty).toHaveTextContent('commandDispatch.ptyOutput')
+    expect(mirrorEmpty).toHaveTextContent('commandDispatch.mirrorEmpty')
+    expect(screen.queryByRole('list', { name: 'commandDispatch.results' })).not.toBeInTheDocument()
+  })
+
   it('按 UTF-8 8 KiB 与 64 个目标限制发送', () => {
     renderDock()
     const input = screen.getByLabelText('commandDispatch.commandInput')
@@ -128,6 +140,10 @@ describe('会话命令台输入与指定目标交互', () => {
     runtime.task = dispatchTask()
     const { container } = renderDock(4)
 
+    const resultList = screen.getByRole('list', { name: 'commandDispatch.results' })
+    expect(resultList).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+
     const badges = container.querySelectorAll<HTMLElement>('[data-exit-code-status]')
     const [success, failure, unknown] = badges
     expect(success).toHaveAttribute('data-exit-code-status', 'success')
@@ -180,6 +196,7 @@ function session(id: string, hostId: string): Session {
     id,
     host_id: hostId,
     kind: 'ssh',
+    origin: 'app',
     status: 'connected',
     started_at: '2026-08-12T00:00:00Z',
     pty_cols: 120,

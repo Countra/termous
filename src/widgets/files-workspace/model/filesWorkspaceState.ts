@@ -35,6 +35,7 @@ interface FilesWorkspaceDirectoryRequest {
   requestSequence: number
   historyMode: FilesWorkspaceHistoryMode
   historyIndex: number | null
+  revealPath: string | null
 }
 
 export interface FilesWorkspaceFailedDirectoryRequest {
@@ -100,6 +101,7 @@ export interface FilesWorkspaceAutomaticDirectoryRequest {
 export interface FilesWorkspaceNavigationOptions {
   historyMode?: FilesWorkspaceHistoryMode
   historyIndex?: number
+  revealPath?: string
 }
 
 export interface FilesWorkspaceSelectionModifiers {
@@ -292,12 +294,13 @@ export function beginFilesWorkspaceNavigation(
 
 export function beginFilesWorkspaceRefresh(
   state: RemoteDirectoryViewState,
+  options: Pick<FilesWorkspaceNavigationOptions, 'revealPath'> = {},
 ): FilesWorkspaceDirectoryRequestResult {
   return beginFilesWorkspaceDirectoryRequest(
     state,
     'refresh',
     state.committedPath,
-    { historyMode: 'replace' },
+    { historyMode: 'replace', revealPath: options.revealPath },
   )
 }
 
@@ -332,6 +335,9 @@ function beginFilesWorkspaceDirectoryRequest(
         requestSequence,
         historyMode: options.historyMode ?? 'push',
         historyIndex,
+        revealPath: options.revealPath
+          ? normalizeRemotePath(options.revealPath)
+          : null,
       },
     },
   }
@@ -359,16 +365,19 @@ export function completeFilesWorkspaceDirectoryRequest(
     entries: listing.entries ?? [],
   }
   const activeRequest = state.activeRequest
+  const availablePaths = new Set(normalizedListing.entries.map((entry) => entry.path))
+  const revealPath = keepAvailablePath(activeRequest.revealPath, availablePaths)
   if (activeRequest.kind === 'refresh') {
-    const availablePaths = new Set(normalizedListing.entries.map((entry) => entry.path))
     return {
       ...state,
       committedPath,
       pendingPath: null,
       listing: normalizedListing,
-      focusedPath: keepAvailablePath(state.focusedPath, availablePaths),
-      selectedPaths: state.selectedPaths.filter((path) => availablePaths.has(path)),
-      anchorPath: keepAvailablePath(state.anchorPath, availablePaths),
+      focusedPath: revealPath ?? keepAvailablePath(state.focusedPath, availablePaths),
+      selectedPaths: revealPath
+        ? [revealPath]
+        : state.selectedPaths.filter((path) => availablePaths.has(path)),
+      anchorPath: revealPath ?? keepAvailablePath(state.anchorPath, availablePaths),
       directoryStatus: 'idle',
       error: '',
       lastLoadedAt: loadedAt,
@@ -390,9 +399,9 @@ export function completeFilesWorkspaceDirectoryRequest(
     committedPath,
     pendingPath: null,
     listing: normalizedListing,
-    focusedPath: null,
-    selectedPaths: [],
-    anchorPath: null,
+    focusedPath: revealPath,
+    selectedPaths: revealPath ? [revealPath] : [],
+    anchorPath: revealPath,
     scrollTop: 0,
     directoryStatus: 'idle',
     error: '',

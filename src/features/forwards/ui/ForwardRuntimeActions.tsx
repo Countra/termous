@@ -1,4 +1,4 @@
-import { RefreshCw, Square } from 'lucide-react'
+import { Bot, RefreshCw, Square } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,7 @@ interface ForwardRuntimeActionsProps {
   disabled?: boolean
   onRestart: () => Promise<void>
   onStop: () => Promise<void>
+  onLaunchAgent?: () => void
 }
 
 export function ForwardRuntimeActions({
@@ -26,6 +27,7 @@ export function ForwardRuntimeActions({
   disabled = false,
   onRestart,
   onStop,
+  onLaunchAgent,
 }: ForwardRuntimeActionsProps) {
   const { t } = useTranslation()
   const [pendingAction, setPendingAction] = useState<ForwardRuntimeAction | null>(null)
@@ -57,6 +59,25 @@ export function ForwardRuntimeActions({
       aria-label={t('forwards.runtimeActions')}
       aria-busy={pendingAction !== null}
     >
+      {forward.status === 'failed' && onLaunchAgent ? (
+        <>
+          <Tooltip
+            title={t('agent.launch.action')}
+            mouseEnterDelay={0.3}
+            classNames={{ root: scopedClassName('forward-route-tooltip') }}
+          >
+            <Button
+              type="text"
+              className={scopedClassName('forward-runtime-action')}
+              aria-label={t('agent.launch.action')}
+              disabled={busy}
+              icon={<Bot size={13} />}
+              onClick={onLaunchAgent}
+            />
+          </Tooltip>
+          <span className={scopedClassName('forward-runtime-action-divider')} aria-hidden="true" />
+        </>
+      ) : null}
       <Tooltip
         title={t('forwards.restartForward')}
         mouseEnterDelay={0.3}

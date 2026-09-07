@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   mergeTransferUpdate,
   mergeTransferSnapshot,
+  sortTransfers,
   transferRefreshRetryDelay,
   TransferSnapshotGate,
 } from '../features/transfers/model/transferRuntime.ts'
@@ -137,4 +138,28 @@ test('传输快照刷新失败使用有上限的退避时间', () => {
     [1, 2, 3, 4, 8].map(transferRefreshRetryDelay),
     [1_000, 3_000, 9_000, 27_000, 30_000],
   )
+})
+
+test('应用与 MCP 结束任务分别保留 200 条且缺失来源兼容为应用任务', () => {
+  const appTasks = Array.from({ length: 201 }, (_, index) => transfer({
+    id: `app-${index}`,
+    origin: index === 200 ? undefined : 'app',
+    status: 'completed',
+    created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+  }))
+  const mcpTasks = Array.from({ length: 201 }, (_, index) => transfer({
+    id: `mcp-${index}`,
+    origin: 'mcp',
+    status: 'completed',
+    created_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+  }))
+
+  const sorted = sortTransfers([...appTasks, ...mcpTasks])
+
+  assert.equal(sorted.filter((task) => task.origin === 'mcp').length, 200)
+  assert.equal(sorted.filter((task) => task.origin !== 'mcp').length, 200)
+  assert.equal(sorted.some((task) => task.id === 'app-0'), false)
+  assert.equal(sorted.some((task) => task.id === 'mcp-0'), false)
+  assert.equal(sorted.some((task) => task.id === 'app-200'), true)
+  assert.equal(sorted.some((task) => task.id === 'mcp-200'), true)
 })

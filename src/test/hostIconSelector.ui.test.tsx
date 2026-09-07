@@ -2,41 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { CredentialView } from '#entities/credential'
-import type { HostIcon, HostInput } from '#entities/host'
+import type { HostIcon } from '#entities/host'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-import { HostEditor } from '../features/hosts/ui/HostEditor'
-
-const passwordCredential: CredentialView = {
-  id: 'credential-password',
-  name: 'Password',
-  type: 'password',
-  vault_id: 'local',
-  metadata: {},
-  bound_host_count: 0,
-}
-
-const hostDraft: HostInput = {
-  name: 'Production Host',
-  platform: 'linux',
-  icon_id: '',
-  group_id: '',
-  address: 'host.example.com',
-  port: 22,
-  username: 'root',
-  auth_method: 'password',
-  credential_id: passwordCredential.id,
-  jump_host_id: '',
-  proxy_id: '',
-  tags: [],
-  favorite: false,
-  fingerprint_policy: 'confirm_on_change',
-  note: '',
-}
+import { HostCreateEditor } from '../features/hosts/ui/HostCreateEditor'
 
 function hostIcon(id: string, displayName: string, fileName: string, sortOrder: number): HostIcon {
   return {
@@ -51,31 +23,33 @@ function hostIcon(id: string, displayName: string, fileName: string, sortOrder: 
   }
 }
 
-function editorProps(overrides: Partial<ComponentProps<typeof HostEditor>> = {}): ComponentProps<typeof HostEditor> {
+function editorProps(overrides: Partial<ComponentProps<typeof HostCreateEditor>> = {}): ComponentProps<typeof HostCreateEditor> {
   return {
     data: {
       hosts: [],
+      hostAssets: [],
+      sshAccessProfiles: [],
       groups: [],
       proxies: [],
-      credentials: [passwordCredential],
+      credentials: [],
+      sessions: [],
+      fileSessions: [],
+      forwards: [],
+      remoteDesktopSessions: [],
       hostIcons: [
         hostIcon('icon-production', 'Production Icon', 'server-custom.svg', 0),
         hostIcon('icon-development', 'Development Icon', 'development.png', 1),
       ],
     },
-    draft: hostDraft,
-    dirty: false,
-    errors: {},
-    actionBusy: false,
+    busy: false,
     getHostIconUrl: (iconId) => `http://localhost/api/v1/host-icons/${iconId}/file`,
-    onChange: vi.fn(),
+    onCreate: vi.fn().mockResolvedValue(undefined),
+    onDirtyChange: vi.fn(),
+    onProtectedIconIdChange: vi.fn(),
     onBack: vi.fn(),
-    onSave: vi.fn(),
-    onDelete: vi.fn(),
-    onDiscard: vi.fn(),
     onCreateGroup: vi.fn(async (name: string) => ({ id: 'group-a', name, sort_order: 0 })),
-    onManageProxies: vi.fn(),
     onManageIcons: vi.fn(),
+    onManageProxies: vi.fn(),
     ...overrides,
   }
 }
@@ -83,8 +57,8 @@ function editorProps(overrides: Partial<ComponentProps<typeof HostEditor>> = {})
 describe('主机图标选择器行为合同', () => {
   it('按显示名和原始文件名搜索，并将选中图标写回草稿', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<HostEditor {...editorProps({ onChange })} />)
+    const onProtectedIconIdChange = vi.fn()
+    render(<HostCreateEditor {...editorProps({ onProtectedIconIdChange })} />)
 
     const selector = screen.getByRole('combobox', { name: 'hosts.iconLibrary.select' })
     expect(screen.getByText('hosts.iconLibrary.default')).toBeVisible()
@@ -97,20 +71,21 @@ describe('主机图标选择器行为合同', () => {
     expect(screen.queryByText('Development Icon')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Production Icon'))
-    expect(onChange).toHaveBeenLastCalledWith({ icon_id: 'icon-production' })
+    expect(onProtectedIconIdChange).toHaveBeenLastCalledWith('icon-production')
   })
 
   it('预览当前选择、支持清空为默认图标，并可打开管理器', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
+    const onProtectedIconIdChange = vi.fn()
     const onManageIcons = vi.fn()
     const props = editorProps({
-      draft: { ...hostDraft, icon_id: 'icon-production' },
-      dirty: true,
-      onChange,
+      onProtectedIconIdChange,
       onManageIcons,
     })
-    const view = render(<HostEditor {...props} />)
+    const view = render(<HostCreateEditor {...props} />)
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'hosts.iconLibrary.select' }))
+    fireEvent.click(await screen.findByText('Production Icon'))
 
     const preview = view.container.querySelector<HTMLImageElement>('.host-editor-heading .host-avatar img')
     expect(preview).toHaveAttribute('src', 'http://localhost/api/v1/host-icons/icon-production/file')
@@ -121,9 +96,11 @@ describe('主机图标选择器行为合同', () => {
     expect(clearButton).not.toBeNull()
     fireEvent.mouseDown(clearButton!)
     fireEvent.click(clearButton!)
-    expect(onChange).toHaveBeenLastCalledWith({ icon_id: '' })
+    expect(onProtectedIconIdChange).toHaveBeenLastCalledWith('')
 
-    await user.click(screen.getByRole('button', { name: 'hosts.iconLibrary.manage' }))
+    const manageIcons = screen.getByRole('button', { name: 'hosts.iconLibrary.manage' })
+    expect(manageIcons.className).toContain('inline-management-action')
+    await user.click(manageIcons)
     expect(onManageIcons).toHaveBeenCalledTimes(1)
   })
 })

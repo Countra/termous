@@ -12,6 +12,12 @@ export type TransferType =
 
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export type TransferOrigin = 'app' | 'mcp'
+
+export type TransferPhase = 'scanning' | 'transferring' | 'finalizing'
+
+export type TransferFailureSide = 'source' | 'target'
+
 export type LocalGrantSource = 'picker' | 'drop' | 'clipboard'
 
 export interface RemoteFileEntry {
@@ -93,7 +99,7 @@ export interface RemoteImageFile {
   loaded_at: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -106,6 +112,9 @@ export type FileOperationPhase =
   | 'write_temp'
   | 'replace'
   | 'reload'
+  | 'prepare'
+  | 'rename'
+  | 'rollback'
   | 'done'
 
 export interface FileOperationTask {
@@ -135,9 +144,39 @@ export interface FileOperationTask {
   finished_at?: string
   error_code?: string
   error_message?: string
+  total_items?: number
+  completed_items?: number
+  rolled_back_items?: number
+  partial?: boolean
 }
 
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
+
+export type FileSessionOrigin = 'app' | 'mcp'
+
+export type FileAccessCapability =
+  | 'browse'
+  | 'content_read'
+  | 'content_write'
+  | 'entry_mutate'
+  | 'permission_edit'
+  | 'transfer'
+  | 'batch_rename'
+  | 'name_search'
+
+interface FileSessionCreateOptions {
+  sourceSessionId?: string
+  initialPath?: string
+}
+
+export type FileSessionCreateInput = FileSessionCreateOptions & (
+  | { fileAccessProfileId: string; hostId?: never }
+  | { hostId: string; fileAccessProfileId?: never }
+)
+
+export type FileSessionConnectInput = FileSessionCreateInput & {
+  replacedFileSessionId?: string
+}
 
 export type FileSessionPhase =
   | 'queued'
@@ -153,6 +192,12 @@ export type FileSessionPhase =
 export interface FileSession {
   id: string
   host_id: string
+  file_access_profile_id?: string
+  ssh_profile_id?: string
+  engine?: string
+  namespace?: string
+  capabilities?: FileAccessCapability[]
+  origin: FileSessionOrigin
   source_session_id?: string
   status: FileSessionStatus
   status_message?: string
@@ -171,10 +216,19 @@ export interface FileSession {
 
 export interface TransferTask {
   id: string
+  origin?: TransferOrigin
   host_id: string
   file_session_id?: string
+  source_host_id?: string
+  source_file_session_id?: string
+  source_connection_generation?: number
+  target_host_id?: string
+  target_file_session_id?: string
+  target_connection_generation?: number
   type: TransferType
   status: TransferStatus
+  phase?: TransferPhase
+  failure_side?: TransferFailureSide
   source_paths: string[]
   target_path: string
   local_directory_path?: string
@@ -192,12 +246,27 @@ export interface TransferTask {
   cancellable: boolean
   retryable: boolean
   overwrite_policy: OverwritePolicy
+  partial?: boolean
+  skipped_items?: number
   created_at: string
   started_at?: string
   finished_at?: string
   error_code?: string
   error_message?: string
 }
+
+export interface RemoteCopyTransferInput {
+  source_file_session_id: string
+  source_connection_generation: number
+  target_file_session_id: string
+  target_connection_generation: number
+  source_paths: string[]
+  target_dir: string
+  target_dir_mode: RemoteCopyTargetDirMode
+  overwrite_policy: Exclude<OverwritePolicy, 'ask'>
+}
+
+export type RemoteCopyTargetDirMode = 'require_existing' | 'create_if_missing'
 
 export interface LocalGrantItem {
   id: string

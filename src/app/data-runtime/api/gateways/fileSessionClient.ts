@@ -1,5 +1,16 @@
 import type { AppConfig } from '#common/contracts';
-import type { FileSession, OverwritePolicy, RemoteDirectoryListing, RemoteFileEntry, RemoteTextFile, RemoteTextSaveRequest, RemoteTextSaveResult } from '#entities/file';
+import {
+  normalizeFileSessionResponse,
+  normalizeFileSessionResponseList,
+  type FileSession,
+  type FileSessionCreateInput,
+  type OverwritePolicy,
+  type RemoteDirectoryListing,
+  type RemoteFileEntry,
+  type RemoteTextFile,
+  type RemoteTextSaveRequest,
+  type RemoteTextSaveResult,
+} from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 
 interface RequestOptions {
@@ -9,6 +20,10 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
+interface FileSessionListOptions extends Pick<RequestOptions, 'signal'> {
+  rememberPath?: boolean
+}
+
 export class FileSessionClient extends TermousApiTransport {
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
@@ -16,49 +31,72 @@ export class FileSessionClient extends TermousApiTransport {
 
 fileSessions() {
     return this.request<FileSession[]>('/api/v1/file-sessions')
+      .then(normalizeFileSessionResponseList)
   }
 
-createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
-    const body: { host_id: string; source_session_id?: string; initial_path?: string } = { host_id: hostId }
-    if (sourceSessionId) {
-      body.source_session_id = sourceSessionId
+createFileSession(input: FileSessionCreateInput) {
+    const body: {
+      host_id?: string
+      file_access_profile_id?: string
+      source_session_id?: string
+      initial_path?: string
+    } = {}
+    const hasFileAccessProfile = input.fileAccessProfileId !== undefined
+    const hasHost = input.hostId !== undefined
+    if (hasFileAccessProfile === hasHost) {
+      throw new TypeError('文件连接必须且只能指定一种目标')
     }
-    if (initialPath) {
-      body.initial_path = initialPath
+    if (hasFileAccessProfile) {
+      body.file_access_profile_id = requireConnectionTargetID(
+        input.fileAccessProfileId,
+        '文件访问 Profile ID 无效',
+      )
+    } else {
+      body.host_id = requireConnectionTargetID(input.hostId, '主机 ID 无效')
+    }
+    if (input.sourceSessionId) {
+      body.source_session_id = input.sourceSessionId
+    }
+    if (input.initialPath) {
+      body.initial_path = input.initialPath
     }
     return this.request<FileSession>('/api/v1/file-sessions', {
       method: 'POST',
       body,
-    })
+    }).then(normalizeFileSessionResponse)
   }
 
-getFileSession(id: string) {
+  getFileSession(id: string) {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}`)
+      .then(normalizeFileSessionResponse)
   }
 
 deleteFileSession(id: string) {
     return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
-reconnectFileSession(id: string) {
+  reconnectFileSession(id: string) {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST' })
+      .then(normalizeFileSessionResponse)
+  }
+
+  fileSessionSnapshotsUrl() {
+    return this.websocketUrl('/api/v1/file-sessions/events')
   }
 
 fileSessionEventsUrl(id: string) {
     return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(id)}/events`)
   }
 
-listFiles(hostId: string, path: string) {
-    const query = new URLSearchParams({ path })
-    return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
-  }
-
 listFileSessionFiles(
     fileSessionId: string,
     path: string,
-    options: Pick<RequestOptions, 'signal'> = {},
+    options: FileSessionListOptions = {},
   ) {
     const query = new URLSearchParams({ path })
+    if (options.rememberPath === false) {
+      query.set('remember_path', 'false')
+    }
     return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`, {
       signal: options.signal,
     })
@@ -129,43 +167,11 @@ moveFileSessionFiles(fileSessionId: string, sourcePaths: string[], targetDir: st
     })
   }
 
-statFile(hostId: string, path: string) {
-    const query = new URLSearchParams({ path })
-    return this.request<RemoteFileEntry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/stat?${query.toString()}`)
-  }
+}
 
-mkdirFile(hostId: string, path: string) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/mkdir`, {
-      method: 'POST',
-      body: { path },
-    })
+function requireConnectionTargetID(value: string, message: string) {
+  if (!value || value.trim() !== value) {
+    throw new TypeError(message)
   }
-
-renameFile(hostId: string, sourcePath: string, targetPath: string) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/rename`, {
-      method: 'PATCH',
-      body: { source_path: sourcePath, target_path: targetPath },
-    })
-  }
-
-deleteFiles(hostId: string, paths: string[], recursive = true) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files`, {
-      method: 'DELETE',
-      body: { paths, recursive },
-    })
-  }
-
-copyFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/copy`, {
-      method: 'POST',
-      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
-    })
-  }
-
-moveFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/move`, {
-      method: 'POST',
-      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
-    })
-  }
+  return value
 }

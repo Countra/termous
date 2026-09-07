@@ -7,6 +7,7 @@ import {
   ArrowUp,
   Activity,
   Bookmark,
+  Bot,
   Check,
   ChevronRight,
   CheckCircle2,
@@ -18,7 +19,9 @@ import {
   Folder,
   FolderDown,
   FolderPlus,
+  FolderSearch2,
   Info,
+  ListRestart,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -40,7 +43,6 @@ import {
   useMemo,
   useRef,
   useState,
-  startTransition,
   type DragEvent,
   type HTMLAttributes,
   type KeyboardEvent,
@@ -51,11 +53,15 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { SessionQuickConnect } from '#features/hosts'
-import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { writeClipboardText } from '#shared/clipboard'
+import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
+import {
+  buildFilesAgentLaunchRequest,
+  type AgentLaunchRequest,
+} from '#entities/agent'
 import type { ThemeMode } from '#shared/theme'
 import type {
   FileBookmark,
@@ -65,31 +71,58 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
   FileSession,
+  FileSessionConnectInput,
   FileSessionPhase,
   LocalGrantSource,
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
   RemoteFileEntry,
+  TransferTask,
 } from '#entities/file'
 import type { FileGateway } from '#features/files'
-import { useTransferRuntime } from '#features/transfers'
 import {
+  createUploadWithConflictDecision,
+  FilesBottomDrawer,
+  RemoteCopyModal,
+  TransferQueueDock,
+  TransferQueuePanel,
+  UploadConflictDialog,
+  validateRemoteCopySource,
+  type RemoteCopyCreateRequest,
+  type RemoteCopyCreateDirectoryRequest,
+  type RemoteCopyDirectoryRequest,
+  type RemoteCopyOverwriteConfirmation,
+  type RemoteCopySourceSnapshot,
+  useTransferRuntime,
+  useUploadConflictDecision,
+} from '#features/transfers'
+import {
+  advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
+  formatRemoteFilePathsForClipboard,
+  isAdvancedRenameSourceSessionCurrent,
+  loadAdvancedRenameModal,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   RemotePermissionModal,
   runRemoteFileAction,
+  snapshotRemoteFileActionSelection,
+  useGlobalFileSearchRuntime,
+  validateAdvancedRenameSource,
+  type AdvancedRenameSourceSnapshot,
+  type GlobalFileSearchRevealResult,
+  type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
 } from '#features/remote-file'
 import { formatBytes, formatDate } from '#shared/format'
 import {
   joinPath,
   normalizeRemotePath,
+  normalizeRemotePosixPath,
   parentPath,
 } from '#shared/path'
 import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmarks'
-import { FilesBottomDrawer, TransferQueueDock, TransferQueuePanel } from '#features/transfers'
 import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
   canRecoverFileSession,
@@ -97,6 +130,7 @@ import {
   fileSessionRecoveryOutcome,
   fileSessionRecoveryRequestMethod,
   findFileSessionRecoveryAttempt,
+  isTransferRelatedToFileSession,
   isFileSessionRecoverySupersededError,
   isTerminatedFileSession,
   shouldCreateFileSessionAfterReconnect,
@@ -122,6 +156,7 @@ import {
 } from '../model/useFilesTransferRefresh'
 import { useFileSessionStatusSync } from '../model/useFileSessionStatusSync'
 import { useFilesWorkspaceDragController } from './useFilesWorkspaceDragController'
+import { FileSessionTab } from './FileSessionTab'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -144,6 +179,7 @@ import styles from './FilesWorkspace.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
+const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 
 export interface FilesWorkspaceData {
   hosts: Host[]
@@ -163,6 +199,7 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 
 export interface FilesWorkspaceProps {
   fileGateway: FileGateway
+  automaticRemoteRequestsEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
   data: FilesWorkspaceData
   theme: ThemeMode
@@ -170,14 +207,8 @@ export interface FilesWorkspaceProps {
   closingFileSessionIds: readonly string[]
   bookmarkManagementIntent: FilesWorkspaceBookmarkManagementIntent | null
   onConsumeBookmarkManagementIntent: (requestId: number) => void
-  onOpenFileSession: (hostId: string) => Promise<void>
   onOpenFileSessionLauncher: () => void
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
   onCloseFileSession: (fileSessionId: string) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
@@ -194,6 +225,7 @@ export interface FilesWorkspaceProps {
   onUpdateLocalPathMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
   onDeleteLocalPathMapping: (id: string) => Promise<void>
   onReorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface RemoteClipboard {
@@ -320,6 +352,7 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 
 function FilesWorkspaceContent({
   fileGateway,
+  automaticRemoteRequestsEnabled = true,
   getHostIconUrl,
   data,
   theme,
@@ -327,7 +360,6 @@ function FilesWorkspaceContent({
   closingFileSessionIds,
   bookmarkManagementIntent,
   onConsumeBookmarkManagementIntent,
-  onOpenFileSession,
   onOpenFileSessionLauncher,
   onConnectFileSession,
   onSelectFileSession,
@@ -346,12 +378,15 @@ function FilesWorkspaceContent({
   onUpdateLocalPathMapping,
   onDeleteLocalPathMapping,
   onReorderLocalPathMappings,
+  onLaunchAgent,
 }: FilesWorkspaceProps) {
   const { t } = useTranslation()
   const api = fileGateway
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const filesShortcutInstanceId = useId()
   const filesShortcutContextId = `files.page:${filesShortcutInstanceId}`
+  const globalFileSearchOwnerId = `${filesShortcutContextId}:global-search`
+  const globalFileSearchRuntime = useGlobalFileSearchRuntime()
   const { modal, notification } = AntdApp.useApp()
   const screens = Grid.useBreakpoint()
   const filesPageRef = useRef<HTMLElement>(null)
@@ -364,6 +399,13 @@ function FilesWorkspaceContent({
     id: string
     connectionGeneration: number
   } | null>(null)
+  const pendingSearchRevealRef = useRef<{
+    attemptId: number
+    fileSessionId: string
+    connectionGeneration: number
+    path: string
+  } | null>(null)
+  const searchRevealSequenceRef = useRef(0)
   const fileSessionRecoveryAttemptsRef = useRef(new Map<string, FileSessionRecoveryAttempt>())
   const fileSessionsRef = useRef(data.fileSessions)
   const localPathMappingsRef = useRef(data.localPathMappings)
@@ -404,8 +446,6 @@ function FilesWorkspaceContent({
   } = useFilesWorkspaceRuntime()
   const workspaceStatesRef = useRef(workspaceStates)
   workspaceStatesRef.current = workspaceStates
-  const [quickConnectOpen, setQuickConnectOpen] = useState(false)
-  const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const [pathInput, setPathInput] = useState('/')
   const [editingPath, setEditingPath] = useState(false)
   const [breadcrumbScrollState, setBreadcrumbScrollState] = useState({
@@ -413,6 +453,8 @@ function FilesWorkspaceContent({
     canScrollRight: false,
   })
   const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
+  const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
+  const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
@@ -541,6 +583,19 @@ function FilesWorkspaceContent({
     pendingPanelFocusRestoreRef.current = 'transfers'
     setAuxiliarySurface('none')
   }, [])
+  const openSessionTransfers = useCallback(() => {
+    if (localDownloadOperationSourcesRef.current.size > 0) {
+      return
+    }
+    setTransferScope('session')
+    setAuxiliarySurface('transfers')
+    if (
+      sidePanelModeRef.current === 'bookmarks'
+      || window.innerWidth < 1280
+    ) {
+      updateSidePanelMode('none')
+    }
+  }, [updateSidePanelMode])
 
   useEffect(() => {
     const target = pendingPanelFocusRestoreRef.current
@@ -687,10 +742,92 @@ function FilesWorkspaceContent({
   const {
     transfers,
     connected: transferEventsConnected,
+    remoteCopyRefreshVersion,
     refresh: refreshTransfers,
     upsertTransfer,
     removeTransfer,
+    consumeRemoteCopyRefreshEvents,
   } = useTransferRuntime()
+  const consumeFilesRemoteCopyRefreshEvents = useCallback(
+    () => consumeRemoteCopyRefreshEvents('files-workspace'),
+    [consumeRemoteCopyRefreshEvents],
+  )
+  const listRemoteCopyDirectories = useCallback(({
+    fileSessionId,
+    path,
+    rememberPath,
+    signal,
+  }: RemoteCopyDirectoryRequest) => (
+    api.listFileSessionFiles(fileSessionId, path, { rememberPath, signal })
+  ), [api])
+  const createRemoteCopyDirectory = useCallback(({
+    fileSessionId,
+    path,
+  }: RemoteCopyCreateDirectoryRequest) => (
+    api.mkdirFileSessionFile(fileSessionId, path)
+  ), [api])
+  const createRemoteCopyTransfer = useCallback((request: RemoteCopyCreateRequest) => api.createRemoteCopyTransfer({
+    source_file_session_id: request.sourceFileSessionId,
+    source_connection_generation: request.sourceConnectionGeneration,
+    target_file_session_id: request.targetFileSessionId,
+    target_connection_generation: request.targetConnectionGeneration,
+    source_paths: request.sourcePaths,
+    target_dir: request.targetDir,
+    target_dir_mode: request.targetDirMode,
+    overwrite_policy: request.overwritePolicy,
+  }), [api])
+  const confirmRemoteCopyOverwrite = useCallback((
+    confirmation: RemoteCopyOverwriteConfirmation,
+  ) => new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (confirmed: boolean) => {
+      if (!settled) {
+        settled = true
+        resolve(confirmed)
+      }
+    }
+    modal.confirm({
+      title: t('files.remoteCopy.overwriteConfirmTitle'),
+      content: t(confirmation.mode === 'batch'
+        ? 'files.remoteCopy.overwriteConfirmBatchDescription'
+        : 'files.remoteCopy.overwriteConfirmDescription', {
+        count: confirmation.sourceCount,
+        ...(confirmation.mode === 'single'
+          ? { host: confirmation.targetHostName }
+          : { targets: confirmation.targetCount }),
+        path: confirmation.targetPath,
+      }),
+      okText: t('files.remoteCopy.overwriteConfirmAction'),
+      cancelText: t('app.cancel'),
+      okButtonProps: { danger: true },
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      onOk: () => finish(true),
+      onCancel: () => finish(false),
+      afterClose: () => finish(false),
+    })
+  }), [modal, t])
+  const handleRemoteCopyCreated = useCallback((tasks: TransferTask[]) => {
+    for (const task of tasks) {
+      if (task.target_file_session_id) {
+        trackWorkspaceUploadRefreshTask(task.id, {
+          fileSessionId: task.target_file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+      upsertTransfer(task)
+    }
+    lastTransferTriggerRef.current = transferToggleRef.current
+    openSessionTransfers()
+    notification.success({
+      title: t('files.transferCreated'),
+      duration: 3,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [notification, openSessionTransfers, t, trackWorkspaceUploadRefreshTask, upsertTransfer])
+  const uploadConflictDecision = useUploadConflictDecision()
+  const cancelPendingUploadConflict = uploadConflictDecision.cancelPending
   const failPendingTransferOperation = useCallback((id: string, description: string) => {
     updatePendingTransferOperation(id, { status: 'error', description, indeterminate: false })
   }, [updatePendingTransferOperation])
@@ -702,6 +839,14 @@ function FilesWorkspaceContent({
   const activeFileSessionId = activeFileSession?.id ?? ''
   const activeFileSessionIdRef = useRef(activeFileSessionId)
   activeFileSessionIdRef.current = activeFileSessionId
+  useEffect(() => {
+    cancelPendingUploadConflict()
+  }, [
+    activeFileSession?.connection_generation,
+    activeFileSession?.status,
+    activeFileSessionId,
+    cancelPendingUploadConflict,
+  ])
   const activeFileSessionInitialPath = normalizeRemotePath(activeFileSession?.current_path || '/')
   const workspaceViewState = useMemo(
     () => activeFileSessionId
@@ -797,6 +942,7 @@ function FilesWorkspaceContent({
   }, [])
   const { loadDirectory } = useFilesDirectoryController({
     gateway: api,
+    automaticDirectoryLoadEnabled: automaticRemoteRequestsEnabled,
     activeFileSession,
     activeFileSessionId,
     activeFileSessionClosing,
@@ -936,6 +1082,9 @@ function FilesWorkspaceContent({
       setPermissionTarget(null)
       setTextEditorTarget(null)
       setImageViewerTarget(null)
+      setAdvancedRenameSource(null)
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      pendingSearchRevealRef.current = null
       return
     }
     const previousSession = lastActiveFileSessionRef.current
@@ -958,17 +1107,40 @@ function FilesWorkspaceContent({
       setFileContextMenu(null)
       setPermissionTarget(null)
       setImageViewerTarget(null)
+      setAdvancedRenameSource(null)
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      pendingSearchRevealRef.current = null
       if (fileSessionChanged) {
         setTextEditorTarget(null)
       }
     }
-  }, [activeFileSession])
+  }, [activeFileSession, globalFileSearchOwnerId, globalFileSearchRuntime])
 
   useEffect(() => {
     if (!editingPath) {
       setPathInput(currentPath)
     }
   }, [activeFileSessionId, currentPath, editingPath])
+
+  useEffect(() => {
+    if (
+      activeFileSession?.status === 'connected'
+      && !activeFileSessionClosing
+    ) {
+      return
+    }
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+    pendingSearchRevealRef.current = null
+  }, [
+    activeFileSession?.status,
+    activeFileSessionClosing,
+    globalFileSearchOwnerId,
+    globalFileSearchRuntime,
+  ])
+
+  useEffect(() => () => {
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+  }, [globalFileSearchOwnerId, globalFileSearchRuntime])
 
   useEffect(() => {
     const fileSessionIds = new Set(data.fileSessions.map((session) => session.id))
@@ -1005,7 +1177,10 @@ function FilesWorkspaceContent({
     trackDownloadRefreshTask,
   } = useFilesTransferRefresh({
     transfers,
+    remoteCopyRefreshVersion,
+    consumeRemoteCopyRefreshEvents: consumeFilesRemoteCopyRefreshEvents,
     activeDirectory: transferRefreshActiveDirectory,
+    automaticDirectoryRefreshEnabled: automaticRemoteRequestsEnabled,
     loadDirectory,
     trackWorkspaceUploadRefreshTask,
     hasUploadRefreshTask,
@@ -1015,6 +1190,7 @@ function FilesWorkspaceContent({
   })
 
   useFileSessionStatusSync({
+    enabled: automaticRemoteRequestsEnabled,
     gateway: api,
     fileSessions: data.fileSessions,
     closingFileSessionIds: closingFileSessionIdSet,
@@ -1085,15 +1261,6 @@ function FilesWorkspaceContent({
       closeFileSessionTab(fileSessionId)
     },
     [closeFileSessionTab],
-  )
-
-  const connectQuickFileHost = useCallback(
-    async (hostId: string) => {
-      setQuickConnectOpen(false)
-      setQuickConnectQuery('')
-      await onOpenFileSession(hostId)
-    },
-    [onOpenFileSession],
   )
 
   const notifyError = (actionError: unknown) => {
@@ -1179,6 +1346,10 @@ function FilesWorkspaceContent({
     if (findFileSessionRecoveryAttempt(fileSessionRecoveryAttemptsRef.current, session.id)) {
       return
     }
+    if (!session.file_access_profile_id) {
+      notifyFileSessionRecoveryFailure(session.id, 'FILE_ACCESS_PROFILE_NOT_FOUND')
+      return
+    }
     const attempt: FileSessionRecoveryAttempt = {
       originalSessionId: session.id,
       targetSessionId: session.id,
@@ -1197,20 +1368,20 @@ function FilesWorkspaceContent({
           if (!shouldCreateFileSessionAfterReconnect(error)) {
             throw error
           }
-          recovered = await onConnectFileSession(
-            session.host_id,
-            session.source_session_id ?? '',
-            normalizeRemotePath(currentPath || session.current_path || '/'),
-            session.id,
-          )
+          recovered = await onConnectFileSession({
+            fileAccessProfileId: session.file_access_profile_id,
+            sourceSessionId: session.source_session_id,
+            initialPath: normalizeRemotePath(currentPath || session.current_path || '/'),
+            replacedFileSessionId: session.id,
+          })
         }
       } else {
-        recovered = await onConnectFileSession(
-          session.host_id,
-          session.source_session_id ?? '',
-          normalizeRemotePath(currentPath || session.current_path || '/'),
-          session.id,
-        )
+        recovered = await onConnectFileSession({
+          fileAccessProfileId: session.file_access_profile_id,
+          sourceSessionId: session.source_session_id,
+          initialPath: normalizeRemotePath(currentPath || session.current_path || '/'),
+          replacedFileSessionId: session.id,
+        })
       }
       adoptDirectoryStateForRecoveredSession(session.id, recovered)
       attempt.targetSessionId = recovered.id
@@ -1279,40 +1450,69 @@ function FilesWorkspaceContent({
       (session) => session.id === fileSessionId,
     )
     const connectionGeneration = fileSession?.connection_generation ?? 0
+    const remoteDir = normalizeRemotePath(targetPath)
+    const isCurrentUploadSession = () => (
+      activeFileSessionIdRef.current === fileSessionId
+      && isCurrentFileListingAvailable(fileSessionId, connectionGeneration)
+    )
     if (
       !fileSessionId
       || paths.length === 0
-      || !isCurrentFileListingAvailable(fileSessionId, connectionGeneration)
+      || !isCurrentUploadSession()
     ) {
       return
     }
-    await runFileAction(async () => {
-      const pendingId = startPendingTransferOperation({
-        hostId: activeFileSession?.host_id ?? '',
-        fileSessionId,
-        title: t('files.fileOperationUploadTitle'),
-        description: t('files.fileOperationTransferGrant'),
-        progress: 0,
-        status: 'running',
-        indeterminate: true,
+
+    try {
+      const task = await createUploadWithConflictDecision({
+        source,
+        paths,
+        targetPath: remoteDir,
+        createGrant: api.createLocalFileGrant,
+        releaseGrant: api.releaseLocalFileGrant,
+        stat: (path) => api.statFileSessionFile(fileSessionId, path),
+        requestPolicy: uploadConflictDecision.requestPolicy,
+        isCurrent: isCurrentUploadSession,
+        createUpload: async (grantId, overwriteItemIds) => {
+          const pendingId = startPendingTransferOperation({
+            hostId: fileSession?.host_id ?? '',
+            fileSessionId,
+            title: t('files.fileOperationUploadTitle'),
+            description: t('files.fileOperationTransferCreate'),
+            progress: 0,
+            status: 'running',
+            indeterminate: true,
+          })
+          try {
+            const nextTask = await api.createFileSessionUploadTransfer(
+              fileSessionId,
+              grantId,
+              remoteDir,
+              'rename',
+              overwriteItemIds,
+            )
+            trackUploadRefreshTask(nextTask)
+            upsertTransfer(nextTask)
+            removePendingTransferOperation(pendingId)
+            return nextTask
+          } catch (actionError) {
+            failPendingTransferOperation(pendingId, t('files.fileOperationTransferFailed'))
+            throw actionError
+          }
+        },
       })
-      try {
-        const grant = await api.createLocalFileGrant(source, paths)
-        updatePendingTransferOperation(pendingId, {
-          description: t('files.fileOperationTransferCreate'),
-          progress: 0,
-          indeterminate: true,
-        })
-        requireCurrentFileListing(fileSessionId, connectionGeneration)
-        const task = await api.createFileSessionUploadTransfer(fileSessionId, grant.id, targetPath, 'rename')
-        trackUploadRefreshTask(task)
-        upsertTransfer(task)
-        removePendingTransferOperation(pendingId)
-      } catch (actionError) {
-        failPendingTransferOperation(pendingId, t('files.fileOperationTransferFailed'))
-        throw actionError
+      if (!task) {
+        return
       }
-    }, t('files.transferCreated'))
+      notification.success({
+        title: t('files.transferCreated'),
+        duration: 3,
+        role: 'status',
+        className: termousNotificationClassName,
+      })
+    } catch (actionError) {
+      notifyError(actionError)
+    }
   }
 
   const downloadPathsToLocalDir = async (
@@ -1624,6 +1824,40 @@ function FilesWorkspaceContent({
     })
   }
 
+  const openAdvancedRename = (entry = selectedEntries[0]) => {
+    if (!entry || !fileActionsEnabled || !activeFileSession || !workspaceViewState.listing) {
+      return
+    }
+    const snapshot = snapshotRemoteFileActionSelection(entry, selectedPaths, entries)
+    if (!snapshot) {
+      notification.error({
+        title: t('files.operationFailed'),
+        duration: 4,
+        role: 'alert',
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    const sourceValidation = validateAdvancedRenameSource(snapshot.entries)
+    if (!sourceValidation.valid) {
+      notification.warning({
+        title: sourceValidation.reason === 'too_many'
+          ? t('files.advancedRename.selectionLimit', { limit: advancedRenameSourceLimit })
+          : t('files.advancedRename.unsupportedSelection'),
+        duration: 4,
+        role: 'alert',
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    setAdvancedRenameSource({
+      fileSessionId: activeFileSession.id,
+      connectionGeneration: activeFileSession.connection_generation ?? 0,
+      directory: normalizeRemotePath(workspaceViewState.listing.path || currentPath),
+      entries: snapshot.entries,
+    })
+  }
+
   const openPermissions = (entry = selectedEntries[0]) => {
     if (!entry || !fileActionsEnabled || !activeFileSessionId) {
       return
@@ -1913,6 +2147,7 @@ function FilesWorkspaceContent({
       setFileContextMenu(null)
       setPermissionTarget(null)
       setDownloadDestinationRequest(null)
+      setAdvancedRenameSource(null)
       updateActiveWorkspaceView((current) => (
         current.focusedPath === null
         && current.selectedPaths.length === 0
@@ -1950,6 +2185,23 @@ function FilesWorkspaceContent({
   }, [data.fileSessions])
 
   useEffect(() => {
+    if (!remoteCopySource) {
+      return
+    }
+    const sourceSession = data.fileSessions.find(
+      (session) => session.id === remoteCopySource.fileSessionId,
+    )
+    if (
+      sourceSession?.status !== 'connected'
+      || sourceSession.host_id !== remoteCopySource.hostId
+      || (sourceSession.connection_generation ?? 0) !== remoteCopySource.connectionGeneration
+      || closingFileSessionIdsRef.current.has(remoteCopySource.fileSessionId)
+    ) {
+      setRemoteCopySource(null)
+    }
+  }, [data.fileSessions, remoteCopySource])
+
+  useEffect(() => {
     if (
       downloadDestinationRequest
       && (
@@ -1977,7 +2229,21 @@ function FilesWorkspaceContent({
     setFileContextMenu(null)
     setImageViewerTarget(null)
     setPermissionTarget(null)
+    setAdvancedRenameSource(null)
   }, [activeFileSessionClosing])
+
+  useEffect(() => {
+    if (
+      advancedRenameSource
+      && !isAdvancedRenameSourceSessionCurrent(
+        advancedRenameSource,
+        activeFileSession,
+        activeFileSessionClosing,
+      )
+    ) {
+      setAdvancedRenameSource(null)
+    }
+  }, [activeFileSession, activeFileSessionClosing, advancedRenameSource])
 
   const orderedEntryPaths = useMemo(
     () => entries.map((entry) => entry.path),
@@ -2029,7 +2295,7 @@ function FilesWorkspaceContent({
       return
     }
     const actionPaths = selectedPaths.includes(entry.path)
-      ? selectedPaths
+      ? [...selectedPaths]
       : [entry.path]
     if (!selectedPaths.includes(entry.path)) {
       selectEntry(entry, { contextMenu: true })
@@ -2046,9 +2312,44 @@ function FilesWorkspaceContent({
       }
       return
     }
+    const openRemoteCopy = () => {
+      if (!activeFileSession) {
+        return
+      }
+      const snapshot = snapshotRemoteFileActionSelection(
+        entry,
+        selectedPaths,
+        entries,
+      )
+      if (!snapshot) {
+        notification.error({
+          title: t('files.operationFailed'),
+          duration: 4,
+          role: 'alert',
+          className: termousNotificationClassName,
+        })
+        return
+      }
+      if (!validateRemoteCopySource(snapshot.entries).valid) {
+        notification.warning({
+          title: t('files.remoteCopy.unsupportedSelection'),
+          duration: 4,
+          role: 'alert',
+          className: termousNotificationClassName,
+        })
+        return
+      }
+      setRemoteCopySource({
+        hostId: activeFileSession.host_id,
+        fileSessionId: activeFileSession.id,
+        connectionGeneration: activeFileSession.connection_generation ?? 0,
+        entries: snapshot.entries,
+      })
+    }
     const handlers: RemoteFileActionHandlers = {
       openFile: openFileEntry,
       download: () => void downloadPaths(actionPaths),
+      sendToHost: openRemoteCopy,
       copy: () => {
         if (activeFileSession) {
           setRemoteClipboard({
@@ -2071,8 +2372,13 @@ function FilesWorkspaceContent({
           })
         }
       },
+      copyAbsolutePath: () => void runFileAction(
+        () => writeClipboardText(formatRemoteFilePathsForClipboard(actionPaths)),
+        t('files.absolutePathCopied', { count: actionPaths.length }),
+      ),
       permissions: openPermissions,
       rename: openRename,
+      advancedRename: openAdvancedRename,
       delete: () => confirmDelete(actionPaths),
     }
     runRemoteFileAction(entry, key, handlers)
@@ -2315,6 +2621,103 @@ function FilesWorkspaceContent({
     }
     window.requestAnimationFrame(focusRenderedRow)
   }, [findFileRow])
+
+  const revealGlobalFileSearchResult = useCallback(async (
+    source: GlobalFileSearchSource,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<GlobalFileSearchRevealResult> => {
+    const normalizedPath = normalizeRemotePosixPath(path)
+    if (!normalizedPath || signal.aborted) {
+      return { status: 'cancelled' }
+    }
+    const requestSession = fileSessionsRef.current.find(
+      (session) => session.id === source.fileSessionId,
+    )
+    if (
+      activeFileSessionIdRef.current !== source.fileSessionId
+      || requestSession?.status !== 'connected'
+      || (requestSession.connection_generation ?? 0) !== source.connectionGeneration
+      || closingFileSessionIdsRef.current.has(source.fileSessionId)
+    ) {
+      return { status: 'cancelled' }
+    }
+
+    searchRevealSequenceRef.current += 1
+    const attemptId = searchRevealSequenceRef.current
+    pendingSearchRevealRef.current = {
+      attemptId,
+      fileSessionId: source.fileSessionId,
+      connectionGeneration: source.connectionGeneration,
+      path: normalizedPath,
+    }
+    let targetPresent = false
+    let loadError = ''
+    const directory = parentPath(normalizedPath)
+    const latestWorkspaceState = getFilesWorkspaceSessionState(
+      workspaceStatesRef.current,
+      requestSession.id,
+      requestSession.current_path || '/',
+    )
+    const loaded = await loadDirectory(directory, {
+      kind: normalizeRemotePath(latestWorkspaceState.committedPath) === directory
+        ? 'refresh'
+        : 'navigate',
+      revealPath: normalizedPath,
+      signal,
+      quiet: true,
+      onError: (description) => {
+        loadError = description
+      },
+      onCommitted: (listing) => {
+        targetPresent = listing.entries.some((candidate) => (
+          normalizeRemotePosixPath(candidate.path) === normalizedPath
+        ))
+      },
+    })
+    const currentAttempt = pendingSearchRevealRef.current?.attemptId === attemptId
+    if (signal.aborted || !currentAttempt) {
+      if (currentAttempt) {
+        pendingSearchRevealRef.current = null
+      }
+      return { status: 'cancelled' }
+    }
+    if (!loaded) {
+      pendingSearchRevealRef.current = null
+      return loadError
+        ? { status: 'failed', description: loadError }
+        : { status: 'cancelled' }
+    }
+    if (!targetPresent) {
+      pendingSearchRevealRef.current = null
+      return { status: 'missing' }
+    }
+    return { status: 'revealed' }
+  }, [loadDirectory])
+
+  useEffect(() => {
+    const pending = pendingSearchRevealRef.current
+    if (
+      !pending
+      || pending.fileSessionId !== activeFileSessionId
+      || pending.connectionGeneration !== activeFileSessionConnectionGeneration
+      || workspaceViewState.focusedPath !== pending.path
+    ) {
+      return
+    }
+    const index = entries.findIndex((entry) => entry.path === pending.path)
+    if (index < 0) {
+      return
+    }
+    pendingSearchRevealRef.current = null
+    focusFileRow(pending.path, index)
+  }, [
+    activeFileSessionConnectionGeneration,
+    activeFileSessionId,
+    entries,
+    focusFileRow,
+    workspaceViewState.focusedPath,
+  ])
 
   const filesShortcutStateRef = useRef({
     fileActionsEnabled,
@@ -2677,7 +3080,7 @@ function FilesWorkspaceContent({
     () => transferScope === 'all'
       ? transfers
       : activeFileSessionId
-        ? transfers.filter((task) => task.file_session_id === activeFileSessionId)
+        ? transfers.filter((task) => isTransferRelatedToFileSession(task, activeFileSessionId))
         : [],
     [activeFileSessionId, transferScope, transfers],
   )
@@ -2703,7 +3106,7 @@ function FilesWorkspaceContent({
       return 0
     }
     return transfers.filter((task) => (
-      task.file_session_id === activeFileSessionId && isFilesTransferActive(task)
+      isTransferRelatedToFileSession(task, activeFileSessionId) && isFilesTransferActive(task)
     )).length + pendingTransferOperations.filter((operation) => (
       operation.fileSessionId === activeFileSessionId && operation.status === 'running'
     )).length
@@ -2759,6 +3162,12 @@ function FilesWorkspaceContent({
   const selectionMoreActions: MenuProps = {
     items: [
       {
+        key: 'advanced-rename',
+        icon: <ListRestart size={14} aria-hidden="true" />,
+        label: t('files.advancedRename.action'),
+        disabled: !fileActionsEnabled || selectedPaths.length === 0,
+      },
+      {
         key: 'permissions',
         icon: <ShieldCheck size={14} aria-hidden="true" />,
         label: t('files.editPermissions'),
@@ -2766,7 +3175,9 @@ function FilesWorkspaceContent({
       },
     ],
     onClick: ({ key }) => {
-      if (key === 'permissions') {
+      if (key === 'advanced-rename') {
+        openAdvancedRename()
+      } else if (key === 'permissions') {
         openPermissions()
       }
     },
@@ -2814,7 +3225,7 @@ function FilesWorkspaceContent({
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      <main className={styles['files-main-panel']}>
+      <main className={styles['files-main-panel']} data-tour="files-workspace">
         <div className={`files-session-toolbar ${styles['terminal-toolbar']} terminal-toolbar`}>
           <SessionTabStrip
             ariaLabel={t('files.sessions')}
@@ -2824,51 +3235,31 @@ function FilesWorkspaceContent({
             scrollRightLabel={t('workbench.scrollTabsRight')}
             tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
             trailing={(
-              <SessionQuickConnect
-                hosts={data.hosts}
-                triggerLabel={t('files.openFileSession')}
-                open={quickConnectOpen}
-                query={quickConnectQuery}
-                onOpenChange={setQuickConnectOpen}
-                onQueryChange={setQuickConnectQuery}
-                onConnect={connectQuickFileHost}
-                getHostIconUrl={getHostIconUrl}
+              <SessionNewTabButton
+                label={t('files.openFileSession')}
+                onClick={onOpenFileSessionLauncher}
               />
             )}
           >
             {data.fileSessions.length === 0 ? (
-              <SessionTabButton empty icon={<Folder size={18} />} label={t('files.noFileSession')} />
+              <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />
             ) : (
               data.fileSessions.map((fileSession) => {
                 const host = data.hosts.find((item) => item.id === fileSession.host_id)
                 const label = host?.name ?? shortId(fileSession.id)
                 const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
                 return (
-                  <SessionTabButton
+                  <FileSessionTab
                     key={fileSession.id}
-                    active={fileSession.id === activeFileSessionId}
-                    role="tab"
-                    aria-selected={fileSession.id === activeFileSessionId}
-                    data-session-tab-id={fileSession.id}
-                    onClick={() => {
-                      if (!sessionClosing) {
-                        startTransition(() => onSelectFileSession(fileSession.id))
-                      }
-                    }}
-                    onMouseDown={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault()
-                      }
-                    }}
-                    onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
-                    icon={<Folder size={18} />}
+                    fileSession={fileSession}
+                    host={host}
+                    getHostIconUrl={getHostIconUrl}
                     label={label}
-                    status={fileSession.status}
-                    statusLabel={t(`files.sessionStatus.${fileSession.status}`)}
+                    active={fileSession.id === activeFileSessionId}
                     closing={sessionClosing}
-                    closingLabel={t('files.sessionStatus.closing')}
-                    closeLabel={`${t('app.close')} ${label}`}
-                    onClose={() => closeFileSessionTab(fileSession.id)}
+                    onSelect={onSelectFileSession}
+                    onAuxClose={closeFileSessionFromTab}
+                    onClose={closeFileSessionTab}
                   />
                 )
               })
@@ -3055,6 +3446,56 @@ function FilesWorkspaceContent({
                       onClick={beginPathEdit}
                     />
                   </Tooltip>
+                  <Tooltip title={t('files.globalSearch.action')}>
+                    <Button
+                      type="text"
+                      className={styles['files-path-action']}
+                      aria-label={t('files.globalSearch.action')}
+                      disabled={!fileSessionConnected}
+                      icon={<FolderSearch2 size={14} aria-hidden="true" />}
+                      onClick={() => {
+                        if (!activeFileSession) {
+                          return
+                        }
+                        const source: GlobalFileSearchSource = {
+                          fileSessionId: activeFileSession.id,
+                          connectionGeneration: activeFileSession.connection_generation ?? 0,
+                          hostName: activeFileSessionHost?.name ?? shortId(activeFileSession.id),
+                          currentPath,
+                        }
+                        globalFileSearchRuntime.openSearch({
+                          ownerId: globalFileSearchOwnerId,
+                          source,
+                          onReveal: (path, signal) => (
+                            revealGlobalFileSearchResult(source, path, signal)
+                          ),
+                        })
+                      }}
+                    />
+                  </Tooltip>
+                  {onLaunchAgent ? <Tooltip title={t('agent.launch.action')}>
+                    <Button
+                      type="text"
+                      className={styles['files-path-action']}
+                      aria-label={t('agent.launch.action')}
+                      disabled={!activeFileSession}
+                      icon={<Bot size={14} aria-hidden="true" />}
+                      onClick={() => {
+                        if (!activeFileSession) return
+                        onLaunchAgent(buildFilesAgentLaunchRequest({
+                          hostId: activeFileSession.host_id,
+                          fileAccessProfileId: activeFileSession.file_access_profile_id,
+                          connectionStatus: activeFileSession.status,
+                          title: t('agent.launch.title.files', {
+                            name: activeFileSessionHost?.name ?? t('nav.files'),
+                          }),
+                          summary: t('agent.launch.summary.files', {
+                            status: t(`files.sessionStatus.${activeFileSession.status}`),
+                          }),
+                        }))
+                      }}
+                    />
+                  </Tooltip> : null}
                 </>
               )}
               <span className={styles['files-path-action-divider']} aria-hidden="true" />
@@ -3077,6 +3518,7 @@ function FilesWorkspaceContent({
                   )}
                   aria-controls="files-bookmark-rail"
                   aria-expanded={bookmarkRailExpanded}
+                  data-tour="files-bookmarks"
                   icon={<Bookmark size={14} aria-hidden="true" />}
                   onClick={toggleBookmarkRail}
                 />
@@ -3158,6 +3600,15 @@ function FilesWorkspaceContent({
                   onClick={() => openRename()}
                 >
                   {t('files.rename')}
+                </Button>
+                <Button
+                  type="text"
+                  className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
+                  disabled={!fileActionsEnabled}
+                  icon={<ListRestart size={15} aria-hidden="true" />}
+                  onClick={() => openAdvancedRename()}
+                >
+                  {t('files.advancedRename.action')}
                 </Button>
                 <Button
                   type="text"
@@ -3284,14 +3735,7 @@ function FilesWorkspaceContent({
                     if (transfersOpen && transferScope === 'session') {
                       closeTransfers()
                     } else {
-                       setTransferScope('session')
-                       setAuxiliarySurface('transfers')
-                       if (
-                         sidePanelModeRef.current === 'bookmarks'
-                         || window.innerWidth < 1280
-                       ) {
-                         updateSidePanelMode('none')
-                       }
+                      openSessionTransfers()
                     }
                   }}
                 >
@@ -3750,6 +4194,7 @@ function FilesWorkspaceContent({
             <button
               type="button"
               className={`${styles['files-transfer-summary']} ${activeTransferCount > 0 ? styles['is-active'] : ''}`}
+              data-tour="files-transfers"
               disabled={localDownloadOperationActive}
               aria-label={activeTransferCount > 0
                 ? t('files.activeTransferCount', { count: activeTransferCount })
@@ -3818,6 +4263,55 @@ function FilesWorkspaceContent({
             ) : null}
           </span>
         </div>
+      ) : null}
+      <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
+      {remoteCopySource ? (
+        <RemoteCopyModal
+          open
+          source={remoteCopySource}
+          hosts={data.hosts}
+          fileSessions={data.fileSessions}
+          getHostIconUrl={getHostIconUrl}
+          listDirectories={listRemoteCopyDirectories}
+          createDirectory={createRemoteCopyDirectory}
+          createRemoteCopy={createRemoteCopyTransfer}
+          confirmOverwrite={confirmRemoteCopyOverwrite}
+          onCreated={handleRemoteCopyCreated}
+          onClose={() => setRemoteCopySource(null)}
+        />
+      ) : null}
+      {advancedRenameSource ? (
+        <Suspense fallback={null}>
+          <AdvancedRenameModal
+            api={api}
+            open
+            source={advancedRenameSource}
+            onClose={() => setAdvancedRenameSource(null)}
+            onCompleted={() => {
+              const source = advancedRenameSource
+              setAdvancedRenameSource(null)
+              if (
+                activeFileSession?.id === source.fileSessionId
+                && (activeFileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                setSelectedPaths([])
+                void loadDirectory(source.directory, { kind: 'refresh' })
+              }
+            }}
+            onDirectoryRefresh={() => {
+              const source = advancedRenameSource
+              if (
+                activeFileSession?.id === source.fileSessionId
+                && (activeFileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                return loadDirectory(source.directory, { kind: 'refresh' }).then(() => undefined)
+              }
+              return undefined
+            }}
+          />
+        </Suspense>
       ) : null}
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}

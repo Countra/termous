@@ -369,10 +369,6 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
 }
 
 @media (max-width: 1100px) {
-  .files-command-button.is-low-priority {
-    display: none;
-  }
-
   .files-workspace-toggle:global(.ant-btn) {
     width: 28px;
     padding-inline: 0;
@@ -388,10 +384,6 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
     padding-inline: 6px;
   }
 
-  .files-selection-more:global(.ant-btn) {
-    display: inline-flex;
-  }
-
   .files-status-bar {
     gap: 4px;
   }
@@ -402,6 +394,16 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
 
   .files-status-actions {
     flex: 0 1 min(58vw, 480px);
+  }
+}
+
+@container files-command-bar (width <= 680px) {
+  .files-command-button.is-low-priority {
+    display: none;
+  }
+
+  .files-selection-more:global(.ant-btn) {
+    display: inline-flex;
   }
 }
 

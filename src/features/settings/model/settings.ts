@@ -5,6 +5,7 @@ import type {
 } from '#common/contracts'
 import {
   normalizeCompletionSettings,
+  normalizeConnectionSettings,
   normalizeTerminalSettings,
 } from '#entities/settings'
 import { normalizeShortcutSettings } from '#entities/shortcuts'
@@ -13,12 +14,15 @@ export {
   completionProviderIds,
   completionProviderSettingsSignature,
   completionSettingsEqual,
+  connectionSettingsEqual,
+  defaultConnectionSettings,
   defaultCompletionProviderSettings,
   defaultCompletionSettings,
   defaultTerminalSettings,
   hasEnabledCompletionProvider,
   normalizeCompletionProviderSettings,
   normalizeCompletionSettings,
+  normalizeConnectionSettings,
   normalizeTerminalSettings,
 } from '#entities/settings'
 
@@ -39,6 +43,7 @@ export function normalizeSettings(settings: Partial<Settings> | null | undefined
     appearance: normalizeAppearanceSettings(settings?.appearance),
     terminal: normalizeTerminalSettings(settings?.terminal),
     completion: normalizeCompletionSettings(settings?.completion),
+    connection: normalizeConnectionSettings(settings?.connection),
     shortcuts: normalizeShortcutSettings(settings?.shortcuts),
     window: normalizeWindowSettings(settings?.window),
   }

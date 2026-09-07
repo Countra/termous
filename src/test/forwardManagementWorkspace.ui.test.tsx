@@ -4,6 +4,7 @@ import type { ChangeEvent, ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForwardInstance, ForwardMode, ForwardProfile } from '#entities/forward'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
 const workspaceMocks = vi.hoisted(() => ({
   notification: {
@@ -144,6 +145,7 @@ vi.mock('#shared/ui', () => ({
     <label>
       <span>{label}</span>
       <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.some((option) => option.value === value) ? null : <option value="" />}
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
@@ -211,15 +213,43 @@ function host(id: string): Host {
   }
 }
 
+function sshProfile(id: string, hostId: string, isDefault = true): SSHAccessProfile {
+  return {
+    id,
+    host_id: hostId,
+    name: `SSH ${id}`,
+    address: `${hostId}.example.com`,
+    port: 22,
+    username: 'root',
+    auth_method: 'password',
+    credential_id: 'credential-password',
+    fingerprint_policy: 'confirm_on_change',
+    is_default: isDefault,
+    sort_order: isDefault ? 0 : 1,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+}
+
 function workspaceProps() {
   return {
     data: {
       hosts: [host('host-a'), host('host-b')],
+      sshAccessProfiles: [
+        sshProfile('ssh-a', 'host-a'),
+        sshProfile('ssh-b', 'host-b'),
+        sshProfile('ssh-b-secondary', 'host-b', false),
+      ],
       forwardProfiles: [],
       forwards: [],
     },
     actionBusy: false,
-    temporaryIntent: { key: 1, hostId: 'host-b' },
+    temporaryIntent: {
+      key: 1,
+      hostId: 'host-b',
+      sshProfileId: 'ssh-b-secondary',
+    },
+    onTemporaryIntentHandled: vi.fn(),
     onCreateProfile: vi.fn(async () => ({} as never)),
     onUpdateProfile: vi.fn(async () => ({} as never)),
     onDeleteProfile: vi.fn(async () => undefined),
@@ -236,6 +266,7 @@ function profile(): ForwardProfile {
     description: '',
     mode: 'local',
     host_id: 'host-a',
+    ssh_profile_id: 'ssh-a',
     bind_host: '127.0.0.1',
     bind_port: 8080,
     target_host: '127.0.0.1',
@@ -257,6 +288,8 @@ describe('端口转发临时启动意图', () => {
 
     const hostSelect = await screen.findByRole('combobox', { name: 'forwards.host' })
     expect(hostSelect).toHaveValue('host-b')
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' }))
+      .toHaveValue('ssh-b-secondary')
     expect(screen.getByText('forwards.temporaryTitle')).toBeInTheDocument()
     expect(document.querySelector('[data-editor-mode]')).not.toBeInTheDocument()
 
@@ -269,6 +302,7 @@ describe('端口转发临时启动意图', () => {
         description: '',
         mode: 'dynamic',
         host_id: 'host-b',
+        ssh_profile_id: 'ssh-b-secondary',
         bind_host: '127.0.0.1',
         bind_port: 8080,
         target_host: '',
@@ -277,18 +311,46 @@ describe('端口转发临时启动意图', () => {
       })
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(props.onTemporaryIntentHandled).toHaveBeenCalledWith(1)
 
     await act(async () => {
       view.rerender(
         <ForwardManagementWorkspace
           {...props}
-          temporaryIntent={{ key: 1, hostId: 'host-a' }}
+          temporaryIntent={{ key: 1, hostId: 'host-a', sshProfileId: 'ssh-a' }}
         />,
       )
     })
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(props.onStartForward).toHaveBeenCalledTimes(1)
+    expect(props.onTemporaryIntentHandled).toHaveBeenCalledTimes(1)
+  })
+
+  it('临时意图中的 SSH Profile 不属于目标主机时保持未选择', async () => {
+    const user = userEvent.setup()
+    const props = workspaceProps()
+    render(
+      <ForwardManagementWorkspace
+        {...props}
+        temporaryIntent={{
+          key: 2,
+          hostId: 'host-b',
+          sshProfileId: 'ssh-a',
+        }}
+      />,
+    )
+
+    expect(await screen.findByRole('combobox', { name: 'forwards.host' }))
+      .toHaveValue('host-b')
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' }))
+      .toHaveValue('')
+
+    await user.click(screen.getByRole('button', { name: 'forwards.start' }))
+    expect(props.onStartForward).not.toHaveBeenCalled()
+    expect(workspaceMocks.notification.warning).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'forwards.validation.sshProfile',
+    }))
   })
 
   it('Profile 弹窗区分新建和编辑模式，临时转发不复用模式标识', async () => {
@@ -318,5 +380,33 @@ describe('端口转发临时启动意图', () => {
     expect(editContext).toHaveTextContent('Profile Alpha')
     expect(editContext).toHaveTextContent('app.edit')
     expect(screen.getByRole('button', { name: 'app.save' })).toBeInTheDocument()
+  })
+
+  it('编辑与切换主机时始终提交精确的 SSH Profile', async () => {
+    const user = userEvent.setup()
+    const props = workspaceProps()
+    const savedProfile = profile()
+    render(
+      <ForwardManagementWorkspace
+        {...props}
+        temporaryIntent={undefined}
+        data={{ ...props.data, forwardProfiles: [savedProfile] }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'app.update' }))
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' })).toHaveValue('ssh-a')
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    await waitFor(() => {
+      expect(props.onUpdateProfile).toHaveBeenCalledWith(
+        'profile-a',
+        expect.objectContaining({ host_id: 'host-a', ssh_profile_id: 'ssh-a' }),
+      )
+    })
+
+    await user.click(screen.getByRole('button', { name: 'forwards.newProfile' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'forwards.host' }), 'host-b')
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' })).toHaveValue('ssh-b')
   })
 })

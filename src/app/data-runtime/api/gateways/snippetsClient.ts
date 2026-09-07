@@ -17,6 +17,10 @@ codeSnippetGroups() {
     return this.request<CodeSnippetGroup[]>('/api/v1/snippet-groups').then(normalizeArray)
   }
 
+snippetEventsUrl() {
+    return this.websocketUrl('/api/v1/snippets/events')
+  }
+
 createCodeSnippetGroup(input: CodeSnippetGroupInput) {
     return this.request<CodeSnippetGroup>('/api/v1/snippet-groups', {
       method: 'POST',

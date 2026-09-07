@@ -58,6 +58,7 @@ interface TerminalPaneViewportProps {
   onActivate: () => void
   onReconnect?: () => void
   onSearch?: (sessionId: string, initialQuery?: string) => void
+  onTerminalCleared?: (sessionId: string) => void
   onOpenPath?: (session: Session, path: string) => void
   onClose?: () => void
 }
@@ -86,6 +87,7 @@ export function TerminalPaneViewport({
   onActivate,
   onReconnect,
   onSearch,
+  onTerminalCleared,
   onOpenPath,
   onClose,
 }: TerminalPaneViewportProps) {
@@ -105,6 +107,7 @@ export function TerminalPaneViewport({
     copyText,
     selectSessionContextRange,
     clearSessionContextSelection,
+    clearSessionBuffer,
     selectAllSession,
     focusSession,
     subscribeSessionCompletionLayout,
@@ -488,6 +491,11 @@ export function TerminalPaneViewport({
         case 'paste':
           await pasteSessionClipboard(session.id)
           break
+        case 'clear':
+          if (clearSessionBuffer(session.id)) {
+            onTerminalCleared?.(session.id)
+          }
+          break
         case 'select_all':
           // 等菜单完成关闭和焦点归还后再创建选区，避免 Dropdown 的收尾焦点覆盖 xterm 选区。
           window.requestAnimationFrame(() => {
@@ -507,11 +515,13 @@ export function TerminalPaneViewport({
       copyText,
       actionBusy,
       captureSessionContext,
+      clearSessionBuffer,
       focusSession,
       message,
       onOpenPath,
       onReconnect,
       onSearch,
+      onTerminalCleared,
       pasteSessionClipboard,
       selectAllSession,
       session,

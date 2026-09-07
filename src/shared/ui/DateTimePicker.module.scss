@@ -1,0 +1,281 @@
+.picker:global(.ant-picker) {
+  width: 100%;
+  min-height: 36px;
+  border-color: var(--border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  box-shadow: none;
+  padding-inline: 10px;
+}
+
+.picker:global(.ant-picker-small) {
+  min-height: 32px;
+  border-radius: 7px;
+  padding-inline: 9px;
+}
+
+.picker:global(.ant-picker):not(.ant-picker-disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--input-bg) 88%, var(--surface-subtle));
+}
+
+.picker:global(.ant-picker-focused) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.picker:global(.ant-picker-status-error),
+.picker:global(.ant-picker-status-error):not(.ant-picker-disabled):hover {
+  border-color: color-mix(in srgb, var(--danger) 78%, var(--border));
+}
+
+.picker:global(.ant-picker-status-error.ant-picker-focused) {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
+.picker:global(.ant-picker-status-warning),
+.picker:global(.ant-picker-status-warning):not(.ant-picker-disabled):hover {
+  border-color: color-mix(in srgb, var(--warning) 76%, var(--border));
+}
+
+.picker:global(.ant-picker-status-warning.ant-picker-focused) {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 15%, transparent);
+}
+
+.picker :global(.ant-picker-input > input) {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.picker:global(.ant-picker-small) :global(.ant-picker-input > input) {
+  font-size: 10px;
+}
+
+.picker :global(.ant-picker-input > input::placeholder) {
+  color: var(--text-muted);
+}
+
+.picker :global(.ant-picker-suffix),
+.picker :global(.ant-picker-clear) {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.picker :global(.ant-picker-clear) {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--input-bg);
+}
+
+.picker :global(.ant-picker-clear:hover) {
+  background: color-mix(in srgb, var(--danger) 11%, var(--surface));
+  color: var(--danger);
+}
+
+.picker:global(.ant-picker):not(.ant-picker-disabled):hover :global(.ant-picker-suffix),
+.picker:global(.ant-picker-focused) :global(.ant-picker-suffix) {
+  color: var(--accent);
+}
+
+.popup:global(.ant-picker-dropdown) {
+  max-width: calc(100vw - 16px);
+}
+
+.popup :global(.ant-picker-panel-container) {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  background: var(--termous-dropdown-bg);
+  box-shadow: 0 18px 42px rgb(0 0 0 / 28%), var(--inner-highlight);
+}
+
+.popup :global(.ant-picker-panel-layout),
+.popup :global(.ant-picker-panel),
+.popup :global(.ant-picker-date-panel),
+.popup :global(.ant-picker-time-panel) {
+  background: transparent;
+}
+
+.popup :global(.ant-picker-header) {
+  border-bottom-color: var(--border);
+  color: var(--text-primary);
+}
+
+.popup :global(.ant-picker-header button) {
+  color: var(--text-muted);
+}
+
+.popup :global(.ant-picker-header button:hover) {
+  color: var(--accent);
+}
+
+.popup :global(.ant-picker-content th) {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.popup :global(.ant-picker-cell) {
+  color: color-mix(in srgb, var(--text-muted) 52%, transparent);
+}
+
+.popup :global(.ant-picker-cell-in-view) {
+  color: var(--text-secondary);
+}
+
+.popup :global(.ant-picker-cell .ant-picker-cell-inner) {
+  border-radius: 6px;
+}
+
+.popup :global(.ant-picker-cell-in-view.ant-picker-cell:hover .ant-picker-cell-inner) {
+  background: var(--row-hover-bg);
+}
+
+.popup :global(.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner) {
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.popup :global(.ant-picker-cell-today .ant-picker-cell-inner::before) {
+  border-color: var(--accent);
+  border-radius: 6px;
+}
+
+.popup :global(.ant-picker-time-panel) {
+  border-inline-start-color: var(--border);
+}
+
+.popup :global(.ant-picker-time-panel-column) {
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.popup :global(.ant-picker-time-panel-cell-inner) {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.popup :global(.ant-picker-time-panel-cell:hover .ant-picker-time-panel-cell-inner) {
+  background: var(--row-hover-bg) !important;
+}
+
+.popup :global(.ant-picker-time-panel-cell-selected .ant-picker-time-panel-cell-inner) {
+  background: var(--row-active-bg) !important;
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.popup :global(.ant-picker-footer) {
+  border-top-color: var(--border);
+}
+
+.popup :global(.ant-picker-now-btn) {
+  color: var(--accent);
+}
+
+.popup :global(.ant-picker-ok .ant-btn) {
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.compact :global(.ant-picker-panel) {
+  font-size: 11px;
+}
+
+.compact :global(.ant-picker-date-panel) {
+  width: 240px;
+}
+
+.compact :global(.ant-picker-header) {
+  padding-inline: 8px;
+}
+
+.compact :global(.ant-picker-header button),
+.compact :global(.ant-picker-header-view) {
+  line-height: 34px;
+}
+
+.compact :global(.ant-picker-date-panel .ant-picker-body) {
+  padding: 6px 8px 8px;
+}
+
+.compact :global(.ant-picker-content th) {
+  height: 26px;
+}
+
+.compact :global(.ant-picker-cell) {
+  min-width: 30px;
+  padding-block: 2px;
+}
+
+.compact :global(.ant-picker-cell .ant-picker-cell-inner) {
+  min-width: 24px;
+  height: 24px;
+  line-height: 24px;
+}
+
+.compact :global(.ant-picker-time-panel) {
+  width: 126px;
+  min-width: 126px;
+}
+
+.compact :global(.ant-picker-time-panel-column) {
+  width: 42px;
+  height: 216px;
+  margin-block: 3px;
+}
+
+.compact :global(.ant-picker-time-panel-column > li.ant-picker-time-panel-cell) {
+  margin-inline: 3px;
+}
+
+.compact :global(.ant-picker-time-panel-column > li.ant-picker-time-panel-cell .ant-picker-time-panel-cell-inner) {
+  width: 36px;
+  height: 26px;
+  padding-inline: 0;
+  line-height: 26px;
+  text-align: center;
+}
+
+.compact :global(.ant-picker-footer) {
+  font-size: 10px;
+}
+
+.compact :global(.ant-picker-ranges) {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
+.compact :global(.ant-picker-ok .ant-btn) {
+  height: 24px;
+  padding-inline: 8px;
+  font-size: 10px;
+}
+
+@media (width <= 560px) {
+  .popup :global(.ant-picker-panel-container) {
+    max-height: calc(100dvh - 16px);
+    overflow: hidden auto;
+  }
+
+  .popup :global(.ant-picker-panel-layout) {
+    flex-direction: column;
+  }
+
+  .popup :global(.ant-picker-time-panel) {
+    width: 100%;
+    border-top: 1px solid var(--border);
+    border-inline-start: 0;
+  }
+
+  .popup :global(.ant-picker-time-panel-column) {
+    height: 112px;
+  }
+}

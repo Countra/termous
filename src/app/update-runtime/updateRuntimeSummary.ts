@@ -5,16 +5,24 @@ import type { UpdateRuntimeSummary } from '#common/contracts'
 
 export function buildUpdateRuntimeSummary(input: {
   activeTransferCount: number
+  agentRunCount: number
   fileSessions: FileSession[]
   forwards: ForwardInstance[]
   sessions: Session[]
-  transferSnapshotComplete: boolean
+  remoteDesktopCount: number
+  runtimeSnapshotComplete: boolean
 }): UpdateRuntimeSummary {
   return {
+    agent_runs: clampRuntimeCount(input.agentRunCount),
     ssh_sessions: clampRuntimeCount(input.sessions.filter((session) => (
       session.kind === 'ssh'
-      && (session.status === 'connecting' || session.status === 'connected')
+      && (
+        session.status === 'connecting'
+        || session.status === 'waiting_host_trust'
+        || session.status === 'connected'
+      )
     )).length),
+    remote_desktop_sessions: clampRuntimeCount(input.remoteDesktopCount),
     file_sessions: clampRuntimeCount(input.fileSessions.filter((session) => (
       session.status === 'connecting'
       || session.status === 'connected'
@@ -24,10 +32,12 @@ export function buildUpdateRuntimeSummary(input: {
       forward.status === 'starting'
       || forward.status === 'waiting_host_trust'
       || forward.status === 'running'
+      || forward.status === 'reconnecting'
       || forward.status === 'stopping'
     )).length),
     transfers: clampRuntimeCount(input.activeTransferCount),
-    transfers_complete: input.transferSnapshotComplete,
+    // 保留既有协议字段名，其值表示所有 Renderer 运行态快照均已完成对账。
+    transfers_complete: input.runtimeSnapshotComplete,
   }
 }
 

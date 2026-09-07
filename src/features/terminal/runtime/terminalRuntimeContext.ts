@@ -89,6 +89,7 @@ export interface TerminalRuntimeContextValue {
     expectedText: string,
   ) => boolean
   clearSessionContextSelection: (sessionId: string) => boolean
+  clearSessionBuffer: (sessionId: string) => boolean
   selectAllSession: (sessionId: string) => boolean
   focusSession: (sessionId: string) => boolean
   sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult

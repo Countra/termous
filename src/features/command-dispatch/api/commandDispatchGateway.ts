@@ -28,6 +28,7 @@ export interface CommandDispatchGateway {
     options?: CommandDispatchRequestOptions,
   ): Promise<CommandDispatchTask>
   taskEventsUrl(taskId: string): string
+  latestTasksEventsUrl(): string
   targetOutputUrl(taskId: string, sessionId: string, cursor?: {
     streamEpoch: string
     lastOffset: string

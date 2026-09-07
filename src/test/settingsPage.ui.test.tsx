@@ -1,15 +1,18 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
+import type { AgentSetupGateway } from '#features/agent-setup'
 
 const childState = vi.hoisted(() => ({
+  agentSetupGateway: null as unknown,
   dataPortabilityGateway: null as unknown,
   platform: 'darwin' as const,
 }))
@@ -20,61 +23,23 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('antd', () => ({
-  Segmented: ({
-    disabled,
-    onChange,
-    options,
-    value,
-  }: {
-    disabled?: boolean
-    onChange?: (value: string) => void
-    options: Array<{ label: ReactNode; value: string }>
-    value?: string
-  }) => (
-    <div data-segmented-value={value}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange?.(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
-  Tabs: ({
-    items,
-  }: {
-    items: Array<{ children: ReactNode; key: string; label: ReactNode }>
-  }) => {
-    const [activeKey, setActiveKey] = useState(items[0]?.key)
-    const activeItem = items.find((item) => item.key === activeKey)
+vi.mock('#entities/shortcuts', () => ({
+  useShortcutRuntime: () => ({ platform: childState.platform }),
+}))
+
+vi.mock('#features/mcp-access', () => ({
+  McpSettingsPanel: () => <div data-testid="mcp-settings" />,
+}))
+
+vi.mock('#features/agent-setup', () => ({
+  AgentSettingsPanel: function AgentSettingsPanel({ gateway }: { gateway: unknown }) {
+    const [draft, setDraft] = useState('')
     return (
-      <div>
-        <div role="tablist">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={item.key === activeKey}
-              onClick={() => setActiveKey(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div role="tabpanel">{activeItem?.children}</div>
+      <div data-testid="agent-settings" ref={() => { childState.agentSetupGateway = gateway }}>
+        <input aria-label="agent-draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
       </div>
     )
   },
-}))
-
-vi.mock('#entities/shortcuts', () => ({
-  useShortcutRuntime: () => ({ platform: childState.platform }),
 }))
 
 vi.mock('#features/settings', () => ({
@@ -86,6 +51,20 @@ vi.mock('#features/settings', () => ({
         childState.dataPortabilityGateway = gateway
       }}
     />
+  ),
+  ConnectionSettings: ({
+    onChange,
+    value,
+  }: {
+    onChange: (settings: ConnectionSettings) => Promise<void>
+    value: ConnectionSettings
+  }) => (
+    <button
+      type="button"
+      onClick={() => void onChange({ ...value, ssh_keepalive_enabled: !value.ssh_keepalive_enabled })}
+    >
+      connection-change
+    </button>
   ),
   GeneralSettings: ({
     onAppearanceSettingsChange,
@@ -195,6 +174,7 @@ const completionSettings: CompletionSettings = {
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   const handlers = {
+    agentSetupGateway: { readiness: vi.fn(async () => { throw new Error('unused') }) } as unknown as AgentSetupGateway,
     dataPortabilityGateway: {
       applyDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
       cancelDataPortabilityImport: vi.fn(async () => { throw new Error('unused') }),
@@ -205,6 +185,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
     },
     onAppearanceSettingsChange: vi.fn(async () => undefined),
     onCompletionSettingsChange: vi.fn(async () => undefined),
+    onConnectionSettingsChange: vi.fn(async () => undefined),
     onDeleteTerminalFont: vi.fn(async () => undefined),
     onLanguageChange: vi.fn(async () => undefined),
     onShortcutSettingsChange: vi.fn(async () => undefined),
@@ -225,6 +206,11 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       terminalSettings={terminalSettings}
       sshSmoothScrollEnabled={false}
       completionSettings={completionSettings}
+      connectionSettings={{
+        ssh_keepalive_enabled: false,
+        forward_auto_reconnect_enabled: false,
+        remote_desktop_auto_reconnect_enabled: true,
+      }}
       shortcutSettings={{ schema_version: 1, overrides: {} }}
       windowSettings={{ close_behavior: 'exit' }}
       terminalFonts={[]}
@@ -247,19 +233,24 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
-  it('保持五个页签及通用设置默认页签和命令委托', async () => {
+  it('保持八个页签及通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(5)
+    expect(tabs).toHaveLength(8)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
+      'settings.tabConnection',
       'settings.tabShortcuts',
+      'settings.tabAgent',
+      'settings.tabMcp',
       'settings.tabData',
       'settings.tabUpdates',
     ])
+    expect(screen.getByRole('tab', { name: 'settings.tabAgent' }).querySelector('.lucide-bot')).not.toBeNull()
+    expect(screen.getByRole('tab', { name: 'settings.tabMcp' }).querySelector('.mcp-icon')).not.toBeNull()
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
 
     await user.click(screen.getByRole('button', { name: 'settings.themeLight' }))
@@ -271,7 +262,55 @@ describe('设置页面装配合同', () => {
     expect(handlers.onWindowSettingsChange).toHaveBeenCalledWith({ close_behavior: 'minimize_to_tray' })
   })
 
-  it('保持终端、快捷键、数据和更新子模块的 Props 与命令委托', async () => {
+  it('支持从 Agent 工作区直接打开 Agent 设置页签', () => {
+    renderSettingsPage({ initialTab: 'agent' })
+
+    expect(screen.getByRole('tab', { name: 'settings.tabAgent' }))
+      .toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
+  })
+
+  it('向导页签锚点激活对应面板并保留懒挂载实例及未保存草稿', async () => {
+    const user = userEvent.setup()
+    const handlers = renderSettingsPage()
+    const tabs = ['terminal', 'mcp', 'agent', 'data'] as const
+    const panels = new Map<string, Element>()
+
+    for (const tab of tabs) {
+      expect(document.querySelector(`[data-tour="settings-${tab}"]`)).toBeNull()
+      const anchor = document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)
+      expect(anchor).not.toBeNull()
+      expect(anchor?.closest('[role="tab"]')).toHaveAttribute('aria-selected', 'false')
+    }
+
+    for (const tab of tabs) {
+      const anchor = document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)!
+      await user.click(anchor)
+      expect(anchor.closest('[role="tab"]')).toHaveAttribute('aria-selected', 'true')
+      const panel = screen.getByRole('tabpanel').querySelector(`[data-tour="settings-${tab}"]`)
+      expect(panel).not.toBeNull()
+      panels.set(tab, panel!)
+      if (tab === 'agent') {
+        await user.type(screen.getByRole('textbox', { name: 'agent-draft' }), '未保存的 Provider 配置')
+      }
+    }
+
+    for (const tab of [...tabs].reverse()) {
+      await user.click(document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)!)
+      expect(screen.getByRole('tabpanel').querySelector(`[data-tour="settings-${tab}"]`))
+        .toBe(panels.get(tab))
+      if (tab === 'agent') {
+        expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('未保存的 Provider 配置')
+      }
+    }
+
+    expect(handlers.onTerminalSettingsChange).not.toHaveBeenCalled()
+    expect(handlers.onCompletionSettingsChange).not.toHaveBeenCalled()
+    expect(handlers.onUploadTerminalFont).not.toHaveBeenCalled()
+    expect(handlers.onDeleteTerminalFont).not.toHaveBeenCalled()
+  })
+
+  it('保持终端、连接、快捷键、Agent、MCP、数据和更新子模块的 Props 与命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
 
@@ -289,6 +328,14 @@ describe('设置页面装配合同', () => {
     expect(handlers.onUploadTerminalFont).toHaveBeenCalledWith(expect.objectContaining({ name: 'custom.ttf' }))
     expect(handlers.onDeleteTerminalFont).toHaveBeenCalledWith('custom-font')
 
+    await user.click(screen.getByRole('tab', { name: 'settings.tabConnection' }))
+    await user.click(screen.getByRole('button', { name: 'connection-change' }))
+    expect(handlers.onConnectionSettingsChange).toHaveBeenCalledWith({
+      ssh_keepalive_enabled: true,
+      forward_auto_reconnect_enabled: false,
+      remote_desktop_auto_reconnect_enabled: true,
+    })
+
     await user.click(screen.getByRole('tab', { name: 'settings.tabShortcuts' }))
     expect(screen.getByTestId('shortcut-settings')).toHaveAttribute('data-platform', 'darwin')
     await user.click(screen.getByRole('button', { name: 'shortcut-patch' }))
@@ -297,6 +344,13 @@ describe('设置页面装配合同', () => {
       changes: { 'terminal.paste': null },
     })
     expect(handlers.onShortcutSettingsChange).toHaveBeenNthCalledWith(2, { reset_all: true })
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabAgent' }))
+    expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
+    expect(childState.agentSetupGateway).toBe(handlers.agentSetupGateway)
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabMcp' }))
+    expect(screen.getByTestId('mcp-settings')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabData' }))
     expect(screen.getByTestId('data-portability')).toHaveAttribute('data-app-version', '1.2.3')

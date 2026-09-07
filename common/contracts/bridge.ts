@@ -1,4 +1,11 @@
 import type {
+  AgentRuntimeCommandResult,
+  AgentQueuedTurnSteerRequest,
+  AgentRuntimeRunRef,
+  AgentRuntimeStatus,
+  AgentRuntimeSteerRequest,
+} from './agent-runtime'
+import type {
   AppBuildInfo,
   AppConfig,
   AppTheme,
@@ -51,6 +58,15 @@ export interface TermousBridge {
     shutdown: () => Promise<boolean>
     getFatal: () => Promise<CoreFatalEvent | null>
     onFatal: (callback: (event: CoreFatalEvent) => void) => () => void
+  }
+  agentRuntime?: {
+    getStatus: () => Promise<AgentRuntimeStatus>
+    start: (request: AgentRuntimeRunRef) => Promise<AgentRuntimeCommandResult>
+    stop: (request: AgentRuntimeRunRef) => Promise<AgentRuntimeCommandResult>
+    steer: (request: AgentRuntimeSteerRequest) => Promise<AgentRuntimeCommandResult>
+    wake: () => Promise<AgentRuntimeCommandResult>
+    steerQueuedTurn: (request: AgentQueuedTurnSteerRequest) => Promise<AgentRuntimeCommandResult>
+    onStatus: (callback: (status: AgentRuntimeStatus) => void) => () => void
   }
   startup?: {
     ready: () => Promise<boolean>

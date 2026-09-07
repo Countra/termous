@@ -1,0 +1,191 @@
+import {
+  AlertTriangle,
+  BookOpenText,
+  Braces,
+  ChevronRight,
+  CircleGauge,
+  History,
+  PlugZap,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react'
+import { Button, Progress, Skeleton, Switch, Tooltip } from 'antd'
+import { useTranslation } from 'react-i18next'
+import type { AgentWorkspaceInspectorState } from '../model/types.ts'
+import styles from './AgentInspector.module.scss'
+import { AgentTokenUsage } from './AgentTokenUsage.tsx'
+import { formatAgentTokenCount } from './agentTokenUsageFormat.ts'
+
+export function AgentInspector({
+  inspector,
+  disabled,
+  onContextCompressionPendingChange,
+  onRetryContext,
+  onRetryUsage,
+  onClose,
+}: {
+  inspector: AgentWorkspaceInspectorState
+  disabled: boolean
+  onContextCompressionPendingChange: (enabled: boolean) => void
+  onRetryContext: () => void
+  onRetryUsage: () => void
+  onClose: () => void
+}) {
+  const { t, i18n } = useTranslation()
+  const pending = inspector.context.assessment === 'pending'
+  const compressionStatus = inspector.context.compression_status
+    ?? (!inspector.context.has_snapshot ? 'unknown' : inspector.context.compression_available ? 'available' : 'unavailable')
+  const reference = inspector.context.last_snapshot
+  const referencePercent = reference && reference.context_window_tokens > 0
+    ? new Intl.NumberFormat(i18n.resolvedLanguage, { style: 'percent', maximumFractionDigits: 1 })
+      .format(reference.estimated_tokens / reference.context_window_tokens)
+    : undefined
+  const basisKey = inspector.context.basis === 'provider_usage' ? 'providerBasis'
+    : inspector.context.basis === 'pi_estimate' ? 'contentEstimate'
+      : inspector.context.estimated ? 'estimated' : 'measured'
+  const usage = inspector.context.has_snapshot && inspector.context.context_window_tokens > 0
+    ? Math.min(100, Math.round(inspector.context.used_tokens / inspector.context.context_window_tokens * 100))
+    : 0
+
+  return (
+    <aside className={styles.inspector} data-agent-panel aria-label={t('agent.inspector.title')}>
+      <div className={styles['inspector-header']}>
+        <span><CircleGauge size={15} aria-hidden="true" /><strong>{t('agent.inspector.title')}</strong></span>
+        <Tooltip title={t('app.collapse')}>
+          <Button
+            type="text"
+            className={styles['inspector-collapse']}
+            aria-label={t('app.collapse')}
+            icon={<ChevronRight size={17} strokeWidth={2.2} />}
+            onClick={onClose}
+          />
+        </Tooltip>
+      </div>
+      <section className={styles['inspector-section']}>
+        <header><CircleGauge size={15} /><h3>{t('agent.inspector.context')}</h3></header>
+        {inspector.context.phase === 'unavailable' ? (
+          <p className={styles['inspector-empty']}>{t('agent.inspector.contextUnavailable')}</p>
+        ) : pending ? (
+          <div className={styles['context-pending']} role="status">
+            <strong>{t('agent.inspector.contextPending')}</strong>
+            <span>{t('agent.inspector.contextPendingHint')}</span>
+            {inspector.context.context_window_tokens > 0 ? <span>{t('agent.inspector.currentContextWindow', {
+              window: formatTokens(inspector.context.context_window_tokens),
+            })}</span> : null}
+            {reference && referencePercent ? (
+              <p className={styles['context-reference']}>{t('agent.inspector.lastContextReference', {
+                model: reference.model_name, percent: referencePercent,
+                tokens: formatAgentTokenCount(reference.estimated_tokens, i18n.resolvedLanguage),
+                window: formatAgentTokenCount(reference.context_window_tokens, i18n.resolvedLanguage),
+              })}</p>
+            ) : null}
+          </div>
+        ) : inspector.context.phase === 'loading' && !inspector.context.has_snapshot ? (
+          <Skeleton className={styles['context-skeleton']} active title={false} paragraph={{ rows: 2 }} />
+        ) : inspector.context.has_snapshot ? (
+          <div className={styles['context-usage']}>
+            <div><strong>{usage}%</strong><span>{t(`agent.inspector.${basisKey}`)}</span></div>
+            <Progress
+              percent={usage}
+              showInfo={false}
+              strokeColor={inspector.context.warning ? 'var(--warning)' : 'var(--accent)'}
+              railColor="var(--row-hover-bg)"
+            />
+            <p>{formatTokens(inspector.context.used_tokens)} / {formatTokens(inspector.context.context_window_tokens)} token</p>
+            {inspector.context.basis === 'provider_usage' ? <p>{t('agent.inspector.providerBasisHint')}</p> : null}
+          </div>
+        ) : null}
+        {!pending && inspector.context.warning && inspector.context.has_snapshot ? (
+          <div className={styles['context-warning']}>
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span>{t('agent.inspector.contextWarning')}</span>
+          </div>
+        ) : null}
+        {inspector.context.checkpoint ? (
+          <div className={styles['context-checkpoint']}>
+            <History size={14} aria-hidden="true" />
+            <div>
+              <strong>{t('agent.inspector.checkpoint')}</strong>
+              <span>{t('agent.inspector.checkpointMeta', {
+                tokens: formatTokens(inspector.context.checkpoint.estimated_tokens),
+                time: formatCheckpointTime(inspector.context.checkpoint.created_at, i18n.resolvedLanguage),
+              })}</span>
+            </div>
+          </div>
+        ) : null}
+        {inspector.context.phase !== 'unavailable' ? (
+          <div className={styles['context-compression']}>
+            <div>
+              <strong>{t('agent.inspector.compressNext')}</strong>
+              <span>{t(inspector.context.compression_pending
+                ? 'agent.inspector.compressPending'
+                : compressionStatus === 'unknown' ? 'agent.inspector.compressUnknown'
+                : compressionStatus === 'available'
+                  ? 'agent.inspector.compressAvailable'
+                  : 'agent.inspector.compressUnavailable')}</span>
+            </div>
+            <Switch
+              checked={inspector.context.compression_pending}
+              disabled={disabled
+                || inspector.context.phase === 'loading' && compressionStatus !== 'unknown'
+                || compressionStatus === 'unavailable' && !inspector.context.compression_pending}
+              aria-label={t('agent.inspector.compressNext')}
+              onChange={(checked) => onContextCompressionPendingChange(checked)}
+            />
+          </div>
+        ) : null}
+        {inspector.context.phase === 'error' ? (
+          <div className={styles['context-error']} role="status">
+            <span>{t('agent.inspector.contextLoadFailed')}</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<RefreshCw size={13} />}
+              onClick={onRetryContext}
+            >{t('app.retry')}</Button>
+          </div>
+        ) : null}
+      </section>
+      <AgentTokenUsage usage={inspector.usage} onRetry={onRetryUsage} />
+      {inspector.skills.length ? (
+        <section className={styles['inspector-section']}>
+          <header><BookOpenText size={15} /><h3>{t('agent.inspector.skills')}</h3><span>{inspector.skills.length}</span></header>
+          <div className={styles['skill-list']}>
+            {inspector.skills.map((skill) => <div key={skill.name}><strong>{skill.name}</strong><span>{skill.description}</span></div>)}
+          </div>
+        </section>
+      ) : null}
+      <section className={styles['inspector-section']}>
+        <header><PlugZap size={15} /><h3>{t('agent.inspector.mcp')}</h3><span className={inspector.mcp.connection === 'connected' ? styles['is-connected'] : ''}>{t(`agent.inspector.${mcpConnectionKey(inspector.mcp.connection)}`)}</span></header>
+        <div className={styles['mcp-metrics']}>
+          {inspector.mcp.tool_count !== undefined ? <div><Braces size={14} /><strong>{inspector.mcp.tool_count}</strong><span>{t('agent.inspector.tools')}</span></div> : null}
+          <div><ShieldCheck size={14} /><strong>{inspector.mcp.scope_count}</strong><span>{t('agent.inspector.scopes')}</span></div>
+        </div>
+      </section>
+    </aside>
+  )
+}
+
+function mcpConnectionKey(connection: AgentWorkspaceInspectorState['mcp']['connection']) {
+  if (connection === 'connected') return 'connected'
+  if (connection === 'connecting') return 'connecting'
+  if (connection === 'on_demand') return 'onDemand'
+  return 'disconnected'
+}
+
+function formatTokens(value: number) {
+  if (value < 1_000) return String(value)
+  if (value < 1_000_000) return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}k`
+  return `${(value / 1_000_000).toFixed(1)}m`
+}
+
+function formatCheckpointTime(value: string, language?: string) {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return value
+  return new Intl.DateTimeFormat(language, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(timestamp)
+}

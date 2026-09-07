@@ -55,6 +55,7 @@ test('端口转发重启在停止成功但启动失败后先完成权威对账�
     forwards: data.forwards,
     setData,
     setForwardErrorEvent: vi.fn(),
+    forwardReloadChangeTrackers: new Set(),
     forwardStartCompletionWaiters: new Map(),
     forwardEventRevisions: new Map(),
     forwardEventSnapshots: new Map(),
@@ -79,6 +80,7 @@ test('端口转发终态事件先释放启动 waiter 与其快照修订，再更
   const snapshots = new Map<string, ForwardInstance>()
   const revisions = new Map<string, number>([[failedForward.id, 3]])
   const setForwardErrorEvent = vi.fn()
+  const changedForwardIds = new Set<string>()
   const commands = createForwardCommands({
     api: {
       getForward: vi.fn(),
@@ -89,6 +91,7 @@ test('端口转发终态事件先释放启动 waiter 与其快照修订，再更
     forwards: data.forwards,
     setData,
     setForwardErrorEvent,
+    forwardReloadChangeTrackers: new Set([changedForwardIds]),
     forwardStartCompletionWaiters: waiters,
     forwardEventRevisions: revisions,
     forwardEventSnapshots: snapshots,
@@ -106,6 +109,7 @@ test('端口转发终态事件先释放启动 waiter 与其快照修订，再更
     forward: failedForward,
     message: 'listen failed',
   })
+  expect(changedForwardIds).toEqual(new Set([failedForward.id]))
   expect(data.forwards).toEqual([])
 })
 
@@ -128,6 +132,7 @@ test('同一转发重复注册启动等待时释放旧 waiter 并只保留最新
       forwards: data.forwards,
       setData,
       setForwardErrorEvent: vi.fn(),
+      forwardReloadChangeTrackers: new Set(),
       forwardStartCompletionWaiters: waiters,
       forwardEventRevisions: new Map(),
       forwardEventSnapshots: new Map(),

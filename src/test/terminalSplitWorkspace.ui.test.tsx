@@ -68,6 +68,7 @@ const sessions: Session[] = [
   {
     id: 'session-a',
     kind: 'ssh',
+    origin: 'app',
     status: 'connected',
     started_at: '2026-08-13T00:00:00Z',
     pty_cols: 120,
@@ -76,6 +77,7 @@ const sessions: Session[] = [
   {
     id: 'session-b',
     kind: 'ssh',
+    origin: 'app',
     status: 'connected',
     started_at: '2026-08-13T00:00:01Z',
     pty_cols: 120,

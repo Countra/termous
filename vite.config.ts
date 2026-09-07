@@ -5,7 +5,10 @@ import react from '@vitejs/plugin-react'
 
 const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
   ? 'electron/updateSimulationMain.ts'
-  : 'electron/main.ts'
+  : {
+      main: 'electron/main.ts',
+      'agent-worker': 'electron/agent/worker.ts',
+    }
 
 // https://vite.dev/config/
 export default defineConfig({

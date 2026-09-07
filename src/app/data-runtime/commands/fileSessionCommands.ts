@@ -8,6 +8,7 @@ import {
   upsertFileSessionSnapshot,
   type FileSession,
   type FileSessionClosureState,
+  type FileSessionConnectInput,
 } from '#entities/file'
 import type { FileSessionCommandGateway } from '../api/runtimeGatewayContracts'
 import {
@@ -24,6 +25,7 @@ interface FileSessionCommandDependencies {
   fileSessionRecoveryCloseEpochs: Map<string, number>
   fileSessionRecoveryQueues: Map<string, Promise<void>>
   suppressedFileSessionIds: Map<string, string>
+  closeSuppressedFileSessionIds: Set<string>
   fileSessionEventRevisions: Map<string, number>
   releaseFileSessionRecoveryEpoch: (fileSessionId: string) => void
   scheduleSuppressedFileSessionCleanup: (
@@ -41,24 +43,30 @@ export function createFileSessionCommands({
   fileSessionRecoveryCloseEpochs,
   fileSessionRecoveryQueues,
   suppressedFileSessionIds,
+  closeSuppressedFileSessionIds,
   fileSessionEventRevisions,
   releaseFileSessionRecoveryEpoch,
   scheduleSuppressedFileSessionCleanup,
   supersedeFileSessionRecoveryOperation,
 }: FileSessionCommandDependencies) {
   return {
-    async connectFileSession(
-      hostId: string,
-      sourceSessionId = '',
-      initialPath = '',
-      replacedFileSessionId = '',
-    ) {
+    async connectFileSession(input: FileSessionConnectInput) {
+      const replacedFileSessionId = input.replacedFileSessionId ?? ''
       if (replacedFileSessionId) {
         bumpSessionRevision(fileSessionEventRevisions, replacedFileSessionId)
       }
-      const createFileSession = () => (
-        api.createFileSession(hostId, sourceSessionId, initialPath)
-      )
+      const createInput = input.fileAccessProfileId !== undefined
+        ? {
+            fileAccessProfileId: input.fileAccessProfileId,
+            sourceSessionId: input.sourceSessionId,
+            initialPath: input.initialPath,
+          }
+        : {
+            hostId: input.hostId,
+            sourceSessionId: input.sourceSessionId,
+            initialPath: input.initialPath,
+          }
+      const createFileSession = () => api.createFileSession(createInput)
       const fileSession = replacedFileSessionId
         ? await runQueuedFileSessionRecoveryOperation(
             fileSessionRecoveryCloseEpochs,
@@ -141,6 +149,7 @@ export function createFileSessionCommands({
     },
     async closeFileSession(fileSessionId: string) {
       supersedeFileSessionRecoveryOperation(fileSessionId)
+      closeSuppressedFileSessionIds.add(fileSessionId)
       const closingFileSession = fileSessions.find((session) => session.id === fileSessionId)
       const sourceSessionId = closingFileSession?.source_session_id ?? ''
       if (closingFileSession && sourceSessionId) {
@@ -157,6 +166,7 @@ export function createFileSessionCommands({
         await api.deleteFileSession(fileSessionId)
       } catch (error) {
         if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
+          closeSuppressedFileSessionIds.delete(fileSessionId)
           if (sourceSessionId) {
             setFileSessionClosures((current) => removeMatchingFileSessionClosure(
               current,
@@ -219,7 +229,10 @@ export function createFileSessionCommands({
       supersedeFileSessionRecoveryOperation(fileSessionId)
     },
     updateFileSession(fileSession: FileSession) {
-      if (suppressedFileSessionIds.has(fileSession.id)) {
+      if (
+        suppressedFileSessionIds.has(fileSession.id)
+        || closeSuppressedFileSessionIds.has(fileSession.id)
+      ) {
         return
       }
       bumpSessionRevision(fileSessionEventRevisions, fileSession.id)

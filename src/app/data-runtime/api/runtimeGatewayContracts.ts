@@ -1,6 +1,7 @@
 import type {
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   Settings,
   ShortcutSettingsPatch,
   TerminalFont,
@@ -8,6 +9,10 @@ import type {
   WindowSettings,
 } from '#common/contracts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
+import type {
+  FileAccessProfile,
+  FileAccessProfileMetadataInput,
+} from '#entities/file-access-profile'
 import type {
   CredentialInput,
   CredentialView,
@@ -22,6 +27,7 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
   FileSession,
+  FileSessionCreateInput,
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
@@ -40,7 +46,24 @@ import type {
   HostInput,
   HostReachability,
 } from '#entities/host'
+import type {
+  HostAccessCatalog,
+  HostAsset,
+  HostAssetInput,
+  HostProvisionInput,
+} from '#entities/host-asset'
 import type { LocalShell, Session } from '#entities/session'
+import type {
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
+  RemoteDesktopSession,
+} from '#entities/remote-desktop'
+import type {
+  ProvisionedSSHAccessProfile,
+  SSHAccessProfile,
+  SSHAccessProfileInput,
+  SSHAccessProfileReferences,
+} from '#entities/ssh-access-profile'
 import type {
   CodeSnippet,
   CodeSnippetGroup,
@@ -61,12 +84,17 @@ export interface AppDataSnapshotGateway {
   hostIcons: () => Promise<HostIcon[]>
   connectionProxies: () => Promise<ConnectionProxy[]>
   hosts: () => Promise<Host[]>
+  hostAssets: () => Promise<HostAsset[]>
   hostReachability: () => Promise<HostReachability[]>
   credentials: () => Promise<CredentialView[]>
   sessions: () => Promise<Session[]>
   fileSessions: () => Promise<FileSession[]>
+  sshAccessProfiles: () => Promise<SSHAccessProfile[]>
+  fileAccessProfiles: () => Promise<FileAccessProfile[]>
   forwardProfiles: () => Promise<ForwardProfile[]>
   forwards: () => Promise<ForwardInstance[]>
+  remoteDesktopProfiles: () => Promise<RemoteDesktopAccessProfile[]>
+  remoteDesktopSessions: () => Promise<RemoteDesktopSession[]>
 }
 
 export interface CredentialCommandGateway {
@@ -116,6 +144,58 @@ export interface HostCommandGateway {
   updateHost: (id: string, input: HostInput) => Promise<Host>
   deleteHost: (id: string) => Promise<void>
   refreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<HostReachability[]>
+  hostAssets: () => Promise<HostAsset[]>
+  hostAsset: (id: string) => Promise<HostAsset>
+  provisionHost: (input: HostProvisionInput) => Promise<HostAccessCatalog>
+  updateHostAsset: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: HostAssetInput,
+  ) => Promise<HostAsset>
+  hostAccessCatalog: (hostId: string) => Promise<HostAccessCatalog>
+  sshAccessProfiles: (hostId?: string) => Promise<SSHAccessProfile[]>
+  sshAccessProfile: (id: string) => Promise<SSHAccessProfile>
+  createSSHAccessProfile: (
+    hostId: string,
+    input: SSHAccessProfileInput,
+  ) => Promise<ProvisionedSSHAccessProfile>
+  updateSSHAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: SSHAccessProfileInput,
+  ) => Promise<SSHAccessProfile>
+  deleteSSHAccessProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  setDefaultSSHAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<SSHAccessProfile>
+  inspectSSHAccessProfileReferences: (id: string) => Promise<SSHAccessProfileReferences>
+  fileAccessProfiles: (hostId?: string) => Promise<FileAccessProfile[]>
+  fileAccessProfile: (id: string) => Promise<FileAccessProfile>
+  updateFileAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: FileAccessProfileMetadataInput,
+  ) => Promise<FileAccessProfile>
+  setDefaultFileAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<FileAccessProfile>
+  remoteDesktopAccessProfiles: (hostId?: string) => Promise<RemoteDesktopAccessProfile[]>
+  remoteDesktopAccessProfile: (id: string) => Promise<RemoteDesktopAccessProfile>
+  createRemoteDesktopAccessProfile: (
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
+  updateRemoteDesktopAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
+  deleteRemoteDesktopAccessProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  setDefaultRemoteDesktopAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
 }
 
 export interface SettingsCommandGateway {
@@ -124,6 +204,7 @@ export interface SettingsCommandGateway {
   updateAppearanceSettings: (appearance: AppearanceSettings) => Promise<Settings>
   updateTerminalSettings: (terminal: TerminalSettings) => Promise<Settings>
   updateCompletionSettings: (completion: CompletionSettings) => Promise<Settings>
+  updateConnectionSettings: (connection: ConnectionSettings) => Promise<Settings>
   updateShortcutSettings: (patch: ShortcutSettingsPatch) => Promise<Settings>
   updateWindowSettings: (windowSettings: WindowSettings) => Promise<Settings>
   terminalFonts: () => Promise<TerminalFont[]>
@@ -152,8 +233,17 @@ export interface ForwardCommandGateway extends ForwardRuntimeGateway {
   stopForward: (id: string) => Promise<void>
 }
 
+export type SSHSessionCreateInput =
+  | { hostId: string; sshProfileId?: never }
+  | { hostId?: never; sshProfileId: string }
+
 export interface SessionCommandGateway {
   createSession: (hostId: string, cols: number, rows: number) => Promise<Session>
+  createSSHSession: (
+    input: SSHSessionCreateInput,
+    cols: number,
+    rows: number,
+  ) => Promise<Session>
   createLocalSession: (shell: LocalShell, cols: number, rows: number) => Promise<Session>
   deleteSession: (id: string) => Promise<void>
   refreshSessionInventory: (
@@ -164,11 +254,7 @@ export interface SessionCommandGateway {
 }
 
 export interface FileSessionCommandGateway {
-  createFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-  ) => Promise<FileSession>
+  createFileSession: (input: FileSessionCreateInput) => Promise<FileSession>
   deleteFileSession: (id: string) => Promise<void>
   reconnectFileSession: (id: string) => Promise<FileSession>
 }

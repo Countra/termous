@@ -335,7 +335,9 @@ test('安装确认在已下载和可重试安装错误状态保持有效', () =>
     operation_generation: 7,
     summary_revision: 1,
     summary: {
+      agent_runs: 0,
       ssh_sessions: 1,
+      remote_desktop_sessions: 0,
       file_sessions: 0,
       forwards: 0,
       transfers: 0,
@@ -384,7 +386,9 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
     operation_generation: 7,
     summary_revision: 1,
     summary: {
+      agent_runs: 1,
       ssh_sessions: 1,
+      remote_desktop_sessions: 0,
       file_sessions: 0,
       forwards: 0,
       transfers: 0,
@@ -393,6 +397,10 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   }
 
   assert.equal(primaryActionLabel('install', text, confirmation), '安装并重新启动')
+  assert.equal(
+    text.activeWorkWillClose,
+    '安装将停止活动的 AI 助手任务、断开当前连接和传输，并重新启动 Termous。',
+  )
   assert.equal(primaryActionLabel('retry_install', text, confirmation), '重试安装')
   assert.equal(primaryActionLabel('install', text, null), '正在准备安装…')
   assert.equal(primaryActionLabel('install', text, {
@@ -404,18 +412,40 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   }), '安装并重新启动')
   assert.equal(hasUpdateInstallInterruption(confirmation.summary), true)
   assert.equal(hasUpdateInstallInterruption({
+    agent_runs: 0,
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
     transfers_complete: true,
   }), false)
   assert.equal(hasUpdateInstallInterruption({
+    agent_runs: 0,
     ssh_sessions: 0,
+    remote_desktop_sessions: 1,
+    file_sessions: 0,
+    forwards: 0,
+    transfers: 0,
+    transfers_complete: true,
+  }), true)
+  assert.equal(hasUpdateInstallInterruption({
+    agent_runs: 0,
+    ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
     transfers_complete: false,
+  }), true)
+  assert.equal(hasUpdateInstallInterruption({
+    agent_runs: 1,
+    ssh_sessions: 0,
+    remote_desktop_sessions: 0,
+    file_sessions: 0,
+    forwards: 0,
+    transfers: 0,
+    transfers_complete: true,
   }), true)
 })
 
@@ -445,14 +475,15 @@ test('字节、速度 ETA 和长时长使用可读单位', () => {
   }), null)
 })
 
-test('关于窗口文案不暴露更新渠道或更新源', () => {
+test('关于窗口只提供当前版本 Release 入口，不暴露更新渠道或更新源', () => {
   for (const language of ['zh-CN', 'en-US'] as const) {
     const copy = windowCopy(language)
     const visibleCopy = Object.values(copy).join('\n')
     assert.doesNotMatch(
       visibleCopy,
-      /GitHub|Countra\/termous|trusted source|release page|releases\b|更新源|更新渠道|发布页/i,
+      /Countra\/termous|trusted source|release channel|更新源|更新渠道/i,
     )
+    assert.match(copy.githubRelease, /GitHub/)
     assert.doesNotMatch(
       visibleCopy,
       /专注、安全的远程运维工作空间|focused workspace for secure remote operations/i,

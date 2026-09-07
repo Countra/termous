@@ -33,6 +33,7 @@ interface DirectoryHarnessProps {
   fileSessions: readonly FileSession[]
   closingFileSessionIds?: ReadonlySet<string>
   recovering?: boolean
+  automaticDirectoryLoadEnabled?: boolean
   mounted?: boolean
   initialStates?: FilesWorkspaceRuntimeState
   onController: (controller: DirectoryControllerValue) => void
@@ -91,6 +92,7 @@ function DirectoryControllerProbe({
   fileSessions,
   closingFileSessionIds = emptyStringSet,
   recovering = false,
+  automaticDirectoryLoadEnabled = true,
   onController,
   onInvalidPath = noop,
   onDirectoryReadFailed = noop,
@@ -124,6 +126,7 @@ function DirectoryControllerProbe({
 
   const controller = useFilesDirectoryController({
     gateway,
+    automaticDirectoryLoadEnabled,
     activeFileSession,
     activeFileSessionId,
     activeFileSessionClosing: Boolean(
@@ -163,6 +166,7 @@ function fileSession(
   return {
     id: 'file-session-a',
     host_id: 'host-a',
+    origin: 'app',
     status: 'connected',
     current_path: '/',
     started_at: '2026-08-08T00:00:00.000Z',
@@ -239,6 +243,114 @@ async function waitForHarness(
 }
 
 describe('文件目录请求控制器合同', () => {
+  it('禁用时不自动读取目录，显式导航仍保持可用', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async (
+        _fileSessionId: string,
+        path: string,
+      ) => directoryListing(path)),
+    }
+    const capture = captureHarness()
+
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        automaticDirectoryLoadEnabled={false}
+        activeFileSession={session}
+        fileSessions={[session]}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+      />,
+    )
+
+    const current = await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    let loaded = false
+    await act(async () => {
+      loaded = await current.controller.loadDirectory('/manual')
+    })
+    expect(loaded).toBe(true)
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce()
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledWith(
+      session.id,
+      '/manual',
+      expect.any(Object),
+    )
+  })
+
+  it('重新启用后仅补发一次自动目录读取', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async () => directoryListing('/')),
+    }
+    const capture = captureHarness()
+    const harnessProps = {
+      gateway,
+      activeFileSession: session,
+      fileSessions: [session],
+      onController: capture.onController,
+      onRuntime: capture.onRuntime,
+    }
+    const view = render(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled={false}
+      />,
+    )
+
+    await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled
+      />,
+    )
+    await waitFor(() => expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce())
+  })
+
+  it('暂停期间标脏的已加载目录会在恢复后刷新', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async () => directoryListing('/')),
+    }
+    const capture = captureHarness()
+    const harnessProps = {
+      gateway,
+      activeFileSession: session,
+      fileSessions: [session],
+      initialStates: cachedDirectoryState(session),
+      onController: capture.onController,
+      onRuntime: capture.onRuntime,
+    }
+    const view = render(<DirectoryHarness {...harnessProps} />)
+
+    const current = await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled={false}
+      />,
+    )
+    act(() => current.runtime.markDirectoryDirty(session.id, '/'))
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled
+      />,
+    )
+
+    await waitFor(() => expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce())
+  })
+
   it('严格模式首次挂载只发送一条有效目录请求', async () => {
     const session = fileSession()
     const gateway = {
@@ -323,6 +435,94 @@ describe('文件目录请求控制器合同', () => {
     expect(firstResult).toBe(false)
     expect(capture.current.runtime!.states[session.id]?.committedPath).toBe('/second')
     expect(committed).toHaveBeenCalledTimes(1)
+  })
+
+  it('同一轮渲染内连续请求时旧请求不能清理新请求', async () => {
+    const session = fileSession()
+    const requests: Array<ReturnType<typeof deferred<RemoteDirectoryListing>>> = []
+    const gateway = {
+      listFileSessionFiles: vi.fn(() => {
+        const request = deferred<RemoteDirectoryListing>()
+        requests.push(request)
+        return request.promise
+      }),
+    }
+    const committed = vi.fn()
+    const capture = captureHarness()
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        activeFileSession={session}
+        fileSessions={[session]}
+        initialStates={cachedDirectoryState(session)}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+        onActiveDirectoryCommitted={committed}
+      />,
+    )
+    const current = await waitForHarness(capture)
+    let first!: Promise<boolean>
+    let second!: Promise<boolean>
+    act(() => {
+      first = current.controller.loadDirectory('/first')
+      second = current.controller.loadDirectory('/second')
+    })
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledTimes(2)
+
+    let firstResult = true
+    await act(async () => {
+      requests[0]!.resolve(directoryListing('/first'))
+      firstResult = await first
+    })
+    expect(firstResult).toBe(false)
+
+    let secondResult = false
+    await act(async () => {
+      requests[1]!.resolve(directoryListing('/second'))
+      secondResult = await second
+    })
+    expect(secondResult).toBe(true)
+    expect(capture.current.runtime!.states[session.id]?.committedPath).toBe('/second')
+    expect(committed).toHaveBeenCalledTimes(1)
+  })
+
+  it('调用方取消定位后目录结果不能迟到提交', async () => {
+    const session = fileSession()
+    const request = deferred<RemoteDirectoryListing>()
+    const gateway = {
+      listFileSessionFiles: vi.fn(() => request.promise),
+    }
+    const committed = vi.fn()
+    const capture = captureHarness()
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        activeFileSession={session}
+        fileSessions={[session]}
+        initialStates={cachedDirectoryState(session)}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+        onActiveDirectoryCommitted={committed}
+      />,
+    )
+    const current = await waitForHarness(capture)
+    const abortController = new AbortController()
+    let resultPromise!: Promise<boolean>
+    act(() => {
+      resultPromise = current.controller.loadDirectory('/target', {
+        signal: abortController.signal,
+      })
+    })
+    abortController.abort()
+
+    let result = true
+    await act(async () => {
+      request.resolve(directoryListing('/target'))
+      result = await resultPromise
+    })
+    expect(result).toBe(false)
+    expect(capture.current.runtime!.states[session.id]?.committedPath).toBe('/')
+    expect(committed).not.toHaveBeenCalled()
   })
 
   it.each([

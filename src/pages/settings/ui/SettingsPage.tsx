@@ -1,10 +1,11 @@
-import { DatabaseBackup, Keyboard, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AppLanguage,
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   ShortcutSettings,
   ShortcutSettingsPatch,
   TerminalFont,
@@ -12,8 +13,12 @@ import type {
   WindowSettings,
 } from '#common/contracts'
 import { useShortcutRuntime } from '#entities/shortcuts'
+import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
+import { McpSettingsPanel } from '#features/mcp-access'
+import { McpIcon } from '#shared/ui'
 import {
   DataPortabilitySettings,
+  ConnectionSettings as ConnectionSettingsPanel,
   GeneralSettings,
   ShortcutSettingsPanel,
   TerminalCompletionSettings,
@@ -24,17 +29,30 @@ import {
 } from '#features/settings'
 import styles from './SettingsPage.module.scss'
 
+export type SettingsPageTabKey =
+  | 'general'
+  | 'terminal'
+  | 'connection'
+  | 'shortcuts'
+  | 'agent'
+  | 'mcp'
+  | 'data'
+  | 'updates'
+
 export interface SettingsPageProps {
+  initialTab?: SettingsPageTabKey
   language: AppLanguage
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
   sshSmoothScrollEnabled: boolean
   completionSettings: CompletionSettings
+  connectionSettings: ConnectionSettings
   shortcutSettings: ShortcutSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
   dataPortabilityGateway: DataPortabilityGateway
+  agentSetupGateway: AgentSetupGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: AppLanguage) => Promise<void>
@@ -42,6 +60,7 @@ export interface SettingsPageProps {
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
   onSshSmoothScrollChange: (enabled: boolean) => void
   onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
+  onConnectionSettingsChange: (settings: ConnectionSettings) => Promise<void>
   onShortcutSettingsChange: (patch: ShortcutSettingsPatch) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
@@ -49,16 +68,19 @@ export interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  initialTab = 'general',
   language,
   appearanceSettings,
   terminalSettings,
   sshSmoothScrollEnabled,
   completionSettings,
+  connectionSettings,
   shortcutSettings,
   windowSettings,
   terminalFonts,
   appVersion,
   dataPortabilityGateway,
+  agentSetupGateway,
   updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
@@ -66,6 +88,7 @@ export function SettingsPage({
   onTerminalSettingsChange,
   onSshSmoothScrollChange,
   onCompletionSettingsChange,
+  onConnectionSettingsChange,
   onShortcutSettingsChange,
   onWindowSettingsChange,
   onUploadTerminalFont,
@@ -76,7 +99,7 @@ export function SettingsPage({
 
   return (
     <section className={styles.page}>
-      <div className={styles['page-title-row']}>
+      <div className={styles['page-title-row']} data-tour="settings-workspace">
         <div>
           <h1>{t('settings.title')}</h1>
           <p>{t('settings.subtitle')}</p>
@@ -84,6 +107,7 @@ export function SettingsPage({
       </div>
       <Tabs
         className={styles.tabs}
+        defaultActiveKey={initialTab}
         items={[
           {
             key: 'general',
@@ -110,13 +134,13 @@ export function SettingsPage({
           {
             key: 'terminal',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-terminal-tab">
                 <SquareTerminal size={15} aria-hidden="true" />
                 {t('settings.tabTerminal')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-terminal">
                 <div className={styles['terminal-stack']}>
                   <TerminalStyleSettings
                     value={terminalSettings}
@@ -134,6 +158,24 @@ export function SettingsPage({
                     onChange={onCompletionSettingsChange}
                   />
                 </div>
+              </div>
+            ),
+          },
+          {
+            key: 'connection',
+            label: (
+              <span className={styles['tab-label']}>
+                <Network size={15} aria-hidden="true" />
+                {t('settings.tabConnection')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']}>
+                <ConnectionSettingsPanel
+                  value={connectionSettings}
+                  disabled={actionBusy}
+                  onChange={onConnectionSettingsChange}
+                />
               </div>
             ),
           },
@@ -157,15 +199,43 @@ export function SettingsPage({
             ),
           },
           {
+            key: 'agent',
+            label: (
+              <span className={styles['tab-label']} data-tour="settings-agent-tab">
+                <Bot size={15} aria-hidden="true" />
+                {t('settings.tabAgent')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']} data-tour="settings-agent">
+                <AgentSettingsPanel gateway={agentSetupGateway} />
+              </div>
+            ),
+          },
+          {
+            key: 'mcp',
+            label: (
+              <span className={styles['tab-label']} data-tour="settings-mcp-tab">
+                <McpIcon size={15} aria-hidden="true" />
+                {t('settings.tabMcp')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']} data-tour="settings-mcp">
+                <McpSettingsPanel />
+              </div>
+            ),
+          },
+          {
             key: 'data',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-data-tab">
                 <DatabaseBackup size={15} aria-hidden="true" />
                 {t('settings.tabData')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-data">
                 <DataPortabilitySettings
                   appVersion={appVersion}
                   gateway={dataPortabilityGateway}

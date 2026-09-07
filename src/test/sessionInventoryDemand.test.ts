@@ -16,6 +16,7 @@ function session(overrides: Partial<Session> = {}): Session {
   return {
     id: 'session-1',
     kind: 'ssh',
+    origin: 'app',
     host_id: 'host-1',
     status: 'connected',
     inventory_status: 'idle',

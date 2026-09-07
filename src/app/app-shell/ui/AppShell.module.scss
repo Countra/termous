@@ -230,9 +230,72 @@
   padding-top: 12px;
 }
 
+.sidebar-footer-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-settings-button:global(.ant-btn) {
+  min-width: 0;
+  flex: 1;
+}
+
+.product-tour-trigger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+
+.topbar-product-tour-trigger {
+  display: none;
+}
+
+.sidebar-help-button:global(.ant-btn) {
+  display: inline-flex;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+  transition:
+    transform 0.12s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.sidebar-help-button:global(.ant-btn):hover {
+  background: var(--nav-active-bg);
+  color: var(--text-primary);
+  box-shadow: var(--inner-highlight);
+}
+
+.sidebar-help-button:global(.ant-btn):active {
+  transform: translateY(1px);
+}
+
 .app-shell.is-collapsed .sidebar-footer {
   width: 100%;
   justify-items: center;
+}
+
+.app-shell.is-collapsed .sidebar-footer-actions {
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-shell.is-collapsed .sidebar-help-button:global(.ant-btn) {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 14px;
 }
 
 .main-frame {
@@ -521,6 +584,7 @@
 }
 
 .topbar-connect-dropdown:global(.ant-dropdown) {
+  z-index: 3400;
   border: 1px solid color-mix(in srgb, var(--border-strong) 74%, transparent);
   border-radius: 10px;
   background: #20242c !important;
@@ -533,6 +597,16 @@
     background: #fff !important;
     box-shadow: 0 18px 38px rgb(31 45 62 / 16%);
   }
+}
+
+.app-help-dropdown:global(.ant-dropdown) {
+  z-index: 3400 !important;
+}
+
+.app-help-dropdown:global(.ant-dropdown-menu),
+.app-help-dropdown :global(.ant-dropdown-menu) {
+  width: min(220px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
 }
 
 .topbar-connect-dropdown {
@@ -606,6 +680,10 @@
 
   .sidebar {
     display: none;
+  }
+
+  .topbar-product-tour-trigger {
+    display: inline-flex;
   }
 
   .window-chrome {

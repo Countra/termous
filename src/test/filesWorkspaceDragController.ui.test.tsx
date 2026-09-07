@@ -70,6 +70,7 @@ function fileSession(patch: Partial<FileSession> = {}): FileSession {
   return {
     id: 'file-session-a',
     host_id: 'host-a',
+    origin: 'app',
     status: 'connected',
     current_path: '/',
     started_at: '2026-08-09T00:00:00.000Z',

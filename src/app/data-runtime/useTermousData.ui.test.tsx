@@ -1,5 +1,5 @@
-import { renderHook } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { renderHook, waitFor } from '@testing-library/react'
+import { expect, test, vi } from 'vitest'
 import { useTermousData } from './useTermousData'
 
 function restoreProperty(
@@ -34,6 +34,7 @@ test('普通父级重渲染保持 RuntimeGateways、领域 gateway 及 action �
     const firstDomainGateways = Object.entries(firstGateways)
     const firstActions = view.result.current.state.actions
     const firstDomainActions = Object.entries(firstActions)
+    expect(view.result.current.state.runtimeConfigReady).toBe(false)
 
     view.rerender({ marker: 'second' })
 
@@ -46,6 +47,53 @@ test('普通父级重渲染保持 RuntimeGateways、领域 gateway 及 action �
     for (const [name, action] of firstDomainActions) {
       expect(view.result.current.state.actions[name as keyof typeof firstActions]).toBe(action)
     }
+  } finally {
+    view.unmount()
+    restoreProperty(window, 'termous', originalBridge)
+  }
+})
+
+test('Preload 配置解析成功后才开放依赖 Core 的运行时', async () => {
+  const originalBridge = Object.getOwnPropertyDescriptor(window, 'termous')
+  Object.defineProperty(window, 'termous', {
+    configurable: true,
+    value: {
+      getConfig: () => Promise.resolve({
+        apiBaseUrl: 'http://127.0.0.1:49217',
+        apiToken: 'renderer-test-token',
+      }),
+    },
+  })
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('测试不连接 Core')))
+
+  const view = renderHook(() => useTermousData())
+
+  try {
+    expect(view.result.current.runtimeConfigReady).toBe(false)
+    await waitFor(() => expect(view.result.current.runtimeConfigReady).toBe(true))
+    expect(fetch).toHaveBeenCalled()
+  } finally {
+    view.unmount()
+    vi.unstubAllGlobals()
+    restoreProperty(window, 'termous', originalBridge)
+  }
+})
+
+test('Preload 配置解析失败时保持 Core 运行时门禁关闭', async () => {
+  const originalBridge = Object.getOwnPropertyDescriptor(window, 'termous')
+  Object.defineProperty(window, 'termous', {
+    configurable: true,
+    value: {
+      getConfig: () => Promise.reject(new Error('配置读取失败')),
+    },
+  })
+
+  const view = renderHook(() => useTermousData())
+
+  try {
+    await waitFor(() => expect(view.result.current.initializing).toBe(false))
+    expect(view.result.current.runtimeConfigReady).toBe(false)
+    expect(view.result.current.error).toBe('配置读取失败')
   } finally {
     view.unmount()
     restoreProperty(window, 'termous', originalBridge)

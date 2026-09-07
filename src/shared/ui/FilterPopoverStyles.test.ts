@@ -12,6 +12,7 @@ const consumerSources = [
   '../../features/service/ui/ServicePanel.tsx',
   '../../features/observability/ui/ProcessPanel.tsx',
   '../../features/command-dispatch/ui/CommandDispatchTargetPicker.tsx',
+  '../../widgets/agent-workspace/ui/AgentResourceBindingControl.tsx',
 ].map((relativePath) => readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8'))
 
 test('筛选浮层由共享组件统一约束外框和圆角裁剪', () => {
@@ -21,7 +22,7 @@ test('筛选浮层由共享组件统一约束外框和圆角裁剪', () => {
   assert.match(styleSource, /\.root:global\(\.ant-popover\) :global\(\.ant-popover-content\)[\s\S]*background:\s*transparent !important/)
 })
 
-test('业务筛选弹层统一复用共享外框', () => {
+test('标准业务弹层统一复用共享外框', () => {
   for (const source of consumerSources) {
     assert.match(source, /<FilterPopover/)
   }

@@ -294,6 +294,33 @@ function renderWorkspace(
 }
 
 describe('命令片段管理工作区状态合同', () => {
+  it('编辑、保存和卸载时同步脏状态', async () => {
+    const user = userEvent.setup()
+    const onDirtyChange = vi.fn()
+    const saved = snippet({ name: 'Saved name' })
+    const view = renderWorkspace([snippet()], {
+      onDirtyChange,
+      onSave: vi.fn(async () => saved),
+    })
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+
+    const nameInput = document.getElementById('snippet-name') as HTMLInputElement
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Saved name')
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true))
+
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+
+    await user.clear(document.getElementById('snippet-name') as HTMLInputElement)
+    await user.type(document.getElementById('snippet-name') as HTMLInputElement, 'Pending name')
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true))
+
+    view.unmount()
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('脏草稿切换到新建时先确认，取消保留草稿，确认后进入空白编辑', async () => {
     const user = userEvent.setup()
     renderWorkspace([snippet()])

@@ -1,10 +1,14 @@
 import { Button, Progress, Tooltip } from 'antd'
-import { Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
+import { Bot, Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { resolveTransferOrigin } from '#entities/file'
 import type { FileTransferGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
 import { formatBytes } from '#shared/format'
-import { summarizeWorkbenchTransfers } from '../model/workbenchTransferState'
+import {
+  shouldRetainTransferAfterCancel,
+  summarizeWorkbenchTransfers,
+} from '../model/workbenchTransferState'
 import styles from './WorkbenchTransferBar.module.scss'
 
 const scopedClassName = (className: string) => `${className} ${styles[className]}`
@@ -21,7 +25,7 @@ export function WorkbenchTransferBar({
   onActionError,
 }: WorkbenchTransferBarProps) {
   const { t } = useTranslation()
-  const { transfers, upsertTransfer, removeTransfer } = useTransferRuntime()
+  const { transfers, refresh, upsertTransfer, removeTransfer } = useTransferRuntime()
   const summary = summarizeWorkbenchTransfers(transfers, fileSessionId)
   const task = summary.tasks.find((item) => item.status === 'running' || item.status === 'queued')
     ?? summary.tasks.find((item) => item.status === 'failed')
@@ -29,6 +33,14 @@ export function WorkbenchTransferBar({
   const upload = task?.type.startsWith('upload')
   const download = task?.type.startsWith('download')
   const TransferIcon = upload ? UploadCloud : download ? DownloadCloud : Copy
+  const containsMcpTransfer = task
+    ? active
+      ? summary.tasks.some((item) => (
+        (item.status === 'queued' || item.status === 'running')
+        && resolveTransferOrigin(item) === 'mcp'
+      ))
+      : resolveTransferOrigin(task) === 'mcp'
+    : false
 
   const retry = async () => {
     if (!task?.retryable) {
@@ -47,7 +59,11 @@ export function WorkbenchTransferBar({
     }
     try {
       await api.deleteTransfer(task.id)
-      removeTransfer(task.id)
+      if (shouldRetainTransferAfterCancel(task)) {
+        await refresh()
+      } else {
+        removeTransfer(task.id)
+      }
     } catch {
       onActionError()
     }
@@ -64,17 +80,21 @@ export function WorkbenchTransferBar({
       : t(`files.transferType.${task.type}`)
   const description = task.status === 'failed'
     ? task.error_message || t('workbench.files.transferFailed')
-    : task.current_file || t(`files.transferStatus.${task.status}`)
+    : summary.indeterminate
+      ? t('files.remoteCopy.phaseScanning')
+      : task.current_file || t(`files.transferStatus.${task.status}`)
   const transferred = formatBytes(summary.activeTransferredBytes)
   const total = formatBytes(summary.activeTotalBytes)
   const speed = t('files.transferSpeed', { value: formatBytes(summary.speed) })
   const progressText = `${summary.progress}%`
-  const metricsLabel = t('workbench.files.transferMetricsAria', {
-    progress: summary.progress,
-    done: transferred,
-    total,
-    speed,
-  })
+  const metricsLabel = summary.indeterminate
+    ? t('files.remoteCopy.phaseScanning')
+    : t('workbench.files.transferMetricsAria', {
+      progress: summary.progress,
+      done: transferred,
+      total,
+      speed,
+    })
 
   return (
     <div
@@ -88,6 +108,7 @@ export function WorkbenchTransferBar({
       ].filter(Boolean).join(' ')}
       data-workbench-file-transfer
       data-state={active ? 'active' : 'failed'}
+      data-transfer-origin={containsMcpTransfer ? 'mcp' : undefined}
     >
       <span
         className={scopedClassName('workbench-file-transfer-announcement')}
@@ -97,7 +118,20 @@ export function WorkbenchTransferBar({
         {title}
       </span>
       <div className={scopedClassName('workbench-file-transfer-main')}>
-        <span className={scopedClassName('workbench-file-transfer-icon')} aria-hidden="true"><TransferIcon size={15} /></span>
+        <span className={scopedClassName('workbench-file-transfer-icon')}>
+          <TransferIcon size={15} aria-hidden="true" />
+          {containsMcpTransfer ? (
+            <Tooltip title={t('files.transferOrigin.mcp')}>
+              <span
+                className={styles['workbench-file-transfer-origin']}
+                role="img"
+                aria-label={t('files.transferOrigin.mcp')}
+              >
+                <Bot size={9} strokeWidth={2.2} aria-hidden="true" />
+              </span>
+            </Tooltip>
+          ) : null}
+        </span>
         <div className={scopedClassName('workbench-file-transfer-copy')}>
           <strong>{title}</strong>
           <span>{description}</span>
@@ -126,7 +160,15 @@ export function WorkbenchTransferBar({
         ) : null}
       </div>
       {active ? (
-        <>
+        summary.indeterminate ? (
+          <div
+            className={`${scopedClassName('workbench-file-transfer-progress')} ${styles['is-indeterminate']}`}
+            role="progressbar"
+            aria-label={metricsLabel}
+          >
+            <span aria-hidden="true" />
+          </div>
+        ) : <>
           <dl className={scopedClassName('workbench-file-transfer-metrics')} aria-label={metricsLabel}>
             <div className="is-bytes">
               <dt>{t('workbench.files.transferSizeLabel')}</dt>
@@ -148,7 +190,7 @@ export function WorkbenchTransferBar({
               showInfo={false}
               size="small"
               strokeColor="var(--accent)"
-              trailColor="var(--line-soft)"
+              railColor="var(--line-soft)"
             />
           </div>
         </>
