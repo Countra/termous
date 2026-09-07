@@ -3518,6 +3518,7 @@ function FilesWorkspaceContent({
                   )}
                   aria-controls="files-bookmark-rail"
                   aria-expanded={bookmarkRailExpanded}
+                  data-tour="files-bookmarks"
                   icon={<Bookmark size={14} aria-hidden="true" />}
                   onClick={toggleBookmarkRail}
                 />
@@ -4193,6 +4194,7 @@ function FilesWorkspaceContent({
             <button
               type="button"
               className={`${styles['files-transfer-summary']} ${activeTransferCount > 0 ? styles['is-active'] : ''}`}
+              data-tour="files-transfers"
               disabled={localDownloadOperationActive}
               aria-label={activeTransferCount > 0
                 ? t('files.activeTransferCount', { count: activeTransferCount })

@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { StrictMode, useState, type ReactElement } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { App as AntdApp, Button, Dropdown } from 'antd'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config, DriverHook, PopoverDOM } from 'driver.js'
@@ -17,6 +20,8 @@ import {
 
 const productTourSteps = buildProductTourSteps((key) => key)
 const productTourFinishIndex = productTourSteps.findIndex((step) => step.id === 'finish')
+// Vitest 默认清空 CSS 导入，直接读取已安装包以验证真实禁交互样式。
+const driverCss = readFileSync(createRequire(import.meta.url).resolve('driver.js/dist/driver.css'), 'utf8')
 
 const translationState = vi.hoisted(() => ({ language: 'zh-CN' }))
 
@@ -507,7 +512,7 @@ describe('核心使用向导控制器', () => {
     expect(records[0].activeIndex()).toBe(0)
   })
 
-  it('完整十五步流程不产生直接网络请求或隐式提交', async () => {
+  it('完整向导流程不产生直接网络请求或隐式提交', async () => {
     const records: FakeDriverRecord[] = []
     const completionStore = createStore()
     const fetchMock = vi.fn()
@@ -714,6 +719,70 @@ describe('核心使用向导控制器', () => {
     expect(visited.has(password)).toBe(true)
     expect(visited.has(combobox)).toBe(true)
     target.remove()
+  })
+
+  it.each([
+    ['settingsTerminal', 'terminal'],
+    ['settingsMcp', 'mcp'],
+    ['settingsAgent', 'agent'],
+    ['settingsData', 'data'],
+  ] as const)('%s 使用真实 Driver 禁止表单交互与键盘进入，退出后恢复', async (stepId, tabKey) => {
+    installVisibleGeometry()
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
+    const user = userEvent.setup()
+    const drivers: ProductTourDriverAdapter[] = []
+    const stylesheet = document.createElement('style')
+    stylesheet.textContent = driverCss
+    document.head.appendChild(stylesheet)
+    const panel = document.createElement('section')
+    panel.setAttribute('role', 'tabpanel')
+    panel.setAttribute('aria-hidden', 'false')
+    const target = document.createElement('div')
+    target.dataset.tour = `settings-${tabKey}`
+    const input = document.createElement('input')
+    const action = document.createElement('button')
+    action.textContent = '保存设置'
+    const onSave = vi.fn()
+    action.addEventListener('click', onSave)
+    target.append(input, action)
+    panel.appendChild(target)
+    document.body.appendChild(panel)
+    const view = renderController(<ProductTourController {...createProps({
+      driverFactory: createRecordingRealDriverFactory(drivers),
+    })} />)
+
+    try {
+      await waitFor(() => expect(document.querySelector('.driver-popover')).not.toBeNull())
+      act(() => drivers[0]?.moveTo(productTourSteps.findIndex((step) => step.id === stepId)))
+      await waitFor(() => expect(target).toHaveClass('driver-active-element', 'driver-no-interaction'))
+      const popover = await screen.findByRole('dialog')
+      expect(popover).toHaveAttribute('data-product-tour-step', stepId)
+      expect(window.getComputedStyle(input).pointerEvents).toBe('none')
+      expect(window.getComputedStyle(action).pointerEvents).toBe('none')
+      await expect(user.click(action)).rejects.toThrow(/pointer-events/)
+
+      for (const shiftKey of [false, true]) {
+        for (let index = 0; index < 8; index += 1) {
+          fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Tab', shiftKey })
+          expect(popover.contains(document.activeElement)).toBe(true)
+        }
+      }
+      expect(onSave).not.toHaveBeenCalled()
+      expect(input.value).toBe('')
+
+      await user.click(screen.getByRole('button', { name: 'productTour.close' }))
+      expect(target).not.toHaveClass('driver-active-element', 'driver-no-interaction')
+      expect(document.body).not.toHaveClass('driver-active')
+      expect(window.getComputedStyle(input).pointerEvents).not.toBe('none')
+      await user.type(input, '退出向导后配置')
+      await user.click(action)
+      expect(input.value).toBe('退出向导后配置')
+      expect(onSave).toHaveBeenCalledOnce()
+    } finally {
+      view.unmount()
+      panel.remove()
+      stylesheet.remove()
+    }
   })
 
   it('真实 Driver 不会从高层 Modal 抢走 Tab 焦点', async () => {
@@ -1114,6 +1183,15 @@ function installPreparedTourTargets() {
   hostWorkspace.appendChild(hostEditor)
 
   fixture.append(vaultCatalog, vaultEditor, hostCatalog, hostWorkspace)
+  const settingsPanel = document.createElement('section')
+  settingsPanel.setAttribute('role', 'tabpanel')
+  settingsPanel.setAttribute('aria-hidden', 'false')
+  for (const tab of ['terminal', 'mcp', 'agent', 'data']) {
+    const content = document.createElement('div')
+    content.dataset.tour = `settings-${tab}`
+    settingsPanel.appendChild(content)
+  }
+  fixture.appendChild(settingsPanel)
   document.body.appendChild(fixture)
   return fixture
 }

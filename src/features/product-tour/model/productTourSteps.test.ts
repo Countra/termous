@@ -8,11 +8,11 @@ import {
 
 const translate = (key: string) => key
 
-test('扩展后的核心使用向导使用内容版本 2', () => {
-  assert.equal(PRODUCT_TOUR_VERSION, 2)
+test('文件与设置扩展使用向导内容版本 3', () => {
+  assert.equal(PRODUCT_TOUR_VERSION, 3)
 })
 
-test('核心使用向导固定为十五步且保持关键锚点顺序', () => {
+test('核心使用向导保持二十二步且按页面集中介绍功能', () => {
   const steps = buildProductTourSteps(translate)
 
   assert.deepEqual(steps.map((step) => step.id), [
@@ -27,20 +27,52 @@ test('核心使用向导固定为十五步且保持关键锚点顺序', () => {
     'workbench',
     'workbenchTools',
     'files',
+    'filesBookmarks',
+    'filesLocalDirectory',
+    'filesTransfers',
     'forwards',
     'snippets',
     'settings',
+    'settingsTerminal',
+    'settingsMcp',
+    'settingsAgent',
+    'settingsData',
     'finish',
   ])
   assert.match(steps[1].element ?? '', /nav-vault/)
   assert.match(steps[6].element ?? '', /host-connection-catalog/)
   assert.match(steps[9].element ?? '', /workbench-tools/)
   assert.match(steps[10].element ?? '', /files-workspace/)
-  assert.match(steps[11].element ?? '', /forwards-overview/)
-  assert.match(steps[12].element ?? '', /snippets-workspace/)
-  assert.match(steps[13].element ?? '', /settings-workspace/)
-  assert.match(steps[14].element ?? '', /product-tour-trigger/)
-  assert.equal(steps[14].route, 'settings')
+  assert.match(steps[14].element ?? '', /forwards-overview/)
+  assert.match(steps[15].element ?? '', /snippets-workspace/)
+  assert.match(steps[16].element ?? '', /settings-workspace/)
+  assert.match(steps[21].element ?? '', /product-tour-trigger/)
+  assert.equal(steps[21].route, 'settings')
+})
+
+test('文件入口介绍不触发准备动作，设置仅定位激活面板', () => {
+  const steps = buildProductTourSteps(translate)
+  for (const step of steps.filter((step) => step.route === 'files')) {
+    assert.equal(step.preparation, undefined, step.id)
+  }
+  for (const step of steps.filter((step) => step.preparation?.startsWith('settings'))) {
+    assert.equal(step.route, 'settings')
+    assert.match(step.element ?? '', /\[role="tabpanel"\]\[aria-hidden="false"\]/)
+  }
+})
+
+test('仅四个新增设置步骤限制表单交互，凭据与主机等步骤保持原行为', () => {
+  const steps = buildProductTourSteps(translate)
+
+  assert.deepEqual(steps.filter((step) => step.disableActiveInteraction).map((step) => step.id), [
+    'settingsTerminal',
+    'settingsMcp',
+    'settingsAgent',
+    'settingsData',
+  ])
+  for (const id of ['credentialEditor', 'hostEditor', 'hostConnections', 'settings']) {
+    assert.equal(steps.find((step) => step.id === id)?.disableActiveInteraction ?? false, false, id)
+  }
 })
 
 test('Driver 文案保留进度占位符', () => {

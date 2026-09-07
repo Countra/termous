@@ -1,6 +1,12 @@
 import type { ProductTourStep } from './productTourSteps.ts'
 
 const PREPARATION_TIMEOUT_MS = 1200
+const settingsTabActions = {
+  settingsTerminal: '[data-tour="settings-terminal-tab"]',
+  settingsMcp: '[data-tour="settings-mcp-tab"]',
+  settingsAgent: '[data-tour="settings-agent-tab"]',
+  settingsData: '[data-tour="settings-data-tab"]',
+} as const
 
 export async function prepareProductTourDom(
   step: ProductTourStep,
@@ -35,6 +41,17 @@ export async function prepareProductTourDom(
     case 'hostEditor':
     case 'hostConnections':
       await prepareHostEditor(step, signal)
+      return
+    case 'settingsTerminal':
+    case 'settingsMcp':
+    case 'settingsAgent':
+    case 'settingsData':
+      // 通过原页签动作展示设置，保留已经挂载的表单、编辑稿和导入会话。
+      await ensureTarget(step.element, settingsTabActions[step.preparation], signal)
+      if (!signal.aborted && step.element) {
+        const content = document.querySelector<HTMLElement>(step.element)
+        if (content) content.scrollTop = 0
+      }
       return
     default:
       assertNeverPreparation(step.preparation)
@@ -147,7 +164,7 @@ function waitForMatch<Result>(
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['data-active-view'],
+      attributeFilter: ['data-active-view', 'aria-hidden'],
     })
   })
 }

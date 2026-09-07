@@ -4441,7 +4441,7 @@
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Termous brings credentials, hosts, and remote operations into one workbench. Take about 3 minutes to learn the core flow from preparing SSH access to getting work done."
+        "description": "Termous brings credentials, hosts, and remote operations into one workbench. Follow this tour through connection setup, file management, and key settings to get started."
       },
       "vaultNav": {
         "title": "Start with credentials",
@@ -4483,6 +4483,18 @@
         "title": "Manage remote files",
         "description": "The Files page hosts standalone SFTP sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
       },
+      "filesBookmarks": {
+        "title": "Bookmark remote paths",
+        "description": "Expand the bookmark bar here to reach frequently used remote folders. Open bookmark management to search, group, and reorder saved paths instead of typing them again."
+      },
+      "filesLocalDirectory": {
+        "title": "Choose local download folders",
+        "description": "Open Local Folders from the bottom bar to add download locations and browse their subfolders. Select a destination, then drag remote files into the local folder area to download them."
+      },
+      "filesTransfers": {
+        "title": "Track transfers in one place",
+        "description": "View uploads, downloads, and transfers between hosts across all sessions, or filter to the current session. Cancel or retry eligible tasks and clear history without staying in the original folder."
+      },
       "forwards": {
         "title": "Manage port forwarding",
         "description": "The Port Forwarding page lets you create and reuse local, remote, and dynamic forwarding profiles while tracking temporary tunnels, runtime status, and traffic."
@@ -4493,11 +4505,27 @@
       },
       "settings": {
         "title": "Tune key preferences",
-        "description": "Settings brings together language and theme, terminal and completion behavior, connection preferences, shortcuts, and data backup and recovery."
+        "description": "Explore terminal options, MCP access, the AI assistant, and data backup. Close the tour whenever you're ready to change settings."
+      },
+      "settingsTerminal": {
+        "title": "Make the terminal your own",
+        "description": "Adjust fonts, text size, cursor, theme, and scrollback, or import your own font. Below, choose which command, alias, snippet, history, and directory suggestions appear in completion."
+      },
+      "settingsMcp": {
+        "title": "Control tool access through MCP",
+        "description": "Use the Termous endpoint and separate access tokens to connect external AI clients. Assign tool permissions and approval policies to control access to hosts, files, and remote operations."
+      },
+      "settingsAgent": {
+        "title": "Set up the built-in AI assistant",
+        "description": "Configure providers, sync their model catalogs, and choose the default model and run options for new conversations. Adjust automatic context compaction and Token usage display, and check MCP and Skills readiness."
+      },
+      "settingsData": {
+        "title": "Back up your workspace",
+        "description": "Export hosts, credentials, settings, and local resources as an encrypted backup. Preview an import before choosing replacement, merge, or selective restore, then restart after applying it."
       },
       "finish": {
         "title": "You're ready",
-        "description": "You now know the core flow. Replay this tour anytime from the Help menu, and explore advanced tools such as Remote Desktop and the AI assistant as needed."
+        "description": "You now know the connection flow, file tools, and key settings. Replay this tour anytime from the Help menu and keep exploring at your own pace."
       }
     }
   },

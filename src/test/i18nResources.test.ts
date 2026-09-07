@@ -39,7 +39,7 @@ test('使用向导动态步骤键拥有完整双语翻译', () => {
       assert.equal(typeof value, 'string', `${locale}: ${key}`)
       return value as string
     })
-    assert.equal(steps.length, 15, locale)
+    assert.equal(steps.length, 22, locale)
   }
 })
 

@@ -1,6 +1,6 @@
 import type { Alignment, Side } from 'driver.js'
 
-export const PRODUCT_TOUR_VERSION = 2
+export const PRODUCT_TOUR_VERSION = 3
 
 export type ProductTourStepId =
   | 'welcome'
@@ -14,9 +14,16 @@ export type ProductTourStepId =
   | 'workbench'
   | 'workbenchTools'
   | 'files'
+  | 'filesBookmarks'
+  | 'filesLocalDirectory'
+  | 'filesTransfers'
   | 'forwards'
   | 'snippets'
   | 'settings'
+  | 'settingsTerminal'
+  | 'settingsMcp'
+  | 'settingsAgent'
+  | 'settingsData'
   | 'finish'
 
 type ProductTourRoute =
@@ -34,6 +41,10 @@ type ProductTourPreparation =
   | 'hostCatalog'
   | 'hostEditor'
   | 'hostConnections'
+  | 'settingsTerminal'
+  | 'settingsMcp'
+  | 'settingsAgent'
+  | 'settingsData'
 
 export interface ProductTourStep {
   id: ProductTourStepId
@@ -42,6 +53,7 @@ export interface ProductTourStep {
   element?: string
   route?: ProductTourRoute
   preparation?: ProductTourPreparation
+  disableActiveInteraction?: boolean
   side?: Side
   align?: Alignment
 }
@@ -65,6 +77,7 @@ interface ProductTourStepBlueprint {
   element?: string
   route?: ProductTourRoute
   preparation?: ProductTourPreparation
+  disableActiveInteraction?: boolean
   side?: Side
   align?: Alignment
 }
@@ -147,6 +160,27 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     align: 'center',
   },
   {
+    id: 'filesBookmarks',
+    element: '[data-tour="files-bookmarks"]',
+    route: 'files',
+    side: 'bottom',
+    align: 'end',
+  },
+  {
+    id: 'filesLocalDirectory',
+    element: '[data-tour="files-local-directory"]',
+    route: 'files',
+    side: 'top',
+    align: 'start',
+  },
+  {
+    id: 'filesTransfers',
+    element: '[data-tour="files-transfers"]',
+    route: 'files',
+    side: 'top',
+    align: 'end',
+  },
+  {
     id: 'forwards',
     element: '[data-tour="forwards-overview"]',
     route: 'forwards',
@@ -166,6 +200,43 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     route: 'settings',
     side: 'top',
     align: 'center',
+  },
+  {
+    id: 'settingsTerminal',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-terminal"]',
+    route: 'settings',
+    preparation: 'settingsTerminal',
+    // 设置步骤仅作讲解，避免向导返回其他页面时丢失临时编辑或取消导入。
+    disableActiveInteraction: true,
+    side: 'top',
+    align: 'start',
+  },
+  {
+    id: 'settingsMcp',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-mcp"]',
+    route: 'settings',
+    preparation: 'settingsMcp',
+    disableActiveInteraction: true,
+    side: 'top',
+    align: 'start',
+  },
+  {
+    id: 'settingsAgent',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-agent"]',
+    route: 'settings',
+    preparation: 'settingsAgent',
+    disableActiveInteraction: true,
+    side: 'top',
+    align: 'start',
+  },
+  {
+    id: 'settingsData',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-data"]',
+    route: 'settings',
+    preparation: 'settingsData',
+    disableActiveInteraction: true,
+    side: 'top',
+    align: 'start',
   },
   {
     id: 'finish',

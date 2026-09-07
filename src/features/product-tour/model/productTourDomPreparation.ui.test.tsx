@@ -159,4 +159,72 @@ describe('使用向导页面准备', () => {
 
     await expect(preparation).resolves.toBeUndefined()
   })
+
+  it.each([
+    ['settingsTerminal', 'terminal'],
+    ['settingsMcp', 'mcp'],
+    ['settingsAgent', 'agent'],
+    ['settingsData', 'data'],
+  ] as const)('%s 激活已缓存的隐藏页签，保留草稿并回到内容顶部', async (stepId, tabKey) => {
+    const panel = document.createElement('div')
+    panel.setAttribute('role', 'tabpanel')
+    panel.setAttribute('aria-hidden', 'true')
+    const content = document.createElement('div')
+    content.dataset.tour = `settings-${tabKey}`
+    content.scrollTop = 180
+    const draft = document.createElement('input')
+    draft.value = '未保存的设置'
+    const save = document.createElement('button')
+    const onSave = vi.fn()
+    save.addEventListener('click', onSave)
+    content.append(draft, save)
+    panel.appendChild(content)
+    const tab = document.createElement('button')
+    tab.dataset.tour = `settings-${tabKey}-tab`
+    const onSelect = vi.fn(() => {
+      queueMicrotask(() => panel.setAttribute('aria-hidden', 'false'))
+    })
+    tab.addEventListener('click', onSelect)
+    document.body.append(tab, panel)
+    const step = steps.find((item) => item.id === stepId)!
+
+    await prepareProductTourDom(step, new AbortController().signal)
+    await prepareProductTourDom(step, new AbortController().signal)
+
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(document.querySelector(step.element!)).toBe(content)
+    expect(content.scrollTop).toBe(0)
+    expect(content.querySelector('input')).toBe(draft)
+    expect(draft.value).toBe('未保存的设置')
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('文件入口讲解不展开面板或触发目录访问', async () => {
+    const onOpen = vi.fn()
+    for (const step of steps.filter((item) => item.route === 'files' && item.id !== 'files')) {
+      const entry = document.createElement('button')
+      entry.dataset.tour = step.element!.match(/data-tour="([^"]+)"/)![1]
+      entry.addEventListener('click', onOpen)
+      document.body.appendChild(entry)
+      await prepareProductTourDom(step, new AbortController().signal)
+    }
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('取消设置页准备后，不切换迟到的页签', async () => {
+    const controller = new AbortController()
+    const preparation = prepareProductTourDom(
+      steps.find((step) => step.id === 'settingsAgent')!, controller.signal,
+    )
+    controller.abort()
+    const tab = document.createElement('button')
+    tab.dataset.tour = 'settings-agent-tab'
+    const onSelect = vi.fn()
+    tab.addEventListener('click', onSelect)
+    document.body.appendChild(tab)
+
+    await preparation
+
+    expect(onSelect).not.toHaveBeenCalled()
+  })
 })

@@ -249,7 +249,7 @@ export class ProductTourEngine {
           : undefined,
         waitForElement: 2500,
         skipMissingElement: false,
-        disableActiveInteraction: false,
+        disableActiveInteraction: step.disableActiveInteraction ?? false,
         onHighlightStarted: () => this.clearPopoverDecoration(),
         onHighlighted: () => this.releaseTransition(index),
         popover: {

@@ -134,13 +134,13 @@ export function SettingsPage({
           {
             key: 'terminal',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-terminal-tab">
                 <SquareTerminal size={15} aria-hidden="true" />
                 {t('settings.tabTerminal')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-terminal">
                 <div className={styles['terminal-stack']}>
                   <TerminalStyleSettings
                     value={terminalSettings}
@@ -201,13 +201,13 @@ export function SettingsPage({
           {
             key: 'agent',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-agent-tab">
                 <Bot size={15} aria-hidden="true" />
                 {t('settings.tabAgent')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-agent">
                 <AgentSettingsPanel gateway={agentSetupGateway} />
               </div>
             ),
@@ -215,13 +215,13 @@ export function SettingsPage({
           {
             key: 'mcp',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-mcp-tab">
                 <McpIcon size={15} aria-hidden="true" />
                 {t('settings.tabMcp')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-mcp">
                 <McpSettingsPanel />
               </div>
             ),
@@ -229,13 +229,13 @@ export function SettingsPage({
           {
             key: 'data',
             label: (
-              <span className={styles['tab-label']}>
+              <span className={styles['tab-label']} data-tour="settings-data-tab">
                 <DatabaseBackup size={15} aria-hidden="true" />
                 {t('settings.tabData')}
               </span>
             ),
             children: (
-              <div className={styles['tab-scroll']}>
+              <div className={styles['tab-scroll']} data-tour="settings-data">
                 <DataPortabilitySettings
                   appVersion={appVersion}
                   gateway={dataPortabilityGateway}

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -23,61 +23,6 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('antd', () => ({
-  Segmented: ({
-    disabled,
-    onChange,
-    options,
-    value,
-  }: {
-    disabled?: boolean
-    onChange?: (value: string) => void
-    options: Array<{ label: ReactNode; value: string }>
-    value?: string
-  }) => (
-    <div data-segmented-value={value}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange?.(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
-  Tabs: ({
-    defaultActiveKey,
-    items,
-  }: {
-    defaultActiveKey?: string
-    items: Array<{ children: ReactNode; key: string; label: ReactNode }>
-  }) => {
-    const [activeKey, setActiveKey] = useState(defaultActiveKey ?? items[0]?.key)
-    const activeItem = items.find((item) => item.key === activeKey)
-    return (
-      <div>
-        <div role="tablist">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="tab"
-              aria-selected={item.key === activeKey}
-              onClick={() => setActiveKey(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div role="tabpanel">{activeItem?.children}</div>
-      </div>
-    )
-  },
-}))
-
 vi.mock('#entities/shortcuts', () => ({
   useShortcutRuntime: () => ({ platform: childState.platform }),
 }))
@@ -87,9 +32,14 @@ vi.mock('#features/mcp-access', () => ({
 }))
 
 vi.mock('#features/agent-setup', () => ({
-  AgentSettingsPanel: ({ gateway }: { gateway: unknown }) => (
-    <div data-testid="agent-settings" ref={() => { childState.agentSetupGateway = gateway }} />
-  ),
+  AgentSettingsPanel: function AgentSettingsPanel({ gateway }: { gateway: unknown }) {
+    const [draft, setDraft] = useState('')
+    return (
+      <div data-testid="agent-settings" ref={() => { childState.agentSetupGateway = gateway }}>
+        <input aria-label="agent-draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
+      </div>
+    )
+  },
 }))
 
 vi.mock('#features/settings', () => ({
@@ -318,6 +268,46 @@ describe('设置页面装配合同', () => {
     expect(screen.getByRole('tab', { name: 'settings.tabAgent' }))
       .toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
+  })
+
+  it('向导页签锚点激活对应面板并保留懒挂载实例及未保存草稿', async () => {
+    const user = userEvent.setup()
+    const handlers = renderSettingsPage()
+    const tabs = ['terminal', 'mcp', 'agent', 'data'] as const
+    const panels = new Map<string, Element>()
+
+    for (const tab of tabs) {
+      expect(document.querySelector(`[data-tour="settings-${tab}"]`)).toBeNull()
+      const anchor = document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)
+      expect(anchor).not.toBeNull()
+      expect(anchor?.closest('[role="tab"]')).toHaveAttribute('aria-selected', 'false')
+    }
+
+    for (const tab of tabs) {
+      const anchor = document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)!
+      await user.click(anchor)
+      expect(anchor.closest('[role="tab"]')).toHaveAttribute('aria-selected', 'true')
+      const panel = screen.getByRole('tabpanel').querySelector(`[data-tour="settings-${tab}"]`)
+      expect(panel).not.toBeNull()
+      panels.set(tab, panel!)
+      if (tab === 'agent') {
+        await user.type(screen.getByRole('textbox', { name: 'agent-draft' }), '未保存的 Provider 配置')
+      }
+    }
+
+    for (const tab of [...tabs].reverse()) {
+      await user.click(document.querySelector<HTMLElement>(`[data-tour="settings-${tab}-tab"]`)!)
+      expect(screen.getByRole('tabpanel').querySelector(`[data-tour="settings-${tab}"]`))
+        .toBe(panels.get(tab))
+      if (tab === 'agent') {
+        expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('未保存的 Provider 配置')
+      }
+    }
+
+    expect(handlers.onTerminalSettingsChange).not.toHaveBeenCalled()
+    expect(handlers.onCompletionSettingsChange).not.toHaveBeenCalled()
+    expect(handlers.onUploadTerminalFont).not.toHaveBeenCalled()
+    expect(handlers.onDeleteTerminalFont).not.toHaveBeenCalled()
   })
 
   it('保持终端、连接、快捷键、Agent、MCP、数据和更新子模块的 Props 与命令委托', async () => {

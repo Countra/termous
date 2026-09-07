@@ -453,6 +453,13 @@ vi.mock('#pages/files', () => ({
       >
         Files
         <button type="button" onClick={onOpenFileSessionLauncher}>files-connect</button>
+        {testState.productTourPageHarness ? (
+          ['files-bookmarks', 'files-local-directory', 'files-transfers'].map((anchor) => (
+            <button key={anchor} type="button" data-tour={anchor} onClick={() => void testState.action()}>
+              {anchor}
+            </button>
+          ))
+        ) : null}
       </div>
     )
   },
@@ -518,14 +525,45 @@ vi.mock('#pages/forwards', () => ({
   },
 }))
 vi.mock('#pages/settings', () => ({
-  SettingsPage: () => (
-    <div
-      data-testid="settings-page"
-      data-tour={testState.productTourPageHarness ? 'settings-workspace' : undefined}
-    >
-      Settings
-    </div>
-  ),
+  SettingsPage: ({ initialTab = 'general' }: { initialTab?: string }) => {
+    const [activeTab, setActiveTab] = useState(initialTab)
+    const tabs = ['general', 'terminal', 'mcp', 'agent', 'data']
+    return (
+      <div
+        data-testid="settings-page"
+        data-tour={testState.productTourPageHarness ? 'settings-workspace' : undefined}
+      >
+        Settings
+        {testState.productTourPageHarness ? (
+          <>
+            <div role="tablist">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  <span data-tour={`settings-${tab}-tab`}>{tab}</span>
+                </button>
+              ))}
+            </div>
+            {tabs.map((tab) => (
+              <div
+                key={tab}
+                role="tabpanel"
+                aria-hidden={activeTab !== tab}
+                style={{ display: activeTab === tab ? 'block' : 'none' }}
+              >
+                <div data-tour={`settings-${tab}`} />
+              </div>
+            ))}
+          </>
+        ) : null}
+      </div>
+    )
+  },
 }))
 vi.mock('#pages/snippets', () => ({
   SnippetsPage: ({
@@ -1088,7 +1126,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成十五步页面准备且不触发写操作或连接动作', async () => {
+  it('组合级完成二十二步页面准备且不触发写操作或连接动作', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
@@ -1097,19 +1135,37 @@ describe('应用运行时组合合同', () => {
       render(<App />)
       const steps = buildProductTourSteps((key) => key)
       const preparationController = new AbortController()
+      const settingsSteps = steps.filter((step) => step.preparation?.startsWith('settings'))
+      const settingsPanels = new Map<string, Element>()
 
-      for (const step of steps) {
-        const prepareStep = testState.productTourProps?.onPrepareStep
-        expect(prepareStep).toBeTypeOf('function')
+      const prepareStep = async (step: (typeof steps)[number]) => {
+        const onPrepareStep = testState.productTourProps?.onPrepareStep
+        expect(onPrepareStep).toBeTypeOf('function')
         let allowed: boolean | void | undefined
         await act(async () => {
-          allowed = await prepareStep?.(step, preparationController.signal)
-          await prepareProductTourDom(step, preparationController.signal)
+          allowed = await onPrepareStep?.(step, preparationController.signal)
         })
         expect(allowed).toBe(true)
+        let domPreparation: Promise<void> | undefined
+        await act(async () => {
+          domPreparation = prepareProductTourDom(step, preparationController.signal)
+        })
+        await domPreparation
         if (step.element) {
           await waitFor(() => expect(document.querySelector(step.element!)).not.toBeNull())
         }
+      }
+
+      for (const step of steps) {
+        await prepareStep(step)
+        if (settingsSteps.includes(step)) {
+          settingsPanels.set(step.id, document.querySelector(step.element!)!)
+        }
+      }
+
+      for (const step of [...settingsSteps].reverse()) {
+        await prepareStep(step)
+        expect(document.querySelector(step.element!)).toBe(settingsPanels.get(step.id))
       }
 
       expect(steps.map((step) => step.id)).toEqual([
@@ -1124,9 +1180,16 @@ describe('应用运行时组合合同', () => {
         'workbench',
         'workbenchTools',
         'files',
+        'filesBookmarks',
+        'filesLocalDirectory',
+        'filesTransfers',
         'forwards',
         'snippets',
         'settings',
+        'settingsTerminal',
+        'settingsMcp',
+        'settingsAgent',
+        'settingsData',
         'finish',
       ])
       expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
@@ -1142,23 +1205,29 @@ describe('应用运行时组合合同', () => {
     }
   })
 
-  it('向导活动期间暂停文件页自动远程请求，结束后恢复默认行为', async () => {
+  it('向导全部文件步骤暂停自动远程请求且不点击操作入口，结束后恢复默认行为', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     render(<App />)
-    const filesStep = buildProductTourSteps((key) => key).find((step) => step.id === 'files')
-    expect(filesStep).toBeDefined()
+    const filesSteps = buildProductTourSteps((key) => key).filter((step) => step.route === 'files')
+    expect(filesSteps.map((step) => step.id)).toEqual([
+      'files', 'filesBookmarks', 'filesLocalDirectory', 'filesTransfers',
+    ])
 
     act(() => testState.productTourProps?.onActiveChange?.(true))
-    await act(async () => {
-      await testState.productTourProps?.onPrepareStep(
-        filesStep!,
-        new AbortController().signal,
-      )
-    })
-
-    await waitFor(() => expect(screen.getByTestId('files-page')).toBeInTheDocument())
-    expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(false)
+    for (const step of filesSteps) {
+      const signal = new AbortController().signal
+      await act(async () => {
+        await testState.productTourProps?.onPrepareStep(step, signal)
+      })
+      await prepareProductTourDom(step, signal)
+      expect(document.querySelector(step.element!)).not.toBeNull()
+      expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(false)
+    }
+    expect(screen.getByTestId('files-page')).toBeInTheDocument()
+    expect(testState.filesPageMounts).toBe(1)
+    expect(testState.launcherOpen).toBe(false)
+    expect(testState.action).not.toHaveBeenCalled()
 
     act(() => testState.productTourProps?.onActiveChange?.(false))
     await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
