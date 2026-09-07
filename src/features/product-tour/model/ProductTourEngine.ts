@@ -31,6 +31,7 @@ export interface ProductTourEngineOptions {
   isTransitionBlocked: (currentStep: ProductTourStep, nextStep: ProductTourStep) => boolean
   onBlocked: () => void
   onError: (error: unknown) => void
+  onActiveChange: (active: boolean) => void
   onCompleted: (reason: ProductTourCompletionReason, persisted: boolean) => void
   decoratePopover?: (
     target: Pick<PopoverDOM, 'title' | 'closeButton'>,
@@ -52,6 +53,7 @@ export class ProductTourEngine {
   private generation = 0
   private transitionLocked = false
   private starting = false
+  private active = false
   private disposed = false
 
   constructor(options: ProductTourEngineOptions) {
@@ -113,6 +115,11 @@ export class ProductTourEngine {
       window.addEventListener('keydown', this.handleKeyDown)
       this.driver = this.driverFactory(this.createDriverConfig())
       this.driver.drive(0)
+      if (!this.driver) {
+        this.starting = false
+        return false
+      }
+      this.setActive(true)
       this.starting = false
       return true
     } catch (error) {
@@ -159,6 +166,7 @@ export class ProductTourEngine {
         }
       }
     } finally {
+      this.setActive(false)
       if (shouldRestoreFocus) {
         restoreFocusTarget(focusTarget)
       }
@@ -333,6 +341,14 @@ export class ProductTourEngine {
     }
   }
 
+  private setActive(active: boolean) {
+    if (this.active === active) {
+      return
+    }
+    this.active = active
+    this.options.onActiveChange(active)
+  }
+
   private handleDriverDestroyed() {
     this.generation += 1
     const destroyedGeneration = this.generation
@@ -348,6 +364,7 @@ export class ProductTourEngine {
     this.activePopoverDisabledState = null
     this.starting = false
     this.transitionLocked = false
+    this.setActive(false)
     window.removeEventListener('keydown', this.handleKeyDown)
     delete document.body.dataset.termousProductTour
     if (shouldRestoreFocus) {

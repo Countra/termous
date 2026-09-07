@@ -10,6 +10,13 @@ import {
   type ProductTourDriverFactory,
 } from '../model/productTourDriverAdapter.ts'
 import type { ProductTourCompletionStore } from '../model/productTourStorage.ts'
+import {
+  PRODUCT_TOUR_VERSION,
+  buildProductTourSteps,
+} from '../model/productTourSteps.ts'
+
+const productTourSteps = buildProductTourSteps((key) => key)
+const productTourFinishIndex = productTourSteps.findIndex((step) => step.id === 'finish')
 
 vi.mock('react-i18next', () => {
   const t = (key: string, options?: Record<string, unknown>) => (
@@ -226,20 +233,23 @@ describe('核心使用向导控制器', () => {
 
   it('空白配置在就绪后自动启动，StrictMode 下只创建一个实例', async () => {
     const records: FakeDriverRecord[] = []
+    const onActiveChange = vi.fn()
     const props = createProps({
       completionStore: createStore(),
       driverFactory: createFakeDriverFactory(records),
+      onActiveChange,
     })
     renderController(<StrictMode><ProductTourController {...props} /></StrictMode>)
 
     await waitFor(() => expect(records).toHaveLength(1))
     expect(records[0].activeIndex()).toBe(0)
     expect(document.body).toHaveAttribute('data-termous-product-tour', 'true')
+    expect(onActiveChange.mock.calls).toEqual([[true]])
   })
 
   it.each([
     { label: '已有数据', autoStartEligible: false, completedVersion: null },
-    { label: '已完成版本', autoStartEligible: true, completedVersion: 1 },
+    { label: '已完成版本', autoStartEligible: true, completedVersion: PRODUCT_TOUR_VERSION },
   ])('$label 不自动启动，但手动请求仍可重播', async ({
     autoStartEligible,
     completedVersion,
@@ -256,6 +266,17 @@ describe('核心使用向导控制器', () => {
 
     view.rerender(<ProductTourController {...props} manualRequestKey={1} />)
     await waitFor(() => expect(records).toHaveLength(1))
+  })
+
+  it('旧版完成记录不会阻止新版向导自动展示', async () => {
+    const records: FakeDriverRecord[] = []
+    renderController(<ProductTourController {...createProps({
+      completionStore: createStore(PRODUCT_TOUR_VERSION - 1),
+      driverFactory: createFakeDriverFactory(records),
+    })} />)
+
+    await waitFor(() => expect(records).toHaveLength(1))
+    expect(records[0].activeIndex()).toBe(0)
   })
 
   it('首次就绪时已有数据，之后删空数据也不会在会话中途自动启动', async () => {
@@ -477,7 +498,7 @@ describe('核心使用向导控制器', () => {
     expect(records[0].activeIndex()).toBe(0)
   })
 
-  it('完整十步流程不产生网络请求或隐式提交', async () => {
+  it('完整十五步流程不产生网络请求或隐式提交', async () => {
     const records: FakeDriverRecord[] = []
     const completionStore = createStore()
     const fetchMock = vi.fn()
@@ -491,13 +512,14 @@ describe('核心使用向导控制器', () => {
     })} />)
     await waitFor(() => expect(records).toHaveLength(1))
 
-    for (let index = 1; index < 10; index += 1) {
+    const stepCount = records[0].config.steps?.length ?? 0
+    for (let index = 1; index < stepCount; index += 1) {
       act(() => invokeConfigHook(records[0], 'next'))
       await waitFor(() => expect(records[0].activeIndex()).toBe(index))
     }
     fireEvent.click(screen.getByRole('button', { name: 'productTour.done' }))
 
-    expect(onPrepareStep).toHaveBeenCalledTimes(10)
+    expect(onPrepareStep).toHaveBeenCalledTimes(stepCount)
     expect(fetchMock).not.toHaveBeenCalled()
     expect(completionStore.writeCompletedVersion).toHaveBeenCalledOnce()
     fixture.remove()
@@ -720,7 +742,7 @@ describe('核心使用向导控制器', () => {
     })} />)
     await waitFor(() => expect(document.querySelector('.driver-popover')).not.toBeNull())
 
-    act(() => drivers[0]?.moveTo(9))
+    act(() => drivers[0]?.moveTo(productTourFinishIndex))
     await waitFor(() => expect(
       document.querySelector('[data-product-tour-step="finish"]'),
     ).not.toBeNull())
@@ -834,15 +856,17 @@ describe('核心使用向导控制器', () => {
   it('完成、跳过和主动关闭写入当前版本，异常卸载不写入', async () => {
     const records: FakeDriverRecord[] = []
     const store = createStore()
+    const onActiveChange = vi.fn()
     const props = createProps({
       completionStore: store,
       driverFactory: createFakeDriverFactory(records),
+      onActiveChange,
     })
     const view = renderController(<ProductTourController {...props} />)
     await waitFor(() => expect(records).toHaveLength(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'productTour.skip' }))
-    expect(store.writeCompletedVersion).toHaveBeenCalledWith(1)
+    expect(store.writeCompletedVersion).toHaveBeenCalledWith(PRODUCT_TOUR_VERSION)
     expect(document.body).not.toHaveAttribute('data-termous-product-tour')
 
     view.rerender(<ProductTourController {...props} manualRequestKey={1} />)
@@ -852,7 +876,7 @@ describe('核心使用向导控制器', () => {
 
     view.rerender(<ProductTourController {...props} manualRequestKey={2} />)
     await waitFor(() => expect(records).toHaveLength(3))
-    act(() => records[2].adapter.moveTo(9))
+    act(() => records[2].adapter.moveTo((records[2].config.steps?.length ?? 1) - 1))
     fireEvent.click(screen.getByRole('button', { name: 'productTour.done' }))
     expect(store.writeCompletedVersion).toHaveBeenCalledTimes(3)
 
@@ -861,6 +885,12 @@ describe('核心使用向导控制器', () => {
     view.unmount()
     expect(store.writeCompletedVersion).toHaveBeenCalledTimes(3)
     expect(records[3].destroyCount()).toBe(1)
+    expect(onActiveChange.mock.calls).toEqual([
+      [true], [false],
+      [true], [false],
+      [true], [false],
+      [true], [false],
+    ])
   })
 
   it('存储写入失败时仍在当前渲染会话内防止自动重复启动', async () => {
@@ -882,13 +912,33 @@ describe('核心使用向导控制器', () => {
 
   it('Core 不可用时销毁实例并清理 body 状态', async () => {
     const records: FakeDriverRecord[] = []
-    const props = createProps({ driverFactory: createFakeDriverFactory(records) })
+    const onActiveChange = vi.fn()
+    const props = createProps({
+      driverFactory: createFakeDriverFactory(records),
+      onActiveChange,
+    })
     const view = renderController(<ProductTourController {...props} />)
     await waitFor(() => expect(records).toHaveLength(1))
 
     view.rerender(<ProductTourController {...props} ready={false} blocked />)
     await waitFor(() => expect(records[0].destroyCount()).toBe(1))
     expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('Driver 外部销毁时同步结束活动状态', async () => {
+    const records: FakeDriverRecord[] = []
+    const onActiveChange = vi.fn()
+    renderController(<ProductTourController {...createProps({
+      driverFactory: createFakeDriverFactory(records),
+      onActiveChange,
+    })} />)
+    await waitFor(() => expect(onActiveChange).toHaveBeenLastCalledWith(true))
+
+    act(() => records[0].adapter.destroy())
+
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
   })
 
   it('为缺失目标保留等待和居中降级配置', async () => {
@@ -897,7 +947,7 @@ describe('核心使用向导控制器', () => {
     renderController(<ProductTourController {...props} />)
     await waitFor(() => expect(records).toHaveLength(1))
 
-    expect(records[0].config.steps).toHaveLength(10)
+    expect(records[0].config.steps).toHaveLength(productTourSteps.length)
     expect(records[0].config.steps?.every((step) => (
       step.waitForElement === 2500 && step.skipMissingElement === false
     ))).toBe(true)

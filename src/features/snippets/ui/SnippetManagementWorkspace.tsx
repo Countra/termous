@@ -47,6 +47,7 @@ import styles from './SnippetManagementWorkspace.module.scss'
 export interface SnippetManagementWorkspaceProps {
   data: SnippetManagementData
   actionBusy: boolean
+  onDirtyChange?: (dirty: boolean) => void
   onSave: (id: string | null, input: CodeSnippetInput) => Promise<CodeSnippet | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
   onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
@@ -73,6 +74,7 @@ const snippetShells: SnippetShell[] = ['any', 'sh', 'bash', 'zsh', 'powershell',
 export function SnippetManagementWorkspace({
   data,
   actionBusy,
+  onDirtyChange,
   onSave,
   onDelete,
   onCreateGroup,
@@ -81,6 +83,8 @@ export function SnippetManagementWorkspace({
   onReorderGroups,
 }: SnippetManagementWorkspaceProps) {
   const { t } = useTranslation()
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  onDirtyChangeRef.current = onDirtyChange
   const initialSnippet = data.snippets[0]
   const initialForm = initialSnippet ? snippetToInput(initialSnippet) : blankSnippet
   const [filter, setFilter] = useState<SnippetCatalogFilter>('all')
@@ -121,6 +125,14 @@ export function SnippetManagementWorkspace({
   const risk = useMemo(() => analyzeSnippetRisk(normalizedForm.command), [normalizedForm.command])
   const variables = useMemo(() => extractSnippetVariables(normalizedForm.command), [normalizedForm.command])
   const canSave = Boolean(normalizedForm.name && normalizedForm.command)
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => () => {
+    onDirtyChangeRef.current?.(false)
+  }, [])
 
   useEffect(() => {
     if (!selectedGroupId || selectedGroupId === '__ungrouped__') return
@@ -195,7 +207,10 @@ export function SnippetManagementWorkspace({
   }
 
   return (
-    <section className={`snippets-workspace is-${activeView} ${styles['workspace-root']}`}>
+    <section
+      className={`snippets-workspace is-${activeView} ${styles['workspace-root']}`}
+      data-tour="snippets-workspace"
+    >
       <SnippetLibrary
         snippets={data.snippets}
         groups={data.snippetGroups}

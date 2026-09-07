@@ -41,6 +41,7 @@ export interface FilesDirectoryLoadOptions {
 
 interface UseFilesDirectoryControllerOptions {
   gateway: Pick<FileSessionGateway, 'listFileSessionFiles'>
+  automaticDirectoryLoadEnabled: boolean
   activeFileSession: FileSession | null
   activeFileSessionId: string
   activeFileSessionClosing: boolean
@@ -64,6 +65,7 @@ interface UseFilesDirectoryControllerOptions {
 
 export function useFilesDirectoryController({
   gateway,
+  automaticDirectoryLoadEnabled,
   activeFileSession,
   activeFileSessionId,
   activeFileSessionClosing,
@@ -310,6 +312,9 @@ export function useFilesDirectoryController({
   )
 
   useEffect(() => {
+    if (!automaticDirectoryLoadEnabled) {
+      return undefined
+    }
     if (!activeFileSession) {
       lastAutomaticLoadKeyRef.current = ''
       return undefined
@@ -381,6 +386,7 @@ export function useFilesDirectoryController({
     activeFileSession,
     activeFileSessionIdRef,
     activeFileSessionRecovering,
+    automaticDirectoryLoadEnabled,
     closingFileSessionIdsRef,
     fileSessionsRef,
     isDirectoryDirty,

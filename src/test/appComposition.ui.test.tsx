@@ -29,6 +29,7 @@ const testState = vi.hoisted(() => {
     forwardErrorEvent: null as import('#entities/forward').ForwardEvent | null,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
+    filesAutomaticDirectoryLoadEnabled: true,
     workbenchForwardsIsArray: false,
     workbenchHostIconURL: '',
     hostAccessIntent: null as { key: number; hostId: string } | null,
@@ -207,7 +208,7 @@ vi.mock('#app/app-shell', () => ({
     onOpenProductTour,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'agent' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'remote-desktop') => void
+    onNavigate: (page: 'workbench' | 'agent' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings' | 'remote-desktop') => void
     onOpenConnectionLauncher: () => void
     onOpenProductTour: () => void
   }) => (
@@ -239,6 +240,7 @@ vi.mock('#app/app-shell', () => ({
       <button type="button" onClick={() => onNavigate('files')}>files</button>
       <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
       <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
+      <button type="button" onClick={() => onNavigate('settings')}>settings</button>
       <button type="button" onClick={() => onNavigate('remote-desktop')}>remote-desktop</button>
       {children}
     </div>
@@ -319,6 +321,9 @@ vi.mock('#widgets/workbench', () => ({
         >
           Workbench
         </div>
+        <aside data-tour={testState.productTourPageHarness ? 'workbench-tools' : undefined}>
+          Workbench tools
+        </aside>
         {active ? (
           <>
             <button
@@ -426,12 +431,15 @@ vi.mock('#pages/hosts', () => ({
 vi.mock('#pages/files', () => ({
   FilesPage: ({
     data,
+    automaticDirectoryLoadEnabled = true,
     onOpenFileSessionLauncher,
   }: {
     data: Record<string, unknown>
+    automaticDirectoryLoadEnabled?: boolean
     onOpenFileSessionLauncher: () => void
   }) => {
     testState.projectionKeys.files = Object.keys(data).sort()
+    testState.filesAutomaticDirectoryLoadEnabled = automaticDirectoryLoadEnabled
     useEffect(() => {
       testState.filesPageMounts += 1
       return () => {
@@ -439,7 +447,10 @@ vi.mock('#pages/files', () => ({
       }
     }, [])
     return (
-      <div data-testid="files-page">
+      <div
+        data-testid="files-page"
+        data-tour={testState.productTourPageHarness ? 'files-workspace' : undefined}
+      >
         Files
         <button type="button" onClick={onOpenFileSessionLauncher}>files-connect</button>
       </div>
@@ -496,14 +507,43 @@ vi.mock('#pages/forwards', () => ({
     testState.projectionKeys.forwards = Object.keys(data).sort()
     testState.forwardTemporaryIntent = temporaryIntent ?? null
     testState.onForwardTemporaryIntentHandled = onTemporaryIntentHandled
-    return <div data-testid="forwards-page">Forwards</div>
+    return (
+      <div
+        data-testid="forwards-page"
+        data-tour={testState.productTourPageHarness ? 'forwards-overview' : undefined}
+      >
+        Forwards
+      </div>
+    )
   },
 }))
-vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
+vi.mock('#pages/settings', () => ({
+  SettingsPage: () => (
+    <div
+      data-testid="settings-page"
+      data-tour={testState.productTourPageHarness ? 'settings-workspace' : undefined}
+    >
+      Settings
+    </div>
+  ),
+}))
 vi.mock('#pages/snippets', () => ({
-  SnippetsPage: ({ data }: { data: Record<string, unknown> }) => {
+  SnippetsPage: ({
+    data,
+    onDirtyChange,
+  }: {
+    data: Record<string, unknown>
+    onDirtyChange?: (dirty: boolean) => void
+  }) => {
     testState.projectionKeys.snippets = Object.keys(data).sort()
-    return null
+    return (
+      <div
+        data-testid="snippets-page"
+        data-tour={testState.productTourPageHarness ? 'snippets-workspace' : undefined}
+      >
+        <button type="button" onClick={() => onDirtyChange?.(true)}>snippets-dirty</button>
+      </div>
+    )
   },
 }))
 vi.mock('#pages/vault', () => ({
@@ -692,6 +732,7 @@ describe('应用运行时组合合同', () => {
     testState.productTourPageHarness = false
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
+    testState.filesAutomaticDirectoryLoadEnabled = true
     testState.workbenchForwardsIsArray = false
     testState.workbenchHostIconURL = ''
     testState.hostAccessIntent = null
@@ -1047,7 +1088,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成十步页面准备且不触发任何写操作或网络请求', async () => {
+  it('组合级完成十五步页面准备且不触发任何写操作或网络请求', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
@@ -1081,9 +1122,15 @@ describe('应用运行时组合合同', () => {
         'hostConnections',
         'topbarConnect',
         'workbench',
+        'workbenchTools',
+        'files',
+        'forwards',
+        'snippets',
+        'settings',
         'finish',
       ])
-      expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+      expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
+      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       expect(testState.data.credentials).toHaveLength(0)
       expect(testState.data.hostAssets).toHaveLength(0)
       expect(testState.data.sessions).toHaveLength(0)
@@ -1093,6 +1140,46 @@ describe('应用运行时组合合同', () => {
     } finally {
       fetchMock.mockRestore()
     }
+  })
+
+  it('向导活动期间暂停文件页自动目录加载，结束后恢复默认行为', async () => {
+    testState.apiReady = true
+    testState.productTourPageHarness = true
+    render(<App />)
+    const filesStep = buildProductTourSteps((key) => key).find((step) => step.id === 'files')
+    expect(filesStep).toBeDefined()
+
+    act(() => testState.productTourProps?.onActiveChange?.(true))
+    await act(async () => {
+      await testState.productTourProps?.onPrepareStep(
+        filesStep!,
+        new AbortController().signal,
+      )
+    })
+
+    await waitFor(() => expect(screen.getByTestId('files-page')).toBeInTheDocument())
+    expect(testState.filesAutomaticDirectoryLoadEnabled).toBe(false)
+
+    act(() => testState.productTourProps?.onActiveChange?.(false))
+    await waitFor(() => expect(testState.filesAutomaticDirectoryLoadEnabled).toBe(true))
+  })
+
+  it('命令片段草稿阻止向导离开独立管理页', async () => {
+    const user = userEvent.setup()
+    testState.apiReady = true
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'snippets' }))
+    await user.click(screen.getByRole('button', { name: 'snippets-dirty' }))
+
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'snippets', title: '', description: '', route: 'snippets' },
+      { id: 'settings', title: '', description: '', route: 'settings' },
+    )).toBe(true)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'snippets', title: '', description: '', route: 'snippets' },
+      { id: 'snippets', title: '', description: '', route: 'snippets' },
+    )).toBe(false)
   })
 
   it('主机草稿允许编辑器页签讲解，并阻止返回目录或离开页面', async () => {

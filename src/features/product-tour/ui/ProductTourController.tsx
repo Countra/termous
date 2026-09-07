@@ -32,6 +32,7 @@ export interface ProductTourControllerProps {
   ) => boolean | void | Promise<boolean | void>
   onBlocked: () => void
   onError: (error: unknown) => void
+  onActiveChange?: (active: boolean) => void
   completionStore?: ProductTourCompletionStore
   driverFactory?: ProductTourDriverFactory
 }
@@ -45,6 +46,7 @@ export function ProductTourController({
   onPrepareStep,
   onBlocked,
   onError,
+  onActiveChange,
   completionStore = browserProductTourCompletionStore,
   driverFactory,
 }: ProductTourControllerProps) {
@@ -59,6 +61,7 @@ export function ProductTourController({
     onPrepareStep,
     onBlocked,
     onError,
+    onActiveChange,
   })
   const engineRef = useRef<ProductTourEngine | null>(null)
   const autoHandledRef = useRef(false)
@@ -70,6 +73,7 @@ export function ProductTourController({
     onPrepareStep,
     onBlocked,
     onError,
+    onActiveChange,
   }
 
   useEffect(() => {
@@ -89,6 +93,7 @@ export function ProductTourController({
       ),
       onBlocked: () => latestRef.current.onBlocked(),
       onError: (error) => latestRef.current.onError(error),
+      onActiveChange: (active) => latestRef.current.onActiveChange?.(active),
       decoratePopover: (target, step) => (
         decorateProductTourPopover(target, step, setPopoverDecoration)
       ),

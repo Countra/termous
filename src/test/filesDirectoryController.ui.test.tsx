@@ -33,6 +33,7 @@ interface DirectoryHarnessProps {
   fileSessions: readonly FileSession[]
   closingFileSessionIds?: ReadonlySet<string>
   recovering?: boolean
+  automaticDirectoryLoadEnabled?: boolean
   mounted?: boolean
   initialStates?: FilesWorkspaceRuntimeState
   onController: (controller: DirectoryControllerValue) => void
@@ -91,6 +92,7 @@ function DirectoryControllerProbe({
   fileSessions,
   closingFileSessionIds = emptyStringSet,
   recovering = false,
+  automaticDirectoryLoadEnabled = true,
   onController,
   onInvalidPath = noop,
   onDirectoryReadFailed = noop,
@@ -124,6 +126,7 @@ function DirectoryControllerProbe({
 
   const controller = useFilesDirectoryController({
     gateway,
+    automaticDirectoryLoadEnabled,
     activeFileSession,
     activeFileSessionId,
     activeFileSessionClosing: Boolean(
@@ -240,6 +243,77 @@ async function waitForHarness(
 }
 
 describe('文件目录请求控制器合同', () => {
+  it('禁用时不自动读取目录，显式导航仍保持可用', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async (
+        _fileSessionId: string,
+        path: string,
+      ) => directoryListing(path)),
+    }
+    const capture = captureHarness()
+
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        automaticDirectoryLoadEnabled={false}
+        activeFileSession={session}
+        fileSessions={[session]}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+      />,
+    )
+
+    const current = await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    let loaded = false
+    await act(async () => {
+      loaded = await current.controller.loadDirectory('/manual')
+    })
+    expect(loaded).toBe(true)
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce()
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledWith(
+      session.id,
+      '/manual',
+      expect.any(Object),
+    )
+  })
+
+  it('重新启用后仅补发一次自动目录读取', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async () => directoryListing('/')),
+    }
+    const capture = captureHarness()
+    const harnessProps = {
+      gateway,
+      activeFileSession: session,
+      fileSessions: [session],
+      onController: capture.onController,
+      onRuntime: capture.onRuntime,
+    }
+    const view = render(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled={false}
+      />,
+    )
+
+    await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled
+      />,
+    )
+    await waitFor(() => expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce())
+  })
+
   it('严格模式首次挂载只发送一条有效目录请求', async () => {
     const session = fileSession()
     const gateway = {

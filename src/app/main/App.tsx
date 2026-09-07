@@ -239,6 +239,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
+  const [snippetsDirty, setSnippetsDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [sshSmoothScrollEnabled, setSshSmoothScrollEnabled] = usePersistentBooleanState(
@@ -279,6 +280,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const agentLaunchPendingRef = useRef(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [productTourRequestKey, setProductTourRequestKey] = useState(0)
+  const [productTourActive, setProductTourActive] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
   const [agentRuntimeSummary, setAgentRuntimeSummary] = useState({
@@ -1150,8 +1152,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return nextStep.preparation === 'hostCatalog'
         || (nextStep.route !== undefined && nextStep.route !== 'hosts')
     }
+    if (page === 'snippets' && snippetsDirty) {
+      return nextStep.route !== undefined && nextStep.route !== 'snippets'
+    }
     return false
-  }, [hostsDirty, page, vaultDirty])
+  }, [hostsDirty, page, snippetsDirty, vaultDirty])
   const showProductTourBlocked = useCallback(() => {
     notification.warning({
       title: t('productTour.menuLabel'),
@@ -1364,6 +1369,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       {page === 'files' ? (
                         <FilesPage
                           fileGateway={gateways.files}
+                          automaticDirectoryLoadEnabled={!productTourActive}
                           getHostIconUrl={getHostIconUrl}
                           data={filesPageData}
                           theme={theme}
@@ -1436,6 +1442,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                             t('snippets.groupDeleted'),
                           )}
                           onReorderGroups={reorderCodeSnippetGroups}
+                          onDirtyChange={setSnippetsDirty}
                         />
                       ) : null}
 
@@ -1488,6 +1495,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onPrepareStep={prepareProductTourStep}
                       onBlocked={showProductTourBlocked}
                       onError={showActionError}
+                      onActiveChange={setProductTourActive}
                     />
                     <ConnectionLauncherRuntimeBridge
                       open={hostLauncherState.open}

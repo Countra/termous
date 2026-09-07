@@ -78,6 +78,27 @@ const baseProps = {
 }
 
 describe('FeatureSidePanel 样式与常驻合同', () => {
+  it('透传根 aside 原生属性并合并调用方类名', () => {
+    const onClick = vi.fn()
+    const view = render(
+      <FeatureSidePanel
+        {...baseProps}
+        className="consumer-panel"
+        data-tour="workbench-tools"
+        title="工作台工具区"
+        onClick={onClick}
+      />,
+    )
+
+    const panel = view.container.querySelector('aside')
+    expect(panel).toHaveClass(styles['details-panel'], sidePanelStyles.panel, 'consumer-panel')
+    expect(panel).toHaveAttribute('data-tour', 'workbench-tools')
+    expect(panel).toHaveAttribute('title', '工作台工具区')
+
+    fireEvent.click(panel!)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
   it('侧栏容器、拖拽边缘与折叠按钮消费共享 Module', () => {
     const onResizePointerDown = vi.fn()
     const view = render(

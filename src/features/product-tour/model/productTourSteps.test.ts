@@ -4,7 +4,7 @@ import { buildProductTourLabels, buildProductTourSteps } from './productTourStep
 
 const translate = (key: string) => key
 
-test('核心使用向导固定为十步且保持关键锚点顺序', () => {
+test('核心使用向导固定为十五步且保持关键锚点顺序', () => {
   const steps = buildProductTourSteps(translate)
 
   assert.deepEqual(steps.map((step) => step.id), [
@@ -17,11 +17,22 @@ test('核心使用向导固定为十步且保持关键锚点顺序', () => {
     'hostConnections',
     'topbarConnect',
     'workbench',
+    'workbenchTools',
+    'files',
+    'forwards',
+    'snippets',
+    'settings',
     'finish',
   ])
   assert.match(steps[1].element ?? '', /nav-vault/)
   assert.match(steps[6].element ?? '', /host-connection-catalog/)
-  assert.match(steps[9].element ?? '', /product-tour-trigger/)
+  assert.match(steps[9].element ?? '', /workbench-tools/)
+  assert.match(steps[10].element ?? '', /files-workspace/)
+  assert.match(steps[11].element ?? '', /forwards-overview/)
+  assert.match(steps[12].element ?? '', /snippets-workspace/)
+  assert.match(steps[13].element ?? '', /settings-workspace/)
+  assert.match(steps[14].element ?? '', /product-tour-trigger/)
+  assert.equal(steps[14].route, 'settings')
 })
 
 test('Driver 文案保留进度占位符', () => {

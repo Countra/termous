@@ -251,7 +251,7 @@ export function ForwardManagementWorkspace({
 
   return (
     <section className={`${scopedClassName('forwarding-page')} ${styles.root}`}>
-      <div className={scopedClassName('forwarding-commandbar')}>
+      <div className={scopedClassName('forwarding-commandbar')} data-tour="forwards-overview">
         <div className={scopedClassName('forwarding-command-primary')}>
           <div className={scopedClassName('forwarding-overview-strip')} aria-label={t('forwards.overview')}>
             <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />

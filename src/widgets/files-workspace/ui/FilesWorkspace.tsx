@@ -199,6 +199,7 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 
 export interface FilesWorkspaceProps {
   fileGateway: FileGateway
+  automaticDirectoryLoadEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
   data: FilesWorkspaceData
   theme: ThemeMode
@@ -351,6 +352,7 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 
 function FilesWorkspaceContent({
   fileGateway,
+  automaticDirectoryLoadEnabled = true,
   getHostIconUrl,
   data,
   theme,
@@ -940,6 +942,7 @@ function FilesWorkspaceContent({
   }, [])
   const { loadDirectory } = useFilesDirectoryController({
     gateway: api,
+    automaticDirectoryLoadEnabled,
     activeFileSession,
     activeFileSessionId,
     activeFileSessionClosing,
@@ -3220,7 +3223,7 @@ function FilesWorkspaceContent({
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      <main className={styles['files-main-panel']}>
+      <main className={styles['files-main-panel']} data-tour="files-workspace">
         <div className={`files-session-toolbar ${styles['terminal-toolbar']} terminal-toolbar`}>
           <SessionTabStrip
             ariaLabel={t('files.sessions')}

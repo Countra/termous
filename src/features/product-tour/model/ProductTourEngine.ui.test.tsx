@@ -371,6 +371,7 @@ function createEngine(
     isTransitionBlocked: () => false,
     onBlocked,
     onError,
+    onActiveChange: vi.fn(),
     onCompleted: vi.fn(),
     decoratePopover,
     driverFactory: createFakeDriverFactory(records, beforeHighlighted, driverFailures),

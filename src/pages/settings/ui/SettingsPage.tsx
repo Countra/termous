@@ -99,7 +99,7 @@ export function SettingsPage({
 
   return (
     <section className={styles.page}>
-      <div className={styles['page-title-row']}>
+      <div className={styles['page-title-row']} data-tour="settings-workspace">
         <div>
           <h1>{t('settings.title')}</h1>
           <p>{t('settings.subtitle')}</p>

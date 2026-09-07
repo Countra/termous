@@ -4473,11 +4473,31 @@
       },
       "workbench": {
         "title": "Work in the workbench",
-        "description": "Switch terminals with session tabs, work in the central terminal, and use the tools on the right for files and monitoring."
+        "description": "Use session tabs to switch between local terminals and SSH sessions, then read output, enter commands, and handle daily remote work in the central terminal."
+      },
+      "workbenchTools": {
+        "title": "Explore the right-side toolbox",
+        "description": "The right-side toolbox brings together connection details, remote files, monitoring, firewall controls, port forwarding, aliases, and snippets beside the terminal. Switch or collapse tools as needed."
+      },
+      "files": {
+        "title": "Manage remote files",
+        "description": "The Files page hosts standalone SFTP sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
+      },
+      "forwards": {
+        "title": "Manage port forwarding",
+        "description": "The Port Forwarding page lets you create and reuse local, remote, and dynamic forwarding profiles while tracking temporary tunnels, runtime status, and traffic."
+      },
+      "snippets": {
+        "title": "Reuse common commands",
+        "description": "The Snippets page organizes commands by group and tag, supports variables and risk detection, and makes them ready to insert or run from the workbench."
+      },
+      "settings": {
+        "title": "Tune key preferences",
+        "description": "Settings brings together language and theme, terminal and completion behavior, connection preferences, shortcuts, and data backup and recovery."
       },
       "finish": {
         "title": "You're ready",
-        "description": "You now know the core flow. Replay this tour anytime from Help in the sidebar, then explore port forwarding, snippets, remote desktop, and the AI assistant as needed."
+        "description": "You now know the core flow. Replay this tour anytime from the Help menu, and explore advanced tools such as Remote Desktop and the AI assistant as needed."
       }
     }
   },

@@ -6,6 +6,7 @@ import {
   hasCompletedCurrentProductTour,
   parseCompletedVersion,
 } from './productTourStorage.ts'
+import { PRODUCT_TOUR_VERSION } from './productTourSteps.ts'
 
 test('安全解析向导完成版本并拒绝损坏值', () => {
   assert.equal(parseCompletedVersion(null), null)
@@ -21,7 +22,7 @@ test('安全解析向导完成版本并拒绝损坏值', () => {
   assert.equal(parseCompletedVersion('01'), null)
 })
 
-test('使用固定键读写版本并接受更高版本', () => {
+test('使用固定键读写版本，并区分旧版、当前版与更高版本', () => {
   const values = new Map<string, string>()
   const store = createProductTourCompletionStore(() => ({
     getItem: (key) => values.get(key) ?? null,
@@ -31,8 +32,12 @@ test('使用固定键读写版本并接受更高版本', () => {
   }))
 
   assert.equal(hasCompletedCurrentProductTour(store), false)
-  assert.equal(store.writeCompletedVersion(2), true)
-  assert.equal(values.get(PRODUCT_TOUR_STORAGE_KEY), '2')
+  assert.equal(store.writeCompletedVersion(PRODUCT_TOUR_VERSION - 1), true)
+  assert.equal(hasCompletedCurrentProductTour(store), false)
+  assert.equal(store.writeCompletedVersion(PRODUCT_TOUR_VERSION), true)
+  assert.equal(values.get(PRODUCT_TOUR_STORAGE_KEY), String(PRODUCT_TOUR_VERSION))
+  assert.equal(hasCompletedCurrentProductTour(store), true)
+  assert.equal(store.writeCompletedVersion(PRODUCT_TOUR_VERSION + 1), true)
   assert.equal(hasCompletedCurrentProductTour(store), true)
 })
 
@@ -42,6 +47,6 @@ test('本地存储不可用时读写均安全降级', () => {
   })
 
   assert.equal(store.readCompletedVersion(), null)
-  assert.equal(store.writeCompletedVersion(1), false)
+  assert.equal(store.writeCompletedVersion(PRODUCT_TOUR_VERSION), false)
   assert.equal(hasCompletedCurrentProductTour(store), false)
 })

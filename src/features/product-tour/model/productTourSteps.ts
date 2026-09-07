@@ -1,6 +1,6 @@
 import type { Alignment, Side } from 'driver.js'
 
-export const PRODUCT_TOUR_VERSION = 1
+export const PRODUCT_TOUR_VERSION = 2
 
 export type ProductTourStepId =
   | 'welcome'
@@ -12,9 +12,21 @@ export type ProductTourStepId =
   | 'hostConnections'
   | 'topbarConnect'
   | 'workbench'
+  | 'workbenchTools'
+  | 'files'
+  | 'forwards'
+  | 'snippets'
+  | 'settings'
   | 'finish'
 
-type ProductTourRoute = 'vault' | 'hosts' | 'workbench'
+type ProductTourRoute =
+  | 'vault'
+  | 'hosts'
+  | 'workbench'
+  | 'files'
+  | 'forwards'
+  | 'snippets'
+  | 'settings'
 
 type ProductTourPreparation =
   | 'vaultCatalog'
@@ -121,9 +133,44 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     align: 'center',
   },
   {
+    id: 'workbenchTools',
+    element: '[data-tour="workbench-tools"]',
+    route: 'workbench',
+    side: 'left',
+    align: 'center',
+  },
+  {
+    id: 'files',
+    element: '[data-tour="files-workspace"]',
+    route: 'files',
+    side: 'top',
+    align: 'center',
+  },
+  {
+    id: 'forwards',
+    element: '[data-tour="forwards-overview"]',
+    route: 'forwards',
+    side: 'bottom',
+    align: 'start',
+  },
+  {
+    id: 'snippets',
+    element: '[data-tour="snippets-workspace"]',
+    route: 'snippets',
+    side: 'right',
+    align: 'center',
+  },
+  {
+    id: 'settings',
+    element: '[data-tour="settings-workspace"]',
+    route: 'settings',
+    side: 'top',
+    align: 'center',
+  },
+  {
     id: 'finish',
     element: '[data-tour="product-tour-trigger"]',
-    route: 'workbench',
+    route: 'settings',
     side: 'right',
     align: 'end',
   },

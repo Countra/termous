@@ -1,11 +1,16 @@
 import {
+  Cable,
   CircleCheck,
   Compass,
+  FileCode2,
+  FolderOpen,
   KeyRound,
   Network,
+  PanelRightOpen,
   PlugZap,
   Server,
   ServerCog,
+  Settings2,
   ShieldCheck,
   SquareTerminal,
   Wand2,
@@ -26,6 +31,11 @@ const stepIcons = {
   hostConnections: Network,
   topbarConnect: PlugZap,
   workbench: SquareTerminal,
+  workbenchTools: PanelRightOpen,
+  files: FolderOpen,
+  forwards: Cable,
+  snippets: FileCode2,
+  settings: Settings2,
   finish: CircleCheck,
 } satisfies Record<ProductTourStepId, LucideIcon>
 

@@ -18,6 +18,11 @@ const stepIconCases = [
   ['hostConnections', 'lucide-network'],
   ['topbarConnect', 'lucide-plug-zap'],
   ['workbench', 'lucide-square-terminal'],
+  ['workbenchTools', 'lucide-panel-right-open'],
+  ['files', 'lucide-folder-open'],
+  ['forwards', 'lucide-cable'],
+  ['snippets', 'lucide-file-code-corner'],
+  ['settings', 'lucide-settings-2'],
   ['finish', 'lucide-circle-check'],
 ] as const satisfies ReadonlyArray<readonly [ProductTourStepId, string]>
 
