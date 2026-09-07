@@ -41,6 +41,23 @@ test('使用固定键读写版本，并区分旧版、当前版与更高版本',
   assert.equal(hasCompletedCurrentProductTour(store), true)
 })
 
+test('降级后手动重播不会覆盖已记录的更高版本', () => {
+  const futureVersion = PRODUCT_TOUR_VERSION + 1
+  const values = new Map([[PRODUCT_TOUR_STORAGE_KEY, String(futureVersion)]])
+  let writeCount = 0
+  const store = createProductTourCompletionStore(() => ({
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      writeCount += 1
+      values.set(key, value)
+    },
+  }))
+
+  assert.equal(store.writeCompletedVersion(PRODUCT_TOUR_VERSION), true)
+  assert.equal(values.get(PRODUCT_TOUR_STORAGE_KEY), String(futureVersion))
+  assert.equal(writeCount, 0)
+})
+
 test('本地存储不可用时读写均安全降级', () => {
   const store = createProductTourCompletionStore(() => {
     throw new Error('storage unavailable')

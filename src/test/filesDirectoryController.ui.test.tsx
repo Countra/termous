@@ -314,6 +314,43 @@ describe('文件目录请求控制器合同', () => {
     await waitFor(() => expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce())
   })
 
+  it('暂停期间标脏的已加载目录会在恢复后刷新', async () => {
+    const session = fileSession()
+    const gateway = {
+      listFileSessionFiles: vi.fn(async () => directoryListing('/')),
+    }
+    const capture = captureHarness()
+    const harnessProps = {
+      gateway,
+      activeFileSession: session,
+      fileSessions: [session],
+      initialStates: cachedDirectoryState(session),
+      onController: capture.onController,
+      onRuntime: capture.onRuntime,
+    }
+    const view = render(<DirectoryHarness {...harnessProps} />)
+
+    const current = await waitForHarness(capture)
+    await act(async () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)))
+    expect(gateway.listFileSessionFiles).not.toHaveBeenCalled()
+
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled={false}
+      />,
+    )
+    act(() => current.runtime.markDirectoryDirty(session.id, '/'))
+    view.rerender(
+      <DirectoryHarness
+        {...harnessProps}
+        automaticDirectoryLoadEnabled
+      />,
+    )
+
+    await waitFor(() => expect(gateway.listFileSessionFiles).toHaveBeenCalledOnce())
+  })
+
   it('严格模式首次挂载只发送一条有效目录请求', async () => {
     const session = fileSession()
     const gateway = {

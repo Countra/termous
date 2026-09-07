@@ -98,6 +98,7 @@ function renderRefreshHook(
     connected: true,
   },
   harness = createRefreshHarness(),
+  automaticDirectoryRefreshEnabled = true,
 ) {
   return {
     ...renderHook(
@@ -105,6 +106,7 @@ function renderRefreshHook(
         transfers: currentTransfers,
         remoteCopyRefreshVersion: harness.remoteCopyRefreshEvents.length,
         activeDirectory: currentDirectory,
+        automaticDirectoryRefreshEnabled,
         ...harness,
       }),
       {
@@ -180,6 +182,27 @@ describe('文件传输刷新协调器合同', () => {
 
     expect(view.harness.markDirectoryDirty).toHaveBeenCalledTimes(1)
     expect(view.harness.loadDirectory).toHaveBeenCalledTimes(1)
+  })
+
+  it('禁用自动刷新时仍消费完成事件并标记目录为脏', () => {
+    const running = transferTask('upload-a', 'upload_file', 'running')
+    const view = renderRefreshHook([running], undefined, undefined, false)
+
+    view.rerender({
+      currentTransfers: [{ ...running, status: 'completed' }],
+      currentDirectory: {
+        fileSessionId: 'file-session-a',
+        path: '/target',
+        connected: true,
+      },
+    })
+
+    expect(view.harness.consumeUploadRefreshTask).toHaveBeenCalledWith(running.id)
+    expect(view.harness.markDirectoryDirty).toHaveBeenCalledWith(
+      'file-session-a',
+      '/target',
+    )
+    expect(view.harness.loadDirectory).not.toHaveBeenCalled()
   })
 
   it.each([

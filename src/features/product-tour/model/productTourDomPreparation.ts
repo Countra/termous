@@ -10,33 +10,38 @@ export async function prepareProductTourDom(
     return
   }
 
-  if (step.preparation === 'vaultCatalog') {
-    await ensureTarget(
-      step.element,
-      '[data-active-view="editor"] [data-tour="credential-back"]',
-      signal,
-    )
-    return
+  switch (step.preparation) {
+    case 'vaultCatalog':
+      await ensureTarget(
+        step.element,
+        '[data-active-view="editor"] [data-tour="credential-back"]',
+        signal,
+      )
+      return
+    case 'credentialEditor':
+      await ensureTarget(
+        step.element,
+        '[data-active-view="catalog"] [data-tour="vault-add"]',
+        signal,
+      )
+      return
+    case 'hostCatalog':
+      await ensureTarget(
+        step.element,
+        '[data-active-view="editor"] [data-tour="host-back"]',
+        signal,
+      )
+      return
+    case 'hostEditor':
+    case 'hostConnections':
+      await prepareHostEditor(step, signal)
+      return
+    default:
+      assertNeverPreparation(step.preparation)
   }
+}
 
-  if (step.preparation === 'credentialEditor') {
-    await ensureTarget(
-      step.element,
-      '[data-active-view="catalog"] [data-tour="vault-add"]',
-      signal,
-    )
-    return
-  }
-
-  if (step.preparation === 'hostCatalog') {
-    await ensureTarget(
-      step.element,
-      '[data-active-view="editor"] [data-tour="host-back"]',
-      signal,
-    )
-    return
-  }
-
+async function prepareHostEditor(step: ProductTourStep, signal: AbortSignal) {
   const hostEditor = '[data-active-view="editor"] [data-tour="host-editor"]'
   const hostCatalogAdd = '[data-active-view="catalog"] [data-tour="hosts-add"]'
   if (!document.querySelector(hostEditor)) {
@@ -68,6 +73,10 @@ export async function prepareProductTourDom(
     '[data-active-view="editor"] [data-tour="host-connections-tab"]',
     signal,
   )
+}
+
+function assertNeverPreparation(preparation: never): never {
+  throw new Error(`未知的使用向导页面准备类型: ${String(preparation)}`)
 }
 
 async function ensureTarget(

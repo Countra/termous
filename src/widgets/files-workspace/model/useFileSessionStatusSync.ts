@@ -18,6 +18,7 @@ interface FileSessionEventMessage {
 }
 
 interface UseFileSessionStatusSyncOptions {
+  enabled?: boolean
   gateway: Pick<FileSessionGateway, 'getFileSession' | 'fileSessionEventsUrl'>
   fileSessions: readonly FileSession[]
   closingFileSessionIds: ReadonlySet<string>
@@ -25,6 +26,7 @@ interface UseFileSessionStatusSyncOptions {
 }
 
 export function useFileSessionStatusSync({
+  enabled = true,
   gateway,
   fileSessions,
   closingFileSessionIds,
@@ -40,24 +42,28 @@ export function useFileSessionStatusSync({
   }, [onUpdateFileSession])
 
   const socketFileSessionIds = useMemo(
-    () => fileSessions
-      .filter((session) => (
-        !closingFileSessionIds.has(session.id)
-        && !isTerminatedFileSession(session)
-      ))
-      .map((session) => session.id)
-      .join('|'),
-    [closingFileSessionIds, fileSessions],
+    () => enabled
+      ? fileSessions
+          .filter((session) => (
+            !closingFileSessionIds.has(session.id)
+            && !isTerminatedFileSession(session)
+          ))
+          .map((session) => session.id)
+          .join('|')
+      : '',
+    [closingFileSessionIds, enabled, fileSessions],
   )
   const pollingFileSessionIds = useMemo(
-    () => fileSessions
-      .filter((session) => (
-        !closingFileSessionIds.has(session.id)
-        && (session.status === 'connecting' || session.status === 'waiting_trust')
-      ))
-      .map((session) => session.id)
-      .join('|'),
-    [closingFileSessionIds, fileSessions],
+    () => enabled
+      ? fileSessions
+          .filter((session) => (
+            !closingFileSessionIds.has(session.id)
+            && (session.status === 'connecting' || session.status === 'waiting_trust')
+          ))
+          .map((session) => session.id)
+          .join('|')
+      : '',
+    [closingFileSessionIds, enabled, fileSessions],
   )
 
   useEffect(() => {

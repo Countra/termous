@@ -600,7 +600,13 @@
 }
 
 .app-help-dropdown:global(.ant-dropdown) {
-  z-index: 3400;
+  z-index: 3400 !important;
+}
+
+.app-help-dropdown:global(.ant-dropdown-menu),
+.app-help-dropdown :global(.ant-dropdown-menu) {
+  width: min(220px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
 }
 
 .topbar-connect-dropdown {

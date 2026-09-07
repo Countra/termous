@@ -313,6 +313,7 @@ export function useFilesDirectoryController({
 
   useEffect(() => {
     if (!automaticDirectoryLoadEnabled) {
+      lastAutomaticLoadKeyRef.current = ''
       return undefined
     }
     if (!activeFileSession) {

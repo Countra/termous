@@ -16,6 +16,7 @@ const appStyles = readSource('../app/main/App.module.scss')
 
 test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
   assert.match(appShellSource, /import styles from '\.\/AppShell\.module\.scss'/)
+  assert.match(appShellSource, /import \{ contextActionMenuPopupClassName \} from '#shared\/ui'/)
   assert.match(appShellSource, /styles\['app-shell'\]/)
   assert.match(appShellSource, /classNames=\{\{ root: styles\['topbar-connect-dropdown'\] \}\}/)
   assert.match(windowControlsSource, /import styles from '\.\/WindowControls\.module\.scss'/)
@@ -30,6 +31,14 @@ test('应用壳层模块保留布局、Portal 和窄窗口合同', () => {
     /\.app-shell\s*\{[\s\S]*grid-template-columns:\s*var\(--sidebar-width\) minmax\(0, 1fr\);/,
   )
   assert.match(appShellStyles, /\.topbar-connect-dropdown:global\(\.ant-dropdown\)/)
+  assert.match(
+    appShellStyles,
+    /\.app-help-dropdown:global\(\.ant-dropdown\)[^{]*\{[^}]*z-index:\s*3400\s*!important;/,
+  )
+  assert.match(
+    appShellStyles,
+    /\.app-help-dropdown:global\(\.ant-dropdown-menu\),[\s\S]*width:\s*min\(220px, calc\(100vw - 24px\)\);/,
+  )
   assert.match(
     appShellStyles,
     /\.nav-item:global\(\.ant-btn\):hover,[\s\S]*box-shadow:\s*var\(--inner-highlight\);/,

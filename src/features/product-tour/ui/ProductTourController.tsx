@@ -54,6 +54,7 @@ export function ProductTourController({
   const steps = useMemo(() => buildProductTourSteps(t), [t])
   const labels = useMemo(() => buildProductTourLabels(t), [t])
   const [popoverDecoration, setPopoverDecoration] = useState<ProductTourPopoverDecoration | null>(null)
+  const contentRef = useRef({ steps, labels })
   const latestRef = useRef({
     ready,
     blocked,
@@ -66,6 +67,7 @@ export function ProductTourController({
   const engineRef = useRef<ProductTourEngine | null>(null)
   const autoHandledRef = useRef(false)
   const lastManualRequestRef = useRef(0)
+  contentRef.current = { steps, labels }
   latestRef.current = {
     ready,
     blocked,
@@ -77,9 +79,10 @@ export function ProductTourController({
   }
 
   useEffect(() => {
+    const initialContent = contentRef.current
     const engine = new ProductTourEngine({
-      steps,
-      labels,
+      steps: initialContent.steps,
+      labels: initialContent.labels,
       styles: {
         popover: styles.popover,
         popoverMeta: styles['popover-meta'],
@@ -116,7 +119,11 @@ export function ProductTourController({
       }
       engine.dispose()
     }
-  }, [completionStore, driverFactory, labels, steps])
+  }, [completionStore, driverFactory])
+
+  useEffect(() => {
+    engineRef.current?.updateContent(steps, labels)
+  }, [labels, steps])
 
   useEffect(() => {
     if (!ready) {
@@ -156,7 +163,7 @@ export function ProductTourController({
       attemptController.abort()
       window.clearTimeout(timer)
     }
-  }, [autoStartEligible, blocked, completionStore, ready, steps])
+  }, [autoStartEligible, blocked, completionStore, ready])
 
   useEffect(() => {
     if (manualRequestKey <= lastManualRequestRef.current) {

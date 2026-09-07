@@ -17,6 +17,7 @@ interface UseFilesTransferRefreshOptions {
   remoteCopyRefreshVersion: number
   consumeRemoteCopyRefreshEvents: () => RemoteCopyRefreshEvent[]
   activeDirectory: FilesTransferRefreshActiveDirectory | null
+  automaticDirectoryRefreshEnabled?: boolean
   loadDirectory: (
     path: string,
     options: FilesDirectoryLoadOptions,
@@ -38,6 +39,7 @@ export function useFilesTransferRefresh({
   remoteCopyRefreshVersion,
   consumeRemoteCopyRefreshEvents,
   activeDirectory,
+  automaticDirectoryRefreshEnabled = true,
   loadDirectory,
   trackWorkspaceUploadRefreshTask,
   hasUploadRefreshTask,
@@ -119,7 +121,8 @@ export function useFilesTransferRefresh({
     completedTargets.forEach((target) => {
       markDirectoryDirty(target.fileSessionId, target.targetPath)
       if (
-        activeDirectory?.connected
+        automaticDirectoryRefreshEnabled
+        && activeDirectory?.connected
         && target.fileSessionId === activeDirectory.fileSessionId
         && target.targetPath === activePath
       ) {
@@ -131,6 +134,7 @@ export function useFilesTransferRefresh({
     })
   }, [
     activeDirectory,
+    automaticDirectoryRefreshEnabled,
     consumeRemoteCopyRefreshEvents,
     consumeUploadRefreshTask,
     hasUploadRefreshTask,

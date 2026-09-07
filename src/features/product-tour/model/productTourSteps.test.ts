@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildProductTourLabels, buildProductTourSteps } from './productTourSteps.ts'
+import {
+  PRODUCT_TOUR_VERSION,
+  buildProductTourLabels,
+  buildProductTourSteps,
+} from './productTourSteps.ts'
 
 const translate = (key: string) => key
+
+test('扩展后的核心使用向导使用内容版本 2', () => {
+  assert.equal(PRODUCT_TOUR_VERSION, 2)
+})
 
 test('核心使用向导固定为十五步且保持关键锚点顺序', () => {
   const steps = buildProductTourSteps(translate)

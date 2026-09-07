@@ -18,16 +18,24 @@ import {
 const productTourSteps = buildProductTourSteps((key) => key)
 const productTourFinishIndex = productTourSteps.findIndex((step) => step.id === 'finish')
 
+const translationState = vi.hoisted(() => ({ language: 'zh-CN' }))
+
 vi.mock('react-i18next', () => {
-  const t = (key: string, options?: Record<string, unknown>) => (
+  const translate = (key: string, options?: Record<string, unknown>) => (
       key === 'productTour.progress'
         ? `${String(options?.current)} / ${String(options?.total)}`
         : key
   )
+  const translations = {
+    'zh-CN': translate,
+    'en-US': (key: string, options?: Record<string, unknown>) => (
+      `en-US:${translate(key, options)}`
+    ),
+  }
   return {
     useTranslation: () => ({
-      i18n: { resolvedLanguage: 'zh-CN' },
-      t,
+      i18n: { resolvedLanguage: translationState.language },
+      t: translations[translationState.language as keyof typeof translations],
     }),
   }
 })
@@ -222,6 +230,7 @@ function renderController(element: ReactElement) {
 
 describe('核心使用向导控制器', () => {
   beforeEach(() => {
+    translationState.language = 'zh-CN'
     document.body.replaceChildren()
     delete document.body.dataset.termousProductTour
   })
@@ -498,7 +507,7 @@ describe('核心使用向导控制器', () => {
     expect(records[0].activeIndex()).toBe(0)
   })
 
-  it('完整十五步流程不产生网络请求或隐式提交', async () => {
+  it('完整十五步流程不产生直接网络请求或隐式提交', async () => {
     const records: FakeDriverRecord[] = []
     const completionStore = createStore()
     const fetchMock = vi.fn()
@@ -525,6 +534,28 @@ describe('核心使用向导控制器', () => {
     fixture.remove()
   })
 
+  it('完成状态存储异常时上报错误并完整清理向导', async () => {
+    const records: FakeDriverRecord[] = []
+    const persistenceError = new Error('storage failed')
+    const completionStore = createStore()
+    const onError = vi.fn()
+    completionStore.writeCompletedVersion = vi.fn(() => {
+      throw persistenceError
+    })
+    renderController(<ProductTourController {...createProps({
+      completionStore,
+      onError,
+      driverFactory: createFakeDriverFactory(records),
+    })} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.skip' }))
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith(persistenceError)
+    expect(records[0].destroyCount()).toBe(1)
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+  })
+
   it('输入控件聚焦时不拦截方向键和 Enter，普通焦点可用方向键导航', async () => {
     const records: FakeDriverRecord[] = []
     const props = createProps({ driverFactory: createFakeDriverFactory(records) })
@@ -540,6 +571,30 @@ describe('核心使用向导控制器', () => {
     fireEvent.click(screen.getByRole('button', { name: 'productTour.next' }))
     await waitFor(() => expect(records[0].activeIndex()).toBe(1))
     input.remove()
+  })
+
+  it('复合交互控件聚焦时不抢占方向键和 Enter', async () => {
+    const records: FakeDriverRecord[] = []
+    const props = createProps({ driverFactory: createFakeDriverFactory(records) })
+    renderController(<ProductTourController {...props} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+
+    const controls = ['combobox', 'tab', 'slider'].map((role) => {
+      const control = document.createElement('div')
+      control.setAttribute('role', role)
+      control.tabIndex = 0
+      document.body.appendChild(control)
+      return control
+    })
+
+    controls.forEach((control) => {
+      fireEvent.keyDown(control, { key: 'ArrowLeft' })
+      fireEvent.keyDown(control, { key: 'ArrowRight' })
+      fireEvent.keyDown(control, { key: 'Enter' })
+    })
+
+    expect(records[0].activeIndex()).toBe(0)
+    controls.forEach((control) => control.remove())
   })
 
   it('首步解锁后仍保留 Driver 的上一步禁用状态', async () => {
@@ -910,6 +965,34 @@ describe('核心使用向导控制器', () => {
     expect(records).toHaveLength(1)
   })
 
+  it('活动期间切换语言不中断向导，并在下次重播使用新文案', async () => {
+    const records: FakeDriverRecord[] = []
+    const store = createStore()
+    const props = createProps({
+      completionStore: store,
+      driverFactory: createFakeDriverFactory(records),
+    })
+    const view = renderController(<ProductTourController {...props} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+
+    translationState.language = 'en-US'
+    view.rerender(<ProductTourController {...props} />)
+
+    expect(records).toHaveLength(1)
+    expect(records[0].destroyCount()).toBe(0)
+    expect(records[0].activeIndex()).toBe(0)
+    expect(store.writeCompletedVersion).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.close' }))
+    expect(records[0].destroyCount()).toBe(1)
+
+    view.rerender(<ProductTourController {...props} manualRequestKey={1} />)
+    await waitFor(() => expect(records).toHaveLength(2))
+    expect(records[1].config.steps?.[0]?.popover?.title).toBe(
+      'en-US:productTour.steps.welcome.title',
+    )
+  })
+
   it('Core 不可用时销毁实例并清理 body 状态', async () => {
     const records: FakeDriverRecord[] = []
     const onActiveChange = vi.fn()
@@ -951,6 +1034,35 @@ describe('核心使用向导控制器', () => {
     expect(records[0].config.steps?.every((step) => (
       step.waitForElement === 2500 && step.skipMissingElement === false
     ))).toBe(true)
+  })
+
+  it('真实 Driver 在目标缺失时居中说明且不跳过当前步骤', async () => {
+    installVisibleGeometry()
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
+    const drivers: ProductTourDriverAdapter[] = []
+    renderController(<ProductTourController {...createProps({
+      driverFactory: createRecordingRealDriverFactory(drivers),
+    })} />)
+    await waitFor(() => expect(
+      document.querySelector('.driver-popover'),
+    ).toHaveAttribute('aria-busy', 'false'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.next' }))
+
+    await waitFor(() => expect(
+      document.querySelector('[data-product-tour-step="vaultNav"]'),
+    ).not.toBeNull(), { timeout: 3500 })
+    expect(document.querySelector('#driver-dummy-element')).not.toBeNull()
+    expect(document.querySelector('.driver-popover-side-over')).not.toBeNull()
+    expect(drivers[0]?.getActiveIndex()).toBe(1)
+    await waitFor(() => expect(
+      document.querySelector('[data-product-tour-step="vaultNav"]'),
+    ).toHaveAttribute('aria-busy', 'false'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.previous' }))
+    await waitFor(() => expect(
+      document.querySelector('[data-product-tour-step="welcome"]'),
+    ).not.toBeNull())
   })
 })
 

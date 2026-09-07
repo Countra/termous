@@ -24,6 +24,7 @@ import { getTermousBridge } from '#shared/bridge'
 import type { WindowCloseBehavior } from '#common/contracts'
 import type { LocalShell } from '#entities/session'
 import type { PageKey } from '#shared/model'
+import { contextActionMenuPopupClassName } from '#shared/ui'
 import { BrandVersionControl } from '#features/update'
 import { WindowControls } from './WindowControls'
 import styles from './AppShell.module.scss'
@@ -58,6 +59,11 @@ const navItems = [
 const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {
   workbench: MonitorCog,
 }
+
+const helpDropdownClassName = [
+  contextActionMenuPopupClassName,
+  styles['app-help-dropdown'],
+].join(' ')
 
 export function AppShell({
   page,
@@ -184,16 +190,17 @@ export function AppShell({
                 <Dropdown
                   autoFocus
                   trigger={['click']}
-                  placement="topRight"
+                  placement="topLeft"
                   open={sidebarHelpOpen}
                   onOpenChange={(open) => {
                     setSidebarHelpOpen(open)
                     if (open) setTopbarHelpOpen(false)
                   }}
-                  classNames={{ root: styles['app-help-dropdown'] }}
+                  classNames={{ root: helpDropdownClassName }}
                   menu={{
                     items: helpMenuItems,
                     onClick: handleHelpMenuClick,
+                    rootClassName: helpDropdownClassName,
                     onKeyDown: (event) => {
                       if (event.key === 'Escape') {
                         queueMicrotask(() => sidebarHelpButtonRef.current?.focus({ preventScroll: true }))
@@ -243,16 +250,17 @@ export function AppShell({
                 <Dropdown
                   autoFocus
                   trigger={['click']}
-                  placement="bottomRight"
+                  placement="bottomLeft"
                   open={topbarHelpOpen}
                   onOpenChange={(open) => {
                     setTopbarHelpOpen(open)
                     if (open) setSidebarHelpOpen(false)
                   }}
-                  classNames={{ root: styles['app-help-dropdown'] }}
+                  classNames={{ root: helpDropdownClassName }}
                   menu={{
                     items: helpMenuItems,
                     onClick: handleHelpMenuClick,
+                    rootClassName: helpDropdownClassName,
                     onKeyDown: (event) => {
                       if (event.key === 'Escape') {
                         queueMicrotask(() => topbarHelpButtonRef.current?.focus({ preventScroll: true }))

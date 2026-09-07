@@ -29,7 +29,7 @@ const testState = vi.hoisted(() => {
     forwardErrorEvent: null as import('#entities/forward').ForwardEvent | null,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
-    filesAutomaticDirectoryLoadEnabled: true,
+    filesAutomaticRemoteRequestsEnabled: true,
     workbenchForwardsIsArray: false,
     workbenchHostIconURL: '',
     hostAccessIntent: null as { key: number; hostId: string } | null,
@@ -431,15 +431,15 @@ vi.mock('#pages/hosts', () => ({
 vi.mock('#pages/files', () => ({
   FilesPage: ({
     data,
-    automaticDirectoryLoadEnabled = true,
+    automaticRemoteRequestsEnabled = true,
     onOpenFileSessionLauncher,
   }: {
     data: Record<string, unknown>
-    automaticDirectoryLoadEnabled?: boolean
+    automaticRemoteRequestsEnabled?: boolean
     onOpenFileSessionLauncher: () => void
   }) => {
     testState.projectionKeys.files = Object.keys(data).sort()
-    testState.filesAutomaticDirectoryLoadEnabled = automaticDirectoryLoadEnabled
+    testState.filesAutomaticRemoteRequestsEnabled = automaticRemoteRequestsEnabled
     useEffect(() => {
       testState.filesPageMounts += 1
       return () => {
@@ -732,7 +732,7 @@ describe('应用运行时组合合同', () => {
     testState.productTourPageHarness = false
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
-    testState.filesAutomaticDirectoryLoadEnabled = true
+    testState.filesAutomaticRemoteRequestsEnabled = true
     testState.workbenchForwardsIsArray = false
     testState.workbenchHostIconURL = ''
     testState.hostAccessIntent = null
@@ -1088,7 +1088,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成十五步页面准备且不触发任何写操作或网络请求', async () => {
+  it('组合级完成十五步页面准备且不触发写操作或连接动作', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
@@ -1142,7 +1142,7 @@ describe('应用运行时组合合同', () => {
     }
   })
 
-  it('向导活动期间暂停文件页自动目录加载，结束后恢复默认行为', async () => {
+  it('向导活动期间暂停文件页自动远程请求，结束后恢复默认行为', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     render(<App />)
@@ -1158,10 +1158,10 @@ describe('应用运行时组合合同', () => {
     })
 
     await waitFor(() => expect(screen.getByTestId('files-page')).toBeInTheDocument())
-    expect(testState.filesAutomaticDirectoryLoadEnabled).toBe(false)
+    expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(false)
 
     act(() => testState.productTourProps?.onActiveChange?.(false))
-    await waitFor(() => expect(testState.filesAutomaticDirectoryLoadEnabled).toBe(true))
+    await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
   })
 
   it('命令片段草稿阻止向导离开独立管理页', async () => {

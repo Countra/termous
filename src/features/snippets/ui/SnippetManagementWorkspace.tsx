@@ -16,7 +16,7 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { ConnectionActionButton, CustomSelect, customSelectStyles, EditorModeContext, GroupManagerModal, uiStyles } from '#shared/ui'
@@ -126,7 +126,7 @@ export function SnippetManagementWorkspace({
   const variables = useMemo(() => extractSnippetVariables(normalizedForm.command), [normalizedForm.command])
   const canSave = Boolean(normalizedForm.name && normalizedForm.command)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
 

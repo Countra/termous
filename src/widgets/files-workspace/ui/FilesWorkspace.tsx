@@ -199,7 +199,7 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 
 export interface FilesWorkspaceProps {
   fileGateway: FileGateway
-  automaticDirectoryLoadEnabled?: boolean
+  automaticRemoteRequestsEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
   data: FilesWorkspaceData
   theme: ThemeMode
@@ -352,7 +352,7 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 
 function FilesWorkspaceContent({
   fileGateway,
-  automaticDirectoryLoadEnabled = true,
+  automaticRemoteRequestsEnabled = true,
   getHostIconUrl,
   data,
   theme,
@@ -942,7 +942,7 @@ function FilesWorkspaceContent({
   }, [])
   const { loadDirectory } = useFilesDirectoryController({
     gateway: api,
-    automaticDirectoryLoadEnabled,
+    automaticDirectoryLoadEnabled: automaticRemoteRequestsEnabled,
     activeFileSession,
     activeFileSessionId,
     activeFileSessionClosing,
@@ -1180,6 +1180,7 @@ function FilesWorkspaceContent({
     remoteCopyRefreshVersion,
     consumeRemoteCopyRefreshEvents: consumeFilesRemoteCopyRefreshEvents,
     activeDirectory: transferRefreshActiveDirectory,
+    automaticDirectoryRefreshEnabled: automaticRemoteRequestsEnabled,
     loadDirectory,
     trackWorkspaceUploadRefreshTask,
     hasUploadRefreshTask,
@@ -1189,6 +1190,7 @@ function FilesWorkspaceContent({
   })
 
   useFileSessionStatusSync({
+    enabled: automaticRemoteRequestsEnabled,
     gateway: api,
     fileSessions: data.fileSessions,
     closingFileSessionIds: closingFileSessionIdSet,

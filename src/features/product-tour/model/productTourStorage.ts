@@ -22,7 +22,14 @@ export function createProductTourCompletionStore(
     },
     writeCompletedVersion: (version) => {
       try {
-        storageProvider().setItem(PRODUCT_TOUR_STORAGE_KEY, String(version))
+        const storage = storageProvider()
+        const completedVersion = parseCompletedVersion(
+          storage.getItem(PRODUCT_TOUR_STORAGE_KEY),
+        )
+        if (completedVersion !== null && completedVersion >= version) {
+          return true
+        }
+        storage.setItem(PRODUCT_TOUR_STORAGE_KEY, String(version))
         return true
       } catch {
         return false

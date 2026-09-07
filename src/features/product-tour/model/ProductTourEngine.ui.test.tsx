@@ -15,6 +15,7 @@ interface FakeDriverRecord {
   popover: () => PopoverDOM | null
   invokeNext: () => void
   invokePrevious: () => void
+  invokeClose: () => void
 }
 
 interface FakeDriverFailures {
@@ -66,6 +67,39 @@ describe('使用向导引擎 generation 隔离', () => {
     expect(records).toHaveLength(1)
   })
 
+  it('启动准备期间暂存新文案，并在失败后的下一次启动生效', async () => {
+    const firstPreparation = createDeferred()
+    const records: FakeDriverRecord[] = []
+    const prepareStep = vi.fn()
+      .mockImplementationOnce(async () => {
+        await firstPreparation.promise
+        return false
+      })
+      .mockReturnValue(true)
+    const engine = createEngine(prepareStep, records)
+    const updatedSteps = steps.map((step) => ({
+      ...step,
+      title: `新版-${step.title}`,
+    }))
+
+    const firstStart = engine.start()
+    engine.updateContent(updatedSteps, {
+      progress: '{{current}} / {{total}}',
+      next: '继续',
+      previous: '返回',
+      done: '结束',
+      skip: '略过',
+      close: '关闭',
+    })
+    firstPreparation.resolve()
+
+    await expect(firstStart).resolves.toBe(false)
+    expect(records).toHaveLength(0)
+    await expect(engine.start()).resolves.toBe(true)
+    expect(records[0]?.config.steps?.[0]?.popover?.title).toBe('新版-欢迎')
+    expect(records[0]?.config.nextBtnText).toBe('继续')
+  })
+
   it('旧迁移迟到后不会解锁新一轮向导的迁移按钮', async () => {
     const oldMovePreparation = createDeferred()
     const currentMovePreparation = createDeferred()
@@ -101,21 +135,60 @@ describe('使用向导引擎 generation 隔离', () => {
     expect(records[1]?.activeIndex()).toBe(1)
   })
 
-  it('每个步骤完成高亮后把焦点放在主操作而不是关闭按钮', async () => {
+  it('转场期间由对话框承接焦点，高亮完成后再聚焦主操作', async () => {
     const records: FakeDriverRecord[] = []
-    const engine = createEngine(vi.fn(() => true), records)
+    const prepareStep = vi.fn(() => true)
+    const transitionSnapshots: Array<{
+      activeElement: Element | null
+      busy: string | null
+      tabIndex: number | undefined
+      wrapper: HTMLElement | undefined
+    }> = []
+    const engine = createEngine(
+      prepareStep,
+      records,
+      undefined,
+      () => {
+        const popover = records[0]?.popover()
+        transitionSnapshots.push({
+          activeElement: document.activeElement,
+          busy: popover?.wrapper.getAttribute('aria-busy') ?? null,
+          tabIndex: popover?.wrapper.tabIndex,
+          wrapper: popover?.wrapper,
+        })
+        if (popover) {
+          popover.wrapper.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+            cancelable: true,
+          }))
+        }
+      },
+    )
 
     await expect(engine.start()).resolves.toBe(true)
+    expect(transitionSnapshots[0]).toMatchObject({
+      busy: 'true',
+      tabIndex: -1,
+    })
+    expect(transitionSnapshots[0]?.activeElement).toBe(transitionSnapshots[0]?.wrapper)
+    expect(prepareStep).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(records[0]?.popover()?.nextButton)
     expect(document.activeElement).not.toBe(records[0]?.popover()?.closeButton)
 
     records[0]?.invokeNext()
     await flushPromises()
+    expect(transitionSnapshots[1]?.activeElement).toBe(transitionSnapshots[1]?.wrapper)
+    expect(transitionSnapshots[1]?.busy).toBe('true')
+    expect(prepareStep).toHaveBeenCalledTimes(2)
     expect(records[0]?.activeIndex()).toBe(1)
     expect(document.activeElement).toBe(records[0]?.popover()?.nextButton)
 
     records[0]?.invokePrevious()
     await flushPromises()
+    expect(transitionSnapshots[2]?.activeElement).toBe(transitionSnapshots[2]?.wrapper)
+    expect(transitionSnapshots[2]?.busy).toBe('true')
+    expect(prepareStep).toHaveBeenCalledTimes(3)
     expect(records[0]?.activeIndex()).toBe(0)
     expect(document.activeElement).toBe(records[0]?.popover()?.nextButton)
   })
@@ -219,10 +292,11 @@ describe('使用向导引擎 generation 隔离', () => {
     expect(records[0]?.popover()).toBeNull()
   })
 
-  it('Driver 连续销毁异常时保留实例供后续清理', async () => {
+  it('Driver 连续销毁异常时清理本地生命周期并保留重试句柄', async () => {
     const records: FakeDriverRecord[] = []
     const destroyError = new Error('destroy failed')
     const onError = vi.fn()
+    const onActiveChange = vi.fn()
     const engine = createEngine(
       vi.fn(() => true),
       records,
@@ -231,6 +305,7 @@ describe('使用向导引擎 generation 隔离', () => {
       onError,
       undefined,
       { destroy: destroyError, destroyFailureCount: 2 },
+      onActiveChange,
     )
 
     await expect(engine.start()).resolves.toBe(true)
@@ -238,11 +313,50 @@ describe('使用向导引擎 generation 隔离', () => {
 
     expect(onError).toHaveBeenCalledTimes(2)
     expect(records[0]?.active()).toBe(true)
+    expect(records[0]?.popover()).not.toBeNull()
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
     await expect(engine.start()).resolves.toBe(false)
 
-    engine.stop()
+    records[0]?.invokeClose()
     expect(records[0]?.active()).toBe(false)
     expect(records[0]?.popover()).toBeNull()
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+
+    engine.dispose()
+    await expect(engine.start()).resolves.toBe(false)
+    expect(records[0]?.active()).toBe(false)
+    expect(records[0]?.popover()).toBeNull()
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('Controller 直接卸载时会用保留句柄再次清理 Driver', async () => {
+    const records: FakeDriverRecord[] = []
+    const destroyError = new Error('destroy failed')
+    const onError = vi.fn()
+    const onActiveChange = vi.fn()
+    const engine = createEngine(
+      vi.fn(() => true),
+      records,
+      undefined,
+      undefined,
+      onError,
+      undefined,
+      { destroy: destroyError, destroyFailureCount: 2 },
+      onActiveChange,
+    )
+
+    await expect(engine.start()).resolves.toBe(true)
+    engine.dispose()
+
+    expect(onError).toHaveBeenCalledTimes(2)
+    expect(records[0]?.active()).toBe(false)
+    expect(records[0]?.popover()).toBeNull()
+    expect(document.body).not.toHaveAttribute('data-termous-product-tour')
+    expect(onActiveChange.mock.calls).toEqual([[true], [false]])
+    await expect(engine.start()).resolves.toBe(false)
   })
 
   it('从未启动的实例停止或销毁时不会转移当前焦点', () => {
@@ -346,6 +460,7 @@ function createEngine(
   onError = vi.fn(),
   onBlocked = vi.fn(),
   driverFailures?: FakeDriverFailures,
+  onActiveChange = vi.fn(),
 ) {
   const engine = new ProductTourEngine({
     steps,
@@ -371,7 +486,7 @@ function createEngine(
     isTransitionBlocked: () => false,
     onBlocked,
     onError,
-    onActiveChange: vi.fn(),
+    onActiveChange,
     onCompleted: vi.fn(),
     decoratePopover,
     driverFactory: createFakeDriverFactory(records, beforeHighlighted, driverFailures),
@@ -461,6 +576,7 @@ function createFakeDriverFactory(
       popover: () => popover,
       invokeNext: () => invokeHook(config.onNextClick, index),
       invokePrevious: () => invokeHook(config.onPrevClick, index),
+      invokeClose: () => invokeHook(config.onCloseClick, index),
     }
     records.push(record)
     return adapter

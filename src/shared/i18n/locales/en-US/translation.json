@@ -4477,7 +4477,7 @@
       },
       "workbenchTools": {
         "title": "Explore the right-side toolbox",
-        "description": "The right-side toolbox brings together connection details, remote files, monitoring, firewall controls, port forwarding, aliases, and snippets beside the terminal. Switch or collapse tools as needed."
+        "description": "The right-side area keeps session-related information and supporting tools beside the terminal. Switch between them as needed, or collapse the area for more terminal space."
       },
       "files": {
         "title": "Manage remote files",

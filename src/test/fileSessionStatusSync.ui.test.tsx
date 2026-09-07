@@ -96,6 +96,39 @@ afterEach(() => {
 })
 
 describe('文件会话状态同步合同', () => {
+  it('禁用时不创建远程请求，运行中禁用会释放订阅并停止轮询', async () => {
+    const session = fileSession('first', { status: 'connecting', phase: 'dialing' })
+    const gateway = createGateway(async () => session)
+    const onUpdateFileSession = vi.fn()
+    const view = renderHook(
+      ({ enabled }) => useFileSessionStatusSync({
+        enabled,
+        gateway,
+        fileSessions: [session],
+        closingFileSessionIds: new Set(),
+        onUpdateFileSession,
+      }),
+      { initialProps: { enabled: false } },
+    )
+
+    await act(async () => Promise.resolve())
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    expect(gateway.getFileSession).not.toHaveBeenCalled()
+
+    view.rerender({ enabled: true })
+    await act(async () => Promise.resolve())
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(gateway.getFileSession).toHaveBeenCalledOnce()
+
+    const socket = FakeWebSocket.instances[0]!
+    socket.open()
+    view.rerender({ enabled: false })
+    expect(socket.closeCalls).toBe(1)
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(gateway.getFileSession).toHaveBeenCalledOnce()
+  })
+
   it('每个可用会话只建立一个事件流，关闭或终止后立即释放', () => {
     const first = fileSession('first')
     const second = fileSession('second')

@@ -21,6 +21,11 @@ interface ProductTourStyleClasses {
   skipButton: string
 }
 
+interface ProductTourContent {
+  steps: ProductTourStep[]
+  labels: ProductTourLabels
+}
+
 export interface ProductTourEngineOptions {
   steps: ProductTourStep[]
   labels: ProductTourLabels
@@ -43,7 +48,10 @@ export interface ProductTourEngineOptions {
 export class ProductTourEngine {
   private readonly options: ProductTourEngineOptions
   private readonly driverFactory: ProductTourDriverFactory
+  private content: ProductTourContent
+  private pendingContent: ProductTourContent | null = null
   private driver: ProductTourDriverAdapter | null = null
+  private cleanupDriver: ProductTourDriverAdapter | null = null
   private activePopover: PopoverDOM | null = null
   private activePopoverDisabledState: { previous: boolean; next: boolean } | null = null
   private popoverDecorationCleanup: (() => void) | null = null
@@ -59,10 +67,33 @@ export class ProductTourEngine {
   constructor(options: ProductTourEngineOptions) {
     this.options = options
     this.driverFactory = options.driverFactory ?? createProductTourDriver
+    this.content = {
+      steps: options.steps,
+      labels: options.labels,
+    }
+  }
+
+  updateContent(steps: ProductTourStep[], labels: ProductTourLabels) {
+    if (this.disposed) {
+      return
+    }
+    const content = { steps, labels }
+    // 活动 Driver 的配置必须与步骤索引保持一致，文案更新延迟到本轮结束。
+    if (this.driver || this.cleanupDriver || this.starting || this.active) {
+      this.pendingContent = content
+      return
+    }
+    this.content = content
   }
 
   async start(signal?: AbortSignal) {
-    if (signal?.aborted || this.disposed || this.starting || this.driver) {
+    if (
+      signal?.aborted
+      || this.disposed
+      || this.starting
+      || this.driver
+      || this.cleanupDriver
+    ) {
       return false
     }
     if (this.options.isBlocked()) {
@@ -98,6 +129,7 @@ export class ProductTourEngine {
           this.options.onBlocked()
         }
         this.releaseTransition()
+        this.applyPendingContent()
       }
       return false
     }
@@ -105,6 +137,7 @@ export class ProductTourEngine {
       this.starting = false
       this.options.onBlocked()
       this.releaseTransition()
+      this.applyPendingContent()
       return false
     }
 
@@ -146,19 +179,22 @@ export class ProductTourEngine {
     window.removeEventListener('keydown', this.handleKeyDown)
     delete document.body.dataset.termousProductTour
 
-    const activeDriver = this.driver
-    this.clearPopoverDecoration()
+    const activeDriver = this.driver ?? this.cleanupDriver
+    let driverDestroyed = !activeDriver
     this.activePopover = null
     this.activePopoverDisabledState = null
     try {
+      this.clearPopoverDecoration()
       if (activeDriver) {
         try {
           this.destroyDriver(activeDriver)
+          driverDestroyed = true
         } catch (error) {
           this.options.onError(error)
-          if (this.driver === activeDriver) {
+          if (this.driver === activeDriver || this.cleanupDriver === activeDriver) {
             try {
               this.destroyDriver(activeDriver)
+              driverDestroyed = true
             } catch (retryError) {
               this.options.onError(retryError)
             }
@@ -166,7 +202,20 @@ export class ProductTourEngine {
         }
       }
     } finally {
+      if (
+        !driverDestroyed
+        && activeDriver
+        && (this.driver === activeDriver || this.cleanupDriver === activeDriver)
+      ) {
+        if (this.driver === activeDriver) {
+          this.driver = null
+        }
+        this.cleanupDriver = activeDriver
+      }
       this.setActive(false)
+      if (!this.cleanupDriver) {
+        this.applyPendingContent()
+      }
       if (shouldRestoreFocus) {
         restoreFocusTarget(focusTarget)
       }
@@ -174,11 +223,11 @@ export class ProductTourEngine {
   }
 
   dispose() {
-    if (this.disposed) {
-      return
-    }
     this.disposed = true
     this.stop()
+    if (this.cleanupDriver) {
+      this.stop()
+    }
   }
 
   private destroyDriver(driver: ProductTourDriverAdapter) {
@@ -186,12 +235,15 @@ export class ProductTourEngine {
     if (this.driver === driver) {
       this.driver = null
     }
+    if (this.cleanupDriver === driver) {
+      this.cleanupDriver = null
+    }
   }
 
   private createDriverConfig(): Config {
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
     return {
-      steps: this.options.steps.map((step, index) => ({
+      steps: this.content.steps.map((step, index) => ({
         element: step.element
           ? () => findVisibleTourTarget(step.element!) as Element
           : undefined,
@@ -222,10 +274,10 @@ export class ProductTourEngine {
       popoverClass: this.options.styles.popover,
       showButtons: ['next', 'previous', 'close'],
       showProgress: true,
-      progressText: this.options.labels.progress,
-      nextBtnText: this.options.labels.next,
-      prevBtnText: this.options.labels.previous,
-      doneBtnText: this.options.labels.done,
+      progressText: this.content.labels.progress,
+      nextBtnText: this.content.labels.next,
+      prevBtnText: this.content.labels.previous,
+      doneBtnText: this.content.labels.done,
       onNextClick: () => void this.moveBy(1),
       onPrevClick: () => void this.moveBy(-1),
       onDoneClick: () => this.finish('completed'),
@@ -241,12 +293,12 @@ export class ProductTourEngine {
       return
     }
     const nextIndex = activeIndex + offset
-    if (nextIndex >= this.options.steps.length) {
+    if (nextIndex >= this.content.steps.length) {
       this.finish('completed')
       return
     }
-    const currentStep = this.options.steps[activeIndex]
-    const nextStep = this.options.steps[nextIndex]
+    const currentStep = this.content.steps[activeIndex]
+    const nextStep = this.content.steps[nextIndex]
     if (
       nextIndex < 0
       || !currentStep
@@ -303,7 +355,7 @@ export class ProductTourEngine {
     signal: AbortSignal,
     generation: number,
   ): Promise<ProductTourPreparationOutcome> {
-    const step = this.options.steps[index]
+    const step = this.content.steps[index]
     if (!step) {
       return 'blocked'
     }
@@ -331,10 +383,18 @@ export class ProductTourEngine {
 
   private finish(reason: ProductTourCompletionReason) {
     if (!this.driver && !this.starting) {
+      if (this.cleanupDriver) {
+        this.stop()
+      }
       return
     }
-    const persisted = this.options.completionStore.writeCompletedVersion(PRODUCT_TOUR_VERSION)
+    let persisted = false
     try {
+      try {
+        persisted = this.options.completionStore.writeCompletedVersion(PRODUCT_TOUR_VERSION)
+      } catch (error) {
+        this.options.onError(error)
+      }
       this.options.onCompleted(reason, persisted)
     } finally {
       this.stop()
@@ -359,6 +419,7 @@ export class ProductTourEngine {
     this.preparationController?.abort()
     this.preparationController = null
     this.driver = null
+    this.cleanupDriver = null
     this.clearPopoverDecoration()
     this.activePopover = null
     this.activePopoverDisabledState = null
@@ -367,17 +428,27 @@ export class ProductTourEngine {
     this.setActive(false)
     window.removeEventListener('keydown', this.handleKeyDown)
     delete document.body.dataset.termousProductTour
+    this.applyPendingContent()
     if (shouldRestoreFocus) {
       queueMicrotask(() => {
         if (
           destroyedGeneration === this.generation
           && !this.driver
+          && !this.cleanupDriver
           && !this.starting
         ) {
           restoreFocusTarget(focusTarget)
         }
       })
     }
+  }
+
+  private applyPendingContent() {
+    if (!this.pendingContent) {
+      return
+    }
+    this.content = this.pendingContent
+    this.pendingContent = null
   }
 
   private renderPopover(popover: PopoverDOM, index: number | undefined) {
@@ -387,12 +458,14 @@ export class ProductTourEngine {
       previous: popover.previousButton.disabled,
       next: popover.nextButton.disabled,
     }
-    popover.wrapper.dataset.productTourStep = this.options.steps[index ?? 0]?.id ?? ''
-    popover.closeButton.setAttribute('aria-label', this.options.labels.close)
-    popover.previousButton.setAttribute('aria-label', this.options.labels.previous)
+    popover.wrapper.dataset.productTourStep = this.content.steps[index ?? 0]?.id ?? ''
+    popover.closeButton.setAttribute('aria-label', this.content.labels.close)
+    popover.previousButton.setAttribute('aria-label', this.content.labels.previous)
     popover.nextButton.setAttribute(
       'aria-label',
-      index === this.options.steps.length - 1 ? this.options.labels.done : this.options.labels.next,
+      index === this.content.steps.length - 1
+        ? this.content.labels.done
+        : this.content.labels.next,
     )
 
     const meta = document.createElement('span')
@@ -403,11 +476,11 @@ export class ProductTourEngine {
     const skipButton = document.createElement('button')
     skipButton.type = 'button'
     skipButton.className = this.options.styles.skipButton
-    skipButton.textContent = this.options.labels.skip
-    skipButton.setAttribute('aria-label', this.options.labels.skip)
+    skipButton.textContent = this.content.labels.skip
+    skipButton.setAttribute('aria-label', this.content.labels.skip)
     skipButton.addEventListener('click', () => this.finish('skipped'), { once: true })
     meta.appendChild(skipButton)
-    const step = this.options.steps[index ?? 0]
+    const step = this.content.steps[index ?? 0]
     if (step && this.options.decoratePopover) {
       try {
         this.popoverDecorationCleanup = this.options.decoratePopover({
@@ -419,6 +492,21 @@ export class ProductTourEngine {
       }
     }
     this.setTransitionState(this.transitionLocked)
+    this.redirectInitialCloseFocus(popover)
+  }
+
+  private redirectInitialCloseFocus(popover: PopoverDOM) {
+    popover.wrapper.tabIndex = -1
+    // Driver.js 会在渲染后优先聚焦关闭按钮，转场期间先让对话框承接焦点。
+    popover.closeButton.addEventListener('focus', () => {
+      if (
+        this.activePopover === popover
+        && this.transitionLocked
+        && popover.wrapper.isConnected
+      ) {
+        popover.wrapper.focus({ preventScroll: true })
+      }
+    }, { once: true })
   }
 
   private releaseTransition = (expectedIndex?: number) => {
@@ -505,7 +593,10 @@ export class ProductTourEngine {
       this.finish('closed')
       return
     }
-    if (isEditableTarget(event.target)) {
+    if (
+      isEditableTarget(event.target)
+      || usesCompositeKeyboardNavigation(event.target)
+    ) {
       return
     }
     if (event.key === 'ArrowLeft') {
@@ -554,8 +645,46 @@ function isEditableTarget(target: EventTarget | null) {
 
 function usesNativeEnterAction(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest(
-    'button, a[href], summary, [role="button"], input, textarea, select',
+    [
+      'button',
+      'a[href]',
+      'summary',
+      'input',
+      'textarea',
+      'select',
+      '[role="button"]',
+      '[role="checkbox"]',
+      '[role="link"]',
+      '[role="switch"]',
+    ].join(', '),
   ))
+}
+
+const compositeKeyboardControlSelector = [
+  '[role="combobox"]',
+  '[role="grid"]',
+  '[role="gridcell"]',
+  '[role="listbox"]',
+  '[role="menu"]',
+  '[role="menubar"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="option"]',
+  '[role="radio"]',
+  '[role="scrollbar"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  '[role="tab"]',
+  '[role="tablist"]',
+  '[role="tree"]',
+  '[role="treegrid"]',
+  '[role="treeitem"]',
+].join(', ')
+
+function usesCompositeKeyboardNavigation(target: EventTarget | null) {
+  return target instanceof Element
+    && Boolean(target.closest(compositeKeyboardControlSelector))
 }
 
 const focusableSelector = [

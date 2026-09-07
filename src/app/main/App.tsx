@@ -1369,7 +1369,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       {page === 'files' ? (
                         <FilesPage
                           fileGateway={gateways.files}
-                          automaticDirectoryLoadEnabled={!productTourActive}
+                          automaticRemoteRequestsEnabled={!productTourActive}
                           getHostIconUrl={getHostIconUrl}
                           data={filesPageData}
                           theme={theme}

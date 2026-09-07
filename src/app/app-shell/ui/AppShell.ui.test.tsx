@@ -2,6 +2,7 @@ import { App as AntdApp } from 'antd'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import { contextActionMenuPopupClassName } from '#shared/ui'
 import { AppShell } from './AppShell'
 
 vi.mock('react-i18next', () => ({
@@ -82,12 +83,26 @@ test('帮助按钮通过向上菜单启动使用向导并保留可访问名称',
   expect(helpButtons[0]).toHaveAttribute('aria-expanded', 'true')
   expect(helpButtons[1]).toHaveAttribute('aria-expanded', 'false')
   const menuItem = await screen.findByRole('menuitem', { name: 'productTour.menuLabel' })
-  await waitFor(() => expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true))
-  expect(document.querySelector('.ant-dropdown-placement-topRight')).not.toBeNull()
+  const sidebarMenu = screen.getByRole('menu')
+  await waitFor(() => expect(sidebarMenu.contains(document.activeElement)).toBe(true))
+  expect(sidebarMenu).toHaveClass(contextActionMenuPopupClassName)
+  expect(sidebarMenu.closest('.ant-dropdown')).toHaveClass(contextActionMenuPopupClassName)
+  expect(document.querySelector('.ant-dropdown-placement-topLeft')).not.toBeNull()
   await user.click(menuItem)
 
   expect(onOpenProductTour).toHaveBeenCalledTimes(1)
   expect(helpButtons[0]).toHaveAttribute('aria-expanded', 'false')
+
+  fireEvent.click(helpButtons[1])
+  const topbarPopup = await waitFor(() => {
+    const popup = document.querySelector<HTMLElement>('.ant-dropdown-placement-bottomLeft')
+    expect(popup).not.toBeNull()
+    return popup as HTMLElement
+  })
+  const topbarMenu = topbarPopup.querySelector<HTMLElement>('[role="menu"]')
+  expect(topbarMenu).not.toBeNull()
+  expect(topbarMenu).toHaveClass(contextActionMenuPopupClassName)
+  expect(topbarPopup).toHaveClass(contextActionMenuPopupClassName)
 })
 
 test('折叠侧栏中的帮助按钮支持键盘开关菜单', async () => {
