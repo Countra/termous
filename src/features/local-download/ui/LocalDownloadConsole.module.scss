@@ -36,7 +36,7 @@
       border-right: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
     }
 
-    .local-download-console-browser {
+    .local-download-console-browser.has-breadcrumbs {
       grid-template-rows: 39px 35px minmax(0, 1fr);
     }
 

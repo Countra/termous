@@ -338,6 +338,28 @@ test('凭据库密码框仅由外层容器承载字段背景', () => {
   assert.doesNotMatch(sshKeyDialogStyles, /\.ssh-key-form-field :global\(\.ant-input\),/)
 })
 
+test('凭据库操作区统一直接子按钮高度', () => {
+  const credentialStyles = source('../features/vault/ui/CredentialManagement.module.scss')
+
+  assert.match(
+    credentialStyles,
+    /\.credential-catalog-actions > button:global\(\.ant-btn\)\s*\{[^}]*height:\s*34px;[^}]*min-height:\s*34px;/s,
+  )
+})
+
+test('本地下载浏览区仅在存在面包屑时预留导航轨道', () => {
+  const localDownloadStyles = source('../features/local-download/ui/LocalDownloadConsole.module.scss')
+
+  assert.match(
+    localDownloadStyles,
+    /\.local-download-console-mappings,\s*\.local-download-console-browser\s*\{[^}]*grid-template-rows:\s*39px minmax\(0, 1fr\);/s,
+  )
+  assert.match(
+    localDownloadStyles,
+    /\.local-download-console-browser\.has-breadcrumbs\s*\{[^}]*grid-template-rows:\s*39px 35px minmax\(0, 1fr\);/s,
+  )
+})
+
 test('生产 TypeScript 不再直接使用旧通知样式字面量', () => {
   const legacyConsumers = globSync(['**/*.ts', '**/*.tsx'], { cwd: sourceRoot })
     .filter((relativePath) => !relativePath.startsWith('test/'))

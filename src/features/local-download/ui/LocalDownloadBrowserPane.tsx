@@ -52,6 +52,7 @@ export function LocalDownloadBrowserPane({
     () => mapping && visiblePath ? localPathBreadcrumbs(mapping, visiblePath) : [],
     [mapping, visiblePath],
   )
+  const hasBreadcrumbs = breadcrumbs.length > 0
   const busy = state ? isLocalDirectoryBusy(state.status) : false
   const currentDirectoryTarget = useMemo<LocalDownloadTarget | null>(() => {
     if (!mapping?.available || !state?.hasLoaded || !state.committedPath || busy || disabled) {
@@ -62,7 +63,6 @@ export function LocalDownloadBrowserPane({
   const currentDirectoryTargetKey = currentDirectoryTarget
     ? `current:${currentDirectoryTarget.mappingId}:${currentDirectoryTarget.path}`
     : ''
-  const directoryEmpty = Boolean(state?.hasLoaded && state.entries.length === 0)
   const canNavigateParent = Boolean(
     mapping?.available
     && state?.hasLoaded
@@ -96,7 +96,10 @@ export function LocalDownloadBrowserPane({
 
   return (
     <section
-      className="local-download-console-browser"
+      className={[
+        'local-download-console-browser',
+        hasBreadcrumbs ? 'has-breadcrumbs' : '',
+      ].filter(Boolean).join(' ')}
       aria-label={t('files.downloadDestinationFolders')}
       aria-busy={busy}
     >
@@ -145,31 +148,32 @@ export function LocalDownloadBrowserPane({
         </div>
       </header>
 
-      <nav
-        className="local-download-console-breadcrumbs"
-        aria-label={t('files.downloadDestinationCurrent')}
-      >
-        {breadcrumbs.map((breadcrumb, index) => (
-          <span key={breadcrumb.path}>
-            {index > 0 ? <ChevronRight size={12} aria-hidden="true" /> : null}
-            <button
-              type="button"
-              disabled={disabled || busy || !mapping?.available}
-              aria-current={index === breadcrumbs.length - 1 ? 'location' : undefined}
-              onClick={() => onNavigate(breadcrumb.path)}
-            >
-              {index === 0 ? <HardDrive size={12} aria-hidden="true" /> : null}
-              {breadcrumb.label}
-            </button>
-          </span>
-        ))}
-      </nav>
+      {hasBreadcrumbs ? (
+        <nav
+          className="local-download-console-breadcrumbs"
+          aria-label={t('files.downloadDestinationCurrent')}
+        >
+          {breadcrumbs.map((breadcrumb, index) => (
+            <span key={breadcrumb.path}>
+              {index > 0 ? <ChevronRight size={12} aria-hidden="true" /> : null}
+              <button
+                type="button"
+                disabled={disabled || busy || !mapping?.available}
+                aria-current={index === breadcrumbs.length - 1 ? 'location' : undefined}
+                onClick={() => onNavigate(breadcrumb.path)}
+              >
+                {index === 0 ? <HardDrive size={12} aria-hidden="true" /> : null}
+                {breadcrumb.label}
+              </button>
+            </span>
+          ))}
+        </nav>
+      ) : null}
 
       <div
         className={[
           'local-download-console-directory-list',
           state?.status === 'navigating' ? 'is-navigating' : '',
-          directoryEmpty ? 'is-empty' : '',
           drop.activeDropTarget === currentDirectoryTargetKey ? 'is-current-drop-target' : '',
           drop.busyDropTarget === currentDirectoryTargetKey ? 'is-drop-busy' : '',
         ].filter(Boolean).join(' ')}
