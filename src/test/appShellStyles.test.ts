@@ -10,6 +10,7 @@ function readSource(relativePath: string) {
 const appShellSource = readSource('../app/app-shell/ui/AppShell.tsx')
 const windowControlsSource = readSource('../app/app-shell/ui/WindowControls.tsx')
 const appSource = readSource('../app/main/App.tsx')
+const coreFatalSource = readSource('../app/main/CoreFatalDialog.tsx')
 const appShellStyles = readSource('../app/app-shell/ui/AppShell.module.scss')
 const windowControlsStyles = readSource('../app/app-shell/ui/WindowControls.module.scss')
 const appStyles = readSource('../app/main/App.module.scss')
@@ -22,7 +23,9 @@ test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
   assert.match(windowControlsSource, /import styles from '\.\/WindowControls\.module\.scss'/)
   assert.match(windowControlsSource, /styles\['window-controls'\]/)
   assert.match(appSource, /styles\['app-keepalive-page'\]/)
-  assert.match(appSource, /styles\['core-fatal-modal'\]/)
+  assert.match(appSource, /<CoreFatalDialog[^>]*fatal=\{coreFatal\}/)
+  assert.match(coreFatalSource, /import styles from '\.\/App\.module\.scss'/)
+  assert.match(coreFatalSource, /styles\['core-fatal-modal'\]/)
 })
 
 test('应用壳层模块保留布局、Portal 和窄窗口合同', () => {

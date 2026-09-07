@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, Button, Modal } from 'antd'
-import { LogOut, ServerOff } from 'lucide-react'
+import { App as AntdApp, Button } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
-import { ConfirmDialog, confirmDialogStyles, termousNotificationClassName } from '#shared/ui'
+import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
 import {
@@ -93,6 +92,7 @@ import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscr
 import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
+import { CoreFatalDialog } from './CoreFatalDialog'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
@@ -1098,6 +1098,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     initialBuildInfo: developmentUpdateSimulation?.buildInfo ?? null,
     initializing,
     startupFailed: Boolean(error),
+    startupFailureMessage: error ?? undefined,
     apiReady,
     appearanceTheme: data.settings.appearance.theme,
     onThemeChange: setTheme,
@@ -1559,41 +1560,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         hosts={data.hosts}
         onBlockingChange={setHostKeyApprovalBlocking}
       />
-      <Modal
-        centered
-        width={420}
-        open={Boolean(coreFatal)}
-        title={null}
-        footer={null}
-        closable={false}
-        closeIcon={null}
-        mask={{ closable: false }}
-        keyboard={false}
-        className={styles['core-fatal-modal']}
-        wrapClassName={`${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`}
-        rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}
-        getContainer={() => document.body}
-      >
-        <section className={styles['core-fatal-dialog']} aria-labelledby="core-fatal-title">
-          <div className={styles['core-fatal-icon']}>
-            <ServerOff size={22} aria-hidden="true" />
-          </div>
-          <div className={styles['core-fatal-copy']}>
-            <h2 id="core-fatal-title">{t('app.coreFatalTitle')}</h2>
-          </div>
-          <div className={styles['core-fatal-actions']}>
-            <Button
-              type="primary"
-              danger
-              className={styles['core-fatal-exit-button']}
-              icon={<LogOut size={16} aria-hidden="true" />}
-              onClick={() => void getTermousBridge()?.windowControls?.confirmClose()}
-            >
-              {t('app.exit')}
-            </Button>
-          </div>
-        </section>
-        </Modal>
+      <CoreFatalDialog key={coreFatal?.code ?? 'none'} fatal={coreFatal} />
           </TerminalRuntimeProvider>
         </TransferRuntimeProvider>
       </FilesWorkspaceRuntimeProvider>

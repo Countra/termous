@@ -22,6 +22,7 @@ export default defineConfig({
         input: {
           preload: path.join(__dirname, 'electron/preload.ts'),
           'update-preload': path.join(__dirname, 'electron/update-preload.ts'),
+          'startup-preload': path.join(__dirname, 'electron/startup-preload.ts'),
         },
         vite: {
           build: {

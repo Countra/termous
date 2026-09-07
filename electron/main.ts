@@ -6,11 +6,13 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  screen,
   shell,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
   type WebContents,
 } from 'electron'
-import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { chmod, lstat, open, rename, rm, stat } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
@@ -19,6 +21,8 @@ import path from 'node:path'
 import type {
   AppLanguage,
   AppTheme,
+  CoreFatalEvent,
+  CoreStartupSnapshot,
   DataPortabilityProgress,
 } from '#common/contracts'
 import { termousReleasePageUrl } from '#common/release-page'
@@ -29,6 +33,10 @@ import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager, type CoreShutdownReason } from './coreProcess'
+import { formatStartupDiagnostics } from './coreDiagnostics'
+import { StartupPresentation, type StartupPresentationView } from './startupPresentation'
+import { registerStartupIPC } from './startupIPC'
+import { sanitizeCoreStartupText } from './coreStartupProtocol'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
 import { openExternalUrl, type ExternalUrlOpenResult } from './externalUrl'
 import { TermousTrayController } from './tray'
@@ -54,7 +62,6 @@ const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
 const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
-const STARTUP_MIN_VISIBLE_MS = 650
 const ELECTRON_PROCESS_LOG_FILE = 'electron-process.log'
 const ELECTRON_PROCESS_LOG_MAX_BYTES = 512 * 1024
 const APPEARANCE_CACHE_FILE = 'appearance.json'
@@ -74,7 +81,11 @@ if (hasSingleInstanceLock) {
     showMainWindow()
   })
 }
-const coreProcess = new CoreProcessManager()
+const coreProcess = new CoreProcessManager({ logger: {
+  info: (event, fields = {}) => reportElectronProcessEvent(event, fields),
+  warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
+  error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
+} })
 const agentSupervisor = new AgentSupervisor({
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
@@ -105,8 +116,6 @@ const trayController = new TermousTrayController({
   quitApp: quitFromTray,
 })
 
-type StartupPhase = 'core' | 'workspace' | 'error'
-
 let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
 let updateRuntime: ApplicationUpdateRuntime | null = null
@@ -115,16 +124,20 @@ let appLanguage: AppLanguage = 'zh-CN'
 let mainWindowReady = false
 let startupReadyRequested = false
 let startupCompleted = false
-let splashPhase: StartupPhase = 'core'
-let splashShownAt: number | null = null
 let splashReadyForDisplay = false
 let splashFocusRequested = false
-let startupCompletionTimer: NodeJS.Timeout | null = null
+let splashUnavailable = false
+let splashAcknowledgementTimer: NodeJS.Timeout | null = null
+let splashAcknowledged = false
+let rendererStartupFailure: CoreFatalEvent | null = null
+let observedStartupAttempt = ''
+const startupPresentation = new StartupPresentation({ onChange: onStartupPresentationChanged })
 
 const exitCoordinator = new AppExitCoordinator({
   shutdownCore: shutdownAgentRuntimeAndCore,
   prepareForExit: prepareApplicationExit,
   recoverAfterFailedUpdateInstall: recoverApplicationAfterFailedUpdateInstall,
+  showRecoveryFailure: showStartupFailure,
   closeAllWindows: closeAllApplicationWindows,
   quitApplication: () => app.quit(),
   reportError: (event, error) => {
@@ -171,7 +184,9 @@ function reportElectronProcessEvent(event: string, details: Record<string, unkno
     const logPath = path.join(logDirectory, ELECTRON_PROCESS_LOG_FILE)
     mkdirSync(logDirectory, { recursive: true })
     if (existsSync(logPath) && statSync(logPath).size >= ELECTRON_PROCESS_LOG_MAX_BYTES) {
-      writeFileSync(logPath, '', 'utf8')
+      const previousLogPath = `${logPath}.1`
+      rmSync(previousLogPath, { force: true })
+      renameSync(logPath, previousLogPath)
     }
     appendFileSync(logPath, `${line}\n`, 'utf8')
   } catch (error) {
@@ -522,11 +537,6 @@ function isAppTheme(value: unknown): value is AppTheme {
   return value === 'dark' || value === 'light'
 }
 
-function currentUpdateLanguage(): AppLanguage {
-  const locale = app.getLocale()
-  return locale.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
-}
-
 function readTrayLanguage(value: unknown, fallback: AppLanguage): AppLanguage {
   if (
     value
@@ -566,11 +576,35 @@ function readCachedAppTheme(): AppTheme {
 function writeCachedAppTheme(theme: AppTheme) {
   try {
     mkdirSync(path.dirname(appearanceCachePath()), { recursive: true })
-    writeFileSync(appearanceCachePath(), JSON.stringify({ theme }), 'utf8')
+    writeFileSync(appearanceCachePath(), JSON.stringify({ theme, language: appLanguage }), 'utf8')
     return true
   } catch {
     return false
   }
+}
+
+function isTrustedSplashIPCEvent(event: IpcMainEvent | IpcMainInvokeEvent) {
+  const target = splashWin
+  if (!target || target.isDestroyed() || event.sender !== target.webContents
+    || event.senderFrame !== event.sender.mainFrame) return false
+  try {
+    const url = new URL(event.senderFrame.url)
+    url.search = ''
+    url.hash = ''
+    return url.href === pathToFileURL(path.join(process.env.VITE_PUBLIC, 'startup.html')).href
+  } catch {
+    return false
+  }
+}
+
+function readCachedAppLanguage(): AppLanguage {
+  try {
+    const cached = JSON.parse(readFileSync(appearanceCachePath(), 'utf8')) as { language?: unknown }
+    if (cached.language === 'zh-CN' || cached.language === 'en-US') return cached.language
+  } catch {
+    // 旧缓存只有主题时，启动窗口暂用系统语言，工作区加载后会更新。
+  }
+  return app.getLocale().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
 
 function createSplashWindow() {
@@ -580,9 +614,10 @@ function createSplashWindow() {
   if (splashWin && !splashWin.isDestroyed()) {
     return
   }
-  splashShownAt = null
+  if (splashUnavailable) return
   splashReadyForDisplay = false
   splashFocusRequested = false
+  splashAcknowledged = false
   const target = new BrowserWindow({
     width: 400,
     height: 236,
@@ -599,12 +634,17 @@ function createSplashWindow() {
     title: `${APP_NAME} Startup`,
     backgroundColor: appTheme === 'dark' ? '#181c24' : '#f7f8fa',
     webPreferences: {
+      preload: path.join(__dirname, 'startup-preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   })
   splashWin = target
+  target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  target.webContents.on('will-navigate', (event) => event.preventDefault())
+  target.webContents.on('preload-error', () => markSplashUnavailable(target, 'preload'))
+  target.webContents.on('render-process-gone', () => markSplashUnavailable(target, 'renderer'))
   target.center()
   target.once('ready-to-show', () => {
     if (splashWin !== target || startupCompleted) {
@@ -615,7 +655,7 @@ function createSplashWindow() {
   })
   target.webContents.once('did-finish-load', () => {
     if (splashWin === target) {
-      applySplashPhase()
+      applyStartupWindowState()
       if (!splashReadyForDisplay) {
         splashReadyForDisplay = true
         showSplashWindow()
@@ -625,51 +665,113 @@ function createSplashWindow() {
   target.on('closed', () => {
     if (splashWin === target) {
       splashWin = null
-      splashShownAt = null
+      startupPresentation.setWindowVisible(false)
       splashReadyForDisplay = false
       splashFocusRequested = false
     }
   })
   void target
-    .loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html'), { query: { theme: appTheme } })
+    .loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html'), { query: { theme: appTheme, locale: appLanguage } })
     .catch(() => {
       if (splashWin !== target) {
         return
       }
-      closeSplashWindow()
-      tryCompleteStartup()
+      markSplashUnavailable(target, 'load')
     })
 }
 
-function applySplashPhase() {
+function startupWindowState() {
+  return { view: startupPresentation.getView(), theme: appTheme, locale: appLanguage }
+}
+
+function markSplashUnavailable(target: BrowserWindow, reason: string) {
+  if (splashWin !== target) return
+  reportElectronProcessEvent('startup-window-unavailable', { reason })
+  splashUnavailable = true
+  closeSplashWindow()
+  startupPresentation.skipPresentation()
+  tryCompleteStartup()
+}
+
+function applyStartupWindowState() {
   const target = splashWin
   if (!target || target.isDestroyed() || target.webContents.isLoading()) {
     return
   }
-  const script = `window.termousStartup?.setTheme(${JSON.stringify(appTheme)}); window.termousStartup?.setPhase(${JSON.stringify(splashPhase)})`
-  void target.webContents.executeJavaScript(script).catch(() => undefined)
+  target.webContents.send('startup:changed', startupWindowState())
 }
 
-function updateSplashPhase(phase: StartupPhase) {
-  splashPhase = phase
-  applySplashPhase()
+function onStartupPresentationChanged(view: StartupPresentationView) {
+  applyStartupWindowState()
+  const target = splashWin
+  if (target && !target.isDestroyed()) {
+    const expanded = view.phase === 'error' || view.attention !== null
+    const workArea = screen.getDisplayMatching(target.getBounds()).workArea
+    const width = Math.min(expanded ? 560 : 400, workArea.width)
+    const height = Math.min(view.phase === 'error' ? 420 : expanded ? 320 : 236, workArea.height)
+    const current = target.getContentSize()
+    if (current[0] !== width || current[1] !== height) {
+      target.setContentSize(width, height)
+      const bounds = target.getBounds()
+      target.setPosition(
+        Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - bounds.width)),
+        Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
+      )
+    }
+  }
+  tryCompleteStartup()
+}
+
+function observeCoreStartup(snapshot: CoreStartupSnapshot) {
+  if (snapshot.attemptId !== observedStartupAttempt) {
+    observedStartupAttempt = snapshot.attemptId
+    rendererStartupFailure = null
+    if (startupCompleted) {
+      startupCompleted = false
+      startupReadyRequested = false
+      splashUnavailable = false
+      win?.hide()
+      createSplashWindow()
+    }
+  }
+  const target = win
+  if (target && !target.isDestroyed()) target.webContents.send('core:status-changed', snapshot)
+  refreshStartupPresentation(snapshot)
+}
+
+function refreshStartupPresentation(snapshot = coreProcess.getStartupStatus()) {
+  startupPresentation.update(snapshot)
+  startupPresentation.setFailure(rendererStartupFailure)
+  startupPresentation.setWorkspaceReady(startupReadyRequested && mainWindowReady)
+}
+
+function showStartupFailure() {
+  if (!coreProcess.getFatal() && !rendererStartupFailure) return false
+  startupCompleted = false
+  win?.hide()
+  createSplashWindow()
+  refreshStartupPresentation()
+  showSplashWindow(true)
+  tryCompleteStartup()
+  return Boolean(splashWin || win)
 }
 
 function closeSplashWindow() {
-  if (startupCompletionTimer) {
-    clearTimeout(startupCompletionTimer)
-    startupCompletionTimer = null
+  if (splashAcknowledgementTimer) {
+    clearTimeout(splashAcknowledgementTimer)
+    splashAcknowledgementTimer = null
   }
   if (splashWin && !splashWin.isDestroyed()) {
     splashWin.destroy()
   }
   splashWin = null
-  splashShownAt = null
+  startupPresentation.setWindowVisible(false)
   splashReadyForDisplay = false
   splashFocusRequested = false
 }
 
 function showSplashWindow(focus = false) {
+  if (exitCoordinator.isApplicationExiting()) return
   const target = splashWin
   if (!target || target.isDestroyed() || startupCompleted) {
     return
@@ -681,8 +783,13 @@ function showSplashWindow(focus = false) {
     return
   }
   target.show()
-  if (splashShownAt === null) {
-    splashShownAt = Date.now()
+  startupPresentation.setWindowVisible(true)
+  if (!splashAcknowledged && !splashAcknowledgementTimer) {
+    // 页面脚本或 preload 加载失败时，不能永久等待无法发送的展示确认。
+    splashAcknowledgementTimer = setTimeout(() => {
+      splashAcknowledgementTimer = null
+      if (!splashAcknowledged) markSplashUnavailable(target, 'acknowledgement_timeout')
+    }, 5_000)
   }
   if (splashFocusRequested) {
     target.focus()
@@ -718,6 +825,7 @@ async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
 }
 
 async function recoverAgentRuntimeAfterFailedShutdown() {
+  if (exitCoordinator.isApplicationExiting()) return
   const status = await agentSupervisor.initialize()
   if (status.state === 'offline') {
     reportElectronProcessEvent('agent-runtime-recovery-failed', {
@@ -738,7 +846,7 @@ async function restartCoreAfterRestore() {
   try {
     return await coreProcess.restartAfterRestore()
   } finally {
-    if (!exitCoordinator.isApplicationExiting()) {
+    if (!exitCoordinator.isApplicationExiting() && !coreProcess.getFatal()) {
       await agentSupervisor.initialize()
     }
   }
@@ -746,7 +854,9 @@ async function restartCoreAfterRestore() {
 
 async function recoverApplicationAfterFailedUpdateInstall() {
   await coreProcess.recoverAfterFailedUpdateInstall()
+  if (exitCoordinator.isApplicationExiting()) return false
   await agentSupervisor.initialize()
+  if (exitCoordinator.isApplicationExiting()) return false
   trayController.initialize()
   if (win && !win.isDestroyed()) {
     win.webContents.reload()
@@ -769,7 +879,7 @@ function closeAllApplicationWindows() {
 }
 
 function revealMainWindow() {
-  if (!win || win.isDestroyed()) {
+  if (exitCoordinator.isApplicationExiting() || !win || win.isDestroyed()) {
     return
   }
   if (win.isMinimized()) {
@@ -780,26 +890,24 @@ function revealMainWindow() {
 }
 
 function tryCompleteStartup() {
-  if (startupCompleted || startupCompletionTimer || !startupReadyRequested || !mainWindowReady) {
+  if (startupCompleted || exitCoordinator.isApplicationExiting()) {
     return
   }
-  let remaining = 0
-  const target = splashWin
-  if (target && !target.isDestroyed()) {
-    if (splashShownAt === null) {
-      return
+  const failed = Boolean(coreProcess.getStartupStatus().failure || rendererStartupFailure)
+  // 启动窗加载失败才交由主窗口展示错误；renderer ready 不能代表 Core 启动成功。
+  if (failed) {
+    if (splashUnavailable && mainWindowReady) {
+      startupCompleted = true
+      revealMainWindow()
     }
-    remaining = Math.max(0, STARTUP_MIN_VISIBLE_MS - (Date.now() - splashShownAt))
+    return
   }
-  startupCompletionTimer = setTimeout(() => {
-    startupCompletionTimer = null
-    if (!startupReadyRequested || !mainWindowReady) {
-      return
-    }
+  if (startupPresentation.getView().canComplete && startupReadyRequested && mainWindowReady) {
     startupCompleted = true
     revealMainWindow()
     closeSplashWindow()
-  }, remaining)
+    updateRuntime?.notifyStartupReady()
+  }
 }
 
 function shouldAutoOpenDevTools() {
@@ -874,6 +982,7 @@ function createWindow() {
 
   win.once('ready-to-show', () => {
     mainWindowReady = true
+    startupPresentation.setWorkspaceReady(startupReadyRequested)
     if (startupCompleted) {
       revealMainWindow()
     } else {
@@ -989,6 +1098,8 @@ function registerCoreProcessControls() {
   ipcMain.handle('core:status', () => coreProcess.status())
   ipcMain.handle('core:shutdown', () => shutdownAgentRuntimeAndCore('frontend_exit'))
   ipcMain.handle('core:get-fatal', () => coreProcess.getFatal())
+  coreProcess.onStatusChanged(observeCoreStartup)
+  refreshStartupPresentation()
 }
 
 function registerAgentRuntimeControls() {
@@ -1006,10 +1117,51 @@ function registerAgentRuntimeControls() {
 }
 
 function registerStartupControls() {
-  ipcMain.handle('startup:ready', () => {
+  registerStartupIPC({
+    isTrustedSplash: isTrustedSplashIPCEvent,
+    isTrustedMain: isTrustedMainIPCEvent,
+    getState: startupWindowState,
+    presented: (acknowledgement) => {
+      const view = startupPresentation.getView()
+      if (view.attemptId !== acknowledgement.attemptId || view.presentationId !== acknowledgement.presentationId) return
+      splashAcknowledged = true
+      if (splashAcknowledgementTimer) {
+        clearTimeout(splashAcknowledgementTimer)
+        splashAcknowledgementTimer = null
+      }
+      startupPresentation.presented(acknowledgement)
+    },
+    diagnostics: () => formatStartupDiagnostics({
+      snapshot: coreProcess.getStartupStatus(),
+      fatal: coreProcess.getFatal() ?? rendererStartupFailure,
+      appVersion: app.getVersion(),
+      logDirectory: app.getPath('logs'),
+    }),
+    openLogs: async () => {
+      const logDirectory = app.getPath('logs')
+      mkdirSync(logDirectory, { recursive: true })
+      const error = await shell.openPath(logDirectory)
+      if (error) throw new Error('diagnostics_open_logs_failed')
+    },
+    exit: () => exitCoordinator.requestApplicationExit('main_window'),
+  })
+  ipcMain.handle('startup:ready', (event, result?: unknown) => {
+    if (!isTrustedMainIPCEvent(event)) return false
+    const value = result && typeof result === 'object'
+      ? result as { attemptId?: unknown; failed?: unknown; message?: unknown } : null
+    if (value?.attemptId !== undefined && value.attemptId !== coreProcess.getStartupStatus().attemptId) return false
+    if (value?.failed === true && !coreProcess.getFatal()) {
+      rendererStartupFailure = {
+        code: 'LOCAL_API_UNAVAILABLE',
+        title: '工作区初始化失败',
+        message: '无法完成工作区初始化，请查看日志了解具体原因。',
+        ...(typeof value.message === 'string' && value.message.trim()
+          ? { details: sanitizeCoreStartupText(value.message) } : {}),
+      }
+    }
     startupReadyRequested = true
+    refreshStartupPresentation()
     tryCompleteStartup()
-    updateRuntime?.notifyStartupReady()
     return true
   })
 }
@@ -1028,7 +1180,7 @@ function registerAppearanceControls() {
       win.setBackgroundColor(theme === 'dark' ? '#0f1116' : '#f4f5f7')
     }
     updateRuntime?.updateAppearance(theme, appLanguage)
-    applySplashPhase()
+    applyStartupWindowState()
     return writeCachedAppTheme(theme)
   })
 }
@@ -1036,7 +1188,12 @@ function registerAppearanceControls() {
 function registerTrayControls() {
   ipcMain.handle('tray:update-state', (_event, state: unknown) => {
     trayController.updateState(state ?? {})
-    appLanguage = readTrayLanguage(state, appLanguage)
+    const nextLanguage = readTrayLanguage(state, appLanguage)
+    if (nextLanguage !== appLanguage) {
+      appLanguage = nextLanguage
+      writeCachedAppTheme(appTheme)
+      applyStartupWindowState()
+    }
     updateRuntime?.updateAppearance(appTheme, appLanguage)
     return true
   })
@@ -1471,7 +1628,7 @@ app.on('activate', () => {
 async function initializeApplication() {
   app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
-  appLanguage = currentUpdateLanguage()
+  appLanguage = readCachedAppLanguage()
   nativeTheme.themeSource = appTheme
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_ID)
@@ -1528,7 +1685,9 @@ async function initializeApplication() {
   createWindow()
   trayController.initialize()
   void coreProcess.initialize().then(() => {
-    updateSplashPhase(coreProcess.getFatal() ? 'error' : 'workspace')
+    if (exitCoordinator.isApplicationExiting()) return
+    refreshStartupPresentation()
+    if (coreProcess.getFatal()) return
     return agentSupervisor.initialize()
   }).catch((error) => {
     reportElectronProcessEvent('agent-runtime-initialize-failed', {

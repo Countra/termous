@@ -10,6 +10,13 @@ export type {
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
 export type {
+  CoreStartupFailure,
+  CoreStartupSnapshot,
+  DatabaseStartupOperation,
+  DatabaseStartupRole,
+  DatabaseStartupState,
+} from './startup'
+export type {
   AppBuildInfo,
   AppConfig,
   AppLanguage,

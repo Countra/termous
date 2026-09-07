@@ -4,6 +4,7 @@ import type {
   AppBuildInfo,
   AppTheme,
   CoreFatalEvent,
+  CoreStartupSnapshot,
   TrayCommand,
   TrayMenuState,
 } from '#common/contracts'
@@ -12,6 +13,7 @@ interface UseDesktopBridgeRuntimeOptions {
   initialBuildInfo: AppBuildInfo | null
   initializing: boolean
   startupFailed: boolean
+  startupFailureMessage?: string
   apiReady: boolean
   appearanceTheme: AppTheme
   onThemeChange: (theme: AppTheme) => void
@@ -23,6 +25,7 @@ export function useDesktopBridgeRuntime({
   initialBuildInfo,
   initializing,
   startupFailed,
+  startupFailureMessage,
   apiReady,
   appearanceTheme,
   onThemeChange,
@@ -32,6 +35,7 @@ export function useDesktopBridgeRuntime({
   const bridge = getTermousBridge()
   const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(initialBuildInfo)
   const [nativeCoreFatal, setNativeCoreFatal] = useState<CoreFatalEvent | null>(null)
+  const [startupAttemptId, setStartupAttemptId] = useState<string | null>(null)
   const onTrayCommandRef = useRef(onTrayCommand)
 
   useEffect(() => {
@@ -40,7 +44,9 @@ export function useDesktopBridgeRuntime({
 
   useEffect(() => {
     let disposed = false
+    let revision = -1
     setNativeCoreFatal(null)
+    setStartupAttemptId(null)
 
     void bridge?.getBuildInfo?.()
       .then((info) => {
@@ -51,23 +57,33 @@ export function useDesktopBridgeRuntime({
       .catch(() => undefined)
 
     const coreBridge = bridge?.core
-    void coreBridge?.getFatal()
-      .then((fatal) => {
-        if (!disposed && fatal) {
-          setNativeCoreFatal(fatal)
-        }
-      })
-      .catch(() => undefined)
-
+    const merge = (snapshot: CoreStartupSnapshot, fatal?: CoreFatalEvent | null) => {
+      if (disposed || snapshot.revision <= revision) return
+      revision = snapshot.revision
+      setNativeCoreFatal(fatal ?? (snapshot.failure ? {
+        title: snapshot.failure.code.startsWith('DB_') ? '数据库启动失败' : '后端连接异常',
+        ...snapshot.failure,
+      } : null))
+    }
+    const unsubscribeStatus = coreBridge?.onStatusChanged?.(merge)
     const cleanup = coreBridge?.onFatal((fatal) => {
       if (!disposed) {
         setNativeCoreFatal(fatal)
       }
     })
+    void coreBridge?.status().then((status) => {
+      if (disposed) return
+      // 一次页面加载只确认自己的启动轮次，恢复重启期间旧页面不能放行新工作区。
+      setStartupAttemptId(status.startup.attemptId)
+      merge(status.startup, status.fatal)
+    }).catch(() => {
+      if (!disposed) setStartupAttemptId('')
+    })
 
     return () => {
       disposed = true
       cleanup?.()
+      unsubscribeStatus?.()
     }
   }, [bridge])
 
@@ -75,8 +91,13 @@ export function useDesktopBridgeRuntime({
     if (initializing && !startupFailed && !nativeCoreFatal) {
       return
     }
-    void bridge?.startup?.ready().catch(() => undefined)
-  }, [bridge, initializing, nativeCoreFatal, startupFailed])
+    if (bridge?.core && startupAttemptId === null) return
+    void bridge?.startup?.ready({
+      failed: startupFailed,
+      attemptId: startupAttemptId || undefined,
+      ...(startupFailed && startupFailureMessage ? { message: startupFailureMessage } : {}),
+    }).catch(() => undefined)
+  }, [bridge, initializing, nativeCoreFatal, startupAttemptId, startupFailed, startupFailureMessage])
 
   useEffect(() => {
     if (initializing || !apiReady) {
