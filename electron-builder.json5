@@ -77,6 +77,10 @@
       "to": "licenses/remark-gfm-LICENSE.txt"
     },
     {
+      "from": "node_modules/driver.js/license",
+      "to": "licenses/driver.js-LICENSE.txt"
+    },
+    {
       "from": "node_modules/@novnc/novnc/LICENSE.txt",
       "to": "licenses/noVNC-LICENSE.txt"
     },

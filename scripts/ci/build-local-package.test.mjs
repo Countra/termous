@@ -57,6 +57,7 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     ['licenses/TypeBox-LICENSE.txt', 'node_modules/typebox/license'],
     ['licenses/react-markdown-LICENSE.txt', 'node_modules/react-markdown/license'],
     ['licenses/remark-gfm-LICENSE.txt', 'node_modules/remark-gfm/license'],
+    ['licenses/driver.js-LICENSE.txt', 'node_modules/driver.js/license'],
     ['licenses/noVNC-LICENSE.txt', 'node_modules/@novnc/novnc/LICENSE.txt'],
     ['licenses/noVNC-AUTHORS.txt', 'node_modules/@novnc/novnc/AUTHORS'],
     ['licenses/noVNC-pako-LICENSE.txt', 'node_modules/@novnc/novnc/vendor/pako/LICENSE'],
@@ -230,6 +231,35 @@ test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
         version: '1.2.3',
       }),
       /第三方声明 licenses[/\\]pi-LICENSE\.txt不存在/u,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-tour-license-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    await rm(path.join(
+      root,
+      'win-unpacked',
+      'licenses',
+      'driver.js-LICENSE.txt',
+    ))
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /第三方声明 licenses[/\\]driver\.js-LICENSE\.txt不存在/u,
     )
   } finally {
     await rm(root, { recursive: true, force: true })

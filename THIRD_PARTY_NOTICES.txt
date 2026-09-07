@@ -131,6 +131,16 @@ License text: licenses/remark-gfm-LICENSE.txt
 Project: https://github.com/remarkjs/remark-gfm
 Source for this version: https://github.com/remarkjs/remark-gfm/tree/4.0.1
 
+driver.js 1.8.0
+---------------
+
+Copyright (c) Kamran Ahmed.
+
+License: MIT
+License text: licenses/driver.js-LICENSE.txt
+Project: https://driverjs.com
+Source for this version: https://github.com/nilbuild/driver.js/tree/v1.8.0
+
 noVNC 1.7.0
 ------------
 

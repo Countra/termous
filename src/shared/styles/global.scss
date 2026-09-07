@@ -248,6 +248,29 @@ body[data-panel-resizing='true'] * {
   z-index: 3400;
 }
 
+/* 使用向导覆盖普通页面，但始终让位于确认框和审批弹窗。 */
+:where(body[data-termous-product-tour='true']) .driver-overlay {
+  z-index: 2980 !important;
+}
+
+/* 向导期间仍允许高层弹窗和表单 Portal 接管交互。 */
+:where(body[data-termous-product-tour='true'].driver-active) :is(
+  .ant-modal-root,
+  .ant-dropdown,
+  .ant-select-dropdown,
+  .ant-picker-dropdown,
+  .ant-popover
+),
+:where(body[data-termous-product-tour='true'].driver-active) :is(
+  .ant-modal-root,
+  .ant-dropdown,
+  .ant-select-dropdown,
+  .ant-picker-dropdown,
+  .ant-popover
+) * {
+  pointer-events: auto;
+}
+
 /* 终端标签拖拽会跨越工作台与 Portal，光标状态必须由 document 统一持有。 */
 body[data-terminal-tab-dragging='true'],
 body[data-terminal-tab-dragging='true'] * {

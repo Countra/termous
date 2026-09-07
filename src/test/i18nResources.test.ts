@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 import { mcpScopes } from '#entities/mcp-access'
+import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
 import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
 type TranslationTree = Record<string, unknown>
@@ -29,6 +30,17 @@ test('代码中的字面量翻译键均已配置', () => {
     }
   }
   assert.deepEqual([...missing].sort(), [])
+})
+
+test('使用向导动态步骤键拥有完整双语翻译', () => {
+  for (const [locale, translations] of [['zh-CN', zhCN], ['en-US', enUS]] as const) {
+    const steps = buildProductTourSteps((key) => {
+      const value = translationValue(translations, key)
+      assert.equal(typeof value, 'string', `${locale}: ${key}`)
+      return value as string
+    })
+    assert.equal(steps.length, 10, locale)
+  }
 })
 
 test('顶部空会话标签使用统一的双语文案', () => {

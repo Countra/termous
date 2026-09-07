@@ -24,6 +24,7 @@ import {
   type HostProvisionGateway,
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
+import { ProductTourController, type ProductTourStep } from '#features/product-tour'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
@@ -34,6 +35,7 @@ import {
   HostKeyCoordinator,
   type HostLauncherData,
   type HostLauncherIntent,
+  type HostManagementEntryTarget,
 } from '#features/hosts'
 import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
@@ -262,7 +264,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     instanceKey: 0,
     intent: 'terminal',
   })
-  const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
+  const [hostEntryIntent, setHostEntryIntent] = useState<HostsPageProps['entryIntent']>(null)
+  const nextHostEntryIntentKeyRef = useRef(0)
   const [hostAccessIntent, setHostAccessIntent] = useState<{
     key: number
     hostId: string
@@ -275,6 +278,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const nextAgentLaunchIntentKeyRef = useRef(0)
   const agentLaunchPendingRef = useRef(false)
   const [actionBusy, setActionBusy] = useState(false)
+  const [productTourRequestKey, setProductTourRequestKey] = useState(0)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
   const [agentRuntimeSummary, setAgentRuntimeSummary] = useState({
@@ -284,6 +288,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [remoteDesktopRuntimeSessions, setRemoteDesktopRuntimeSessions] = useState(
     data.remoteDesktopSessions,
   )
+
+  const requestHostEntry = useCallback((target: HostManagementEntryTarget) => {
+    nextHostEntryIntentKeyRef.current += 1
+    setHostEntryIntent({ key: nextHostEntryIntentKeyRef.current, ...target })
+  }, [])
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -945,12 +954,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const openHostCreate = () => {
     if (hostSavingRef.current) return
+    requestHostEntry({ mode: 'create' })
     setPage('hosts')
-    setHostCreateIntentKey((current) => current + 1)
   }
 
   const openHostEdit = (hostId: string) => {
     if (hostSavingRef.current) return
+    requestHostEntry({ mode: 'edit', hostId })
     setSelectedHostId(hostId)
     setPage('hosts')
   }
@@ -958,6 +968,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const openHostAccess = (hostId: string) => {
     if (hostSavingRef.current) return
     nextHostAccessIntentKeyRef.current += 1
+    requestHostEntry({ mode: 'edit', hostId })
     setSelectedHostId(hostId)
     setHostAccessIntent({
       key: nextHostAccessIntentKeyRef.current,
@@ -1097,6 +1108,59 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     message: error,
     code: 'LOCAL_API_UNAVAILABLE',
   } : null)
+  const productTourReady = !initializing && apiReady && !coreFatal
+  const productTourBlocked = !productTourReady
+    || actionBusy
+    || hostSaving
+    || Boolean(pendingPage)
+  const prepareProductTourStep = (step: ProductTourStep) => {
+    if (
+      actionBusy
+      || hostSavingRef.current
+      || pendingPage
+      || !apiReady
+      || coreFatal
+    ) {
+      return false
+    }
+    if (step.route) {
+      if (step.route === 'hosts' && page !== 'hosts') {
+        if (step.preparation === 'hostCatalog') {
+          requestHostEntry({ mode: 'catalog' })
+        } else if (
+          step.preparation === 'hostEditor'
+          || step.preparation === 'hostConnections'
+        ) {
+          requestHostEntry({ mode: 'create' })
+        }
+      }
+      navigateToPage(step.route)
+    }
+    return true
+  }
+  const isProductTourTransitionBlocked = useCallback((
+    _currentStep: ProductTourStep,
+    nextStep: ProductTourStep,
+  ) => {
+    if (page === 'vault' && vaultDirty) {
+      return nextStep.preparation === 'vaultCatalog'
+        || (nextStep.route !== undefined && nextStep.route !== 'vault')
+    }
+    if (page === 'hosts' && hostsDirty) {
+      return nextStep.preparation === 'hostCatalog'
+        || (nextStep.route !== undefined && nextStep.route !== 'hosts')
+    }
+    return false
+  }, [hostsDirty, page, vaultDirty])
+  const showProductTourBlocked = useCallback(() => {
+    notification.warning({
+      title: t('productTour.menuLabel'),
+      description: t('productTour.blocked'),
+      duration: 4,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [notification, t])
 
   return (
     <ShortcutRuntimeProvider settings={data.settings.shortcuts}>
@@ -1156,6 +1220,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onNavigate={navigateToPage}
                       onOpenConnectionLauncher={openTerminalSessionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
+                      onOpenProductTour={() => setProductTourRequestKey((current) => current + 1)}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
                       onBeforeClose={shutdownBeforeClose}
                       onCloseError={showActionError}
@@ -1241,7 +1306,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         <HostsPage
                           data={hostManagementData}
                           selectedHostId={selectedHostId || selectedHostAssetIdStable}
-                          createIntentKey={hostCreateIntentKey}
+                          entryIntent={hostEntryIntent}
+                          onEntryIntentHandled={(key) => {
+                            setHostEntryIntent((current) => current?.key === key ? null : current)
+                          }}
                           accessIntent={hostAccessIntent}
                           onAccessIntentHandled={(key) => {
                             setHostAccessIntent((current) => (
@@ -1407,6 +1475,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
                     </AppShell>
+                    <ProductTourController
+                      ready={productTourReady}
+                      autoStartEligible={
+                        data.credentials.length === 0
+                        && data.hostAssets.length === 0
+                        && data.hosts.length === 0
+                      }
+                      blocked={productTourBlocked}
+                      isTransitionBlocked={isProductTourTransitionBlocked}
+                      manualRequestKey={productTourRequestKey}
+                      onPrepareStep={prepareProductTourStep}
+                      onBlocked={showProductTourBlocked}
+                      onError={showActionError}
+                    />
                     <ConnectionLauncherRuntimeBridge
                       open={hostLauncherState.open}
                       instanceKey={hostLauncherState.instanceKey}

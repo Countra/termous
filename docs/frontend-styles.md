@@ -12,7 +12,7 @@
 
 ## Renderer 样式入口
 
-- `src/app/renderer-entry/main.tsx` 固定加载 `#shared/styles`，该入口只导入 `src/shared/styles/global.scss`，因此 `main` 与 `update` Surface 都能获得主题变量、根节点和文档级基础样式。
+- `src/app/renderer-entry/main.tsx` 固定加载 `#shared/styles`；该入口先加载 Driver.js 基础 CSS，再加载 `src/shared/styles/global.scss`，因此 `main` 与 `update` Surface 都能获得稳定的第三方基础规则、主题变量、根节点和文档级基础样式。
 - 两个 Surface 都只从该入口加载非 Module SCSS；业务样式由各自组件共置的 SCSS Modules 提供。
 - 仅主窗口需要的文档级规则必须通过 `data-termous-main-surface` 限定，避免滚动条和第三方覆盖污染独立更新窗口。
 - Surface 分流和样式入口由 Renderer 静态合同测试约束；调整入口或顺序时必须同步验证两个 Surface。
@@ -22,6 +22,7 @@
 - `global.scss` 是正式的共享全局层，只承载 CSS Custom Properties、主题、根节点和必要的文档级状态。
 - 原 `app.scss` 与 `workstation.scss` 兼容层已经删除；新增或重构后的业务样式必须与组件共置到 `*.module.scss`。
 - 主窗口滚动条、跨 Portal 调整状态和少量第三方全局覆盖保留在 `global.scss`，并通过明确的 `body[data-*]` Surface 或交互状态限定。
+- 使用向导的覆盖层仅在 `body[data-termous-product-tour='true']` 下调整层级；遮罩与 Popover 分别保持在 `2980`、`2990`，低于默认 `3000+` 的 Ant Design Portal。Popover 视觉规则由 `product-tour` 模块自己的局部类负责，避免扩散到其他 Driver.js 实例。
 - Module 内的文件级全局样式豁免和顶层裸 `:global` 已清零；第三方 Portal 覆盖必须由组件挂载局部 Module 根节点后再定向覆盖。
 
 ## SCSS Modules

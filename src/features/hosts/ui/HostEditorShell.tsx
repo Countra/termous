@@ -62,11 +62,13 @@ export function HostEditorShell({
     <ManagementPanel
       className={styles.panel}
       bodyClassName={styles.body}
+      data-tour="host-editor"
       header={(
         <div className={`${styles.header} host-editor-heading`}>
           <Button
             type="text"
             className={styles.back}
+            data-tour="host-back"
             icon={<ArrowLeft size={16} />}
             aria-label={t('hosts.backToList')}
             disabled={busy}
@@ -102,12 +104,12 @@ export function HostEditorShell({
               {
                 key: 'asset',
                 disabled: busy,
-                label: <span id={`${navigationId}-asset-label`} className={styles['tab-label']}><Info size={13} />{t('hosts.access.hostInfo')}</span>,
+                label: <span id={`${navigationId}-asset-label`} className={styles['tab-label']} data-tour="host-asset-tab"><Info size={13} />{t('hosts.access.hostInfo')}</span>,
               },
               {
                 key: 'connections',
                 disabled: busy,
-                label: <span id={`${navigationId}-connections-label`} className={styles['tab-label']}><Network size={13} />{t('hosts.access.connectionConfig')}</span>,
+                label: <span id={`${navigationId}-connections-label`} className={styles['tab-label']} data-tour="host-connections-tab"><Network size={13} />{t('hosts.access.connectionConfig')}</span>,
               },
             ]}
             onChange={(key) => {
@@ -147,6 +149,7 @@ export function HostEditorShell({
         className={styles.content}
         role="region"
         aria-labelledby={activeSectionLabelId}
+        data-tour={activeSection === 'connections' ? 'host-connection-catalog' : undefined}
         tabIndex={-1}
       >
         {children}

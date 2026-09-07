@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Host } from '#entities/host'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessWorkspaceGateway, HostProvisionGateway } from '#features/host-access'
@@ -13,6 +13,7 @@ vi.mock('./HostAccessWorkspace', async () => {
       openAccessIntentKey,
       initialView,
       initialConnectionSetupConsidered,
+      gateway,
       onBack,
       onDirtyChange,
     }: {
@@ -20,10 +21,15 @@ vi.mock('./HostAccessWorkspace', async () => {
       openAccessIntentKey?: number
       initialView?: 'asset' | 'access'
       initialConnectionSetupConsidered?: boolean
+      gateway: HostAccessWorkspaceGateway
       onBack: () => void
       onDirtyChange: (dirty: boolean) => void
     }) => {
       const [draft, setDraft] = React.useState(host.name)
+      React.useEffect(() => {
+        void gateway.loadCatalog(host.id)
+        void gateway.listSSHProfiles()
+      }, [gateway, host.id])
       return (
         <div>
           <output data-testid="access-draft">{draft}</output>
@@ -113,7 +119,8 @@ function createProps() {
       credentials: [], hostIcons: [], sessions: [], fileSessions: [], forwards: [],
       remoteDesktopSessions: [],
     },
-    selectedHostId: '', actionBusy: false, createIntentKey: 1,
+    selectedHostId: '', actionBusy: false,
+    entryIntent: { key: 1, mode: 'create' as const },
     accessGateway: { ...accessGateway, provisionHost: vi.fn() },
     onSelectHost: vi.fn(), onDelete: vi.fn(), onCreateGroup: vi.fn(),
     onRenameGroup: vi.fn(), onDeleteGroup: vi.fn(), onReorderGroups: vi.fn(),
@@ -130,6 +137,120 @@ function confirmHostOnlySave() {
 describe('主机管理工作区', () => {
   beforeAll(() => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each(['catalog', 'create'] as const)('已有主机时以 %s 进入意图首帧不加载现有主机目录', async (mode) => {
+    const props = createProps()
+    const selected = assetFromHost(host)
+    const onEntryIntentHandled = vi.fn()
+
+    render(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={{ key: 7, mode }}
+        onEntryIntentHandled={onEntryIntentHandled}
+      />,
+    )
+
+    expect(document.querySelector('.hosts-management-workspace')).toHaveAttribute(
+      'data-active-view',
+      mode === 'create' ? 'editor' : 'catalog',
+    )
+    expect(props.accessGateway.loadCatalog).not.toHaveBeenCalled()
+    expect(props.accessGateway.listSSHProfiles).not.toHaveBeenCalled()
+    await waitFor(() => expect(onEntryIntentHandled).toHaveBeenCalledExactlyOnceWith(7))
+  })
+
+  it('普通导航仍按选中主机加载访问目录', async () => {
+    const props = createProps()
+    const selected = assetFromHost(host)
+
+    render(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={null}
+      />,
+    )
+
+    await waitFor(() => expect(props.accessGateway.loadCatalog).toHaveBeenCalledExactlyOnceWith(selected.id))
+    expect(props.accessGateway.listSSHProfiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('目录进入意图后可用编辑意图重新打开同一个已选主机', async () => {
+    const props = createProps()
+    const selected = assetFromHost(host)
+    const onEntryIntentHandled = vi.fn()
+    const view = render(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={{ key: 1, mode: 'catalog' }}
+        onEntryIntentHandled={onEntryIntentHandled}
+      />,
+    )
+    await waitFor(() => expect(onEntryIntentHandled).toHaveBeenCalledWith(1))
+    expect(document.querySelector('.hosts-management-workspace')).toHaveAttribute(
+      'data-active-view',
+      'catalog',
+    )
+
+    view.rerender(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={{ key: 2, mode: 'edit', hostId: selected.id }}
+        onEntryIntentHandled={onEntryIntentHandled}
+      />,
+    )
+
+    await waitFor(() => expect(onEntryIntentHandled).toHaveBeenCalledWith(2))
+    await waitFor(() => expect(props.accessGateway.loadCatalog).toHaveBeenCalledWith(selected.id))
+    expect(document.querySelector('.hosts-management-workspace')).toHaveAttribute(
+      'data-active-view',
+      'editor',
+    )
+  })
+
+  it('已挂载工作区的进入意图继续经过脏草稿确认', () => {
+    const props = createProps()
+    const selected = assetFromHost(host)
+    const view = render(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={null}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '修改访问草稿' }))
+
+    view.rerender(
+      <HostManagementWorkspace
+        {...props}
+        data={{ ...props.data, hostAssets: [selected] }}
+        selectedHostId={selected.id}
+        entryIntent={{ key: 8, mode: 'catalog' }}
+      />,
+    )
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('access-draft')).toHaveTextContent('未保存访问草稿')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.cancel' }))
+    expect(screen.getByTestId('access-draft')).toHaveTextContent('未保存访问草稿')
+    expect(document.querySelector('.hosts-management-workspace')).toHaveAttribute(
+      'data-active-view',
+      'editor',
+    )
   })
 
   it('没有凭据和 SSH 配置也可创建，迟到的列表快照不使编辑器退回新建', async () => {
@@ -167,7 +288,7 @@ describe('主机管理工作区', () => {
     const saved = { ...assetFromHost(host), id: 'host-c', name: '新建主机 C' }
     const props = {
       ...defaults,
-      createIntentKey: 0,
+      entryIntent: null,
       selectedHostId: secondHost.id,
       data: { ...defaults.data, hostAssets: originalAssets },
     }
@@ -298,7 +419,7 @@ describe('主机管理工作区', () => {
   })
 
   it('已选主机被外部删除且无草稿时，切换到仍存在的主机', () => {
-    const props = { ...createProps(), createIntentKey: 0, selectedHostId: secondHost.id }
+    const props = { ...createProps(), entryIntent: null, selectedHostId: secondHost.id }
     const assetA = assetFromHost(host)
     const assetB = assetFromHost(secondHost)
     const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA, assetB] }} />)
@@ -310,7 +431,7 @@ describe('主机管理工作区', () => {
   })
 
   it('主机被外部删除时保留脏编辑器，确认离开才释放草稿且不把删除项放回目录', () => {
-    const props = { ...createProps(), createIntentKey: 0, selectedHostId: secondHost.id }
+    const props = { ...createProps(), entryIntent: null, selectedHostId: secondHost.id }
     const assetA = assetFromHost(host)
     const assetB = assetFromHost(secondHost)
     const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetA, assetB] }} />)
@@ -329,7 +450,7 @@ describe('主机管理工作区', () => {
   })
 
   it('最后一台主机外部删除后返回目录，保留原编辑器而不自动开始新建', () => {
-    const props = { ...createProps(), createIntentKey: 0, selectedHostId: host.id }
+    const props = { ...createProps(), entryIntent: null, selectedHostId: host.id }
     const view = render(<HostManagementWorkspace {...props} data={{ ...props.data, hostAssets: [assetFromHost(host)] }} />)
     view.rerender(<HostManagementWorkspace {...props} />)
     expect(screen.getByTestId('access-draft')).toHaveTextContent(host.name)
@@ -539,7 +660,7 @@ describe('主机管理工作区', () => {
       getHostIconUrl: () => '',
     }
     const view = render(
-      <HostManagementWorkspace {...props} createIntentKey={1} />,
+      <HostManagementWorkspace {...props} entryIntent={{ key: 1, mode: 'create' }} />,
     )
 
     fireEvent.change(screen.getByRole('textbox', { name: 'hosts.note' }), { target: { value: '尚未命名的草稿' } })
@@ -547,7 +668,7 @@ describe('主机管理工作区', () => {
     expect(screen.getByText('hosts.access.errors.required')).toBeVisible()
 
     view.rerender(
-      <HostManagementWorkspace {...props} createIntentKey={2} />,
+      <HostManagementWorkspace {...props} entryIntent={{ key: 2, mode: 'create' }} />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'hosts.discardAndContinue' }))
 

@@ -115,7 +115,7 @@ export function HostAssetForm({
   }
 
   return (
-    <div className="host-editor-body">
+    <div className="host-editor-body" data-tour="host-asset-form">
       <section className="host-editor-section">
         <div className="host-editor-grid">
           <div className="host-editor-field">

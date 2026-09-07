@@ -4403,6 +4403,59 @@
       "completed_unknown": "已完成，退出码未知"
     }
   },
+  "productTour": {
+    "helpButton": "帮助",
+    "menuLabel": "使用向导",
+    "blocked": "当前页面有未保存的更改或正在处理的操作，请先完成或取消后再继续。",
+    "progress": "第 {{current}} 步，共 {{total}} 步",
+    "next": "下一步",
+    "previous": "上一步",
+    "done": "完成",
+    "skip": "跳过使用向导",
+    "close": "关闭使用向导",
+    "steps": {
+      "welcome": {
+        "title": "欢迎使用 Termous",
+        "description": "Termous 将凭据、主机和远程操作集中到一个工作台。用约 3 分钟了解从准备 SSH 连接到开始工作的核心流程。"
+      },
+      "vaultNav": {
+        "title": "从凭据开始",
+        "description": "凭据是建立 SSH 连接的第一步。凭据库集中管理密码和私钥，供后续连接配置选用。"
+      },
+      "vaultActions": {
+        "title": "选择凭据创建方式",
+        "description": "你可以直接生成新的 SSH 密钥，也可以新增密码凭据或导入已有私钥，根据服务器的认证方式选择即可。"
+      },
+      "credentialEditor": {
+        "title": "填写凭据信息",
+        "description": "选择凭据类型，填写便于识别的名称和对应密文。敏感内容由 Termous 在本地安全存储，后续可直接用于连接配置。"
+      },
+      "hostsNav": {
+        "title": "创建主机资产",
+        "description": "主机用于整理你管理的设备，并承载一个或多个连接配置。先添加主机，再配置访问方式。"
+      },
+      "hostEditor": {
+        "title": "整理主机信息",
+        "description": "设置名称、分组、标签和图标，让主机资产便于查找和识别；完成后可继续添加 SSH 连接配置。"
+      },
+      "hostConnections": {
+        "title": "配置 SSH 连接",
+        "description": "在连接页签填写 SSH 端点，选择凭据和可选代理，并设定默认连接。保存 SSH 配置时会自动配套生成 SFTP 配置。"
+      },
+      "topbarConnect": {
+        "title": "快速发起连接",
+        "description": "在工作台顶栏打开主机启动器，可选择已配置的主机连接；也可以从这里新建本地终端。"
+      },
+      "workbench": {
+        "title": "在工作台处理日常任务",
+        "description": "使用会话标签切换终端，在中央操作会话，并通过右侧工具区访问文件和监控能力。"
+      },
+      "finish": {
+        "title": "准备就绪",
+        "description": "你已了解核心流程。以后可从侧栏帮助菜单再次打开使用向导；端口转发、命令片段、远程桌面和 AI 助手等能力可按需继续探索。"
+      }
+    }
+  },
   "fields": {
     "required": "必填",
     "optional": "可选",

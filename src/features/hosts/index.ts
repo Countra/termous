@@ -23,6 +23,8 @@ export type {
 export {
   HostManagementWorkspace,
   type HostAccessIntent,
+  type HostManagementEntryIntent,
+  type HostManagementEntryTarget,
   type HostManagementWorkspaceProps,
 } from './ui/HostManagementWorkspace.tsx'
 export {

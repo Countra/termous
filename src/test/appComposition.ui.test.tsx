@@ -11,7 +11,13 @@ const testState = vi.hoisted(() => {
     notifications: {
       error: vi.fn(),
       success: vi.fn(),
+      warning: vi.fn(),
     },
+    initializing: false,
+    apiReady: false,
+    dataError: null as string | null,
+    productTourProps: null as import('#features/product-tour').ProductTourControllerProps | null,
+    productTourPageHarness: false,
     persistentStateSetter: vi.fn(),
     workbenchMounts: 0,
     workbenchUnmounts: 0,
@@ -28,6 +34,7 @@ const testState = vi.hoisted(() => {
     hostAccessIntent: null as { key: number; hostId: string } | null,
     onAccessIntentHandled: null as ((key: number) => void) | null,
     onManageHostAccess: null as ((hostId: string) => void) | null,
+    onCreateHost: null as (() => void) | null,
     launcherOpen: false,
     launcherIntent: 'terminal',
     onLauncherClose: null as (() => void) | null,
@@ -53,8 +60,8 @@ const testState = vi.hoisted(() => {
       hostLauncher: [] as string[],
     },
     data: {
-      hosts: [],
-      hostAssets: [],
+      hosts: [] as Array<import('#entities/host').Host>,
+      hostAssets: [] as Array<Record<string, unknown>>,
       groups: [],
       hostIcons: [{
         id: 'icon-a',
@@ -67,7 +74,7 @@ const testState = vi.hoisted(() => {
         created_at: '2026-08-11T00:00:00Z',
       }],
       proxies: [],
-      credentials: [],
+      credentials: [] as Array<Record<string, unknown>>,
       sessions: [],
       fileSessions: [],
       sshAccessProfiles: [] as Array<Record<string, unknown>>,
@@ -197,17 +204,38 @@ vi.mock('#app/app-shell', () => ({
     children,
     onNavigate,
     onOpenConnectionLauncher,
+    onOpenProductTour,
   }: {
     children: ReactNode
     onNavigate: (page: 'workbench' | 'agent' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'remote-desktop') => void
     onOpenConnectionLauncher: () => void
+    onOpenProductTour: () => void
   }) => (
     <div data-provider="app-shell">
-      <button type="button" onClick={onOpenConnectionLauncher}>global-connect</button>
+      <button
+        type="button"
+        data-tour={testState.productTourPageHarness ? 'topbar-connect' : undefined}
+        onClick={onOpenConnectionLauncher}
+      >
+        global-connect
+      </button>
+      <button
+        type="button"
+        data-tour={testState.productTourPageHarness ? 'product-tour-trigger' : undefined}
+        onClick={onOpenProductTour}
+      >
+        product-tour
+      </button>
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
       <button type="button" onClick={() => onNavigate('agent')}>agent</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
-      <button type="button" onClick={() => onNavigate('vault')}>vault</button>
+      <button
+        type="button"
+        data-tour={testState.productTourPageHarness ? 'nav-vault' : undefined}
+        onClick={() => onNavigate('vault')}
+      >
+        vault
+      </button>
       <button type="button" onClick={() => onNavigate('files')}>files</button>
       <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
       <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
@@ -284,7 +312,13 @@ vi.mock('#widgets/workbench', () => ({
     }, [])
     return (
       <>
-        <div data-testid="workbench" data-active={String(active)}>Workbench</div>
+        <div
+          data-testid="workbench"
+          data-active={String(active)}
+          data-tour={testState.productTourPageHarness ? 'workbench-terminal' : undefined}
+        >
+          Workbench
+        </div>
         {active ? (
           <>
             <button
@@ -309,21 +343,77 @@ vi.mock('#widgets/workbench', () => ({
 vi.mock('#pages/hosts', () => ({
   HostsPage: ({
     data,
+    selectedHostId,
+    entryIntent,
+    onEntryIntentHandled,
     onDirtyChange,
     accessIntent,
     onAccessIntentHandled,
     onLaunchAgent,
   }: {
     data: Record<string, unknown>
+    selectedHostId: string
+    entryIntent?: (
+      | { key: number; mode: 'catalog' | 'create' }
+      | { key: number; mode: 'edit'; hostId: string }
+    ) | null
+    onEntryIntentHandled?: (key: number) => void
     onDirtyChange: (dirty: boolean) => void
     accessIntent?: { key: number; hostId: string } | null
     onAccessIntentHandled?: (key: number) => void
     onLaunchAgent?: (intent: import('#entities/agent').AgentLaunchRequest) => void
   }) => {
+    const [tourView, setTourView] = useState<'catalog' | 'asset' | 'connections' | 'existing'>(() => {
+      if (entryIntent?.mode === 'catalog') return 'catalog'
+      if (entryIntent?.mode === 'create') return 'asset'
+      return selectedHostId ? 'existing' : 'catalog'
+    })
+    useEffect(() => {
+      if (!entryIntent) return
+      setTourView(entryIntent.mode === 'catalog'
+        ? 'catalog'
+        : (entryIntent.mode === 'create' ? 'asset' : 'existing'))
+      onEntryIntentHandled?.(entryIntent.key)
+    }, [entryIntent, onEntryIntentHandled])
     testState.projectionKeys.hosts = Object.keys(data).sort()
     testState.hostAccessIntent = accessIntent ?? null
     testState.onAccessIntentHandled = onAccessIntentHandled ?? null
     testState.onHostsLaunchAgent = onLaunchAgent ?? null
+    if (testState.productTourPageHarness) {
+      return (
+        <div data-testid="hosts-page">
+          {tourView === 'existing' ? (
+            <div data-active-view="editor" data-testid="existing-host-editor" />
+          ) : tourView === 'catalog' ? (
+            <div data-active-view="catalog">
+              <button type="button" data-tour="hosts-add" onClick={() => setTourView('asset')}>
+                hosts-add
+              </button>
+            </div>
+          ) : (
+            <div data-active-view="editor">
+              <section data-tour="host-editor">
+                <button type="button" data-tour="host-back" onClick={() => setTourView('catalog')}>
+                  host-back
+                </button>
+                <button type="button" data-tour="host-asset-tab" onClick={() => setTourView('asset')}>
+                  host-asset-tab
+                </button>
+                <button
+                  type="button"
+                  data-tour="host-connections-tab"
+                  onClick={() => setTourView('connections')}
+                >
+                  host-connections-tab
+                </button>
+                {tourView === 'asset' ? <div data-tour="host-asset-form" /> : null}
+                {tourView === 'connections' ? <div data-tour="host-connection-catalog" /> : null}
+              </section>
+            </div>
+          )}
+        </div>
+      )
+    }
     return (
       <div data-testid="hosts-page">
         Hosts
@@ -370,6 +460,25 @@ vi.mock('#pages/remote-desktop', () => ({
     </div>
   ),
 }))
+
+vi.mock('#features/product-tour', () => ({
+  ProductTourController: (props: import('#features/product-tour').ProductTourControllerProps) => {
+    testState.productTourProps = props
+    return null
+  },
+}))
+
+vi.mock('../app/main/model/useRealtimeStatusSubscriptions', () => ({
+  useRealtimeStatusSubscriptions: () => undefined,
+}))
+
+vi.mock('../app/main/model/useSessionSnapshotSubscription', () => ({
+  useSessionSnapshotSubscription: () => undefined,
+}))
+
+vi.mock('../app/main/model/useFileSessionSnapshotSubscription', () => ({
+  useFileSessionSnapshotSubscription: () => undefined,
+}))
 vi.mock('#pages/forwards', () => ({
   ForwardsPage: ({
     data,
@@ -398,16 +507,43 @@ vi.mock('#pages/snippets', () => ({
   },
 }))
 vi.mock('#pages/vault', () => ({
-  VaultPage: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
-    <div data-testid="vault-page">
-      <button type="button" onClick={() => onDirtyChange(true)}>vault-dirty</button>
-    </div>
-  ),
+  VaultPage: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => {
+    const [tourView, setTourView] = useState<'catalog' | 'editor'>('catalog')
+    if (testState.productTourPageHarness) {
+      return (
+        <div data-testid="vault-page">
+          {tourView === 'catalog' ? (
+            <div data-active-view="catalog">
+              <div data-tour="vault-actions">
+                <button type="button" data-tour="vault-add" onClick={() => setTourView('editor')}>
+                  vault-add
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div data-active-view="editor">
+              <section data-tour="credential-editor">
+                <button type="button" data-tour="credential-back" onClick={() => setTourView('catalog')}>
+                  credential-back
+                </button>
+              </section>
+            </div>
+          )}
+        </div>
+      )
+    }
+    return (
+      <div data-testid="vault-page">
+        <button type="button" onClick={() => onDirtyChange(true)}>vault-dirty</button>
+      </div>
+    )
+  },
 }))
 vi.mock('#features/hosts', () => ({
   HostLauncherModal: ({
     data,
     onManageHostAccess,
+    onCreateHost,
     open,
     intent,
     onClose,
@@ -417,6 +553,7 @@ vi.mock('#features/hosts', () => ({
   }: {
     data: Record<string, unknown>
     onManageHostAccess: (hostId: string) => void
+    onCreateHost: () => void
     open: boolean
     intent: string
     onClose: () => void
@@ -426,6 +563,7 @@ vi.mock('#features/hosts', () => ({
   }) => {
     testState.projectionKeys.hostLauncher = Object.keys(data).sort()
     testState.onManageHostAccess = onManageHostAccess
+    testState.onCreateHost = onCreateHost
     testState.launcherOpen = open
     testState.launcherIntent = intent
     testState.onLauncherClose = onClose
@@ -507,9 +645,9 @@ vi.mock('#app/data-runtime', () => ({
       remoteDesktop: {},
     },
     data: testState.data,
-    initializing: false,
-    apiReady: false,
-    error: null,
+    initializing: testState.initializing,
+    apiReady: testState.apiReady,
+    error: testState.dataError,
     activeSession: null,
     forwardErrorEvent: testState.forwardErrorEvent,
     fileSessionClosures: {},
@@ -519,6 +657,8 @@ vi.mock('#app/data-runtime', () => ({
 
 import App from '#app/main'
 import appStyles from '../app/main/App.module.scss'
+import { prepareProductTourDom } from '../features/product-tour/model/productTourDomPreparation.ts'
+import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
 
 const appStyleElement = document.createElement('style')
 appStyleElement.textContent = `.${appStyles['app-keepalive-page']}.${appStyles['is-hidden']} { display: none; }`
@@ -545,6 +685,11 @@ describe('应用运行时组合合同', () => {
     testState.onAgentLaunchIntentHandled = null
     testState.onHostsLaunchAgent = null
     testState.forwardErrorEvent = null
+    testState.initializing = false
+    testState.apiReady = false
+    testState.dataError = null
+    testState.productTourProps = null
+    testState.productTourPageHarness = false
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
     testState.workbenchForwardsIsArray = false
@@ -552,6 +697,7 @@ describe('应用运行时组合合同', () => {
     testState.hostAccessIntent = null
     testState.onAccessIntentHandled = null
     testState.onManageHostAccess = null
+    testState.onCreateHost = null
     testState.launcherOpen = false
     testState.launcherIntent = 'terminal'
     testState.onLauncherClose = null
@@ -563,11 +709,15 @@ describe('应用运行时组合合同', () => {
     testState.data.sshAccessProfiles.splice(0)
     testState.data.fileAccessProfiles.splice(0)
     testState.data.remoteDesktopProfiles.splice(0)
+    testState.data.credentials.splice(0)
+    testState.data.hostAssets.splice(0)
+    testState.data.hosts.splice(0)
     Object.values(testState.projectionKeys).forEach((keys) => keys.splice(0))
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
     testState.notifications.error.mockReset()
     testState.notifications.success.mockReset()
+    testState.notifications.warning.mockReset()
     window.localStorage.clear()
   })
 
@@ -680,6 +830,304 @@ describe('应用运行时组合合同', () => {
 
     await user.click(screen.getByRole('button', { name: 'snippets' }))
     expect(testState.projectionKeys.snippets).toEqual(['snippetGroups', 'snippets'])
+  })
+
+  it('仅在 Core 就绪且凭据与主机均为空时允许自动使用向导', () => {
+    const view = render(<App />)
+
+    expect(testState.productTourProps?.ready).toBe(false)
+
+    testState.apiReady = true
+    testState.initializing = true
+    view.rerender(<App />)
+    expect(testState.productTourProps?.ready).toBe(false)
+
+    testState.initializing = false
+    testState.dataError = 'core unavailable'
+    view.rerender(<App />)
+    expect(testState.productTourProps?.ready).toBe(false)
+
+    testState.dataError = null
+    view.rerender(<App />)
+
+    expect(testState.productTourProps).toMatchObject({
+      ready: true,
+      autoStartEligible: true,
+      blocked: false,
+      manualRequestKey: 0,
+    })
+
+    testState.data.credentials.push({ id: 'credential-a' })
+    view.rerender(<App />)
+    expect(testState.productTourProps?.autoStartEligible).toBe(false)
+
+    testState.data.credentials.splice(0)
+    testState.data.hostAssets.push({ id: 'host-a' })
+    view.rerender(<App />)
+    expect(testState.productTourProps?.autoStartEligible).toBe(false)
+
+    testState.data.hostAssets.splice(0)
+    testState.data.hosts.push({
+      id: 'legacy-host-a',
+      name: 'Legacy host',
+      platform: 'linux',
+      group_id: '',
+      address: '127.0.0.1',
+      port: 22,
+      username: 'root',
+      auth_method: 'password',
+      credential_id: '',
+      tags: [],
+      favorite: false,
+      fingerprint_policy: 'ask',
+    })
+    view.rerender(<App />)
+    expect(testState.productTourProps?.autoStartEligible).toBe(false)
+  })
+
+  it('帮助入口递增手动请求，语义准备只导航且脏状态仅阻止跨路由', async () => {
+    const user = userEvent.setup()
+    testState.apiReady = true
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'product-tour' }))
+    expect(testState.productTourProps?.manualRequestKey).toBe(1)
+    act(() => {
+      testState.productTourProps?.onPrepareStep({
+        id: 'vaultNav',
+        title: '',
+        description: '',
+        route: 'vault',
+      }, new AbortController().signal)
+    })
+    expect(screen.getByTestId('vault-page')).toBeInTheDocument()
+    expect(testState.action).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'vault-dirty' }))
+    expect(testState.productTourProps?.blocked).toBe(false)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'welcome', title: '', description: '' },
+      { id: 'vaultNav', title: '', description: '', route: 'vault' },
+    )).toBe(false)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'vaultNav', title: '', description: '', route: 'vault' },
+      { id: 'welcome', title: '', description: '' },
+    )).toBe(false)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'credentialEditor', title: '', description: '', route: 'vault' },
+      {
+        id: 'vaultActions',
+        title: '',
+        description: '',
+        route: 'vault',
+        preparation: 'vaultCatalog',
+      },
+    )).toBe(true)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'credentialEditor', title: '', description: '', route: 'vault' },
+      { id: 'hostsNav', title: '', description: '', route: 'hosts' },
+    )).toBe(true)
+    act(() => testState.productTourProps?.onBlocked())
+    expect(testState.notifications.warning).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'productTour.menuLabel',
+      description: 'productTour.blocked',
+    }))
+  })
+
+  it('已有主机时向导跨页首帧直接进入目录或空白编辑器', async () => {
+    testState.apiReady = true
+    testState.productTourPageHarness = true
+    testState.data.hostAssets.push({
+      id: 'host-existing',
+      name: 'Existing host',
+      platform: 'linux',
+      group_id: '',
+      icon_id: '',
+      tags: [],
+      favorite: false,
+      note: '',
+    })
+    const user = userEvent.setup()
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    expect(screen.getByTestId('existing-host-editor')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'workbench' }))
+
+    await act(async () => {
+      await testState.productTourProps?.onPrepareStep({
+        id: 'hostsNav',
+        title: '',
+        description: '',
+        route: 'hosts',
+        preparation: 'hostCatalog',
+      }, new AbortController().signal)
+    })
+    expect(screen.getByRole('button', { name: 'hosts-add' })).toBeInTheDocument()
+    expect(screen.queryByTestId('existing-host-editor')).not.toBeInTheDocument()
+
+    await act(async () => {
+      await testState.productTourProps?.onPrepareStep({
+        id: 'topbarConnect',
+        title: '',
+        description: '',
+        route: 'workbench',
+      }, new AbortController().signal)
+    })
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+
+    await act(async () => {
+      await testState.productTourProps?.onPrepareStep({
+        id: 'hostConnections',
+        title: '',
+        description: '',
+        route: 'hosts',
+        preparation: 'hostConnections',
+      }, new AbortController().signal)
+    })
+    expect(document.querySelector(
+      '[data-active-view="editor"] [data-tour="host-editor"]',
+    )).not.toBeNull()
+    expect(screen.queryByTestId('existing-host-editor')).not.toBeInTheDocument()
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('普通新增主机入口继续直接进入空白编辑器', () => {
+    testState.productTourPageHarness = true
+    testState.data.hostAssets.push({
+      id: 'host-existing',
+      name: 'Existing host',
+      platform: 'linux',
+      group_id: '',
+      icon_id: '',
+      tags: [],
+      favorite: false,
+      note: '',
+    })
+    render(<App />)
+
+    act(() => testState.onCreateHost?.())
+
+    expect(document.querySelector(
+      '[data-active-view="editor"] [data-tour="host-editor"]',
+    )).not.toBeNull()
+    expect(screen.queryByTestId('existing-host-editor')).not.toBeInTheDocument()
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('向导切到主机目录后仍可从全局入口管理同一个已选主机', async () => {
+    testState.apiReady = true
+    testState.productTourPageHarness = true
+    testState.data.hostAssets.push({
+      id: 'host-existing',
+      name: 'Existing host',
+      platform: 'linux',
+      group_id: '',
+      icon_id: '',
+      tags: [],
+      favorite: false,
+      note: '',
+    })
+    render(<App />)
+
+    await act(async () => {
+      await testState.productTourProps?.onPrepareStep({
+        id: 'hostsNav',
+        title: '',
+        description: '',
+        route: 'hosts',
+        preparation: 'hostCatalog',
+      }, new AbortController().signal)
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'hosts-add' })).toBeInTheDocument())
+
+    await act(async () => testState.onManageHostAccess?.('host-existing'))
+
+    await waitFor(() => expect(screen.getByTestId('existing-host-editor')).toBeInTheDocument())
+    expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
+  })
+
+  it('组合级完成十步页面准备且不触发任何写操作或网络请求', async () => {
+    testState.apiReady = true
+    testState.productTourPageHarness = true
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
+
+    try {
+      render(<App />)
+      const steps = buildProductTourSteps((key) => key)
+      const preparationController = new AbortController()
+
+      for (const step of steps) {
+        const prepareStep = testState.productTourProps?.onPrepareStep
+        expect(prepareStep).toBeTypeOf('function')
+        let allowed: boolean | void | undefined
+        await act(async () => {
+          allowed = await prepareStep?.(step, preparationController.signal)
+          await prepareProductTourDom(step, preparationController.signal)
+        })
+        expect(allowed).toBe(true)
+        if (step.element) {
+          await waitFor(() => expect(document.querySelector(step.element!)).not.toBeNull())
+        }
+      }
+
+      expect(steps.map((step) => step.id)).toEqual([
+        'welcome',
+        'vaultNav',
+        'vaultActions',
+        'credentialEditor',
+        'hostsNav',
+        'hostEditor',
+        'hostConnections',
+        'topbarConnect',
+        'workbench',
+        'finish',
+      ])
+      expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+      expect(testState.data.credentials).toHaveLength(0)
+      expect(testState.data.hostAssets).toHaveLength(0)
+      expect(testState.data.sessions).toHaveLength(0)
+      expect(testState.launcherOpen).toBe(false)
+      expect(testState.action).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
+  it('主机草稿允许编辑器页签讲解，并阻止返回目录或离开页面', async () => {
+    const user = userEvent.setup()
+    testState.apiReady = true
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+
+    expect(testState.productTourProps?.blocked).toBe(false)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'hostEditor', title: '', description: '', route: 'hosts' },
+      {
+        id: 'hostConnections',
+        title: '',
+        description: '',
+        route: 'hosts',
+        preparation: 'hostConnections',
+      },
+    )).toBe(false)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'hostEditor', title: '', description: '', route: 'hosts' },
+      {
+        id: 'hostsNav',
+        title: '',
+        description: '',
+        route: 'hosts',
+        preparation: 'hostCatalog',
+      },
+    )).toBe(true)
+    expect(testState.productTourProps?.isTransitionBlocked?.(
+      { id: 'hostConnections', title: '', description: '', route: 'hosts' },
+      { id: 'topbarConnect', title: '', description: '', route: 'workbench' },
+    )).toBe(true)
   })
 
   it('全局连接固定使用终端场景，页面入口使用自己的访问场景', async () => {

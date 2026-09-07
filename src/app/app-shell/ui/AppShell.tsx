@@ -1,6 +1,7 @@
 import {
   Bot,
   ChevronDown,
+  CircleHelp,
   DatabaseZap,
   FileCode2,
   FolderTree,
@@ -17,7 +18,7 @@ import {
   TerminalSquare,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { WindowCloseBehavior } from '#common/contracts'
@@ -36,6 +37,7 @@ export interface AppShellProps {
   onNavigate: (page: PageKey) => void
   onOpenConnectionLauncher: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
+  onOpenProductTour: () => void
   onToggleSidebar: () => void
   onBeforeClose?: () => Promise<void>
   onCloseError?: (error: unknown) => void
@@ -66,12 +68,27 @@ export function AppShell({
   onNavigate,
   onOpenConnectionLauncher,
   onOpenLocalTerminal,
+  onOpenProductTour,
   onToggleSidebar,
   onBeforeClose,
   onCloseError,
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
+  const [sidebarHelpOpen, setSidebarHelpOpen] = useState(false)
+  const [topbarHelpOpen, setTopbarHelpOpen] = useState(false)
+  const sidebarHelpButtonRef = useRef<HTMLButtonElement>(null)
+  const topbarHelpButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const closeHelpMenus = () => {
+      setSidebarHelpOpen(false)
+      setTopbarHelpOpen(false)
+    }
+    window.addEventListener('resize', closeHelpMenus)
+    return () => window.removeEventListener('resize', closeHelpMenus)
+  }, [])
+
   const bridge = getTermousBridge()
   const platform = bridge?.platform ?? 'web'
   const showWindowControls = Boolean(bridge?.windowControls) && platform !== 'darwin'
@@ -91,6 +108,13 @@ export function AppShell({
       label: <TopbarConnectionMenuItem icon={<Monitor size={15} />} title={t('workbench.openCmd')} />,
     },
   ]
+  const helpMenuItems: MenuProps['items'] = [
+    {
+      key: 'product-tour',
+      icon: <CircleHelp size={15} aria-hidden="true" />,
+      label: t('productTour.menuLabel'),
+    },
+  ]
 
   const handleConnectionMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'host') {
@@ -100,6 +124,12 @@ export function AppShell({
     if (key === 'powershell' || key === 'cmd') {
       onOpenLocalTerminal(key)
     }
+  }
+
+  const handleHelpMenuClick: MenuProps['onClick'] = ({ key }) => {
+    setSidebarHelpOpen(false)
+    setTopbarHelpOpen(false)
+    if (key === 'product-tour') onOpenProductTour()
   }
 
   return (
@@ -125,6 +155,7 @@ export function AppShell({
                 <Button
                   type="text"
                   className={`${styles['nav-item']} ${page === item.key ? styles['is-active'] : ''}`}
+                  data-tour={item.key === 'vault' ? 'nav-vault' : undefined}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
                   icon={<Icon size={18} aria-hidden="true" />}
@@ -136,17 +167,53 @@ export function AppShell({
           })}
         </nav>
         <div className={styles['sidebar-footer']}>
-          <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
-            <Button
-              type="text"
-              className={`${styles['nav-item']} ${page === 'settings' ? styles['is-active'] : ''}`}
-              onClick={() => onNavigate('settings')}
-              aria-label={t('nav.settings')}
-              icon={<Settings size={18} aria-hidden="true" />}
-            >
-              <span>{t('nav.settings')}</span>
-            </Button>
-          </Tooltip>
+          <div className={styles['sidebar-footer-actions']}>
+            <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
+              <Button
+                type="text"
+                className={`${styles['nav-item']} ${styles['sidebar-settings-button']} ${page === 'settings' ? styles['is-active'] : ''}`}
+                onClick={() => onNavigate('settings')}
+                aria-label={t('nav.settings')}
+                icon={<Settings size={18} aria-hidden="true" />}
+              >
+                <span>{t('nav.settings')}</span>
+              </Button>
+            </Tooltip>
+            <span className={styles['product-tour-trigger']} data-tour="product-tour-trigger">
+              <Tooltip title={t('productTour.helpButton')} placement={sidebarCollapsed ? 'right' : 'top'}>
+                <Dropdown
+                  autoFocus
+                  trigger={['click']}
+                  placement="topRight"
+                  open={sidebarHelpOpen}
+                  onOpenChange={(open) => {
+                    setSidebarHelpOpen(open)
+                    if (open) setTopbarHelpOpen(false)
+                  }}
+                  classNames={{ root: styles['app-help-dropdown'] }}
+                  menu={{
+                    items: helpMenuItems,
+                    onClick: handleHelpMenuClick,
+                    onKeyDown: (event) => {
+                      if (event.key === 'Escape') {
+                        queueMicrotask(() => sidebarHelpButtonRef.current?.focus({ preventScroll: true }))
+                      }
+                    },
+                  }}
+                >
+                  <Button
+                    ref={sidebarHelpButtonRef}
+                    type="text"
+                    className={styles['sidebar-help-button']}
+                    aria-label={t('productTour.helpButton')}
+                    aria-haspopup="menu"
+                    aria-expanded={sidebarHelpOpen}
+                    icon={<CircleHelp size={18} aria-hidden="true" />}
+                  />
+                </Dropdown>
+              </Tooltip>
+            </span>
+          </div>
         </div>
       </aside>
 
@@ -168,7 +235,44 @@ export function AppShell({
             </div>
           </div>
           <div className={styles['topbar-actions']}>
-            <div className={styles['topbar-connect-group']} aria-label={t('app.connect')}>
+            <span
+              className={`${styles['product-tour-trigger']} ${styles['topbar-product-tour-trigger']}`}
+              data-tour="product-tour-trigger"
+            >
+              <Tooltip title={t('productTour.helpButton')} placement="bottom">
+                <Dropdown
+                  autoFocus
+                  trigger={['click']}
+                  placement="bottomRight"
+                  open={topbarHelpOpen}
+                  onOpenChange={(open) => {
+                    setTopbarHelpOpen(open)
+                    if (open) setSidebarHelpOpen(false)
+                  }}
+                  classNames={{ root: styles['app-help-dropdown'] }}
+                  menu={{
+                    items: helpMenuItems,
+                    onClick: handleHelpMenuClick,
+                    onKeyDown: (event) => {
+                      if (event.key === 'Escape') {
+                        queueMicrotask(() => topbarHelpButtonRef.current?.focus({ preventScroll: true }))
+                      }
+                    },
+                  }}
+                >
+                  <Button
+                    ref={topbarHelpButtonRef}
+                    type="text"
+                    className={styles['icon-button']}
+                    aria-label={t('productTour.helpButton')}
+                    aria-haspopup="menu"
+                    aria-expanded={topbarHelpOpen}
+                    icon={<CircleHelp size={18} aria-hidden="true" />}
+                  />
+                </Dropdown>
+              </Tooltip>
+            </span>
+            <div className={styles['topbar-connect-group']} aria-label={t('app.connect')} data-tour="topbar-connect">
               <Space.Compact className={styles['topbar-connect-dropdown-button']}>
                 <Button type="primary" disabled={actionBusy} onClick={onOpenConnectionLauncher}>
                   <span className={styles['topbar-connect-content']}>

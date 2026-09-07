@@ -33,7 +33,8 @@ import styles from './HostManagement.module.scss'
 export interface HostManagementWorkspaceProps {
   data: HostManagementData
   selectedHostId: string
-  createIntentKey?: number
+  entryIntent?: HostManagementEntryIntent | null
+  onEntryIntentHandled?: (key: number) => void
   accessIntent?: HostAccessIntent | null
   onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
@@ -65,6 +66,13 @@ export interface HostAccessIntent {
   hostId: string
 }
 
+export type HostManagementEntryTarget =
+  | { mode: 'catalog' }
+  | { mode: 'create' }
+  | { mode: 'edit'; hostId: string }
+
+export type HostManagementEntryIntent = HostManagementEntryTarget & { key: number }
+
 type HostIntent =
   | { type: 'select'; hostId: string; external?: boolean }
   | { type: 'create' }
@@ -73,7 +81,8 @@ type HostIntent =
 export function HostManagementWorkspace({
   data,
   selectedHostId,
-  createIntentKey = 0,
+  entryIntent = null,
+  onEntryIntentHandled,
   accessIntent = null,
   onAccessIntentHandled,
   actionBusy,
@@ -97,13 +106,21 @@ export function HostManagementWorkspace({
   onLaunchAgent,
 }: HostManagementWorkspaceProps) {
   const { t } = useTranslation()
-  const initialAsset = data.hostAssets.find((host) => host.id === selectedHostId)
+  const initialEntryIntentRef = useRef(entryIntent)
+  const initialEntryIntent = initialEntryIntentRef.current
+  const initialEntryMode = initialEntryIntent?.mode
+  const initialAssetId = initialEntryIntent?.mode === 'edit'
+    ? initialEntryIntent.hostId
+    : (initialEntryIntent ? '' : selectedHostId)
+  const initialAsset = data.hostAssets.find((host) => host.id === initialAssetId)
   const [editingId, setEditingId] = useState<string | null>(initialAsset?.id ?? null)
   const [editingAssetSnapshot, setEditingAssetSnapshot] = useState(initialAsset)
   const [createdAsset, setCreatedAsset] = useState<HostAsset>()
   const [initialView, setInitialView] = useState<HostDetailView>('asset')
   const [initialConnectionSetupConsidered, setInitialConnectionSetupConsidered] = useState(false)
-  const [activeView, setActiveView] = useState<ManagementWorkspaceView>(initialAsset ? 'editor' : 'catalog')
+  const [activeView, setActiveView] = useState<ManagementWorkspaceView>(
+    initialEntryMode === 'create' || initialAsset ? 'editor' : 'catalog',
+  )
   const [groupManagerOpen, setGroupManagerOpen] = useState(false)
   const [proxyManagerOpen, setProxyManagerOpen] = useState(false)
   const [iconManagerOpen, setIconManagerOpen] = useState(false)
@@ -117,8 +134,11 @@ export function HostManagementWorkspace({
   const [accessProtectedIconId, setAccessProtectedIconId] = useState('')
   const [accessWorkspaceRevision, setAccessWorkspaceRevision] = useState(0)
   const [createWorkspaceRevision, setCreateWorkspaceRevision] = useState(0)
-  const lastCreateIntentRef = useRef(0)
-  const ignoredExternalSelectionRef = useRef('')
+  const lastEntryIntentRef = useRef(initialEntryIntentRef.current?.key ?? 0)
+  const acknowledgedEntryIntentRef = useRef(0)
+  const ignoredExternalSelectionRef = useRef(
+    initialEntryMode === 'catalog' || initialEntryMode === 'create' ? selectedHostId : '',
+  )
   const dirty = accessDirty
   const busy = actionBusy || saveInFlight
   // 创建响应先用于编辑器，避免工作区快照尚未同步时退回新建页。
@@ -241,6 +261,12 @@ export function HostManagementWorkspace({
     if (saveInFlight) {
       return
     }
+    if (
+      entryIntent?.mode === 'edit'
+      && entryIntent.hostId === selectedHostId
+    ) {
+      return
+    }
     if (selectedHostId && selectedHostId === editingId) {
       ignoredExternalSelectionRef.current = ''
       return
@@ -249,15 +275,24 @@ export function HostManagementWorkspace({
       return
     }
     requestIntent({ type: 'select', hostId: selectedHostId, external: true })
-  }, [editingId, requestIntent, saveInFlight, selectedHostId])
+  }, [editingId, entryIntent, requestIntent, saveInFlight, selectedHostId])
 
   useEffect(() => {
-    if (saveInFlight || createIntentKey <= 0 || createIntentKey === lastCreateIntentRef.current) {
+    if (!entryIntent || entryIntent.key === acknowledgedEntryIntentRef.current) {
       return
     }
-    lastCreateIntentRef.current = createIntentKey
-    requestIntent({ type: 'create' })
-  }, [createIntentKey, requestIntent, saveInFlight])
+    if (entryIntent.key !== lastEntryIntentRef.current) {
+      if (saveInFlight) {
+        return
+      }
+      lastEntryIntentRef.current = entryIntent.key
+      requestIntent(entryIntent.mode === 'edit'
+        ? { type: 'select', hostId: entryIntent.hostId, external: true }
+        : { type: entryIntent.mode === 'create' ? 'create' : 'back' })
+    }
+    acknowledgedEntryIntentRef.current = entryIntent.key
+    onEntryIntentHandled?.(entryIntent.key)
+  }, [entryIntent, onEntryIntentHandled, requestIntent, saveInFlight])
 
   const createHost = async (input: HostProvisionInput, section: HostEditorSection) => {
     if (saveInFlightRef.current) return

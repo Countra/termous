@@ -4428,6 +4428,59 @@
       "completed_unknown": "Completed, exit code unavailable"
     }
   },
+  "productTour": {
+    "helpButton": "Help",
+    "menuLabel": "Product tour",
+    "blocked": "Finish or cancel the unsaved changes or active operation on this page before continuing.",
+    "progress": "Step {{current}} of {{total}}",
+    "next": "Next",
+    "previous": "Previous",
+    "done": "Finish",
+    "skip": "Skip tour",
+    "close": "Close tour",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to Termous",
+        "description": "Termous brings credentials, hosts, and remote operations into one workbench. Take about 3 minutes to learn the core flow from preparing SSH access to getting work done."
+      },
+      "vaultNav": {
+        "title": "Start with credentials",
+        "description": "Credentials are the first step toward an SSH connection. The vault keeps passwords and private keys together for use in connection profiles."
+      },
+      "vaultActions": {
+        "title": "Choose how to create a credential",
+        "description": "Generate a new SSH key, add a password credential, or import an existing private key based on the server's authentication method."
+      },
+      "credentialEditor": {
+        "title": "Enter credential details",
+        "description": "Choose the credential type, then enter a recognizable name and its secret. Termous stores sensitive content securely on this device so it can be selected in connection profiles."
+      },
+      "hostsNav": {
+        "title": "Create a host asset",
+        "description": "A host organizes a device you manage and contains one or more connection profiles. Add the host first, then configure how to reach it."
+      },
+      "hostEditor": {
+        "title": "Organize host details",
+        "description": "Set a name, group, tags, and icon so the host is easy to find and recognize, then continue by adding an SSH connection profile."
+      },
+      "hostConnections": {
+        "title": "Configure an SSH connection",
+        "description": "On the Connections tab, enter the SSH endpoint, choose a credential and optional proxy, and set the default connection. Saving an SSH profile automatically creates its matching SFTP profile."
+      },
+      "topbarConnect": {
+        "title": "Connect quickly",
+        "description": "Open the host launcher in the workbench top bar to choose a configured host connection, or start a local terminal from the same menu."
+      },
+      "workbench": {
+        "title": "Work in the workbench",
+        "description": "Switch terminals with session tabs, work in the central terminal, and use the tools on the right for files and monitoring."
+      },
+      "finish": {
+        "title": "You're ready",
+        "description": "You now know the core flow. Replay this tour anytime from Help in the sidebar, then explore port forwarding, snippets, remote desktop, and the AI assistant as needed."
+      }
+    }
+  },
   "fields": {
     "required": "Required",
     "optional": "Optional",

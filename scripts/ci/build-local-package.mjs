@@ -36,6 +36,7 @@ export const packagedThirdPartyFiles = Object.freeze([
   'licenses/TypeBox-LICENSE.txt',
   'licenses/react-markdown-LICENSE.txt',
   'licenses/remark-gfm-LICENSE.txt',
+  'licenses/driver.js-LICENSE.txt',
   'licenses/noVNC-LICENSE.txt',
   'licenses/noVNC-AUTHORS.txt',
   'licenses/noVNC/LICENSE.BSD-2-Clause',

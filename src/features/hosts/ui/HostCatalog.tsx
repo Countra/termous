@@ -212,7 +212,7 @@ export function HostCatalog({
             </Tooltip>
           </FilterPopover>
         </div>
-        <ConnectionActionButton block icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>
+        <ConnectionActionButton data-tour="hosts-add" block icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>
           {t('hosts.addHost')}
         </ConnectionActionButton>
         {hasFilters ? (
