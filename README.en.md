@@ -18,27 +18,29 @@
   </p>
 </div>
 
-Termous brings SSH connections, hosts and credentials, remote files, server operations, network forwarding, and reusable commands into one desktop workstation. It is designed for developers and operators who move between many servers, keeping terminals, file locations, and host state clearly connected while reducing context switching and mistakes.
+Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote files, server operations, and an AI assistant into one desktop workstation. It helps developers and operators keep connections, files, and tasks organized across servers, and can work with external AI tools through MCP.
 
 ## Why Termous
 
 | Problem | How Termous Helps |
 | --- | --- |
 | Hosts, credentials, terminals, and file tools are scattered | Manage connections, files, and remote operations in one workstation |
-| Complex networks require several connection tools | Configure a jump host or HTTP / SOCKS5 proxy per host and share the route across SSH, SFTP, and forwarding |
+| One host has several accounts or access methods | Save separate SSH, SFTP, and remote desktop configurations and choose the one you need |
+| Complex networks require several connection tools | Configure a jump connection or HTTP / SOCKS5 proxy for SSH and reuse the route for associated SFTP access and forwarding |
 | Multiple SSH sessions are hard to track | Keep context clear with tabs, colors, pinning, duplication, and split panes |
 | Terminals and remote files require constant switching | Use SFTP, directory following, bookmarks, and the workstation file panel in the same session |
 | The same diagnostics must run on several servers | Send once to the current, selected, or all connected sessions and review each result separately |
 | Common commands and server actions are repeated | Reduce repetitive work with snippets, command aliases, scheduled tasks, and remote operations panels |
+| Troubleshooting requires copying information between servers and AI tools | Reference sessions, files, or failures in the built-in AI assistant, or authorize external tools through MCP |
 
 ## Quick start
 
 1. Download the installer or AppImage for your platform from [Releases](https://github.com/Countra/termous/releases).
-2. Open Termous and add a credential and host. Configure a jump host or connection proxy when needed.
-3. Click "Connect" in the top bar and choose the target host to enter the SSH workstation.
-4. Use the right-side workspace for files, system information, monitoring, processes, services, Docker, firewall, scheduled tasks, port forwarding, aliases, and snippets.
-5. Open the session command console from the terminal status bar when you need to work with several connected sessions.
-6. Use the standalone "Files" page for a larger workspace for remote directories and transfers.
+2. Enter the host details on the Hosts page and add SSH or remote desktop connections in the connection configuration tab. Select a credential for SSH. When creating a host, fill in the tabs before saving everything together, or save the host without a connection.
+3. Click "Connect" in the top bar, choose a host and a specific connection, and open a terminal, file session, or remote desktop.
+4. The SSH workstation provides files, monitoring, processes, services, Docker, firewall, and other tools on the right. Use the bottom session command console for several connected sessions, or the standalone Files page for directories, search, and transfers.
+5. To use the AI assistant, complete its initial setup, add a model provider under Settings → AI Assistant, and choose a model. To connect an external AI tool, create a client under Settings → MCP and copy its connection configuration.
+6. Reopen the feature tour at any time to learn about credentials, host connections, the workstation, file management, and key settings.
 
 ## Highlights
 
@@ -55,23 +57,36 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 - Local PowerShell / CMD sessions on Windows.
 - Terminal font, size, line height, letter spacing, cursor, and theme settings, plus an SSH-terminal smooth scrolling option.
 
-### Hosts, credentials, and connection proxies
+### Hosts and connection configurations
 
-- Host groups, tags, favorites, recent hosts, and latency checks.
-- Password and private-key authentication, including encrypted private keys associated with passphrase credentials.
+- Host groups, tags, favorites, recent hosts, and SSH reachability and latency checks.
+- Multiple SSH, associated SFTP, and remote desktop configurations per host, with a separate default for each access method.
+- Create a host without a connection or with only a remote desktop. Switching between host details and connection configuration during creation does not save early.
+- SSH password and private-key authentication, including encrypted private keys associated with passphrase credentials.
 - The host icon library supports batch import, preview, search, renaming, and drag reordering. Icons in use cannot be deleted.
-- Hosts support notes, jump hosts, platform information, and individual connection proxy settings.
-- Per-host unauthenticated HTTP or SOCKS5 proxies, with no automatic direct fallback after a proxy failure.
+- Hosts support notes, platform information, and icons. Each SSH connection can use its own account, jump connection, and proxy.
+- Unauthenticated HTTP or SOCKS5 connection proxies, with no automatic direct fallback after a proxy failure.
 - One host-key trust flow shared by SSH, jump hosts, SFTP, and port forwarding.
 - Credentials are managed separately from hosts to avoid repeating sensitive data.
+
+### VNC remote desktops
+
+- Connect to and switch between desktop sessions in a dedicated remote desktop workspace.
+- Connect through an SSH tunnel or directly to a target IP. A direct desktop connection does not require SSH configuration.
+- Save VNC passwords, use full screen, adjust image quality, and reconnect after a disconnect.
+- The currently supported protocol is VNC; RDP is not supported.
 
 ### Remote files and directory following
 
 - Multi-session SFTP file management.
 - Upload, download, move, delete, rename, and permission management.
-- Drag uploads into the current directory or a specific folder.
+- Drag uploads into the current directory or a specific folder and choose which conflicting files to overwrite.
+- Copy files and directories between hosts, including distribution to several targets, destination selection, progress, cancellation, and results for each target.
+- Advanced batch renaming with combined rules, result previews, name conflict checks, and saved presets.
+- Linux remote file-name search with a search directory, literal / wildcard / regular expression matching, filters, and navigation to results. Installation guidance is available when a required component is missing.
 - Remote bookmarks, local download locations, and a transfer list with live progress.
 - Online text file editing and image preview.
+- Copy remote file paths and identify file sessions and transfers started through MCP.
 - Bidirectional directory sync between the terminal and workstation file panel, with the last successful directory preserved and manual recovery available after a disconnect.
 
 ### Server operations
@@ -91,6 +106,26 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 - Synchronization shows progress and results per host, skips shell mismatches, and supports cancellation or reopening an active task.
 - Local forwarding, remote forwarding, and dynamic proxy.
 - Running forwards expose connection counts, cumulative traffic, live send/receive rates, restart, and stop actions.
+- Connection settings include SSH keepalive and automatic recovery for background port forwards, with retry progress and an option to stop recovery.
+
+### AI assistant
+
+- Connect a custom model service, manage its model catalog, and choose models and run settings per conversation. A working model service must be configured separately.
+- Follow streamed replies, reasoning, tool execution, and approval progress, and stop tasks when needed.
+- Attach text or images, paste images, ask from host, workstation, file, or forwarding failure entries, and reference a connected SSH session.
+- Add messages while a task runs, reorder or edit pending messages, or choose immediate execution.
+- Rename, group, pin, search, reorder, archive, and restore conversations. New messages do not change your manual ordering.
+- Automatically compact long conversations while preserving the complete chat history. The default threshold is 80%, adjustable from 50% to 95%; you can also request compaction before the next send and view its status, before-and-after usage, and duration.
+- Recall the last 10 inputs while keeping arrow-key cursor navigation during editing or multiline input. Copy message Markdown and view dates, response duration, and token usage.
+- Context occupancy and cumulative token usage are shown separately. After switching models, an unevaluated context retains the previous result for reference and updates on a subsequent send.
+
+### MCP and external AI tools
+
+- Manage the service and clients under Settings → MCP, assign permissions to each tool, regenerate tokens, or remove access.
+- Supported operations cover SSH commands, system and process management, systemd, Docker, scheduled tasks, SFTP files, port forwarding, and snippets.
+- Approve operations individually or allow a trusted client to run without per-operation approval. Granted permissions and host-key confirmation still apply.
+- Use the address and client token provided in Settings and keep Termous running. The address may change after an application restart; use the current address shown there.
+- [Termous Skills](https://github.com/Countra/termous-skills) provides workflows that can be installed in external clients as needed. These skills are already included with the built-in AI assistant.
 
 ### Data, security, and desktop experience
 
@@ -99,6 +134,7 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 - Shortcut settings can search actions, record keys, detect conflicts, and restore defaults for common terminal, smart completion, file list, and remote editor actions.
 - In-app update checks, downloads, and installation.
 - Encrypted `.tobp` backups with full, merge, and selective restore modes.
+- A reusable feature tour covering host connections, file bookmarks, local directories, transfers, and key settings.
 - Connection cleanup reminder before closing.
 - Simplified Chinese and English UI.
 
@@ -111,11 +147,15 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 - Manage recurring tasks for the current SSH user or synchronize the same managed aliases across hosts using the same Shell family.
 - Create temporary port forwards or proxy channels.
 - Save common server commands as reusable snippets or remote Shell aliases.
+- Manage multiple accounts and desktop connections for a host, or distribute files to several hosts.
+- Use the AI assistant to investigate server problems and act within the selected session and approval permissions.
 
 ## Security and privacy
 
 Termous is a desktop workstation that runs locally. Credentials are kept in secure storage on the device, and SSH host identity is verified through a unified fingerprint trust flow. Encrypted backups do not export the device's master key, and downloaded updates are verified before installation.
 
+- When using the AI assistant, conversation content, selected attachments, and relevant tool results are sent to your configured model service. Conversation history is stored locally, and model service keys are encrypted on the device.
+- External MCP clients have separate tokens and permissions. The built-in AI assistant has its own approval setting. Skipping per-operation approval does not grant additional permissions or bypass host-key confirmation.
 - Connection proxies accept only unauthenticated HTTP and SOCKS5 endpoints so proxy credentials do not enter host configuration, logs, or backups.
 - The session command console sends only to SSH sessions confirmed at an idle prompt and locks their terminal input while a task runs. Command text and results are not written to the database, backups, or logs.
 - Smart completion keeps a limited amount of remote history and directory index data only in memory for the current SSH session. It is released when the session closes and is not persisted to local data, backups, or logs.
