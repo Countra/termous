@@ -1117,6 +1117,44 @@ describe('AgentWorkspace', () => {
     expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
   })
 
+  it('终端引用失败草稿仍可完整预览并提供重试与移除，未激活面板不抢焦点', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const props = fixtureProps({
+      composerFocusKey: 1, composerActive: false,
+      draft_attachments: [{ client_id: 'draft-ref', kind: 'text', name: 'terminal-reference.txt', size_bytes: 17,
+        file: new File(['first\n<script>raw</script>'], 'terminal-reference.txt', { type: 'text/plain' }),
+        phase: 'failed', origin, error_code: 'NETWORK_ERROR' }],
+    })
+    const view = renderWorkspace(props)
+    const input = screen.getByPlaceholderText('agent.composer.placeholder')
+    expect(input).not.toHaveFocus()
+    view.rerender(<AntdApp><AgentWorkspace {...props} composerActive /></AntdApp>)
+    await waitFor(() => expect(input).toHaveFocus())
+    expect(screen.queryByText('terminal-reference.txt')).not.toBeInTheDocument()
+    const card = within(screen.getByRole('list', { name: 'agent.attachments.title' }))
+      .getByRole('listitem', { name: 'agent.attachments.terminalReference' })
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.retryName' }))
+    expect(props.onRetryAttachment).toHaveBeenCalledExactlyOnceWith('draft-ref')
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.removeName' }))
+    expect(props.onRemoveAttachment).toHaveBeenCalledExactlyOnceWith('draft-ref')
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.previewName' }))
+    expect(await screen.findByText('first <script>raw</script>')).toBeInTheDocument()
+    expect(props.onLoadAttachmentContent).not.toHaveBeenCalled()
+  })
+
+  it('历史终端引用沿用鉴权附件加载器，展示来源和行数', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const props = fixtureProps({
+      messages: [{ id: 'message-reference', role: 'user', status: 'completed', created_at: origin.captured_at, parts: [], attachments: [attachment({ origin })] }],
+      onLoadAttachmentContent: vi.fn(async () => new Blob(['first\nsecond'], { type: 'text/plain' })),
+    })
+    renderWorkspace(props)
+    expect(screen.getByText('agent.attachments.terminalReferenceLines')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.attachments.previewName' }))
+    expect(await screen.findByText('first second')).toBeInTheDocument()
+    expect(props.onLoadAttachmentContent).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-one', origin }), expect.any(AbortSignal))
+  })
+
   it('通过受鉴权的 Blob 加载器预览历史文本附件', async () => {
     const user = userEvent.setup()
     const onLoadAttachmentContent = vi.fn(async () => new Blob(['preview contents'], { type: 'text/plain' }))

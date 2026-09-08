@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { Session } from '#entities/session'
+import type { TerminalAIReferenceProps } from '../model/terminalAIReference'
 import { TerminalPaneViewport } from './TerminalPaneViewport'
 import styles from './TerminalSplitWorkspace.module.scss'
 import {
@@ -48,7 +49,7 @@ export interface TerminalSplitWorkspaceHandle {
   splitSessionFromMenu: (sessionId: string) => TerminalContextSplitResult
 }
 
-interface TerminalSplitWorkspaceProps {
+interface TerminalSplitWorkspaceProps extends TerminalAIReferenceProps {
   sessions: Session[]
   activeSession: Session | null
   workspaceActive: boolean
@@ -97,6 +98,8 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       onOpenFilesAtPath,
       onCloseSession,
       onOpenAgentSettings,
+      getAgentReferenceSnapshot,
+      onReferenceTerminalSelection,
     },
     ref,
   ) => {
@@ -320,6 +323,8 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               onTerminalCleared={onTerminalCleared}
               onOpenPath={onOpenFilesAtPath}
               onOpenAgentSettings={onOpenAgentSettings}
+              getAgentReferenceSnapshot={getAgentReferenceSnapshot}
+              onReferenceTerminalSelection={onReferenceTerminalSelection}
               onClose={session ? () => onCloseSession?.(session) : undefined}
             />
           )
@@ -364,6 +369,8 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         onCloseSession,
         onOpenFilesAtPath,
         onOpenAgentSettings,
+        getAgentReferenceSnapshot,
+        onReferenceTerminalSelection,
         onReconnectSession,
         onSearchSession,
         onTerminalCleared,

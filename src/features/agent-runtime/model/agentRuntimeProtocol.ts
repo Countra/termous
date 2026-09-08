@@ -1,3 +1,4 @@
+import { isAgentTerminalReferenceOrigin } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -310,12 +311,16 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
 
 export function decodeAgentAttachment(value: unknown): AgentAttachment {
   const source = record(value, 'Agent 附件响应无效')
+  if (source.origin !== undefined && (source.kind !== 'text' || source.mime_type !== 'text/plain' || !isAgentTerminalReferenceOrigin(source.origin))) {
+    throw new AgentRuntimeProtocolError('Agent 终端引用来源无效')
+  }
   return {
     id: identifier(source.id, 'Agent 附件 ID 无效'),
     session_id: identifier(source.session_id, 'Agent 附件 Session ID 无效'),
     original_name: utf8(source.original_name, 'Agent 附件名称无效', 255),
     mime_type: utf8(source.mime_type, 'Agent 附件 MIME 无效', 128),
     kind: enumValue(source.kind, ['text', 'image'] as const, 'Agent 附件类型无效'),
+    ...(source.origin ? { origin: source.origin as AgentAttachment['origin'] } : {}),
     size_bytes: positiveInteger(source.size_bytes, 'Agent 附件大小无效'),
     state: enumValue<AgentAttachmentState>(source.state, agentAttachmentStates, 'Agent 附件状态无效'),
     expires_at: optionalTimestamp(source.expires_at, 'Agent 附件过期时间无效'),

@@ -337,6 +337,19 @@ test('附件协议拒绝无效大小与未知状态', () => {
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ state: 'unknown' })), /状态/)
 })
 
+test('附件协议保留终端引用来源并拒绝元数据类型与日期不一致', () => {
+  const origin = { kind: 'terminal_selection', source_session_id: 'ses_one', host_name: '主机', captured_at: agentFixtureTime, line_count: 2 }
+  assert.deepEqual(decodeAgentAttachment(attachmentResponse({ origin })).origin, origin)
+  assert.equal(decodeAgentAttachment(attachmentResponse()).origin, undefined)
+  for (const patch of [
+    { origin: { ...origin, captured_at: '2026-02-30T00:00:00Z' } },
+    { origin: { ...origin, source_session_id: 'bad/id' } },
+    { origin: { ...origin, line_count: 0 } },
+    { origin, kind: 'image' },
+    { origin, mime_type: 'application/json' },
+  ]) assert.throws(() => decodeAgentAttachment(attachmentResponse(patch)), AgentRuntimeProtocolError)
+})
+
 test('排队消息 Prompt 与 Core 统一使用 1 MiB UTF-8 上限', () => {
   const prompt = 'a'.repeat(1 << 20)
   assert.equal(decodeAgentQueuedTurn(queuedTurnResponse({ prompt })).prompt.length, prompt.length)

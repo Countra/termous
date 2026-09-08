@@ -1,4 +1,5 @@
 import { isRecord } from './protocol.ts'
+import { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from '#common/contracts'
 
 export const maximumRuntimeAttachments = 8
 export const maximumTextAttachmentBytes = 256 * 1024
@@ -21,6 +22,7 @@ export interface RuntimeMessageAttachment {
   kind: 'text' | 'image'
   mime_type: string
   content_base64: string
+  origin?: AgentTerminalReferenceOrigin
 }
 
 export function isRuntimeMessageAttachmentList(
@@ -55,7 +57,8 @@ export function isRuntimeMessageAttachmentList(
 
 export function decodeRuntimeAttachment(attachment: RuntimeMessageAttachment) {
   if (!validRuntimeAttachmentMIME(attachment)
-    || !validBase64(attachment.content_base64)) {
+    || !validBase64(attachment.content_base64)
+    || (attachment.origin !== undefined && (attachment.kind !== 'text' || attachment.mime_type !== 'text/plain' || !isAgentTerminalReferenceOrigin(attachment.origin)))) {
     throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
   }
   const bytes = Buffer.from(attachment.content_base64, 'base64')
@@ -63,6 +66,16 @@ export function decodeRuntimeAttachment(attachment: RuntimeMessageAttachment) {
     || bytes.toString('base64') !== attachment.content_base64
     || (attachment.kind === 'image' && !validRuntimeImageMagic(bytes, attachment.mime_type))) {
     throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
+  }
+  if (attachment.origin) {
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
+      if (text.includes('\0') || text.split('\n').length !== attachment.origin.line_count) {
+        throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
+      }
+    } catch {
+      throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
+    }
   }
   return bytes
 }
@@ -85,6 +98,7 @@ function isRuntimeMessageAttachment(value: unknown): value is RuntimeMessageAtta
     && typeof value.content_base64 === 'string'
     && validBase64(value.content_base64)
     && value.content_base64.length <= maxRuntimeAttachmentBase64Length(value.kind)
+    && (value.origin === undefined || (value.kind === 'text' && value.mime_type === 'text/plain' && isAgentTerminalReferenceOrigin(value.origin)))
 }
 
 function validRuntimeAttachmentMIMEValue(

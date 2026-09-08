@@ -1,4 +1,7 @@
 export { useAgentSessionManagement } from './useAgentSessionManagement.ts'
+export { projectAgentReferenceTargets } from './agentTerminalReference.ts'
+export { useAgentQueuedTurnEditOwners } from './useAgentQueuedTurnEditOwners.ts'
+export { useAgentTerminalReferenceImport, type AgentTerminalReferenceImportJob } from './useAgentTerminalReferenceImport.ts'
 export {
   AgentRuntimeProtocolError,
   decodeAgentAttachment,

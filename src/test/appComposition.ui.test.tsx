@@ -1600,7 +1600,8 @@ describe('应用运行时组合合同', () => {
       status: 'failed',
     })
     expect(testState.agentLaunchIntent).not.toHaveProperty('error_message')
-    expect(testState.agentLaunchIntent?.source_context.summary).not.toContain('sensitive runtime detail')
+    const intent = testState.agentLaunchIntent
+    expect(intent?.source === 'forward_failure' ? intent.source_context.summary : undefined).not.toContain('sensitive runtime detail')
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

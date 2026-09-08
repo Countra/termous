@@ -129,6 +129,7 @@ export interface AgentWorkspaceMessage {
 }
 
 export interface AgentWorkspaceDraftAttachment {
+  origin?: AgentAttachment['origin']
   client_id: string
   name: string
   size_bytes: number
@@ -215,6 +216,8 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  composerFocusKey?: number
+  composerActive?: boolean
   sessions: AgentWorkspaceSession[]
   session_management?: AgentWorkspaceSessionManagement
   selected_session_id?: string

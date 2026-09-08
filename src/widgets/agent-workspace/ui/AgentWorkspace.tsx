@@ -21,6 +21,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
   const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
+  const [previewLocalAttachment, setPreviewLocalAttachment] = useState<AgentWorkspaceProps['draft_attachments'][number]>()
+  const onPreviewAttachment = useCallback((attachment: import('#entities/agent').AgentAttachment) => {
+    setPreviewLocalAttachment(undefined)
+    setPreviewAttachment(attachment)
+  }, [])
   const onDraftChange = useStableEventHandler(props.onDraftChange)
   const onAttachFiles = useStableEventHandler(props.onAttachFiles)
   const onRemoveAttachment = useStableEventHandler(props.onRemoveAttachment)
@@ -46,8 +51,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const onReplaceResourceBinding = useStableEventHandler(props.onReplaceResourceBinding)
   const onRemoveResourceBinding = useStableEventHandler(props.onRemoveResourceBinding)
   const onPreviewDraftAttachment = useCallback((item: AgentWorkspaceProps['draft_attachments'][number]) => {
-    if (item.attachment) setPreviewAttachment(item.attachment)
-  }, [])
+    if (item.origin) {
+      setPreviewAttachment(undefined)
+      setPreviewLocalAttachment(item)
+    } else if (item.attachment) onPreviewAttachment(item.attachment)
+  }, [onPreviewAttachment])
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
   const inputHistory = useMemo(() => agentComposerInputHistory(props.messages, props.queued_turns), [props.messages, props.queued_turns])
   const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
@@ -129,10 +137,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           loading={props.loading}
           sessionKey={selectedSession?.id ?? 'new'}
           showTurnTokenUsage={props.show_turn_token_usage}
-          onPreviewAttachment={setPreviewAttachment}
+          onPreviewAttachment={onPreviewAttachment}
           onLoadAttachmentContent={onLoadAttachmentContent}
         />
         <AgentComposer
+          focusKey={props.composerFocusKey}
+          paneActive={props.composerActive}
           value={props.draft}
           sessionKey={props.selected_session_id ?? 'new'}
           inputHistory={inputHistory}
@@ -169,7 +179,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onRemoveAttachment={onRemoveAttachment}
           onRetryAttachment={onRetryAttachment}
           onPreviewAttachment={onPreviewDraftAttachment}
-          onPreviewQueuedAttachment={setPreviewAttachment}
+          onPreviewQueuedAttachment={onPreviewAttachment}
           onLoadQueuedAttachment={onLoadAttachmentContent}
           onSend={onSend}
           onQueueTurn={onQueueTurn}
@@ -234,7 +244,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       />
       <AgentAttachmentPreview
         attachment={previewAttachment}
-        onClose={() => setPreviewAttachment(undefined)}
+        local={previewLocalAttachment}
+        onClose={() => { setPreviewAttachment(undefined); setPreviewLocalAttachment(undefined) }}
         onLoad={props.onLoadAttachmentContent}
       />
     </div>

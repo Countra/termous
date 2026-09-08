@@ -1,6 +1,6 @@
 import { ArrowUp, Check, CornerDownLeft, Eye, FileCode2, Paperclip, Pencil, RefreshCw, Square, Waypoints, X } from 'lucide-react'
-import { Button, Input, Tooltip } from 'antd'
-import { memo, useRef } from 'react'
+import { Button, Input, Tooltip, type GetRef } from 'antd'
+import { memo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   AgentQueuedTurnMovePlacement,
@@ -23,11 +23,14 @@ import { useAgentComposerHistory } from '../model/useAgentComposerHistory.ts'
 import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
+import { AgentTerminalReferenceCard } from './AgentTerminalReferenceCard.tsx'
 import { AgentQueuedTurnList } from './AgentQueuedTurnList.tsx'
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
   value,
+  focusKey,
+  paneActive = true,
   sessionKey,
   inputHistory,
   runStatus,
@@ -82,6 +85,8 @@ export const AgentComposer = memo(function AgentComposer({
   onRemoveResourceBinding,
 }: {
   value: string
+  focusKey?: number
+  paneActive?: boolean
   sessionKey: string
   inputHistory: readonly string[]
   runStatus: AgentWorkspaceRunStatus
@@ -141,9 +146,16 @@ export const AgentComposer = memo(function AgentComposer({
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textAreaRef = useRef<GetRef<typeof Input.TextArea>>(null)
+  const focusedKeyRef = useRef<number | undefined>(undefined)
   const active = isActiveAgentRun(runStatus)
   const queueMode = active || queuedTurns.some(({ state }) => state === 'queued')
   const editing = Boolean(queuedTurnEdit)
+  useEffect(() => {
+    if (!focusKey || focusedKeyRef.current === focusKey || !paneActive || (disabled && (!active || editing))) return
+    focusedKeyRef.current = focusKey
+    textAreaRef.current?.focus({ preventScroll: true })
+  }, [active, disabled, editing, focusKey, paneActive])
   const inputValue = queuedTurnEdit?.text ?? value
   const inputHistoryNavigation = useAgentComposerHistory({
     sessionKey, value: inputValue, history: inputHistory, disabled: editing, onChange,
@@ -208,7 +220,14 @@ export const AgentComposer = memo(function AgentComposer({
             ) : null}
             {attachments.length > 0 ? (
               <div className={styles.attachments} role="list" aria-label={t('agent.attachments.title')}>
-                {attachments.map((item) => (
+                {attachments.map((item) => item.origin ? (
+                  <AgentTerminalReferenceCard key={item.client_id} origin={item.origin} listItem
+                    disabled={disabled || item.phase === 'deleting'}
+                    status={item.phase === 'ready' ? undefined : attachmentStateLabel(item, t)}
+                    onPreview={() => onPreviewAttachment(item)}
+                    onRemove={() => onRemoveAttachment(item.client_id)}
+                    onRetry={item.phase === 'failed' ? () => onRetryAttachment(item.client_id) : undefined} />
+                ) : (
                   <div key={item.client_id} className={styles.attachment} data-kind={item.kind} data-phase={item.phase} role="listitem">
                     {item.kind === 'image' ? (
                       <button
@@ -253,7 +272,11 @@ export const AgentComposer = memo(function AgentComposer({
                 ))}
               </div>
             ) : null}
-            {retainedAttachments.map((attachment) => (
+            {retainedAttachments.map((attachment) => attachment.origin ? (
+              <AgentTerminalReferenceCard key={attachment.id} origin={attachment.origin} disabled={disabled}
+                onPreview={() => onPreviewQueuedAttachment(attachment)}
+                onRemove={() => onRemoveQueuedTurnEditAttachment(attachment.id)} />
+            ) : (
               <div key={attachment.id} className={styles.attachment} role="group" aria-label={attachment.original_name}>
                 {attachment.kind === 'image' ? (
                   <button
@@ -287,6 +310,7 @@ export const AgentComposer = memo(function AgentComposer({
           <div className={styles['attachment-warning']} role="alert">{t('agent.attachments.imageModelUnsupported')}</div>
         ) : null}
         <Input.TextArea
+          ref={textAreaRef}
           className={styles['composer-textarea']}
           variant="borderless"
           autoSize={{ minRows: 2, maxRows: 8 }}

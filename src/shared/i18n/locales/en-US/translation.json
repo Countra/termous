@@ -172,6 +172,35 @@
     "conversation": {
       "jumpToLatest": "Jump to latest message"
     },
+    "terminalReference": {
+      "confirmTitle": "Switch SSH connection?",
+      "confirmDescription": "The selection will be added to your draft. Existing content will be kept, and nothing will be sent automatically.",
+      "confirmReplace": "Switch and add",
+      "currentAssociation": "Currently linked",
+      "nextAssociation": "Switch to",
+      "profileUnavailable": "Connection name unavailable",
+      "unknownHost": "Current SSH host",
+      "profileIdentifier": "Connection profile ID",
+      "sessionIdentifier": "SSH session ID",
+      "pending": "Preparing terminal reference…",
+      "failed": "Terminal reference has not been added",
+      "configuration": "Select an available AI model first",
+      "retained": "The selected text from {{host}} has been preserved.",
+      "openSettings": "Open AI assistant settings",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "The source SSH session disconnected or changed. Restore the connection and select the text again.",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "The target conversation was deleted, archived, or is unavailable. The selected text is preserved.",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "The target has an active task or queued messages, so its SSH association cannot be changed yet.",
+        "AGENT_TERMINAL_REFERENCE_EDIT_CHANGED": "The queued-message edit changed. Please confirm the reference target again.",
+        "AGENT_TERMINAL_REFERENCE_EDIT_SAVING": "The queued message is being saved. Your selected text is preserved; retry after saving finishes.",
+        "AGENT_TERMINAL_REFERENCE_ATTACHMENT_REJECTED": "The reference was not added. Check attachment limits and the edit state before retrying.",
+        "AGENT_TERMINAL_REFERENCE_INVALID": "The selection is empty, contains unsupported characters, or exceeds 256 KiB. Select the text again.",
+        "AGENT_REVISION_CONFLICT": "The target conversation changed. Its state has been refreshed; please try again.",
+        "AGENT_RUN_CONFLICT": "The target is running, so its SSH association cannot be changed yet.",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The source SSH session is unavailable. Check the connection before retrying.",
+        "unknown": "The operation did not finish. Your selected text is preserved. Check the connection and target before retrying."
+      }
+    },
     "launch": {
       "action": "Ask Agent",
       "title": {
@@ -360,6 +389,8 @@
       "preview": "Preview attachment",
       "previewName": "Preview {{name}}",
       "previewFailed": "Could not load the attachment preview",
+      "terminalReference": "Terminal reference · {{host}}",
+      "terminalReferenceLines": "{{count}} lines",
       "retryName": "Retry {{name}}",
       "removeName": "Remove {{name}}",
       "size": "{{size}}",
@@ -372,6 +403,7 @@
         "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "Image attachments must total 20 MiB or less.",
         "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "The image type does not match its content. Only PNG, JPEG, and WebP are supported.",
         "AGENT_ATTACHMENT_TEXT_ENCODING": "Text attachments must be valid UTF-8 and cannot contain NUL characters.",
+        "AGENT_ATTACHMENT_ORIGIN_INVALID": "The terminal reference source is invalid. Select the terminal content again.",
         "AGENT_ATTACHMENT_DELETE_FAILED": "The attachment could not be deleted. Try again.",
         "AGENT_ATTACHMENT_LIMIT": "The attachment count or size exceeds the allowed limit.",
         "AGENT_ATTACHMENT_CONFLICT": "The attachment changed. Refresh and try again.",
@@ -1819,7 +1851,17 @@
       "copyLink": "Copy link",
       "openPath": "Open in file manager",
       "copyPath": "Copy path",
-      "reconnect": "Reconnect"
+      "reconnect": "Reconnect",
+      "referenceSelection": "Send to AI assistant"
+    },
+    "aiReference": {
+      "sourceUnavailable": "Requires a ready Linux SSH connection",
+      "newSession": "New conversation",
+      "search": "Search conversation titles",
+      "loading": "Loading conversations…",
+      "noSessions": "No existing conversations",
+      "noMatches": "No matching conversations",
+      "binding_locked": "Running or queued; linked host cannot be changed"
     },
     "completion": {
       "label": "Command suggestions",

@@ -25,6 +25,13 @@ export {
 export type { TerminalTransportState } from './model/terminalTransport.ts'
 export { decodeTerminalOutputFrame } from './model/terminalProtocol.ts'
 export type { TerminalGateway } from './api/terminalGateway.ts'
+export type {
+  TerminalAIReferenceTarget,
+  TerminalAIReferenceSource,
+  TerminalAIReferenceSnapshot,
+  TerminalAIReferenceSelection,
+  TerminalAIReferenceProps,
+} from './model/terminalAIReference.ts'
 export { ConnectionProgress } from './ui/ConnectionProgress.tsx'
 export { TerminalSearchPanel } from './ui/TerminalSearchPanel.tsx'
 export {

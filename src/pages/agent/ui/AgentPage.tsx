@@ -9,6 +9,8 @@ import {
   type AgentResourceReference,
   type AgentReasoningLevel,
   type AgentReadiness,
+  type AgentReferenceTargetsSnapshot,
+  type AgentTerminalReferenceLaunch,
   type AgentSession,
   type AgentSSHResourceState,
   type AgentSourceContext,
@@ -20,6 +22,9 @@ import {
   useAgentDraftAttachments,
   useAgentArchives,
   useAgentSessionManagement,
+  projectAgentReferenceTargets,
+  useAgentTerminalReferenceImport,
+  useAgentQueuedTurnEditOwners,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import {
@@ -46,6 +51,7 @@ import {
 import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
 import { resolveAgentResourceError } from '../model/agentResourceError.ts'
 import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
+import { AgentTerminalReferenceImportNotice } from './AgentTerminalReferenceImportNotice.tsx'
 import styles from './AgentPage.module.scss'
 
 export function AgentPage({
@@ -58,6 +64,7 @@ export function AgentPage({
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
+  onReferenceTargetsChange,
   onOpenSettings,
 }: {
   gateway: AgentWorkspaceGateway
@@ -72,11 +79,14 @@ export function AgentPage({
     agentRunCount: number
     snapshotComplete: boolean
   }) => void
+  onReferenceTargetsChange?: (snapshot: AgentReferenceTargetsSnapshot) => void
   onOpenSettings?: () => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const controller = useMemo(() => new AgentWorkspaceController({ gateway }), [gateway])
+  const getQueuedEditOwner = useAgentQueuedTurnEditOwners(controller)
+  const [composerFocusKey, setComposerFocusKey] = useState(0)
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
   const management = useAgentSessionManagement(controller, gateway, state.sessions, enabled && active)
   const [archivesOpen, setArchivesOpen] = useState(false)
@@ -101,7 +111,8 @@ export function AgentPage({
   const activeSetupAbortRef = useRef<AbortController | null>(null)
   const notificationRef = useRef(notification)
   const tRef = useRef(t)
-  const previousQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
+  const previousQueuedTurnEditSessionIdsRef = useRef(new Map<string, string>())
+  const previousReferenceTargetsRef = useRef('')
   const committedQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
@@ -130,6 +141,13 @@ export function AgentPage({
     [management.searchResults, models, providers, state.runs],
   )
   const archiveMessages = useMemo(() => projectAgentMessages(archives.messages, undefined, []), [archives.messages])
+  const referenceTargets = useMemo(() => projectAgentReferenceTargets(state, enabled), [state, enabled])
+  useEffect(() => {
+    const signature = JSON.stringify(referenceTargets)
+    if (signature === previousReferenceTargetsRef.current) return
+    previousReferenceTargetsRef.current = signature
+    onReferenceTargetsChange?.(referenceTargets)
+  }, [onReferenceTargetsChange, referenceTargets])
 
   useEffect(() => {
     if (draftGroupId && !state.session_groups.some(({ id }) => id === draftGroupId)) setDraftGroupId(undefined)
@@ -413,6 +431,7 @@ export function AgentPage({
     gateway,
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
+    getOwnerId: () => 'draft',
   })
   const queuedTurnEditExistingSelections = useCallback((sessionId: string) => {
     const edit = controller.getSnapshot().queued_turn_edits[sessionId]
@@ -428,20 +447,21 @@ export function AgentPage({
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
     existingSelections: queuedTurnEditExistingSelections,
+    getOwnerId: (sessionId) => committedQueuedTurnEditSessionIdsRef.current.has(sessionId)
+      ? undefined : getQueuedEditOwner(sessionId),
   })
 
   useEffect(() => {
-    const current = new Set(Object.keys(state.queued_turn_edits ?? {}))
-    for (const sessionId of previousQueuedTurnEditSessionIdsRef.current) {
-      if (current.has(sessionId)) continue
-      if (committedQueuedTurnEditSessionIdsRef.current.delete(sessionId)) {
-        queuedTurnEditAttachments.clear(sessionId)
-      } else {
-        void queuedTurnEditAttachments.discard(sessionId)
-      }
+    const current = new Map(Object.keys(state.queued_turn_edits ?? {}).flatMap((sessionId) => {
+      const owner = getQueuedEditOwner(sessionId)
+      return owner ? [[sessionId, owner] as const] : []
+    }))
+    for (const [sessionId, owner] of previousQueuedTurnEditSessionIdsRef.current) {
+      if (current.get(sessionId) === owner) continue
+      void queuedTurnEditAttachments.discardOwner(sessionId, owner, committedQueuedTurnEditSessionIdsRef.current.delete(sessionId))
     }
     previousQueuedTurnEditSessionIdsRef.current = current
-  }, [queuedTurnEditAttachments, state.queued_turn_edits])
+  }, [getQueuedEditOwner, queuedTurnEditAttachments, state.queued_turn_edits])
   const activeSetupReady = active
     && activeSetupEpochRef.current > 0
     && activeSetupReadyEpoch === activeSetupEpochRef.current
@@ -466,7 +486,7 @@ export function AgentPage({
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
   const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined
   const selectedDraftAttachmentRecords = selected && selectedQueuedTurnEdit
-    ? queuedTurnEditAttachments.records[selected.id]
+    ? queuedTurnEditAttachments.records[selected.id]?.filter((record) => !record.owner_id || record.owner_id === getQueuedEditOwner(selected.id))
     : draftAttachments.records[selected?.id ?? 'new']
   const projectedDraftAttachments = useMemo(
     () => (selectedDraftAttachmentRecords ?? []).map((record) => ({
@@ -478,6 +498,7 @@ export function AgentPage({
       phase: record.phase,
       attachment: record.attachment,
       error_code: record.error_code,
+      origin: record.origin,
     })),
     [selectedDraftAttachmentRecords],
   )
@@ -493,6 +514,37 @@ export function AgentPage({
     [resourceBinding, sshResources, sshResourcesReady, state.snapshot_complete],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
+  const createReferenceSession = useCallback(async (request: AgentTerminalReferenceLaunch) => {
+    if (attachmentDraftSessionPromiseRef.current) {
+      await attachmentDraftSessionPromiseRef.current.catch(() => undefined)
+    }
+    return createDraftSession(undefined, request.resource_reference, true)
+  }, [createDraftSession])
+  const referenceImport = useAgentTerminalReferenceImport({
+    intent: launchIntent?.source === 'terminal_selection' ? launchIntent : undefined,
+    controller,
+    active,
+    ready: enabled && activeSetupReady && state.snapshot_complete,
+    modelReady: newSessionModelRunnable,
+    resourcesReady: sshResourcesReady,
+    resources: sshResources,
+    createSession: createReferenceSession,
+    getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',
+    addReference: (sessionId, request, ownerId) => {
+      if (ownerId !== 'draft' && committedQueuedTurnEditSessionIdsRef.current.has(sessionId)) {
+        throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_SAVING')
+      }
+      return (ownerId === 'draft' ? draftAttachments : queuedTurnEditAttachments)
+        .addTerminalReference(sessionId, { text: request.text, origin: request.origin }, ownerId)
+    },
+    onHandled: onLaunchIntentHandled,
+    onFocus: () => setComposerFocusKey((current) => current + 1),
+  })
+  const referenceNotice = active ? (
+    <AgentTerminalReferenceImportNotice job={referenceImport.current} resources={sshResources}
+      onConfirm={referenceImport.confirm} onRetry={referenceImport.retry} onDismiss={referenceImport.dismiss}
+      onOpenSettings={onOpenSettings} />
+  ) : null
   const approvalPolicy = useMemo(() => activeSetupReady && approvalBypass !== undefined
     ? {
         status: 'ready' as const,
@@ -502,6 +554,7 @@ export function AgentPage({
 
   useEffect(() => {
     if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
+    if (launchIntent.source === 'terminal_selection') return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
     const resourceReference = launchIntent.source === 'workbench'
@@ -530,6 +583,7 @@ export function AgentPage({
   if (!enabled || !readiness || !workspaceInfrastructureReady) {
     return (
       <div className={styles.page}>
+        {referenceNotice}
         <AgentReadinessSurface
           readiness={readiness}
           loading={setupLoading || operationBusy.workspace}
@@ -611,6 +665,7 @@ export function AgentPage({
   }
   return (
     <div className={styles.page}>
+      {referenceNotice}
       {activeSetupFailed ? (
         <Alert
           className={styles.alert}
@@ -643,6 +698,8 @@ export function AgentPage({
         />
       ) : null}
       <AgentWorkspace
+        composerFocusKey={composerFocusKey}
+        composerActive={active}
         sessions={workspaceSessions}
         session_management={{
           groups: state.session_groups,
@@ -793,9 +850,17 @@ export function AgentPage({
         })}
         onOpenSettings={onOpenSettings ?? (() => undefined)}
         onDraftChange={(value) => controller.updateDraft(selected?.id ?? 'new', value)}
-        onAttachFiles={selected && selectedQueuedTurnEdit
-          ? queuedTurnEditAttachments.add
-          : draftAttachments.add}
+        onAttachFiles={(files) => {
+          const selection = controller.getSnapshot()
+          const sessionId = selection.selected_session_id
+          const ownerId = sessionId ? getQueuedEditOwner(sessionId) ?? 'draft' : 'draft'
+          const attachments = ownerId === 'draft' ? draftAttachments : queuedTurnEditAttachments
+          if (sessionId) return attachments.add(files, { sessionId, ownerId })
+          return attachments.add(files, undefined, () => {
+            const latest = controller.getSnapshot()
+            return !latest.selected_session_id && latest.selection_intent_revision === selection.selection_intent_revision
+          })
+        }}
         onRemoveAttachment={selected && selectedQueuedTurnEdit
           ? queuedTurnEditAttachments.remove
           : draftAttachments.remove}
@@ -834,7 +899,7 @@ export function AgentPage({
             }
             const targetSessionId = targetSession.id
             const clearCommittedDraft = () => {
-              draftAttachments.clear(targetSessionId)
+              draftAttachments.clearCommitted(targetSessionId, attachmentIds ?? [])
               setDraftSourceContexts((contexts) => omitKey(contexts, targetSessionId))
             }
             try {
@@ -871,7 +936,7 @@ export function AgentPage({
             if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
               controller.updateDraft(selected.id, '')
             }
-            draftAttachments.clear(selected.id)
+            draftAttachments.clearCommitted(selected.id, attachmentIds ?? [])
             setDraftSourceContexts((contexts) => omitKey(contexts, selected.id))
           }, resourceContext ? 'resource' : 'generic', 'queue')
         }}

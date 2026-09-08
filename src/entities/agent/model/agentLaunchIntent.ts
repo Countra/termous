@@ -37,6 +37,7 @@ export function assignAgentLaunchIntentKey(
   key: number,
 ): AgentLaunchIntent {
   switch (request.source) {
+    case 'terminal_selection':
     case 'workbench':
     case 'files':
     case 'host_profile':
@@ -45,7 +46,7 @@ export function assignAgentLaunchIntentKey(
   }
 }
 
-export function buildWorkbenchAgentLaunchRequest(input: WorkbenchLaunchInput): AgentLaunchRequest {
+export function buildWorkbenchAgentLaunchRequest(input: WorkbenchLaunchInput): Extract<AgentLaunchRequest, { source: 'workbench' }> {
   return {
     source: 'workbench',
     host_id: input.hostId,
@@ -56,7 +57,7 @@ export function buildWorkbenchAgentLaunchRequest(input: WorkbenchLaunchInput): A
   }
 }
 
-export function buildFilesAgentLaunchRequest(input: FilesLaunchInput): AgentLaunchRequest {
+export function buildFilesAgentLaunchRequest(input: FilesLaunchInput): Extract<AgentLaunchRequest, { source: 'files' }> {
   return {
     source: 'files',
     host_id: input.hostId,
@@ -70,7 +71,7 @@ export function buildFilesAgentLaunchRequest(input: FilesLaunchInput): AgentLaun
   }
 }
 
-export function buildHostProfileAgentLaunchRequest(input: HostProfileLaunchInput): AgentLaunchRequest {
+export function buildHostProfileAgentLaunchRequest(input: HostProfileLaunchInput): Extract<AgentLaunchRequest, { source: 'host_profile' }> {
   return {
     source: 'host_profile',
     host_id: input.hostId,
@@ -84,7 +85,7 @@ export function buildHostProfileAgentLaunchRequest(input: HostProfileLaunchInput
   }
 }
 
-export function buildForwardFailureAgentLaunchRequest(input: ForwardFailureLaunchInput): AgentLaunchRequest {
+export function buildForwardFailureAgentLaunchRequest(input: ForwardFailureLaunchInput): Extract<AgentLaunchRequest, { source: 'forward_failure' }> {
   return {
     source: 'forward_failure',
     host_id: input.hostId,

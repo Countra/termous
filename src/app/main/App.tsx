@@ -39,7 +39,7 @@ import {
 import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
-import { TerminalRuntimeProvider } from '#features/terminal'
+import { TerminalRuntimeProvider, type TerminalAIReferenceSelection } from '#features/terminal'
 import { RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
@@ -69,7 +69,9 @@ import {
   buildForwardFailureAgentLaunchRequest,
   type AgentLaunchIntent,
   type AgentLaunchRequest,
+  type AgentReferenceTargetsSnapshot,
 } from '#entities/agent'
+import { buildTerminalReferenceLaunch, projectTerminalAIReferenceSnapshot } from './model/agentTerminalReference.ts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
@@ -287,6 +289,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     agentRunCount: 0,
     snapshotComplete: false,
   })
+  const [agentReferenceTargets, setAgentReferenceTargets] = useState<AgentReferenceTargetsSnapshot>({ ready: false, targets: [] })
   const [remoteDesktopRuntimeSessions, setRemoteDesktopRuntimeSessions] = useState(
     data.remoteDesktopSessions,
   )
@@ -460,6 +463,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => projectAgentSSHResources(data.sessions, data.hosts, data.sshAccessProfiles),
     [data.hosts, data.sessions, data.sshAccessProfiles],
   )
+  const referenceTerminalSelection = useCallback((selection: TerminalAIReferenceSelection) => {
+    try {
+      launchAgent(buildTerminalReferenceLaunch(selection, agentSSHResources))
+    } catch (error) {
+      notification.warning({
+        title: t('agent.terminalReference.failed'),
+        description: t(`agent.terminalReference.errors.${error instanceof Error ? error.message : 'unknown'}`, {
+          defaultValue: t('agent.terminalReference.errors.unknown'),
+        }),
+        className: termousNotificationClassName,
+      })
+    }
+  }, [agentSSHResources, launchAgent, notification, t])
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
   const hostAccessGateway = useMemo<HostAccessWorkspaceGateway & HostProvisionGateway>(() => ({
@@ -1112,6 +1128,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     code: 'LOCAL_API_UNAVAILABLE',
   } : null)
   const productTourReady = !initializing && apiReady && !coreFatal
+  const agentReferenceResourcesReady = apiReady && !coreFatal && sessionSnapshotReady
+  const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
+    sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
+  ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
   const productTourBlocked = !productTourReady
     || actionBusy
     || hostSaving
@@ -1284,6 +1304,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
                           onLaunchAgent={launchAgent}
                           onOpenAgentSettings={openAgentSettings}
+                          getAgentReferenceSnapshot={getAgentReferenceSnapshot}
+                          onReferenceTerminalSelection={referenceTerminalSelection}
                         />
                       </div>
 
@@ -1305,6 +1327,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                             }
                           }}
                           onRuntimeSummaryChange={setAgentRuntimeSummary}
+                          onReferenceTargetsChange={setAgentReferenceTargets}
                           onOpenSettings={openAgentSettings}
                         />
                       </div>

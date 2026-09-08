@@ -6,10 +6,12 @@ import styles from './AgentAttachmentPreview.module.scss'
 
 export function AgentAttachmentPreview({
   attachment,
+  local,
   onClose,
   onLoad,
 }: {
   attachment?: AgentAttachment
+  local?: { file: File; origin?: AgentAttachment['origin'] }
   onClose: () => void
   onLoad: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
 }) {
@@ -18,7 +20,7 @@ export function AgentAttachmentPreview({
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    if (!attachment) {
+    if (!attachment && !local) {
       setContent(undefined)
       setFailed(false)
       return undefined
@@ -27,9 +29,9 @@ export function AgentAttachmentPreview({
     let imageUrl: string | undefined
     setContent(undefined)
     setFailed(false)
-    void onLoad(attachment, controller.signal).then(async (blob) => {
+    void (local ? Promise.resolve(local.file) : onLoad(attachment!, controller.signal)).then(async (blob) => {
       if (controller.signal.aborted) return
-      if (attachment.kind === 'image') {
+      if (attachment?.kind === 'image' && !local) {
         imageUrl = URL.createObjectURL(blob)
         setContent({ imageUrl })
         return
@@ -43,14 +45,17 @@ export function AgentAttachmentPreview({
       controller.abort()
       if (imageUrl) URL.revokeObjectURL(imageUrl)
     }
-  }, [attachment, onLoad])
+  }, [attachment, local, onLoad])
+
+  const origin = local?.origin ?? attachment?.origin
+  const title = origin ? t('agent.attachments.terminalReference', { host: origin.host_name }) : local?.file.name ?? attachment?.original_name
 
   return (
     <Modal
       centered
-      open={Boolean(attachment)}
+      open={Boolean(attachment || local)}
       width={760}
-      title={attachment?.original_name}
+      title={title}
       footer={null}
       destroyOnHidden
       className="termous-modal"

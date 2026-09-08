@@ -22,6 +22,7 @@ import {
   useTerminalRuntime,
   type TerminalSearchDirection,
   type TerminalSplitWorkspaceHandle,
+  type TerminalAIReferenceProps,
 } from '#features/terminal'
 import {
   CommandDispatchDock,
@@ -138,7 +139,7 @@ interface SessionInventoryRequestView {
   baselineSignature: string
 }
 
-export interface WorkbenchPageProps {
+export interface WorkbenchPageProps extends TerminalAIReferenceProps {
   fileGateway: FileGateway
   observabilityGateway: ObservabilityGateway
   serviceGateway: ServiceGateway
@@ -223,6 +224,8 @@ export function WorkbenchPage({
   onStopForward,
   onLaunchAgent,
   onOpenAgentSettings,
+  getAgentReferenceSnapshot,
+  onReferenceTerminalSelection,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -1383,6 +1386,8 @@ export function WorkbenchPage({
           terminalSize={terminalSize}
           onOpenConnectionLauncher={onOpenConnectionLauncher}
           onOpenAgentSettings={onOpenAgentSettings}
+          getAgentReferenceSnapshot={getAgentReferenceSnapshot}
+          onReferenceTerminalSelection={onReferenceTerminalSelection}
           onSearchQueryChange={updateSearchQuery}
           onSearchPrevious={() => runSearch('previous')}
           onSearchNext={() => runSearch('next')}

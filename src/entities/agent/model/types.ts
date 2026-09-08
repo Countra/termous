@@ -204,12 +204,15 @@ export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 export const agentAttachmentStates = ['ready', 'reserved', 'bound'] as const
 export type AgentAttachmentState = (typeof agentAttachmentStates)[number]
 
+export type AgentTerminalReferenceOrigin = import('#common/contracts').AgentTerminalReferenceOrigin
+
 export interface AgentAttachment {
   id: string
   session_id: string
   original_name: string
   mime_type: string
   kind: 'text' | 'image'
+  origin?: AgentTerminalReferenceOrigin
   size_bytes: number
   state: AgentAttachmentState
   expires_at?: string
@@ -254,10 +257,16 @@ export interface AgentSSHResourceState {
   started_at: string
 }
 
-export type AgentLaunchIntent = {
-  key: number
-  source_context: AgentSourceContext
-} & (
+export type AgentLaunchIntent = { key: number } & (
+  | {
+      source: 'terminal_selection'
+      target: { kind: 'new' } | { kind: 'session'; session_id: string }
+      text: string
+      origin: import('#common/contracts').AgentTerminalReferenceOrigin
+      resource_reference: AgentResourceReference
+      source_resource: AgentSSHResourceState
+    }
+  | ({ source_context: AgentSourceContext } & (
   | {
       source: 'workbench'
       host_id: string
@@ -285,6 +294,7 @@ export type AgentLaunchIntent = {
       status: string
       error_code?: string
     }
+  ))
 )
 
 export type AgentLaunchRequest = AgentLaunchIntent extends infer Intent

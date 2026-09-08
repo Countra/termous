@@ -172,6 +172,35 @@
     "conversation": {
       "jumpToLatest": "回到最新消息"
     },
+    "terminalReference": {
+      "confirmTitle": "切换 SSH 关联？",
+      "confirmDescription": "终端选区将加入输入框，已有内容会保留，不会自动发送。",
+      "confirmReplace": "切换并添加",
+      "currentAssociation": "当前关联",
+      "nextAssociation": "切换至",
+      "profileUnavailable": "连接名称暂不可用",
+      "unknownHost": "当前 SSH 主机",
+      "profileIdentifier": "连接配置 ID",
+      "sessionIdentifier": "SSH 会话 ID",
+      "pending": "正在准备终端引用…",
+      "failed": "终端引用尚未导入",
+      "configuration": "请先选择可用的 AI 模型",
+      "retained": "已保留来自 {{host}} 的选区原文。",
+      "openSettings": "前往 AI 助手设置",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "来源 SSH 已断开或发生变化。请恢复连接后重新引用。",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "目标会话已删除、归档或暂时不可用，原文仍保留。",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "目标有运行中的任务或排队消息，暂时不能更换 SSH 关联。",
+        "AGENT_TERMINAL_REFERENCE_EDIT_CHANGED": "目标排队消息的编辑状态已变化，请重新确认引用目标。",
+        "AGENT_TERMINAL_REFERENCE_EDIT_SAVING": "目标排队消息正在保存，选区原文已保留，请保存完成后重试。",
+        "AGENT_TERMINAL_REFERENCE_ATTACHMENT_REJECTED": "引用未加入输入区，请检查附件数量、大小或编辑状态后重试。",
+        "AGENT_TERMINAL_REFERENCE_INVALID": "选区为空、包含不支持的字符或超过 256 KiB，请重新选择。",
+        "AGENT_REVISION_CONFLICT": "目标会话已被更新。已刷新状态，请重新尝试。",
+        "AGENT_RUN_CONFLICT": "目标正在运行，暂时无法修改关联。",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "来源 SSH 当前不可用，请确认连接后重试。",
+        "unknown": "操作未完成，选区原文仍保留。请确认连接和目标会话后重试。"
+      }
+    },
     "launch": {
       "action": "交给 AI 助手",
       "title": {
@@ -359,6 +388,8 @@
       "preview": "预览附件",
       "previewName": "预览 {{name}}",
       "previewFailed": "无法加载附件预览",
+      "terminalReference": "终端引用 · {{host}}",
+      "terminalReferenceLines": "{{count}} 行",
       "retryName": "重新上传 {{name}}",
       "removeName": "移除 {{name}}",
       "size": "{{size}}",
@@ -371,6 +402,7 @@
         "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "图片附件合计不能超过 20 MiB。",
         "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "图片格式与文件内容不一致，仅支持 PNG、JPEG 和 WebP。",
         "AGENT_ATTACHMENT_TEXT_ENCODING": "文本附件必须是有效 UTF-8，且不能包含 NUL 字符。",
+        "AGENT_ATTACHMENT_ORIGIN_INVALID": "终端引用来源无效，请重新选择终端内容。",
         "AGENT_ATTACHMENT_DELETE_FAILED": "附件未能删除，请稍后重试。",
         "AGENT_ATTACHMENT_LIMIT": "附件数量或大小已超过限制。",
         "AGENT_ATTACHMENT_CONFLICT": "附件状态已变化，请刷新后重试。",
@@ -1816,7 +1848,17 @@
       "copyLink": "复制链接",
       "openPath": "在文件管理中打开",
       "copyPath": "复制路径",
-      "reconnect": "重新连接"
+      "reconnect": "重新连接",
+      "referenceSelection": "发送给 AI 助手"
+    },
+    "aiReference": {
+      "sourceUnavailable": "需要已就绪的 Linux SSH 连接",
+      "newSession": "新会话",
+      "search": "搜索会话标题",
+      "loading": "正在加载会话…",
+      "noSessions": "暂无已有会话",
+      "noMatches": "没有匹配的会话",
+      "binding_locked": "正在运行或排队，无法更换关联主机"
     },
     "completion": {
       "label": "命令建议",

@@ -9,6 +9,7 @@ import {
 } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
+import { AgentTerminalReferenceCard } from './AgentTerminalReferenceCard.tsx'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
 import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
@@ -195,7 +196,9 @@ const AgentMessageStack = memo(function AgentMessageStack({
             })}
             {message.attachments.some((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent) ? (
               <div className={styles['message-attachments']}>
-                {message.attachments.filter((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent).map((attachment) => (
+                {message.attachments.filter((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent).map((attachment) => attachment.origin ? (
+                  <AgentTerminalReferenceCard key={attachment.id} origin={attachment.origin} onPreview={() => onPreviewAttachment(attachment)} />
+                ) : (
                   <button key={attachment.id} type="button" onClick={() => onPreviewAttachment(attachment)}>
                     {attachment.kind === 'image' ? <Image size={13} /> : <FileCode2 size={13} />}
                     <span>{attachment.original_name}</span>

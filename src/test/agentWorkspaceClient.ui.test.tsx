@@ -8,6 +8,25 @@ describe('AgentWorkspaceClient', () => {
     Reflect.deleteProperty(window, 'termous')
   })
 
+  it('终端引用通过既有附件上传传递来源，普通附件不发送额外字段', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const attachment = {
+      id: 'aga_ref', session_id: 'ags_target', original_name: 'terminal-reference.txt', mime_type: 'text/plain',
+      kind: 'text', size_bytes: 12, state: 'ready', revision: 1, created_at: origin.captured_at, updated_at: origin.captured_at,
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ...attachment, origin })).mockResolvedValueOnce(jsonResponse(attachment))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'renderer-token' }).agentWorkspace
+    const file = new File(['first\nsecond'], 'terminal-reference.txt', { type: 'text/plain' })
+    expect((await gateway.uploadAttachment('ags_target', file, undefined, origin)).origin).toEqual(origin)
+    await gateway.uploadAttachment('ags_target', file)
+    const reference = fetchMock.mock.calls[0]![1].body as FormData
+    expect(reference.get('session_id')).toBe('ags_target')
+    expect(reference.get('origin')).toBe(JSON.stringify(origin))
+    expect(await (reference.get('file') as File).text()).toBe('first\nsecond')
+    expect((fetchMock.mock.calls[1]![1].body as FormData).has('origin')).toBe(false)
+  })
+
   it('使用固定 HTTP/WS 路由、稳定游标和类型化 Runtime IPC', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ items: [sessionFixture()] }))

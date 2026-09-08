@@ -19,7 +19,13 @@ import { TerminalCompletionPopup } from './TerminalCompletionPopup'
 import { TerminalAiCompletionPanel } from './TerminalAiCompletionPanel'
 import { useTerminalAiCompletion } from '../runtime/useTerminalAiCompletion'
 import { useTerminalAiCompletionPosition } from '../runtime/useTerminalAiCompletionPosition'
-import { TerminalContextMenu } from './TerminalContextMenu'
+import { TerminalContextMenu, terminalContextMenuSelector } from './TerminalContextMenu'
+import {
+  freezeTerminalAIReferenceSnapshot,
+  type TerminalAIReferenceProps,
+  type TerminalAIReferenceSelection,
+  type TerminalAIReferenceSnapshot,
+} from '../model/terminalAIReference'
 import {
   buildTerminalContextMenu,
   type TerminalContextMenuActionKey,
@@ -47,7 +53,7 @@ import {
 import noticeStyles from './TerminalCompletionNotice.module.scss'
 import styles from './TerminalPaneViewport.module.scss'
 
-interface TerminalPaneViewportProps {
+interface TerminalPaneViewportProps extends TerminalAIReferenceProps {
   paneId: string
   session: Session | null
   active: boolean
@@ -75,6 +81,8 @@ interface TerminalContextMenuState {
   items: TerminalContextMenuItem[]
   resolvedPath: string | null
   autoFocus: boolean
+  referenceSnapshot?: TerminalAIReferenceSnapshot
+  capturedAt: string
 }
 
 export function TerminalPaneViewport({
@@ -96,6 +104,8 @@ export function TerminalPaneViewport({
   onOpenPath,
   onClose,
   onOpenAgentSettings,
+  getAgentReferenceSnapshot,
+  onReferenceTerminalSelection,
 }: TerminalPaneViewportProps) {
   const paneHostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -294,7 +304,7 @@ export function TerminalPaneViewport({
 
   const handleMouseDown = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (event.button === 2 || (event.target as Element).closest('[data-terminal-search-panel], [data-terminal-ai-completion]')) {
+      if (event.button === 2 || (event.target as Element).closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`)) {
         return
       }
       onActivate()
@@ -319,6 +329,8 @@ export function TerminalPaneViewport({
       if (!snapshot) {
         return
       }
+      const reference = session.kind === 'ssh' && snapshot.selectionText && onReferenceTerminalSelection
+        ? getAgentReferenceSnapshot?.(session.id) : undefined
       const resolvedPath = snapshot.target?.kind === 'path'
         ? resolveTerminalContextPath(snapshot.target, cwdState?.confirmed_path)
         : null
@@ -345,7 +357,12 @@ export function TerminalPaneViewport({
         point,
         resolvedPath,
         autoFocus: !pointer,
+        // 子菜单跨 Portal 且选择期间会有新输出；引用始终使用打开菜单时的选区与来源身份。
+        referenceSnapshot: reference ? freezeTerminalAIReferenceSnapshot(reference) : undefined,
+        capturedAt: new Date().toISOString(),
         items: buildTerminalContextMenu(snapshot, {
+          showAIReference: session.kind === 'ssh' && Boolean(onReferenceTerminalSelection),
+          canReferenceSelection: Boolean(reference?.canReference && reference.source),
           showOpenPath: session.kind === 'ssh',
           canOpenPath: Boolean(
             resolvedPath &&
@@ -374,12 +391,14 @@ export function TerminalPaneViewport({
       onReconnect,
       selectSessionContextRange,
       session,
+      getAgentReferenceSnapshot,
+      onReferenceTerminalSelection,
     ],
   )
 
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (!session || (event.target as Element).closest('[data-terminal-search-panel], [data-terminal-ai-completion]')) {
+      if (!session || (event.target as Element).closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`)) {
         return
       }
       event.preventDefault()
@@ -428,7 +447,7 @@ export function TerminalPaneViewport({
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       const target = event.target as Element
-      const inSearchPanel = Boolean(target.closest('[data-terminal-search-panel], [data-terminal-ai-completion]'))
+      const inSearchPanel = Boolean(target.closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`))
       const opensContextMenu = event.key === 'ContextMenu'
         || (event.shiftKey && event.key === 'F10')
       if (session && opensContextMenu && !inSearchPanel) {
@@ -565,6 +584,19 @@ export function TerminalPaneViewport({
     ],
   )
 
+  const handleReferenceTarget = useCallback((target: TerminalAIReferenceSelection['target']) => {
+    const frozen = contextMenu
+    const reference = frozen?.referenceSnapshot
+    if (!frozen || !reference?.canReference || !reference.ready || !reference.source
+      || sessionId !== frozen.snapshot.sessionId || !frozen.snapshot.selectionText) return
+    if (target.kind === 'session' && !reference.targets.some((item) => item.session_id === target.session_id && !item.disabled)) return
+    closeContextMenu()
+    onReferenceTerminalSelection?.({
+      target, selectionText: frozen.snapshot.selectionText, sourceSessionId: frozen.snapshot.sessionId,
+      source: reference.source, capturedAt: frozen.capturedAt,
+    })
+  }, [closeContextMenu, contextMenu, onReferenceTerminalSelection, sessionId])
+
   useEffect(() => {
     closeContextMenu()
   }, [closeContextMenu, sessionId])
@@ -599,13 +631,13 @@ export function TerminalPaneViewport({
 
     const handleDocumentPointerDown = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest('[data-terminal-context-menu]')) {
+      if (target instanceof Element && target.closest(terminalContextMenuSelector)) {
         return
       }
       closeContextMenu()
     }
     const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') {
+      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) {
         return
       }
       event.preventDefault()
@@ -991,6 +1023,8 @@ export function TerminalPaneViewport({
         autoFocus={contextMenu?.autoFocus ?? false}
         point={contextMenu?.point ?? { x: 0, y: 0 }}
         items={contextMenu?.items ?? []}
+        referenceSnapshot={contextMenu?.referenceSnapshot}
+        onReferenceTarget={handleReferenceTarget}
         onAction={(action) => void handleContextAction(action)}
         onOpenChange={(open) => {
           if (!open) {

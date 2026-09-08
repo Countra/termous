@@ -1,4 +1,4 @@
-import { App as AntdApp } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSSHResourceState } from '#entities/agent'
@@ -13,9 +13,12 @@ const harness = vi.hoisted(() => ({
   archiveProps: null as Record<string, unknown> | null,
   workspaceRenderCount: 0,
   createSession: vi.fn(),
+  addTerminalReference: vi.fn(),
   replaceResourceBinding: vi.fn(),
   removeResourceBinding: vi.fn(),
   startRun: vi.fn(),
+  enqueueTurn: vi.fn(),
+  saveQueuedTurnEdit: vi.fn(),
   updateDraft: vi.fn(),
   updateSession: vi.fn(),
   updateSessionMetadata: vi.fn(),
@@ -32,12 +35,13 @@ const harness = vi.hoisted(() => ({
   reloadUsage: vi.fn(),
   reloadSession: vi.fn(),
   cancelQueuedTurnEdit: vi.fn(),
-  attachmentOptions: null as null | { ensureSession: () => Promise<string> },
+  attachmentOptions: null as null | { ensureSession: () => Promise<string>; getOwnerId?: (sessionId: string) => string | undefined },
   attachmentRecords: {} as Record<string, unknown[]>,
   addAttachment: vi.fn(),
   removeAttachment: vi.fn(),
   retryAttachment: vi.fn(),
   clearAttachments: vi.fn(),
+  clearCommittedAttachments: vi.fn(),
   discardAttachments: vi.fn(),
   modelProviders: vi.fn(),
   models: vi.fn(),
@@ -78,6 +82,8 @@ vi.mock('#features/agent-runtime', async () => ({
       replaceResourceBinding: harness.replaceResourceBinding,
       removeResourceBinding: harness.removeResourceBinding,
       startRun: harness.startRun,
+      enqueueTurn: harness.enqueueTurn,
+      saveQueuedTurnEdit: harness.saveQueuedTurnEdit,
       updateDraft: harness.updateDraft,
       updateSession: harness.updateSession,
       updateSessionMetadata: harness.updateSessionMetadata,
@@ -96,15 +102,19 @@ vi.mock('#features/agent-runtime', async () => ({
       cancelQueuedTurnEdit: harness.cancelQueuedTurnEdit,
     }
   },
-  useAgentDraftAttachments: (options: { ensureSession: () => Promise<string> }) => {
+  useAgentDraftAttachments: (options: { ensureSession: () => Promise<string>; getOwnerId?: (sessionId: string) => string | undefined }) => {
     harness.attachmentOptions = options
     return {
       records: harness.attachmentRecords,
       add: harness.addAttachment,
+      addTerminalReference: harness.addTerminalReference,
       remove: harness.removeAttachment,
       retry: harness.retryAttachment,
       clear: harness.clearAttachments,
+      clearCommitted: harness.clearCommittedAttachments,
       discard: harness.discardAttachments,
+      discardOwner: (sessionId: string, _owner: string, committed: boolean) => committed
+        ? harness.clearAttachments(sessionId) : harness.discardAttachments(sessionId),
     }
   },
 }))
@@ -124,17 +134,164 @@ vi.mock('#widgets/agent-workspace', () => ({
 import { AgentPage } from './AgentPage.tsx'
 
 describe('AgentPage', () => {
+  it('终端引用关联后追加已有草稿，不生成提问或运行任务', async () => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
+    harness.reloadSession.mockImplementation(async (id: string) => (harness.state.sessions as AgentSession[]).find((session) => session.id === id))
+    harness.state.drafts = { 'session-one': { text: '原有提问', updated_at: 1 } }
+    const handled = vi.fn()
+    renderPage({ launchIntent: terminalReferenceIntent(source), sshResources: [source], sshResourcesReady: true, onLaunchIntentHandled: handled })
+    await waitFor(() => expect(harness.addTerminalReference).toHaveBeenCalledTimes(1))
+    expect(harness.replaceResourceBinding).toHaveBeenCalledWith('session-one', {
+      kind: 'ssh_session', session_id: 'ssh-source', expected_revision: 1,
+    })
+    expect(harness.addTerminalReference).toHaveBeenCalledWith('session-one', expect.objectContaining({ text: '  first\nsecond' }), 'draft')
+    expect(harness.workspaceProps?.draft).toBe('原有提问')
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+    expect(handled).toHaveBeenCalledOnce()
+  })
+
+  it('离开 AI 页面后迟到的换绑确认不弹到其他页面，返回时保留待确认引用', async () => {
+    const source = sshResource('ssh-source')
+    const pending = deferred<AgentSession>()
+    harness.state.sessions = [boundSession()]
+    harness.reloadSession.mockReturnValueOnce(pending.promise)
+    const view = renderPage({ launchIntent: terminalReferenceIntent(source), sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.reloadSession).toHaveBeenCalledOnce())
+    view.rerenderPage({ active: false })
+    await act(async () => { pending.resolve(boundSession()); await pending.promise })
+    expect(view.queryByRole('dialog')).not.toBeInTheDocument()
+    view.rerenderPage({ active: true })
+    await waitFor(() => expect(view.getByRole('dialog')).toBeVisible())
+    expect(view.getByRole('dialog')).toHaveTextContent('agent.terminalReference.confirmTitle')
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+    expect(harness.addTerminalReference).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('普通文件选择同步传递固定会话与编辑归属：排队编辑=%s', async (editing) => {
+    if (editing) harness.state.queued_turn_edits = { 'session-one': { turn_id: 'queued-one', text: '排队提问', retained_attachment_ids: [] } }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    const file = new File(['日志'], 'log.txt', { type: 'text/plain' })
+    await act(async () => { await (harness.workspaceProps as unknown as AgentWorkspaceProps).onAttachFiles?.([file]) })
+    expect(harness.addAttachment).toHaveBeenCalledWith([file], {
+      sessionId: 'session-one', ownerId: editing ? expect.stringMatching(/^queued:queued-one:/) : 'draft',
+    })
+  })
+
+  it('终端引用新会话同时关联来源，并将自动命名交给Core', async () => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
+    const intent = terminalReferenceIntent(source)
+    intent.target = { kind: 'new' }
+    renderPage({ launchIntent: intent, sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.addTerminalReference).toHaveBeenCalledTimes(1))
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      auto_title_allowed: true, resource_reference: { kind: 'ssh_session', session_id: 'ssh-source' },
+    }))
+    expect(harness.addTerminalReference).toHaveBeenCalledWith('session-created', expect.anything(), 'draft')
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
+
+  it('新草稿的文件校验尚未完成时切换会话，目标创建守卫失效且不因切回而恢复', async () => {
+    harness.state = { ...harness.state, selected_session_id: undefined, new_session_selected: true }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    const file = new File(['日志'], 'log.txt', { type: 'text/plain' })
+    await act(async () => { await (harness.workspaceProps as unknown as AgentWorkspaceProps).onAttachFiles?.([file]) })
+    const canEnsureSession = harness.addAttachment.mock.calls[0]?.[2] as () => boolean
+    expect(canEnsureSession()).toBe(true)
+    act(() => harness.selectSession('session-two'))
+    expect(canEnsureSession()).toBe(false)
+    act(() => harness.selectSession(undefined))
+    expect(canEnsureSession()).toBe(false)
+    expect(harness.createSession).not.toHaveBeenCalled()
+  })
+
+  it.each(['send', 'queue'] as const)('%s回执晚于新增终端引用时只释放本次提交的附件', async (action) => {
+    const source = { ...sshResource('ssh-session-one'), host_id: 'host-one', ssh_profile_id: 'ssh-one' }
+    prepareTerminalReferenceMocks(source)
+    harness.state.sessions = [boundSession()]
+    harness.reloadSession.mockImplementation(async () => boundSession())
+    const pending = deferred<void>()
+    const request = action === 'send' ? harness.startRun : harness.enqueueTurn
+    request.mockReturnValueOnce(pending.promise)
+    const view = renderPage({ sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    let submitting: Promise<void> | undefined
+    act(() => {
+      const workspace = harness.workspaceProps as unknown as AgentWorkspaceProps
+      submitting = (action === 'send' ? workspace.onSend : workspace.onQueueTurn)('已提交提问', ['attachment-submitted'])
+    })
+    await waitFor(() => expect(request).toHaveBeenCalledOnce())
+    view.rerenderPage({ launchIntent: terminalReferenceIntent(source) })
+    await waitFor(() => expect(harness.addTerminalReference).toHaveBeenCalledOnce())
+    await act(async () => { pending.resolve(); await submitting })
+    expect(harness.clearCommittedAttachments).toHaveBeenCalledExactlyOnceWith('session-one', ['attachment-submitted'])
+    expect(harness.clearAttachments).not.toHaveBeenCalled()
+  })
+
+  it('排队编辑保存期间保留待引用原文，保存结束后由用户重试接入当前草稿', async () => {
+    const source = { ...sshResource('ssh-session-one'), host_id: 'host-one', ssh_profile_id: 'ssh-one' }
+    prepareTerminalReferenceMocks(source)
+    harness.state.sessions = [boundSession()]
+    harness.state.queued_turns = { 'session-one': [queuedTurnFixture({ editing: true })] }
+    harness.state.queued_turn_edits = { 'session-one': { turn_id: 'queued-one', text: '正在保存', retained_attachment_ids: [] } }
+    harness.reloadSession.mockImplementation(async () => boundSession())
+    const pending = deferred<void>()
+    harness.saveQueuedTurnEdit.mockImplementation(async () => {
+      await pending.promise
+      harness.state = { ...harness.state, queued_turn_edits: {} }
+      publishState()
+    })
+    const view = renderPage({ sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    let saving: Promise<void> | undefined
+    act(() => { saving = (harness.workspaceProps as unknown as AgentWorkspaceProps).onSaveQueuedTurnEdit([]) })
+    await waitFor(() => expect(harness.saveQueuedTurnEdit).toHaveBeenCalledOnce())
+    expect(harness.attachmentOptions?.getOwnerId?.('session-one')).toBeUndefined()
+    view.rerenderPage({ launchIntent: terminalReferenceIntent(source) })
+    await waitFor(() => expect(view.getByText('agent.terminalReference.errors.AGENT_TERMINAL_REFERENCE_EDIT_SAVING')).toBeVisible())
+    expect(harness.addTerminalReference).not.toHaveBeenCalled()
+    await act(async () => { pending.resolve(); await saving })
+    expect(harness.addTerminalReference).not.toHaveBeenCalled()
+    fireEvent.click(view.getByRole('button', { name: 'app.retry' }))
+    await waitFor(() => expect(harness.addTerminalReference).toHaveBeenCalledExactlyOnceWith(
+      'session-one', expect.objectContaining({ text: '  first\nsecond' }), 'draft',
+    ))
+  })
+
+  it('同源引用进入正在编辑的队列项，普通草稿不受影响', async () => {
+    const source = { ...sshResource('ssh-session-one'), host_id: 'host-one', ssh_profile_id: 'ssh-one' }
+    prepareTerminalReferenceMocks(source)
+    harness.state.sessions = [boundSession()]
+    harness.state.drafts = { 'session-one': { text: '普通草稿', updated_at: 1 } }
+    harness.state.queued_turns = { 'session-one': [queuedTurnFixture({ editing: true })] }
+    harness.state.queued_turn_edits = { 'session-one': { turn_id: 'queued-one', text: '编辑中的提问', retained_attachment_ids: [] } }
+    harness.reloadSession.mockImplementation(async () => boundSession())
+    renderPage({ launchIntent: terminalReferenceIntent(source), sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.addTerminalReference).toHaveBeenCalledTimes(1))
+    expect(harness.addTerminalReference).toHaveBeenCalledWith('session-one', expect.anything(), expect.stringMatching(/^queued:queued-one:/))
+    expect(harness.workspaceProps?.draft).toBe('普通草稿')
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     harness.listeners.clear()
     harness.workspaceProps = null
     harness.archiveProps = null
     harness.workspaceRenderCount = 0
     harness.createSession.mockReset()
+    harness.addTerminalReference.mockReset().mockResolvedValue(true)
     harness.replaceResourceBinding.mockReset()
     harness.removeResourceBinding.mockReset()
     harness.replaceResourceBinding.mockResolvedValue(undefined)
     harness.removeResourceBinding.mockResolvedValue(undefined)
     harness.startRun.mockReset()
+    harness.enqueueTurn.mockReset().mockResolvedValue(undefined)
+    harness.saveQueuedTurnEdit.mockReset().mockResolvedValue(undefined)
     harness.updateDraft.mockReset()
     harness.updateSession.mockReset()
     harness.updateSessionMetadata.mockReset()
@@ -157,6 +314,7 @@ describe('AgentPage', () => {
     harness.removeAttachment.mockReset()
     harness.retryAttachment.mockReset()
     harness.clearAttachments.mockReset()
+    harness.clearCommittedAttachments.mockReset()
     harness.discardAttachments.mockReset().mockResolvedValue(undefined)
     harness.modelProviders.mockReset().mockResolvedValue({ items: [providerFixture()] })
     harness.models.mockReset().mockResolvedValue({ items: [modelFixture()] })
@@ -527,7 +685,7 @@ describe('AgentPage', () => {
     expect(harness.startRun).toHaveBeenCalledWith(
       'session-created', '检查生产连接', ['attachment-one'], undefined,
     )
-    expect(harness.clearAttachments).toHaveBeenCalledWith('session-created')
+    expect(harness.clearCommittedAttachments).toHaveBeenCalledWith('session-created', ['attachment-one'])
   })
 
   it('组内新会话只记录草稿分组，首发才携带 group_id 创建', async () => {
@@ -787,12 +945,12 @@ describe('AgentPage', () => {
       const send = harness.workspaceProps?.onSend as (
         message: string,
         attachmentIds: string[],
-        sourceContext: AgentLaunchIntent['source_context'],
+        sourceContext: import('#entities/agent').AgentSourceContext,
       ) => Promise<void>
       await send('检查生产连接', ['attachment-one'], launchIntent().source_context)
     })
 
-    expect(harness.clearAttachments).toHaveBeenCalledWith('session-created')
+    expect(harness.clearCommittedAttachments).toHaveBeenCalledWith('session-created', ['attachment-one'])
     await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toBeUndefined())
   })
 
@@ -810,6 +968,7 @@ describe('AgentPage', () => {
     })
 
     expect(harness.clearAttachments).not.toHaveBeenCalled()
+    expect(harness.clearCommittedAttachments).not.toHaveBeenCalled()
   })
 
   it('引用的精确 SSH 会话失效后不跟随同 Profile 新会话，并阻止发送且保留草稿', async () => {
@@ -1329,6 +1488,9 @@ function workspaceState() {
     run_event_sequences: {},
     run_part_overlays: {},
     drafts: {},
+    queued_turns: {},
+    queue_states: {},
+    queued_turn_edits: {},
     session_contexts: {},
     session_usages: {},
     selected_session_id: 'session-one',
@@ -1416,7 +1578,9 @@ function renderPage({
       />
     </AntdApp>
   )
-  const view = render(element())
+  const view = render(element(), {
+    wrapper: ({ children }) => <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider>,
+  })
   return {
     ...view,
     rerenderPage: (next: {
@@ -1576,7 +1740,31 @@ function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function launchIntent(): AgentLaunchIntent {
+function prepareTerminalReferenceMocks(source: AgentSSHResourceState) {
+  const withBinding = (session: AgentSession): AgentSession => ({ ...session, resource_binding: {
+    kind: 'ssh_session', session_id: source.session_id, host_id: source.host_id, ssh_profile_id: source.ssh_profile_id,
+    host_name: source.host_name, platform: 'linux', bound_at: '2026-09-08T08:00:00Z',
+  } })
+  harness.createSession.mockImplementation(async (input: AgentSessionInput) => withBinding({ ...sessions[0], ...input, id: 'session-created' }))
+  harness.replaceResourceBinding.mockImplementation(async (id: string) => {
+    const current = (harness.state.sessions as AgentSession[]).find((session) => session.id === id)!
+    const updated = withBinding(current)
+    harness.state.sessions = (harness.state.sessions as AgentSession[]).map((session) => session.id === id ? updated : session)
+    publishState()
+    return updated
+  })
+}
+
+function terminalReferenceIntent(source: AgentSSHResourceState): Extract<AgentLaunchIntent, { source: 'terminal_selection' }> {
+  return {
+    key: 30, source: 'terminal_selection', target: { kind: 'session', session_id: 'session-one' },
+    text: '  first\nsecond', source_resource: source,
+    resource_reference: { kind: 'ssh_session', session_id: source.session_id },
+    origin: { kind: 'terminal_selection', source_session_id: source.session_id, host_name: source.host_name, captured_at: '2026-09-08T08:00:00Z', line_count: 2 },
+  }
+}
+
+function launchIntent(): Extract<AgentLaunchIntent, { source: 'workbench' }> {
   return {
     key: 7,
     source: 'workbench',

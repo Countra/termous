@@ -129,10 +129,11 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     })
   }
 
-  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal) {
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: import('#entities/agent').AgentAttachment['origin']) {
     const body = new FormData()
     body.append('session_id', sessionId)
     body.append('file', file, file.name)
+    if (origin) body.append('origin', JSON.stringify(origin))
     return this.request<unknown>(`${agentPath}/attachments`, {
       method: 'POST', body, signal, timeoutMs: 45_000,
     }).then(decodeAgentAttachment)

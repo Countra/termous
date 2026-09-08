@@ -110,6 +110,13 @@ export {
   buildWorkbenchAgentLaunchRequest,
 } from './model/agentLaunchIntent.ts'
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
+export {
+  sameTerminalReferenceSource,
+  type AgentTerminalReferenceLaunch,
+  type AgentTerminalReferenceTarget,
+  type AgentReferenceTargetSummary,
+  type AgentReferenceTargetsSnapshot,
+} from './model/terminalReference.ts'
 export { compareAgentSessionOrder } from './model/sessionOrder.ts'
 export { mergeAgentRetryActivity } from './model/retryActivity.ts'
 export {
@@ -120,3 +127,4 @@ export {
   type AgentDefaultModelStatusView,
 } from './model/agentDefaultModelStatus.ts'
 export { useAgentDefaultModelStatus } from './model/useAgentDefaultModelStatus.ts'
+export type { AgentTerminalReferenceOrigin } from '#common/contracts'

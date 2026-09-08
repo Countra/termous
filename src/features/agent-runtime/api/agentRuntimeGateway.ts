@@ -69,7 +69,7 @@ export interface AgentWorkspaceGateway {
   replaceResourceBinding(id: string, input: AgentResourceBindingUpdateInput, signal?: AbortSignal): Promise<AgentSession>
   removeResourceBinding(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentSession>
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
-  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal): Promise<AgentAttachment>
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
