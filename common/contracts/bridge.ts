@@ -25,6 +25,7 @@ import type {
 } from './data-portability'
 import type { ExternalUrlOpenResult } from './external'
 import type { CoreStartupSnapshot } from './startup'
+import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from './terminal-ai-completion'
 import type {
   UpdateApplicationInfo,
   UpdateInstallConfirmation,
@@ -69,6 +70,10 @@ export interface TermousBridge {
     wake: () => Promise<AgentRuntimeCommandResult>
     steerQueuedTurn: (request: AgentQueuedTurnSteerRequest) => Promise<AgentRuntimeCommandResult>
     onStatus: (callback: (status: AgentRuntimeStatus) => void) => () => void
+  }
+  terminalAICompletion?: {
+    generate: (request: TerminalAICompletionRequest) => Promise<TerminalAICompletionResult>
+    cancel: (request: TerminalAICompletionCancel) => Promise<void>
   }
   startup?: {
     ready: (result?: { failed?: boolean; message?: string; attemptId?: string }) => Promise<boolean>

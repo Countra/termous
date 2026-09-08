@@ -1844,6 +1844,67 @@
         "other": "Other"
       }
     },
+    "aiCompletion": {
+      "title": "AI command completion",
+      "close": "Close AI command completion",
+      "prompt": "Describe what you want to do",
+      "placeholder": "Describe the command you need…",
+      "inputHint": "Enter to generate · Shift+Enter for a new line",
+      "generate": "Generate command",
+      "generateMore": "Generate another",
+      "candidatesLabel": "Command suggestions",
+      "listHint": "↑↓ to select · Enter or double-click to insert",
+      "generating": "Generating command…",
+      "cancel": "Cancel generation",
+      "retry": "Generate again",
+      "append": "Insert into terminal",
+      "alreadyEntered": "Already entered",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed. Try again.",
+      "defaultModel": "Default model",
+      "modelLoading": "Loading…",
+      "modelUnset": "Not configured",
+      "modelNotConfigured": "Choose a default model in AI settings first.",
+      "modelUnavailable": "The default model is unavailable. Check AI settings.",
+      "modelStatusFailed": "The default model status could not be loaded.",
+      "desktopRequired": "Use the desktop app for AI command completion.",
+      "requestFailed": "The command could not be generated. Try again.",
+      "errors": {
+        "AI_COMPLETION_CANCEL_FAILED": "The cancellation request could not be completed. Try again.",
+        "AI_COMPLETION_PROMPT_TOO_LONG": "The input is too long. Shorten the description and try again.",
+        "AI_COMPLETION_INVALID_RESULT": "The model did not return a valid command. Generate again.",
+        "AI_COMPLETION_BRIDGE_FAILED": "The AI command completion service could not be reached. Try again.",
+        "TERMINAL_AI_CANCELLED": "Command generation was cancelled.",
+        "TERMINAL_AI_UNAVAILABLE": "AI command completion is temporarily unavailable.",
+        "TERMINAL_AI_BUSY": "A command is already being generated. Try again shortly.",
+        "TERMINAL_AI_TIMEOUT": "Command generation timed out. Try again.",
+        "TERMINAL_AI_RESPONSE_INVALID": "The completion service returned an invalid result. Try again.",
+        "TERMINAL_AI_WORKER_EXITED": "The command generation service stopped. Try again.",
+        "TERMINAL_AI_WORKER_FAILED": "The command generation service encountered a problem. Try again.",
+        "TERMINAL_AI_BOOTSTRAP_FAILED": "The command generation request could not be prepared. Try again.",
+        "TERMINAL_AI_OUTPUT_TRUNCATED": "Command generation did not finish. Generate again.",
+        "TERMINAL_AI_OUTPUT_INVALID": "The model returned an invalid command format. Generate again.",
+        "TERMINAL_AI_REQUEST_FAILED": "The command could not be generated. Try again.",
+        "TERMINAL_AI_BOOTSTRAP_INVALID": "The command generation configuration is invalid. Check AI settings.",
+        "TERMINAL_AI_REQUEST_INVALID": "This request could not be submitted. Enter the description again.",
+        "COMPLETION_DISABLED": "AI command completion is off. Enable it in terminal settings.",
+        "COMPLETION_SESSION_NOT_FOUND": "This terminal session no longer exists.",
+        "COMPLETION_SESSION_NOT_READY": "The terminal session is not ready. Connect and try again.",
+        "COMPLETION_STALE_PROMPT": "The terminal input has changed. Open AI command completion again.",
+        "COMPLETION_INVALID_QUERY": "The current input is unavailable. Enter the description again.",
+        "COMPLETION_UNAVAILABLE": "AI command completion is currently unavailable for this terminal.",
+        "AGENT_NOT_READY": "The local AI service is not ready. Try again shortly.",
+        "AGENT_MODEL_UNAVAILABLE": "The default model is unavailable. Check AI settings.",
+        "AGENT_REVISION_CONFLICT": "The model credentials have changed. Check AI settings and try again."
+      },
+      "openSettings": "Open AI settings",
+      "appendHint": {
+        "mismatch": "The current input does not match this command. Copy it to edit manually.",
+        "exact": "This command is already on the terminal input line.",
+        "stale": "The terminal input has changed. Copy the command or generate again."
+      }
+    },
     "tabMenu": {
       "split": "Split",
       "duplicate": "Duplicate session",
@@ -3405,6 +3466,8 @@
     "connectionLimits": "Existing terminal state, in-progress file work, and established TCP connections cannot be resumed or restored automatically.",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
+    "completionAiEnabled": "Enable AI command completion",
+    "completionAiHint": "Use the default AI model to turn natural language into a command, then confirm to insert it.",
     "completionHint": "Suggest commands using Bash completion, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
@@ -3475,6 +3538,10 @@
         "terminal_completion_accept": {
           "name": "Accept completion suggestion",
           "description": "Accepts the current suggestion. A non-exact match is inserted without running the command."
+        },
+        "terminal_ai_completion_open": {
+          "name": "Open AI command completion",
+          "description": "Describe a task in the current terminal and generate a command with the default AI model."
         },
         "terminal_search_open": {
           "name": "Open terminal search",

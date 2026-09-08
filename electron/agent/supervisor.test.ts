@@ -197,6 +197,24 @@ async function flushSupervisor() {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
+test('单次终端补全只读取活租约，不启动Run、推进队列或暴露可变内部状态', async () => {
+  const { core, factory, supervisor } = createFixture()
+  assert.throws(() => supervisor.completionLease(), /AGENT_RUNTIME_UNAVAILABLE/u)
+  await supervisor.initialize()
+  try {
+    const claims = core.claimCalls
+    const lease = supervisor.completionLease()
+    lease.revision = -1
+    assert.notEqual(supervisor.completionLease().revision, -1)
+    assert.equal(core.claimCalls, claims)
+    assert.equal(core.ticketCalls, 0)
+    assert.equal(factory.workers.length, 0)
+    core.lease.expires_at = '2000-01-01T00:00:00Z'
+    assert.throws(() => supervisor.completionLease(), /AGENT_RUNTIME_UNAVAILABLE/u)
+  } finally { await supervisor.shutdown() }
+  assert.throws(() => supervisor.completionLease(), /AGENT_RUNTIME_UNAVAILABLE/u)
+})
+
 test('Supervisor 初始化、显式唤醒与 Worker 退出都会串行拉取持久队列', async () => {
   const { core, factory, supervisor } = createFixture()
   core.queueClaims.push(primaryRun)

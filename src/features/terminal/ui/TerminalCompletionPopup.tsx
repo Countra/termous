@@ -38,6 +38,7 @@ export interface TerminalCompletionPopupProps {
   themeMode: ThemeMode
   onSelectedIndexChange: (index: number) => void
   onAccept: (item: CompletionItem, index: number) => void
+  onOpenAi?: () => void
 }
 
 export function TerminalCompletionPopup({
@@ -49,6 +50,7 @@ export function TerminalCompletionPopup({
   themeMode,
   onSelectedIndexChange,
   onAccept,
+  onOpenAi,
 }: TerminalCompletionPopupProps) {
   const { t, i18n } = useTranslation()
   const { labels: shortcutLabels } = useShortcutRuntime()
@@ -57,7 +59,7 @@ export function TerminalCompletionPopup({
     shortcutLabels.get('terminal.completion.next')?.[0],
   ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
   const acceptShortcut = shortcutLabels.get('terminal.completion.accept')?.[0]
-  const showShortcutFooter = navigationShortcuts.length > 0 || Boolean(acceptShortcut)
+  const showShortcutFooter = navigationShortcuts.length > 0 || Boolean(acceptShortcut) || Boolean(onOpenAi)
   const popupRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
 
@@ -200,6 +202,9 @@ export function TerminalCompletionPopup({
       </div>
       {showShortcutFooter ? (
         <div id={`${id}-shortcuts`} className={styles['terminal-completion-shortcuts']}>
+          {onOpenAi ? <button type="button" className={styles['ai-entry']} onClick={onOpenAi}>
+            <Sparkles size={12} aria-hidden="true" />{t('terminal.aiCompletion.title')}
+          </button> : null}
           {navigationShortcuts.length > 0 ? (
             <span className={styles['terminal-completion-shortcut']}>
               <kbd>{navigationShortcuts.join(' / ')}</kbd>

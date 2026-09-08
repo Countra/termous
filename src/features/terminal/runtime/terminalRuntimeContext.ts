@@ -20,6 +20,8 @@ import type {
   TerminalSearchResult,
 } from '../model/terminalSearch'
 import type { TerminalInputLock } from '../model/terminalProtocol'
+import type { TerminalAIInputSnapshot } from '#common/contracts'
+import type { AgentDefaultModelStatusGateway } from '#entities/agent'
 
 export type {
   TerminalContextPointer,
@@ -64,6 +66,11 @@ export interface TerminalCompletionCursorGeometry {
 }
 
 export interface TerminalRuntimeContextValue {
+  aiCompletionEnabled: boolean
+  getDefaultModelStatus: AgentDefaultModelStatusGateway['getDefaultModelStatus']
+  captureSessionAiInput: (sessionId: string) => TerminalAIInputSnapshot | null
+  setSessionAiCompletionOpen: (sessionId: string, open: boolean) => void
+  acceptSessionAiCompletion: (sessionId: string, input: TerminalAIInputSnapshot, command: string) => TerminalSendResult
   registerViewport: (options: TerminalViewportOptions) => () => void
   focusActive: () => void
   resizeActive: () => void

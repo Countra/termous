@@ -1283,6 +1283,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
                           onLaunchAgent={launchAgent}
+                          onOpenAgentSettings={openAgentSettings}
                         />
                       </div>
 
@@ -1462,6 +1463,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           appVersion={appVersion}
                           dataPortabilityGateway={gateways.dataPortability}
                           agentSetupGateway={gateways.agentSetup}
+                          defaultModelStatusGateway={gateways.terminal}
                           updatePreferencesRuntime={updatePreferencesRuntime}
                           actionBusy={actionBusy}
                           onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}

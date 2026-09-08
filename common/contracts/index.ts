@@ -10,6 +10,13 @@ export type {
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
 export type {
+  TerminalAIInputSnapshot,
+  TerminalAICompletionRequest,
+  TerminalAICompletionCancel,
+  TerminalAICompletionModel,
+  TerminalAICompletionResult,
+} from './terminal-ai-completion.ts'
+export type {
   CoreStartupFailure,
   CoreStartupSnapshot,
   DatabaseStartupOperation,

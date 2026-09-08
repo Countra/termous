@@ -264,7 +264,7 @@ function isRetryableRuntimeTransportError(error: unknown) {
       || error.code === 'AGENT_RUNTIME_UNAVAILABLE')
 }
 
-function validateCoreBaseURL(value: string) {
+export function validateCoreBaseURL(value: string) {
   const url = new URL(value)
   const localHost = url.hostname === '127.0.0.1'
     || url.hostname === 'localhost'

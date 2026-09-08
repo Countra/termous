@@ -431,6 +431,43 @@ test('关闭设置会中止所有会话的在途请求并拒绝迟到结果', as
   assert.equal(runtime.getSnapshot('session-2').items.length, 0)
 })
 
+test('AI 暂停仅取消当前会话普通补全，迟到结果不能恢复候选且关闭后可重新查询', async () => {
+  const scheduler = new ManualScheduler()
+  const pending: Array<{
+    query: CompletionQuery
+    signal: AbortSignal
+    resolve: (result: CompletionResult) => void
+  }> = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: (_sessionId, query, signal) => new Promise((resolve) => {
+      pending.push({ query, signal, resolve })
+    }),
+  })
+  for (const sessionId of ['session-1', 'session-2']) {
+    runtime.applyPromptBoundary(sessionId, boundary)
+    runtime.applyUserData(sessionId, 'g')
+    assert.equal(scheduler.runNext(), true)
+  }
+  runtime.setSuggestionsPaused('session-1', true)
+  assert.equal(pending[0].signal.aborted, true)
+  assert.equal(pending[1].signal.aborted, false)
+  assert.equal(runtime.captureAiInput('session-1')?.line, 'g')
+  for (const request of pending) {
+    request.resolve(completionResult(request.query, [commandCandidate(request.query)]))
+  }
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('session-1').items.length, 0)
+  assert.equal(runtime.getSnapshot('session-2').items.length, 1)
+  runtime.setSuggestionsPaused('session-1', false)
+  assert.equal(scheduler.runNext(), true)
+  assert.equal(pending.length, 3)
+  pending[2].resolve(completionResult(pending[2].query, [commandCandidate(pending[2].query)]))
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('session-1').items.length, 1)
+  runtime.clear()
+})
+
 test('来源配置变化会取消旧查询并清空候选但保留可信输入', async () => {
   const scheduler = new ManualScheduler()
   let pending: {

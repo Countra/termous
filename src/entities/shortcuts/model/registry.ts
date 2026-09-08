@@ -55,6 +55,9 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = Object.free
   action('terminal.completion.accept', 'completion', 'terminal.completion.visible', [
     chord('Enter', 'Enter'),
   ]),
+  action('terminal.ai_completion.open', 'completion', 'terminal.active', [
+    chord('KeyA', 'A', ['primary', 'shift']),
+  ]),
   action('terminal.search.open', 'terminal', 'terminal.active', []),
   action('terminal.select_all', 'terminal', 'terminal.active', []),
   action('terminal.session.reconnect', 'terminal', 'terminal.disconnected', []),

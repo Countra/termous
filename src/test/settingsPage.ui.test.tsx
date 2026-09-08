@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type {
@@ -107,13 +107,19 @@ vi.mock('#features/settings', () => ({
   TerminalCompletionSettings: ({
     onChange,
     value,
+    modelStatus,
+    onOpenAgentSettings,
   }: {
     onChange: (settings: CompletionSettings) => Promise<void>
     value: CompletionSettings
+    modelStatus?: { status: string; label?: string }
+    onOpenAgentSettings?: () => void
   }) => (
-    <button type="button" onClick={() => void onChange({ ...value, enabled: false })}>
-      completion-change
-    </button>
+    <div>
+      <button type="button" onClick={() => void onChange({ ...value, enabled: false })}>completion-change</button>
+      <span data-testid="completion-model">{modelStatus?.label ?? modelStatus?.status}</span>
+      <button type="button" onClick={onOpenAgentSettings}>completion-open-agent-settings</button>
+    </div>
   ),
   TerminalStyleSettings: ({
     fonts,
@@ -163,6 +169,7 @@ const terminalSettings: TerminalSettings = {
 
 const completionSettings: CompletionSettings = {
   enabled: true,
+  ai_enabled: false,
   providers: {
     native: true,
     alias: true,
@@ -233,6 +240,22 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
+  it('终端页读取默认模型，前往 AI 设置后再返回会刷新且保留设置草稿', async () => {
+    const user = userEvent.setup()
+    const getDefaultModelStatus = vi.fn().mockResolvedValue({ available: true, model_id: 'm1', model_name: 'Model one', provider_name: 'Provider' })
+    renderSettingsPage({ initialTab: 'terminal', defaultModelStatusGateway: { getDefaultModelStatus } })
+    await waitFor(() => expect(screen.getByTestId('completion-model')).toHaveTextContent('Model one'))
+    await user.click(screen.getByRole('button', { name: 'completion-open-agent-settings' }))
+    expect(screen.getByRole('tab', { name: 'settings.tabAgent' })).toHaveAttribute('aria-selected', 'true')
+    await user.type(screen.getByRole('textbox', { name: 'agent-draft' }), '保留草稿')
+    getDefaultModelStatus.mockResolvedValue({ available: true, model_id: 'm2', model_name: 'Model two', provider_name: 'Provider' })
+    await user.click(screen.getByRole('tab', { name: 'settings.tabTerminal' }))
+    await waitFor(() => expect(screen.getByTestId('completion-model')).toHaveTextContent('Model two'))
+    expect(getDefaultModelStatus).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('button', { name: 'completion-open-agent-settings' }))
+    expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
+  })
+
   it('保持八个页签及通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()

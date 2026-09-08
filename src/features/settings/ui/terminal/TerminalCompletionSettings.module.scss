@@ -19,6 +19,35 @@
   margin: 0;
 }
 
+.ai-row {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ai-title,
+.ai-model {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ai-title > svg {
+  color: var(--accent);
+}
+
+.ai-model {
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ai-model > :global(.ant-btn) {
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+}
+
 .providers:global(.ant-collapse) {
   margin-top: 14px;
   border-top: 1px solid var(--border);

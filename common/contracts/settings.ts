@@ -42,6 +42,7 @@ export interface CompletionProviderSettings {
 
 export interface CompletionSettings {
   enabled: boolean
+  ai_enabled: boolean
   providers: CompletionProviderSettings
 }
 

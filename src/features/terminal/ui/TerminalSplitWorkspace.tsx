@@ -66,6 +66,7 @@ interface TerminalSplitWorkspaceProps {
   onTerminalCleared?: (sessionId: string) => void
   onOpenFilesAtPath?: (session: Session, path: string) => void
   onCloseSession?: (session: Session) => void
+  onOpenAgentSettings?: () => void
 }
 
 interface DropTarget {
@@ -95,6 +96,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       onTerminalCleared,
       onOpenFilesAtPath,
       onCloseSession,
+      onOpenAgentSettings,
     },
     ref,
   ) => {
@@ -317,6 +319,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               onSearch={onSearchSession}
               onTerminalCleared={onTerminalCleared}
               onOpenPath={onOpenFilesAtPath}
+              onOpenAgentSettings={onOpenAgentSettings}
               onClose={session ? () => onCloseSession?.(session) : undefined}
             />
           )
@@ -360,6 +363,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         layout.activePaneId,
         onCloseSession,
         onOpenFilesAtPath,
+        onOpenAgentSettings,
         onReconnectSession,
         onSearchSession,
         onTerminalCleared,

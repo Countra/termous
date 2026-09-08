@@ -12,6 +12,9 @@ import type {
   ExternalUrlOpenResult,
   FilePickerOptions,
   TermousBridge,
+  TerminalAICompletionRequest,
+  TerminalAICompletionCancel,
+  TerminalAICompletionResult,
   TrayCommand,
   UpdatePreferences,
   UpdatePreferencesPatch,
@@ -21,6 +24,7 @@ import type {
   UpdateSnapshot,
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
+import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
 } from './updateRuntimeSummaryRefresh'
@@ -152,6 +156,10 @@ const bridge = {
       ipcRenderer.on(agentRuntimeIPCChannels.status, listener)
       return () => ipcRenderer.removeListener(agentRuntimeIPCChannels.status, listener)
     },
+  },
+  terminalAICompletion: {
+    generate: (request: TerminalAICompletionRequest) => ipcRenderer.invoke(terminalCompletionIPCChannels.generate, request) as Promise<TerminalAICompletionResult>,
+    cancel: (request: TerminalAICompletionCancel) => ipcRenderer.invoke(terminalCompletionIPCChannels.cancel, request) as Promise<void>,
   },
   startup: {
     ready: (result?: { failed?: boolean; message?: string; attemptId?: string }) => ipcRenderer.invoke('startup:ready', result) as Promise<boolean>,

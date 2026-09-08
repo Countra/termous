@@ -31,6 +31,9 @@ import { registerAgentRuntimeIPC } from './agent/ipc'
 import { AgentSkillBundleSource } from './agent/skillBundleSource'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
+import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
+import { TerminalCompletionRuntime } from './terminalCompletion/runtime'
+import { registerTerminalCompletionIPC } from './terminalCompletion/ipc'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager, type CoreShutdownReason } from './coreProcess'
 import { formatStartupDiagnostics } from './coreDiagnostics'
@@ -104,6 +107,18 @@ const agentSupervisor = new AgentSupervisor({
     info: (event, details = {}) => reportElectronProcessEvent(event, details),
     error: (event, details = {}) => reportElectronProcessEvent(event, details),
   },
+})
+const terminalCompletionCore = new TerminalCompletionCoreClient({
+  getConfig: () => coreProcess.initialize(),
+  getLease: () => agentSupervisor.completionLease(),
+})
+const terminalCompletionRuntime = new TerminalCompletionRuntime({
+  bootstrap: (request, signal) => terminalCompletionCore.bootstrap(request, signal),
+  workerFactory: new UtilityWorkerFactory({
+    modulePath: path.join(MAIN_DIST, 'terminal-completion-worker.js'),
+    cwd: path.join(__dirname, '..'), serviceName: 'Termous Terminal Command Suggestion',
+  }),
+  onFinished: (summary) => reportElectronProcessEvent('terminal-ai-completion-finished', summary),
 })
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -804,7 +819,7 @@ function prepareApplicationExit() {
 }
 
 async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
-  let agentRuntimeStopped = true
+  let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
     await agentSupervisor.shutdown()
   } catch (error) {
@@ -826,6 +841,7 @@ async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
 
 async function recoverAgentRuntimeAfterFailedShutdown() {
   if (exitCoordinator.isApplicationExiting()) return
+  terminalCompletionRuntime.resume()
   const status = await agentSupervisor.initialize()
   if (status.state === 'offline') {
     reportElectronProcessEvent('agent-runtime-recovery-failed', {
@@ -835,12 +851,17 @@ async function recoverAgentRuntimeAfterFailedShutdown() {
 }
 
 async function restartCoreAfterRestore() {
+  if (!await terminalCompletionRuntime.stop()) {
+    terminalCompletionRuntime.resume()
+    throw new Error('TERMINAL_AI_WORKER_TERMINATION_TIMEOUT')
+  }
   try {
     await agentSupervisor.shutdown()
   } catch (error) {
     reportElectronProcessEvent('agent-runtime-restore-shutdown-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
     })
+    terminalCompletionRuntime.resume()
     throw error
   }
   try {
@@ -848,6 +869,7 @@ async function restartCoreAfterRestore() {
   } finally {
     if (!exitCoordinator.isApplicationExiting() && !coreProcess.getFatal()) {
       await agentSupervisor.initialize()
+      terminalCompletionRuntime.resume()
     }
   }
 }
@@ -857,6 +879,7 @@ async function recoverApplicationAfterFailedUpdateInstall() {
   if (exitCoordinator.isApplicationExiting()) return false
   await agentSupervisor.initialize()
   if (exitCoordinator.isApplicationExiting()) return false
+  terminalCompletionRuntime.resume()
   trayController.initialize()
   if (win && !win.isDestroyed()) {
     win.webContents.reload()
@@ -1103,6 +1126,7 @@ function registerCoreProcessControls() {
 }
 
 function registerAgentRuntimeControls() {
+  registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerAgentRuntimeIPC({
     ipcMain,
     supervisor: agentSupervisor,

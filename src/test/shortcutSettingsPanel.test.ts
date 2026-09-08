@@ -23,13 +23,13 @@ const defaultSettings: ShortcutSettings = {
 
 test('快捷键设置行稳定按目录分组并区分默认未绑定与主动取消', () => {
   const defaultRows = buildShortcutSettingsRows(defaultSettings, 'win32')
-  assert.equal(defaultRows.length, 14)
+  assert.equal(defaultRows.length, 15)
   assert.deepEqual(
     groupShortcutSettingsRows(defaultRows).map(({ group, rows }) => [group, rows.length]),
     [
       ['global', 1],
       ['terminal', 5],
-      ['completion', 3],
+      ['completion', 4],
       ['files', 4],
       ['editor', 1],
     ],
@@ -62,7 +62,7 @@ test('设置页搜索支持动作、说明和作用域文本且保持注册顺�
   ])
   assert.deepEqual(
     result.map((row) => row.definition.id),
-    ['terminal.search.open', 'terminal.select_all'],
+    ['terminal.ai_completion.open', 'terminal.search.open', 'terminal.select_all'],
   )
 })
 

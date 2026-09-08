@@ -28,6 +28,7 @@ import type {
   CompletionSettings,
   TerminalFont,
   TerminalSettings,
+  TerminalAIInputSnapshot,
 } from '#common/contracts'
 import type { Session, SessionCwdState, SessionStatus } from '#entities/session'
 import {
@@ -76,6 +77,7 @@ import {
 } from '../model/terminalCompletionPosition'
 import { binaryStringToBytes, ensureTerminalEnter } from '../model/terminalInput'
 import { transitionTerminalCompletionActivity } from '../model/terminalCompletionViewport'
+import { terminalAiAppendState } from '../model/terminalAiCompletion'
 import {
   createEmptyTerminalSearchResult,
   isValidTerminalSearchRegex,
@@ -169,6 +171,9 @@ export function TerminalRuntimeProvider({
     })
   }
   const completionRuntime = completionRuntimeRef.current
+  const aiCompletionEnabled = completionSettings.enabled && completionSettings.ai_enabled === true
+  const aiCompletionEnabledRef = useRef(aiCompletionEnabled)
+  aiCompletionEnabledRef.current = aiCompletionEnabled
   const completionStatusReconcilerRef = useRef<TerminalCompletionStatusReconciler | null>(null)
   if (!completionStatusReconcilerRef.current) {
     completionStatusReconcilerRef.current = new TerminalCompletionStatusReconciler({
@@ -483,12 +488,14 @@ export function TerminalRuntimeProvider({
           return
         }
         sendResize(entry)
-        if (shouldFocus && activeSessionIdRef.current === entry.sessionId) {
+        // 在执行帧时复查 AI 浮层状态，避免早已排队的布局抢走需求输入焦点。
+        if (shouldFocus && activeSessionIdRef.current === entry.sessionId
+          && !completionRuntime.isSuggestionsPaused(entry.sessionId)) {
           entry.terminal.focus()
         }
       })
     },
-    [fitEntryViewport, sendResize],
+    [completionRuntime, fitEntryViewport, sendResize],
   )
 
   const fitAfterFontLoad = useCallback(
@@ -1379,6 +1386,33 @@ export function TerminalRuntimeProvider({
     completionRuntime.closeSuggestions(sessionId)
   }, [completionRuntime])
 
+  const getDefaultModelStatus = useCallback((options?: { signal?: AbortSignal }) => (
+    apiRef.current.getDefaultModelStatus(options)
+  ), [])
+
+  const captureSessionAiInput = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (!aiCompletionEnabledRef.current || !entry || entry.disposed
+      || sessionsRef.current.get(sessionId)?.kind !== 'ssh'
+      || activeSessionIdRef.current !== sessionId
+      || !getViewportForSession(sessionId)?.active
+      || !canAcceptTerminalInput(entry) || !entry.transport.isLive()) return null
+    return completionRuntime.captureAiInput(sessionId)
+  }, [canAcceptTerminalInput, completionRuntime, getViewportForSession])
+
+  const setSessionAiCompletionOpen = useCallback((sessionId: string, open: boolean) => {
+    completionRuntime.setSuggestionsPaused(sessionId, open)
+  }, [completionRuntime])
+
+  const acceptSessionAiCompletion = useCallback((
+    sessionId: string, input: TerminalAIInputSnapshot, command: string,
+  ): TerminalSendResult => {
+    const current = captureSessionAiInput(sessionId)
+    if (terminalAiAppendState(current, input, command) !== 'append' || !current) return 'not_ready'
+    // 校验与追加之间没有异步边界，且此入口始终不发送执行键。
+    return sendTextToSession(sessionId, command.slice(current.line.length))
+  }, [captureSessionAiInput, sendTextToSession])
+
   const selectSessionContextRange = useCallback((
     sessionId: string,
     range: TerminalContextSelectionRange,
@@ -1524,6 +1558,11 @@ export function TerminalRuntimeProvider({
 
   const value = useMemo<TerminalRuntimeContextValue>(
     () => ({
+      aiCompletionEnabled,
+      getDefaultModelStatus,
+      captureSessionAiInput,
+      setSessionAiCompletionOpen,
+      acceptSessionAiCompletion,
       registerViewport,
       focusActive,
       resizeActive: scheduleActiveResize,
@@ -1557,6 +1596,11 @@ export function TerminalRuntimeProvider({
       closeSessionCompletion,
     }),
     [
+      aiCompletionEnabled,
+      getDefaultModelStatus,
+      captureSessionAiInput,
+      setSessionAiCompletionOpen,
+      acceptSessionAiCompletion,
       acceptSessionCompletion,
       clearActiveSearch,
       clearSessionBuffer,

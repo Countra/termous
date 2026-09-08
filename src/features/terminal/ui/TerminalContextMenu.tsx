@@ -8,6 +8,7 @@ import {
   Link2,
   RefreshCw,
   Search,
+  Sparkles,
   TextSelect,
   type LucideIcon,
 } from 'lucide-react'
@@ -34,6 +35,7 @@ interface TerminalContextMenuProps {
 }
 
 const actionIcons: Record<TerminalContextMenuActionKey, LucideIcon> = {
+  ai_command: Sparkles,
   reconnect: RefreshCw,
   open_link: ExternalLink,
   copy_link: Link2,
@@ -48,6 +50,7 @@ const actionIcons: Record<TerminalContextMenuActionKey, LucideIcon> = {
 }
 
 const actionTranslationKeys: Record<TerminalContextMenuActionKey, string> = {
+  ai_command: 'terminal.aiCompletion.title',
   reconnect: 'terminal.contextMenu.reconnect',
   open_link: 'terminal.contextMenu.openLink',
   copy_link: 'terminal.contextMenu.copyLink',

@@ -34,6 +34,7 @@ export const defaultCompletionProviderSettings: CompletionProviderSettings = {
 
 export const defaultCompletionSettings: CompletionSettings = {
   enabled: true,
+  ai_enabled: false,
   providers: defaultCompletionProviderSettings,
 }
 
@@ -50,6 +51,9 @@ export function normalizeCompletionSettings(
     enabled: typeof settings?.enabled === 'boolean'
       ? settings.enabled
       : defaultCompletionSettings.enabled,
+    ai_enabled: typeof settings?.ai_enabled === 'boolean'
+      ? settings.ai_enabled
+      : defaultCompletionSettings.ai_enabled,
     providers: normalizeCompletionProviderSettings(settings?.providers),
   }
 }
@@ -72,6 +76,7 @@ export function completionSettingsEqual(
 ) {
   return (
     left.enabled === right.enabled
+    && left.ai_enabled === right.ai_enabled
     && completionProviderIds.every(
       (providerId) => left.providers[providerId] === right.providers[providerId],
     )

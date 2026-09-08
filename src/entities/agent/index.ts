@@ -112,3 +112,11 @@ export {
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
 export { compareAgentSessionOrder } from './model/sessionOrder.ts'
 export { mergeAgentRetryActivity } from './model/retryActivity.ts'
+export {
+  agentDefaultModelReasonKey,
+  decodeAgentDefaultModelStatus,
+  type AgentDefaultModelStatus,
+  type AgentDefaultModelStatusGateway,
+  type AgentDefaultModelStatusView,
+} from './model/agentDefaultModelStatus.ts'
+export { useAgentDefaultModelStatus } from './model/useAgentDefaultModelStatus.ts'

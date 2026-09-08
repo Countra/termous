@@ -180,6 +180,7 @@ export interface WorkbenchPageProps {
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
   onLaunchAgent?: (intent: AgentLaunchRequest) => void
+  onOpenAgentSettings?: () => void
 }
 
 export function WorkbenchPage({
@@ -221,6 +222,7 @@ export function WorkbenchPage({
   onRestartForward,
   onStopForward,
   onLaunchAgent,
+  onOpenAgentSettings,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -1380,6 +1382,7 @@ export function WorkbenchPage({
           sessionDuration={sessionDuration}
           terminalSize={terminalSize}
           onOpenConnectionLauncher={onOpenConnectionLauncher}
+          onOpenAgentSettings={onOpenAgentSettings}
           onSearchQueryChange={updateSearchQuery}
           onSearchPrevious={() => runSearch('previous')}
           onSearchNext={() => runSearch('next')}

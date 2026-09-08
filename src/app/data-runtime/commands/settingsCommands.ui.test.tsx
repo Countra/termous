@@ -165,6 +165,7 @@ test('较早的补全设置失败不会回退或拒绝较新的乐观写入', as
   }
   const completionB: CompletionSettings = {
     ...initialData.settings.completion,
+    ai_enabled: true,
     providers: {
       ...initialData.settings.completion.providers,
       history: false,
@@ -188,6 +189,13 @@ test('较早的补全设置失败不会回退或拒绝较新的乐观写入', as
   await expect(firstMutation).resolves.toBeUndefined()
   await secondMutation
   expect(harness.data().settings.completion).toEqual(completionB)
+})
+
+test('AI 补全开启保存失败恢复最近确认值，不改变普通补全来源', async () => {
+  const harness = createHarness({ updateCompletionSettings: async () => { throw new Error('write failed') } })
+  const previous = harness.data().settings.completion
+  await expect(harness.commands.setCompletionSettings({ ...previous, ai_enabled: true })).rejects.toThrow('write failed')
+  expect(harness.data().settings.completion).toEqual(previous)
 })
 
 test('较早的快捷键写入失败仍拒绝对应调用方且保留较新的乐观状态', async () => {

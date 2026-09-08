@@ -102,6 +102,23 @@ test('Agent Worker 产物门禁拒绝未审核的运行时依赖', async (contex
   )
 })
 
+test('共享Provider chunk按依赖闭包检查且同一chunk不重复累计', async (context) => {
+  const directory = await temporaryDirectory(context)
+  const entry = "import './provider.js'; export { model } from './provider.js';"
+  const provider = `${validWorkerBundle()}\nexport const model = 1;`
+  await writeFile(path.join(directory, 'worker.js'), entry)
+  await writeFile(path.join(directory, 'provider.js'), provider)
+  assert.equal(await checkAgentWorkerBundle(path.join(directory, 'worker.js')), Buffer.byteLength(entry + provider))
+  await writeFile(path.join(directory, 'provider.js'), `${provider}\n//#region node_modules/lodash/index.js`)
+  await assert.rejects(checkAgentWorkerBundle(path.join(directory, 'worker.js')), /未授权运行时依赖/u)
+})
+
+test('共享chunk不允许通过相对路径逃出产物目录', async (context) => {
+  const directory = await temporaryDirectory(context)
+  await writeFile(path.join(directory, 'worker.js'), "import '../outside.js';")
+  await assert.rejects(checkAgentWorkerBundle(path.join(directory, 'worker.js')), /超出产物目录/u)
+})
+
 async function temporaryDirectory(context) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'termous-agent-worker-'))
   context.after(() => rm(directory, { recursive: true, force: true }))

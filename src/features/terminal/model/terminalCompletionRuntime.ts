@@ -1,3 +1,4 @@
+import type { TerminalAIInputSnapshot } from '#common/contracts'
 import type {
   CompletionItem,
   CompletionPromptObservationState,
@@ -130,6 +131,7 @@ export class TerminalCompletionRuntime {
     Exclude<TerminalCompletionReadiness, 'disabled'>
   >()
   private readonly subscribers = new Map<string, Set<() => void>>()
+  private readonly pausedSessions = new Set<string>()
 
   constructor(enabled = true, options: TerminalCompletionRuntimeOptions = {}) {
     this.enabled = enabled
@@ -423,6 +425,40 @@ export class TerminalCompletionRuntime {
     this.publish(state)
   }
 
+  isSuggestionsPaused(sessionId: string) {
+    return this.pausedSessions.has(sessionId)
+  }
+
+  setSuggestionsPaused(sessionId: string, paused: boolean) {
+    if (this.pausedSessions.has(sessionId) === paused) return
+    if (paused) this.pausedSessions.add(sessionId)
+    else this.pausedSessions.delete(sessionId)
+    const state = this.sessions.get(sessionId)
+    if (!state) return
+    this.cancelQuery(state)
+    this.clearQueryResult(state)
+    state.suppressedInputRevision = undefined
+    this.publish(state)
+    if (!paused) this.scheduleTypingQuery(state)
+  }
+
+  captureAiInput(sessionId: string): TerminalAIInputSnapshot | null {
+    const state = this.sessions.get(sessionId)
+    if (!state || !this.enabled || state.readiness !== 'ready' || !state.boundary
+      || state.alternateScreen || state.input.trust !== 'trusted' || state.input.composing
+      || state.input.cursorUtf16 !== state.input.line.length
+      || !completionLineWithinByteLimit(state.input.line)) return null
+    return {
+      sourceGeneration: state.boundary.source_generation,
+      shellId: state.boundary.shell_id,
+      promptGeneration: state.boundary.prompt_generation,
+      inputEpoch: state.boundary.input_epoch,
+      line: state.input.line,
+      cursorUtf16: state.input.cursorUtf16,
+      revision: state.input.revision,
+    }
+  }
+
   moveSelection(sessionId: string, delta: number) {
     const state = this.sessions.get(sessionId)
     if (!state || state.items.length === 0 || !Number.isFinite(delta)) {
@@ -499,6 +535,7 @@ export class TerminalCompletionRuntime {
   }
 
   disposeSession(sessionId: string) {
+    this.pausedSessions.delete(sessionId)
     const state = this.sessions.get(sessionId)
     if (!state) {
       return
@@ -519,6 +556,7 @@ export class TerminalCompletionRuntime {
   }
 
   clear() {
+    this.pausedSessions.clear()
     const sessionIds = [...this.sessions.keys()]
     for (const state of this.sessions.values()) {
       this.cancelQuery(state)
@@ -753,6 +791,7 @@ export class TerminalCompletionRuntime {
   private canQuery(state: TerminalCompletionSessionState) {
     return (
       this.enabled
+      && !this.pausedSessions.has(state.sessionId)
       && this.queryExecutor !== undefined
       && state.readiness === 'ready'
       && state.boundary !== null

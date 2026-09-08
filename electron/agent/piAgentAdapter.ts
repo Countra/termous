@@ -1,19 +1,16 @@
+import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction, type RuntimeModel } from './runtimeProviderAdapter.ts'
+export { createRestrictedProviderFetch, createRuntimeStreamFunction, createRuntimeStreamOptions, chatMaxTokensField } from './runtimeProviderAdapter.ts'
+export type { RuntimeModel } from './runtimeProviderAdapter.ts'
 import {
   Agent,
   type AgentEvent,
   type AgentMessage,
-  type StreamFn,
 } from '@earendil-works/pi-agent-core'
 import {
   type AssistantMessage,
   type Message,
-  type Model,
-  type SimpleStreamOptions,
-  type ThinkingLevelMap,
   type ToolResultMessage,
 } from '@earendil-works/pi-ai'
-import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
-import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import type { AgentMCPConnection } from './mcpClientAdapter.ts'
 import { isMCPToolDetails } from './mcpClientAdapter.ts'
 import { PiEventBridge, type PiRunOutcome } from './piEventBridge.ts'
@@ -42,21 +39,6 @@ import {
   runtimeProviderUsage,
   type RuntimeProviderUsage,
 } from './runtimeProviderUsage.ts'
-
-const unauthenticatedAPIKeySentinel = 'termous-local-no-auth'
-const providerRequestTimeoutMs = 10 * 60_000
-const legacyChatMaxTokensProviderDomains = [
-  'chutes.ai',
-  'deepseek.com',
-  'api.moonshot.cn',
-  'gateway.ai.cloudflare.com',
-  'api.together.ai',
-  'api.together.xyz',
-  'integrate.api.nvidia.com',
-  'api.ant-ling.com',
-  'api.z.ai',
-  'open.bigmodel.cn',
-] as const
 
 export const builtinAgentSystemPrompt = [
   '你是 Termous 内置 AI 助手。',
@@ -94,9 +76,9 @@ export interface CreatePiAgentOptions {
   onFailure?: (error: unknown) => void
 }
 
-export type RuntimeModel =
-  | Model<'openai-responses'>
-  | Model<'openai-completions'>
+export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
+  return createProviderModel(bootstrap.model.snapshot)
+}
 
 export function createPiAgent(options: CreatePiAgentOptions): PiAgentController {
   const model = createRuntimeModel(options.bootstrap)
@@ -261,74 +243,6 @@ export function runtimeVerifiedResourcePrompt(binding: RuntimeSSHResourceBinding
   ].join('\n')
 }
 
-export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
-  const snapshot = bootstrap.model.snapshot
-  const api = snapshot.api_mode === 'responses'
-    ? 'openai-responses'
-    : 'openai-completions'
-  const input: Array<'text' | 'image'> = snapshot.supports_images
-    ? ['text', 'image']
-    : ['text']
-  const common = {
-    id: snapshot.model_id,
-    name: snapshot.model_id,
-    provider: 'termous-openai-compatible',
-    baseUrl: validateProviderBaseURL(snapshot.base_url).toString().replace(/\/$/, ''),
-    reasoning: snapshot.reasoning_control === 'openai_effort',
-    thinkingLevelMap: runtimeThinkingLevelMap(snapshot.supported_reasoning_levels),
-    input,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: snapshot.context_window_tokens,
-    maxTokens: snapshot.max_output_tokens,
-  }
-  if (api === 'openai-responses') {
-    return {
-      ...common,
-      api,
-      compat: {
-        supportsDeveloperRole: false,
-        supportsStrictMode: false,
-        supportsLongCacheRetention: false,
-      },
-    }
-  }
-  return {
-    ...common,
-    api,
-    compat: {
-      supportsDeveloperRole: false,
-      supportsStore: false,
-      supportsReasoningEffort: snapshot.reasoning_control === 'openai_effort',
-      maxTokensField: chatMaxTokensField(common.baseUrl),
-      supportsStrictMode: false,
-      supportsLongCacheRetention: false,
-      sendSessionAffinityHeaders: false,
-    },
-  }
-}
-
-function runtimeThinkingLevelMap(
-  supportedLevels: RuntimeBootstrap['model']['snapshot']['supported_reasoning_levels'],
-): ThinkingLevelMap {
-  const supported = new Set(supportedLevels)
-  return {
-    off: supported.has('off') ? 'none' : null,
-    minimal: supported.has('minimal') ? 'minimal' : null,
-    low: supported.has('low') ? 'low' : null,
-    medium: supported.has('medium') ? 'medium' : null,
-    high: supported.has('high') ? 'high' : null,
-    xhigh: supported.has('xhigh') ? 'xhigh' : null,
-    max: supported.has('max') ? 'max' : null,
-  }
-}
-
-export function chatMaxTokensField(baseURL: string): 'max_tokens' | 'max_completion_tokens' {
-  const hostname = validateProviderBaseURL(baseURL).hostname.toLowerCase().replace(/\.$/u, '')
-  const legacy = legacyChatMaxTokensProviderDomains.some((domain) =>
-    hostname === domain || hostname.endsWith(`.${domain}`))
-  return legacy ? 'max_tokens' : 'max_completion_tokens'
-}
-
 export async function handlePiEvent(
   event: AgentEvent,
   bridge: { handle(event: AgentEvent): void | Promise<void> },
@@ -348,73 +262,6 @@ export async function handlePiEvent(
     } catch {
       // pi 监听器不得把异常反向抛回事件分发链路。
     }
-  }
-}
-
-export function createRestrictedProviderFetch(
-  baseURL: string,
-  removeAuthorization: boolean,
-  fetchImplementation: typeof globalThis.fetch = globalThis.fetch,
-): typeof globalThis.fetch {
-  const base = validateProviderBaseURL(baseURL)
-  const pathPrefix = base.pathname.replace(/\/$/, '')
-  return async (input, init) => {
-    const target = requestURL(input)
-    if (target.origin !== base.origin
-      || target.username
-      || target.password
-      || target.hash
-      || !pathWithinPrefix(target.pathname, pathPrefix)) {
-      throw new Error('AGENT_MODEL_ENDPOINT_VIOLATION')
-    }
-    const headers = mergedRequestHeaders(input, init?.headers)
-    if (removeAuthorization) {
-      headers.delete('authorization')
-    }
-    return await fetchImplementation(input, {
-      ...init,
-      headers,
-      redirect: 'manual',
-    })
-  }
-}
-
-export function createRuntimeStreamFunction(
-  apiKey: string | undefined,
-  providerFetch: typeof globalThis.fetch,
-): StreamFn {
-  return (model, context, options) => {
-    const sharedOptions = createRuntimeStreamOptions(apiKey, providerFetch, options)
-    if (model.api === 'openai-responses') {
-      return streamOpenAIResponses(
-        model as Model<'openai-responses'>,
-        context,
-        sharedOptions,
-      )
-    }
-    if (model.api === 'openai-completions') {
-      return streamOpenAICompletions(
-        model as Model<'openai-completions'>,
-        context,
-        sharedOptions,
-      )
-    }
-    throw new Error('AGENT_MODEL_API_UNSUPPORTED')
-  }
-}
-
-export function createRuntimeStreamOptions(
-  apiKey: string | undefined,
-  providerFetch: typeof globalThis.fetch,
-  options?: SimpleStreamOptions,
-) {
-  return {
-    ...options,
-    apiKey: apiKey || unauthenticatedAPIKeySentinel,
-    fetch: providerFetch,
-    maxRetries: 0,
-    timeoutMs: providerRequestTimeoutMs,
-    cacheRetention: 'none' as const,
   }
 }
 
@@ -604,45 +451,6 @@ export function standardMessages(messages: AgentMessage[]): Message[] {
 
 function runtimeToolName(value: string) {
   return value === readSkillResourceToolName ? value : encodeMCPToolName(value)
-}
-
-function validateProviderBaseURL(value: string) {
-  const url = new URL(value)
-  if ((url.protocol !== 'http:' && url.protocol !== 'https:')
-    || !url.host
-    || url.username
-    || url.password
-    || url.search
-    || url.hash) {
-    throw new Error('AGENT_MODEL_ENDPOINT_INVALID')
-  }
-  return url
-}
-
-function pathWithinPrefix(pathname: string, prefix: string) {
-  return prefix === '' || prefix === '/'
-    ? pathname.startsWith('/')
-    : pathname === prefix || pathname.startsWith(`${prefix}/`)
-}
-
-function requestURL(input: RequestInfo | URL) {
-  if (input instanceof URL) {
-    return input
-  }
-  if (typeof input === 'string') {
-    return new URL(input)
-  }
-  return new URL(input.url)
-}
-
-function mergedRequestHeaders(input: RequestInfo | URL, overrides?: HeadersInit) {
-  const headers = new Headers(input instanceof Request ? input.headers : undefined)
-  if (overrides !== undefined) {
-    for (const [name, value] of new Headers(overrides)) {
-      headers.set(name, value)
-    }
-  }
-  return headers
 }
 
 function requiredNestedText(part: RuntimeMessagePart, branch: string) {

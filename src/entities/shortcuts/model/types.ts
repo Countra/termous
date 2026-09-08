@@ -12,6 +12,7 @@ export const SHORTCUT_ACTION_IDS = [
   'terminal.completion.previous',
   'terminal.completion.next',
   'terminal.completion.accept',
+  'terminal.ai_completion.open',
   'terminal.search.open',
   'terminal.select_all',
   'terminal.session.reconnect',

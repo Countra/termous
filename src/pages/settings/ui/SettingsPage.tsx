@@ -1,6 +1,8 @@
 import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
+import { useAgentDefaultModelStatus, type AgentDefaultModelStatusGateway } from '#entities/agent'
 import type {
   AppLanguage,
   AppearanceSettings,
@@ -53,6 +55,7 @@ export interface SettingsPageProps {
   appVersion: string
   dataPortabilityGateway: DataPortabilityGateway
   agentSetupGateway: AgentSetupGateway
+  defaultModelStatusGateway?: AgentDefaultModelStatusGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: AppLanguage) => Promise<void>
@@ -81,6 +84,7 @@ export function SettingsPage({
   appVersion,
   dataPortabilityGateway,
   agentSetupGateway,
+  defaultModelStatusGateway,
   updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
@@ -96,6 +100,8 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const { t } = useTranslation()
   const { platform } = useShortcutRuntime()
+  const [activeTab, setActiveTab] = useState(initialTab)
+  const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   return (
     <section className={styles.page}>
@@ -107,7 +113,8 @@ export function SettingsPage({
       </div>
       <Tabs
         className={styles.tabs}
-        defaultActiveKey={initialTab}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as SettingsPageTabKey)}
         items={[
           {
             key: 'general',
@@ -156,6 +163,8 @@ export function SettingsPage({
                     value={completionSettings}
                     disabled={actionBusy}
                     onChange={onCompletionSettingsChange}
+                    modelStatus={modelStatus}
+                    onOpenAgentSettings={() => setActiveTab('agent')}
                   />
                 </div>
               </div>

@@ -8,6 +8,7 @@ import type {
   AgentReasoningLevel,
 } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
+import { decodeAgentDefaultModelStatus } from '#entities/agent'
 import {
   decodeAgentMcpPolicy,
   decodeAgentModel,
@@ -33,6 +34,10 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
 
   settings(signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/settings`, { signal }).then(decodeAgentSettings)
+  }
+
+  getDefaultModelStatus(options?: { signal?: AbortSignal }) {
+    return this.request<unknown>(`${agentPath}/default-model/status`, options).then(decodeAgentDefaultModelStatus)
   }
 
   updateSettings(input: {

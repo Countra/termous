@@ -534,7 +534,7 @@ function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
     && isRecord(value.content)
 }
 
-function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
+export function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
   return isRecord(value)
     && (value.api_mode === 'responses' || value.api_mode === 'chat_completions')
     && typeof value.base_url === 'string'
