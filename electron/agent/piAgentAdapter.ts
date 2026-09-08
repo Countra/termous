@@ -132,15 +132,22 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     bootstrap: options.bootstrap, model, systemPrompt, tools, streamFn, bridge, images,
     events: options.events, commitCheckpoint: options.commitCheckpoint, now: options.now,
   })
+  const retryPositions = new Map<string, number>()
   const retryStreamFn = createRuntimeRetryStreamFunction(streamFn, {
     providerErrorSecrets: options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : [],
     onDiscardedUsage: (usage) => bridge.addUsage(usage),
+    onFailedAttempt: (message) => bridge.finalizeFailedAttempt(message),
     onActivity: async (activity) => {
+      const position = retryPositions.get(activity.retry_id) ?? bridge.partSequence()
+      retryPositions.set(activity.retry_id, position)
       options.events.push('retry', { retry: {
         ...activity, assistant_message_id: options.bootstrap.run.assistant_message_id,
-        purpose: 'response', after_part_sequence: bridge.partSequence(),
+        purpose: 'response', after_part_sequence: position,
       } })
       await options.events.flush()
+      if (activity.status === 'completed' || activity.status === 'failed' || activity.status === 'cancelled') {
+        retryPositions.delete(activity.retry_id)
+      }
     },
   })
   const steerSources = new WeakMap<AgentMessage, Pick<RuntimeSteerResult, 'message_id' | 'part_id'>>()
@@ -156,6 +163,8 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     transformContext: compaction.transformContext,
     streamFn: (requestModel, context, streamOptions) => {
       compaction.beforeProviderRequest()
+      // HTTP 失败可能没有 start，必须先隔离上一工具轮已完成的消息片段。
+      bridge.beginAssistantRequest()
       return retryStreamFn(requestModel, context, streamOptions)
     },
     sessionId: options.bootstrap.session.id,
@@ -185,7 +194,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
           const providerUsage = options.bootstrap.context.provider_usage_supported === true
             ? runtimeProviderUsage(value.message, bridge.lastAssistantPartID(), contextFingerprint)
             : undefined
-          await compaction.observeContext(agent.state.messages, providerUsage)
+          // 最终失败片段保留在历史中，但下次请求会排除它；即时占用使用同一活动上下文。
+          const contextMessages = value.message.stopReason === 'error' || value.message.stopReason === 'aborted'
+            ? agent.state.messages.slice(0, -1)
+            : agent.state.messages
+          await compaction.observeContext(contextMessages, providerUsage)
         }
       },
     }, options.onFailure, () => agent.abort())

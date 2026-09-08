@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { describe, expect, it } from 'vitest'
 import type { AgentRetryActivity as Activity } from '#entities/agent'
@@ -10,7 +9,7 @@ import type { AgentWorkspaceMessage } from '../model/types.ts'
 
 const activity: Activity = {
   retry_id: 'retry-one', assistant_message_id: 'assistant-one', purpose: 'response',
-  status: 'waiting', attempt: 0, max_retries: 3, delay_ms: 2_000,
+  status: 'waiting', attempt: 0, max_retries: 3, delay_ms: 3_000,
   error_message: '  <img src=x>\n[details](https://example.invalid)\nagent.message.you {{value}}  ',
   after_part_sequence: 0, created_at: '2026-09-08T00:00:00Z',
 }
@@ -20,49 +19,38 @@ describe('AgentRetryActivity', () => {
     const { rerender, element, container } = await renderActivity(activity)
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('等待重连 · 第1/3次')
-    expect(status).toHaveTextContent('2 秒后重试')
+    expect(status).toHaveTextContent('3 秒后重试')
     expect(status).toHaveAttribute('aria-live', 'polite')
     expect(container.querySelector('svg.lucide-wifi')).toHaveAttribute('width', '14')
     rerender(element({ ...activity, status: 'requesting', attempt: 1 }))
     expect(screen.getByRole('status')).toBe(status)
     expect(status).toHaveTextContent('正在重连 · 第1/3次')
-    expect(status).not.toHaveTextContent('2 秒后重试')
+    expect(status).not.toHaveTextContent('3 秒后重试')
     expect(container.querySelectorAll('[data-retry-id]')).toHaveLength(1)
-    rerender(element({ ...activity, attempt: 1, delay_ms: 4_000 }))
+    rerender(element({ ...activity, attempt: 1, delay_ms: 6_000 }))
     expect(status).toHaveTextContent('第2/3次')
-    expect(status).toHaveTextContent('4 秒后重试')
+    expect(status).toHaveTextContent('6 秒后重试')
   })
 
-  it('原始错误保持换行且默认两行，可通过键盘展开，不解析 HTML 和 Markdown', async () => {
+  it('直接显示完整错误消息并保留换行，不提供展开入口或解析 HTML 和 Markdown', async () => {
     const { container } = await renderActivity(activity)
-    const toggle = screen.getByRole('button', { name: '展开错误详情' })
-    const details = document.getElementById(toggle.getAttribute('aria-controls')!)!
-    expect(details.textContent).toBe(activity.error_message)
-    expect(details.className).toContain('clamped')
+    const error = container.querySelector('[aria-live="off"]')!
+    expect(error).toBeVisible()
+    expect(error.textContent).toBe(activity.error_message)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(container.querySelector('img, a')).toBeNull()
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    const user = userEvent.setup()
-    await user.tab()
-    expect(toggle).toHaveFocus()
-    await user.keyboard('{Enter}')
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    expect(details.className).not.toContain('clamped')
-    await user.keyboard(' ')
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('恢复时默认收起最后错误，终态显示实际次数和耗时，可再次查看原文', async () => {
+  it('恢复后保留最后一次错误消息，终态显示实际次数和耗时', async () => {
     const { rerender, element, container } = await renderActivity(activity)
-    await userEvent.setup().click(screen.getByRole('button'))
     rerender(element({ ...activity, status: 'completed', attempt: 1, duration_ms: 2_400 }))
     expect(screen.getByRole('status')).toHaveTextContent('重连成功')
     expect(screen.getByRole('status')).toHaveTextContent('已重试 1 次')
     expect(screen.getByRole('status')).toHaveTextContent('2.4 s')
-    expect(container.textContent).not.toContain(activity.error_message)
-    const toggle = screen.getByRole('button', { name: '查看最后一次错误' })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.setup().click(toggle)
-    expect(document.getElementById(toggle.getAttribute('aria-controls')!)!.textContent).toBe(activity.error_message)
+    const error = container.querySelector('[aria-live="off"]')!
+    expect(error).toBeVisible()
+    expect(error.textContent).toBe(activity.error_message)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it.each(['failed', 'cancelled'] as const)('%s 保留真实零次请求和零耗时，摘要请求用途明确', async (status) => {
@@ -71,7 +59,7 @@ describe('AgentRetryActivity', () => {
     expect(screen.getByRole('status')).toHaveTextContent('摘要请求')
     expect(screen.getByRole('status')).toHaveTextContent('已重试 0 次')
     expect(screen.getByRole('status')).toHaveTextContent('0 ms')
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('英文只翻译界面，保留服务原始错误语言', async () => {
@@ -84,7 +72,7 @@ describe('AgentRetryActivity', () => {
     expect(screen.getByRole('status')).toHaveTextContent('3 retries made')
   })
 
-  it('对话活动替代空回复占位，同一行请求状态改变时保留展开状态', async () => {
+  it('对话活动替代空回复占位，同一行请求状态改变时更新错误消息', async () => {
     const localized = i18n.cloneInstance({ lng: 'zh-CN' })
     await localized.changeLanguage('zh-CN')
     const message: AgentWorkspaceMessage = { id: 'assistant-one', role: 'assistant', status: 'streaming',
@@ -94,10 +82,12 @@ describe('AgentRetryActivity', () => {
     </I18nextProvider>
     const { rerender, container } = render(element(message))
     expect(screen.queryByText('正在回复')).toBeNull()
-    await userEvent.setup().click(screen.getByRole('button', { name: '展开错误详情' }))
+    const error_message = 'Connection error.\n连接已断开'
     rerender(element({ ...message, parts: [{ id: 'retry:retry-one', kind: 'retry',
-      activity: { ...activity, status: 'requesting', attempt: 1 } }] }))
-    expect(screen.getByRole('button', { name: '收起错误详情' })).toHaveAttribute('aria-expanded', 'true')
+      activity: { ...activity, status: 'requesting', attempt: 1, error_message } }] }))
+    expect(container.querySelector('[aria-live="off"]')?.textContent).toBe(error_message)
+    expect(container.textContent).not.toContain(activity.error_message)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(container.querySelectorAll('[data-retry-id]')).toHaveLength(1)
   })
 })

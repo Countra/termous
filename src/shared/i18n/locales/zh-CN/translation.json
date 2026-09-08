@@ -252,10 +252,7 @@
       "cancelled": "重连已取消",
       "compaction": "摘要请求",
       "wait": "{{seconds}} 秒后重试",
-      "attempts": "已重试 {{count}} 次",
-      "expand": "展开错误详情",
-      "collapse": "收起错误详情",
-      "lastError": "查看最后一次错误"
+      "attempts": "已重试 {{count}} 次"
     },
     "reasoning": {
       "running": "正在思考",

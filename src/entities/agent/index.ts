@@ -46,6 +46,7 @@ export {
   type AgentMessage,
   type AgentMessagePage,
   type AgentMessagePart,
+  type AgentResponseFailure,
   type AgentMessagePartKind,
   type AgentMessageRole,
   type AgentMessageStatus,

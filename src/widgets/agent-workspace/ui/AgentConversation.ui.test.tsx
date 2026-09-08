@@ -90,8 +90,7 @@ describe('AgentConversation', () => {
       expect(status).toHaveLength(1)
       expect(status[0]?.closest('article')).not.toBeNull()
       const article = status[0]?.closest('article') as HTMLElement
-      expect(article.querySelectorAll('time')).toHaveLength(1)
-      expect(article.querySelector('time')).toBeVisible()
+      expect(article.querySelector('time')).toBeNull()
       expect(article.querySelector('header time')).toBeNull()
       expect(within(article).queryByRole('button', { name: 'app.copy' })).not.toBeInTheDocument()
       for (const otherStatus of activeRunStatuses) {

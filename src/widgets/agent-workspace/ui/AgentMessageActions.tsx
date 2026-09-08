@@ -14,7 +14,8 @@ export const AgentMessageActions = memo(function AgentMessageActions({ message }
   const pending = useRef(false)
   const feedbackTimer = useRef<number | undefined>(undefined)
   const markdown = message.status === 'streaming' ? '' : message.parts
-    .flatMap((part) => part.kind === 'text' ? [part.text] : []).join('\n\n')
+    .flatMap((part) => part.kind === 'text' ? [part.text]
+      : part.kind === 'response_failure' ? [part.failure.error_message] : []).join('\n\n')
   const time = useMemo(() => formatAgentMessageTime(message.created_at, i18n.resolvedLanguage), [message.created_at, i18n.resolvedLanguage])
   const duration = message.role === 'assistant' && message.status !== 'streaming'
     ? formatAgentMessageDuration(message.duration_ms, i18n.resolvedLanguage)

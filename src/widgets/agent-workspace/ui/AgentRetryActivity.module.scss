@@ -50,48 +50,12 @@
   white-space: nowrap;
 }
 
-.details {
-  min-width: 0;
-  padding-left: 22px;
-}
-
 .error {
   min-width: 0;
+  padding-left: 22px;
   color: var(--text-muted);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-}
-
-.clamped {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.toggle {
-  display: inline-flex;
-  min-height: 26px;
-  align-items: center;
-  gap: 3px;
-  margin: 2px 0 0;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-}
-
-.toggle:hover {
-  color: var(--text-primary);
-}
-
-.toggle:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
-  outline-offset: 2px;
 }
 
 .activity[data-status='waiting'] .icon,

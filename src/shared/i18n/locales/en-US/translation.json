@@ -253,10 +253,7 @@
       "compaction": "Summary request",
       "wait": "Retry in {{seconds}} s",
       "attempts_one": "{{count}} retry made",
-      "attempts_other": "{{count}} retries made",
-      "expand": "Expand error details",
-      "collapse": "Collapse error details",
-      "lastError": "View last error"
+      "attempts_other": "{{count}} retries made"
     },
     "reasoning": {
       "running": "Thinking",

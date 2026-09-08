@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { createRestrictedProviderFetch, createRuntimeStreamFunction } from './piAgentAdapter.ts'
@@ -35,7 +36,8 @@ const scenarios = [
 type Scenario = typeof scenarios[number]['kind']
 
 for (const scenario of scenarios) {
-  test(`真实 pi 第二次摘要 ${scenario.kind} 保留已提交快照和原文，并以明确原因停止`, async () => {
+  test(`真实 pi 第二次摘要 ${scenario.kind} 保留已提交快照和原文，并以明确原因停止`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
     const fixture = createProviderFixture(scenario.kind)
     const { harness } = fixture
     const first = history('首次')
@@ -51,7 +53,15 @@ for (const scenario of scenarios) {
     fixture.failNextSummary()
     const next = [...first, ...history('后续')]
     const originalNext = structuredClone(next)
-    const projected = await harness.controller.transformContext(next)
+    const task = harness.controller.transformContext(next)
+    const retryable = scenario.kind === 'eof' || scenario.kind === 'server_error'
+    if (retryable) {
+      for (const delay of [3000, 6000, 12000]) {
+        await setImmediate()
+        t.mock.timers.tick(delay)
+      }
+    }
+    const projected = await task
     const failure = harness.controller.failure()
     assert.equal(failure?.code, `AGENT_RUNTIME_CONTEXT_COMPRESSION_${scenario.code}`)
     assert.deepEqual(harness.controller.checkpoint(), checkpoint)
@@ -70,7 +80,7 @@ for (const scenario of scenarios) {
 
     // 同一快照失败后再次经过门禁不触发摘要或提交，也不能继续主请求。
     await harness.controller.transformContext(next)
-    assert.equal(fixture.requests.length, 2)
+    assert.equal(fixture.requests.length, retryable ? 5 : 2)
     assert.equal(harness.commits.length, 1)
     assert.equal(harness.activities.length, 4)
     assert.throws(() => harness.controller.beforeProviderRequest())
@@ -82,7 +92,8 @@ for (const scenario of scenarios) {
   })
 }
 
-test('真实摘要 Provider 失败详情保留可诊断原因，隐藏实际凭据及编码地址', async () => {
+test('真实摘要 Provider 失败详情保留可诊断原因，隐藏实际凭据及编码地址', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const secret = 'fixture-key+/"private'
   const detail = [
     'summary fixture failed', secret, encodeURIComponent(secret), JSON.stringify(secret),
@@ -93,7 +104,12 @@ test('真实摘要 Provider 失败详情保留可诊断原因，隐藏实际凭�
   await fixture.harness.controller.transformContext(history('首次'))
   fixture.harness.controller.beforeProviderRequest()
   fixture.failNextSummary()
-  await fixture.harness.controller.transformContext([...history('首次'), ...history('后续')])
+  const task = fixture.harness.controller.transformContext([...history('首次'), ...history('后续')])
+  for (const delay of [3000, 6000, 12000]) {
+    await setImmediate()
+    t.mock.timers.tick(delay)
+  }
+  await task
   const failure = fixture.harness.controller.failure()
   assert.equal(failure?.code, 'AGENT_RUNTIME_CONTEXT_COMPRESSION_PROVIDER_FAILED')
   assert.match(failure?.detail ?? '', /server_error/u)
@@ -105,7 +121,7 @@ test('真实摘要 Provider 失败详情保留可诊断原因，隐藏实际凭�
   assert.match(visible, /已隐藏/u)
   const activities = fixture.harness.activities
   assert.equal(activities[activities.length - 1]?.errorCode, failure?.code)
-  assert.equal(fixture.requests.length, 2)
+  assert.equal(fixture.requests.length, 5)
 })
 
 function createProviderFixture(scenario: Scenario, secret?: string, errorDetail = 'summary fixture failed') {

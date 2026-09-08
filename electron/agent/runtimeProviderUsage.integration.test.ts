@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
@@ -166,9 +167,78 @@ test('用量观察不打断未执行工具，工具结果越过阈值后在下�
   }
 })
 
+test('失败正文保留历史但不提高即时上下文占用，终态仍使用请求前有效内容', async () => {
+  const bootstrap = usageBootstrap('responses')
+  const result = await executeFixture(bootstrap, 0, {
+    fetch: async () => {
+      const events = [
+        { type: 'response.created', response: { id: 'resp_failed' } },
+        { type: 'response.output_item.added', output_index: 0,
+          item: { type: 'message', id: 'msg_failed', role: 'assistant', content: [] } },
+        { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: '未完成内容'.repeat(2000) },
+        { type: 'response.incomplete', response: { status: 'incomplete',
+          incomplete_details: { reason: 'content_filter' }, usage: { input_tokens: 90000, output_tokens: 1000, total_tokens: 91000 } } },
+      ]
+      return new Response(events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''),
+        { headers: { 'content-type': 'text/event-stream' } })
+    },
+  }, 'failed')
+  const initial = result.contexts[0]!
+  const final = result.contexts[result.contexts.length - 1]!
+  assert.equal(final.estimated_tokens, initial.estimated_tokens)
+  assert.equal(final.provider_usage, undefined)
+  assert.equal(final.basis, 'pi_estimate')
+  const part = result.events.find((event) => event.kind === 'message_part')!.payload.message_part as RuntimeMessagePart
+  assert.ok(part.content.response_failure)
+  assert.ok(JSON.stringify(part.content).includes('未完成内容'))
+  const usages = result.events.filter((event) => event.kind === 'usage')
+  const usage = usages[usages.length - 1]!.payload.usage as { total_tokens: number }
+  assert.equal(usage.total_tokens, 91000)
+})
+
+test('成功工具轮之后无 start 的请求失败，不把上一轮正文误标为失败或重复保存', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const bootstrap = usageBootstrap('chat_completions')
+  const toolName = encodeMCPToolName('termous.fixture.inspect')
+  let requests = 0
+  let tools = 0
+  const task = executeFixture(bootstrap, 0, {
+    mcp: { originalName: (name) => name === toolName ? 'termous.fixture.inspect' : null, close: async () => {},
+      tools: [{ name: toolName, label: '检查', description: '内存夹具', parameters: Type.Object({}),
+        execute: async () => { tools += 1; return { content: [{ type: 'text', text: '已执行结果' }], details: {} } } }] },
+    fetch: async () => {
+      requests += 1
+      if (requests === 2) return Response.json({ error: { message: '503 Service unavailable' } }, { status: 503 })
+      if (requests === 3) return providerResponse('chat_completions', 100)
+      assert.equal(requests, 1)
+      const chunk = { id: 'tool_start', object: 'chat.completion.chunk', created: 1, model: 'test-model',
+        choices: [{ index: 0, delta: { content: '这段是成功工具轮的正文', tool_calls: [
+          { index: 0, id: 'call_inspect', type: 'function', function: { name: toolName, arguments: '{}' } },
+        ] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 40, completion_tokens: 10, total_tokens: 50 } }
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`,
+        { headers: { 'content-type': 'text/event-stream' } })
+    },
+  })
+  for (let wait = 0; wait < 30 && requests < 2; wait++) await setImmediate()
+  await setImmediate()
+  assert.equal(requests, 2)
+  t.mock.timers.tick(3000)
+  const result = await task
+  assert.equal(requests, 3)
+  assert.equal(tools, 1)
+  const parts = result.events.filter((event) => event.kind === 'message_part')
+    .map((event) => event.payload.message_part as RuntimeMessagePart)
+  assert.ok(parts.every((part) => part.content.response_failure === undefined))
+  assert.equal(parts.filter((part) => JSON.stringify(part.content).includes('这段是成功工具轮的正文')).length, 1)
+  const retries = result.events.filter((event) => event.kind === 'retry').map((event) => event.payload.retry as { after_part_sequence: number })
+  assert.equal(retries.length, 3)
+  assert.equal(new Set(retries.map((retry) => retry.after_part_sequence)).size, 1)
+})
+
 async function executeFixture(
   bootstrap: RuntimeBootstrap, tokens: number,
   overrides: Partial<Pick<CreatePiAgentOptions, 'mcp' | 'fetch' | 'commitCheckpoint'>> = {},
+  expectedOutcome = 'completed',
 ) {
   // 经过真实 bootstrap 校验、pi Agent、Provider SSE 与事件写入器，网络和 Core 均由内存替身提供。
   const accepted = await new WorkerCoreClient({ fetch: async () => Response.json(bootstrap) }).bootstrap(fixtureStart(bootstrap))
@@ -194,7 +264,7 @@ async function executeFixture(
   try {
     const outcome = await agent.continue()
     await writer.flush()
-    assert.equal(outcome, 'completed', JSON.stringify(events.filter((event) => event.kind === 'error').map((event) => event.payload.error)))
+    assert.equal(outcome, expectedOutcome, JSON.stringify(events.filter((event) => event.kind === 'error').map((event) => event.payload.error)))
     return { requests, events, contexts: events.filter((event) => event.kind === 'context_usage')
       .map((event) => event.payload.context_usage as RuntimeCompactionContextUsage) }
   } finally {

@@ -381,6 +381,11 @@ export interface AgentToolResultPart {
   is_error: boolean
 }
 
+export interface AgentResponseFailure {
+  attempt_id: string
+  error_message: string
+}
+
 export type AgentMessagePart = {
   id: string
   message_id: string
@@ -389,10 +394,10 @@ export type AgentMessagePart = {
   created_at: string
   updated_at: string
 } & (
-  | { kind: 'text'; text: string; source_context?: AgentSourceContext }
-  | { kind: 'reasoning'; text: string }
-  | { kind: 'tool_call'; tool_call: AgentToolCallPart }
-  | { kind: 'tool_result'; tool_result: AgentToolResultPart }
+  | { kind: 'text'; text: string; source_context?: AgentSourceContext; response_failure?: AgentResponseFailure }
+  | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
+  | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
+  | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
 )
 
 export interface AgentMessage {

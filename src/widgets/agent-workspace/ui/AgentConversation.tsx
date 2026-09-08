@@ -14,7 +14,7 @@ import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
 import { AgentRetryActivity } from './AgentRetryActivity.tsx'
-import { AgentMessageFailure } from './AgentMessageFailure.tsx'
+import { AgentMessageFailure, AgentResponseFailure } from './AgentMessageFailure.tsx'
 import { AgentMessageActions } from './AgentMessageActions.tsx'
 import styles from './AgentConversation.module.scss'
 
@@ -175,7 +175,12 @@ const AgentMessageStack = memo(function AgentMessageStack({
               if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
               if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
-              if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} />
+              if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />
+              if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} hideError={
+                part.activity.purpose === 'response' && message.parts.some((candidate) => (
+                  candidate.kind === 'response_failure' && candidate.failure.error_message === part.activity.error_message
+                ))
+              } />
               if (!part.text.trim()) return null
               return (
                 <details key={part.id} className={styles.reasoning} open={part.streaming || undefined}>
@@ -240,6 +245,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const message = messages[messages.length - 1]
   if (!message) return 'empty'
   const parts = message.parts.map((part) => {
+    if (part.kind === 'response_failure') return `${part.id}:${part.failure.error_message}`
     if (part.kind === 'retry') {
       const activity = part.activity
       return `${part.id}:${activity.status}:${activity.attempt}:${activity.delay_ms}:${activity.duration_ms ?? ''}:${activity.error_message}`

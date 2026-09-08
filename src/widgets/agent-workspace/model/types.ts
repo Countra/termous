@@ -2,6 +2,7 @@ import type {
   AgentAttachment,
   AgentCompactionActivity,
   AgentRetryActivity,
+  AgentResponseFailure,
   AgentContextCompressionStatus,
   AgentContextLastSnapshot,
   AgentContextUsageBasis,
@@ -111,6 +112,7 @@ export type AgentWorkspaceMessagePart =
   | AgentWorkspaceToolPart
   | { id: string; kind: 'compaction'; activity: AgentCompactionActivity }
   | { id: string; kind: 'retry'; activity: AgentRetryActivity }
+  | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
   id: string

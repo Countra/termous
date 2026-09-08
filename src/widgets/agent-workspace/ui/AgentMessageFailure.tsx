@@ -1,5 +1,6 @@
 import { CircleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { AgentResponseFailure as ResponseFailure } from '#entities/agent'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import styles from './AgentMessageFailure.module.scss'
 
@@ -39,9 +40,11 @@ export function AgentMessageFailure({ message }: {
     ? failureKeys.get(message.error_code)
       ?? (message.error_code.startsWith('AGENT_RUNTIME_CONTEXT_COMPRESSION_') ? 'compactionFailed' : undefined)
     : undefined
-  const retryShowsError = message.parts?.some((part) => part.kind === 'retry'
-    && part.activity.status === 'failed' && part.activity.error_message === message.error_message)
-  const details = message.status === 'failed' && !retryShowsError ? message.error_message : undefined
+  const errorAlreadyShown = message.parts?.some((part) => (
+    part.kind === 'response_failure' && part.failure.error_message === message.error_message
+    || part.kind === 'retry' && part.activity.status === 'failed' && part.activity.error_message === message.error_message
+  ))
+  const details = message.status === 'failed' && !errorAlreadyShown ? message.error_message : undefined
   return (
     <div className={styles.failure} data-status={message.status}>
       <CircleAlert size={14} aria-hidden="true" />
@@ -49,6 +52,16 @@ export function AgentMessageFailure({ message }: {
         <span>{t(reason ? `agent.message.failure.${reason}` : `agent.message.${message.status}`)}</span>
         {details ? <span className={styles.details}>{details}</span> : null}
       </div>
+    </div>
+  )
+}
+
+export function AgentResponseFailure({ failure }: { failure: ResponseFailure }) {
+  if (!failure.error_message) return null
+  return (
+    <div className={styles.failure} data-response-attempt-id={failure.attempt_id} aria-live="off">
+      <CircleAlert size={14} aria-hidden="true" />
+      <span className={`${styles.content} ${styles.details}`}>{failure.error_message}</span>
     </div>
   )
 }

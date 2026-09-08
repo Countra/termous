@@ -206,7 +206,7 @@ function interleaveActivities(
   const result: AgentWorkspaceMessagePart[] = []
   let cursor = 0
   for (const part of parts) {
-    const sequence = sequences.get(part.id) ?? 0
+    const sequence = part.kind === 'response_failure' ? part.after_part_sequence : sequences.get(part.id) ?? 0
     while (cursor < pending.length && pending[cursor]!.activity.after_part_sequence < sequence) {
       result.push(pending[cursor++]!)
     }
@@ -289,17 +289,24 @@ function projectMessageParts(
   const results = new Map(parts
     .filter((part): part is Extract<AgentMessagePart, { kind: 'tool_result' }> => part.kind === 'tool_result')
     .map((part) => [part.tool_result.tool_call_id, part]))
+  const failedAttemptEnds = new Map<string, string>()
+  for (const part of parts) {
+    if (part.response_failure) failedAttemptEnds.set(part.response_failure.attempt_id, part.id)
+  }
   return parts.flatMap((part): AgentWorkspaceMessagePart[] => {
-    if (part.kind === 'text') return [{ id: part.id, kind: 'text' as const, text: part.text }]
-    if (part.kind === 'reasoning') return [{
-      id: part.id,
-      kind: 'reasoning' as const,
-      text: part.text,
-      streaming: streaming && !finalizedParts.has(messagePartKey(part.message_id, part.id)),
-    }]
     if (part.kind === 'tool_result') return []
-    const result = results.get(part.tool_call.tool_call_id)
-    return [projectToolPart(part, result, run, events)]
+    const failure = part.response_failure
+    const projected: AgentWorkspaceMessagePart = part.kind === 'text'
+      ? { id: part.id, kind: 'text', text: part.text }
+      : part.kind === 'reasoning' ? {
+        id: part.id,
+        kind: 'reasoning' as const,
+        text: part.text,
+        streaming: streaming && !failure && !finalizedParts.has(messagePartKey(part.message_id, part.id)),
+      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events)
+    return failure?.error_message && failedAttemptEnds.get(failure.attempt_id) === part.id
+      ? [projected, { id: `response-failure:${failure.attempt_id}`, kind: 'response_failure', failure, after_part_sequence: part.sequence }]
+      : [projected]
   })
 }
 
@@ -314,11 +321,11 @@ function projectToolPart(
   events: AgentRunEvent[],
 ): AgentWorkspaceToolPart {
   const toolEvents = events.filter((event) => (
-    'tool' in event.payload && event.payload.tool.tool_call_id === call.tool_call.tool_call_id
+    !call.response_failure && 'tool' in event.payload && event.payload.tool.tool_call_id === call.tool_call.tool_call_id
   ))
   const terminalEvent = [...toolEvents].reverse().find((event) => event.kind === 'tool_completed' || event.kind === 'tool_failed')
   const duration = terminalEvent && 'tool' in terminalEvent.payload ? terminalEvent.payload.tool.duration_ms : undefined
-  const status = result
+  const status = call.response_failure ? 'failed' : result
     ? result.tool_result.is_error ? 'failed' : 'completed'
     : run?.status === 'waiting_approval' ? 'waiting_approval'
       : run && ['queued', 'starting', 'running'].includes(run.status) ? 'running'

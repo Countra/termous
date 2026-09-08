@@ -23,8 +23,8 @@ test('摘要重试分别累计失败和完成用量，最终原生 usage 只属�
   const abort = new AbortController()
   const task = summary.models.completeSimple(compactionTestModel, { messages: [] }, { signal: abort.signal })
   await setImmediate()
-  assert.equal(activities[0]?.delay_ms, 1000)
-  t.mock.timers.tick(1000)
+  assert.equal(activities[0]?.delay_ms, 3000)
+  t.mock.timers.tick(3000)
   const result = await task
 
   assert.equal(requests, 2)
@@ -59,22 +59,28 @@ test('摘要退避取消保留耗用且不重复统计，不再请求 Provider',
   assert.equal(activities[activities.length - 1]?.attempt, 0)
 })
 
-test('摘要有正文后断流不得重试，错误原文脱敏且耗用仍被计入', async () => {
+test('摘要有正文后断流重试至上限，错误原文脱敏且所有尝试耗用被计入', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   let requests = 0
   const activities: RuntimeRetryActivity[] = []
   const summary = createRuntimeCompactionModels(compactionTestStream(async () => {
     requests += 1
     return { ...compactionTestAssistant('部分摘要', 31), stopReason: 'error', errorMessage: '503 original-summary-error private-summary-key' }
   }), undefined, undefined, ['private-summary-key'], (activity) => { activities.push(activity) })
-  await assert.rejects(summary.models.completeSimple(compactionTestModel, { messages: [] }), (error: unknown) => {
+  const rejected = assert.rejects(summary.models.completeSimple(compactionTestModel, { messages: [] }), (error: unknown) => {
     assert.ok(error instanceof Error && 'detail' in error)
     assert.match(String(error.detail), /503 original-summary-error/u)
     assert.doesNotMatch(String(error.detail), /private-summary-key/u)
     return true
   })
-  assert.equal(requests, 1)
-  assert.equal(summary.usage().total_tokens, 31)
-  assert.equal(activities.length, 0)
+  for (const delay of [3000, 6000, 12000]) {
+    await setImmediate()
+    t.mock.timers.tick(delay)
+  }
+  await rejected
+  assert.equal(requests, 4)
+  assert.equal(summary.usage().total_tokens, 124)
+  assert.equal(activities[activities.length - 1]?.status, 'failed')
 })
 
 test('摘要 length 与无效成功响应仍由原有校验拒绝，不启动重试', async () => {
@@ -111,8 +117,10 @@ test('摘要最终失败与最后重试原文相同，不拼接 stop reason、�
     assert.equal(activities[activities.length - 1]?.error_message, expected)
     return true
   })
-  await setImmediate()
-  t.mock.timers.tick(1000)
+  for (const delay of [3000, 6000, 12000]) {
+    await setImmediate()
+    t.mock.timers.tick(delay)
+  }
   await rejected
-  assert.equal(requests, 2)
+  assert.equal(requests, 4)
 })

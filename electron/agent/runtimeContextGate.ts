@@ -36,6 +36,7 @@ interface CompactionSource {
 export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
   let persistedCheckpoint = options.bootstrap.context.checkpoint
   let active: CompactionSource | undefined
+  const retryPositions = new Map<string, number>()
   const now = options.now ?? Date.now
   const checkpoint = persistedCheckpoint && {
     summary: persistedCheckpoint.summary,
@@ -120,11 +121,16 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     },
     onUsage: (usage) => { options.bridge.addUsage(usage) },
     onRetry: async (activity) => {
+      const position = retryPositions.get(activity.retry_id) ?? options.bridge.partSequence()
+      retryPositions.set(activity.retry_id, position)
       options.events.push('retry', { retry: {
         ...activity, assistant_message_id: options.bootstrap.run.assistant_message_id,
-        purpose: 'compaction', after_part_sequence: options.bridge.partSequence(),
+        purpose: 'compaction', after_part_sequence: position,
       } })
       await options.events.flush()
+      if (activity.status === 'completed' || activity.status === 'failed' || activity.status === 'cancelled') {
+        retryPositions.delete(activity.retry_id)
+      }
     },
     onContextUsage: (usage) => {
       // 能力位独立于原生用量恢复，避免新版字段被严格解码的旧 Core 拒绝。

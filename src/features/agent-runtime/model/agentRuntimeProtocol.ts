@@ -201,6 +201,15 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     updated_at: timestamp(source.updated_at, 'Agent 消息片段更新时间无效'),
   }
   const content = record(source.content, 'Agent 消息片段内容无效')
+  if (kind === 'tool_result' && content.response_failure !== undefined) {
+    throw new AgentRuntimeProtocolError('Agent 工具结果不得携带回答失败标记')
+  }
+  const failure = content.response_failure === undefined ? undefined
+    : record(content.response_failure, 'Agent 回答失败标记无效')
+  const responseFailure = failure ? { response_failure: {
+    attempt_id: identifier(failure.attempt_id, 'Agent 回答失败 Attempt ID 无效'),
+    error_message: utf8(failure.error_message, 'Agent 回答失败错误原文无效', 4 * 1024, true),
+  } } : {}
   const branches = ['text', 'reasoning', 'tool_call', 'tool_result'].filter((key) => content[key] !== undefined)
   if (branches.length !== 1 || branches[0] !== kind) {
     throw new AgentRuntimeProtocolError('Agent 消息片段判别分支无效')
@@ -212,6 +221,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     }
     return {
       ...base,
+      ...responseFailure,
       kind,
       text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true),
       ...(kind === 'text' && body.source_context !== undefined
@@ -221,7 +231,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
   if (kind === 'tool_call') {
-    return { ...base, kind, tool_call: {
+    return { ...base, ...responseFailure, kind, tool_call: {
       tool_call_id: identifier(body.tool_call_id, 'Agent Tool Call ID 无效', 256),
       tool_name: utf8(body.tool_name, 'Agent Tool 名称无效', 256),
       arguments: jsonValue(body.arguments),
@@ -243,6 +253,9 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   const id = identifier(source.id, 'Agent 消息 ID 无效')
   const sessionId = identifier(source.session_id, 'Agent 消息 Session ID 无效')
   const role = enumValue<AgentMessageRole>(source.role, agentMessageRoles, 'Agent 消息角色无效')
+  if (role !== 'assistant' && parts.some((part) => part.response_failure !== undefined)) {
+    throw new AgentRuntimeProtocolError('只有 Agent 回复消息可以携带回答失败标记')
+  }
   const status = enumValue<AgentMessageStatus>(source.status, agentMessageStatuses, 'Agent 消息状态无效')
   const turnUsage = source.turn_usage === undefined
     ? undefined

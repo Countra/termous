@@ -134,7 +134,8 @@ export function replaceAgentMessages(
   const messages = dedupeByID(incoming, preferMessage).map((message) => {
     const previous = previousMessages.get(message.id)
     // 消息页与 Run 独立读取，迟到的旧列表不能抹掉已经确认的终态元数据。
-    const snapshot = previous?.turn_usage && !message.turn_usage && previous.revision >= message.revision ? previous : message
+    const preferred = previous?.turn_usage && !message.turn_usage && previous.revision >= message.revision ? previous : message
+    const snapshot = previous ? retainResponseFailureParts(preferred, preferred === message ? previous : message) : preferred
     return previous?.retries?.length ? { ...snapshot, retries: preferMessage(previous, message).retries } : snapshot
   })
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
@@ -365,6 +366,7 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
   if (event.kind === 'message_delta') {
     const message = current.messages[run.session_id]?.find(({ id }) => id === run.assistant_message_id)
     const partId = event.payload.message_delta.part_id
+    if (message?.parts.some((part) => part.id === partId && part.response_failure)) return { state: stateWithCursor, gap: false }
     // 终态 Run 可以先于片段到达；仅跳过已有完整片段且没有待完成 overlay 的旧 delta。
     if (message?.turn_usage?.run_id === run.id && message.parts.some(({ id }) => id === partId)
       && !current.run_part_overlays[run.id]?.[partId]) return { state: stateWithCursor, gap: false }
@@ -600,12 +602,22 @@ function preferSession(left: AgentSession, right: AgentSession) {
 }
 
 function preferMessage(left: AgentMessage, right: AgentMessage) {
-  const preferred = left.revision > right.revision
+  const snapshot = left.revision > right.revision
     || (left.revision === right.revision && (left.turn_usage !== undefined || right.turn_usage === undefined)) ? left : right
+  const preferred = retainResponseFailureParts(snapshot, snapshot === left ? right : left)
   if (!left.retries?.length && !right.retries?.length) return preferred
   const retries = new Map((left.retries ?? []).map((activity) => [activity.retry_id, activity]))
   for (const activity of right.retries ?? []) retries.set(activity.retry_id, mergeAgentRetryActivity(retries.get(activity.retry_id), activity))
   return { ...preferred, retries: [...retries.values()] }
+}
+
+function retainResponseFailureParts(preferred: AgentMessage, other: AgentMessage): AgentMessage {
+  let parts = preferred.parts
+  // 失败片段不可恢复为活动输出；旧分页和重连快照仍需保留已经确认的失败历史。
+  for (const part of other.parts) {
+    if (part.response_failure) parts = applyMessagePart(parts, part)
+  }
+  return parts === preferred.parts ? preferred : { ...preferred, parts }
 }
 
 function sortSessions(sessions: AgentSession[]) {
@@ -673,6 +685,7 @@ function runEventMessageProjectionValid(
     if (part.message_id !== run.assistant_message_id) return false
     const message = current.messages[run.session_id]?.find(({ id }) => id === part.message_id)
     if (!message) return false
+    if (part.response_failure && message.role !== 'assistant') return false
     const existing = message.parts.find(({ id }) => id === part.id)
     return !existing || existing.kind === part.kind
   }
@@ -709,6 +722,7 @@ function applyMessageDelta(
 ) {
   const delta = event.payload.message_delta
   const existing = parts.find((part) => part.id === delta.part_id)
+  if (existing?.response_failure) return parts
   if (existing && existing.kind !== delta.kind) return parts
   const part: AgentMessage['parts'][number] = existing
     ? { ...existing, text: existing.text + delta.delta, updated_at: event.created_at }
@@ -726,6 +740,9 @@ function applyMessageDelta(
 }
 
 function applyMessagePart(parts: AgentMessage['parts'], part: AgentMessage['parts'][number]) {
+  const existing = parts.find(({ id }) => id === part.id)
+  if (existing === part || existing?.response_failure
+    && (!part.response_failure || existing.revision >= part.revision)) return parts
   return [part, ...parts.filter(({ id }) => id !== part.id)]
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
 }

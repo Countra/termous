@@ -7,13 +7,13 @@ import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './r
 import { compactionTestAssistant, compactionTestModel } from './runtimeCompactionTestFixture.ts'
 import type { RuntimeUsage } from './runtimeUsage.ts'
 
-test('官方重试执行三次额外请求，保持一二四秒退避及原始最终用量', async (t) => {
+test('官方重试执行三次额外请求，保持三六十二秒退避及原始最终用量', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const failures = [failed(10), failed(20), failed(30)]
   const completed = compactionTestAssistant('恢复完成', 40)
   const fixture = createFixture([...failures, completed])
   const task = fixture.run()
-  await advance(t, fixture, [1000, 2000, 4000])
+  await advance(t, fixture, [3000, 6000, 12000])
   const result = await task
 
   assert.equal(fixture.requests(), 4)
@@ -34,7 +34,7 @@ test('三次额外请求耗尽仅输出最后原始失败消息和终态', async
   const messages = [failed(10), failed(20), failed(30), failed(40, '503 exact final failure')]
   const fixture = createFixture(messages)
   const task = fixture.run()
-  await advance(t, fixture, [1000, 2000, 4000])
+  await advance(t, fixture, [3000, 6000, 12000])
   const result = await task
   assert.equal(result.message, messages[3])
   assert.equal(fixture.requests(), 4)
@@ -66,13 +66,16 @@ for (const content of [
   [{ type: 'thinking', thinking: '分析中' }],
   [{ type: 'toolCall', id: '', name: '', arguments: {} }],
 ] satisfies AssistantMessage['content'][]) {
-  test(`失败消息已有 ${content[0]!.type} 内容时保留原文且不重试`, async () => {
+  test(`失败消息已有 ${content[0]!.type} 内容时保留原文并重试`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
     const message = { ...failed(10), content }
-    const fixture = createFixture([message])
-    const result = await fixture.run()
-    assert.equal(result.message, message)
-    assert.equal(fixture.requests(), 1)
-    assert.equal(fixture.activities.length, 0)
+    const completed = compactionTestAssistant('重新生成', 20)
+    const fixture = createFixture([message, completed])
+    const task = fixture.run()
+    await advance(t, fixture, [3000])
+    assert.equal((await task).message, completed)
+    assert.equal(fixture.failures[0], message)
+    assert.equal(fixture.requests(), 2)
   })
 }
 
@@ -91,40 +94,47 @@ test('空 start、空文本和空思考片段允许重试且不会泄漏到下�
     ] : [],
   })
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   assert.deepEqual((await task).events.map(({ type }) => type), ['done'])
   assert.equal(fixture.requests(), 2)
 })
 
-test('重连请求已输出再失败时通过控制信号收口，既不丢增量也不启动第三次请求', async (t) => {
+test('重连请求再次中断后保留失败增量并继续重试，只向 pi 结束一个逻辑回答', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const partial = { ...failed(20, '503 partial output failure'), content: [{ type: 'text' as const, text: '部分结果' }] }
-  const fixture = createFixture([failed(10), partial], {
+  const completed = compactionTestAssistant('重新生成完成', 30)
+  const fixture = createFixture([failed(10), partial, completed], {
     events: (index) => index === 1 ? [
       { type: 'start', partial: { ...partial, content: [] } },
       { type: 'text_delta', contentIndex: 0, delta: '部分结果', partial },
     ] : [],
   })
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000, 6000])
   const result = await task
-  assert.equal(fixture.requests(), 2)
-  assert.equal(result.message, partial)
-  assert.deepEqual(result.events.map(({ type }) => type), ['start', 'text_delta', 'error'])
-  assert.deepEqual(fixture.activities.map(({ status }) => status), ['waiting', 'requesting', 'failed'])
-  assert.deepEqual(fixture.usages.map(({ total_tokens }) => total_tokens), [10])
+  assert.equal(fixture.requests(), 3)
+  assert.equal(result.message, completed)
+  assert.deepEqual(result.events.map(({ type }) => type), ['start', 'text_delta', 'done'])
+  assert.equal(fixture.failures.length, 2)
+  assert.equal(fixture.failures[1], partial)
+  assert.deepEqual(fixture.activities.map(({ status }) => status), ['waiting', 'requesting', 'waiting', 'requesting', 'completed'])
+  assert.deepEqual(fixture.usages.map(({ total_tokens }) => total_tokens), [10, 20])
 })
 
-test('增量已有内容但错误终态内容为空时仍不得重试', async () => {
+test('增量已有内容但错误终态内容为空时仍能重试', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const message = failed(10)
-  const fixture = createFixture([message], {
-    events: () => [
+  const completed = compactionTestAssistant('完整回答', 20)
+  const fixture = createFixture([message, completed], {
+    events: (index) => index === 0 ? [
       { type: 'start', partial: message },
       { type: 'thinking_delta', contentIndex: 0, delta: '已思考', partial: message },
-    ],
+    ] : [],
   })
-  assert.equal((await fixture.run()).message, message)
-  assert.equal(fixture.requests(), 1)
+  const task = fixture.run()
+  await advance(t, fixture, [3000])
+  assert.equal((await task).message, completed)
+  assert.equal(fixture.requests(), 2)
 })
 
 test('第一次退避取消保留最后失败用量且额外请求次数为零', async (t) => {
@@ -148,7 +158,7 @@ test('后续退避取消不会重复统计此前及当前失败用量', async (t
   const abort = new AbortController()
   const fixture = createFixture([failed(11), failed(23)], { signal: abort.signal })
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   abort.abort()
   const result = await task
   assert.equal(result.message.stopReason, 'aborted')
@@ -162,7 +172,7 @@ test('重试记账期间取消也不会发起下一请求或重复记账', async
   const abort = new AbortController()
   const fixture = createFixture([failed(11)], { signal: abort.signal, onDiscardedUsage: () => abort.abort() })
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   const result = await task
   assert.equal(result.message.stopReason, 'aborted')
   assert.equal(result.message.usage.totalTokens, 0)
@@ -177,7 +187,7 @@ test('重连事件仅保留脱敏原始错误，不改写用于官方分类的�
   const message = failed(10, source)
   const fixture = createFixture([message, compactionTestAssistant('完成', 20)])
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   await task
   assert.equal(message.errorMessage, source)
   assert.equal(fixture.activities[0]!.error_message, '503 exact upstream error api_key=[已隐藏] ')
@@ -198,7 +208,7 @@ test('requesting 回调取消时额外请求已启动，次数与最后 Provider
     },
   })
   const task = fixture.run()
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   assert.equal((await task).message.stopReason, 'aborted')
   assert.equal(fixture.requests(), 2)
   assert.equal(fixture.activities[fixture.activities.length - 1]?.attempt, 1)
@@ -215,7 +225,7 @@ test('requesting 写入失败不再重试，已启动次数保持准确', async 
   })
   const task = fixture.run()
   const rejected = assert.rejects(task, (error) => error === original)
-  await advance(t, fixture, [1000])
+  await advance(t, fixture, [3000])
   await rejected
   assert.equal(fixture.requests(), 2)
   assert.equal(fixture.activities[fixture.activities.length - 1]?.attempt, 1)
@@ -235,7 +245,7 @@ test('重试适配器故障经拒绝通道传递，活动仍保留最后 Provide
   const stream = await wrapped(compactionTestModel, { messages: [] })
   const rejected = assert.rejects(stream.result(), (error) => error === original)
   await setImmediate()
-  t.mock.timers.tick(1000)
+  t.mock.timers.tick(3000)
   await rejected
   assert.deepEqual(activities.map(({ status, attempt }) => [status, attempt]), [
     ['waiting', 0], ['requesting', 1], ['failed', 1],
@@ -264,9 +274,11 @@ function createFixture(messages: AssistantMessage[], options: {
   events?(index: number): AssistantMessageEvent[]
   onActivity?(activity: RuntimeRetryActivity): void
   onDiscardedUsage?(): void
+  onFailedAttempt?(message: AssistantMessage): void | Promise<void>
 } = {}) {
   const activities: RuntimeRetryActivity[] = []
   const usages: RuntimeUsage[] = []
+  const failures: AssistantMessage[] = []
   let requests = 0
   const source: StreamFn = (_model, _context, request) => {
     assert.equal(request?.signal, options.signal)
@@ -281,9 +293,10 @@ function createFixture(messages: AssistantMessage[], options: {
   const wrapped = createRuntimeRetryStreamFunction(source, {
     onActivity: (activity) => { activities.push(activity); options.onActivity?.(activity) },
     onDiscardedUsage: (usage) => { usages.push(usage); options.onDiscardedUsage?.() },
+    onFailedAttempt: async (message) => { failures.push(message); await options.onFailedAttempt?.(message) },
   })
   return {
-    activities, usages, requests: () => requests,
+    activities, usages, failures, requests: () => requests,
     run: async () => {
       const stream = await wrapped(compactionTestModel, { messages: [] }, { signal: options.signal })
       const events: AssistantMessageEvent[] = []

@@ -1,17 +1,11 @@
-import { ChevronDown, ChevronRight, Clock3, Wifi } from 'lucide-react'
-import { useId, useState } from 'react'
+import { Clock3, Wifi } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AgentRetryActivity as RetryActivity } from '#entities/agent'
 import styles from './AgentRetryActivity.module.scss'
 
-export function AgentRetryActivity({ activity }: { activity: RetryActivity }) {
+export function AgentRetryActivity({ activity, hideError = false }: { activity: RetryActivity; hideError?: boolean }) {
   const { t, i18n } = useTranslation()
-  const detailsId = useId()
-  const [expandedPhase, setExpandedPhase] = useState<string>()
   const active = activity.status === 'waiting' || activity.status === 'requesting'
-  const phase = `${activity.retry_id}:${activity.status === 'completed' ? 'completed' : 'details'}`
-  const expanded = expandedPhase === phase
-  const showDetails = activity.status !== 'completed' || expanded
   const formatSeconds = (value: number) => new Intl.NumberFormat(i18n.resolvedLanguage, {
     maximumFractionDigits: 1,
   }).format(value / 1_000)
@@ -35,24 +29,8 @@ export function AgentRetryActivity({ activity }: { activity: RetryActivity }) {
           {duration ? <span className={styles.duration}><span aria-hidden="true">·</span><Clock3 size={12} aria-hidden="true" />{duration}</span> : null}
         </span>
       </div>
-      {activity.error_message ? (
-        <div className={styles.details} aria-live="off">
-          {showDetails ? (
-            <div id={detailsId} className={`${styles.error} ${expanded ? '' : styles.clamped}`}>
-              {activity.error_message}
-            </div>
-          ) : <div id={detailsId} hidden />}
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-controls={detailsId}
-            aria-expanded={expanded}
-            onClick={() => setExpandedPhase(expanded ? undefined : phase)}
-          >
-            {expanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
-            {t(expanded ? 'agent.retry.collapse' : activity.status === 'completed' ? 'agent.retry.lastError' : 'agent.retry.expand')}
-          </button>
-        </div>
+      {activity.error_message && !hideError ? (
+        <div className={styles.error} aria-live="off">{activity.error_message}</div>
       ) : null}
     </div>
   )
