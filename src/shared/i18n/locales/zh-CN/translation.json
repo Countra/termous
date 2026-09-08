@@ -639,6 +639,7 @@
     "global": {
       "view": "查看更新",
       "aboutTooltip": "关于 Termous",
+      "aboutMenuLabel": "关于软件",
       "checkingTooltip": "正在检查更新",
       "openFailed": "无法打开关于 Termous",
       "availableTitle": "发现新版本 {{version}}",

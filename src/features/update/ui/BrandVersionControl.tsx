@@ -1,11 +1,10 @@
-import { useRef, useState } from 'react'
-import { App as AntdApp, Button, Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { ArrowUp, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveGlobalUpdateStatus } from '#entities/update'
 import { useUpdateRuntime } from '../model/updateRuntime'
+import { useOpenUpdateWindow } from '../model/useOpenUpdateWindow'
 import styles from './BrandVersionControl.module.scss'
-import { termousNotificationClassName } from '#shared/ui'
 
 interface BrandVersionControlProps {
   appVersion: string
@@ -36,10 +35,8 @@ export function BrandVersionControl({
   className,
 }: BrandVersionControlProps) {
   const { t, i18n } = useTranslation()
-  const { notification } = AntdApp.useApp()
-  const { snapshot, openUpdateWindow } = useUpdateRuntime()
-  const [opening, setOpening] = useState(false)
-  const openingRef = useRef(false)
+  const { snapshot } = useUpdateRuntime()
+  const { opening, open } = useOpenUpdateWindow()
   const status = resolveGlobalUpdateStatus(snapshot)
   const chinese = i18n.resolvedLanguage?.startsWith('zh') ?? false
   const kind: BrandUpdateStatus = snapshot?.phase === 'checking'
@@ -87,36 +84,6 @@ export function BrandVersionControl({
                 defaultValue: chinese ? '关于 Termous' : 'About Termous',
               })
 
-  const handleOpen = async () => {
-    if (openingRef.current) {
-      return
-    }
-    openingRef.current = true
-    setOpening(true)
-    try {
-      const opened = await openUpdateWindow()
-      if (!opened) {
-        throw new Error('about_window_not_opened')
-      }
-    } catch {
-      console.error('[termous:update] 打开关于窗口失败')
-      notification.error({
-        key: 'termous-about-window-open-failed',
-        title: t('update.global.openFailed', {
-          defaultValue: chinese
-            ? '无法打开关于 Termous'
-            : 'Could not open About Termous',
-        }),
-        duration: 5,
-        role: 'alert',
-        className: termousNotificationClassName,
-      })
-    } finally {
-      openingRef.current = false
-      setOpening(false)
-    }
-  }
-
   return (
     <Tooltip
       title={tooltip}
@@ -136,7 +103,7 @@ export function BrandVersionControl({
         aria-busy={opening}
         aria-label={tooltip}
         data-update-status={kind}
-        onClick={() => void handleOpen()}
+        onClick={() => void open()}
       >
         <span className={styles.label}>
           <span className={styles.prefix}>v</span>

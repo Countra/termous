@@ -1,9 +1,11 @@
 import { App as AntdApp } from 'antd'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import { AppShell } from './AppShell'
+
+const openAbout = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -15,6 +17,7 @@ vi.mock('#shared/bridge', () => ({
 
 vi.mock('#features/update', () => ({
   BrandVersionControl: () => null,
+  useOpenUpdateWindow: () => ({ opening: false, open: openAbout }),
 }))
 
 test('远程桌面页主连接按钮与主机连接菜单共用主机入口', async () => {
@@ -48,7 +51,7 @@ test('远程桌面页主连接按钮与主机连接菜单共用主机入口', as
   expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(2)
 })
 
-test('帮助按钮通过向上菜单启动使用向导并保留可访问名称', async () => {
+test('帮助菜单提供向导与关于窗口入口，并保留可访问名称', async () => {
   const user = userEvent.setup()
   const onOpenProductTour = vi.fn()
   render(
@@ -87,6 +90,7 @@ test('帮助按钮通过向上菜单启动使用向导并保留可访问名称',
   await waitFor(() => expect(sidebarMenu.contains(document.activeElement)).toBe(true))
   expect(sidebarMenu).toHaveClass(contextActionMenuPopupClassName)
   expect(sidebarMenu.closest('.ant-dropdown')).toHaveClass(contextActionMenuPopupClassName)
+  expect(within(sidebarMenu).getByRole('menuitem', { name: 'update.global.aboutMenuLabel' })).toBeEnabled()
   expect(document.querySelector('.ant-dropdown-placement-topLeft')).not.toBeNull()
   await user.click(menuItem)
 
@@ -103,6 +107,10 @@ test('帮助按钮通过向上菜单启动使用向导并保留可访问名称',
   expect(topbarMenu).not.toBeNull()
   expect(topbarMenu).toHaveClass(contextActionMenuPopupClassName)
   expect(topbarPopup).toHaveClass(contextActionMenuPopupClassName)
+  await user.click(within(topbarMenu!).getByRole('menuitem', { name: 'update.global.aboutMenuLabel' }))
+  expect(openAbout).toHaveBeenCalledTimes(1)
+  expect(onOpenProductTour).toHaveBeenCalledTimes(1)
+  expect(helpButtons[1]).toHaveAttribute('aria-expanded', 'false')
 })
 
 test('折叠侧栏中的帮助按钮支持键盘开关菜单', async () => {

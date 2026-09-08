@@ -641,6 +641,7 @@
     "global": {
       "view": "View update",
       "aboutTooltip": "About Termous",
+      "aboutMenuLabel": "About",
       "checkingTooltip": "Checking for updates",
       "openFailed": "Could not open About Termous",
       "availableTitle": "Termous {{version}} is available",
