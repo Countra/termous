@@ -31,6 +31,7 @@ export const AgentMessageActions = memo(function AgentMessageActions({ message }
     }
   }, [message.id, markdown])
 
+  if (message.role === 'assistant' && message.status === 'streaming') return null
   if (!canCopy && !time && duration === undefined) return null
   const copy = async () => {
     if (pending.current || !canCopy) return

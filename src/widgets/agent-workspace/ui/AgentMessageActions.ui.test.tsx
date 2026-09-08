@@ -70,9 +70,15 @@ describe('AgentMessageActions', () => {
     message({ parts: [] }),
     message({ parts: [{ id: 'blank', kind: 'text', text: ' \n\t ' }] }),
     message({ parts: [{ id: 'reasoning', kind: 'reasoning', text: 'not a reply', streaming: false }] }),
-  ])('流式消息或没有有效正文时不显示复制按钮 %#', (value) => {
+  ])('流式消息隐藏操作行，终态没有有效正文时只显示时间 %#', (value) => {
     const view = render(<AgentMessageActions message={value} />)
     expect(screen.queryByRole('button', { name: copyLabel })).not.toBeInTheDocument()
+    if (value.status === 'streaming') {
+      expect(view.container).toBeEmptyDOMElement()
+      view.rerender(<AgentMessageActions message={{ ...value, status: 'completed', duration_ms: 12_000 }} />)
+      expect(screen.getByRole('button', { name: copyLabel })).toBeVisible()
+      expect(screen.getByText(/^agent\.message\.duration:/)).toBeVisible()
+    }
     const time = view.container.querySelector('time')
     expect(time).toBeVisible()
     expect(time).toHaveAttribute('datetime', value.created_at)
@@ -137,9 +143,11 @@ describe('AgentMessageActions', () => {
     expect(screen.queryByText(/^agent\.message\.duration:/)).not.toBeInTheDocument()
   })
 
-  it.each(['failed', 'interrupted', 'interrupted_by_steer'] as const)('终态 %s 的已有正文仍可复制', (status) => {
-    render(<AgentMessageActions message={message({ status })} />)
+  it.each(['failed', 'interrupted', 'interrupted_by_steer'] as const)('终态 %s 显示时间、耗时并允许复制已有正文', (status) => {
+    const view = render(<AgentMessageActions message={message({ status, duration_ms: 12_000 })} />)
     expect(screen.getByRole('button', { name: copyLabel })).toBeEnabled()
+    expect(view.container.querySelector('time')).toBeVisible()
+    expect(screen.getByText(/^agent\.message\.duration:/)).toBeVisible()
   })
 
   it('剪贴板失败不显示成功，保留重试按钮并在成功后清除错误', async () => {
