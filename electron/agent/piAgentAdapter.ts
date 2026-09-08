@@ -34,6 +34,7 @@ import { hydrateRuntimeUserContent } from './runtimeUserContent.ts'
 import { RuntimeContextImages } from './runtimeContextImages.ts'
 import { createRuntimeContextGate, runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { clearRuntimeCompactionUsage } from './runtimeCompactionPolicy.ts'
+import { createRuntimeRetryStreamFunction } from './runtimeProviderRetry.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult, RuntimeSteerResult } from './workerCoreClient.ts'
 import {
   restoreRuntimeProviderUsage,
@@ -131,6 +132,17 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     bootstrap: options.bootstrap, model, systemPrompt, tools, streamFn, bridge, images,
     events: options.events, commitCheckpoint: options.commitCheckpoint, now: options.now,
   })
+  const retryStreamFn = createRuntimeRetryStreamFunction(streamFn, {
+    providerErrorSecrets: options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : [],
+    onDiscardedUsage: (usage) => bridge.addUsage(usage),
+    onActivity: async (activity) => {
+      options.events.push('retry', { retry: {
+        ...activity, assistant_message_id: options.bootstrap.run.assistant_message_id,
+        purpose: 'response', after_part_sequence: bridge.partSequence(),
+      } })
+      await options.events.flush()
+    },
+  })
   const steerSources = new WeakMap<AgentMessage, Pick<RuntimeSteerResult, 'message_id' | 'part_id'>>()
   const agent = new Agent({
     initialState: {
@@ -144,7 +156,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     transformContext: compaction.transformContext,
     streamFn: (requestModel, context, streamOptions) => {
       compaction.beforeProviderRequest()
-      return streamFn(requestModel, context, streamOptions)
+      return retryStreamFn(requestModel, context, streamOptions)
     },
     sessionId: options.bootstrap.session.id,
     steeringMode: 'one-at-a-time',

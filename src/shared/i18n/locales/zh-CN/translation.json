@@ -244,6 +244,19 @@
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
     },
+    "retry": {
+      "waiting": "等待重连 · 第{{attempt}}/{{max}}次",
+      "requesting": "正在重连 · 第{{attempt}}/{{max}}次",
+      "completed": "重连成功",
+      "failed": "重连失败",
+      "cancelled": "重连已取消",
+      "compaction": "摘要请求",
+      "wait": "{{seconds}} 秒后重试",
+      "attempts": "已重试 {{count}} 次",
+      "expand": "展开错误详情",
+      "collapse": "收起错误详情",
+      "lastError": "查看最后一次错误"
+    },
     "reasoning": {
       "running": "正在思考",
       "completed": "思考过程"

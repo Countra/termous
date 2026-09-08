@@ -17,6 +17,8 @@ import {
   type AgentAttachmentState,
   type AgentCompactionActivity,
   type AgentCompactionData,
+  type AgentRetryActivity,
+  type AgentRetryData,
   type AgentContextUsageData,
   type AgentJsonValue,
   type AgentMessage,
@@ -255,6 +257,14 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
       throw new AgentRuntimeProtocolError('Agent 消息压缩记录归属无效')
     }
   }
+  const retries = source.retries === undefined ? undefined
+    : array(source.retries, 'Agent 消息重试记录无效').map(decodeRetryActivity)
+  if (retries) {
+    unique(retries.map(({ retry_id }) => retry_id), 'Agent 消息包含重复重试记录')
+    if ((retries.length > 0 && role !== 'assistant') || retries.some(({ assistant_message_id }) => assistant_message_id !== id)) {
+      throw new AgentRuntimeProtocolError('Agent 消息重试记录归属无效')
+    }
+  }
   unique(attachments.map(({ id: attachmentId }) => attachmentId), 'Agent 消息包含重复附件 ID')
   if (parts.some(({ message_id }) => message_id !== id)) {
     throw new AgentRuntimeProtocolError('Agent 消息片段归属无效')
@@ -281,6 +291,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     attachments,
     turn_usage: turnUsage,
     ...(compactions ? { compactions } : {}),
+    ...(retries ? { retries } : {}),
   }
 }
 
@@ -376,12 +387,14 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'context_usage']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
   }
   switch (kind) {
+    case 'retry':
+      return { ...base, kind, payload: { retry: decodeRetryData(payload.retry) } }
     case 'compaction':
       return { ...base, kind, payload: { compaction: decodeCompactionData(payload.compaction) } }
     case 'context_usage': {
@@ -681,6 +694,35 @@ function decodeCompactionThreshold(value: unknown) {
   return threshold
 }
 
+function decodeRetryData(value: unknown): AgentRetryData {
+  const source = record(value, 'Agent 重试事件无效')
+  const status = enumValue(source.status, ['waiting', 'requesting', 'completed', 'failed', 'cancelled'] as const, 'Agent 重试状态无效')
+  const attempt = nonNegativeInteger(source.attempt, 'Agent 重试次数无效')
+  const duration = optionalNonNegativeInteger(source.duration_ms, 'Agent 重试耗时无效')
+  if (source.max_retries !== 3 || attempt > 3 || (status === 'waiting' && attempt >= 3)
+    || ((status === 'requesting' || status === 'completed') && attempt === 0)
+    || (duration !== undefined && (status === 'waiting' || status === 'requesting'))) {
+    throw new AgentRuntimeProtocolError('Agent 重试次数与阶段不匹配')
+  }
+  return {
+    retry_id: identifier(source.retry_id, 'Agent 重试 ID 无效'),
+    assistant_message_id: identifier(source.assistant_message_id, 'Agent 重试消息 ID 无效'),
+    purpose: enumValue(source.purpose, ['response', 'compaction'] as const, 'Agent 重试用途无效'),
+    after_part_sequence: nonNegativeInteger(source.after_part_sequence, 'Agent 重试位置无效'),
+    status,
+    attempt,
+    max_retries: 3,
+    delay_ms: nonNegativeInteger(source.delay_ms, 'Agent 重试等待时间无效'),
+    error_message: utf8(source.error_message, 'Agent 重试错误详情无效', 4096, true),
+    duration_ms: duration,
+  }
+}
+
+function decodeRetryActivity(value: unknown): AgentRetryActivity {
+  const source = record(value, 'Agent 重试活动无效')
+  return { ...decodeRetryData(source), created_at: timestamp(source.created_at, 'Agent 重试活动时间无效') }
+}
+
 function decodeCompactionData(value: unknown): AgentCompactionData {
   const source = record(value, 'Agent 上下文压缩事件无效')
   return {
@@ -750,10 +792,12 @@ function decodeAgentMessageTurnUsage(value: unknown) {
     : utf8(source.error_code, 'Agent 消息本轮错误码无效', 80)
   const startedAt = optionalTimestamp(source.started_at, 'Agent 消息本轮开始时间无效')
   const completedAt = optionalTimestamp(source.completed_at, 'Agent 消息本轮完成时间无效')
+  const errorMessage = optionalString(source.error_message, 'Agent 消息本轮错误说明无效', 4096)
   return {
     run_id: identifier(source.run_id, 'Agent 消息本轮 Run ID 无效'),
     usage: decodeUsage(source.usage),
     ...(errorCode ? { error_code: errorCode } : {}),
+    ...(errorMessage !== undefined ? { error_message: errorMessage } : {}),
     ...(startedAt ? { started_at: startedAt } : {}),
     ...(completedAt ? { completed_at: completedAt } : {}),
   }

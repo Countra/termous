@@ -126,9 +126,22 @@ export type RuntimeEventKind =
   | 'tool_failed'
   | 'usage'
   | 'error'
+  | 'retry'
   | 'compaction'
   | 'context_usage'
   | 'steer_applied'
+
+export interface RuntimeRetryEvent {
+  retry_id: string
+  assistant_message_id: string
+  purpose: 'response' | 'compaction'
+  after_part_sequence: number
+  status: 'waiting' | 'requesting' | 'completed' | 'failed' | 'cancelled'
+  attempt: number
+  max_retries: 3
+  delay_ms: number
+  error_message: string
+}
 
 export interface RuntimeEventInput {
   event_id: string

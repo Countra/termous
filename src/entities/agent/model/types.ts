@@ -408,6 +408,24 @@ export interface AgentMessage {
   attachments: AgentAttachment[]
   turn_usage?: AgentMessageTurnUsage
   compactions?: AgentCompactionActivity[]
+  retries?: AgentRetryActivity[]
+}
+
+export interface AgentRetryData {
+  retry_id: string
+  assistant_message_id: string
+  purpose: 'response' | 'compaction'
+  after_part_sequence: number
+  status: 'waiting' | 'requesting' | 'completed' | 'failed' | 'cancelled'
+  attempt: number
+  max_retries: 3
+  delay_ms: number
+  error_message: string
+  duration_ms?: number
+}
+
+export interface AgentRetryActivity extends AgentRetryData {
+  created_at: string
 }
 
 export interface AgentCompactionData {
@@ -452,6 +470,7 @@ export interface AgentMessageTurnUsage {
   run_id: string
   usage: AgentUsage
   error_code?: string
+  error_message?: string
   started_at?: string
   completed_at?: string
 }
@@ -597,6 +616,7 @@ export const agentRunEventKinds = [
   'steer_applied',
   'usage',
   'compaction',
+  'retry',
   'context_usage',
   'error',
 ] as const
@@ -646,6 +666,7 @@ export type AgentRunEvent =
     }>
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
   | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
+  | AgentRunEventBase<'retry', { retry: AgentRetryData }>
   | AgentRunEventBase<'context_usage', { context_usage: AgentContextUsageData }>
   | AgentRunEventBase<'error', { error: { code: string; message: string } }>
 

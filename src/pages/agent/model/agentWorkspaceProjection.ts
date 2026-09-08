@@ -1,6 +1,7 @@
 import type {
   AgentMessage,
   AgentCompactionActivity,
+  AgentRetryActivity,
   AgentMessagePart,
   AgentModel,
   AgentModelProvider,
@@ -9,7 +10,7 @@ import type {
   AgentRunEvent,
   AgentSession,
 } from '#entities/agent'
-import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal } from '#entities/agent'
+import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal, mergeAgentRetryActivity } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type {
   AgentWorkspaceMessage,
@@ -107,12 +108,15 @@ export function projectAgentMessages(
       : []
   )))
   return messages.map((message): AgentWorkspaceMessage => {
-    const messageRun = run
+    const matchingRun = run
       && run.session_id === message.session_id
       && run.assistant_message_id === message.id
       ? run
       : undefined
-    const messageEvents = messageRun ? events : []
+    // 终态消息历史可能比并行读取的活动 Run 更新，统计与错误应使用已确认的终态来源。
+    const messageRun = matchingRun && message.turn_usage?.run_id === matchingRun.id && !isAgentRunTerminal(matchingRun.status)
+      ? undefined : matchingRun
+    const messageEvents = matchingRun ? events.filter((event) => event.run_id === matchingRun.id && event.generation === matchingRun.generation) : []
     const streaming = message.status === 'pending' || message.status === 'streaming'
     const errorCode = messageRun?.error_code ?? message.turn_usage?.error_code
     const status: AgentWorkspaceMessage['status'] = errorCode === 'AGENT_RUN_STEERED'
@@ -125,16 +129,21 @@ export function projectAgentMessages(
     const sourcePart = message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
       part.kind === 'text' && part.source_context !== undefined
     ))
+    const parts = interleaveActivities(
+      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
+      message,
+      messageEvents,
+    )
+    const errorMessage = message.role === 'assistant' && !streaming
+      ? (messageRun && isAgentRunTerminal(messageRun.status) ? messageRun.error_message : undefined)
+        ?? message.turn_usage?.error_message
+      : undefined
     return {
       id: message.id,
       role: message.role,
       status,
       created_at: message.created_at,
-      parts: interleaveCompactions(
-        projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
-        message,
-        messageEvents,
-      ),
+      parts,
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
@@ -143,9 +152,7 @@ export function projectAgentMessages(
           ?? runDuration(message.turn_usage?.started_at, message.turn_usage?.completed_at)
         : undefined,
       error_code: message.role === 'assistant' && !streaming ? errorCode : undefined,
-      error_message: message.role === 'assistant' && !streaming && messageRun && isAgentRunTerminal(messageRun.status)
-        ? messageRun.error_message?.trim().slice(0, 4_096) || undefined
-        : undefined,
+      error_message: errorMessage,
     }
   })
 }
@@ -156,7 +163,7 @@ function runDuration(startedAt: string | undefined, completedAt: string | undefi
   return Number.isFinite(duration) && duration >= 0 ? duration : undefined
 }
 
-function interleaveCompactions(
+function interleaveActivities(
   parts: AgentWorkspaceMessagePart[],
   message: AgentMessage,
   events: AgentRunEvent[],
@@ -177,26 +184,35 @@ function interleaveCompactions(
       created_at: previous?.created_at ?? event.created_at,
     })
   }
-  if (activities.size === 0) return parts
-  const pending = [...activities.values()].sort((left, right) => (
-    left.after_part_sequence - right.after_part_sequence
-    || left.created_at.localeCompare(right.created_at)
-    || left.compaction_id.localeCompare(right.compaction_id)
+  const retries = new Map<string, AgentRetryActivity>(
+    (message.retries ?? []).map((activity) => [activity.retry_id, activity]),
+  )
+  for (const event of events) {
+    if (event.kind !== 'retry' || event.payload.retry.assistant_message_id !== message.id) continue
+    const incoming = { ...event.payload.retry, created_at: event.created_at }
+    retries.set(incoming.retry_id, mergeAgentRetryActivity(retries.get(incoming.retry_id), incoming))
+  }
+  if (activities.size === 0 && retries.size === 0) return parts
+  const pending: Extract<AgentWorkspaceMessagePart, { kind: 'compaction' | 'retry' }>[] = [
+    ...[...activities.values()].map((activity) => ({ id: `compaction:${activity.compaction_id}`, kind: 'compaction' as const, activity })),
+    ...[...retries.values()].map((activity) => ({ id: `retry:${activity.retry_id}`, kind: 'retry' as const, activity })),
+  ]
+  pending.sort((left, right) => (
+    left.activity.after_part_sequence - right.activity.after_part_sequence
+    || compareTimestamp(left.activity.created_at, right.activity.created_at)
+    || left.id.localeCompare(right.id)
   ))
   const sequences = new Map(message.parts.map((part) => [part.id, part.sequence]))
   const result: AgentWorkspaceMessagePart[] = []
-  const appendActivity = (activity: AgentCompactionActivity) => result.push({
-    id: `compaction:${activity.compaction_id}`, kind: 'compaction', activity,
-  })
   let cursor = 0
   for (const part of parts) {
     const sequence = sequences.get(part.id) ?? 0
-    while (cursor < pending.length && pending[cursor]!.after_part_sequence < sequence) {
-      appendActivity(pending[cursor++]!)
+    while (cursor < pending.length && pending[cursor]!.activity.after_part_sequence < sequence) {
+      result.push(pending[cursor++]!)
     }
     result.push(part)
   }
-  while (cursor < pending.length) appendActivity(pending[cursor++]!)
+  while (cursor < pending.length) result.push(pending[cursor++]!)
   return result
 }
 

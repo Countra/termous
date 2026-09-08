@@ -50,9 +50,17 @@ describe('消息本轮耗时投影', () => {
     }
   })
 
-  it('消息先完成但 Run 尚未终态时不提前显示历史耗时', () => {
+  it('消息页已确认同一任务终态时，较旧的活动 Run 不遮蔽历史耗时和错误', () => {
     for (const status of ['queued', 'starting', 'running', 'waiting_approval', 'stopping'] as const) {
-      expect(duration(message(), agentRunFixture({ status, completed_at: completedAt }))).toBeUndefined()
+      const run = agentRunFixture({ status, completed_at: completedAt, error_code: 'AGENT_RUN_STEERED' })
+      expect(duration(message(), run)).toBe(2_400)
+      const projected = projectAgentMessages([message({ status: 'failed', turn_usage: {
+        ...historicalTiming, error_code: 'AGENT_RUNTIME_FAILURE', error_message: '原始错误\n第二行',
+      } })], run, [])[0]!
+      expect(projected.status).toBe('failed')
+      expect(projected.error_code).toBe('AGENT_RUNTIME_FAILURE')
+      expect(projected.error_message).toBe('原始错误\n第二行')
+      expect(duration(message({ turn_usage: undefined }), run)).toBeUndefined()
     }
   })
 

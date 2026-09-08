@@ -31,7 +31,7 @@ const failureKeys = new Map(Object.entries({
 }))
 
 export function AgentMessageFailure({ message }: {
-  message: Pick<AgentWorkspaceMessage, 'status' | 'error_code' | 'error_message'>
+  message: Pick<AgentWorkspaceMessage, 'status' | 'error_code' | 'error_message'> & Partial<Pick<AgentWorkspaceMessage, 'parts'>>
 }) {
   const { t } = useTranslation()
   if (message.status !== 'failed' && message.status !== 'interrupted' && message.status !== 'interrupted_by_steer') return null
@@ -39,7 +39,9 @@ export function AgentMessageFailure({ message }: {
     ? failureKeys.get(message.error_code)
       ?? (message.error_code.startsWith('AGENT_RUNTIME_CONTEXT_COMPRESSION_') ? 'compactionFailed' : undefined)
     : undefined
-  const details = message.status === 'failed' ? message.error_message?.trim().slice(0, 4_096) : undefined
+  const retryShowsError = message.parts?.some((part) => part.kind === 'retry'
+    && part.activity.status === 'failed' && part.activity.error_message === message.error_message)
+  const details = message.status === 'failed' && !retryShowsError ? message.error_message : undefined
   return (
     <div className={styles.failure} data-status={message.status}>
       <CircleAlert size={14} aria-hidden="true" />

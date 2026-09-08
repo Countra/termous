@@ -434,6 +434,44 @@ test('实时与 HTTP 回查的 steer_applied 推进游标且不会重复插入�
   }
 })
 
+test('重试事件补拉的消息页领先于 Run 时保留终态原文，不回退为流式回复', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  const retry = {
+    retry_id: 'retry-history', assistant_message_id: 'agm-assistant', purpose: 'response',
+    after_part_sequence: 0, status: 'waiting', attempt: 0, max_retries: 3, delay_ms: 1_000,
+    error_message: '503 upstream failure\n请稍后重试',
+  }
+  const waiting = { ...agentStatusEventFixture(), kind: 'retry', payload: { retry } }
+  const failed = { ...waiting, id: 'retry-failed', sequence: 2,
+    payload: { retry: { ...retry, status: 'failed', duration_ms: 500 } } }
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 1)
+    socket.open()
+    socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [agentRunFixture()] })
+    await settle()
+    gateway.runImpl = async () => agentRunFixture({ revision: 2, event_sequence: 1 })
+    gateway.runEvents = async () => decodeAgentRunEventPage({ items: [waiting, failed] })
+    gateway.messagesImpl = async () => ({ items: [agentMessageFixture({
+      status: 'failed', revision: 2,
+      turn_usage: { run_id: 'agr-run', usage: agentRunFixture().usage, error_message: retry.error_message },
+      retries: [{ ...retry, purpose: 'response', status: 'failed', max_retries: 3, duration_ms: 500, created_at: agentFixtureTime }],
+    })] })
+    socket.message({ type: 'upsert', revision: 1, run_event: failed })
+    await waitFor(() => controller.getSnapshot().run_event_sequences['agr-run'] === 2)
+    const message = controller.getSnapshot().messages['ags-session']![0]!
+    assert.equal(message.status, 'failed')
+    assert.equal(message.turn_usage?.error_message, retry.error_message)
+    assert.equal(message.retries?.length, 1)
+    assert.equal(message.retries?.[0]?.status, 'failed')
+    assert.equal(socket.closed, false)
+  } finally {
+    controller.close()
+  }
+})
+
 test('默认流式定时器清理不会把控制器作为原生 clearTimeout 接收者', async () => {
   const originalClearTimeout = globalThis.clearTimeout
   const receivers: unknown[] = []

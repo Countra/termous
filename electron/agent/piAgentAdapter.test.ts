@@ -303,11 +303,21 @@ for (const apiMode of ['responses', 'chat_completions'] as const) {
     try {
       assert.equal(await agent.continue(), 'failed')
       await writer.flush()
-      assert.equal(requests, 1)
+      assert.equal(requests, 4)
+      const retries = events.filter((event) => event.kind === 'retry')
+        .map((event) => event.payload.retry as Record<string, unknown>)
+      assert.deepEqual(retries.map((activity) => [activity.status, activity.attempt]), [
+        ['waiting', 0], ['requesting', 1], ['waiting', 1], ['requesting', 2],
+        ['waiting', 2], ['requesting', 3], ['failed', 3],
+      ])
+      assert.ok(retries.every((activity) => activity.purpose === 'compaction'
+        && activity.assistant_message_id === bootstrap.run.assistant_message_id
+        && activity.after_part_sequence === 0 && activity.max_retries === 3))
+      assert.equal(new Set(retries.map((activity) => activity.retry_id)).size, 1)
       const error = events.find((event) => event.kind === 'error')?.payload.error as Record<string, unknown>
       assert.equal(error.code, 'AGENT_RUNTIME_CONTEXT_COMPRESSION_PROVIDER_FAILED')
-      assert.match(String(error.message), /摘要请求失败.*fixture upstream failure/u)
-      assert.match(String(error.message), /原始记录和上次成功摘要仍保留/u)
+      assert.match(String(error.message), /fixture upstream failure/u)
+      assert.equal(error.message, retries[retries.length - 1]!.error_message)
       const activities = events.filter((event) => event.kind === 'compaction')
         .map((event) => event.payload.compaction as Record<string, unknown>)
       assert.deepEqual(activities.map((activity) => activity.status), ['started', 'failed'])
@@ -318,6 +328,64 @@ for (const apiMode of ['responses', 'chat_completions'] as const) {
     } finally {
       agent.close()
       await writer.close()
+    }
+  })
+}
+
+for (const purpose of ['response', 'compaction'] as const) {
+  test(`${purpose} waiting 状态写入失败时及时终止，不启动额外 Provider 请求`, async () => {
+    const bootstrap = runtimeBootstrap()
+    bootstrap.messages = [runtimeUserMessage([])]
+    if (purpose === 'compaction') {
+      bootstrap.model.snapshot.force_context_compression = true
+      bootstrap.messages = ['旧记录'.repeat(4000), '近期记录'.repeat(4000), '继续'].map((text, index) => ({
+        ...runtimeUserMessage([], { text }), id: `agm_retry_history_${index}`, sequence: index + 1,
+      }))
+    }
+    const failures: unknown[] = []
+    const retryPurposes: unknown[] = []
+    const rejected = new Error('fixture Core rejected retry status')
+    const writer = new RuntimeEventWriter({
+      start: { type: 'start', protocol_version: agentRuntimeProtocolVersion,
+        core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48),
+        run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+      runtimeBearer: bootstrap.runtime_bearer, initialSequence: 1,
+      onFailure: (error) => { failures.push(error); agent.abort() },
+      core: {
+        bootstrap: async () => bootstrap,
+        appendEvents: async (_start, _bearer, batch) => {
+          const retry = batch.find((event) => event.kind === 'retry')
+          if (retry) {
+            retryPurposes.push((retry.payload.retry as Record<string, unknown>).purpose)
+            throw rejected
+          }
+          return batch[batch.length - 1]!.sequence
+        },
+        appendSteer: async () => { throw new Error('不应保存追加指令') },
+        commitCheckpoint: async () => { throw new Error('失败摘要不能提交') },
+      },
+    })
+    let requests = 0
+    const agent = createPiAgent({
+      bootstrap, events: writer, skills: testAgentSkillBundle(),
+      mcp: { tools: [], originalName: () => null, close: async () => {} },
+      commitCheckpoint: async () => { throw new Error('失败摘要不能提交') },
+      onFailure: (error) => { failures.push(error) },
+      fetch: async () => {
+        requests += 1
+        return new Response(JSON.stringify({ error: { message: 'fixture upstream unavailable' } }), {
+          status: 503, headers: { 'content-type': 'application/json' },
+        })
+      },
+    })
+    try {
+      await agent.continue()
+      assert.equal(requests, 1)
+      assert.deepEqual(retryPurposes, [purpose])
+      assert.ok(failures.includes(rejected))
+    } finally {
+      agent.close()
+      await assert.rejects(writer.close(), (error) => error === rejected)
     }
   })
 }
@@ -571,7 +639,7 @@ test('无推理控制模型不会向 Chat Completions 声明 reasoning_effort', 
   )
 })
 
-test('Provider 调用固定关闭缓存保留和自动重试', () => {
+test('Provider 调用固定关闭缓存保留和底层 HTTP 重试', () => {
   const providerFetch = async () => new Response('{}')
   const options = createRuntimeStreamOptions('configured', providerFetch, {
     cacheRetention: 'long',

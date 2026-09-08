@@ -195,8 +195,22 @@ test('Provider 失败保留脱敏详情，隐藏服务地址和凭据', () => {
   assert.equal(bridge.outcome(), 'failed')
   const error = nested(sink.values[sink.values.length - 1]?.payload, 'error')
   assert.equal(error.code, 'AGENT_MODEL_REQUEST_FAILED')
-  assert.equal(error.message, '模型请求失败：[地址已隐藏] returned token=[已隐藏]')
+  assert.equal(error.message, '[地址已隐藏] returned token=[已隐藏]')
   assert.equal(JSON.stringify(sink.values).includes('secret.example'), false)
+})
+
+test('摘要门禁附加说明后的最终错误仍遵守 Core 四 KiB 上限', () => {
+  const sink = new EventSink()
+  const bridge = new PiEventBridge({
+    writer: sink, assistantMessageID: 'agm_reply', originalToolName: () => null,
+    requestFailure: () => ({ code: 'AGENT_RUNTIME_CONTEXT_COMPRESSION_PROVIDER_FAILED',
+      message: `摘要请求失败：503 ${'中文错误'.repeat(1500)}。原始记录仍保留。` }),
+  })
+  bridge.handle({ type: 'message_end', message: { ...assistantMessage(), content: [], stopReason: 'error' } })
+  const error = nested(sink.values[sink.values.length - 1]?.payload, 'error')
+  assert.ok(Buffer.byteLength(String(error.message), 'utf8') <= 4096)
+  assert.match(String(error.message), /摘要请求失败：503/u)
+  assert.match(String(error.message), /内容已截断/u)
 })
 
 test('Tool 时间线参数和结果执行递归脱敏与限长投影', () => {

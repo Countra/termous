@@ -119,6 +119,13 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
       if (activity.status !== 'started') active = undefined
     },
     onUsage: (usage) => { options.bridge.addUsage(usage) },
+    onRetry: async (activity) => {
+      options.events.push('retry', { retry: {
+        ...activity, assistant_message_id: options.bootstrap.run.assistant_message_id,
+        purpose: 'compaction', after_part_sequence: options.bridge.partSequence(),
+      } })
+      await options.events.flush()
+    },
     onContextUsage: (usage) => {
       // 能力位独立于原生用量恢复，避免新版字段被严格解码的旧 Core 拒绝。
       const { basis, compression_status, ...legacy } = usage
@@ -149,6 +156,6 @@ export function runtimeContextFailureMessage(code: string, detail?: string) {
   if (code === 'AGENT_RUNTIME_CONTEXT_COMPRESSION_CHECKPOINT_FAILED') {
     return '摘要保存未能确认，当前回复已停止；已保存的记录仍保留，下次发送时会重新加载。'
   }
-  if (detail) return `${detail}。原始记录和上次成功摘要仍保留；下一次发送时可以重试。`
+  if (detail) return detail
   return '上下文压缩失败，已保留原始记录；下一次发送时可以重试。'
 }

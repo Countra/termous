@@ -244,6 +244,20 @@
       "contextWindow": "This run's model context window: {{tokens}} tokens.",
       "duration": "Duration: {{duration}}."
     },
+    "retry": {
+      "waiting": "Waiting to reconnect · {{attempt}}/{{max}}",
+      "requesting": "Reconnecting · {{attempt}}/{{max}}",
+      "completed": "Reconnected",
+      "failed": "Reconnection failed",
+      "cancelled": "Reconnection cancelled",
+      "compaction": "Summary request",
+      "wait": "Retry in {{seconds}} s",
+      "attempts_one": "{{count}} retry made",
+      "attempts_other": "{{count}} retries made",
+      "expand": "Expand error details",
+      "collapse": "Collapse error details",
+      "lastError": "View last error"
+    },
     "reasoning": {
       "running": "Thinking",
       "completed": "Reasoning"

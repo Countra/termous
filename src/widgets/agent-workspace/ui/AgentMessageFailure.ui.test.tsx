@@ -76,4 +76,28 @@ describe('AgentMessageFailure', () => {
     expect(view.container.textContent).toBe('已由新消息中断')
     expect(screen.queryByText('provider detail')).not.toBeInTheDocument()
   })
+
+  it.each(['response', 'compaction'] as const)('%s 失败活动与最终错误原文相同时只显示一次，多行和首尾空白保持不变', async (purpose) => {
+    const localized = i18n.cloneInstance({ lng: 'zh-CN' })
+    await localized.changeLanguage('zh-CN')
+    const detail = '  provider error\n请求被服务拒绝\nstatus 503  '
+    const message: AgentWorkspaceMessage = {
+      id: 'assistant', role: 'assistant', status: 'failed', created_at: '2026-09-08T00:00:00Z',
+      error_message: detail, attachments: [],
+      parts: [{ id: 'retry:one', kind: 'retry', activity: {
+        retry_id: 'one', assistant_message_id: 'assistant', purpose, status: 'failed',
+        attempt: 3, max_retries: 3, after_part_sequence: 0, delay_ms: 0, duration_ms: 7_000,
+        error_message: detail, created_at: '2026-09-08T00:00:00Z',
+      } }],
+    }
+    const element = (current: AgentWorkspaceMessage) => <I18nextProvider i18n={localized}>
+      <AgentConversation messages={[current]} runStatus="failed" loading={false} sessionKey="session" />
+    </I18nextProvider>
+    const { container, rerender } = render(element(message))
+    expect(container.textContent!.split(detail)).toHaveLength(2)
+    expect(screen.getByText('本次回复失败')).toBeInTheDocument()
+    rerender(element({ ...message, error_message: '不同的最终运行错误' }))
+    expect(container.textContent).toContain(detail)
+    expect(screen.getByText('不同的最终运行错误')).toBeInTheDocument()
+  })
 })

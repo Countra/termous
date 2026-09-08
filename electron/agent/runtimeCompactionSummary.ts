@@ -1,6 +1,7 @@
 import type { StreamFn } from '@earendil-works/pi-agent-core'
 import { createModels, type AssistantMessage } from '@earendil-works/pi-ai'
 import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
+import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './runtimeProviderRetry.ts'
 import {
   addRuntimeUsage,
   emptyRuntimeUsage,
@@ -39,15 +40,23 @@ export function createRuntimeCompactionModels(
   onUsage?: (usage: RuntimeUsage) => Promise<void> | void,
   instructions = runtimeCompactionSummaryInstructions,
   providerErrorSecrets: readonly string[] = [],
+  onRetry?: (activity: RuntimeRetryActivity) => Promise<void> | void,
 ) {
   const models = createModels()
   let usage = emptyRuntimeUsage()
+  const recordUsage = async (increment: RuntimeUsage) => {
+    usage = addRuntimeUsage(usage, increment)
+    await onUsage?.(increment)
+  }
+  const retryStreamFn = createRuntimeRetryStreamFunction(streamFn, {
+    providerErrorSecrets, onActivity: onRetry, onDiscardedUsage: recordUsage,
+  })
   // 只适配官方算法使用的请求边界，不引入 Provider 注册和第二套认证逻辑。
   models.completeSimple = async (model, context, options) => {
     throwIfRuntimeCompactionAborted(options?.signal)
     let response: AssistantMessage
     try {
-      const stream = await streamFn(model, {
+      const stream = await retryStreamFn(model, {
         ...context,
         systemPrompt: `${context.systemPrompt ?? ''}\n\n${instructions}`,
         tools: [],
@@ -57,9 +66,7 @@ export function createRuntimeCompactionModels(
       throwIfRuntimeCompactionAborted(options?.signal)
       throw runtimeCompactionProviderError(error, providerErrorSecrets)
     }
-    const increment = projectPiUsage(response.usage)
-    usage = addRuntimeUsage(usage, increment)
-    await onUsage?.(increment)
+    await recordUsage(projectPiUsage(response.usage))
     throwIfRuntimeCompactionAborted(options?.signal)
     if (response.stopReason === 'aborted') {
       throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED')
@@ -67,7 +74,7 @@ export function createRuntimeCompactionModels(
     if (response.stopReason === 'error') {
       // pi 将 HTTP、断流等异常投影为消息；保留原因，但不把正文或凭据写入错误事件。
       throw runtimeCompactionProviderError(
-        [response.rawStopReason, response.errorMessage].filter(Boolean).join(': '), providerErrorSecrets,
+        response.errorMessage || response.rawStopReason, providerErrorSecrets,
       )
     }
     // 官方 core 接受 length，业务持久化前必须排除被截断的摘要。
@@ -89,7 +96,7 @@ function runtimeCompactionProviderError(error: unknown, secrets: readonly string
   const failure = runtimeProviderFailure(source, secrets)
   const reason = failure.code === 'AGENT_MODEL_REQUEST_FAILED' ? 'FAILED' : failure.code.slice('AGENT_MODEL_'.length)
   return new RuntimeCompactionError(
-    `AGENT_RUNTIME_CONTEXT_COMPRESSION_${reason}`, undefined, `摘要请求失败：${failure.message}`,
+    `AGENT_RUNTIME_CONTEXT_COMPRESSION_${reason}`, undefined, failure.message,
   )
 }
 

@@ -69,6 +69,7 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 - `main` 与 `update` 两个 Renderer Surface 的动态入口保持不变。
 - `TermousApiError` 保持单一实现，避免破坏 `instanceof` 判断。
 - 托管 Core 的启动状态由主进程保存，启动窗口只负责展示；数据库状态不得通过解析日志文字或提前调用业务 HTTP 接口推断。协议与等待边界见 [Core 启动与数据库状态](./core-startup.md)。
+- AI 模型请求重试由 Worker 统一执行，Renderer 仅展示 Core 保存的活动。重试规则、用量及恢复边界见 [AI 请求重试](./agent-request-retry.md)。
 - 在建立等价性测试前，不调整 Props、状态更新顺序、revision、恢复和取消语义。
 
 ## SCSS 所有权

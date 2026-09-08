@@ -14,7 +14,7 @@ import {
 } from './runtimeUsage.ts'
 import { isSkillResourceToolDetails } from './skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
-import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
+import { runtimeProviderFailure, sanitizeRuntimeProviderError } from './runtimeProviderFailure.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
 
 const maximumDeltaBytes = 240 * 1024
@@ -184,7 +184,9 @@ export class PiEventBridge {
     if (message.stopReason === 'error') {
       this.runOutcome = 'failed'
       this.writer.push('error', {
-        error: requestFailure ?? runtimeProviderFailure(message.errorMessage, this.providerErrorSecrets),
+        error: requestFailure
+          ? { ...requestFailure, message: sanitizeRuntimeProviderError(requestFailure.message, this.providerErrorSecrets) }
+          : runtimeProviderFailure(message.errorMessage, this.providerErrorSecrets),
       })
     } else if (message.stopReason === 'aborted') {
       this.runOutcome = 'cancelled'

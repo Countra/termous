@@ -145,15 +145,17 @@ describe('AgentMessageActions', () => {
   it('剪贴板失败不显示成功，保留重试按钮并在成功后清除错误', async () => {
     copy.mockRejectedValueOnce(new Error('clipboard unavailable')).mockResolvedValue(undefined)
     render(<AgentMessageActions message={message()} />)
-    fireEvent.click(screen.getByRole('button', { name: copyLabel }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('agent.message.copyFailed')
+    // 等待失败回执与 Antd 内部 loading 状态一同完成更新，再模拟下一次点击。
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: copyLabel })))
+    expect(screen.getByRole('alert')).toHaveTextContent('agent.message.copyFailed')
     expect(screen.queryByText(copiedLabel)).not.toBeInTheDocument()
     const retry = screen.getByRole('button', { name: copyLabel })
     expect(retry).toBeEnabled()
-    fireEvent.click(retry)
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(copiedLabel))
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(retry).toHaveAttribute('aria-busy', 'false')
+    await act(async () => fireEvent.click(retry))
     expect(copy).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('status')).toHaveTextContent(copiedLabel)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('写入在途拒绝双击，不提前播报成功', async () => {

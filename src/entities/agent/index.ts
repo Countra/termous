@@ -26,6 +26,8 @@ export {
   type AgentContextCheckpoint,
   type AgentCompactionActivity,
   type AgentCompactionData,
+  type AgentRetryActivity,
+  type AgentRetryData,
   type AgentContextUsageData,
   type AgentContextUsageBasis,
   type AgentContextCompressionStatus,
@@ -108,3 +110,4 @@ export {
 } from './model/agentLaunchIntent.ts'
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
 export { compareAgentSessionOrder } from './model/sessionOrder.ts'
+export { mergeAgentRetryActivity } from './model/retryActivity.ts'

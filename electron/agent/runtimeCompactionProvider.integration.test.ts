@@ -61,7 +61,11 @@ for (const scenario of scenarios) {
     assert.deepEqual(harness.activities.map(({ status }) => status), ['started', 'completed', 'started', 'failed'])
     assert.equal(harness.activities[harness.activities.length - 1]?.errorCode, failure?.code)
     assert.equal(totalUsage(harness.usages), 5471 + scenario.addedUsage)
-    assert.match(runtimeContextFailureMessage(failure!.code, failure!.detail), /原始记录和上次成功摘要仍保留/u)
+    if (failure!.detail) {
+      assert.equal(runtimeContextFailureMessage(failure!.code, failure!.detail), failure!.detail)
+    } else {
+      assert.match(runtimeContextFailureMessage(failure!.code), /原始记录和上次成功摘要仍保留/u)
+    }
     assert.throws(() => harness.controller.beforeProviderRequest(), (error: unknown) => error === failure)
 
     // 同一快照失败后再次经过门禁不触发摘要或提交，也不能继续主请求。
