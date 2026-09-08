@@ -27,9 +27,7 @@ export function AgentReadinessSurface({
     <section className={styles.readiness}>
       <div className={styles['readiness-mark']}><Bot size={24} /></div>
       <h1>{t('agent.readiness.title')}</h1>
-      <p>{t('agent.readiness.description', {
-        count: readiness?.mcp_policy?.required_scope_count ?? 29,
-      })}</p>
+      <p>{t('agent.readiness.description')}</p>
       {readiness ? <div className={styles['readiness-list']}>{components.map(([key, component]) => (
         <div key={key}>
           <span className={component.status === 'ready' ? styles['is-ready'] : ''}>

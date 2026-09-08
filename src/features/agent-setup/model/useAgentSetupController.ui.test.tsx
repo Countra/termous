@@ -11,6 +11,66 @@ import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
 import { useAgentSetupController } from './useAgentSetupController.ts'
 
 describe('useAgentSetupController', () => {
+  it('准备直接采用 setup 和后续 readiness，不额外写入权限策略', async () => {
+    const initial = readinessFixture()
+    initial.status = 'needs_repair'
+    initial.mcp_client = { status: 'outdated', message: '' }
+    initial.mcp_policy = { ...initial.mcp_policy!, scope_sync_required: true }
+    const server = readinessFixture(2)
+    server.status = 'blocked'
+    server.skills_bundle = { status: 'unavailable', message: '资源尚未就绪' }
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.setup).mockResolvedValue(server)
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(server)
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => { await view.result.current.setup() })
+
+    expect(gateway.setup).toHaveBeenCalledExactlyOnceWith(expect.any(AbortSignal))
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+    await waitFor(() => expect(gateway.readiness).toHaveBeenCalledTimes(2))
+    expect(view.result.current.readiness).toEqual(server)
+  })
+
+  it.each([false, true])('审批开关只保存模式 %s，兼容字段 sync_scopes 始终为 false', async (approvalBypass) => {
+    const initial = readinessFixture()
+    initial.mcp_policy = { ...initial.mcp_policy!, revision: 7, approval_bypass: !approvalBypass }
+    const updated = { ...initial.mcp_policy, revision: 8, approval_bypass: approvalBypass }
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.updateMcpPolicy).mockResolvedValue(updated)
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue({ ...initial, mcp_policy: updated })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => { await view.result.current.updatePolicy(approvalBypass) })
+
+    expect(gateway.updateMcpPolicy).toHaveBeenCalledExactlyOnceWith({
+      approval_bypass: approvalBypass, sync_scopes: false, expected_revision: 7,
+    }, expect.any(AbortSignal))
+    expect(view.result.current.readiness?.mcp_policy).toEqual(updated)
+  })
+
+  it('卸载取消准备，迟到 setup 不更新状态或发起补充读取', async () => {
+    const gateway = gatewayFixture()
+    const pending = deferred<AgentReadiness>()
+    vi.mocked(gateway.setup).mockReturnValue(pending.promise)
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+    let mutation!: Promise<AgentReadiness>
+    act(() => { mutation = view.result.current.setup() })
+    const signal = vi.mocked(gateway.setup).mock.calls[0][0]!
+    const cancelled = expect(mutation).rejects.toMatchObject({ code: 'REQUEST_ABORTED' })
+
+    view.unmount()
+    expect(signal.aborted).toBe(true)
+    pending.resolve(readinessFixture(99))
+
+    await cancelled
+    expect(gateway.readiness).toHaveBeenCalledTimes(1)
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+  })
+
   it('按最新 revision 保存显式默认模型并重新读取 readiness', async () => {
     const first = readinessFixture(2, 'apm-1', 'high')
     const refreshed = readinessFixture(3, '', 'off')

@@ -46,6 +46,7 @@ const harness = vi.hoisted(() => ({
   modelProviders: vi.fn(),
   models: vi.fn(),
   readiness: vi.fn(),
+  setup: vi.fn(),
   updateMcpPolicy: vi.fn(),
 }))
 
@@ -319,6 +320,7 @@ describe('AgentPage', () => {
     harness.modelProviders.mockReset().mockResolvedValue({ items: [providerFixture()] })
     harness.models.mockReset().mockResolvedValue({ items: [modelFixture()] })
     harness.readiness.mockReset()
+    harness.setup.mockReset().mockResolvedValue(readinessFixture())
     harness.updateMcpPolicy.mockReset().mockResolvedValue({
       ...readinessFixture().mcp_policy,
       approval_bypass: true,
@@ -1240,6 +1242,110 @@ describe('AgentPage', () => {
     expect(harness.workspaceProps?.supports_images).toBe(true)
   })
 
+  it('准备只调用 setup 并采用服务端返回的就绪状态和审批策略', async () => {
+    const missing = readinessFixture('needs_setup')
+    missing.mcp_client = { status: 'missing', message: '' }
+    missing.mcp_policy = { ...missing.mcp_policy!, scope_sync_required: true, required_scope_count: 30 }
+    const freshSetup = { ...readinessFixture(), mcp_policy: { ...readinessFixture().mcp_policy!, revision: 7, approval_bypass: true } }
+    harness.setup.mockResolvedValueOnce(freshSetup)
+    const page = renderPage({ readiness: missing })
+    const prepare = await page.findByRole('button', { name: 'agent.readiness.prepare' })
+    await waitFor(() => expect(prepare).toBeEnabled())
+    expect(harness.setup).not.toHaveBeenCalled()
+    expect(harness.updateMcpPolicy).not.toHaveBeenCalled()
+
+    fireEvent.click(prepare)
+
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    const signal = harness.setup.mock.calls[0][0] as AbortSignal
+    expect(signal.aborted).toBe(false)
+    expect(harness.updateMcpPolicy).not.toHaveBeenCalled()
+    expect(harness.readiness).toHaveBeenCalledTimes(1)
+    expect(harness.workspaceProps?.approval_policy).toEqual({ status: 'ready', mode: 'bypass' })
+  })
+
+  it.each(['success', 'failure'] as const)('重新进入页面后旧审批策略请求 %s 不覆盖新模式或发起旧对账', async (outcome) => {
+    const pending = deferred<NonNullable<AgentReadiness['mcp_policy']> | Error>()
+    harness.updateMcpPolicy.mockReturnValueOnce(pending.promise.then((value) => {
+      if (value instanceof Error) throw value
+      return value
+    }))
+    const page = renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({ status: 'ready', mode: 'review' }))
+    let operation!: Promise<void>
+    act(() => {
+      const changeMode = harness.workspaceProps?.onApprovalModeChange as (mode: 'bypass') => Promise<void>
+      operation = changeMode('bypass')
+    })
+    // 先接住失败回执，以便独立断言离页后的状态保护。
+    const settled = operation.catch(() => undefined)
+    page.rerenderPage({ active: false })
+    const latest = readinessFixture()
+    latest.mcp_policy = { ...latest.mcp_policy!, revision: 5, approval_bypass: false }
+    harness.readiness.mockResolvedValue(latest)
+    page.rerenderPage({ active: true })
+    await waitFor(() => expect(harness.readiness).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({ status: 'ready', mode: 'review' }))
+
+    await act(async () => {
+      pending.resolve(outcome === 'success'
+        ? { ...latest.mcp_policy!, revision: 2, approval_bypass: true }
+        : new Error('旧请求响应丢失'))
+      await settled
+    })
+
+    expect(harness.workspaceProps?.approval_policy).toEqual({ status: 'ready', mode: 'review' })
+    expect(harness.readiness).toHaveBeenCalledTimes(2)
+    expect(harness.updateMcpPolicy).toHaveBeenCalledTimes(1)
+    expect(page.queryByText('agent.error.operation')).not.toBeInTheDocument()
+  })
+
+  it('服务端仍报告未就绪时保留准备入口，不自行补权限或标为就绪', async () => {
+    const missing = readinessFixture('needs_setup')
+    missing.mcp_client = { status: 'missing', message: '' }
+    harness.setup.mockResolvedValueOnce({ ...missing, mcp_policy: { ...missing.mcp_policy!, scope_sync_required: true } })
+    const page = renderPage({ readiness: missing })
+    const prepare = await page.findByRole('button', { name: 'agent.readiness.prepare' })
+    await waitFor(() => expect(prepare).toBeEnabled())
+
+    fireEvent.click(prepare)
+
+    await waitFor(() => expect(harness.setup).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(harness.models).toHaveBeenCalledTimes(2))
+    expect(page.getByRole('button', { name: 'agent.readiness.prepare' })).toBeInTheDocument()
+    expect(harness.workspaceProps).toBeNull()
+    expect(harness.updateMcpPolicy).not.toHaveBeenCalled()
+  })
+
+  it.each(['setup', 'catalog'] as const)('离页取消准备，%s 迟到不会显示工作区', async (boundary) => {
+    const missing = readinessFixture('needs_setup')
+    missing.mcp_client = { status: 'missing', message: '' }
+    missing.mcp_policy = { ...missing.mcp_policy!, scope_sync_required: true }
+    const pendingSetup = deferred<AgentReadiness>()
+    const pendingModels = deferred<{ items: AgentModel[] }>()
+    const page = renderPage({ readiness: missing })
+    const prepare = await page.findByRole('button', { name: 'agent.readiness.prepare' })
+    await waitFor(() => expect(prepare).toBeEnabled())
+    harness.setup.mockReturnValueOnce(boundary === 'setup' ? pendingSetup.promise : Promise.resolve(readinessFixture()))
+    if (boundary === 'catalog') harness.models.mockReturnValueOnce(pendingModels.promise)
+    fireEvent.click(prepare)
+    await waitFor(() => expect(harness.setup).toHaveBeenCalledTimes(1))
+    if (boundary === 'catalog') await waitFor(() => expect(harness.models).toHaveBeenCalledTimes(2))
+    const signal = harness.setup.mock.calls[0][0] as AbortSignal
+
+    page.rerenderPage({ active: false })
+    expect(signal.aborted).toBe(true)
+    await act(async () => {
+      pendingSetup.resolve(readinessFixture())
+      pendingModels.resolve({ items: [modelFixture()] })
+      await Promise.all([pendingSetup.promise, pendingModels.promise])
+    })
+
+    expect(harness.updateMcpPolicy).not.toHaveBeenCalled()
+    expect(harness.workspaceProps).toBeNull()
+    expect(page.queryByText('agent.error.operation')).not.toBeInTheDocument()
+  })
+
   it('重新激活时等待当前模型目录水合后再处理业务来源', async () => {
     const initialProvider = providerFixture()
     const disabledProvider = { ...initialProvider, enabled: false }
@@ -1550,6 +1656,8 @@ function renderPage({
   harness.readiness.mockResolvedValue(readiness)
   const setupGateway = {
     readiness: harness.readiness,
+    setup: harness.setup,
+    updateMcpPolicy: harness.updateMcpPolicy,
     modelProviders: harness.modelProviders,
     models: harness.models,
   } as unknown as AgentSetupGateway

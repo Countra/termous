@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
-import type { AgentMCPConnection } from './mcpClientAdapter.ts'
+import type { AgentMCPConnection, ConnectAgentMCPOptions } from './mcpClientAdapter.ts'
 import type { CreatePiAgentOptions, PiAgentController } from './piAgentAdapter.ts'
 import type {
   AgentWorkerOutboundMessage,
@@ -153,11 +153,101 @@ test('模型执行异常写入统一的 AI 助手错误文案', async () => {
   await fixture.finished
 
   const errorEvent = fixture.core.events.find((event) => event.kind === 'error')
+  assert.equal(nested(nested(errorEvent?.payload, 'error'), 'code'), 'AGENT_RUNTIME_EXECUTION_FAILED')
   assert.equal(
     nested(nested(errorEvent?.payload, 'error'), 'message'),
     'AI 助手执行运行时失败',
   )
   assert.deepEqual(statuses(fixture.core.events), ['running', 'failed'])
+})
+
+for (const [code, message] of [
+  ['AGENT_MCP_PROTOCOL_MISMATCH', 'AI 助手与 MCP 工具服务的协议版本不兼容'],
+  ['AGENT_MCP_ENDPOINT_INVALID', 'AI 助手的 MCP 工具服务地址无效'],
+  ['AGENT_MCP_ENDPOINT_VIOLATION', 'AI 助手的 MCP 工具服务地址不符合本地连接要求'],
+  ['AGENT_MCP_TOOL_NAME_CONFLICT', 'MCP 工具名称重复或无效，AI 助手未能启动'],
+  ['AGENT_MCP_TOOL_SCHEMA_INVALID', 'MCP 工具参数定义无效，AI 助手未能启动'],
+  ['AGENT_MCP_TOOLS_EMPTY', 'MCP 工具服务没有返回可用工具，AI 助手未能启动'],
+]) {
+  test(`MCP 连接失败 ${code} 保存安全原因且不创建模型`, async () => {
+    let createCount = 0
+    const fixture = workerFixture([], {
+      onConnectMCP: () => { throw new Error(code) },
+      onCreateAgent: () => { createCount += 1 },
+    })
+    fixture.runtime.handleMessage(startMessage())
+    await fixture.finished
+
+    assert.equal(createCount, 0)
+    assert.deepEqual(fixture.core.events.map((event) => event.kind), ['error', 'status'])
+    assert.deepEqual(nested(fixture.core.events[0]?.payload, 'error'), { code, message })
+    assert.deepEqual(statuses(fixture.core.events), ['failed'])
+    assert.equal(fixture.outbound.length, 1)
+    assert.equal(fixture.outbound[0]?.type === 'settled' && fixture.outbound[0].outcome, 'failed')
+  })
+}
+
+for (const error of [
+  new Error('AGENT_MCP_TOOL_SCHEMA_INVALID: http://secret.invalid/mcp?token=private-token schema-secret'),
+  { message: 'http://secret.invalid/mcp', token: 'private-token', schema: 'schema-secret' },
+  'private-token',
+  new Error('constructor'),
+]) {
+  test('未知 MCP 连接异常使用固定工具连接失败原因，不保存原始异常', async () => {
+    let createCount = 0
+    const fixture = workerFixture([], {
+      onConnectMCP: () => { throw error },
+      onCreateAgent: () => { createCount += 1 },
+    })
+    fixture.runtime.handleMessage(startMessage())
+    await fixture.finished
+
+    assert.equal(createCount, 0)
+    assert.deepEqual(nested(fixture.core.events[0]?.payload, 'error'), {
+      code: 'AGENT_MCP_CONNECTION_FAILED',
+      message: 'AI 助手连接 MCP 工具服务失败，请准备或修复后重试',
+    })
+    const persisted = JSON.stringify([fixture.core.events, fixture.outbound])
+    for (const secret of ['secret.invalid', 'private-token', 'schema-secret']) {
+      assert.equal(persisted.includes(secret), false)
+    }
+    assert.deepEqual(statuses(fixture.core.events), ['failed'])
+  })
+}
+
+test('MCP 连接期间用户取消导致连接拒绝时只保存 cancelled', async () => {
+  let connecting = false
+  let createCount = 0
+  const fixture = workerFixture([], {
+    onConnectMCP: ({ signal }) => new Promise<void>((_resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(new Error('AGENT_MCP_ENDPOINT_INVALID')), { once: true })
+      connecting = true
+    }),
+    onCreateAgent: () => { createCount += 1 },
+  })
+  fixture.runtime.handleMessage(startMessage())
+  await waitUntil(() => connecting)
+  fixture.runtime.handleMessage({ type: 'abort', run_id: 'agr_test', generation: 1 })
+  await fixture.finished
+
+  assert.equal(createCount, 0)
+  assert.deepEqual(fixture.core.events.map((event) => event.kind), ['status'])
+  assert.deepEqual(statuses(fixture.core.events), ['cancelled'])
+  assert.equal(fixture.outbound.length, 1)
+  assert.equal(fixture.outbound[0]?.type === 'settled' && fixture.outbound[0].outcome, 'cancelled')
+})
+
+test('MCP 连接成功后的模型创建异常不按工具连接错误投影', async () => {
+  const fixture = workerFixture([], {
+    onCreateAgent: () => { throw new Error('AGENT_MCP_TOOL_SCHEMA_INVALID') },
+  })
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+
+  assert.deepEqual(nested(fixture.core.events[0]?.payload, 'error'), {
+    code: 'AGENT_RUNTIME_EXECUTION_FAILED', message: 'AI 助手执行运行时失败',
+  })
+  assert.deepEqual(statuses(fixture.core.events), ['failed'])
 })
 
 test('steer 严格隔离 generation 并先持久化再交给 pi', async () => {
@@ -352,7 +442,7 @@ test('Worker 先连接工具，再将完整上下文与冻结阈值交给请求�
   const order: string[] = []
   let agentBootstrap: RuntimeBootstrap | undefined
   const fixture = workerFixture(order, {
-    onConnectMCP: () => order.push('mcp'),
+    onConnectMCP: () => { order.push('mcp') },
     onCreateAgent: (options) => {
       order.push('agent')
       agentBootstrap = structuredClone(options.bootstrap)
@@ -376,7 +466,7 @@ test('Worker 先连接工具，再将完整上下文与冻结阈值交给请求�
 })
 
 function workerFixture(order: string[] = [], options: {
-  onConnectMCP?: () => void
+  onConnectMCP?: (options: ConnectAgentMCPOptions) => void | Promise<void>
   onCreateAgent?: (options: CreatePiAgentOptions) => void
 } = {}) {
   const core = new FakeCore(order)
@@ -394,8 +484,8 @@ function workerFixture(order: string[] = [], options: {
   const finishedState = { value: false }
   const runtime = new AgentWorkerRuntime({
     core,
-    connectMCP: async () => {
-      options.onConnectMCP?.()
+    connectMCP: async (connectOptions) => {
+      await options.onConnectMCP?.(connectOptions)
       return mcp
     },
     createAgent: (createOptions) => {

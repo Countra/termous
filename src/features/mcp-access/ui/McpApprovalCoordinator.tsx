@@ -74,7 +74,17 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
       centered
       width={620}
       zIndex={3900}
-      title={null}
+      title={(
+        <header className={styles.header}>
+          <span className={styles.icon} aria-hidden="true">
+            <ShieldCheck size={23} />
+          </span>
+          <div>
+            <h2>{t('settings.mcp.approval.title')}</h2>
+            <p>{t('settings.mcp.approval.description')}</p>
+          </div>
+        </header>
+      )}
       footer={null}
       closable={false}
       keyboard={false}
@@ -82,20 +92,9 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
       destroyOnHidden
       rootClassName={styles['approval-modal-root']}
       className={styles['approval-modal']}
-      aria-labelledby="mcp-approval-title"
     >
       {approval ? (
         <section className={styles.dialog}>
-          <header className={styles.header}>
-            <span className={styles.icon} aria-hidden="true">
-              <ShieldCheck size={23} />
-            </span>
-            <div>
-              <h2 id="mcp-approval-title">{t('settings.mcp.approval.title')}</h2>
-              <p>{t('settings.mcp.approval.description')}</p>
-            </div>
-          </header>
-
           <div className={styles.client}>
             <ServerCog size={17} aria-hidden="true" />
             <span>{t('settings.mcp.approval.client')}</span>

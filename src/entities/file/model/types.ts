@@ -99,7 +99,7 @@ export interface RemoteImageFile {
   loaded_at: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -114,6 +114,7 @@ export type FileOperationPhase =
   | 'reload'
   | 'prepare'
   | 'rename'
+  | 'delete'
   | 'rollback'
   | 'done'
 
@@ -162,6 +163,7 @@ export type FileAccessCapability =
   | 'permission_edit'
   | 'transfer'
   | 'batch_rename'
+  | 'planned_delete'
   | 'name_search'
 
 interface FileSessionCreateOptions {

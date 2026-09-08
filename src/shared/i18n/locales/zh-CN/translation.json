@@ -233,6 +233,13 @@
       "agent": "AI 助手",
       "failed": "本次回复失败",
       "failure": {
+        "mcpProtocolMismatch": "AI 助手与 MCP 工具服务的协议版本不兼容",
+        "mcpEndpointInvalid": "AI 助手的 MCP 工具服务地址无效",
+        "mcpEndpointViolation": "AI 助手的 MCP 工具服务地址不符合本地连接要求",
+        "mcpToolNameConflict": "MCP 工具名称重复或无效，AI 助手未能启动",
+        "mcpToolSchemaInvalid": "MCP 工具参数定义无效，AI 助手未能启动",
+        "mcpToolsEmpty": "MCP 工具服务没有返回可用工具，AI 助手未能启动",
+        "mcpConnectionFailed": "AI 助手连接 MCP 工具服务失败，请准备或修复后重试",
         "streamInterrupted": "模型响应连接中断，回复未能完成。请检查网络后重试。",
         "timeout": "模型响应超时，请稍后重试。",
         "rateLimited": "模型服务请求过于频繁或额度受限，请检查额度并稍后重试。",
@@ -478,7 +485,7 @@
     },
     "readiness": {
       "title": "准备 AI 助手运行环境",
-      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作。首次准备会启用 MCP、创建拥有当前全部 {{count}} 项权限的 AI 助手托管客户端并保持逐次审批；模型仍在“设置 > AI 助手”中管理。",
+      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作，始终具备全部 MCP 能力，新增能力自动更新。工具执行遵循当前审批策略；模型在“设置 > AI 助手”中管理。",
       "prepare": "准备或修复",
       "loadFailed": "暂时无法读取 AI 助手运行状态"
     },
@@ -3712,7 +3719,7 @@
       "operationFailed": "AI 助手设置操作失败",
       "readiness": {
         "title": "运行准备",
-      "description": "检查 MCP、Skills 与默认模型；首次准备会创建托管客户端并保持逐次审批。",
+      "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "托管客户端",
         "skills": "Skills 资源",
@@ -3747,15 +3754,13 @@
       },
       "policy": {
         "title": "MCP 审批策略",
-        "description": "该策略只作用于 AI 助手托管客户端，不会修改外部 MCP 客户端。",
+        "description": "内置 AI 始终具备全部 MCP 能力，新增能力自动更新；执行遵循此审批策略，外部客户端不受影响。",
         "approval": "工具执行确认",
         "review": "逐次审批",
         "bypass": "无需确认",
         "reviewHint": "每次敏感操作继续使用全局 MCP 审批界面确认。",
         "bypassHint": "AI 助手可在授权范围内直接执行工具，请谨慎使用。",
-        "unavailable": "完成首次准备后可管理审批策略。",
-        "scopeOutdated": "当前已授权 {{current}}/{{required}} 项权限。新增权限不会自动授予。",
-        "sync": "同步权限"
+        "unavailable": "完成首次准备后可管理审批策略。"
       },
       "models": {
         "default": "默认",
@@ -4079,6 +4084,7 @@
         "sftp_connect": "连接 SFTP 会话",
         "sftp_close": "关闭 SFTP 会话",
         "sftp_write": "修改 SFTP 文件",
+        "sftp_delete": "删除 SFTP 文件",
         "sftp_batch_rename": "高级批量重命名",
         "sftp_file_search": "全局文件搜索",
         "sftp_transfer": "启动文件传输",
@@ -4110,10 +4116,11 @@
         "sftp_connect": "使用已保存主机创建由该客户端管理的 SFTP 会话。",
         "sftp_close": "关闭由该客户端创建的 SFTP 会话。",
         "sftp_write": "保存文本、新建目录、重命名或修改权限；默认需在 Termous 中逐次批准。",
+        "sftp_delete": "预览并删除指定远程文件、文件夹或符号链接；执行前默认需逐次批准，已删除内容无法撤销。",
         "sftp_batch_rename": "预览并按规则批量重命名同一远程目录中的项目；执行前默认需在 Termous 中逐次批准。",
         "sftp_file_search": "使用远程 Linux 主机已安装的 fd 搜索文件和目录名称；此只读权限不会安装或更新远程软件。",
         "sftp_transfer": "启动上传、下载或跨主机复制；默认需在 Termous 中逐次批准。",
-        "sftp_cancel": "取消该客户端创建的文件传输或批量重命名任务。",
+        "sftp_cancel": "取消该客户端创建的文件传输、批量重命名或删除任务。",
         "system_read": "读取 SSH 会话对应 Linux 主机的系统、硬件和网络摘要。",
         "processes_read": "列出进程并读取进程详情、资源占用和监听端口。",
         "processes_terminate": "向指定进程发送终止信号；默认需在 Termous 中逐次批准。",
@@ -4220,12 +4227,27 @@
           "saveText": "保存远程文本",
           "mkdir": "新建远程文件夹",
           "rename": "重命名远程项目",
+          "delete": "删除远程项目",
           "chmod": "修改远程权限",
           "upload": "上传本机文件",
           "download": "下载远程文件",
           "remoteCopy": "跨主机复制文件",
           "batchRename": "批量重命名远程项目",
           "other": "SFTP 文件操作"
+        },
+        "deletePaths": "选中的顶层路径",
+        "deleteWarning": "删除后无法撤销。符号链接仅删除链接本身。",
+        "deleteScope": "删除范围",
+        "deleteTotalCount": "计划删除总数",
+        "deleteRecursive": {
+          "enabled": "包含目录内容",
+          "disabled": "仅选中的项目"
+        },
+        "deleteCounts": {
+          "top_level_count": "顶层项目",
+          "file_count": "文件",
+          "directory_count": "文件夹",
+          "symlink_count": "符号链接"
         },
         "remoteOpsDomain": {
           "system": "系统信息",

@@ -33,6 +33,27 @@ const failureCases = [
 ] as const
 
 describe('AgentMessageFailure', () => {
+  it.each([
+    ['AGENT_MCP_PROTOCOL_MISMATCH', 'AI 助手与 MCP 工具服务的协议版本不兼容', 'The AI assistant and MCP tool service use incompatible protocol versions.'],
+    ['AGENT_MCP_ENDPOINT_INVALID', 'AI 助手的 MCP 工具服务地址无效', 'The MCP tool service address is invalid.'],
+    ['AGENT_MCP_ENDPOINT_VIOLATION', 'AI 助手的 MCP 工具服务地址不符合本地连接要求', 'The MCP tool service address does not meet local connection requirements.'],
+    ['AGENT_MCP_TOOL_NAME_CONFLICT', 'MCP 工具名称重复或无效，AI 助手未能启动', 'MCP tool names are duplicated or invalid. The AI assistant could not start.'],
+    ['AGENT_MCP_TOOL_SCHEMA_INVALID', 'MCP 工具参数定义无效，AI 助手未能启动', 'An MCP tool parameter definition is invalid. The AI assistant could not start.'],
+    ['AGENT_MCP_TOOLS_EMPTY', 'MCP 工具服务没有返回可用工具，AI 助手未能启动', 'The MCP tool service returned no available tools. The AI assistant could not start.'],
+    ['AGENT_MCP_CONNECTION_FAILED', 'AI 助手连接 MCP 工具服务失败，请准备或修复后重试', 'The AI assistant could not connect to the MCP tool service. Prepare or repair it, then try again.'],
+  ])('MCP 启动错误 %s 用当前语言完整显示一次安全原因', async (error_code, chinese, english) => {
+    const localized = i18n.cloneInstance({ lng: 'zh-CN' })
+    await localized.changeLanguage('zh-CN')
+    const element = <I18nextProvider i18n={localized}>
+      <AgentMessageFailure message={{ status: 'failed', error_code, error_message: chinese }} />
+    </I18nextProvider>
+    const view = render(element)
+    expect(view.container.textContent).toBe(chinese)
+    await localized.changeLanguage('en-US')
+    view.rerender(element)
+    expect(view.container.textContent).toBe(english)
+  })
+
   it.each(failureCases)('用中英文显示 %s 的具体原因', async (error_code, chinese, english) => {
     const localized = i18n.cloneInstance({ lng: 'zh-CN' })
     await localized.changeLanguage('zh-CN')

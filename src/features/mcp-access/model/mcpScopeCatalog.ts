@@ -44,6 +44,7 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
       'sftp:connect',
       'sftp:close',
       'sftp:write',
+      'sftp:delete',
       'sftp:batch_rename',
       'sftp:file_search',
       'sftp:transfer',
@@ -74,7 +75,7 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     descriptionKey: `settings.mcp.scopeDescription.${key}`,
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
-    destructive: scope === 'sessions:close',
+    destructive: scope === 'sessions:close' || scope === 'sftp:delete',
   }
 })
 

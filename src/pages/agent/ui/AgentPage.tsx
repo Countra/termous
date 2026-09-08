@@ -300,6 +300,9 @@ export function AgentPage({
   const changeApprovalMode = useCallback(async (mode: AgentApprovalMode) => {
     const policy = readiness?.mcp_policy
     if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')
+    const epoch = activeSetupEpochRef.current
+    const isCurrent = () => activeSetupEpochRef.current === epoch
+      && activeSetupReadyEpochRef.current === epoch
     const updated = await perform(async () => {
       try {
         const next = await gateway.updateMcpPolicy({
@@ -307,16 +310,18 @@ export function AgentPage({
           sync_scopes: false,
           expected_revision: policy.revision,
         })
+        // 离页或重新水合后，旧策略回执不能覆盖当前页面的审批模式。
+        if (!isCurrent()) return
         setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
       } catch (error) {
-        const epoch = activeSetupEpochRef.current
+        if (!isCurrent()) return
         try {
           const nextReadiness = await setupGateway.readiness()
-          if (activeSetupEpochRef.current === epoch) setReadiness(nextReadiness)
+          if (isCurrent()) setReadiness(nextReadiness)
         } catch {
           // 保留原始策略更新错误；后续刷新仍会重新获取权威状态。
         }
-        throw error
+        if (isCurrent()) throw error
       }
     })
     if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
@@ -589,12 +594,24 @@ export function AgentPage({
           loading={setupLoading || operationBusy.workspace}
           onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
           onPrepare={() => void perform(async () => {
+            if (!enabled || !active) return
             const epoch = activeSetupEpochRef.current
-            const result = await setupGateway.setup()
-            const catalog = await loadAgentModelCatalog(setupGateway)
-            if (activeSetupEpochRef.current !== epoch) return
-            acceptSetupSnapshot(result, catalog.providers, catalog.models)
-            markActiveSetupReady(epoch)
+            activeSetupAbortRef.current?.abort()
+            const requestAbort = new AbortController()
+            activeSetupAbortRef.current = requestAbort
+            try {
+              const result = await setupGateway.setup(requestAbort.signal)
+              requestAbort.signal.throwIfAborted()
+              const catalog = await loadAgentModelCatalog(setupGateway, requestAbort.signal)
+              if (requestAbort.signal.aborted || activeSetupEpochRef.current !== epoch) return
+              acceptSetupSnapshot(result, catalog.providers, catalog.models)
+              markActiveSetupReady(epoch)
+            } catch (error) {
+              // 离页会撤销本次准备，迟到响应不再加载目录或更新当前页面。
+              if (!requestAbort.signal.aborted) throw error
+            } finally {
+              if (activeSetupAbortRef.current === requestAbort) activeSetupAbortRef.current = null
+            }
           })}
         />
       </div>

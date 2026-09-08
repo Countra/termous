@@ -126,6 +126,26 @@ describe('文件操作共享观察器', () => {
     expect(fileOperation).toHaveBeenCalledWith('operation-1')
   })
 
+  it('删除任务沿用事件与轮询恢复，保留部分失败的实际项目计数', async () => {
+    const running = task({ type: 'delete', phase: 'delete', total_items: 8, completed_items: 2 })
+    const failed = task({
+      type: 'delete', revision: 3, status: 'failed', phase: 'done',
+      total_items: 8, completed_items: 3, partial: true, cancellable: false,
+      error_code: 'SFTP_DELETE_FAILED', error_message: 'Permission denied',
+    })
+    const onTask = vi.fn()
+    const observation = observeFileOperation({ api: api(vi.fn(async () => failed)), initialTask: running, onTask })
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('message', { data: JSON.stringify({
+      type: 'file_operation_update', task: { ...running, revision: 2, completed_items: 3 },
+    }) })
+    socket.emit('error')
+    await vi.advanceTimersByTimeAsync(250)
+    await expect(observation.terminal).resolves.toEqual(failed)
+    expect(onTask.mock.calls.map(([value]) => value.completed_items)).toEqual([2, 3, 3])
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED)
+  })
+
   it('健康 WebSocket 更新会推迟兜底轮询', async () => {
     const fileOperation = vi.fn(async () => task({ revision: 2, progress_percent: 25 }))
     const observation = observeFileOperation({ api: api(fileOperation), initialTask: task() })

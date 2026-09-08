@@ -43,6 +43,11 @@ export interface McpApprovalOperation {
   description?: string
   tags?: string[]
   item_count?: number
+  recursive?: boolean
+  top_level_count?: number
+  file_count?: number
+  directory_count?: number
+  symlink_count?: number
   total_bytes?: number
   rule_count?: number
   rename_mappings: McpApprovalRenameMapping[]

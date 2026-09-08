@@ -30,3 +30,11 @@ test('Scope 目录统一提供默认、审批和展示元数据', () => {
   )
   assert.ok(mcpScopeCatalog.every((entry) => entry.labelKey && entry.descriptionKey))
 })
+
+test('SFTP 删除独立授权、默认关闭并要求高风险审批', () => {
+  const deletion = mcpScopeCatalog.find((entry) => entry.scope === 'sftp:delete')
+  assert.ok(deletion)
+  assert.equal(deletion.defaultEnabled, false)
+  assert.equal(deletion.requiresApproval, true)
+  assert.equal(deletion.destructive, true)
+})

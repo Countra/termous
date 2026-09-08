@@ -222,37 +222,6 @@
   font-weight: 500;
 }
 
-.scope-sync {
-  display: flex;
-  min-width: 0;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--warning) 6%, var(--surface-subtle));
-  padding: 8px 9px;
-}
-
-.scope-sync > div {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  color: var(--warning);
-}
-
-.scope-sync > div > svg {
-  flex: 0 0 auto;
-}
-
-.scope-sync span {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 .empty {
   margin: 0;
   color: var(--text-muted);
@@ -286,20 +255,11 @@
   .readiness-item:nth-child(-n + 2) {
     border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   }
-
-  .scope-sync {
-    align-items: flex-start;
-  }
 }
 
 @container agent-settings (max-width: 520px) {
-  .runtime-controls,
-  .scope-sync {
+  .runtime-controls {
     align-items: flex-start;
-  }
-
-  .scope-sync {
-    flex-direction: column;
   }
 
   .readiness-grid {
@@ -330,9 +290,5 @@
 
   .readiness-item:last-child {
     border-bottom: 0;
-  }
-
-  .scope-sync > :global(.ant-btn) {
-    align-self: flex-end;
   }
 }

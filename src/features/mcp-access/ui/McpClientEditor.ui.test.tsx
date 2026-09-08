@@ -89,6 +89,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('sftp_connect')).not.toBeChecked()
     expect(scopeCheckbox('sftp_close')).not.toBeChecked()
     expect(scopeCheckbox('sftp_write')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_delete')).not.toBeChecked()
     expect(scopeCheckbox('sftp_file_search')).not.toBeChecked()
     expect(scopeCheckbox('sftp_transfer')).not.toBeChecked()
     expect(scopeCheckbox('sftp_cancel')).not.toBeChecked()
@@ -118,8 +119,8 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.crontab/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.forwarding/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.snippets/ })).toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(10)
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/29')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
+    expect(screen.getByText('settings.mcp.selectedPermissions:2/30')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -153,7 +154,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).toBeChecked()
     expect(scopeCheckbox('hosts_probe')).toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:3/29')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:3/30')).toBeInTheDocument()
 
     const clearHosts = groupToggle('hosts')
     expect(clearHosts).toHaveAccessibleName(
@@ -165,7 +166,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).not.toBeChecked()
     expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:1/29')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:1/30')).toBeInTheDocument()
     expect(groupToggle('hosts')).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -205,6 +206,7 @@ describe('McpClientEditor', () => {
       'connect',
       'close',
       'write',
+      'delete',
       'batch_rename',
       'file_search',
       'transfer',
@@ -224,12 +226,24 @@ describe('McpClientEditor', () => {
         'sftp:connect',
         'sftp:close',
         'sftp:write',
+        'sftp:delete',
         'sftp:batch_rename',
         'sftp:file_search',
         'sftp:transfer',
         'sftp:cancel',
       ],
     })
+  })
+
+  it('SFTP 写入权限不会隐式授权删除，删除默认保持审批', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderEditor({ editingClient: { ...client, scopes: ['sftp:write'] } })
+    expect(scopeCheckbox('sftp_write')).toBeChecked()
+    expect(scopeCheckbox('sftp_delete')).not.toBeChecked()
+    await user.click(scopeCheckbox('sftp_delete'))
+    expect(approvalBypassSwitch()).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(onSubmit).toHaveBeenCalledWith({ name: 'Codex', approval_bypass: false, scopes: ['sftp:write', 'sftp:delete'] })
   })
 
   it('编辑时回填权限，提交名称与规范顺序的精确权限集合', async () => {
@@ -261,14 +275,14 @@ describe('McpClientEditor', () => {
     renderEditor()
 
     expect(approvalBypassSwitch()).not.toBeChecked()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(10)
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
     expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
 
     await user.click(approvalBypassSwitch())
 
     expect(approvalBypassSwitch()).toBeChecked()
     expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(10)
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(11)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')
@@ -289,7 +303,7 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(2)
+    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(3)
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
     await user.click(scopeCheckbox('sessions_close'))
     const alert = screen.getByRole('alert')

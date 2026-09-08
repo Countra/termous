@@ -233,6 +233,13 @@
       "agent": "Agent",
       "failed": "This response failed",
       "failure": {
+        "mcpProtocolMismatch": "The AI assistant and MCP tool service use incompatible protocol versions.",
+        "mcpEndpointInvalid": "The MCP tool service address is invalid.",
+        "mcpEndpointViolation": "The MCP tool service address does not meet local connection requirements.",
+        "mcpToolNameConflict": "MCP tool names are duplicated or invalid. The AI assistant could not start.",
+        "mcpToolSchemaInvalid": "An MCP tool parameter definition is invalid. The AI assistant could not start.",
+        "mcpToolsEmpty": "The MCP tool service returned no available tools. The AI assistant could not start.",
+        "mcpConnectionFailed": "The AI assistant could not connect to the MCP tool service. Prepare or repair it, then try again.",
         "streamInterrupted": "The model connection was interrupted before the response finished. Check your network and try again.",
         "timeout": "The model response timed out. Try again later.",
         "rateLimited": "The model service hit a rate or quota limit. Check your quota and try again later.",
@@ -480,7 +487,7 @@
     },
     "readiness": {
       "title": "Prepare the Agent runtime",
-      "description": "The Agent works through Termous MCP and read-only Skill resources. Initial setup enables MCP, creates a managed client with all {{count}} current scopes, and keeps per-operation approval enabled; models remain managed under Settings > Agent.",
+      "description": "The Agent uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > Agent.",
       "prepare": "Set up or repair",
       "loadFailed": "Agent runtime status is temporarily unavailable"
     },
@@ -3737,7 +3744,7 @@
       "operationFailed": "The Agent setting operation failed",
       "readiness": {
         "title": "Runtime readiness",
-      "description": "Check MCP, Skills, and the default model. Initial setup creates a managed client with per-action approval.",
+      "description": "Check MCP, Skills, and the default model to prepare or repair the Agent runtime.",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
@@ -3772,15 +3779,13 @@
       },
       "policy": {
         "title": "MCP approval policy",
-        "description": "This policy applies only to the Agent-managed client and does not change external MCP clients.",
+        "description": "The built-in Agent always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
         "approval": "Tool execution approval",
         "review": "Ask every time",
         "bypass": "No confirmation",
         "reviewHint": "Sensitive operations continue to use the global MCP approval interface.",
         "bypassHint": "The Agent can execute tools within its granted scopes without confirmation. Use with care.",
-        "unavailable": "Complete initial setup to manage the approval policy.",
-        "scopeOutdated": "{{current}}/{{required}} scopes are granted. New scopes are not granted automatically.",
-        "sync": "Sync scopes"
+        "unavailable": "Complete initial setup to manage the approval policy."
       },
       "models": {
         "default": "Default",
@@ -4104,6 +4109,7 @@
         "sftp_connect": "Connect SFTP sessions",
         "sftp_close": "Close SFTP sessions",
         "sftp_write": "Modify SFTP files",
+        "sftp_delete": "Delete SFTP files",
         "sftp_batch_rename": "Advanced batch rename",
         "sftp_file_search": "Global file search",
         "sftp_transfer": "Start file transfers",
@@ -4135,10 +4141,11 @@
         "sftp_connect": "Create SFTP sessions owned and managed by this client from saved hosts.",
         "sftp_close": "Close SFTP sessions created by this client.",
         "sftp_write": "Save text, create directories, rename entries, or change permissions; by default, each operation requires approval in Termous.",
+        "sftp_delete": "Preview and delete selected remote files, directories, or symbolic links; execution requires approval by default, and completed deletions cannot be undone.",
         "sftp_batch_rename": "Preview and apply rule-based batch renames to entries in one remote directory; by default, execution requires approval in Termous.",
         "sftp_file_search": "Search file and directory names across the remote Linux host using its installed fd tool; this read-only permission does not install or update remote software.",
         "sftp_transfer": "Start uploads, downloads, or cross-host copies; by default, each transfer requires approval in Termous.",
-        "sftp_cancel": "Cancel file transfer or batch rename tasks created by this client.",
+        "sftp_cancel": "Cancel file transfer, batch rename, or deletion tasks created by this client.",
         "system_read": "Read system, hardware, and network summaries for the Linux host behind an SSH session.",
         "processes_read": "List processes and read process details, resource usage, and listening ports.",
         "processes_terminate": "Send a termination signal to a process; by default, every request requires approval in Termous.",
@@ -4245,12 +4252,27 @@
           "saveText": "Save remote text",
           "mkdir": "Create remote folder",
           "rename": "Rename remote entry",
+          "delete": "Delete remote entries",
           "chmod": "Change remote permissions",
           "upload": "Upload local files",
           "download": "Download remote files",
           "remoteCopy": "Copy files between hosts",
           "batchRename": "Batch rename remote entries",
           "other": "SFTP file operation"
+        },
+        "deletePaths": "Selected top-level paths",
+        "deleteWarning": "Deletion cannot be undone. Symbolic links are removed without following their targets.",
+        "deleteScope": "Delete scope",
+        "deleteTotalCount": "Total entries to delete",
+        "deleteRecursive": {
+          "enabled": "Includes directory contents",
+          "disabled": "Selected entries only"
+        },
+        "deleteCounts": {
+          "top_level_count": "Top-level entries",
+          "file_count": "Files",
+          "directory_count": "Directories",
+          "symlink_count": "Symbolic links"
         },
         "remoteOpsDomain": {
           "system": "System information",

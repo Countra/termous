@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { McpAccessProtocolError } from './protocol/base.ts'
 import {
   decodeMcpApprovalDecisionResult,
   decodeMcpApprovalEvent,
@@ -434,6 +435,73 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     }],
   }), /映射数量与项目数不一致/)
 })
+
+test('删除审批保留完整顶层路径、递归范围与实际节点总量', () => {
+  for (const state of ['pending', 'dispatching']) {
+    const operation = deleteApprovalOperation()
+    const approval = decodeMcpApprovalSnapshot({
+      ...approvalSnapshotFixture(state),
+      items: [{ ...approvalFixture(state), kind: 'sftp', operation }],
+    }).items[0]!
+    assert.equal(approval.kind, 'sftp')
+    if (approval.kind !== 'sftp') return
+    for (const key of ['recursive', 'item_count', 'top_level_count', 'file_count', 'directory_count', 'symlink_count', 'total_bytes'] as const) {
+      assert.equal(approval.operation[key], operation[key])
+    }
+    assert.deepEqual(approval.operation.remote_paths, operation.remote_paths)
+  }
+  const operation = { ...deleteApprovalOperation(), recursive: false, item_count: 3, file_count: 1, directory_count: 1 }
+  assert.equal(decodeMcpApprovalSnapshot({
+    ...approvalSnapshotFixture('pending'),
+    items: [{ ...approvalFixture('pending'), kind: 'sftp', operation }],
+  }).items.length, 1)
+  const symlinkOnly = decodeMcpApprovalSnapshot({
+    ...approvalSnapshotFixture('pending'),
+    items: [{ ...approvalFixture('pending'), kind: 'sftp', operation: {
+      ...operation, remote_paths: ['/work/link'], top_level_count: 1,
+      item_count: 1, file_count: 0, directory_count: 0, symlink_count: 1, total_bytes: 0,
+    } }],
+  }).items[0]!
+  assert.equal(symlinkOnly.kind === 'sftp' && symlinkOnly.operation.total_bytes, 0)
+})
+
+test('待决定和派发中的删除审批拒绝缺失或不一致的范围，终态允许敏感摘要清理', () => {
+  const invalidPatches = [
+    { recursive: undefined }, { recursive: 'false' }, { top_level_count: undefined },
+    { file_count: undefined }, { directory_count: undefined }, { symlink_count: undefined },
+    { item_count: undefined }, { total_bytes: undefined }, { file_session_id: undefined },
+    { item_count: 4 }, { top_level_count: 2 }, { recursive: false },
+    { file_count: -1 }, { directory_count: 0.5 }, { symlink_count: Number.MAX_SAFE_INTEGER + 1 },
+    { top_level_count: 0, remote_paths: [] },
+    { remote_paths: ['/work/a', '/work/a', '/work/b'] },
+    { remote_paths: ['relative', '/work/b', '/work/c'] },
+    { remote_paths: ['/', '/work/b', '/work/c'] },
+    { remote_paths: ['/work/a\0', '/work/b', '/work/c'] },
+  ]
+  for (const state of ['pending', 'dispatching']) {
+    for (const patch of invalidPatches) {
+      assert.throws(() => decodeMcpApprovalSnapshot({
+        ...approvalSnapshotFixture(state),
+        items: [{ ...approvalFixture(state), kind: 'sftp', operation: { ...deleteApprovalOperation(), ...patch } }],
+      }), McpAccessProtocolError, `${state}: ${JSON.stringify(patch)}`)
+    }
+  }
+  for (const state of ['approved', 'rejected', 'expired', 'cancelled', 'dispatch_conflict']) {
+    assert.equal(decodeMcpApprovalSnapshot({
+      ...approvalSnapshotFixture(state),
+      items: [{ ...approvalFixture(state), kind: 'sftp', operation: { action: 'delete' } }],
+    }).items[0]?.state, state)
+  }
+})
+
+function deleteApprovalOperation() {
+  return {
+    action: 'delete', file_session_id: 'file-session-1', recursive: true,
+    remote_paths: ['/work/目录', '/work/line\nbreak.txt', '/work/link'],
+    top_level_count: 3, file_count: 5, directory_count: 2, symlink_count: 1,
+    item_count: 8, total_bytes: 4096,
+  }
+}
 
 function statusFixture() {
   return {

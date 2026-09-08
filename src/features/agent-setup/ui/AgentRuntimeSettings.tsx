@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Button, Switch } from 'antd'
 import {
-  CircleAlert,
   RefreshCw,
   Wrench,
 } from 'lucide-react'
@@ -120,28 +119,6 @@ export function AgentRuntimeSettings({
                 />
               </div>
             ) : <p className={styles.empty}>{t('settings.agent.policy.unavailable')}</p>}
-            {readiness.mcp_policy?.scope_sync_required ? (
-              <div className={styles['scope-sync']}>
-                <div>
-                  <CircleAlert size={16} aria-hidden="true" />
-                  <span>{t('settings.agent.policy.scopeOutdated', {
-                    current: readiness.mcp_policy.scope_count,
-                    required: readiness.mcp_policy.required_scope_count,
-                  })}</span>
-                </div>
-                <Button
-                  size="small"
-                  disabled={busy}
-                  loading={runtime.mutation === 'policy'}
-                  onClick={() => consume(runtime.updatePolicy(
-                    readiness.mcp_policy?.approval_bypass ?? false,
-                    true,
-                  ))}
-                >
-                  {t('settings.agent.policy.sync')}
-                </Button>
-              </div>
-            ) : null}
           </section>
         </div>
       </section>
