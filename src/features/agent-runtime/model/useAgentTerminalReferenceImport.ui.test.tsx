@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentQueuedTurn, AgentResourceBinding, AgentSession, AgentSSHResourceState } from '#entities/agent'
+import type { AgentLaunchIntent, AgentQueuedTurn, AgentResourceBinding, AgentResourceBindingUpdateInput, AgentFileResourceState, AgentSession, AgentSSHResourceState } from '#entities/agent'
 import type { AgentWorkspaceController } from '../runtime/AgentWorkspaceController.ts'
 import { createAgentWorkspaceState, type AgentWorkspaceState } from './agentWorkspaceState.ts'
 import { agentFixtureTime, agentRunFixture, agentSessionFixture } from './agentRuntimeTestFixtures.ts'
@@ -10,6 +10,46 @@ type Options = Parameters<typeof useAgentTerminalReferenceImport>[0]
 type Intent = Extract<AgentLaunchIntent, { source: 'terminal_selection' }>
 
 describe('useAgentTerminalReferenceImport', () => {
+  it('文件引用保留 SSH 引用和草稿，不读取附件编辑归属', async () => {
+    const fixture = setup({ drafts: { [targetId]: { text: '保留的提问', updated_at: 1 } } })
+    const options = fixture.options({ intent: fileIntent(), resources: [source, fileSource],
+      getOwnerId: vi.fn(() => { throw new Error('纯连接不应读取编辑归属') }) })
+    const view = renderHook(() => useAgentTerminalReferenceImport(options))
+    await waitFor(() => expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledOnce())
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(fixture.state.sessions[0]?.resource_bindings?.map(({ kind }) => kind)).toEqual(['ssh_session', 'file_profile'])
+    expect(fixture.state.drafts[targetId]?.text).toBe('保留的提问')
+    expect(options.addReference).not.toHaveBeenCalled()
+    expect(options.getOwnerId).not.toHaveBeenCalled()
+  })
+
+  it('文件替换确认按文件槽位对账，其他窗口更换文件后再次确认', async () => {
+    const previous = { ...fileBinding(), file_access_profile_id: 'file_previous' }
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding(), previous] })] })
+    const options = fixture.options({ intent: fileIntent(), resources: [source, fileSource] })
+    const view = renderHook(() => useAgentTerminalReferenceImport(options))
+    await waitFor(() => expect(view.result.current.current?.stage).toBe('confirm'))
+    fixture.patch({ sessions: [session({ revision: 4, resource_bindings: [binding(), { ...previous, file_access_profile_id: 'file_third' }] })] })
+    act(() => view.result.current.confirm())
+    await waitFor(() => expect(view.result.current.current?.confirmation?.revision).toBe(4))
+    expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
+    act(() => view.result.current.confirm())
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(fixture.state.sessions[0]?.resource_bindings?.[0]).toEqual(binding())
+    expect(options.addReference).not.toHaveBeenCalled()
+  })
+
+  it('文件 profile 删除后失败，重新关联的显式重试保留原草稿', async () => {
+    const fixture = setup()
+    const options = fixture.options({ intent: fileIntent(), resources: [] })
+    const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
+    await waitFor(() => expect(view.result.current.current?.errorCode).toBe('AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE'))
+    expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
+    view.rerender({ ...options, resources: [fileSource] })
+    act(() => view.result.current.retry())
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(fixture.state.sessions[0]?.resource_bindings).toHaveLength(2)
+  })
   it('同源活动会话只追加引用并保持已有草稿，重复意图只接管一次', async () => {
     const fixture = setup({ runs: { run: agentRunFixture() } })
     fixture.state.drafts[targetId] = { text: '用户正在编辑的提问', updated_at: 1 }
@@ -27,26 +67,26 @@ describe('useAgentTerminalReferenceImport', () => {
   })
 
   it('跨源替换需要确认，取消保留原关联和草稿且不上传', async () => {
-    const fixture = setup({ sessions: [session({ resource_binding: binding('ssh-old') })] })
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding('ssh-old')] })] })
     const options = fixture.options()
     const view = renderHook(() => useAgentTerminalReferenceImport(options))
     await waitFor(() => expect(view.result.current.current?.stage).toBe('confirm'))
-    expect(view.result.current.current?.confirmation?.resource_binding?.session_id).toBe('ssh-old')
+    expect(view.result.current.current?.confirmation?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-old')
     expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
     act(() => view.result.current.dismiss())
     expect(view.result.current.current).toBeUndefined()
     expect(options.addReference).not.toHaveBeenCalled()
-    expect(fixture.state.sessions[0]?.resource_binding?.session_id).toBe('ssh-old')
+    expect(fixture.state.sessions[0]?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-old')
   })
 
   it('确认期间其他窗口再次换绑必须重新确认，使用最新 revision 提交', async () => {
-    const fixture = setup({ sessions: [session({ resource_binding: binding('ssh-old') })] })
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding('ssh-old')] })] })
     const options = fixture.options()
     const view = renderHook(() => useAgentTerminalReferenceImport(options))
     await waitFor(() => expect(view.result.current.current?.stage).toBe('confirm'))
-    fixture.patch({ sessions: [session({ revision: 7, resource_binding: binding('ssh-third') })] })
+    fixture.patch({ sessions: [session({ revision: 7, resource_bindings: [binding('ssh-third')] })] })
     act(() => view.result.current.confirm())
-    await waitFor(() => expect(view.result.current.current?.confirmation?.resource_binding?.session_id).toBe('ssh-third'))
+    await waitFor(() => expect(view.result.current.current?.confirmation?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-third'))
     expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
     act(() => view.result.current.confirm())
     await waitFor(() => expect(options.addReference).toHaveBeenCalledOnce())
@@ -56,7 +96,7 @@ describe('useAgentTerminalReferenceImport', () => {
   })
 
   it.each(['run', 'queue'] as const)('存在 %s 时拒绝跨源引用，不进入确认或修改绑定', async (lockedBy) => {
-    const fixture = setup({ sessions: [session({ resource_binding: binding('ssh-old') })],
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding('ssh-old')] })],
       ...(lockedBy === 'run' ? { runs: { run: agentRunFixture() } } : { queued_turns: { [targetId]: [queuedTurn()] } }),
     })
     const options = fixture.options()
@@ -72,7 +112,7 @@ describe('useAgentTerminalReferenceImport', () => {
     const options = fixture.options({ intent: intent({ target: { kind: 'new' } }), modelReady: false })
     const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
     await waitFor(() => expect(view.result.current.current?.stage).toBe('configuration'))
-    expect(view.result.current.current?.request.text).toBe('first\nsecond')
+    expect((view.result.current.current?.request as Extract<AgentLaunchIntent, { source: 'terminal_selection' }>).text).toBe('first\nsecond')
     expect(options.createSession).not.toHaveBeenCalled()
     view.rerender({ ...options, active: false, modelReady: true })
     expect(options.createSession).not.toHaveBeenCalled()
@@ -129,7 +169,7 @@ describe('useAgentTerminalReferenceImport', () => {
   })
 
   it('换绑确认期间切换编辑项，确认不能隐式重定向引用', async () => {
-    const fixture = setup({ sessions: [session({ resource_binding: binding('ssh-old') })] })
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding('ssh-old')] })] })
     let owner = 'queued:first'
     const options = fixture.options({ getOwnerId: () => owner })
     const view = renderHook(() => useAgentTerminalReferenceImport(options))
@@ -223,15 +263,15 @@ describe('useAgentTerminalReferenceImport', () => {
     const options = fixture.options()
     const view = renderHook(() => useAgentTerminalReferenceImport(options))
     await waitFor(() => expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledOnce())
-    fixture.patch({ sessions: [session({ revision: 3, resource_binding: binding('ssh-third') })] })
+    fixture.patch({ sessions: [session({ revision: 3, resource_bindings: [binding('ssh-third')] })] })
     // 控制器按 revision 保留先到达的较新 WebSocket 实体，不接受迟到的旧 HTTP 快照。
     await act(async () => { pending.resolve(session({ revision: 2 })); await pending.promise })
     await waitFor(() => expect(view.result.current.current?.stage).toBe('failed'))
     expect(view.result.current.current?.errorCode).toBe('AGENT_REVISION_CONFLICT')
     expect(options.addReference).not.toHaveBeenCalled()
-    expect(fixture.state.sessions[0]?.resource_binding?.session_id).toBe('ssh-third')
+    expect(fixture.state.sessions[0]?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-third')
     act(() => view.result.current.retry())
-    await waitFor(() => expect(view.result.current.current?.confirmation?.resource_binding?.session_id).toBe('ssh-third'))
+    await waitFor(() => expect(view.result.current.current?.confirmation?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-third'))
     expect(options.addReference).not.toHaveBeenCalled()
     act(() => view.result.current.confirm())
     await waitFor(() => expect(view.result.current.current).toBeUndefined())
@@ -266,8 +306,22 @@ function binding(id = source.session_id): AgentResourceBinding {
     host_name: source.host_name, platform: 'linux', bound_at: agentFixtureTime }
 }
 
+const fileSource: AgentFileResourceState = { file_access_profile_id: 'file_source', file_access_profile_name: '文件配置',
+  host_id: 'host_files', host_name: '文件主机', ssh_profile_id: 'ssh_files', engine: 'sftp', status: 'ready' }
+
+function fileBinding(): Extract<AgentResourceBinding, { kind: 'file_profile' }> {
+  return { kind: 'file_profile', file_access_profile_id: fileSource.file_access_profile_id,
+    file_access_profile_name: fileSource.file_access_profile_name, host_id: fileSource.host_id,
+    host_name: fileSource.host_name, ssh_profile_id: fileSource.ssh_profile_id, engine: 'sftp', bound_at: agentFixtureTime }
+}
+
+function fileIntent(): Extract<AgentLaunchIntent, { source: 'connection_reference' }> {
+  return { key: 1, source: 'connection_reference', target: { kind: 'session', session_id: targetId },
+    resource_reference: { kind: 'file_profile', file_access_profile_id: fileSource.file_access_profile_id }, source_resource: fileSource }
+}
+
 function session(overrides: Partial<AgentSession> = {}) {
-  return agentSessionFixture({ resource_binding: binding(), ...overrides })
+  return agentSessionFixture({ resource_bindings: [binding()], ...overrides })
 }
 
 function intent(overrides: Partial<Intent> = {}): Intent {
@@ -288,9 +342,10 @@ function setup(initial: Partial<AgentWorkspaceState> = {}) {
   const controller = {
     getSnapshot: () => state,
     reloadSession: vi.fn(async (id: string) => state.sessions.find((value) => value.id === id)),
-    replaceResourceBinding: vi.fn(async (id: string, input: { session_id: string; expected_revision: number }): Promise<AgentSession> => {
+    replaceResourceBinding: vi.fn(async (id: string, input: AgentResourceBindingUpdateInput): Promise<AgentSession> => {
       const current = state.sessions.find((value) => value.id === id)!
-      const next = { ...current, resource_binding: binding(input.session_id), revision: current.revision + 1 }
+      const next = { ...current, resource_bindings: [...(current.resource_bindings ?? []).filter(({ kind }) => kind !== input.kind),
+        input.kind === 'ssh_session' ? binding(input.session_id) : fileBinding()], revision: current.revision + 1 }
       state = { ...state, sessions: state.sessions.map((value) => value.id === id ? next : value) }
       return next
     }),

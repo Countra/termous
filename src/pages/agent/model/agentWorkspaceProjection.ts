@@ -92,7 +92,7 @@ export function projectAgentSessions(
       updated_at: session.updated_at,
       archived: false,
       run_status: latestRuns.bySession.get(session.id)?.status ?? 'idle',
-      resource_binding: session.resource_binding,
+      resource_bindings: session.resource_bindings,
     }
   })
 }

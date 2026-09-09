@@ -34,8 +34,8 @@ test('来源断线或同 ID 换代时拒绝转交，超限与NUL不截断', () =
 test('仅需修改绑定的繁忙目标禁用，同源仍可引用', () => {
   const binding = { kind: 'ssh_session' as const, ...source, platform: 'linux' as const, bound_at: source.started_at }
   const sessions: AgentReferenceTargetsSnapshot = { ready: true, targets: [
-    { session_id: 'same', title: '同源', binding_locked: true, resource_binding: binding },
-    { session_id: 'other', title: '其他', binding_locked: true, resource_binding: { ...binding, session_id: 'ssh-two' } },
+    { session_id: 'same', title: '同源', binding_locked: true, resource_bindings: [binding] },
+    { session_id: 'other', title: '其他', binding_locked: true, resource_bindings: [{ ...binding, session_id: 'ssh-two' }] },
     { session_id: 'empty', title: '未绑定', binding_locked: false },
   ] }
   const snapshot = projectTerminalAIReferenceSnapshot(source.session_id, [source], sessions, true)

@@ -8,7 +8,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('#shared/ui', () => ({
+vi.mock('#shared/ui', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#shared/ui')>(),
   SessionTabButton: ({
     icon,
     sourceIndicator,

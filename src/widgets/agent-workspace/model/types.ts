@@ -11,8 +11,10 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
+  AgentResourceReference,
+  AgentResourceKind,
   AgentSessionGroup,
-  AgentSSHResourceState,
+  AgentResourceState,
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
@@ -48,7 +50,7 @@ export interface AgentWorkspaceSession {
   updated_at: string
   archived: boolean
   run_status: AgentWorkspaceRunStatus
-  resource_binding?: AgentResourceBinding
+  resource_bindings?: AgentResourceBinding[]
 }
 
 export type AgentWorkspaceResourceStatus = 'checking' | 'ready' | 'unavailable' | 'stale'
@@ -56,8 +58,8 @@ export type AgentWorkspaceResourceStatus = 'checking' | 'ready' | 'unavailable' 
 export interface AgentWorkspaceResourceContext {
   binding: AgentResourceBinding
   status: AgentWorkspaceResourceStatus
-  live_resource?: AgentSSHResourceState
-  candidates: AgentSSHResourceState[]
+  live_resource?: AgentResourceState
+  candidates: AgentResourceState[]
 }
 
 export type AgentWorkspaceModelUnavailableReason =
@@ -248,7 +250,7 @@ export interface AgentWorkspaceProps {
   }
   run_blocked: boolean
   resource_run_blocked: boolean
-  resource_context?: AgentWorkspaceResourceContext
+  resource_contexts?: AgentWorkspaceResourceContext[]
   onCreateSession: (groupId?: string) => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
@@ -283,8 +285,8 @@ export interface AgentWorkspaceProps {
   onRetryContext: () => void
   onRetryUsage: () => void
   onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
-  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
-  onRemoveResourceBinding: () => Promise<boolean>
+  onReplaceResourceBinding: (reference: AgentResourceReference) => Promise<boolean>
+  onRemoveResourceBinding: (kind: AgentResourceKind) => Promise<boolean>
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

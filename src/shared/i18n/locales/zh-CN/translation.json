@@ -205,22 +205,16 @@
     "launch": {
       "action": "交给 AI 助手",
       "title": {
-        "workbench": "处理 {{name}} 的终端连接",
-        "files": "处理 {{name}} 的文件连接",
         "host": "处理主机 {{name}}",
         "profile": "处理访问配置 {{name}}",
         "forwardFailure": "排查端口转发 {{name}}"
       },
       "summary": {
-        "workbench": "SSH 连接状态：{{status}}",
-        "files": "文件连接状态：{{status}}",
         "host": "来源：主机管理",
         "profile": "访问类型：{{technology}}",
         "forwardFailure": "转发状态：{{status}}；阶段：{{phase}}"
       },
       "prompt": {
-        "workbench": "请检查这个终端连接，并协助我处理当前问题。",
-        "files": "请检查这个文件连接，并协助我处理当前问题。",
         "host_profile": "请检查这个主机或访问配置，并协助我处理当前问题。",
         "forward_failure": "请分析这次端口转发失败，并给出处理方案。"
       }
@@ -326,6 +320,43 @@
       "modelSource": {
         "sync": "远程同步",
         "manual": "手工添加"
+      }
+    },
+    "fileResource": {
+      "errorTitle": "引用的文件配置不可用",
+      "details": "已引用的文件连接",
+      "profile": "文件配置",
+      "session": "配置标识",
+      "aria": "已引用 {{host}} 的文件连接，{{status}}",
+      "tooltip": "文件连接 · {{host}} · {{status}}",
+      "selectLabel": "选择新的文件配置",
+      "selectPlaceholder": "选择可用的文件配置",
+      "noCandidates": "暂无其他可用文件配置",
+      "removeTitle": "解除文件连接引用？",
+      "removeDescription": "解除后，当前会话不再引用 {{host}} 的文件配置，草稿、附件和历史消息会保留。",
+      "confirmTitle": "替换文件连接引用？",
+      "confirmDescription": "将替换当前文件配置引用，终端连接引用和已有草稿会保留。",
+      "hint": {
+        "checking": "正在确认文件配置，确认完成前不会提交任务。",
+        "unavailable": "文件配置当前不可用，请更换配置或解除引用。原文件标签关闭或断开不会使引用失效。",
+        "stale": "文件配置已删除或配置归属已变化，请更换配置或解除引用。"
+      }
+    },
+    "connectionReference": {
+      "completed": "连接已关联",
+      "failed": "连接关联失败",
+      "confirmDescription": "将替换当前终端连接引用，文件连接引用和已有草稿会保留。",
+      "confirmReplace": "替换引用",
+      "retained": "已保留 {{host}} 的连接引用，请先完成 AI 助手配置。",
+      "completedDescription": "连接已关联到目标会话。",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "来源连接或配置已失效，请检查后重新引用。",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "目标会话已删除、归档或暂时不可用，请重新选择目标。",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "目标有运行中的任务或排队消息，暂时不能更换连接引用。",
+        "AGENT_REVISION_CONFLICT": "目标会话已被更新。已刷新状态，请重新尝试。",
+        "AGENT_RUN_CONFLICT": "目标正在运行，暂时无法修改关联。",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "引用的连接或配置当前不可用，请检查后替换或解除引用。",
+        "unknown": "连接关联未完成。请检查来源和目标会话后重试。"
       }
     },
     "resource": {

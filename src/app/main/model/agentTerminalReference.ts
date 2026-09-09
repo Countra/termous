@@ -1,4 +1,4 @@
-import { sameTerminalReferenceSource, type AgentReferenceTargetsSnapshot, type AgentSSHResourceState, type AgentTerminalReferenceLaunch } from '#entities/agent'
+import { getAgentResourceBinding, sameTerminalReferenceSource, type AgentReferenceTargetsSnapshot, type AgentSSHResourceState, type AgentTerminalReferenceLaunch } from '#entities/agent'
 import type { TerminalAIReferenceSelection, TerminalAIReferenceSnapshot } from '#features/terminal'
 
 export function projectTerminalAIReferenceSnapshot(
@@ -13,9 +13,10 @@ export function projectTerminalAIReferenceSnapshot(
     canReference: resourcesReady && source?.status === 'ready',
     source,
     targets: sessions.targets.map((target) => {
-      const same = target.resource_binding?.session_id === sourceSessionId
-        && target.resource_binding.host_id === source?.host_id
-        && target.resource_binding.ssh_profile_id === source?.ssh_profile_id
+      const binding = getAgentResourceBinding(target.resource_bindings, 'ssh_session')
+      const same = binding?.session_id === sourceSessionId
+        && binding.host_id === source?.host_id
+        && binding.ssh_profile_id === source?.ssh_profile_id
       const disabled = target.binding_locked && !same
       return {
         session_id: target.session_id,

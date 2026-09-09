@@ -1,7 +1,7 @@
 import { App as AntdApp, Button, Space } from 'antd'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentSSHResourceState } from '#entities/agent'
+import { getAgentResourceBinding, type AgentResourceState } from '#entities/agent'
 import type { AgentTerminalReferenceImportJob } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { AgentTerminalReferenceConfirmDialog } from './AgentTerminalReferenceConfirmDialog'
@@ -10,7 +10,7 @@ const COMPLETED_NOTICE_DURATION_SECONDS = 2
 
 export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, onRetry, onDismiss, onOpenSettings }: {
   job?: AgentTerminalReferenceImportJob
-  resources: AgentSSHResourceState[]
+  resources: AgentResourceState[]
   onConfirm: () => void
   onRetry: () => void
   onDismiss: () => void
@@ -29,14 +29,17 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
   const noticeStateRef = useRef<{
     key: string
     stage: AgentTerminalReferenceImportJob['stage'] | 'completed'
+    connection?: boolean
   } | undefined>(undefined)
   const failed = stage === 'failed'
   const configuration = stage === 'configuration'
   const canOpenSettings = Boolean(onOpenSettings)
-  const title = t(`agent.terminalReference.${failed ? 'failed' : 'configuration'}`)
-  const description = failed ? t(`agent.terminalReference.errors.${job?.errorCode}`, {
-    defaultValue: t('agent.terminalReference.errors.unknown'),
-  }) : t('agent.terminalReference.retained', { host: job?.request.source_resource.host_name })
+  const connection = job?.request.source === 'connection_reference'
+  const title = t(failed ? `agent.${connection ? 'connectionReference' : 'terminalReference'}.failed` : 'agent.terminalReference.configuration')
+  const errorNamespace = `agent.${connection ? 'connectionReference' : 'terminalReference'}.errors`
+  const description = failed ? t(`${errorNamespace}.${job?.errorCode}`, {
+    defaultValue: t(`${errorNamespace}.unknown`),
+  }) : t(connection ? 'agent.connectionReference.retained' : 'agent.terminalReference.retained', { host: job?.request.source_resource.host_name })
 
   useEffect(() => () => {
     // 离页立即清理当前提示，包括正在延迟收起的完成提示，不影响引用任务。
@@ -55,8 +58,8 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
           key: previous.key,
           placement: 'topRight',
           type: 'success',
-          title: t('agent.terminalReference.completed'),
-          description: t('agent.terminalReference.completedDescription'),
+          title: t(previous.connection ? 'agent.connectionReference.completed' : 'agent.terminalReference.completed'),
+          description: t(previous.connection ? 'agent.connectionReference.completedDescription' : 'agent.terminalReference.completedDescription'),
           duration: COMPLETED_NOTICE_DURATION_SECONDS,
           showProgress: false,
           role: 'status',
@@ -71,7 +74,7 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
       return
     }
     if (previous && previous.key !== notificationKey) notification.destroy(previous.key)
-    noticeStateRef.current = { key: notificationKey, stage }
+    noticeStateRef.current = { key: notificationKey, stage, connection }
     if (stage === 'pending' || stage === 'importing') {
       // 处理中仅记录任务状态以识别完成；重试或配置恢复时收起上一条结果提示。
       if (previous?.key === notificationKey && previous.stage !== 'pending' && previous.stage !== 'importing') {
@@ -114,10 +117,10 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
       ),
     })
     return () => { active = false }
-  }, [canOpenSettings, configuration, description, failed, notification, notificationKey, requestKey, stage, t, title])
+  }, [canOpenSettings, configuration, connection, description, failed, notification, notificationKey, requestKey, stage, t, title])
 
   return job?.stage === 'confirm' ? (
-    <AgentTerminalReferenceConfirmDialog binding={job.confirmation?.resource_binding}
-      source={job.request.source_resource} resources={resources} onConfirm={onConfirm} onCancel={onDismiss} />
+    <AgentTerminalReferenceConfirmDialog binding={getAgentResourceBinding(job.confirmation?.resource_bindings, job.request.resource_reference.kind)}
+      source={job.request.source_resource} resources={resources} connectionOnly={connection} onConfirm={onConfirm} onCancel={onDismiss} />
   ) : null
 }

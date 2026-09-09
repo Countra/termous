@@ -22,6 +22,34 @@ describe('AgentWorkspace', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['切换会话', '替换引用', '同源重新绑定'] as const)('%s 后关闭旧文件引用确认，保留草稿', async (change) => {
+    const context: NonNullable<AgentWorkspaceProps['resource_contexts']>[number] = {
+      binding: {
+        kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '文件配置',
+        host_id: 'host-one', host_name: '文件主机', ssh_profile_id: 'ssh-one', engine: 'sftp',
+        bound_at: '2026-09-09T01:00:00Z',
+      },
+      status: 'ready', candidates: [],
+    }
+    const props = fixtureProps({ draft: '保留用户草稿', resource_contexts: [context] })
+    const view = renderWorkspace(props)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.fileResource.aria' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.resource.remove' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.fileResource.removeTitle')
+
+    const changedContext = { ...context, binding: { ...context.binding,
+      ...(change === '替换引用' ? { file_access_profile_id: 'file-two' } : {}),
+      ...(change === '同源重新绑定' ? { bound_at: '2026-09-09T02:00:00Z' } : {}),
+    } }
+    view.rerender(<AntdApp><AgentWorkspace {...props}
+      selected_session_id={change === '切换会话' ? 'session-2' : props.selected_session_id}
+      sessions={[...props.sessions, { ...props.sessions[0]!, id: 'session-2' }]}
+      resource_contexts={[changedContext]} /></AntdApp>)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(props.onRemoveResourceBinding).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('agent.composer.placeholder')).toHaveValue('保留用户草稿')
+  })
+
   it('输入框回看当前会话用户文本，编辑后保留草稿而不再切换历史', () => {
     const props = fixtureProps({
       messages: [{

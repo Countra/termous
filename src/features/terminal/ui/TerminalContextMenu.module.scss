@@ -88,34 +88,6 @@
   pointer-events: none;
 }
 
-.reference-popup :global(.ant-dropdown-menu) {
-  width: min(320px, calc(100vw - 24px));
-  min-width: min(248px, calc(100vw - 24px));
-  max-height: min(360px, calc(100vh - 24px));
-  overflow: auto;
-  overscroll-behavior: contain;
-  background: var(--termous-dropdown-bg) !important;
-  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
-  scrollbar-width: thin;
-}
-
-.reference-popup :global(.ant-dropdown-menu-item-group-title) {
-  position: sticky;
-  z-index: 1;
-  top: -6px;
-  background: var(--termous-dropdown-bg);
-  padding: 4px 0 6px;
-}
-
-.reference-popup :global(.ant-dropdown-menu-item-group-list) {
-  margin: 0;
-}
-
-.reference-search {
-  width: 100%;
-  font: inherit;
-}
-
 .reference-target {
   display: grid;
   min-width: 0;

@@ -5,19 +5,6 @@ interface LaunchContextCopy {
   summary: string
 }
 
-interface WorkbenchLaunchInput extends LaunchContextCopy {
-  sessionId: string
-  hostId: string
-  sshProfileId: string
-  connectionStatus: string
-}
-
-interface FilesLaunchInput extends LaunchContextCopy {
-  hostId: string
-  fileAccessProfileId?: string
-  connectionStatus: string
-}
-
 interface HostProfileLaunchInput extends LaunchContextCopy {
   hostId: string
   profileKind?: 'ssh' | 'file' | 'remote_desktop'
@@ -37,37 +24,11 @@ export function assignAgentLaunchIntentKey(
   key: number,
 ): AgentLaunchIntent {
   switch (request.source) {
+    case 'connection_reference':
     case 'terminal_selection':
-    case 'workbench':
-    case 'files':
     case 'host_profile':
     case 'forward_failure':
       return { ...request, key }
-  }
-}
-
-export function buildWorkbenchAgentLaunchRequest(input: WorkbenchLaunchInput): Extract<AgentLaunchRequest, { source: 'workbench' }> {
-  return {
-    source: 'workbench',
-    host_id: input.hostId,
-    ssh_profile_id: input.sshProfileId,
-    connection_status: input.connectionStatus,
-    resource_reference: { kind: 'ssh_session', session_id: input.sessionId },
-    source_context: sourceContext('workbench', input.sshProfileId, input),
-  }
-}
-
-export function buildFilesAgentLaunchRequest(input: FilesLaunchInput): Extract<AgentLaunchRequest, { source: 'files' }> {
-  return {
-    source: 'files',
-    host_id: input.hostId,
-    file_access_profile_id: input.fileAccessProfileId,
-    connection_status: input.connectionStatus,
-    source_context: sourceContext(
-      'files',
-      input.fileAccessProfileId || input.hostId,
-      input,
-    ),
   }
 }
 

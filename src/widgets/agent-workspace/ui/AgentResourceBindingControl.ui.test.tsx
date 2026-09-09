@@ -93,12 +93,68 @@ describe('Agent SSH 资源绑定控件', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('ses-two'))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith({ kind: 'ssh_session', session_id: 'ses-two' }))
 
     fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'confirm-detach' }))
     await waitFor(() => expect(remove).toHaveBeenCalledOnce())
+  })
+
+  it('文件控件仅选择文件 Profile 并复用替换与解绑交互', async () => {
+    const replace = vi.fn().mockResolvedValue(true)
+    const remove = vi.fn().mockResolvedValue(true)
+    render(<AgentResourceBindingControl disabled={false} onReplace={replace} onRemove={remove}
+      context={{
+        binding: {
+          kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '应用文件',
+          host_id: 'host-one', ssh_profile_id: 'ssh-one', host_name: 'Production', engine: 'sftp',
+          bound_at: '2026-08-31T08:00:00Z',
+        },
+        status: 'ready',
+        candidates: [...resourceContext().candidates, {
+          file_access_profile_id: 'file-two', file_access_profile_name: '归档文件', engine: 'sftp',
+          host_id: 'host-two', ssh_profile_id: 'ssh-two', host_name: 'Archive', status: 'ready',
+        }],
+      }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /agent.fileResource.aria/ }))
+    expect(screen.getByRole('group', { name: 'agent.fileResource.details' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
+    expect(screen.queryByRole('button', { name: /Fallback/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Archive/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith({ kind: 'file_profile', file_access_profile_id: 'file-two' }))
+    fireEvent.click(screen.getByRole('button', { name: /agent.fileResource.aria/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-detach' }))
+    await waitFor(() => expect(remove).toHaveBeenCalledOnce())
+  })
+
+  it('相同文件 Profile 的关联身份变化后仍可显式重新绑定，确认前身份再变则清除选择', async () => {
+    const replace = vi.fn().mockResolvedValue(true)
+    const remove = vi.fn().mockResolvedValue(true)
+    const binding = {
+      kind: 'file_profile' as const, file_access_profile_id: 'file-one', file_access_profile_name: '应用文件',
+      host_id: 'host-one', ssh_profile_id: 'ssh-old', host_name: 'Production', engine: 'sftp' as const,
+      bound_at: '2026-08-31T08:00:00Z',
+    }
+    const candidate = { ...binding, ssh_profile_id: 'ssh-new', status: 'ready' as const }
+    const props = { disabled: false, onReplace: replace, onRemove: remove }
+    const view = render(<AgentResourceBindingControl {...props}
+      context={{ binding, status: 'stale', candidates: [candidate] }} />)
+    fireEvent.click(screen.getByRole('button', { name: /agent.fileResource.aria/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
+    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
+
+    view.rerender(<AgentResourceBindingControl {...props}
+      context={{ binding, status: 'stale', candidates: [{ ...candidate, ssh_profile_id: 'ssh-third' }] }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeDisabled()
+    expect(replace).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'file_profile', file_access_profile_id: 'file-one' }))
   })
 
   it('失效状态仍展示引用且活动任务期间禁止修改', () => {

@@ -33,14 +33,47 @@ test('Agent 会话严格解码可信 SSH 资源绑定', () => {
       bound_at: agentFixtureTime,
     },
   })
-  assert.equal(session.resource_binding?.session_id, 'ses-one')
+  assert.equal(session.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id, 'ses-one')
   assert.throws(() => decodeAgentSession({
     ...agentSessionFixture(),
     resource_binding: {
-      ...session.resource_binding,
+      ...session.resource_bindings?.find((binding) => binding.kind === 'ssh_session'),
       kind: 'file_session',
     },
   }), /绑定类型无效/)
+})
+
+test('Agent 双资源集合在 HTTP 和 Workspace 事件中采用同一合同', () => {
+  const bindings = [{
+    kind: 'ssh_session', session_id: 'ses-one', host_id: 'host-one', ssh_profile_id: 'ssh-one',
+    host_name: 'Production', platform: 'linux', bound_at: agentFixtureTime,
+  }, {
+    kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '应用文件',
+    host_id: 'host-two', ssh_profile_id: 'ssh-two', host_name: 'Files', engine: 'sftp', bound_at: agentFixtureTime,
+  }]
+  const response = { ...agentSessionFixture(), resource_bindings: bindings, resource_binding: bindings[0] }
+  const session = decodeAgentSession(response)
+  assert.deepEqual(session.resource_bindings, bindings)
+  assert.equal('resource_binding' in session, false)
+
+  const event = decodeAgentWorkspaceEvent({ type: 'upsert', revision: 2, session: response })
+  assert.equal(event.type, 'upsert')
+  assert.deepEqual(event.type === 'upsert' ? event.session?.resource_bindings : undefined, bindings)
+  assert.deepEqual(decodeAgentSession({ ...response, resource_bindings: [] }).resource_bindings, [])
+})
+
+test('Agent 资源集合拒绝重复类型、超过容量和混合身份字段', () => {
+  const file = {
+    kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '应用文件',
+    host_id: 'host-one', ssh_profile_id: 'ssh-one', host_name: 'Production', engine: 'sftp', bound_at: agentFixtureTime,
+  }
+  const decode = (bindings: unknown) => decodeAgentSession({ ...agentSessionFixture(), resource_bindings: bindings })
+  assert.throws(() => decode([file, { ...file, file_access_profile_id: 'file-two' }]), /绑定类型重复/)
+  assert.throws(() => decode([file, file, file]), /绑定集合无效/)
+  assert.throws(() => decode(null), /绑定集合无效/)
+  assert.throws(() => decode([{ ...file, session_id: 'original-file-tab' }]), /文件引用包含终端身份/)
+  assert.throws(() => decode([{ ...file, engine: 'unknown' }]), /文件引擎无效/)
+  assert.throws(() => decode([{ ...file, file_access_profile_id: '' }]), /文件 Profile ID 无效/)
 })
 
 test('Agent 资源绑定接受 Host 领域允许的多字节长名称', () => {
@@ -59,7 +92,7 @@ test('Agent 资源绑定接受 Host 领域允许的多字节长名称', () => {
     },
   })
 
-  assert.equal(session.resource_binding?.host_name, hostName)
+  assert.equal(session.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.host_name, hostName)
 })
 
 test('工作区协议接受 Core 新实例的 revision 0 权威快照', () => {

@@ -1,66 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   assignAgentLaunchIntentKey,
-  buildFilesAgentLaunchRequest,
   buildForwardFailureAgentLaunchRequest,
   buildHostProfileAgentLaunchRequest,
-  buildWorkbenchAgentLaunchRequest,
 } from './agentLaunchIntent.ts'
 
 describe('Agent 业务来源意图', () => {
-  it('为联合意图分配单调 key 时保持来源字段', () => {
-    const request = buildWorkbenchAgentLaunchRequest({
-      sessionId: 'ses_a',
-      hostId: 'hst_a',
-      sshProfileId: 'sap_a',
-      connectionStatus: 'connected',
-      title: '生产主机',
-      summary: 'SSH 已连接',
-    })
-
+  it('引用意图分配 key 后保留精确配置，不携带草稿来源说明', () => {
+    const request = {
+      source: 'connection_reference' as const, target: { kind: 'new' as const },
+      resource_reference: { kind: 'file_profile' as const, file_access_profile_id: 'file-one' },
+      source_resource: { file_access_profile_id: 'file-one', file_access_profile_name: '文件', host_id: 'host-one',
+        host_name: '主机', ssh_profile_id: 'ssh-one', engine: 'sftp' as const, status: 'ready' as const },
+    }
     expect(assignAgentLaunchIntentKey(request, 7)).toEqual({ ...request, key: 7 })
-  })
-
-  it('工作站同时投影展示上下文与精确 SSH Session 引用', () => {
-    expect(buildWorkbenchAgentLaunchRequest({
-      sessionId: 'ses_a',
-      hostId: 'hst_a',
-      sshProfileId: 'sap_a',
-      connectionStatus: 'connected',
-      title: '生产主机',
-      summary: 'SSH 已连接',
-    })).toEqual({
-      source: 'workbench',
-      host_id: 'hst_a',
-      ssh_profile_id: 'sap_a',
-      connection_status: 'connected',
-      resource_reference: { kind: 'ssh_session', session_id: 'ses_a' },
-      source_context: {
-        kind: 'workbench',
-        entity_id: 'sap_a',
-        title: '生产主机',
-        summary: 'SSH 已连接',
-      },
-    })
-  })
-
-  it('文件入口不携带 Renderer Session 或当前路径', () => {
-    const request = buildFilesAgentLaunchRequest({
-      hostId: 'hst_a',
-      fileAccessProfileId: 'fap_a',
-      connectionStatus: 'connected',
-      title: '生产文件',
-      summary: 'SFTP 已连接',
-    })
-
-    expect(request).toMatchObject({
-      source: 'files',
-      host_id: 'hst_a',
-      file_access_profile_id: 'fap_a',
-      connection_status: 'connected',
-    })
-    expect(request).not.toHaveProperty('file_session_id')
-    expect(request).not.toHaveProperty('path')
+    expect(request).not.toHaveProperty('source_context')
   })
 
   it('主机和 Profile 使用明确的稳定实体 ID', () => {

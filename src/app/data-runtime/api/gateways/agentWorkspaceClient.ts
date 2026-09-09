@@ -34,6 +34,7 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentSourceContext,
   AgentResourceBindingUpdateInput,
+  AgentResourceKind,
   AgentSessionInput,
   AgentSessionMetadataInput,
   AgentSessionMoveInput,
@@ -117,9 +118,9 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     }).then(decodeAgentSession)
   }
 
-  removeResourceBinding(id: string, expectedRevision: number, signal?: AbortSignal) {
+  removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session', signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding`, {
-      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
+      method: 'DELETE', body: { kind, expected_revision: expectedRevision }, signal,
     }).then(decodeAgentSession)
   }
 

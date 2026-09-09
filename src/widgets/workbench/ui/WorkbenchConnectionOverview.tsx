@@ -1,5 +1,5 @@
 import { Button } from 'antd'
-import { Bot, FolderOpen, Power, RotateCcw, Server } from 'lucide-react'
+import { FolderOpen, Power, RotateCcw, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ComponentProps } from 'react'
 import { HostAvatar } from '#entities/host'
@@ -9,10 +9,6 @@ import type { ConnectionProxy } from '#entities/connection-proxy'
 import type { Host, HostGroup } from '#entities/host'
 import type { Session } from '#entities/session'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
-import {
-  buildWorkbenchAgentLaunchRequest,
-  type AgentLaunchRequest,
-} from '#entities/agent'
 import styles from './WorkbenchDetails.module.scss'
 
 interface WorkbenchConnectionOverviewProps {
@@ -27,7 +23,6 @@ interface WorkbenchConnectionOverviewProps {
   onOpenFiles: (session: Session) => Promise<void>
   onReconnect: () => Promise<void>
   onClose: (sessionId: string) => Promise<boolean>
-  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface WorkbenchConnectionData {
@@ -50,7 +45,6 @@ export function WorkbenchConnectionOverview({
   onOpenFiles,
   onReconnect,
   onClose,
-  onLaunchAgent,
 }: WorkbenchConnectionOverviewProps) {
   const { t } = useTranslation()
   const host = session?.kind === 'ssh'
@@ -89,12 +83,6 @@ export function WorkbenchConnectionOverview({
     : t('fields.none')
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const canOpenFiles = session?.status === 'connected' && Boolean(session.host_id)
-  const readyAgentSession = session?.kind === 'ssh'
-    && session.status === 'connected'
-    && session.phase === 'ready'
-    && host.platform === 'linux'
-    ? session
-    : undefined
   const canReconnect = Boolean(session?.ssh_profile_id && sessionEnded)
 
   return (
@@ -172,21 +160,6 @@ export function WorkbenchConnectionOverview({
         </div>
       </dl>
       <div className={styles['current-connection-actions']}>
-        {onLaunchAgent ? <Button
-          className={`${uiStyles['secondary-button']} secondary-button`}
-          disabled={actionBusy || !readyAgentSession}
-          icon={<Bot size={16} />}
-          onClick={() => readyAgentSession && onLaunchAgent(buildWorkbenchAgentLaunchRequest({
-            sessionId: readyAgentSession.id,
-            hostId: host.id,
-            sshProfileId: sshProfile.id,
-            connectionStatus: session?.status ?? 'disconnected',
-            title: t('agent.launch.title.workbench', { name: host.name }),
-            summary: t('agent.launch.summary.workbench', { status: sessionStateLabel }),
-          }))}
-        >
-          {t('agent.launch.action')}
-        </Button> : null}
         <Button
           className={`${uiStyles['secondary-button']} secondary-button`}
           disabled={!canOpenFiles || actionBusy || !session}

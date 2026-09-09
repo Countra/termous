@@ -11,6 +11,7 @@ import type {
   AgentSessionMoveInput,
   AgentSessionUpdateInput,
   AgentResourceBindingUpdateInput,
+  AgentResourceKind,
   AgentSourceContext,
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
@@ -248,9 +249,8 @@ export class AgentWorkspaceController {
     return session
   }
 
-  async createSession(input: AgentSessionInput) {
+  async createSession(input: AgentSessionInput, selectionIntent = this.state.selection_intent_revision) {
     return await this.runMutation(async () => {
-      const selectionIntent = this.state.selection_intent_revision
       const session = await this.gateway.createSession(input)
       // 创建期间侧栏仍可操作，迟到回执只能合并实体，不能抢回用户的新选择。
       this.acceptSession(session, selectionIntent === this.state.selection_intent_revision)
@@ -945,9 +945,9 @@ export class AgentWorkspaceController {
     })
   }
 
-  async removeResourceBinding(id: string, expectedRevision: number) {
+  async removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session') {
     return await this.runMutation(async () => {
-      const session = await this.gateway.removeResourceBinding(id, expectedRevision)
+      const session = await this.gateway.removeResourceBinding(id, expectedRevision, kind)
       this.acceptSession(session)
       return session
     })

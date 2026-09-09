@@ -76,9 +76,12 @@ export class AgentRuntimeProtocolError extends Error {
 
 export function decodeAgentSession(value: unknown): AgentSession {
   const source = record(value, 'Agent 会话响应无效')
-  const resourceBinding = source.resource_binding === undefined
-    ? undefined
-    : decodeAgentResourceBinding(source.resource_binding)
+  // 旧 Core 的单引用仅在协议边界转换；应用内部始终使用集合。
+  const bindings = source.resource_bindings === undefined
+    ? (source.resource_binding === undefined ? [] : [source.resource_binding])
+    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 2)
+  const resourceBindings = bindings.map(decodeAgentResourceBinding)
+  unique(resourceBindings.map(({ kind }) => kind), 'Agent 资源绑定类型重复')
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
@@ -93,7 +96,7 @@ export function decodeAgentSession(value: unknown): AgentSession {
     revision: positiveInteger(source.revision, 'Agent 会话 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 会话创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 会话更新时间无效'),
-    ...(resourceBinding ? { resource_binding: resourceBinding } : {}),
+    resource_bindings: resourceBindings,
   }
 }
 
@@ -135,14 +138,27 @@ export function decodeAgentSessionMoveResult(value: unknown): { items: AgentSess
 
 export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding {
   const source = record(value, 'Agent 资源绑定响应无效')
-  return {
-    kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效'),
-    session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
+  const kind = enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效')
+  const common = {
     host_id: identifier(source.host_id, 'Agent 资源 Host ID 无效'),
     ssh_profile_id: identifier(source.ssh_profile_id, 'Agent 资源 SSH Profile ID 无效'),
     host_name: utf8(source.host_name, 'Agent 资源主机名称无效', 1_024),
-    platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
     bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效'),
+  }
+  if (kind === 'file_profile') {
+    if (source.session_id !== undefined || source.platform !== undefined) throw new AgentRuntimeProtocolError('文件引用包含终端身份')
+    return { ...common, kind,
+      file_access_profile_id: identifier(source.file_access_profile_id, 'Agent 文件 Profile ID 无效'),
+      file_access_profile_name: utf8(source.file_access_profile_name, 'Agent 文件配置名称无效', 1_024),
+      engine: enumValue(source.engine, ['sftp'] as const, 'Agent 文件引擎无效'),
+    }
+  }
+  if (source.file_access_profile_id !== undefined || source.file_access_profile_name !== undefined || source.engine !== undefined) {
+    throw new AgentRuntimeProtocolError('终端引用包含文件身份')
+  }
+  return { ...common, kind,
+    session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
+    platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
   }
 }
 

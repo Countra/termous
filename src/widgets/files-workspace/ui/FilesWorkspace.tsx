@@ -7,7 +7,6 @@ import {
   ArrowUp,
   Activity,
   Bookmark,
-  Bot,
   Check,
   ChevronRight,
   CheckCircle2,
@@ -58,10 +57,7 @@ import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton,
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
-import {
-  buildFilesAgentLaunchRequest,
-  type AgentLaunchRequest,
-} from '#entities/agent'
+import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { ThemeMode } from '#shared/theme'
 import type {
   FileBookmark,
@@ -197,7 +193,7 @@ export interface FilesWorkspaceBookmarkManagementIntent {
   fileSessionId: string
 }
 
-export interface FilesWorkspaceProps {
+export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
   fileGateway: FileGateway
   automaticRemoteRequestsEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
@@ -225,7 +221,6 @@ export interface FilesWorkspaceProps {
   onUpdateLocalPathMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
   onDeleteLocalPathMapping: (id: string) => Promise<void>
   onReorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
-  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface RemoteClipboard {
@@ -378,7 +373,8 @@ function FilesWorkspaceContent({
   onUpdateLocalPathMapping,
   onDeleteLocalPathMapping,
   onReorderLocalPathMappings,
-  onLaunchAgent,
+  getAgentConnectionReferenceSnapshot,
+  onReferenceAgentConnection,
 }: FilesWorkspaceProps) {
   const { t } = useTranslation()
   const api = fileGateway
@@ -3250,6 +3246,8 @@ function FilesWorkspaceContent({
                 const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
                 return (
                   <FileSessionTab
+                    getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                    onReferenceAgentConnection={onReferenceAgentConnection}
                     key={fileSession.id}
                     fileSession={fileSession}
                     host={host}
@@ -3473,29 +3471,6 @@ function FilesWorkspaceContent({
                       }}
                     />
                   </Tooltip>
-                  {onLaunchAgent ? <Tooltip title={t('agent.launch.action')}>
-                    <Button
-                      type="text"
-                      className={styles['files-path-action']}
-                      aria-label={t('agent.launch.action')}
-                      disabled={!activeFileSession}
-                      icon={<Bot size={14} aria-hidden="true" />}
-                      onClick={() => {
-                        if (!activeFileSession) return
-                        onLaunchAgent(buildFilesAgentLaunchRequest({
-                          hostId: activeFileSession.host_id,
-                          fileAccessProfileId: activeFileSession.file_access_profile_id,
-                          connectionStatus: activeFileSession.status,
-                          title: t('agent.launch.title.files', {
-                            name: activeFileSessionHost?.name ?? t('nav.files'),
-                          }),
-                          summary: t('agent.launch.summary.files', {
-                            status: t(`files.sessionStatus.${activeFileSession.status}`),
-                          }),
-                        }))
-                      }}
-                    />
-                  </Tooltip> : null}
                 </>
               )}
               <span className={styles['files-path-action-divider']} aria-hidden="true" />

@@ -3,6 +3,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { useTranslation } from 'react-i18next'
 import {
   isAgentModelRunnable,
+  resourceBindingMatchesSource,
+  resourceReference,
+  type AgentResourceBinding,
+  type AgentResourceState,
+  type AgentFileResourceState,
   type AgentLaunchIntent,
   type AgentModel,
   type AgentModelProvider,
@@ -10,7 +15,7 @@ import {
   type AgentReasoningLevel,
   type AgentReadiness,
   type AgentReferenceTargetsSnapshot,
-  type AgentTerminalReferenceLaunch,
+  type AgentResourceReferenceLaunch,
   type AgentSession,
   type AgentSSHResourceState,
   type AgentSourceContext,
@@ -59,6 +64,7 @@ export function AgentPage({
   setupGateway,
   sshResources = [],
   sshResourcesReady = false,
+  fileResources = [],
   enabled,
   active,
   launchIntent,
@@ -71,6 +77,7 @@ export function AgentPage({
   setupGateway: AgentSetupGateway
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
+  fileResources?: AgentFileResourceState[]
   enabled: boolean
   active: boolean
   launchIntent?: AgentLaunchIntent | null
@@ -347,6 +354,7 @@ export function AgentPage({
     sourceContext?: AgentSourceContext,
     resourceReference?: AgentResourceReference,
     automaticTitle = false,
+    selectionRevision = controller.getSnapshot().selection_intent_revision,
   ) => {
     const modelId = newSessionModelId
     if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
@@ -354,7 +362,6 @@ export function AgentPage({
     if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
       throw new Error('AGENT_MODEL_UNAVAILABLE')
     }
-    const selectionRevision = controller.getSnapshot().selection_intent_revision
     const session = await controller.createSession({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
       group_id: sourceContext || resourceReference ? undefined : draftGroupId,
@@ -362,7 +369,7 @@ export function AgentPage({
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
       resource_reference: resourceReference,
-    })
+    }, selectionRevision)
     const current = controller.getSnapshot()
     if (current.selected_session_id === session.id && current.selection_intent_revision === selectionRevision + 1
       && !sourceContext && !resourceReference) setDraftGroupId(undefined)
@@ -382,7 +389,6 @@ export function AgentPage({
 
   const createIndependentDraftSession = useCallback(async (
     sourceContext: AgentSourceContext,
-    resourceReference?: AgentResourceReference,
   ) => {
     const pendingAttachmentSession = attachmentDraftSessionPromiseRef.current
     if (pendingAttachmentSession) {
@@ -392,7 +398,7 @@ export function AgentPage({
         // 附件草稿创建失败不应阻止业务入口随后创建独立会话。
       }
     }
-    return createDraftSession(sourceContext, resourceReference)
+    return createDraftSession(sourceContext)
   }, [createDraftSession])
 
   const ensureAttachmentSession = useCallback(async () => {
@@ -507,32 +513,36 @@ export function AgentPage({
     })),
     [selectedDraftAttachmentRecords],
   )
-  const resourceBinding = selected?.resource_binding
-  const resourceContext = useMemo(
-    () => resourceBinding
-      ? projectResourceContext(
-          resourceBinding,
-          sshResources,
-          sshResourcesReady && state.snapshot_complete,
-        )
-      : undefined,
-    [resourceBinding, sshResources, sshResourcesReady, state.snapshot_complete],
+  const resources = useMemo(() => [...sshResources, ...fileResources], [sshResources, fileResources])
+  const resourceContexts = useMemo(
+    () => (selected?.resource_bindings ?? []).map((binding) => projectResourceContext(
+      binding, resources, sshResourcesReady && state.snapshot_complete,
+    )),
+    [selected?.resource_bindings, resources, sshResourcesReady, state.snapshot_complete],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
-  const createReferenceSession = useCallback(async (request: AgentTerminalReferenceLaunch) => {
-    if (attachmentDraftSessionPromiseRef.current) {
-      await attachmentDraftSessionPromiseRef.current.catch(() => undefined)
+  const createReferenceSession = useCallback(async (request: AgentResourceReferenceLaunch) => {
+    let selectionRevision = controller.getSnapshot().selection_intent_revision
+    const pendingAttachment = attachmentDraftSessionPromiseRef.current
+    if (pendingAttachment) {
+      const attachmentSession = await pendingAttachment.catch(() => undefined)
+      const current = controller.getSnapshot()
+      // 附件会话自动选中仍属于原发起动作；等待期间的用户选择不得被后续创建覆盖。
+      if (attachmentSession && current.selected_session_id === attachmentSession.id
+        && current.selection_intent_revision === selectionRevision + 1) {
+        selectionRevision = current.selection_intent_revision
+      }
     }
-    return createDraftSession(undefined, request.resource_reference, true)
-  }, [createDraftSession])
+    return createDraftSession(undefined, request.resource_reference, true, selectionRevision)
+  }, [controller, createDraftSession])
   const referenceImport = useAgentTerminalReferenceImport({
-    intent: launchIntent?.source === 'terminal_selection' ? launchIntent : undefined,
+    intent: launchIntent?.source === 'terminal_selection' || launchIntent?.source === 'connection_reference' ? launchIntent : undefined,
     controller,
     active,
     ready: enabled && activeSetupReady && state.snapshot_complete,
     modelReady: newSessionModelRunnable,
     resourcesReady: sshResourcesReady,
-    resources: sshResources,
+    resources,
     createSession: createReferenceSession,
     getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',
     addReference: (sessionId, request, ownerId) => {
@@ -546,7 +556,7 @@ export function AgentPage({
     onFocus: () => setComposerFocusKey((current) => current + 1),
   })
   const referenceNotice = active ? (
-    <AgentTerminalReferenceImportNotice job={referenceImport.current} resources={sshResources}
+    <AgentTerminalReferenceImportNotice job={referenceImport.current} resources={resources}
       onConfirm={referenceImport.confirm} onRetry={referenceImport.retry} onDismiss={referenceImport.dismiss}
       onOpenSettings={onOpenSettings} />
   ) : null
@@ -559,13 +569,10 @@ export function AgentPage({
 
   useEffect(() => {
     if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
-    if (launchIntent.source === 'terminal_selection') return
+    if (launchIntent.source === 'terminal_selection' || launchIntent.source === 'connection_reference') return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
-    const resourceReference = launchIntent.source === 'workbench'
-      ? launchIntent.resource_reference
-      : undefined
-    void createIndependentDraftSession(launchIntent.source_context, resourceReference).then((session) => {
+    void createIndependentDraftSession(launchIntent.source_context).then((session) => {
       const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
       controller.updateDraft(session.id, prompt)
       setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
@@ -618,7 +625,7 @@ export function AgentPage({
     )
   }
 
-  const resourceRunBlocked = Boolean(resourceContext && resourceContext.status !== 'ready')
+  const resourceRunBlocked = resourceContexts.some(({ status }) => status !== 'ready')
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
@@ -775,7 +782,7 @@ export function AgentPage({
           state.runtime_status,
         )}
         resource_run_blocked={resourceRunBlocked}
-        resource_context={resourceContext}
+        resource_contexts={resourceContexts}
         onCreateSession={(groupId) => {
           controller.selectSession(undefined)
           setDraftGroupId(groupId)
@@ -931,7 +938,7 @@ export function AgentPage({
               throw error
             }
             clearCommittedDraft()
-          }, resourceContext ? 'resource' : 'generic')
+          }, resourceContexts.length ? 'resource' : 'generic')
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun(), 'generic', 'stop') }}
         onContextCompressionPendingChange={(enabled) => {
@@ -955,7 +962,7 @@ export function AgentPage({
             }
             draftAttachments.clearCommitted(selected.id, attachmentIds ?? [])
             setDraftSourceContexts((contexts) => omitKey(contexts, selected.id))
-          }, resourceContext ? 'resource' : 'generic', 'queue')
+          }, resourceContexts.length ? 'resource' : 'generic', 'queue')
         }}
         onBeginQueuedTurnEdit={async (turnId) => {
           if (selected) await perform(
@@ -1016,22 +1023,24 @@ export function AgentPage({
           if (selected) void controller.reloadUsage(selected.id)
         }}
         onApprovalModeChange={changeApprovalMode}
-        onReplaceResourceBinding={async (sessionId) => {
+        onReplaceResourceBinding={async (reference) => {
           if (!selected) return false
           return await performResourceMutation(selected.id, async () => {
             await controller.replaceResourceBinding(selected.id, {
-              kind: 'ssh_session',
-              session_id: sessionId,
+              ...reference,
               expected_revision: selected.revision,
             })
           })
         }}
-        onRemoveResourceBinding={async () => {
+        onRemoveResourceBinding={async (kind) => {
           if (!selected) return false
-          return await performResourceMutation(
+          const removed = await performResourceMutation(
             selected.id,
-            () => controller.removeResourceBinding(selected.id, selected.revision),
+            () => controller.removeResourceBinding(selected.id, selected.revision, kind),
           )
+          if (removed) setDraftSourceContexts((contexts) => contexts[selected.id]?.kind === (kind === 'ssh_session' ? 'workbench' : 'files')
+            ? omitKey(contexts, selected.id) : contexts)
+          return removed
         }}
       />
       <AgentArchiveManager
@@ -1099,21 +1108,20 @@ function updateInput(session: AgentSession, archived: boolean) {
 }
 
 function projectResourceContext(
-  binding: NonNullable<AgentSession['resource_binding']>,
-  resources: AgentSSHResourceState[],
+  binding: AgentResourceBinding,
+  resources: AgentResourceState[],
   snapshotReady: boolean,
 ): AgentWorkspaceResourceContext {
-  const live = resources.find(({ session_id }) => session_id === binding.session_id)
-  const identityMatches = live
-    && live.host_id === binding.host_id
-    && live.ssh_profile_id === binding.ssh_profile_id
+  const live = resources.find((source) => resourceBindingMatchesSource(binding, source))
+  const identityMatches = Boolean(live)
   return {
     binding,
-    status: !snapshotReady ? 'checking' : !identityMatches ? 'stale' : live.status,
+    status: !snapshotReady ? 'checking' : !live ? 'stale' : live.status,
     ...(identityMatches ? { live_resource: live } : {}),
     candidates: resources
-      .filter(({ status }) => status === 'ready')
-      .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at)),
+      .filter((source) => source.status === 'ready' && resourceReference(source).kind === binding.kind)
+      .sort((left, right) => 'started_at' in left && 'started_at' in right
+        ? Date.parse(right.started_at) - Date.parse(left.started_at) : left.host_name.localeCompare(right.host_name)),
   }
 }
 
@@ -1157,8 +1165,8 @@ function notifyError(
     const resourceError = resolveAgentResourceError(error)
     if (resourceError.kind === 'unavailable') {
       notification.error({
-        title: t('agent.resource.error.unavailableTitle'),
-        description: t(`agent.resource.error.reason.${resourceError.reason}`),
+        title: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.errorTitle' : 'agent.resource.error.unavailableTitle'),
+        description: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.hint.stale' : `agent.resource.error.reason.${resourceError.reason}`),
         className: termousNotificationClassName,
       })
       return

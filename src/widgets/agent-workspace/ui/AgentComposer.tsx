@@ -2,6 +2,7 @@ import { ArrowUp, Check, CornerDownLeft, Eye, FileCode2, Paperclip, Pencil, Refr
 import { Button, Input, Tooltip, type GetRef } from 'antd'
 import { memo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { agentResourceBindingKey } from '#entities/agent'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
@@ -38,7 +39,7 @@ export const AgentComposer = memo(function AgentComposer({
   stopDisabled,
   submitDisabled,
   sourceContext,
-  resourceContext,
+  resourceContexts = [],
   resourceChangeDisabled,
   attachments,
   queuedTurns,
@@ -94,7 +95,7 @@ export const AgentComposer = memo(function AgentComposer({
   stopDisabled: boolean
   submitDisabled: boolean
   sourceContext?: AgentSourceContext
-  resourceContext?: AgentWorkspaceResourceContext
+  resourceContexts?: AgentWorkspaceResourceContext[]
   resourceChangeDisabled: boolean
   attachments: AgentWorkspaceDraftAttachment[]
   queuedTurns: AgentWorkspaceProps['queued_turns']
@@ -141,8 +142,8 @@ export const AgentComposer = memo(function AgentComposer({
   onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
   onResetResponseOptions: () => void
   onOpenSettings: () => void
-  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
-  onRemoveResourceBinding: () => Promise<boolean>
+  onReplaceResourceBinding: AgentWorkspaceProps['onReplaceResourceBinding']
+  onRemoveResourceBinding: AgentWorkspaceProps['onRemoveResourceBinding']
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -166,7 +167,9 @@ export const AgentComposer = memo(function AgentComposer({
   const retainedAttachments = editingTurn?.attachments.filter(({ id }) => (
     queuedTurnEdit?.retained_attachment_ids.includes(id)
   )) ?? []
-  const effectiveSourceContext = editing ? editingTurn?.source_context : sourceContext
+  const rawSourceContext = editing ? editingTurn?.source_context : sourceContext
+  // 旧连接来源说明不再作为草稿或附件；连接展示统一由持久化引用驱动。
+  const effectiveSourceContext = rawSourceContext?.kind === 'workbench' || rawSourceContext?.kind === 'files' ? undefined : rawSourceContext
   const attachmentsPending = attachments.some(({ phase }) => phase !== 'ready')
   const unsupportedImages = !supportsImages && attachments.some(({ kind, phase }) => kind === 'image' && phase === 'ready')
   const attachmentInputDisabled = disabled || attachments.length + retainedAttachments.length >= 8
@@ -176,8 +179,8 @@ export const AgentComposer = memo(function AgentComposer({
     inputHistoryNavigation.reset()
     const attachmentIds = attachments.flatMap(({ attachment }) => attachment ? [attachment.id] : [])
     if (editing) onSaveQueuedTurnEdit(attachmentIds)
-    else if (queueMode) onQueueTurn(inputValue, attachmentIds, sourceContext)
-    else onSend(inputValue, attachmentIds, sourceContext)
+    else if (queueMode) onQueueTurn(inputValue, attachmentIds, effectiveSourceContext)
+    else onSend(inputValue, attachmentIds, effectiveSourceContext)
   }
   return (
     <div className={styles.composer}>
@@ -202,16 +205,17 @@ export const AgentComposer = memo(function AgentComposer({
             </Button>
           </div>
         ) : null}
-        {resourceContext || effectiveSourceContext || attachments.length > 0 || retainedAttachments.length > 0 ? (
+        {resourceContexts.length > 0 || effectiveSourceContext || attachments.length > 0 || retainedAttachments.length > 0 ? (
           <div className={styles['composer-tray']}>
-            {resourceContext ? (
+            {resourceContexts.map((resourceContext) => (
               <AgentResourceBindingControl
+                key={`${sessionKey}:${agentResourceBindingKey(resourceContext.binding)}`}
                 context={resourceContext}
                 disabled={resourceChangeDisabled}
                 onReplace={onReplaceResourceBinding}
-                onRemove={onRemoveResourceBinding}
+                onRemove={() => onRemoveResourceBinding(resourceContext.binding.kind)}
               />
-            ) : null}
+            ))}
             {effectiveSourceContext ? (
               <div className={styles['source-context']}>
                 <Waypoints size={13} aria-hidden="true" />

@@ -70,8 +70,12 @@ import {
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentReferenceTargetsSnapshot,
+  type AgentResourceReference,
+  type AgentResourceState,
+  type AgentReferenceTarget,
 } from '#entities/agent'
 import { buildTerminalReferenceLaunch, projectTerminalAIReferenceSnapshot } from './model/agentTerminalReference.ts'
+import { buildConnectionReferenceLaunch, projectAgentFileResources, projectConnectionReferenceSnapshot } from './model/agentConnectionReference.ts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
@@ -476,6 +480,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       })
     }
   }, [agentSSHResources, launchAgent, notification, t])
+  const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
+    [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
+  const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
+  const referenceAgentConnection = useCallback((source: AgentResourceState, target: AgentReferenceTarget) => {
+    try {
+      launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
+    } catch (error) {
+      notification.warning({ title: t('agent.connectionReference.failed'),
+        description: t(`agent.connectionReference.errors.${error instanceof Error ? error.message : 'unknown'}`, {
+          defaultValue: t('agent.connectionReference.errors.unknown'),
+        }), className: termousNotificationClassName })
+    }
+  }, [agentResources, launchAgent, notification, t])
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
   const hostAccessGateway = useMemo<HostAccessWorkspaceGateway & HostProvisionGateway>(() => ({
@@ -1132,6 +1149,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
+  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentResourceReference) => projectConnectionReferenceSnapshot(
+    reference, agentResources, agentReferenceTargets, agentReferenceResourcesReady,
+  ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady])
   const productTourBlocked = !productTourReady
     || actionBusy
     || hostSaving
@@ -1302,8 +1322,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-                          onLaunchAgent={launchAgent}
                           onOpenAgentSettings={openAgentSettings}
+                          onLaunchAgent={launchAgent}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
                           getAgentReferenceSnapshot={getAgentReferenceSnapshot}
                           onReferenceTerminalSelection={referenceTerminalSelection}
                         />
@@ -1317,6 +1339,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
+                          fileResources={agentFileResources}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
@@ -1431,7 +1454,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onUpdateLocalPathMapping={actions.updateLocalPathMapping}
                           onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
                           onReorderLocalPathMappings={actions.reorderLocalPathMappings}
-                          onLaunchAgent={launchAgent}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
                         />
                       ) : null}
 

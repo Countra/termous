@@ -1,8 +1,10 @@
 import { Button, Select, Tooltip } from 'antd'
-import { Check, Link2Off, RefreshCw, TerminalSquare } from 'lucide-react'
+import { Check, FolderOpen, Link2Off, RefreshCw, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog, FilterPopover, uiStyles } from '#shared/ui'
+import { resourceReference, resourceReferenceId, resourceProfileName, resourceBindingMatchesSource, sameAgentResourceSource,
+  type AgentResourceReference, type AgentResourceState } from '#entities/agent'
 import type { AgentWorkspaceResourceContext } from '../model/types.ts'
 import styles from './AgentResourceBindingControl.module.scss'
 
@@ -16,7 +18,7 @@ export function AgentResourceBindingControl({
 }: {
   context: AgentWorkspaceResourceContext
   disabled: boolean
-  onReplace: (sessionId: string) => Promise<boolean>
+  onReplace: (reference: AgentResourceReference) => Promise<boolean>
   onRemove: () => Promise<boolean>
 }) {
   const { t, i18n } = useTranslation()
@@ -26,29 +28,36 @@ export function AgentResourceBindingControl({
   const [editing, setEditing] = useState(false)
   const [detachOpen, setDetachOpen] = useState(false)
   const [pending, setPending] = useState(false)
-  const [candidateId, setCandidateId] = useState<string>()
+  const [candidateSource, setCandidateSource] = useState<AgentResourceState>()
+  const bindingId = resourceReferenceId(resourceReference(context.binding))
+  const file = context.binding.kind === 'file_profile'
+  const ResourceIcon = file ? FolderOpen : TerminalSquare
+  const copy = file ? 'agent.fileResource' : 'agent.resource'
   const candidates = useMemo(
-    () => context.candidates.filter(({ session_id }) => session_id !== context.binding.session_id),
-    [context.binding.session_id, context.candidates],
+    () => context.candidates.filter((candidate) => resourceReference(candidate).kind === context.binding.kind
+      && !resourceBindingMatchesSource(context.binding, candidate)),
+    [context.binding, context.candidates],
   )
+  const candidate = candidateSource && candidates.find((source) => sameAgentResourceSource(candidateSource, source))
+  const candidateId = candidate ? resourceReferenceId(resourceReference(candidate)) : undefined
 
   useEffect(() => {
     if (!open) {
       setEditing(false)
-      setCandidateId(undefined)
+      setCandidateSource(undefined)
     }
   }, [open])
 
   useEffect(() => {
-    if (candidateId && !candidates.some(({ session_id }) => session_id === candidateId)) {
-      setCandidateId(undefined)
+    if (candidateSource && !candidate) {
+      setCandidateSource(undefined)
     }
-  }, [candidateId, candidates])
+  }, [candidateSource, candidate])
 
   useEffect(() => {
     if (!disabled || pending) return
     setEditing(false)
-    setCandidateId(undefined)
+    setCandidateSource(undefined)
     setDetachOpen(false)
   }, [disabled, pending])
 
@@ -67,27 +76,27 @@ export function AgentResourceBindingControl({
     }
   }
   const live = context.live_resource
-  const candidateReady = candidates.some(({ session_id }) => session_id === candidateId)
+  const candidateReady = Boolean(candidate)
   const statusLabel = t(`agent.resource.status.${context.status}`)
-  const sessionLabel = shortID(context.binding.session_id)
+  const sessionLabel = shortID(bindingId)
   const handlePopoverOpenChange = (nextOpen: boolean) => {
     suppressTooltip()
     setOpen(nextOpen)
   }
   const content = (
-    <div className={styles.popover} role="group" aria-label={t('agent.resource.details')}>
+    <div className={styles.popover} role="group" aria-label={t(`${copy}.details`)}>
       <div className={styles.heading}>
-        <span className={styles.icon}><TerminalSquare size={17} aria-hidden="true" /></span>
+        <span className={styles.icon}><ResourceIcon size={17} aria-hidden="true" /></span>
         <span><strong>{context.binding.host_name}</strong><small>{statusLabel}</small></span>
       </div>
       <dl className={styles.details}>
         <div><dt>{t('agent.resource.host')}</dt><dd>{live?.host_name ?? context.binding.host_name}</dd></div>
-        <div><dt>{t('agent.resource.profile')}</dt><dd>{live?.ssh_profile_name ?? context.binding.ssh_profile_id}</dd></div>
-        <div><dt>{t('agent.resource.session')}</dt><dd title={context.binding.session_id}>{sessionLabel}</dd></div>
+        <div><dt>{t(`${copy}.profile`)}</dt><dd>{live ? resourceProfileName(live) : context.binding.kind === 'file_profile' ? context.binding.file_access_profile_name : context.binding.ssh_profile_id}</dd></div>
+        <div><dt>{t(`${copy}.session`)}</dt><dd title={bindingId}>{sessionLabel}</dd></div>
         <div><dt>{t('agent.resource.boundAt')}</dt><dd>{formatDate(context.binding.bound_at, i18n.language)}</dd></div>
       </dl>
       {context.status !== 'ready' ? (
-        <p className={styles.warning} role="status">{t(`agent.resource.hint.${context.status}`)}</p>
+        <p className={styles.warning} role="status">{t(`${copy}.hint.${context.status}`)}</p>
       ) : null}
       {editing ? (
         <div className={styles.rebind}>
@@ -95,14 +104,16 @@ export function AgentResourceBindingControl({
             value={candidateId}
             className={styles.select}
             disabled={pending || disabled}
-            placeholder={t('agent.resource.selectPlaceholder')}
-            aria-label={t('agent.resource.selectLabel')}
+            placeholder={t(`${copy}.selectPlaceholder`)}
+            aria-label={t(`${copy}.selectLabel`)}
             options={candidates.map((candidate) => ({
-              value: candidate.session_id,
-              label: `${candidate.host_name} · ${candidate.ssh_profile_name} · ${formatCandidateTime(candidate.started_at, i18n.language)} · ${shortID(candidate.session_id)}`,
+              value: resourceReferenceId(resourceReference(candidate)),
+              label: [candidate.host_name, resourceProfileName(candidate),
+                ...('started_at' in candidate ? [formatCandidateTime(candidate.started_at, i18n.language)] : []),
+                shortID(resourceReferenceId(resourceReference(candidate)))].join(' · '),
             }))}
-            notFoundContent={t('agent.resource.noCandidates')}
-            onChange={setCandidateId}
+            notFoundContent={t(`${copy}.noCandidates`)}
+            onChange={(id: string) => setCandidateSource(candidates.find((source) => resourceReferenceId(resourceReference(source)) === id))}
           />
           <div className={styles['rebind-actions']}>
             <Button size="small" disabled={pending} onClick={() => setEditing(false)}>{t('app.cancel')}</Button>
@@ -112,9 +123,9 @@ export function AgentResourceBindingControl({
               icon={<Check size={13} />}
               loading={pending}
               disabled={!candidateReady || disabled}
-              onClick={() => candidateId && candidateReady && void run(
-                () => onReplace(candidateId),
-                () => { setOpen(false); setEditing(false); setCandidateId(undefined) },
+              onClick={() => candidate && void run(
+                () => onReplace(resourceReference(candidate)),
+                () => { setOpen(false); setEditing(false); setCandidateSource(undefined) },
               )}
             >{t('agent.resource.confirmReplace')}</Button>
           </div>
@@ -147,7 +158,7 @@ export function AgentResourceBindingControl({
   return (
     <>
       <Tooltip
-        title={t('agent.resource.tooltip', { host: context.binding.host_name, status: statusLabel })}
+        title={t(`${copy}.tooltip`, { host: context.binding.host_name, status: statusLabel })}
         open={tooltipOpen && !open && !detachOpen && !pending}
         mouseEnterDelay={0.45}
         mouseLeaveDelay={0}
@@ -173,7 +184,7 @@ export function AgentResourceBindingControl({
             type="button"
             className={styles.chip}
             data-resource-status={context.status}
-            aria-label={t('agent.resource.aria', {
+            aria-label={t(`${copy}.aria`, {
               host: context.binding.host_name,
               status: statusLabel,
             })}
@@ -185,7 +196,7 @@ export function AgentResourceBindingControl({
             }}
             onClick={suppressTooltip}
           >
-            <TerminalSquare size={14} aria-hidden="true" />
+            <ResourceIcon size={14} aria-hidden="true" />
             <span>{context.binding.host_name}</span>
             <i aria-hidden="true" />
           </button>
@@ -193,8 +204,8 @@ export function AgentResourceBindingControl({
       </Tooltip>
       <ConfirmDialog
         open={detachOpen && !disabled}
-        title={t('agent.resource.removeTitle')}
-        description={t('agent.resource.removeDescription', { host: context.binding.host_name })}
+        title={t(`${copy}.removeTitle`)}
+        description={t(`${copy}.removeDescription`, { host: context.binding.host_name })}
         confirmLabel={t('agent.resource.remove')}
         confirmLoading={pending}
         onCancel={() => setDetachOpen(false)}

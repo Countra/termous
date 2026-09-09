@@ -8,7 +8,7 @@ export interface AgentReferenceTargetSummary {
   title: string
   pinned?: boolean
   last_activity_at?: string
-  resource_binding?: AgentResourceBinding
+  resource_bindings?: AgentResourceBinding[]
   binding_locked: boolean
 }
 

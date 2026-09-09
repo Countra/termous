@@ -151,12 +151,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           stopDisabled={props.stop_busy}
           submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
           sourceContext={props.draft_source_context}
-          resourceContext={props.resource_context}
+          resourceContexts={props.resource_contexts}
           resourceChangeDisabled={props.busy
             || queueMode
             || Boolean(props.active_run)
             || Boolean(queuedSessionElsewhere)
-            || props.resource_context?.status === 'checking'}
+            || props.resource_contexts?.some(({ status }) => status === 'checking') === true}
           attachments={props.draft_attachments}
           queuedTurns={props.queued_turns}
           queueState={props.queue_state}

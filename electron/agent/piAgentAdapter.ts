@@ -24,7 +24,7 @@ import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory
 import type {
   RuntimeBootstrap,
   RuntimeMessagePart,
-  RuntimeSSHResourceBinding,
+  RuntimeResourceBinding,
 } from './workerCoreClient.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { hydrateRuntimeUserContent } from './runtimeUserContent.ts'
@@ -53,6 +53,14 @@ const verifiedResourceSystemRules = [
   '不得把 source_context.entity_id、host_id 或 ssh_profile_id 当作 session_id。',
   '如果该 Session 失效或工具返回 Session 不可用，停止目标操作；不得自动连接、替换或选择同 Profile 的其他 Session。',
   '用户需要另一条连接时，应先在 Termous 界面重新绑定。',
+] as const
+
+const verifiedFileResourceSystemRules = [
+  '以上文件配置由 Termous Core 校验；文件工具必须使用给定的精确 file_access_profile_id，与终端 SSH 引用独立选路。',
+  '先调用 termous.files.sessions.list，只复用当前 MCP 客户端拥有、file_access_profile_id、host_id、ssh_profile_id 和 engine 全部匹配且就绪的文件会话。',
+  '匹配会话正在连接或等待主机信任时，查询同一会话并等待用户完成信任决定，不得重复连接。没有可复用连接时调用 termous.files.sessions.connect，传入精确 file_access_profile_id 和稳定的 client_request_id，并复核返回的配置身份。',
+  '后续文件工具使用本客户端文件会话返回的 file_session_id；不得操作原桌面文件会话，不得将 SSH session_id 当作 file_session_id。',
+  '保留现有权限、审批、主机信任及所有权校验。配置不可用时停止操作，提示用户替换或解除文件引用，不得降级到同主机的其他配置。',
 ] as const
 
 export interface PiAgentController {
@@ -217,21 +225,19 @@ export function createRuntimeSystemPrompt(
   skills: AgentSkillBundleSnapshot,
 ) {
   const sections = [builtinAgentSystemPrompt]
-  if (bootstrap.session.resource_binding) {
-    sections.push(runtimeVerifiedResourcePrompt(bootstrap.session.resource_binding))
-  }
+  for (const binding of bootstrap.session.resource_bindings ?? []) sections.push(runtimeVerifiedResourcePrompt(binding))
   sections.push(skillCatalogPrompt(skills))
   return sections.join('\n\n')
 }
 
-export function runtimeVerifiedResourcePrompt(binding: RuntimeSSHResourceBinding) {
+export function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding) {
   // 只投影 Core 校验过的路由标识；名称与时间等用户可控展示字段不得进入系统提示。
   const resource = {
     binding_mode: 'exact',
     host_id: binding.host_id,
     kind: binding.kind,
-    platform: binding.platform,
-    session_id: binding.session_id,
+    ...(binding.kind === 'ssh_session' ? { platform: binding.platform, session_id: binding.session_id }
+      : { engine: binding.engine, file_access_profile_id: binding.file_access_profile_id }),
     ssh_profile_id: binding.ssh_profile_id,
     state: 'ready',
   } as const
@@ -239,7 +245,7 @@ export function runtimeVerifiedResourcePrompt(binding: RuntimeSSHResourceBinding
     '[TERMOUS_VERIFIED_RESOURCE]',
     JSON.stringify(resource),
     '[/TERMOUS_VERIFIED_RESOURCE]',
-    ...verifiedResourceSystemRules,
+    ...(binding.kind === 'ssh_session' ? verifiedResourceSystemRules : verifiedFileResourceSystemRules),
   ].join('\n')
 }
 

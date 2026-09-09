@@ -231,21 +231,39 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session'] as const
+export const agentResourceKinds = ['ssh_session', 'file_profile'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
 
-export interface AgentResourceReference {
-  kind: AgentResourceKind
-  session_id: string
-}
+export type AgentResourceReference =
+  | { kind: 'ssh_session'; session_id: string }
+  | { kind: 'file_profile'; file_access_profile_id: string }
 
-export interface AgentResourceBinding extends AgentResourceReference {
+interface AgentResourceBindingBase {
   host_id: string
   ssh_profile_id: string
   host_name: string
-  platform: 'linux'
   bound_at: string
 }
+
+export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'ssh_session'; session_id: string; platform: 'linux' }
+  | { kind: 'file_profile'; file_access_profile_id: string; file_access_profile_name: string; engine: 'sftp' }
+)
+
+export type AgentSSHResourceBinding = Extract<AgentResourceBinding, { kind: 'ssh_session' }>
+export type AgentFileResourceBinding = Extract<AgentResourceBinding, { kind: 'file_profile' }>
+
+export interface AgentFileResourceState {
+  file_access_profile_id: string
+  file_access_profile_name: string
+  host_id: string
+  host_name: string
+  ssh_profile_id: string
+  engine: 'sftp'
+  status: 'ready' | 'unavailable'
+}
+
+export type AgentResourceState = AgentSSHResourceState | AgentFileResourceState
 
 export interface AgentSSHResourceState {
   session_id: string
@@ -263,23 +281,16 @@ export type AgentLaunchIntent = { key: number } & (
       target: { kind: 'new' } | { kind: 'session'; session_id: string }
       text: string
       origin: import('#common/contracts').AgentTerminalReferenceOrigin
-      resource_reference: AgentResourceReference
+      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' }>
       source_resource: AgentSSHResourceState
     }
-  | ({ source_context: AgentSourceContext } & (
   | {
-      source: 'workbench'
-      host_id: string
-      ssh_profile_id: string
-      connection_status: string
+      source: 'connection_reference'
+      target: { kind: 'new' } | { kind: 'session'; session_id: string }
       resource_reference: AgentResourceReference
+      source_resource: AgentResourceState
     }
-  | {
-      source: 'files'
-      host_id: string
-      file_access_profile_id?: string
-      connection_status: string
-    }
+  | ({ source_context: AgentSourceContext } & (
   | {
       source: 'host_profile'
       host_id: string
@@ -325,7 +336,7 @@ export interface AgentSession {
   revision: number
   created_at: string
   updated_at: string
-  resource_binding?: AgentResourceBinding
+  resource_bindings?: AgentResourceBinding[]
 }
 
 export interface AgentSessionPage {
@@ -374,7 +385,7 @@ export interface AgentSessionMoveInput {
   placement: 'before' | 'after'
 }
 
-export interface AgentResourceBindingUpdateInput extends AgentResourceReference {
+export type AgentResourceBindingUpdateInput = AgentResourceReference & {
   expected_revision: number
 }
 

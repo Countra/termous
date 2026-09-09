@@ -205,22 +205,16 @@
     "launch": {
       "action": "Ask Agent",
       "title": {
-        "workbench": "Handle the terminal connection for {{name}}",
-        "files": "Handle the file connection for {{name}}",
         "host": "Handle host {{name}}",
         "profile": "Handle access profile {{name}}",
         "forwardFailure": "Investigate port forward {{name}}"
       },
       "summary": {
-        "workbench": "SSH connection status: {{status}}",
-        "files": "File connection status: {{status}}",
         "host": "Source: host management",
         "profile": "Access type: {{technology}}",
         "forwardFailure": "Forward status: {{status}}; phase: {{phase}}"
       },
       "prompt": {
-        "workbench": "Inspect this terminal connection and help me handle the current issue.",
-        "files": "Inspect this file connection and help me handle the current issue.",
         "host_profile": "Inspect this host or access profile and help me handle the current issue.",
         "forward_failure": "Analyze this port forwarding failure and suggest how to resolve it."
       }
@@ -327,6 +321,43 @@
       "modelSource": {
         "sync": "Synced",
         "manual": "Manually added"
+      }
+    },
+    "fileResource": {
+      "errorTitle": "Referenced file profile is unavailable",
+      "details": "Referenced file connection",
+      "profile": "File profile",
+      "session": "Profile ID",
+      "aria": "Referenced file connection for {{host}}, {{status}}",
+      "tooltip": "File connection · {{host}} · {{status}}",
+      "selectLabel": "Choose another file profile",
+      "selectPlaceholder": "Choose an available file profile",
+      "noCandidates": "No other file profiles available",
+      "removeTitle": "Remove file connection reference?",
+      "removeDescription": "Remove the file profile reference for {{host}}. Keep the draft, attachments and message history.",
+      "confirmTitle": "Replace file connection reference?",
+      "confirmDescription": "Replace the current file profile reference and keep the terminal reference and draft.",
+      "hint": {
+        "checking": "Checking the file profile before starting a task.",
+        "unavailable": "The file profile is unavailable. Replace or remove its reference. Closing or disconnecting the original tab does not invalidate the reference.",
+        "stale": "The file profile was deleted or its host or SSH association changed. Replace or remove its reference."
+      }
+    },
+    "connectionReference": {
+      "completed": "Connection referenced",
+      "failed": "Could not reference connection",
+      "confirmDescription": "This replaces the terminal connection reference. The file connection reference and existing draft are preserved.",
+      "confirmReplace": "Replace reference",
+      "retained": "The connection reference for {{host}} is retained. Complete AI assistant setup first.",
+      "completedDescription": "The connection is now referenced by the selected conversation.",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "The source connection or profile is no longer valid. Check it and reference it again.",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "The target conversation was deleted, archived, or is unavailable. Select another conversation.",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "The target has a running task or queued messages. Its connection references cannot be changed yet.",
+        "AGENT_REVISION_CONFLICT": "The target conversation was updated. Its state has been refreshed; try again.",
+        "AGENT_RUN_CONFLICT": "The target is running. Its references cannot be changed yet.",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The referenced connection or profile is unavailable. Check it, then replace or remove the reference.",
+        "unknown": "The connection reference was not completed. Check the source and target conversation, then try again."
       }
     },
     "resource": {

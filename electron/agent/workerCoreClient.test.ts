@@ -123,12 +123,12 @@ test('bootstrap 绑定 Run、generation、Session 与 reasoning 枚举', async (
 
 test('bootstrap 严格校验可信 SSH 资源绑定且拒绝未声明字段', async () => {
   const valid = bootstrapResponse()
-  valid.session.resource_binding = runtimeResourceBinding()
+  valid.session.resource_bindings = [runtimeResourceBinding()]
   const accepted = await new WorkerCoreClient({
     fetch: async () => Response.json(valid),
   }).bootstrap(start)
-  assert.deepEqual(accepted.session.resource_binding, runtimeResourceBinding())
-  assert.equal(Object.isFrozen(accepted.session.resource_binding), true)
+  assert.deepEqual(accepted.session.resource_bindings?.[0], runtimeResourceBinding())
+  assert.equal(Object.isFrozen(accepted.session.resource_bindings?.[0]), true)
 
   for (const mutate of [
     (value: Record<string, unknown>) => { value.kind = 'file_session' },
@@ -139,13 +139,33 @@ test('bootstrap 严格校验可信 SSH 资源绑定且拒绝未声明字段', as
     (value: Record<string, unknown>) => { delete value.ssh_profile_id },
   ]) {
     const response = bootstrapResponse()
-    response.session.resource_binding = runtimeResourceBinding()
-    mutate(response.session.resource_binding as unknown as Record<string, unknown>)
+    response.session.resource_bindings = [runtimeResourceBinding()]
+    mutate(response.session.resource_bindings[0] as unknown as Record<string, unknown>)
     await assert.rejects(
       new WorkerCoreClient({ fetch: async () => Response.json(response) }).bootstrap(start),
       /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
     )
   }
+})
+
+test('bootstrap 冻结双资源，拒绝重复类型和原文件会话 ID，并对账旧投影', async () => {
+  const ssh = runtimeResourceBinding()
+  const file = { kind: 'file_profile' as const, file_access_profile_id: 'file_one', file_access_profile_name: '文件配置',
+    host_id: 'file_host', host_name: '文件主机', ssh_profile_id: 'file_ssh', engine: 'sftp' as const, bound_at: ssh.bound_at }
+  const bootstrap = (session: Record<string, unknown>) => new WorkerCoreClient({ fetch: async () => Response.json({
+    ...bootstrapResponse(), session: { ...bootstrapResponse().session, ...session },
+  }) }).bootstrap(start)
+  const accepted = await bootstrap({ resource_bindings: [file, ssh], resource_binding: ssh })
+  assert.deepEqual(accepted.session.resource_bindings, [ssh, file])
+  assert.equal(Object.isFrozen(accepted.session.resource_bindings), true)
+  assert.equal(Object.isFrozen(accepted.session.resource_bindings?.[1]), true)
+  assert.equal('resource_binding' in accepted.session, false)
+  for (const resources of [[ssh, ssh], [file, file], [ssh, file, file], [null], null,
+    [{ ...file, file_session_id: 'desktop_file_session' }], [{ ...file, engine: 'unknown' }]]) {
+    await assert.rejects(bootstrap({ resource_bindings: resources }), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+  }
+  await assert.rejects(bootstrap({ resource_bindings: [file], resource_binding: ssh }), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+  assert.deepEqual((await bootstrap({ resource_binding: ssh })).session.resource_bindings, [ssh])
 })
 
 test('bootstrap 严格校验推理控制、支持档位及本次 Run 档位', async () => {
@@ -403,7 +423,7 @@ function runtimeMessage(
   }
 }
 
-function runtimeResourceBinding(): NonNullable<RuntimeBootstrap['session']['resource_binding']> {
+function runtimeResourceBinding(): Extract<NonNullable<RuntimeBootstrap['session']['resource_bindings']>[number], { kind: 'ssh_session' }> {
   return {
     kind: 'ssh_session',
     session_id: 'ses_runtime_test',

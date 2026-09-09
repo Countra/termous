@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { sameTerminalReferenceSource, type AgentLaunchIntent, type AgentSession, type AgentSSHResourceState, type AgentTerminalReferenceLaunch } from '#entities/agent'
+import { getAgentResourceBinding, resourceReference, resourceReferenceId, sameAgentResourceSource, type AgentLaunchIntent, type AgentSession, type AgentResourceState, type AgentResourceReferenceLaunch, type AgentTerminalReferenceLaunch } from '#entities/agent'
 import type { AgentWorkspaceController } from '../runtime/AgentWorkspaceController.ts'
 import { projectAgentReferenceTargets, terminalReferenceBindingKey, terminalReferenceChangesBinding, validateTerminalReferenceText } from './agentTerminalReference.ts'
 
-type ReferenceIntent = Extract<AgentLaunchIntent, { source: 'terminal_selection' }>
+type ReferenceIntent = Extract<AgentLaunchIntent, { source: 'terminal_selection' | 'connection_reference' }>
 export interface AgentTerminalReferenceImportJob {
   request: ReferenceIntent
   stage: 'pending' | 'configuration' | 'confirm' | 'importing' | 'failed'
@@ -21,8 +21,8 @@ interface Options {
   ready: boolean
   modelReady: boolean
   resourcesReady: boolean
-  resources: AgentSSHResourceState[]
-  createSession: (request: AgentTerminalReferenceLaunch) => Promise<AgentSession>
+  resources: AgentResourceState[]
+  createSession: (request: AgentResourceReferenceLaunch) => Promise<AgentSession>
   getOwnerId: (sessionId: string) => string
   addReference: (sessionId: string, request: AgentTerminalReferenceLaunch, ownerId: string) => Promise<boolean>
   onHandled?: (key: number) => void
@@ -48,7 +48,7 @@ export function useAgentTerminalReferenceImport(options: Options) {
     const intent = options.intent
     if (!intent || acceptedRef.current.has(intent.key)) return
     acceptedRef.current.add(intent.key)
-    const ownerId = intent.target.kind === 'session'
+    const ownerId = intent.source === 'terminal_selection' && intent.target.kind === 'session'
       ? optionsRef.current.getOwnerId(intent.target.session_id)
       : undefined
     // 接管时固定编辑归属，等待前一个引用、会话查询或换绑确认期间也不能改投新草稿。
@@ -71,8 +71,9 @@ export function useAgentTerminalReferenceImport(options: Options) {
     const alive = () => mountedRef.current && !cancelledRef.current.has(key)
     const requireSource = () => {
       const value = optionsRef.current
-      if (!value.resourcesReady || !sameTerminalReferenceSource(job.request.source_resource,
-        value.resources.find(({ session_id }) => session_id === job.request.resource_reference.session_id))) {
+      if (!value.resourcesReady || !sameAgentResourceSource(job.request.source_resource,
+        value.resources.find((source) => resourceReference(source).kind === job.request.resource_reference.kind
+          && resourceReferenceId(resourceReference(source)) === resourceReferenceId(job.request.resource_reference)))) {
         throw new Error('AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE')
       }
     }
@@ -80,7 +81,7 @@ export function useAgentTerminalReferenceImport(options: Options) {
     let targetId = job.targetId
     let ownerId = job.ownerId
     try {
-      validateTerminalReferenceText(job.request)
+      if (job.request.source === 'terminal_selection') validateTerminalReferenceText(job.request)
       requireSource()
       let created = false
       let session: AgentSession | undefined
@@ -91,19 +92,20 @@ export function useAgentTerminalReferenceImport(options: Options) {
         session = await optionsRef.current.createSession(job.request)
         targetId = session.id
         created = true
-        ownerId = optionsRef.current.getOwnerId(targetId)
+        ownerId = job.request.source === 'terminal_selection' ? optionsRef.current.getOwnerId(targetId) : undefined
         update(key, { targetId, ownerId })
       }
       if (!alive()) return
       if (!session || session.archived_at) throw new Error('AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE')
       targetId = session.id
       requireSource()
-      if (ownerId === undefined || optionsRef.current.getOwnerId(targetId) !== ownerId) throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_CHANGED')
+      if (job.request.source === 'terminal_selection' && (ownerId === undefined || optionsRef.current.getOwnerId(targetId) !== ownerId)) throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_CHANGED')
       const changesBinding = terminalReferenceChangesBinding(session, job.request)
       const target = projectAgentReferenceTargets(controller.getSnapshot(), true).targets.find(({ session_id }) => session_id === targetId)
       if (!target) throw new Error('AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE')
       if (changesBinding && target.binding_locked) throw new Error('AGENT_TERMINAL_REFERENCE_BINDING_LOCKED')
-      if (changesBinding && session.resource_binding && job.approvedBindingKey !== terminalReferenceBindingKey(session)) {
+      if (changesBinding && getAgentResourceBinding(session.resource_bindings, job.request.resource_reference.kind)
+        && job.approvedBindingKey !== terminalReferenceBindingKey(session, job.request.resource_reference.kind)) {
         update(key, { stage: 'confirm', targetId, confirmation: session })
         return
       }
@@ -120,13 +122,14 @@ export function useAgentTerminalReferenceImport(options: Options) {
         throw new Error('AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE')
       }
       if (terminalReferenceChangesBinding(latestSession, job.request)) throw new Error('AGENT_REVISION_CONFLICT')
-      if (optionsRef.current.getOwnerId(targetId) !== ownerId) throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_CHANGED')
+      if (job.request.source === 'terminal_selection' && optionsRef.current.getOwnerId(targetId) !== ownerId) throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_CHANGED')
       const ownsSelection = created
         ? latest.selection_intent_revision === selectionRevision + 1 && latest.selected_session_id === targetId
         : latest.selection_intent_revision === selectionRevision
       if (ownsSelection && optionsRef.current.active && latest.selected_session_id !== targetId) controller.selectSession(targetId)
       const focusRevision = controller.getSnapshot().selection_intent_revision
-      const added = await optionsRef.current.addReference(targetId, job.request, ownerId)
+      const added = job.request.source === 'terminal_selection'
+        ? await optionsRef.current.addReference(targetId, job.request, ownerId!) : true
       if (!alive()) return
       if (!added) throw new Error('AGENT_TERMINAL_REFERENCE_ATTACHMENT_REJECTED')
       setJobs((previous) => previous.filter((candidate) => candidate.request.key !== key))
@@ -158,14 +161,14 @@ export function useAgentTerminalReferenceImport(options: Options) {
     current,
     confirm: () => {
       if (!current?.confirmation) return
-      update(current.request.key, { stage: 'pending', approvedBindingKey: terminalReferenceBindingKey(current.confirmation), confirmation: undefined })
+      update(current.request.key, { stage: 'pending', approvedBindingKey: terminalReferenceBindingKey(current.confirmation, current.request.resource_reference.kind), confirmation: undefined })
     },
     retry: () => {
       if (!current || current.stage !== 'failed') return
       const targetId = current.targetId ?? (current.request.target.kind === 'session' ? current.request.target.session_id : undefined)
       // 只有用户主动重试才重新接受当前编辑归属，旧请求的迟到回执不能自行切换。
       update(current.request.key, { stage: 'pending', errorCode: undefined,
-        ownerId: targetId ? optionsRef.current.getOwnerId(targetId) : undefined })
+        ownerId: current.request.source === 'terminal_selection' && targetId ? optionsRef.current.getOwnerId(targetId) : undefined })
     },
     dismiss: () => {
       if (!current || current.stage === 'importing') return

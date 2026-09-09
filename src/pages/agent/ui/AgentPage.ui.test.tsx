@@ -70,8 +70,7 @@ vi.mock('#features/agent-runtime', async () => ({
       getSnapshot: () => harness.state,
       start: vi.fn(),
       close: vi.fn(),
-      createSession: async (input: AgentSessionInput) => {
-        const selectionRevision = harness.state.selection_intent_revision
+      createSession: async (input: AgentSessionInput, selectionRevision = harness.state.selection_intent_revision) => {
         const created = await harness.createSession(input)
         if (!(harness.state.sessions as AgentSession[]).some(({ id }) => id === created.id)) {
           harness.state = { ...harness.state, sessions: [created, ...(harness.state.sessions as AgentSession[])] }
@@ -194,6 +193,35 @@ describe('AgentPage', () => {
     }))
     expect(harness.addTerminalReference).toHaveBeenCalledWith('session-created', expect.anything(), 'draft')
     expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
+
+  it.each(['terminal_selection', 'connection_reference'] as const)('%s 等待附件会话时用户切换目标，随后创建不得抢回选择', async (sourceKind) => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
+    const pendingAttachment = deferred<AgentSession>()
+    harness.createSession.mockImplementationOnce(() => pendingAttachment.promise)
+    harness.state = { ...workspaceState(), selected_session_id: undefined, new_session_selected: true }
+    const page = renderPage({ sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    let attachmentCreation!: Promise<string>
+    act(() => { attachmentCreation = harness.attachmentOptions!.ensureSession() })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    const intent: AgentLaunchIntent = sourceKind === 'terminal_selection'
+      ? { ...terminalReferenceIntent(source), target: { kind: 'new' } }
+      : { key: 32, source: 'connection_reference', target: { kind: 'new' }, source_resource: source,
+        resource_reference: { kind: 'ssh_session', session_id: source.session_id } }
+    page.rerenderPage({ launchIntent: intent })
+    await act(async () => { await Promise.resolve() })
+    act(() => { harness.selectSession('session-two') })
+    await act(async () => {
+      pendingAttachment.resolve({ ...sessions[0]!, id: 'session-attachment' })
+      await attachmentCreation
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect((harness.state.sessions as AgentSession[]).some(({ id }) => id === 'session-created')).toBe(true))
+    expect(harness.state.selected_session_id).toBe('session-two')
+    expect(harness.selectSession).not.toHaveBeenCalledWith('session-created')
     expect(harness.startRun).not.toHaveBeenCalled()
   })
 
@@ -940,8 +968,7 @@ describe('AgentPage', () => {
       launchIntent().source_context,
     ))
     expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
-      resource_reference: { kind: 'ssh_session', session_id: 'ssh-session-one' },
-    }))
+      }))
 
     await act(async () => {
       const send = harness.workspaceProps?.onSend as (
@@ -981,7 +1008,7 @@ describe('AgentPage', () => {
     }
     renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
 
-    await waitFor(() => expect(harness.workspaceProps?.resource_context).toMatchObject({ status: 'stale' }))
+    await waitFor(() => expect((harness.workspaceProps?.resource_contexts as Array<{ status: string }> | undefined)?.[0]).toMatchObject({ status: 'stale' }))
     expect(harness.workspaceProps?.resource_run_blocked).toBe(true)
     await act(async () => {
       const send = harness.workspaceProps?.onSend as (message: string, ids: string[]) => Promise<void>
@@ -1004,7 +1031,7 @@ describe('AgentPage', () => {
       sshResources: [sshResource('ssh-session-one')],
     })
 
-    await waitFor(() => expect(harness.workspaceProps?.resource_context)
+    await waitFor(() => expect((harness.workspaceProps?.resource_contexts as Array<{ status: string }> | undefined)?.[0])
       .toMatchObject({ status: 'checking' }))
     expect(harness.workspaceProps?.resource_run_blocked).toBe(true)
     await act(async () => {
@@ -1019,11 +1046,11 @@ describe('AgentPage', () => {
   it('显式更换与解除引用使用 Agent Session revision', async () => {
     harness.state = { ...workspaceState(), sessions: [boundSession(), sessions[1]] }
     renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
-    await waitFor(() => expect(harness.workspaceProps?.resource_context).toBeDefined())
+    await waitFor(() => expect((harness.workspaceProps?.resource_contexts as Array<{ status: string }> | undefined)?.[0]).toBeDefined())
 
     await act(async () => {
-      const replace = harness.workspaceProps?.onReplaceResourceBinding as (id: string) => Promise<boolean>
-      await replace('ssh-session-two')
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as (reference: { kind: 'ssh_session'; session_id: string }) => Promise<boolean>
+      await replace({ kind: 'ssh_session', session_id: 'ssh-session-two' })
     })
     expect(harness.replaceResourceBinding).toHaveBeenCalledWith('session-one', {
       kind: 'ssh_session',
@@ -1032,22 +1059,41 @@ describe('AgentPage', () => {
     })
 
     await act(async () => {
-      const remove = harness.workspaceProps?.onRemoveResourceBinding as () => Promise<boolean>
-      await remove()
+      const remove = harness.workspaceProps?.onRemoveResourceBinding as (kind: 'ssh_session') => Promise<boolean>
+      await remove('ssh_session')
     })
-    expect(harness.removeResourceBinding).toHaveBeenCalledWith('session-one', 1)
+    expect(harness.removeResourceBinding).toHaveBeenCalledWith('session-one', 1, 'ssh_session')
+  })
+
+  it.each(['new', 'session'] as const)('纯连接转交到 %s 会话仅关联连接，不添加文本或附件', async (targetKind) => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
+    harness.reloadSession.mockImplementation(async (id: string) =>
+      (harness.state.sessions as AgentSession[]).find((session) => session.id === id))
+    harness.state.drafts = { 'session-one': { text: '用户原有草稿', updated_at: 1 } }
+    renderPage({ launchIntent: { key: 31, source: 'connection_reference', source_resource: source,
+      resource_reference: { kind: 'ssh_session', session_id: source.session_id },
+      target: targetKind === 'new' ? { kind: 'new' } : { kind: 'session', session_id: 'session-one' },
+    }, sshResources: [source], sshResourcesReady: true })
+    await waitFor(() => expect(targetKind === 'new' ? harness.createSession : harness.replaceResourceBinding).toHaveBeenCalledOnce())
+    await waitFor(() => expect(harness.workspaceProps?.resource_contexts).toHaveLength(1))
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.addTerminalReference).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+    expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text).toBe('用户原有草稿')
+    if (targetKind === 'new') expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({ auto_title_allowed: true }))
   })
 
   it('资源绑定 revision 冲突后主动恢复权威会话并保留失败结果', async () => {
     harness.state = { ...workspaceState(), sessions: [boundSession(), sessions[1]] }
     harness.replaceResourceBinding.mockRejectedValueOnce({ code: 'AGENT_REVISION_CONFLICT' })
     renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
-    await waitFor(() => expect(harness.workspaceProps?.resource_context).toBeDefined())
+    await waitFor(() => expect((harness.workspaceProps?.resource_contexts as Array<{ status: string }> | undefined)?.[0]).toBeDefined())
 
     let result = true
     await act(async () => {
-      const replace = harness.workspaceProps?.onReplaceResourceBinding as (id: string) => Promise<boolean>
-      result = await replace('ssh-session-two')
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as (reference: { kind: 'ssh_session'; session_id: string }) => Promise<boolean>
+      result = await replace({ kind: 'ssh_session', session_id: 'ssh-session-two' })
     })
 
     expect(result).toBe(false)
@@ -1097,7 +1143,7 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.workbench')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.host_profile')
   })
 
   it('切换模型时在同一次会话更新中回退不受支持的推理档位', async () => {
@@ -1312,7 +1358,7 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(harness.setup).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(harness.models).toHaveBeenCalledTimes(2))
-    expect(page.getByRole('button', { name: 'agent.readiness.prepare' })).toBeInTheDocument()
+    await waitFor(() => expect(page.getByRole('button', { name: 'agent.readiness.prepare' })).toBeEnabled())
     expect(harness.workspaceProps).toBeNull()
     expect(harness.updateMcpPolicy).not.toHaveBeenCalled()
   })
@@ -1478,7 +1524,7 @@ describe('AgentPage', () => {
     expect(harness.startRun).not.toHaveBeenCalled()
     expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
       .toBe('当前会话草稿')
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.workbench')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.host_profile')
   })
 
   it('附件草稿创建在途时业务入口等待后创建独立会话', async () => {
@@ -1513,7 +1559,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
 
     expect(harness.updateDraft).toHaveBeenCalledWith('session-attachment', '附件草稿')
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-launch', 'agent.launch.prompt.workbench')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-launch', 'agent.launch.prompt.host_profile')
     expect(harness.selectSession).toHaveBeenCalledWith('session-attachment')
     expect(harness.selectSession).toHaveBeenCalledWith('session-launch')
   })
@@ -1717,7 +1763,7 @@ function providerFixture() {
 function boundSession(): AgentSession {
   return {
     ...sessions[0],
-    resource_binding: {
+    resource_bindings: [{
       kind: 'ssh_session',
       session_id: 'ssh-session-one',
       host_id: 'host-one',
@@ -1725,7 +1771,7 @@ function boundSession(): AgentSession {
       host_name: 'Production',
       platform: 'linux',
       bound_at: '2026-08-31T08:00:00Z',
-    },
+    }],
   }
 }
 
@@ -1849,10 +1895,10 @@ function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
 }
 
 function prepareTerminalReferenceMocks(source: AgentSSHResourceState) {
-  const withBinding = (session: AgentSession): AgentSession => ({ ...session, resource_binding: {
+  const withBinding = (session: AgentSession): AgentSession => ({ ...session, resource_bindings: [{
     kind: 'ssh_session', session_id: source.session_id, host_id: source.host_id, ssh_profile_id: source.ssh_profile_id,
     host_name: source.host_name, platform: 'linux', bound_at: '2026-09-08T08:00:00Z',
-  } })
+  }] })
   harness.createSession.mockImplementation(async (input: AgentSessionInput) => withBinding({ ...sessions[0], ...input, id: 'session-created' }))
   harness.replaceResourceBinding.mockImplementation(async (id: string) => {
     const current = (harness.state.sessions as AgentSession[]).find((session) => session.id === id)!
@@ -1872,16 +1918,15 @@ function terminalReferenceIntent(source: AgentSSHResourceState): Extract<AgentLa
   }
 }
 
-function launchIntent(): Extract<AgentLaunchIntent, { source: 'workbench' }> {
+function launchIntent(): Extract<AgentLaunchIntent, { source: 'host_profile' }> {
   return {
     key: 7,
-    source: 'workbench',
-    ssh_profile_id: 'ssh-one',
+    source: 'host_profile',
+    profile_kind: 'ssh',
+    profile_id: 'ssh-one',
     host_id: 'host-one',
-    connection_status: 'connected',
-    resource_reference: { kind: 'ssh_session', session_id: 'ssh-session-one' },
     source_context: {
-      kind: 'workbench',
+      kind: 'host_profile',
       entity_id: 'host-one',
       title: '生产主机',
       summary: '连接已就绪',

@@ -117,6 +117,19 @@ test('创建会话在途时的新选择优先于迟到回执，实体仍合入�
   })
 })
 
+test('等待前捕获的选择版本阻止后续创建覆盖用户的新选择', async () => {
+  const gateway = new FakeGateway()
+  const controller = new AgentWorkspaceController({ gateway })
+  const selectionIntent = controller.getSnapshot().selection_intent_revision
+  controller.selectSession(undefined)
+  const selected = controller.getSnapshot()
+  const created = await controller.createSession(sessionInput(), selectionIntent)
+  assert.equal(controller.getSnapshot().selected_session_id, selected.selected_session_id)
+  assert.equal(controller.getSnapshot().selection_intent_revision, selected.selection_intent_revision)
+  assert.ok(controller.getSnapshot().sessions.some(({ id }) => id === created.id))
+  controller.close()
+})
+
 test('已移除会话的迟到选择不会取消当前会话水合或触发无效请求', async () => {
   const gateway = new FakeGateway()
   const controller = startedController(gateway)
