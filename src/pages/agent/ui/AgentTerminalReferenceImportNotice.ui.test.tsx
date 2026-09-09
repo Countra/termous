@@ -39,20 +39,18 @@ function fixture(initial: AgentTerminalReferenceImportJob) {
 }
 
 describe('终端引用状态通知', () => {
-  it('在右上角持续显示，同一引用更新为失败时不堆叠，移除失败任务后收起', async () => {
+  it('准备和导入期间不显示通知，仅在失败后于右上角提供重试入口', async () => {
     const user = userEvent.setup()
     const f = fixture(job('pending'))
-    const pending = await screen.findByText('agent.terminalReference.pending')
-    expect(pending.closest('.ant-notification-topRight')).not.toBeNull()
-    expect(document.querySelector('.ant-notification-bottomRight')).toBeNull()
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 80)) })
-    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
 
     f.update(job('importing'))
-    await waitFor(() => expect(screen.queryByText('app.cancel')).not.toBeInTheDocument())
-    expect(document.querySelector('.ant-notification-notice-close')).toBeNull()
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
     f.update(job('failed'))
-    await screen.findByText('agent.terminalReference.failed')
+    const failed = await screen.findByText('agent.terminalReference.failed')
+    expect(failed.closest('.ant-notification-topRight')).not.toBeNull()
+    expect(document.querySelector('.ant-notification-bottomRight')).toBeNull()
     expect(document.querySelectorAll('.ant-notification-notice')).toHaveLength(1)
     expect(screen.getByText('agent.terminalReference.errors.unavailable')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'app.retry' }))
@@ -63,29 +61,28 @@ describe('终端引用状态通知', () => {
     expect(f.onDismiss).not.toHaveBeenCalled()
   })
 
-  it.each(['pending', 'importing'] as const)('从 %s 完成后原位提示两秒，重渲染不会延长计时', async (stage) => {
+  it.each(['pending', 'importing'] as const)('从 %s 完成后提示两秒，重渲染不会延长计时', async (stage) => {
     vi.useFakeTimers()
     const f = fixture(job(stage))
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
-    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
 
     f.update()
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
     expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
     expect(screen.getByText('agent.terminalReference.completedDescription')).toBeInTheDocument()
-    expect(screen.queryByText('agent.terminalReference.pending')).not.toBeInTheDocument()
     expect(document.querySelectorAll('.ant-notification-notice')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'app.cancel' })).not.toBeInTheDocument()
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(1700) })
     f.update()
     expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
-    await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(400) })
     expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
     expect(f.onDismiss).not.toHaveBeenCalled()
   })
 
-  it('下一项立即替换完成提示，旧提示的到期时间不会关闭新通知，离页立即清理', async () => {
+  it('下一项处理中收起旧结果，旧计时不会关闭新的失败通知，重试成功后可离页清理', async () => {
     vi.useFakeTimers()
     const f = fixture(job('importing'))
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
@@ -96,9 +93,16 @@ describe('终端引用状态通知', () => {
     f.update(job('importing', 2))
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
     expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
-    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
+    f.update(job('failed', 2))
     await act(async () => { await vi.advanceTimersByTimeAsync(2100) })
-    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+    expect(screen.getByText('agent.terminalReference.failed')).toBeInTheDocument()
+
+    f.update(job('pending', 2))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
+    f.update(job('importing', 2))
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
 
     f.update()
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
@@ -109,13 +113,13 @@ describe('终端引用状态通知', () => {
     expect(f.onDismiss).not.toHaveBeenCalled()
   })
 
-  it('主动取消立即关闭，不显示完成反馈', async () => {
+  it.each(['failed', 'configuration'] as const)('主动取消 %s 任务立即关闭，不显示完成反馈', async (stage) => {
     const user = userEvent.setup()
-    const f = fixture(job('pending'))
+    const f = fixture(job(stage))
     await user.click(await screen.findByRole('button', { name: 'app.cancel' }))
     expect(f.onDismiss).toHaveBeenCalledOnce()
     f.update()
-    await waitFor(() => expect(screen.queryByText('agent.terminalReference.pending')).not.toBeInTheDocument())
+    await waitFor(() => expect(document.querySelector('.ant-notification-notice')).toBeNull())
     expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
   })
 
@@ -136,13 +140,15 @@ describe('终端引用状态通知', () => {
   it('进入换绑确认只移除通知，保留原有确认弹窗及取消行为', async () => {
     const user = userEvent.setup()
     const f = fixture(job('importing'))
-    await screen.findByText('agent.terminalReference.pending')
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
     f.update(job('confirm'))
     await screen.findByRole('dialog', { name: 'agent.terminalReference.confirmTitle' })
-    await waitFor(() => expect(screen.queryByText('agent.terminalReference.pending')).not.toBeInTheDocument())
+    expect(document.querySelector('.ant-notification-notice')).toBeNull()
     expect(f.onDismiss).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'app.cancel' }))
     expect(f.onDismiss).toHaveBeenCalledOnce()
+    f.update()
+    expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
   })
 
   it('退场通知的迟到关闭不会取消下一项，卸载时也不取消引用', () => {
@@ -152,7 +158,7 @@ describe('终端引用状态通知', () => {
     const renderNotice = (current: AgentTerminalReferenceImportJob) => (
       <AgentTerminalReferenceImportNotice job={current} resources={[]} onDismiss={onDismiss} onRetry={vi.fn()} onConfirm={vi.fn()} />
     )
-    const view = render(renderNotice(job('pending')))
+    const view = render(renderNotice(job('configuration')))
     const oldClose = notification.open.mock.calls[0]![0].closable.onClose
     view.rerender(renderNotice(job('failed', 2)))
     oldClose()

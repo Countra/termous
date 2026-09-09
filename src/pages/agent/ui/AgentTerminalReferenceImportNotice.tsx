@@ -26,31 +26,31 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
     ? `agent-terminal-reference-${requestKey}` : undefined
   const callbacksRef = useRef({ requestKey, stage, onRetry, onDismiss, onOpenSettings })
   callbacksRef.current = { requestKey, stage, onRetry, onDismiss, onOpenSettings }
-  const visibleNoticeRef = useRef<{
+  const noticeStateRef = useRef<{
     key: string
     stage: AgentTerminalReferenceImportJob['stage'] | 'completed'
   } | undefined>(undefined)
   const failed = stage === 'failed'
   const configuration = stage === 'configuration'
   const canOpenSettings = Boolean(onOpenSettings)
-  const title = t(`agent.terminalReference.${failed ? 'failed' : configuration ? 'configuration' : 'pending'}`)
+  const title = t(`agent.terminalReference.${failed ? 'failed' : 'configuration'}`)
   const description = failed ? t(`agent.terminalReference.errors.${job?.errorCode}`, {
     defaultValue: t('agent.terminalReference.errors.unknown'),
   }) : t('agent.terminalReference.retained', { host: job?.request.source_resource.host_name })
 
   useEffect(() => () => {
     // 离页立即清理当前提示，包括正在延迟收起的完成提示，不影响引用任务。
-    if (visibleNoticeRef.current) notificationRef.current.destroy(visibleNoticeRef.current.key)
-    visibleNoticeRef.current = undefined
+    if (noticeStateRef.current) notificationRef.current.destroy(noticeStateRef.current.key)
+    noticeStateRef.current = undefined
   }, [])
 
   useEffect(() => {
-    const previous = visibleNoticeRef.current
+    const previous = noticeStateRef.current
     if (!notificationKey || !stage) {
       if (!previous) return
       if (!stage && (previous.stage === 'pending' || previous.stage === 'importing')) {
         // 只延长完成反馈，不延迟导入或队列；记录完成状态，避免普通重渲染重置计时。
-        visibleNoticeRef.current = { key: previous.key, stage: 'completed' }
+        noticeStateRef.current = { key: previous.key, stage: 'completed' }
         notification.open({
           key: previous.key,
           placement: 'topRight',
@@ -66,12 +66,19 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
         })
       } else if (previous.stage !== 'completed' || stage === 'confirm') {
         notification.destroy(previous.key)
-        visibleNoticeRef.current = undefined
+        noticeStateRef.current = undefined
       }
       return
     }
     if (previous && previous.key !== notificationKey) notification.destroy(previous.key)
-    visibleNoticeRef.current = { key: notificationKey, stage }
+    noticeStateRef.current = { key: notificationKey, stage }
+    if (stage === 'pending' || stage === 'importing') {
+      // 处理中仅记录任务状态以识别完成；重试或配置恢复时收起上一条结果提示。
+      if (previous?.key === notificationKey && previous.stage !== 'pending' && previous.stage !== 'importing') {
+        notification.destroy(notificationKey)
+      }
+      return
+    }
     let active = true
     const invoke = (action: 'onRetry' | 'onDismiss' | 'onOpenSettings') => {
       const current = callbacksRef.current
@@ -82,7 +89,7 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
       if (action === 'onDismiss') {
         // 主动取消立即关闭，不能将任务移除误判为导入成功。
         notification.destroy(notificationKey)
-        visibleNoticeRef.current = undefined
+        noticeStateRef.current = undefined
       }
       current[action]?.()
     }
@@ -97,8 +104,8 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
       role: 'status',
       className: termousNotificationClassName,
       // 仅用户点击关闭时取消；程序化清理通知不能丢弃等待配置的原文。
-      closable: stage === 'importing' ? false : { onClose: () => invoke('onDismiss') },
-      actions: stage === 'importing' ? undefined : (
+      closable: { onClose: () => invoke('onDismiss') },
+      actions: (
         <Space size="small" wrap>
           {failed ? <Button size="small" onClick={() => invoke('onRetry')}>{t('app.retry')}</Button> : null}
           {configuration && canOpenSettings ? <Button size="small" onClick={() => invoke('onOpenSettings')}>{t('agent.terminalReference.openSettings')}</Button> : null}
