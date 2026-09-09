@@ -36,7 +36,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
 ])
 const approvalKinds = new Set<McpApprovalKind>([
   'command',
-  'sftp',
+  'files',
   'remoteops',
   'forwarding',
   'snippet',
@@ -132,10 +132,10 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     updated_at: requireString(approval.updated_at, 'MCP 审批请求更新时间缺失'),
     expires_at: requireString(approval.expires_at, 'MCP 审批请求过期时间缺失'),
   }
-  if (normalizedKind === 'sftp') {
+  if (normalizedKind === 'files') {
     return {
       ...common,
-      kind: 'sftp',
+      kind: 'files',
       command: optionalString(approval.command) ?? '',
       operation: operation!,
     }
@@ -180,41 +180,41 @@ function decodeMcpApprovalOperation(
   const action = requireString(operation.action, 'MCP 审批操作类型缺失')
   const overwritePolicy = optionalString(operation.overwrite_policy)
   if (overwritePolicy && !overwritePolicies.has(overwritePolicy as McpApprovalOperation['overwrite_policy'])) {
-    throw new McpAccessProtocolError('MCP SFTP 审批冲突策略无效')
+    throw new McpAccessProtocolError('MCP 文件管理审批冲突策略无效')
   }
-  const ruleCount = optionalNonNegativeInteger(operation.rule_count, 'MCP SFTP 批量重命名规则数无效')
+  const ruleCount = optionalNonNegativeInteger(operation.rule_count, 'MCP 文件管理批量重命名规则数无效')
   if (ruleCount !== undefined && ruleCount > maxBatchRenameRules) {
-    throw new McpAccessProtocolError('MCP SFTP 批量重命名规则数超出限制')
+    throw new McpAccessProtocolError('MCP 文件管理批量重命名规则数超出限制')
   }
-  const renameMappings = optionalArray(operation.rename_mappings, 'MCP SFTP 批量重命名映射无效')
+  const renameMappings = optionalArray(operation.rename_mappings, 'MCP 文件管理批量重命名映射无效')
   if (renameMappings.length > maxBatchRenameMappings) {
-    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射数量超出限制')
+    throw new McpAccessProtocolError('MCP 文件管理批量重命名映射数量超出限制')
   }
-  const itemCount = optionalNonNegativeInteger(operation.item_count, 'MCP SFTP 审批项目数无效')
-  const totalBytes = optionalNonNegativeInteger(operation.total_bytes, 'MCP SFTP 审批字节数无效')
-  const remotePaths = optionalStringArray(operation.remote_paths, 'MCP SFTP 审批远程路径无效')
+  const itemCount = optionalNonNegativeInteger(operation.item_count, 'MCP 文件管理审批项目数无效')
+  const totalBytes = optionalNonNegativeInteger(operation.total_bytes, 'MCP 文件管理审批字节数无效')
+  const remotePaths = optionalStringArray(operation.remote_paths, 'MCP 文件管理审批远程路径无效')
   const deleteDetails = {
-    recursive: optionalBoolean(operation.recursive, 'MCP SFTP 删除递归标识无效'),
-    top_level_count: optionalNonNegativeInteger(operation.top_level_count, 'MCP SFTP 删除顶层项目数无效'),
-    file_count: optionalNonNegativeInteger(operation.file_count, 'MCP SFTP 删除文件数无效'),
-    directory_count: optionalNonNegativeInteger(operation.directory_count, 'MCP SFTP 删除目录数无效'),
-    symlink_count: optionalNonNegativeInteger(operation.symlink_count, 'MCP SFTP 删除符号链接数无效'),
+    recursive: optionalBoolean(operation.recursive, 'MCP 文件管理删除递归标识无效'),
+    top_level_count: optionalNonNegativeInteger(operation.top_level_count, 'MCP 文件管理删除顶层项目数无效'),
+    file_count: optionalNonNegativeInteger(operation.file_count, 'MCP 文件管理删除文件数无效'),
+    directory_count: optionalNonNegativeInteger(operation.directory_count, 'MCP 文件管理删除目录数无效'),
+    symlink_count: optionalNonNegativeInteger(operation.symlink_count, 'MCP 文件管理删除符号链接数无效'),
   }
-  if (kind === 'sftp' && action === 'delete' && (state === 'pending' || state === 'dispatching')) {
-    requireString(operation.file_session_id, 'MCP SFTP 删除文件会话缺失')
+  if (kind === 'files' && action === 'delete' && (state === 'pending' || state === 'dispatching')) {
+    requireString(operation.file_session_id, 'MCP 文件管理删除文件会话缺失')
     validateDeleteApproval({ ...deleteDetails, item_count: itemCount, total_bytes: totalBytes, remote_paths: remotePaths })
   }
-  const awaitingBatchRenameDecision = kind === 'sftp'
+  const awaitingBatchRenameDecision = kind === 'files'
     && action === 'batch_rename'
     && (state === 'pending' || state === 'dispatching')
   if (awaitingBatchRenameDecision && (itemCount === undefined || itemCount === 0)) {
-    throw new McpAccessProtocolError('MCP SFTP 批量重命名项目数缺失')
+    throw new McpAccessProtocolError('MCP 文件管理批量重命名项目数缺失')
   }
   if (awaitingBatchRenameDecision && renameMappings.length === 0) {
-    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射缺失')
+    throw new McpAccessProtocolError('MCP 文件管理批量重命名映射缺失')
   }
   if (awaitingBatchRenameDecision && renameMappings.length !== itemCount) {
-    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射数量与项目数不一致')
+    throw new McpAccessProtocolError('MCP 文件管理批量重命名映射数量与项目数不一致')
   }
   return {
     action,
@@ -234,7 +234,7 @@ function decodeMcpApprovalOperation(
     target_host_name: optionalString(operation.target_host_name),
     remote_paths: remotePaths,
     remote_target: optionalString(operation.remote_target),
-    local_paths: optionalStringArray(operation.local_paths, 'MCP SFTP 审批本机路径无效'),
+    local_paths: optionalStringArray(operation.local_paths, 'MCP 文件管理审批本机路径无效'),
     local_target: optionalString(operation.local_target),
     overwrite_policy: overwritePolicy as McpApprovalOperation['overwrite_policy'],
     mode: optionalString(operation.mode),
@@ -250,10 +250,10 @@ function decodeMcpApprovalOperation(
     total_bytes: totalBytes,
     rule_count: ruleCount,
     rename_mappings: renameMappings.map((mappingValue) => {
-      const mapping = requireRecord(mappingValue, 'MCP SFTP 批量重命名映射项无效')
+      const mapping = requireRecord(mappingValue, 'MCP 文件管理批量重命名映射项无效')
       return {
-        source_name: requireString(mapping.source_name, 'MCP SFTP 批量重命名原名称缺失'),
-        target_name: requireString(mapping.target_name, 'MCP SFTP 批量重命名新名称缺失'),
+        source_name: requireString(mapping.source_name, 'MCP 文件管理批量重命名原名称缺失'),
+        target_name: requireString(mapping.target_name, 'MCP 文件管理批量重命名新名称缺失'),
       }
     }),
   }
@@ -267,24 +267,24 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
   if (recursive === undefined || topLevelCount === undefined || fileCount === undefined
     || directoryCount === undefined || symlinkCount === undefined || itemCount === undefined
     || operation.total_bytes === undefined) {
-    throw new McpAccessProtocolError('MCP SFTP 删除审批摘要缺失')
+    throw new McpAccessProtocolError('MCP 文件管理删除审批摘要缺失')
   }
   // 顶层选择与递归展开总量分别校验，避免审批界面把目录内的删除范围漏报。
   if (topLevelCount === 0 || operation.remote_paths.length !== topLevelCount
     || new Set(operation.remote_paths).size !== topLevelCount) {
-    throw new McpAccessProtocolError('MCP SFTP 删除顶层路径与项目数不一致')
+    throw new McpAccessProtocolError('MCP 文件管理删除顶层路径与项目数不一致')
   }
   if (operation.remote_paths.some((path) => !path.startsWith('/') || path === '/' || path.includes('\0'))) {
-    throw new McpAccessProtocolError('MCP SFTP 删除路径无效')
+    throw new McpAccessProtocolError('MCP 文件管理删除路径无效')
   }
   if (itemCount !== fileCount + directoryCount + symlinkCount || itemCount < topLevelCount
     || (!recursive && itemCount !== topLevelCount)) {
-    throw new McpAccessProtocolError('MCP SFTP 删除分类数量与总数不一致')
+    throw new McpAccessProtocolError('MCP 文件管理删除分类数量与总数不一致')
   }
 }
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
-  sftp: 'MCP SFTP 审批操作缺失',
+  files: 'MCP 文件管理审批操作缺失',
   remoteops: 'MCP 远程运维审批操作缺失',
   forwarding: 'MCP 端口转发审批操作缺失',
   snippet: 'MCP 代码片段审批操作缺失',

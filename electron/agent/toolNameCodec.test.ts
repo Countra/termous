@@ -5,7 +5,7 @@ import { decodeMCPToolName, encodeMCPToolName } from './toolNameCodec.ts'
 test('MCP Tool 名称编码可逆且不会混淆点号与下划线', () => {
   const names = [
     'termous.hosts.access_profiles.list',
-    'termous.sftp.files.name_search.capability',
+    'termous.files.name_search.capability',
     'termous.remote_ops.processes.list',
     'termous.value_with_underscore.read',
   ]

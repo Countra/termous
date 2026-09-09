@@ -20,7 +20,7 @@ import {
   skillCatalogPrompt,
 } from './skillResourceTool.ts'
 import { readSkillResourceToolName } from './skillBundle.ts'
-import { encodeMCPToolName } from './toolNameCodec.ts'
+import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory.ts'
 import type {
   RuntimeBootstrap,
   RuntimeMessagePart,
@@ -286,7 +286,7 @@ export function hydrateRuntimeMessages(
         && Array.isArray(message.content) && message.content.some((part) => part.type === 'image')) {
         throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
       }
-      messages.push(message)
+      messages.push(projectRuntimeToolHistory(message))
     }
   }
   for (const value of bootstrap.messages) {
@@ -447,10 +447,6 @@ function runtimeToolResultContent(value: unknown): ToolResultMessage['content'] 
 export function standardMessages(messages: AgentMessage[]): Message[] {
   return messages.filter((message): message is Message =>
     message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult')
-}
-
-function runtimeToolName(value: string) {
-  return value === readSkillResourceToolName ? value : encodeMCPToolName(value)
 }
 
 function requiredNestedText(part: RuntimeMessagePart, branch: string) {

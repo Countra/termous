@@ -121,10 +121,10 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' })).toBeDisabled()
   })
 
-  it('在现有审批弹窗中展示 SFTP 上传路径、目标和冲突策略', () => {
+  it('在现有审批弹窗中展示文件管理上传路径、目标和冲突策略', () => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp',
+      kind: 'files',
       command: '',
       session_ids: [],
       operation: {
@@ -143,7 +143,7 @@ describe('McpApprovalCoordinator', () => {
 
     render(<McpApprovalCoordinator />)
 
-    expect(screen.getByText('settings.mcp.approval.sftpAction.upload')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.filesAction.upload')).toBeInTheDocument()
     expect(screen.getByText('测试主机')).toBeInTheDocument()
     expect(screen.getByText('C:\\work\\release.zip')).toBeInTheDocument()
     expect(screen.getByText('/srv/releases')).toBeInTheDocument()
@@ -156,7 +156,7 @@ describe('McpApprovalCoordinator', () => {
     const remotePaths = ['/srv/旧版本', '/srv/a\nb.txt', `/srv/${'long-name-'.repeat(20)}.log`]
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp', command: '', session_ids: [],
+      kind: 'files', command: '', session_ids: [],
       operation: {
         action: 'delete', file_session_id: 'file-session-1', host_name: '生产主机',
         remote_paths: remotePaths, local_paths: [], rename_mappings: [], recursive: true,
@@ -166,7 +166,7 @@ describe('McpApprovalCoordinator', () => {
     }]
     render(<McpApprovalCoordinator />)
 
-    expect(screen.getByText('settings.mcp.approval.sftpAction.delete')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.filesAction.delete')).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approval.deleteWarning')).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approval.deleteRecursive.enabled')).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approval.deleteCounts.top_level_count')).toHaveTextContent('3')
@@ -186,7 +186,7 @@ describe('McpApprovalCoordinator', () => {
 
   it('非递归删除明确显示仅删除所选项目', () => {
     testState.approvals = [{
-      ...approvalFixture('2026-08-13T00:00:30Z'), kind: 'sftp', command: '', session_ids: [],
+      ...approvalFixture('2026-08-13T00:00:30Z'), kind: 'files', command: '', session_ids: [],
       operation: {
         action: 'delete', file_session_id: 'file-session-1',
         remote_paths: ['/srv/link'], local_paths: [], rename_mappings: [], recursive: false,
@@ -199,10 +199,10 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByText('settings.mcp.approval.deleteRecursive.enabled')).not.toBeInTheDocument()
   })
 
-  it('将 SFTP 文本保存目标标记为远程路径而不是源路径', () => {
+  it('将文件管理文本保存目标标记为远程路径而不是源路径', () => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp',
+      kind: 'files',
       command: '',
       session_ids: [],
       operation: {
@@ -221,10 +221,10 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByText('settings.mcp.approval.remotePaths')).not.toBeInTheDocument()
   })
 
-  it('在现有审批弹窗中逐项展示 SFTP 批量重命名映射', () => {
+  it('在现有审批弹窗中逐项展示文件管理批量重命名映射', () => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp',
+      kind: 'files',
       command: '',
       session_ids: [],
       operation: {
@@ -245,7 +245,7 @@ describe('McpApprovalCoordinator', () => {
 
     render(<McpApprovalCoordinator />)
 
-    expect(screen.getByText('settings.mcp.approval.sftpAction.batchRename')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.filesAction.batchRename')).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approval.renameMappings')).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approval.remoteDirectory')).toBeInTheDocument()
     expect(screen.getByText('/work')).toBeInTheDocument()
@@ -260,7 +260,7 @@ describe('McpApprovalCoordinator', () => {
   it('批量重命名未携带规则数时展示零条规则', () => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp',
+      kind: 'files',
       command: '',
       session_ids: [],
       operation: {
@@ -283,7 +283,7 @@ describe('McpApprovalCoordinator', () => {
   it('完整展示并支持键盘浏览 500 项批量重命名映射', () => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),
-      kind: 'sftp',
+      kind: 'files',
       command: '',
       session_ids: [],
       operation: {

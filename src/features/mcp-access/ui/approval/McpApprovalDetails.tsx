@@ -4,13 +4,13 @@ import { CommandApprovalRenderer } from './CommandApprovalRenderer'
 import { ForwardingApprovalRenderer } from './ForwardingApprovalRenderer'
 import { RemoteOpsApprovalRenderer } from './RemoteOpsApprovalRenderer'
 import { SnippetApprovalRenderer } from './SnippetApprovalRenderer'
-import { SftpApprovalRenderer } from './SftpApprovalRenderer'
+import { FilesApprovalRenderer } from './FilesApprovalRenderer'
 
 export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
   return (
     <>
-      {approval.kind === 'sftp' ? (
-        <SftpApprovalRenderer operation={approval.operation} />
+      {approval.kind === 'files' ? (
+        <FilesApprovalRenderer operation={approval.operation} />
       ) : approval.kind === 'remoteops' ? (
         <RemoteOpsApprovalRenderer operation={approval.operation} />
       ) : approval.kind === 'forwarding' ? (

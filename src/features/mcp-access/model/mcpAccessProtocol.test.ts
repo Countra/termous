@@ -58,6 +58,26 @@ test('MCP 管理协议接受 Agent 托管投影并兼容旧 Core 与外部写响
   assert.equal(externalWriteResponse?.read_only, false)
 })
 
+test('MCP 文件权限仅接受新名称，存储兼容不能混入 HTTP 投影', () => {
+  const scopes = ['files:read', 'files:connect', 'files:close', 'files:write', 'files:delete',
+    'files:transfer', 'files:cancel', 'files:batch_rename', 'files:search']
+  assert.deepEqual(decodeMcpClients([{ ...clientFixture(), scopes }])[0]?.scopes, scopes)
+  for (const legacyScope of ['sftp:read', 'sftp:file_search', 'files:file_search']) {
+    assert.throws(() => decodeMcpClients([{
+      ...clientFixture(), scopes: ['files:read', legacyScope],
+    }]), /未知权限/)
+  }
+})
+
+test('MCP 文件审批拒绝旧领域名，避免跳过新审批范围校验', () => {
+  const legacyApproval = {
+    ...approvalFixture('pending'), kind: 'sftp', operation: { action: 'delete' },
+  }
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1, items: [legacyApproval],
+  }), /类型无效/)
+})
+
 test('MCP 管理协议拒绝客户端来源、只读状态与令牌投影不一致', () => {
   assert.throws(() => decodeMcpClients([{
     ...clientFixture(),
@@ -100,13 +120,13 @@ test('MCP 审批协议使用完整快照事件并保留调度冲突状态', () =
   assert.equal(result.approval.state, 'dispatching')
 })
 
-test('MCP 审批协议解码 SFTP 操作摘要并容忍可选展示字段', () => {
+test('MCP 审批协议解码文件管理操作摘要并容忍可选展示字段', () => {
   const snapshot = decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',
     revision: 13,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       command: undefined,
       session_ids: undefined,
       targets: undefined,
@@ -125,7 +145,7 @@ test('MCP 审批协议解码 SFTP 操作摘要并容忍可选展示字段', () =
   })
 
   const approval = snapshot.items[0]
-  assert.equal(approval?.kind, 'sftp')
+  assert.equal(approval?.kind, 'files')
   assert.equal(approval?.command, '')
   assert.deepEqual(approval?.session_ids, [])
   assert.deepEqual(approval?.targets, [])
@@ -146,7 +166,7 @@ test('MCP 审批协议接受批量重命名映射数量上限', () => {
     revision: 14,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 500,
@@ -166,7 +186,7 @@ test('MCP 审批协议接受批量重命名终态清空敏感映射', () => {
     revision: 15,
     items: [{
       ...approvalFixture('approved'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 2,
@@ -178,13 +198,13 @@ test('MCP 审批协议接受批量重命名终态清空敏感映射', () => {
   assert.deepEqual(snapshot.items[0]?.operation?.rename_mappings, [])
 })
 
-test('MCP 审批协议解码 SFTP 批量重命名映射', () => {
+test('MCP 审批协议解码文件管理批量重命名映射', () => {
   const snapshot = decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',
     revision: 14,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       command: undefined,
       session_ids: undefined,
       targets: undefined,
@@ -203,7 +223,7 @@ test('MCP 审批协议解码 SFTP 批量重命名映射', () => {
   })
 
   const approval = snapshot.items[0]
-  assert.equal(approval?.kind, 'sftp')
+  assert.equal(approval?.kind, 'files')
   assert.equal(approval?.operation?.rule_count, 3)
   assert.deepEqual(approval?.operation?.rename_mappings, [
     { source_name: 'a.txt', target_name: 'release-a.txt' },
@@ -329,7 +349,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: { action: 'download', overwrite_policy: 'ask' },
     }],
   }), /冲突策略/)
@@ -374,7 +394,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 1,
@@ -387,7 +407,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 1,
@@ -401,7 +421,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 501,
@@ -417,7 +437,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: { action: 'batch_rename', item_count: 1 },
     }],
   }), /映射缺失/)
@@ -426,7 +446,7 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     revision: 12,
     items: [{
       ...approvalFixture('pending'),
-      kind: 'sftp',
+      kind: 'files',
       operation: {
         action: 'batch_rename',
         item_count: 2,
@@ -441,10 +461,10 @@ test('删除审批保留完整顶层路径、递归范围与实际节点总量',
     const operation = deleteApprovalOperation()
     const approval = decodeMcpApprovalSnapshot({
       ...approvalSnapshotFixture(state),
-      items: [{ ...approvalFixture(state), kind: 'sftp', operation }],
+      items: [{ ...approvalFixture(state), kind: 'files', operation }],
     }).items[0]!
-    assert.equal(approval.kind, 'sftp')
-    if (approval.kind !== 'sftp') return
+    assert.equal(approval.kind, 'files')
+    if (approval.kind !== 'files') return
     for (const key of ['recursive', 'item_count', 'top_level_count', 'file_count', 'directory_count', 'symlink_count', 'total_bytes'] as const) {
       assert.equal(approval.operation[key], operation[key])
     }
@@ -453,16 +473,16 @@ test('删除审批保留完整顶层路径、递归范围与实际节点总量',
   const operation = { ...deleteApprovalOperation(), recursive: false, item_count: 3, file_count: 1, directory_count: 1 }
   assert.equal(decodeMcpApprovalSnapshot({
     ...approvalSnapshotFixture('pending'),
-    items: [{ ...approvalFixture('pending'), kind: 'sftp', operation }],
+    items: [{ ...approvalFixture('pending'), kind: 'files', operation }],
   }).items.length, 1)
   const symlinkOnly = decodeMcpApprovalSnapshot({
     ...approvalSnapshotFixture('pending'),
-    items: [{ ...approvalFixture('pending'), kind: 'sftp', operation: {
+    items: [{ ...approvalFixture('pending'), kind: 'files', operation: {
       ...operation, remote_paths: ['/work/link'], top_level_count: 1,
       item_count: 1, file_count: 0, directory_count: 0, symlink_count: 1, total_bytes: 0,
     } }],
   }).items[0]!
-  assert.equal(symlinkOnly.kind === 'sftp' && symlinkOnly.operation.total_bytes, 0)
+  assert.equal(symlinkOnly.kind === 'files' && symlinkOnly.operation.total_bytes, 0)
 })
 
 test('待决定和派发中的删除审批拒绝缺失或不一致的范围，终态允许敏感摘要清理', () => {
@@ -482,14 +502,14 @@ test('待决定和派发中的删除审批拒绝缺失或不一致的范围，�
     for (const patch of invalidPatches) {
       assert.throws(() => decodeMcpApprovalSnapshot({
         ...approvalSnapshotFixture(state),
-        items: [{ ...approvalFixture(state), kind: 'sftp', operation: { ...deleteApprovalOperation(), ...patch } }],
+        items: [{ ...approvalFixture(state), kind: 'files', operation: { ...deleteApprovalOperation(), ...patch } }],
       }), McpAccessProtocolError, `${state}: ${JSON.stringify(patch)}`)
     }
   }
   for (const state of ['approved', 'rejected', 'expired', 'cancelled', 'dispatch_conflict']) {
     assert.equal(decodeMcpApprovalSnapshot({
       ...approvalSnapshotFixture(state),
-      items: [{ ...approvalFixture(state), kind: 'sftp', operation: { action: 'delete' } }],
+      items: [{ ...approvalFixture(state), kind: 'files', operation: { action: 'delete' } }],
     }).items[0]?.state, state)
   }
 })

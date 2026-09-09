@@ -247,6 +247,41 @@ describe('Agent 工作区页面投影', () => {
     expect(projectAgentMessages([message], undefined, [])[0]?.status).toBe('streaming')
   })
 
+  it.each([
+    ['termous.sftp.files.stat', 'termous.files.stat'],
+    ['termous.sftp.sessions.list', 'termous.files.sessions.list'],
+    ['termous.sftp.transfers.get', 'termous.files.transfers.get'],
+    ['termous.files.stat', 'termous.files.stat'],
+    ['termous.sftp.files.unknown', 'termous.sftp.files.unknown'],
+  ])('当前与归档消息仅转换工具显示名 %s，保留原记录及配对', (toolName, displayName) => {
+    const legacyHistoryFixture: AgentMessage = {
+      id: 'message-history', session_id: 'session-one', role: 'assistant', status: 'completed',
+      sequence: 1, revision: 1, attachments: [],
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+      parts: [
+        {
+          id: 'part-call', message_id: 'message-history', sequence: 1, revision: 1,
+          created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z', kind: 'tool_call',
+          tool_call: { tool_call_id: 'call-history', tool_name: toolName, arguments: { path: '/tmp/example' } },
+        },
+        {
+          id: 'part-result', message_id: 'message-history', sequence: 2, revision: 1,
+          created_at: '2026-08-29T00:00:01Z', updated_at: '2026-08-29T00:00:01Z', kind: 'tool_result',
+          tool_result: { tool_call_id: 'call-history', tool_name: toolName, content: { size: 0 }, is_error: false },
+        },
+      ],
+    }
+    const before = structuredClone(legacyHistoryFixture)
+    for (const run of [undefined, activeRun()]) {
+      const [projected] = projectAgentMessages([legacyHistoryFixture], run, [])
+      expect(projected?.parts).toEqual([expect.objectContaining({
+        kind: 'tool', name: displayName, status: 'completed',
+        detail: expect.stringContaining('"size": 0'),
+      })])
+    }
+    expect(legacyHistoryFixture).toEqual(before)
+  })
+
   it('reasoning 最终 Part 到达后立即收起，不等待整条消息结束', () => {
     const message: AgentMessage = {
       id: 'message-assistant',

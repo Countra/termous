@@ -9,6 +9,7 @@ export type {
   AgentSkillsBundleStatus,
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
+export { canonicalizeMcpFileToolName } from './mcp-file-tools.ts'
 export { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from './agent-attachment.ts'
 export type {
   TerminalAIInputSnapshot,

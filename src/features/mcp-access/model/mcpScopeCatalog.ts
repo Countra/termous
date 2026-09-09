@@ -9,7 +9,7 @@ export type McpScopeGroupKey =
   | 'hosts'
   | 'sessions'
   | 'commands'
-  | 'sftp'
+  | 'files'
   | 'system'
   | 'processes'
   | 'services'
@@ -38,17 +38,17 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
   { key: 'sessions', scopes: ['sessions:read', 'sessions:connect', 'sessions:close'] },
   { key: 'commands', scopes: ['commands:execute', 'commands:read', 'commands:interrupt'] },
   {
-    key: 'sftp',
+    key: 'files',
     scopes: [
-      'sftp:read',
-      'sftp:connect',
-      'sftp:close',
-      'sftp:write',
-      'sftp:delete',
-      'sftp:batch_rename',
-      'sftp:file_search',
-      'sftp:transfer',
-      'sftp:cancel',
+      'files:read',
+      'files:connect',
+      'files:close',
+      'files:write',
+      'files:delete',
+      'files:batch_rename',
+      'files:search',
+      'files:transfer',
+      'files:cancel',
     ],
   },
   { key: 'system', scopes: ['system:read'] },
@@ -75,7 +75,7 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     descriptionKey: `settings.mcp.scopeDescription.${key}`,
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
-    destructive: scope === 'sessions:close' || scope === 'sftp:delete',
+    destructive: scope === 'sessions:close' || scope === 'files:delete',
   }
 })
 

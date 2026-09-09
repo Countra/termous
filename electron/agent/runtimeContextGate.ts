@@ -6,6 +6,7 @@ import { createRuntimeCompactionController } from './runtimeCompaction.ts'
 import type { RuntimeContextImages } from './runtimeContextImages.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { isRuntimeCheckpointInput } from './runtimeCheckpoint.ts'
+import { projectRuntimeToolHistory } from './runtimeToolHistory.ts'
 import type {
   RuntimeBootstrap,
   RuntimeCheckpointInput,
@@ -40,7 +41,7 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
   const now = options.now ?? Date.now
   const checkpoint = persistedCheckpoint && {
     summary: persistedCheckpoint.summary,
-    retainedTail: persistedCheckpoint.retained_tail ?? [],
+    retainedTail: (persistedCheckpoint.retained_tail ?? []).map(projectRuntimeToolHistory),
     coveredRawLength: 1 + (persistedCheckpoint.retained_tail?.length ?? 0),
     tokensBefore: persistedCheckpoint.estimated_tokens,
     timestamp: now(),

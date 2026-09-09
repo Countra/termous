@@ -162,6 +162,42 @@ test('历史 assistant 按 tool_result 边界拆分并恢复原 MCP 名称', () 
   )
 })
 
+test('旧文件工具历史只投影新名，完整结果保留且未完成调用不重放', () => {
+  const bootstrap = runtimeBootstrap()
+  const argumentsValue = { path: '/termous.sftp.files.read_text' }
+  bootstrap.messages = [{
+    id: 'agm_old_files', role: 'assistant', status: 'interrupted', sequence: 1,
+    created_at: '2026-08-28T00:00:00Z', attachments: [],
+    parts: [
+      runtimePart('tool_call', 1, { tool_call: {
+        tool_call_id: 'call-completed', tool_name: 'termous.sftp.files.read_text', arguments: argumentsValue,
+      } }),
+      runtimePart('tool_result', 2, { tool_result: {
+        tool_call_id: 'call-completed', tool_name: 'termous.sftp.files.read_text',
+        content: [{ type: 'text', text: 'termous.sftp.files.read_text 原始结果' }], is_error: false,
+      } }),
+      runtimePart('tool_call', 3, { tool_call: {
+        tool_call_id: 'call-interrupted', tool_name: 'termous.sftp.files.delete.start', arguments: argumentsValue,
+      } }),
+    ],
+  }, runtimeUserMessage([], { text: '继续' })]
+  const original = structuredClone(bootstrap)
+  const messages = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap))
+  assert.deepEqual(bootstrap, original)
+  const results = messages.filter((message) => message.role === 'toolResult')
+  assert.deepEqual(results.map(({ toolName }) => toolName), [
+    'm_termous_dfiles_dread_utext', 'm_termous_dfiles_ddelete_dstart',
+  ])
+  assert.deepEqual(results.map(({ toolCallId, isError }) => [toolCallId, isError]), [
+    ['call-completed', false], ['call-interrupted', true],
+  ])
+  assert.match(JSON.stringify(results[0]?.content), /termous\.sftp\.files\.read_text 原始结果/u)
+  assert.match(JSON.stringify(results[1]?.content), /未自动重放/u)
+  assert.deepEqual(messages.filter((message) => message.role === 'assistant')
+    .flatMap((message) => message.content.filter((part) => part.type === 'toolCall').map((part) => part.arguments)),
+  [argumentsValue, argumentsValue])
+})
+
 test('用户附件按 Core 绑定顺序映射为 pi 文本与图片内容', () => {
   const bootstrap = runtimeBootstrap()
   bootstrap.model.snapshot.supports_images = true

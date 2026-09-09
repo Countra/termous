@@ -17,10 +17,10 @@ import { formatBytes } from '#shared/format'
 import { ApprovalPaths, ApprovalRenameMappings } from './ApprovalDetailFields'
 import styles from '../McpApprovalCoordinator.module.scss'
 
-export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
+export function FilesApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
-  const Icon = sftpActionIcons[operation.action] ?? Wrench
-  const actionKey = sftpActionKeys[operation.action] ?? 'settings.mcp.approval.sftpAction.other'
+  const Icon = filesActionIcons[operation.action] ?? Wrench
+  const actionKey = filesActionKeys[operation.action] ?? 'settings.mcp.approval.filesAction.other'
   const isBatchRename = operation.action === 'batch_rename'
   const isDelete = operation.action === 'delete'
   const sourceHost = operation.host_name || operation.file_session_id
@@ -115,19 +115,19 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
   )
 }
 
-const sftpActionKeys: Record<string, string> = {
-  save_text: 'settings.mcp.approval.sftpAction.saveText',
-  mkdir: 'settings.mcp.approval.sftpAction.mkdir',
-  rename: 'settings.mcp.approval.sftpAction.rename',
-  delete: 'settings.mcp.approval.sftpAction.delete',
-  chmod: 'settings.mcp.approval.sftpAction.chmod',
-  upload: 'settings.mcp.approval.sftpAction.upload',
-  download: 'settings.mcp.approval.sftpAction.download',
-  remote_copy: 'settings.mcp.approval.sftpAction.remoteCopy',
-  batch_rename: 'settings.mcp.approval.sftpAction.batchRename',
+const filesActionKeys: Record<string, string> = {
+  save_text: 'settings.mcp.approval.filesAction.saveText',
+  mkdir: 'settings.mcp.approval.filesAction.mkdir',
+  rename: 'settings.mcp.approval.filesAction.rename',
+  delete: 'settings.mcp.approval.filesAction.delete',
+  chmod: 'settings.mcp.approval.filesAction.chmod',
+  upload: 'settings.mcp.approval.filesAction.upload',
+  download: 'settings.mcp.approval.filesAction.download',
+  remote_copy: 'settings.mcp.approval.filesAction.remoteCopy',
+  batch_rename: 'settings.mcp.approval.filesAction.batchRename',
 }
 
-const sftpActionIcons: Record<string, LucideIcon> = {
+const filesActionIcons: Record<string, LucideIcon> = {
   save_text: FilePenLine,
   mkdir: FolderPlus,
   rename: PencilLine,

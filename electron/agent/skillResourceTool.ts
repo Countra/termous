@@ -31,7 +31,10 @@ export function createSkillResourceTool(snapshot: AgentSkillBundleSnapshot): Age
       if (typeof uri !== 'string') {
         throw new Error('AGENT_SKILL_RESOURCE_URI_INVALID')
       }
-      const resource = resources.get(uri)
+      // 旧会话可能再次引用更名前的资源，只在同一 Run 快照中查找其固定新地址。
+      const resource = resources.get(uri) ?? (uri.startsWith('skill://termous-sftp/')
+        ? resources.get(`skill://termous-files/${uri.slice('skill://termous-sftp/'.length)}`)
+        : undefined)
       if (!resource) {
         throw new Error('AGENT_SKILL_RESOURCE_NOT_FOUND')
       }

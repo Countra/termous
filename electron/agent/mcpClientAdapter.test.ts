@@ -38,7 +38,7 @@ test('MCP Tool 动态映射名称和错误详情', async () => {
 
 test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页新增工具', async () => {
   const firstPage: MCPTool[] = [{ name: 'termous.hosts.list', inputSchema: { type: 'object', properties: {} } }]
-  const secondPage: MCPTool[] = [{ name: 'termous.sftp.files.delete.preview', inputSchema: {
+  const secondPage: MCPTool[] = [{ name: 'termous.files.delete.preview', inputSchema: {
     type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'],
   } }]
   const methods: string[] = []

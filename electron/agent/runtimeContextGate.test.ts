@@ -26,6 +26,38 @@ import type {
   WorkerCoreClientPort,
 } from './workerCoreClient.ts'
 
+test('旧文件工具压缩尾部在 hydration 与请求门禁使用一致新名，原 checkpoint 不变', async () => {
+  const bootstrap = gateBootstrap()
+  const oldName = 'm_termous_dsftp_dfiles_dread_utext'
+  const retained: AgentMessage[] = [{
+    ...compactionTestAssistant(''), stopReason: 'toolUse',
+    content: [{ type: 'toolCall', id: 'call-retained', name: oldName, arguments: { path: '/old' } }],
+  }, {
+    role: 'toolResult', toolCallId: 'call-retained', toolName: oldName,
+    content: [{ type: 'text', text: oldName }], isError: false, timestamp: 3,
+  }]
+  bootstrap.context.checkpoint = { ...previousCheckpoint(), retained_tail: retained }
+  const original = structuredClone(bootstrap.context.checkpoint)
+  const fixture = gateFixture({ bootstrap })
+  const raw = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap))
+  const projected = await fixture.gate.transformContext(raw)
+  await fixture.writer.close()
+  fixture.gate.beforeProviderRequest()
+  for (const context of [raw, projected]) {
+    const assistant = context[1]
+    assert.equal(assistant?.role === 'assistant' && assistant.content[0]?.type === 'toolCall'
+      && assistant.content[0].name, 'm_termous_dfiles_dread_utext')
+    const result = context[2]
+    assert.equal(result?.role === 'toolResult' && result.toolName, 'm_termous_dfiles_dread_utext')
+    assert.equal(result?.role === 'toolResult' && result.toolCallId, 'call-retained')
+    assert.equal(result?.role === 'toolResult' && result.content[0]?.type === 'text'
+      && result.content[0].text, oldName)
+  }
+  assert.deepEqual(bootstrap.context.checkpoint, original)
+  assert.equal(fixture.requests, 0)
+  assert.equal(fixture.commits.length, 0)
+})
+
 test('真实门禁按开始、摘要用量、Core 原子完成顺序提交，普通通道不重复写完成', async () => {
   const fixture = gateFixture()
   const raw = compactionTestHistory()

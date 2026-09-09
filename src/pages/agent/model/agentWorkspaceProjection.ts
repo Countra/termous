@@ -11,7 +11,7 @@ import type {
   AgentSession,
 } from '#entities/agent'
 import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal, mergeAgentRetryActivity } from '#entities/agent'
-import type { AgentRuntimeStatus } from '#common/contracts'
+import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/contracts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
@@ -333,7 +333,7 @@ function projectToolPart(
   return {
     id: call.id,
     kind: 'tool',
-    name: call.tool_call.tool_name,
+    name: canonicalizeMcpFileToolName(call.tool_call.tool_name),
     status,
     duration_ms: duration,
     detail: boundedToolDetail({

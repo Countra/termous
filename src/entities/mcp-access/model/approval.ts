@@ -8,7 +8,7 @@ export type McpApprovalState =
   | 'dispatch_conflict'
 
 export type McpApprovalDecision = 'approve' | 'reject'
-export type McpApprovalKind = 'command' | 'sftp' | 'remoteops' | 'forwarding' | 'snippet'
+export type McpApprovalKind = 'command' | 'files' | 'remoteops' | 'forwarding' | 'snippet'
 
 export interface McpApprovalRenameMapping {
   source_name: string
@@ -90,8 +90,8 @@ export interface McpCommandApproval extends McpApprovalBase {
   operation?: never
 }
 
-export interface McpSFTPApproval extends McpApprovalBase {
-  kind: 'sftp'
+export interface McpFilesApproval extends McpApprovalBase {
+  kind: 'files'
   command: string
   operation: McpApprovalOperation
 }
@@ -116,7 +116,7 @@ export interface McpSnippetApproval extends McpApprovalBase {
 
 export type McpApproval =
   | McpCommandApproval
-  | McpSFTPApproval
+  | McpFilesApproval
   | McpRemoteOpsApproval
   | McpForwardingApproval
   | McpSnippetApproval
