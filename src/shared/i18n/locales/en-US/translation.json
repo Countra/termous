@@ -183,6 +183,8 @@
       "profileIdentifier": "Connection profile ID",
       "sessionIdentifier": "SSH session ID",
       "pending": "Preparing terminal reference…",
+      "completed": "Terminal reference added",
+      "completedDescription": "Added to your draft. Nothing has been sent yet.",
       "failed": "Terminal reference has not been added",
       "configuration": "Select an available AI model first",
       "retained": "The selected text from {{host}} has been preserved.",

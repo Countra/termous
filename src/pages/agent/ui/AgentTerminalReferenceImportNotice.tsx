@@ -6,6 +6,8 @@ import type { AgentTerminalReferenceImportJob } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { AgentTerminalReferenceConfirmDialog } from './AgentTerminalReferenceConfirmDialog'
 
+const COMPLETED_NOTICE_DURATION_SECONDS = 2
+
 export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, onRetry, onDismiss, onOpenSettings }: {
   job?: AgentTerminalReferenceImportJob
   resources: AgentSSHResourceState[]
@@ -16,12 +18,18 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
+  const notificationRef = useRef(notification)
+  notificationRef.current = notification
   const requestKey = job?.request.key
   const stage = job?.stage
   const notificationKey = requestKey !== undefined && stage !== 'confirm'
     ? `agent-terminal-reference-${requestKey}` : undefined
   const callbacksRef = useRef({ requestKey, stage, onRetry, onDismiss, onOpenSettings })
   callbacksRef.current = { requestKey, stage, onRetry, onDismiss, onOpenSettings }
+  const visibleNoticeRef = useRef<{
+    key: string
+    stage: AgentTerminalReferenceImportJob['stage'] | 'completed'
+  } | undefined>(undefined)
   const failed = stage === 'failed'
   const configuration = stage === 'configuration'
   const canOpenSettings = Boolean(onOpenSettings)
@@ -31,12 +39,39 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
   }) : t('agent.terminalReference.retained', { host: job?.request.source_resource.host_name })
 
   useEffect(() => () => {
-    // 离页、换绑确认和导入完成只关闭提示，引用任务仍由常驻页面管理。
-    if (notificationKey) notification.destroy(notificationKey)
-  }, [notification, notificationKey])
+    // 离页立即清理当前提示，包括正在延迟收起的完成提示，不影响引用任务。
+    if (visibleNoticeRef.current) notificationRef.current.destroy(visibleNoticeRef.current.key)
+    visibleNoticeRef.current = undefined
+  }, [])
 
   useEffect(() => {
-    if (!notificationKey) return
+    const previous = visibleNoticeRef.current
+    if (!notificationKey || !stage) {
+      if (!previous) return
+      if (!stage && (previous.stage === 'pending' || previous.stage === 'importing')) {
+        // 只延长完成反馈，不延迟导入或队列；记录完成状态，避免普通重渲染重置计时。
+        visibleNoticeRef.current = { key: previous.key, stage: 'completed' }
+        notification.open({
+          key: previous.key,
+          placement: 'topRight',
+          type: 'success',
+          title: t('agent.terminalReference.completed'),
+          description: t('agent.terminalReference.completedDescription'),
+          duration: COMPLETED_NOTICE_DURATION_SECONDS,
+          showProgress: false,
+          role: 'status',
+          className: termousNotificationClassName,
+          closable: true,
+          actions: undefined,
+        })
+      } else if (previous.stage !== 'completed' || stage === 'confirm') {
+        notification.destroy(previous.key)
+        visibleNoticeRef.current = undefined
+      }
+      return
+    }
+    if (previous && previous.key !== notificationKey) notification.destroy(previous.key)
+    visibleNoticeRef.current = { key: notificationKey, stage }
     let active = true
     const invoke = (action: 'onRetry' | 'onDismiss' | 'onOpenSettings') => {
       const current = callbacksRef.current
@@ -44,6 +79,11 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
       if (!active || current.requestKey !== requestKey || current.stage === 'confirm' || current.stage === 'importing') return
       if (action === 'onRetry' && current.stage !== 'failed') return
       if (action === 'onOpenSettings' && current.stage !== 'configuration') return
+      if (action === 'onDismiss') {
+        // 主动取消立即关闭，不能将任务移除误判为导入成功。
+        notification.destroy(notificationKey)
+        visibleNoticeRef.current = undefined
+      }
       current[action]?.()
     }
     notification.open({

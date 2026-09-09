@@ -183,6 +183,8 @@
       "profileIdentifier": "连接配置 ID",
       "sessionIdentifier": "SSH 会话 ID",
       "pending": "正在准备终端引用…",
+      "completed": "终端引用已添加",
+      "completedDescription": "已放入输入区，尚未发送。",
       "failed": "终端引用尚未导入",
       "configuration": "请先选择可用的 AI 模型",
       "retained": "已保留来自 {{host}} 的选区原文。",

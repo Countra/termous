@@ -6,7 +6,10 @@ import type { AgentTerminalReferenceImportJob } from '#features/agent-runtime'
 import { AgentTerminalReferenceImportNotice } from './AgentTerminalReferenceImportNotice'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 function job(stage: AgentTerminalReferenceImportJob['stage'], key = 1): AgentTerminalReferenceImportJob {
   return {
@@ -36,7 +39,7 @@ function fixture(initial: AgentTerminalReferenceImportJob) {
 }
 
 describe('终端引用状态通知', () => {
-  it('在右上角持续显示，同一引用更新为失败时不堆叠，完成后收起', async () => {
+  it('在右上角持续显示，同一引用更新为失败时不堆叠，移除失败任务后收起', async () => {
     const user = userEvent.setup()
     const f = fixture(job('pending'))
     const pending = await screen.findByText('agent.terminalReference.pending')
@@ -58,6 +61,62 @@ describe('终端引用状态通知', () => {
     f.update()
     await waitFor(() => expect(screen.queryByText('agent.terminalReference.failed')).not.toBeInTheDocument())
     expect(f.onDismiss).not.toHaveBeenCalled()
+  })
+
+  it.each(['pending', 'importing'] as const)('从 %s 完成后原位提示两秒，重渲染不会延长计时', async (stage) => {
+    vi.useFakeTimers()
+    const f = fixture(job(stage))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+
+    f.update()
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
+    expect(screen.getByText('agent.terminalReference.completedDescription')).toBeInTheDocument()
+    expect(screen.queryByText('agent.terminalReference.pending')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.ant-notification-notice')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'app.cancel' })).not.toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    f.update()
+    expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
+    expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
+    expect(f.onDismiss).not.toHaveBeenCalled()
+  })
+
+  it('下一项立即替换完成提示，旧提示的到期时间不会关闭新通知，离页立即清理', async () => {
+    vi.useFakeTimers()
+    const f = fixture(job('importing'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    f.update()
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
+
+    f.update(job('importing', 2))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
+    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2100) })
+    expect(screen.getByText('agent.terminalReference.pending')).toBeInTheDocument()
+
+    f.update()
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.getByText('agent.terminalReference.completed')).toBeInTheDocument()
+    f.update(undefined, false)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
+    expect(f.onDismiss).not.toHaveBeenCalled()
+  })
+
+  it('主动取消立即关闭，不显示完成反馈', async () => {
+    const user = userEvent.setup()
+    const f = fixture(job('pending'))
+    await user.click(await screen.findByRole('button', { name: 'app.cancel' }))
+    expect(f.onDismiss).toHaveBeenCalledOnce()
+    f.update()
+    await waitFor(() => expect(screen.queryByText('agent.terminalReference.pending')).not.toBeInTheDocument())
+    expect(screen.queryByText('agent.terminalReference.completed')).not.toBeInTheDocument()
   })
 
   it('前往设置及离页只移除通知，回来后仍提供设置和取消入口', async () => {
