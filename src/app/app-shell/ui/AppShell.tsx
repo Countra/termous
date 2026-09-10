@@ -5,6 +5,7 @@ import {
   DatabaseZap,
   FileCode2,
   FolderTree,
+  Info,
   Monitor,
   MonitorCog,
   MonitorPlay,
@@ -25,7 +26,7 @@ import type { WindowCloseBehavior } from '#common/contracts'
 import type { LocalShell } from '#entities/session'
 import type { PageKey } from '#shared/model'
 import { contextActionMenuPopupClassName } from '#shared/ui'
-import { BrandVersionControl } from '#features/update'
+import { BrandVersionControl, useOpenUpdateWindow } from '#features/update'
 import { WindowControls } from './WindowControls'
 import styles from './AppShell.module.scss'
 
@@ -81,6 +82,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
+  const { opening: openingAbout, open: openAbout } = useOpenUpdateWindow()
   const [sidebarHelpOpen, setSidebarHelpOpen] = useState(false)
   const [topbarHelpOpen, setTopbarHelpOpen] = useState(false)
   const sidebarHelpButtonRef = useRef<HTMLButtonElement>(null)
@@ -120,6 +122,12 @@ export function AppShell({
       icon: <CircleHelp size={15} aria-hidden="true" />,
       label: t('productTour.menuLabel'),
     },
+    {
+      key: 'about',
+      icon: <Info size={15} aria-hidden="true" />,
+      label: t('update.global.aboutMenuLabel'),
+      disabled: openingAbout,
+    },
   ]
 
   const handleConnectionMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -136,6 +144,7 @@ export function AppShell({
     setSidebarHelpOpen(false)
     setTopbarHelpOpen(false)
     if (key === 'product-tour') onOpenProductTour()
+    if (key === 'about') void openAbout()
   }
 
   return (

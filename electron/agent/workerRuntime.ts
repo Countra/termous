@@ -22,6 +22,7 @@ import {
   validRunID,
 } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { projectWorkerMCPFailure } from './workerMCPFailure.ts'
 import {
   WorkerCoreClient,
   type RuntimeBootstrap,
@@ -187,7 +188,7 @@ export class AgentWorkerRuntime {
       settled = await this.persistTerminalStatus(
         this.abortRequested ? 'cancelled' : outcome,
       )
-    } catch {
+    } catch (error) {
       if (this.bootstrap === null) {
         fatal = 'bootstrap_failed'
         return
@@ -206,7 +207,7 @@ export class AgentWorkerRuntime {
       }
       try {
         this.events?.push('error', {
-          error: {
+          error: this.mcp === null ? projectWorkerMCPFailure(error) : {
             code: 'AGENT_RUNTIME_EXECUTION_FAILED',
             message: 'AI 助手执行运行时失败',
           },

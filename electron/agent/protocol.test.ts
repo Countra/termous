@@ -12,8 +12,8 @@ const steerAck = {
   accepted: true,
 }
 
-test('Agent Worker 使用动态上下文快照协议 v6', () => {
-  assert.equal(agentRuntimeProtocolVersion, '6')
+test('Agent Worker 使用包含终端引用来源的协议 v9', () => {
+  assert.equal(agentRuntimeProtocolVersion, '9')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

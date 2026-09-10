@@ -1,9 +1,9 @@
 .root :global(.ant-dropdown-menu) {
-  width: 188px;
-  min-width: 188px;
+  width: 212px;
+  min-width: 212px;
   overflow: hidden;
   border-radius: 10px;
-  background: #1d2128 !important;
+  background: var(--termous-dropdown-bg) !important;
   backdrop-filter: none !important;
   box-shadow: 0 16px 36px rgb(0 0 0 / 38%);
 }
@@ -67,6 +67,18 @@
   text-align: right;
 }
 
+.label-tooltip:global(.ant-tooltip) {
+  max-width: min(280px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.label-tooltip :global(.ant-tooltip-container) {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
 .anchor {
   position: fixed;
   z-index: 1;
@@ -74,4 +86,23 @@
   width: 1px;
   height: 1px;
   pointer-events: none;
+}
+
+.reference-target {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.reference-target > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-target > small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: normal;
 }

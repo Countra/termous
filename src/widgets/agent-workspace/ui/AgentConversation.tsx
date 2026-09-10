@@ -9,11 +9,13 @@ import {
 } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
+import { AgentTerminalReferenceCard } from './AgentTerminalReferenceCard.tsx'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
 import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
-import { AgentMessageFailure } from './AgentMessageFailure.tsx'
+import { AgentRetryActivity } from './AgentRetryActivity.tsx'
+import { AgentMessageFailure, AgentResponseFailure } from './AgentMessageFailure.tsx'
 import { AgentMessageActions } from './AgentMessageActions.tsx'
 import styles from './AgentConversation.module.scss'
 
@@ -174,6 +176,12 @@ const AgentMessageStack = memo(function AgentMessageStack({
               if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
               if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
+              if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />
+              if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} hideError={
+                part.activity.purpose === 'response' && message.parts.some((candidate) => (
+                  candidate.kind === 'response_failure' && candidate.failure.error_message === part.activity.error_message
+                ))
+              } />
               if (!part.text.trim()) return null
               return (
                 <details key={part.id} className={styles.reasoning} open={part.streaming || undefined}>
@@ -188,7 +196,9 @@ const AgentMessageStack = memo(function AgentMessageStack({
             })}
             {message.attachments.some((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent) ? (
               <div className={styles['message-attachments']}>
-                {message.attachments.filter((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent).map((attachment) => (
+                {message.attachments.filter((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent).map((attachment) => attachment.origin ? (
+                  <AgentTerminalReferenceCard key={attachment.id} origin={attachment.origin} onPreview={() => onPreviewAttachment(attachment)} />
+                ) : (
                   <button key={attachment.id} type="button" onClick={() => onPreviewAttachment(attachment)}>
                     {attachment.kind === 'image' ? <Image size={13} /> : <FileCode2 size={13} />}
                     <span>{attachment.original_name}</span>
@@ -238,6 +248,11 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const message = messages[messages.length - 1]
   if (!message) return 'empty'
   const parts = message.parts.map((part) => {
+    if (part.kind === 'response_failure') return `${part.id}:${part.failure.error_message}`
+    if (part.kind === 'retry') {
+      const activity = part.activity
+      return `${part.id}:${activity.status}:${activity.attempt}:${activity.delay_ms}:${activity.duration_ms ?? ''}:${activity.error_message}`
+    }
     if (part.kind === 'compaction') {
       const activity = part.activity
       return `${part.id}:${activity.status}:${activity.tokens_before}:${activity.tokens_after ?? ''}:${activity.context_window_tokens ?? ''}:${activity.duration_ms ?? ''}`

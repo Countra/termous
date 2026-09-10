@@ -117,6 +117,19 @@ test('创建会话在途时的新选择优先于迟到回执，实体仍合入�
   })
 })
 
+test('等待前捕获的选择版本阻止后续创建覆盖用户的新选择', async () => {
+  const gateway = new FakeGateway()
+  const controller = new AgentWorkspaceController({ gateway })
+  const selectionIntent = controller.getSnapshot().selection_intent_revision
+  controller.selectSession(undefined)
+  const selected = controller.getSnapshot()
+  const created = await controller.createSession(sessionInput(), selectionIntent)
+  assert.equal(controller.getSnapshot().selected_session_id, selected.selected_session_id)
+  assert.equal(controller.getSnapshot().selection_intent_revision, selected.selection_intent_revision)
+  assert.ok(controller.getSnapshot().sessions.some(({ id }) => id === created.id))
+  controller.close()
+})
+
 test('已移除会话的迟到选择不会取消当前会话水合或触发无效请求', async () => {
   const gateway = new FakeGateway()
   const controller = startedController(gateway)
@@ -163,6 +176,22 @@ test('迟到的更新响应不会覆盖 WebSocket 已接收的更高会话 revis
   assert.equal(controller.getSnapshot().sessions[0]?.revision, 3)
   assert.equal(controller.getSnapshot().sessions[0]?.title, '较新的会话')
   controller.close()
+})
+
+test('重连快照已移除的会话不会被迟到 SSH 恢复结果重新插入', async (context) => {
+  const { controller, socket } = await startControllerWithQueue(new FakeGateway(), [])
+  context.after(() => controller.close())
+  const other = agentSessionFixture({ id: 'ags-other' })
+  socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture(), other], active_runs: [] })
+  controller.selectSession(other.id)
+  controller.updateDraft(other.id, '当前聊天的草稿')
+  socket.message({ type: 'snapshot', revision: 2, sessions: [other], active_runs: [] })
+
+  controller.acceptRecoveredResourceSession(agentSessionFixture({ title: '迟到的恢复结果', revision: 2 }))
+
+  assert.deepEqual(controller.getSnapshot().sessions.map(({ id }) => id), [other.id])
+  assert.equal(controller.getSnapshot().selected_session_id, other.id)
+  assert.equal(controller.getSnapshot().drafts[other.id]?.text, '当前聊天的草稿')
 })
 
 test('资源绑定 revision 冲突恢复可单独刷新权威会话', async () => {
@@ -431,6 +460,44 @@ test('实时与 HTTP 回查的 steer_applied 推进游标且不会重复插入�
     } finally {
       controller.close()
     }
+  }
+})
+
+test('重试事件补拉的消息页领先于 Run 时保留终态原文，不回退为流式回复', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => socket as unknown as WebSocket })
+  const retry = {
+    retry_id: 'retry-history', assistant_message_id: 'agm-assistant', purpose: 'response',
+    after_part_sequence: 0, status: 'waiting', attempt: 0, max_retries: 3, delay_ms: 1_000,
+    error_message: '503 upstream failure\n请稍后重试',
+  }
+  const waiting = { ...agentStatusEventFixture(), kind: 'retry', payload: { retry } }
+  const failed = { ...waiting, id: 'retry-failed', sequence: 2,
+    payload: { retry: { ...retry, status: 'failed', duration_ms: 500 } } }
+  controller.start()
+  try {
+    await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 1)
+    socket.open()
+    socket.message({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [agentRunFixture()] })
+    await settle()
+    gateway.runImpl = async () => agentRunFixture({ revision: 2, event_sequence: 1 })
+    gateway.runEvents = async () => decodeAgentRunEventPage({ items: [waiting, failed] })
+    gateway.messagesImpl = async () => ({ items: [agentMessageFixture({
+      status: 'failed', revision: 2,
+      turn_usage: { run_id: 'agr-run', usage: agentRunFixture().usage, error_message: retry.error_message },
+      retries: [{ ...retry, purpose: 'response', status: 'failed', max_retries: 3, duration_ms: 500, created_at: agentFixtureTime }],
+    })] })
+    socket.message({ type: 'upsert', revision: 1, run_event: failed })
+    await waitFor(() => controller.getSnapshot().run_event_sequences['agr-run'] === 2)
+    const message = controller.getSnapshot().messages['ags-session']![0]!
+    assert.equal(message.status, 'failed')
+    assert.equal(message.turn_usage?.error_message, retry.error_message)
+    assert.equal(message.retries?.length, 1)
+    assert.equal(message.retries?.[0]?.status, 'failed')
+    assert.equal(socket.closed, false)
+  } finally {
+    controller.close()
   }
 })
 
@@ -2383,6 +2450,9 @@ class FakeGateway implements AgentWorkspaceGateway {
   async wakeQueue() { return commandResult(true) }
   async replaceResourceBinding() { return agentSessionFixture() }
   async removeResourceBinding() { return agentSessionFixture() }
+  async recoverResourceBinding(): Promise<never> { throw new Error('测试未配置连接恢复') }
+  async resourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复查询') }
+  async cancelResourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复取消') }
   usage(sessionId: string, signal?: AbortSignal) {
     if (signal) this.usageSignals.push(signal)
     this.usageCalls += 1

@@ -18,6 +18,7 @@ export {
   type McpClientSource,
   type McpClientToken,
   type McpClientUpdateInput,
+  type McpFilesApproval,
   type McpRemoteOpsApproval,
   type McpScope,
   type McpServerState,

@@ -1,9 +1,10 @@
-import { Collapse, Switch } from 'antd'
+import { Button, Collapse, Switch } from 'antd'
 import {
   Command,
   FileCode2,
   FolderTree,
   History,
+  Sparkles,
   SquareTerminal,
   TextCursorInput,
 } from 'lucide-react'
@@ -11,6 +12,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CompletionProviderId, CompletionSettings } from '#common/contracts'
 import { completionProviderIds } from '#entities/settings'
+import { agentDefaultModelReasonKey, type AgentDefaultModelStatusView } from '#entities/agent'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './TerminalCompletionSettings.module.scss'
 
@@ -18,9 +20,11 @@ interface TerminalCompletionSettingsProps {
   value: CompletionSettings
   disabled: boolean
   onChange: (value: CompletionSettings) => Promise<void>
+  modelStatus?: AgentDefaultModelStatusView
+  onOpenAgentSettings?: () => void
 }
 
-type CompletionSettingKey = 'enabled' | CompletionProviderId
+type CompletionSettingKey = 'enabled' | 'ai_enabled' | CompletionProviderId
 
 const providerIcons: Record<CompletionProviderId, ReactNode> = {
   native: <SquareTerminal size={16} aria-hidden="true" />,
@@ -39,6 +43,8 @@ export function TerminalCompletionSettings({
   value,
   disabled,
   onChange,
+  modelStatus,
+  onOpenAgentSettings,
 }: TerminalCompletionSettingsProps) {
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -82,6 +88,26 @@ export function TerminalCompletionSettings({
           loading={pendingKeys.has('enabled')}
           aria-label={t('settings.completionEnabled')}
           onChange={(enabled) => void updateSetting('enabled', { ...value, enabled })}
+        />
+      </div>
+      <div className={`${surfaceStyles.row} ${styles.row} ${styles['ai-row']}`}>
+        <div className={styles['setting-copy']}>
+          <strong className={styles['ai-title']}><Sparkles size={15} aria-hidden="true" />{t('settings.completionAiEnabled')}</strong>
+          <p className={`${surfaceStyles.hint} ${styles.hint}`}>{t('settings.completionAiHint')}</p>
+          <div className={styles['ai-model']}>
+            <span>{t('terminal.aiCompletion.defaultModel')} · {modelStatus?.status === 'loading'
+              ? t('terminal.aiCompletion.modelLoading')
+              : modelStatus?.label ?? t('terminal.aiCompletion.modelUnset')}</span>
+            {onOpenAgentSettings ? <Button type="link" size="small" onClick={onOpenAgentSettings}>{t('terminal.aiCompletion.openSettings')}</Button> : null}
+          </div>
+          {modelStatus?.status === 'unavailable' ? <p className={`${surfaceStyles.hint} ${styles.hint}`}>{t(agentDefaultModelReasonKey(modelStatus.reason))}</p> : null}
+        </div>
+        <Switch
+          checked={value.ai_enabled}
+          disabled={disabled || !value.enabled || pendingKeys.size > 0}
+          loading={pendingKeys.has('ai_enabled')}
+          aria-label={t('settings.completionAiEnabled')}
+          onChange={(ai_enabled) => void updateSetting('ai_enabled', { ...value, ai_enabled })}
         />
       </div>
       <Collapse

@@ -22,6 +22,7 @@ export function AgentQueuedTurnList({
   queueState,
   disabled,
   canExecute,
+  resumeDisabled = false,
   editingTurnId,
   onEdit,
   onExecute,
@@ -33,6 +34,7 @@ export function AgentQueuedTurnList({
   queueState?: AgentQueueState
   disabled: boolean
   canExecute: boolean
+  resumeDisabled?: boolean
   editingTurnId?: string
   onEdit: (turnId: string) => void
   onExecute: (turnId: string) => void
@@ -138,7 +140,7 @@ export function AgentQueuedTurnList({
       <header>
         <span><ListRestart size={13} aria-hidden="true" />{t('agent.queue.pending', { count: queued.length })}</span>
         {queueState?.state === 'paused' ? (
-          <Button type="text" size="small" disabled={disabled} icon={<Play size={13} aria-hidden="true" />} onClick={onResume}>
+          <Button type="text" size="small" disabled={disabled || resumeDisabled} icon={<Play size={13} aria-hidden="true" />} onClick={onResume}>
             {t('agent.queue.resume')}
           </Button>
         ) : <small>{t('agent.queue.running')}</small>}

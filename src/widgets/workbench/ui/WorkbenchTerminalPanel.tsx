@@ -8,6 +8,7 @@ import {
   TerminalSplitWorkspace,
   type TerminalDragPoint,
   type TerminalSplitWorkspaceHandle,
+  type TerminalAIReferenceProps,
 } from '#features/terminal'
 import {
   ConnectionActionButton,
@@ -20,7 +21,7 @@ import type { WorkbenchTerminalSearchState } from '../model/workbenchTerminalTyp
 import { CommandDockResizeHandle } from './CommandDockResizeHandle'
 import styles from './WorkbenchPage.module.scss'
 
-interface WorkbenchTerminalPanelProps {
+interface WorkbenchTerminalPanelProps extends TerminalAIReferenceProps {
   sessionTabs: ReactNode
   commandDock: ReactNode
   commandDockOpen: boolean
@@ -48,6 +49,7 @@ interface WorkbenchTerminalPanelProps {
   sessionDuration: string
   terminalSize: { cols: number; rows: number }
   onOpenConnectionLauncher: () => void
+  onOpenAgentSettings?: () => void
   onSearchQueryChange: (query: string) => void
   onSearchPrevious: () => void
   onSearchNext: () => void
@@ -93,6 +95,9 @@ export function WorkbenchTerminalPanel({
   sessionDuration,
   terminalSize,
   onOpenConnectionLauncher,
+  onOpenAgentSettings,
+  getAgentReferenceSnapshot,
+  onReferenceTerminalSelection,
   onSearchQueryChange,
   onSearchPrevious,
   onSearchNext,
@@ -133,6 +138,9 @@ export function WorkbenchTerminalPanel({
           activeSession={activeSession}
           workspaceActive={workspaceActive}
           themeMode={themeMode}
+          onOpenAgentSettings={onOpenAgentSettings}
+          getAgentReferenceSnapshot={getAgentReferenceSnapshot}
+          onReferenceTerminalSelection={onReferenceTerminalSelection}
           placeholder={selectedHostAvailable ? t('workbench.terminalReady') : t('workbench.terminalHint')}
           emptyState={sessions.length === 0 ? (
             <WorkbenchEmptyState

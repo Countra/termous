@@ -32,6 +32,12 @@
     "minimizeToTray": "最小化到托盘",
     "exitAndDisconnect": "退出并断开",
     "coreFatalTitle": "后端连接异常",
+    "databaseStartupFailed": "数据库无法完成启动准备",
+    "diagnosticsDetails": "查看错误详情",
+    "copyDiagnostics": "复制诊断",
+    "openLogs": "打开日志",
+    "diagnosticsCopied": "诊断信息已复制",
+    "diagnosticsActionFailed": "操作未能完成，请重试。",
     "coreFatalDescription": "核心服务已停止或无响应，请退出后重新打开 Termous。",
     "exit": "退出软件",
     "loading": "加载中",
@@ -166,28 +172,38 @@
     "conversation": {
       "jumpToLatest": "回到最新消息"
     },
-    "launch": {
-      "action": "交给 AI 助手",
-      "title": {
-        "workbench": "处理 {{name}} 的终端连接",
-        "files": "处理 {{name}} 的文件连接",
-        "host": "处理主机 {{name}}",
-        "profile": "处理访问配置 {{name}}",
-        "forwardFailure": "排查端口转发 {{name}}"
-      },
-      "summary": {
-        "workbench": "SSH 连接状态：{{status}}",
-        "files": "文件连接状态：{{status}}",
-        "host": "来源：主机管理",
-        "profile": "访问类型：{{technology}}",
-        "forwardFailure": "转发状态：{{status}}；阶段：{{phase}}"
-      },
-      "prompt": {
-        "workbench": "请检查这个终端连接，并协助我处理当前问题。",
-        "files": "请检查这个文件连接，并协助我处理当前问题。",
-        "host_profile": "请检查这个主机或访问配置，并协助我处理当前问题。",
-        "forward_failure": "请分析这次端口转发失败，并给出处理方案。"
+    "terminalReference": {
+      "confirmTitle": "切换 SSH 关联？",
+      "confirmDescription": "终端选区将加入输入框，已有内容会保留，不会自动发送。",
+      "confirmReplace": "切换并添加",
+      "currentAssociation": "当前关联",
+      "nextAssociation": "切换至",
+      "profileUnavailable": "连接名称暂不可用",
+      "unknownHost": "当前 SSH 主机",
+      "profileIdentifier": "连接配置 ID",
+      "sessionIdentifier": "SSH 会话 ID",
+      "completed": "终端内容已添加",
+      "completedDescription": "已添加到输入区，可继续编辑后发送。",
+      "failed": "终端内容添加失败",
+      "configuration": "请先配置可用的 AI 模型",
+      "retained": "已保留来自 {{host}} 的终端选区。",
+      "openSettings": "前往 AI 助手设置",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "来源 SSH 已断开或发生变化。请恢复连接后重新引用。",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "目标会话已删除、归档或暂时不可用，原文仍保留。",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "目标有运行中的任务或排队消息，暂时不能更换 SSH 关联。",
+        "AGENT_TERMINAL_REFERENCE_EDIT_CHANGED": "目标排队消息的编辑状态已变化，请重新确认引用目标。",
+        "AGENT_TERMINAL_REFERENCE_EDIT_SAVING": "目标排队消息正在保存，选区原文已保留，请保存完成后重试。",
+        "AGENT_TERMINAL_REFERENCE_ATTACHMENT_REJECTED": "引用未加入输入区，请检查附件数量、大小或编辑状态后重试。",
+        "AGENT_TERMINAL_REFERENCE_INVALID": "选区为空、包含不支持的字符或超过 256 KiB，请重新选择。",
+        "AGENT_REVISION_CONFLICT": "目标会话已被更新。已刷新状态，请重新尝试。",
+        "AGENT_RUN_CONFLICT": "目标正在运行，暂时无法修改关联。",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "来源 SSH 当前不可用，请确认连接后重试。",
+        "unknown": "操作未完成，选区原文仍保留。请确认连接和目标会话后重试。"
       }
+    },
+    "launch": {
+      "action": "交给 AI 助手"
     },
     "message": {
       "copied": "已复制",
@@ -198,6 +214,13 @@
       "agent": "AI 助手",
       "failed": "本次回复失败",
       "failure": {
+        "mcpProtocolMismatch": "AI 助手与 MCP 工具服务的协议版本不兼容",
+        "mcpEndpointInvalid": "AI 助手的 MCP 工具服务地址无效",
+        "mcpEndpointViolation": "AI 助手的 MCP 工具服务地址不符合本地连接要求",
+        "mcpToolNameConflict": "MCP 工具名称重复或无效，AI 助手未能启动",
+        "mcpToolSchemaInvalid": "MCP 工具参数定义无效，AI 助手未能启动",
+        "mcpToolsEmpty": "MCP 工具服务没有返回可用工具，AI 助手未能启动",
+        "mcpConnectionFailed": "AI 助手连接 MCP 工具服务失败，请准备或修复后重试",
         "streamInterrupted": "模型响应连接中断，回复未能完成。请检查网络后重试。",
         "timeout": "模型响应超时，请稍后重试。",
         "rateLimited": "模型服务请求过于频繁或额度受限，请检查额度并稍后重试。",
@@ -238,6 +261,16 @@
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
     },
+    "retry": {
+      "waiting": "等待重连 · 第{{attempt}}/{{max}}次",
+      "requesting": "正在重连 · 第{{attempt}}/{{max}}次",
+      "completed": "重连成功",
+      "failed": "重连失败",
+      "cancelled": "重连已取消",
+      "compaction": "摘要请求",
+      "wait": "{{seconds}} 秒后重试",
+      "attempts": "已重试 {{count}} 次"
+    },
     "reasoning": {
       "running": "正在思考",
       "completed": "思考过程"
@@ -275,6 +308,43 @@
         "manual": "手工添加"
       }
     },
+    "fileResource": {
+      "errorTitle": "引用的文件配置不可用",
+      "details": "已引用的文件连接",
+      "profile": "文件配置",
+      "session": "配置标识",
+      "aria": "已引用 {{host}} 的文件连接，{{status}}",
+      "tooltip": "文件连接 · {{host}} · {{status}}",
+      "selectLabel": "选择新的文件配置",
+      "selectPlaceholder": "选择可用的文件配置",
+      "noCandidates": "暂无其他可用文件配置",
+      "removeTitle": "解除文件连接引用？",
+      "removeDescription": "解除后，当前会话不再引用 {{host}} 的文件配置，草稿、附件和历史消息会保留。",
+      "confirmTitle": "替换文件连接引用？",
+      "confirmDescription": "将替换当前文件配置引用，终端连接引用和已有草稿会保留。",
+      "hint": {
+        "checking": "正在确认文件配置，确认完成前不会提交任务。",
+        "unavailable": "文件配置当前不可用，请更换配置或解除引用。原文件标签关闭或断开不会使引用失效。",
+        "stale": "文件配置已删除或配置归属已变化，请更换配置或解除引用。"
+      }
+    },
+    "connectionReference": {
+      "completed": "连接已关联",
+      "failed": "连接关联失败",
+      "confirmDescription": "将替换当前终端连接引用，文件连接引用和已有草稿会保留。",
+      "confirmReplace": "替换引用",
+      "retained": "已保留 {{host}} 的连接引用，请先完成 AI 助手配置。",
+      "completedDescription": "连接已关联到目标会话。",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "来源连接或配置已失效，请检查后重新引用。",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "目标会话已删除、归档或暂时不可用，请重新选择目标。",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "目标有运行中的任务或排队消息，暂时不能更换连接引用。",
+        "AGENT_REVISION_CONFLICT": "目标会话已被更新。已刷新状态，请重新尝试。",
+        "AGENT_RUN_CONFLICT": "目标正在运行，暂时无法修改关联。",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "引用的连接或配置当前不可用，请检查后替换或解除引用。",
+        "unknown": "连接关联未完成。请检查来源和目标会话后重试。"
+      }
+    },
     "resource": {
       "details": "已引用的 SSH 连接",
       "host": "主机",
@@ -289,7 +359,7 @@
       },
       "hint": {
         "checking": "正在等待 Core 返回最新的 SSH 会话状态，确认完成前不会提交任务。",
-        "unavailable": "当前连接未处于就绪状态。草稿会保留；若原会话已断开，请重新连接后显式更换引用，或解除引用。",
+        "unavailable": "当前连接未处于就绪状态。草稿会保留；可以恢复连接、更换引用或解除引用。",
         "stale": "原连接已关闭或 Core 已重启，不会自动切换到同配置的新连接。"
       },
       "aria": "已引用 {{host}} 的 SSH 连接，{{status}}",
@@ -303,6 +373,35 @@
       "removeTitle": "解除 SSH 连接引用？",
       "removeDescription": "解除后，当前 AI 助手会话将不再固定使用“{{host}}”的 SSH 连接，历史消息不会改变。",
       "activeRunLocked": "任务运行期间不能更换或解除连接",
+      "recovery": {
+        "details": "恢复引用的 SSH 连接",
+        "title": "连接恢复",
+        "completed": "SSH 连接已恢复",
+        "completedDescription": "已更新当前引用。待发送消息仍暂停，请确认后继续。",
+        "infrastructureUnavailable": "AI 运行环境尚未就绪，暂时不能新建或执行任务。已有会话和引用仍可查看，SSH 恢复状态由连接服务独立判断。",
+        "recover": "恢复连接",
+        "retry": "重试恢复",
+        "cancel": "取消恢复",
+        "checking": "正在确认原配置是否可恢复。",
+        "description": "按原配置新建连接并更新引用。排队消息保持暂停，由你手动继续。",
+        "uncertain": "正在确认恢复结果。不会重复建立连接；也可以重试查询并继续原请求。",
+        "failed": "暂时无法恢复连接，请重试。原引用和待发送消息已保留。",
+        "status": {
+          "connecting": "正在建立新连接，待发送消息已暂停。",
+          "waiting_host_trust": "等待确认主机身份，请处理主机信任提示。",
+          "cancelling": "正在取消恢复并清理本次连接。",
+          "failed": "恢复失败，原引用和待发送消息已保留。",
+          "cancelled": "已取消恢复，原引用和待发送消息已保留。"
+        },
+        "blocked": {
+          "no_binding": "当前会话没有 SSH 引用。",
+          "archived": "归档会话不能恢复连接。",
+          "active_run": "请等待当前会话的任务结束，再恢复连接。",
+          "profile_unavailable": "原 SSH 配置已不可用，请更换或解除引用。",
+          "mcp_unavailable": "AI 助手的连接服务不可用，请检查助手设置。",
+          "closing": "Core 正在关闭，暂时不能恢复连接。"
+        }
+      },
       "error": {
         "unavailableTitle": "无法使用引用的 SSH 连接",
         "conflictTitle": "连接引用已发生变化",
@@ -343,6 +442,8 @@
       "preview": "预览附件",
       "previewName": "预览 {{name}}",
       "previewFailed": "无法加载附件预览",
+      "terminalReference": "终端引用 · {{host}}",
+      "terminalReferenceLines": "{{count}} 行",
       "retryName": "重新上传 {{name}}",
       "removeName": "移除 {{name}}",
       "size": "{{size}}",
@@ -355,6 +456,7 @@
         "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "图片附件合计不能超过 20 MiB。",
         "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "图片格式与文件内容不一致，仅支持 PNG、JPEG 和 WebP。",
         "AGENT_ATTACHMENT_TEXT_ENCODING": "文本附件必须是有效 UTF-8，且不能包含 NUL 字符。",
+        "AGENT_ATTACHMENT_ORIGIN_INVALID": "终端引用来源无效，请重新选择终端内容。",
         "AGENT_ATTACHMENT_DELETE_FAILED": "附件未能删除，请稍后重试。",
         "AGENT_ATTACHMENT_LIMIT": "附件数量或大小已超过限制。",
         "AGENT_ATTACHMENT_CONFLICT": "附件状态已变化，请刷新后重试。",
@@ -430,7 +532,7 @@
     },
     "readiness": {
       "title": "准备 AI 助手运行环境",
-      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作。首次准备会启用 MCP、创建拥有当前全部 {{count}} 项权限的 AI 助手托管客户端并保持逐次审批；模型仍在“设置 > AI 助手”中管理。",
+      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作，始终具备全部 MCP 能力，新增能力自动更新。工具执行遵循当前审批策略；模型在“设置 > AI 助手”中管理。",
       "prepare": "准备或修复",
       "loadFailed": "暂时无法读取 AI 助手运行状态"
     },
@@ -623,6 +725,7 @@
     "global": {
       "view": "查看更新",
       "aboutTooltip": "关于 Termous",
+      "aboutMenuLabel": "关于软件",
       "checkingTooltip": "正在检查更新",
       "openFailed": "无法打开关于 Termous",
       "availableTitle": "发现新版本 {{version}}",
@@ -1799,7 +1902,17 @@
       "copyLink": "复制链接",
       "openPath": "在文件管理中打开",
       "copyPath": "复制路径",
-      "reconnect": "重新连接"
+      "reconnect": "重新连接",
+      "referenceSelection": "发送给 AI 助手"
+    },
+    "aiReference": {
+      "sourceUnavailable": "需要已就绪的 Linux SSH 连接",
+      "newSession": "新会话",
+      "search": "搜索会话标题",
+      "loading": "正在加载会话…",
+      "noSessions": "暂无已有会话",
+      "noMatches": "没有匹配的会话",
+      "binding_locked": "正在运行或排队，无法更换关联主机"
     },
     "completion": {
       "label": "命令建议",
@@ -1823,6 +1936,67 @@
         "history": "历史",
         "directory": "目录",
         "other": "其他"
+      }
+    },
+    "aiCompletion": {
+      "title": "AI 命令补全",
+      "close": "关闭 AI 命令补全",
+      "prompt": "描述你想做什么",
+      "placeholder": "描述你想做什么…",
+      "inputHint": "Enter 生成 · Shift+Enter 换行",
+      "generate": "生成命令",
+      "generateMore": "再生成一条",
+      "candidatesLabel": "命令候选",
+      "listHint": "↑↓ 选择 · Enter 或双击填入",
+      "generating": "正在生成命令…",
+      "cancel": "取消生成",
+      "retry": "重新生成",
+      "append": "填入终端",
+      "alreadyEntered": "已在终端中",
+      "copy": "复制",
+      "copied": "已复制",
+      "copyFailed": "复制失败，请重试",
+      "defaultModel": "默认模型",
+      "modelLoading": "正在读取…",
+      "modelUnset": "未配置",
+      "modelNotConfigured": "请先在 AI 设置中选择默认模型。",
+      "modelUnavailable": "默认模型暂不可用，请检查 AI 设置。",
+      "modelStatusFailed": "暂时无法读取默认模型状态。",
+      "desktopRequired": "请在桌面客户端中使用 AI 命令补全。",
+      "requestFailed": "命令生成失败，请重试。",
+      "errors": {
+        "AI_COMPLETION_CANCEL_FAILED": "取消请求未完成，请重试。",
+        "AI_COMPLETION_PROMPT_TOO_LONG": "输入过长，请缩短描述后重试。",
+        "AI_COMPLETION_INVALID_RESULT": "模型未返回有效命令，请重新生成。",
+        "AI_COMPLETION_BRIDGE_FAILED": "无法连接 AI 命令补全服务，请重试。",
+        "TERMINAL_AI_CANCELLED": "已取消命令生成。",
+        "TERMINAL_AI_UNAVAILABLE": "AI 命令补全服务暂不可用。",
+        "TERMINAL_AI_BUSY": "已有命令正在生成，请稍后再试。",
+        "TERMINAL_AI_TIMEOUT": "命令生成超时，请重试。",
+        "TERMINAL_AI_RESPONSE_INVALID": "补全服务返回了无效结果，请重试。",
+        "TERMINAL_AI_WORKER_EXITED": "命令生成服务已退出，请重试。",
+        "TERMINAL_AI_WORKER_FAILED": "命令生成服务遇到问题，请重试。",
+        "TERMINAL_AI_BOOTSTRAP_FAILED": "无法准备命令生成请求，请重试。",
+        "TERMINAL_AI_OUTPUT_TRUNCATED": "命令生成未完成，请重新生成。",
+        "TERMINAL_AI_OUTPUT_INVALID": "模型返回的命令格式无效，请重新生成。",
+        "TERMINAL_AI_REQUEST_FAILED": "命令生成失败，请重试。",
+        "TERMINAL_AI_BOOTSTRAP_INVALID": "命令生成配置无效，请检查 AI 设置。",
+        "TERMINAL_AI_REQUEST_INVALID": "无法提交当前请求，请重新输入描述。",
+        "COMPLETION_DISABLED": "AI 命令补全已关闭，请在终端设置中开启。",
+        "COMPLETION_SESSION_NOT_FOUND": "当前终端会话已不存在。",
+        "COMPLETION_SESSION_NOT_READY": "终端会话尚未就绪，请连接后重试。",
+        "COMPLETION_STALE_PROMPT": "终端输入状态已变化，请重新打开 AI 命令补全。",
+        "COMPLETION_INVALID_QUERY": "当前输入不可用，请重新输入描述。",
+        "COMPLETION_UNAVAILABLE": "当前终端暂不支持 AI 命令补全。",
+        "AGENT_NOT_READY": "本地 AI 服务尚未就绪，请稍后重试。",
+        "AGENT_MODEL_UNAVAILABLE": "默认模型不可用，请检查 AI 设置。",
+        "AGENT_REVISION_CONFLICT": "模型凭据已变更，请检查 AI 设置后重试。"
+      },
+      "openSettings": "前往 AI 设置",
+      "appendHint": {
+        "mismatch": "当前输入与命令不匹配，可复制后手动编辑。",
+        "exact": "这条命令已在终端输入行中。",
+        "stale": "终端输入状态已变化，可复制命令或重新生成。"
       }
     },
     "tabMenu": {
@@ -3364,6 +3538,8 @@
     "connectionLimits": "既有终端状态、正在进行的文件操作和已建立的 TCP 连接均无法续传或自动恢复。",
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
+    "completionAiEnabled": "启用 AI 命令补全",
+    "completionAiHint": "使用默认 AI 模型将自然语言转换为命令，确认后填入终端。",
     "completionHint": "使用 Bash 补全、命令别名、代码片段、远端历史和当前目录提供建议。",
     "completionProviders": "补全来源",
     "completionProvidersHint": "按需选择参与候选生成的数据来源。",
@@ -3434,6 +3610,10 @@
         "terminal_completion_accept": {
           "name": "接受补全候选",
           "description": "确认当前候选；非完整匹配只插入内容，不直接执行命令。"
+        },
+        "terminal_ai_completion_open": {
+          "name": "打开 AI 命令补全",
+          "description": "在当前终端输入自然语言，使用默认 AI 模型生成命令。"
         },
         "terminal_search_open": {
           "name": "打开终端查找",
@@ -3586,7 +3766,7 @@
       "operationFailed": "AI 助手设置操作失败",
       "readiness": {
         "title": "运行准备",
-      "description": "检查 MCP、Skills 与默认模型；首次准备会创建托管客户端并保持逐次审批。",
+      "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "托管客户端",
         "skills": "Skills 资源",
@@ -3621,15 +3801,13 @@
       },
       "policy": {
         "title": "MCP 审批策略",
-        "description": "该策略只作用于 AI 助手托管客户端，不会修改外部 MCP 客户端。",
+        "description": "内置 AI 始终具备全部 MCP 能力，新增能力自动更新；执行遵循此审批策略，外部客户端不受影响。",
         "approval": "工具执行确认",
         "review": "逐次审批",
         "bypass": "无需确认",
         "reviewHint": "每次敏感操作继续使用全局 MCP 审批界面确认。",
         "bypassHint": "AI 助手可在授权范围内直接执行工具，请谨慎使用。",
-        "unavailable": "完成首次准备后可管理审批策略。",
-        "scopeOutdated": "当前已授权 {{current}}/{{required}} 项权限。新增权限不会自动授予。",
-        "sync": "同步权限"
+        "unavailable": "完成首次准备后可管理审批策略。"
       },
       "models": {
         "default": "默认",
@@ -3913,7 +4091,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP 访问",
-      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、SFTP 文件、端口转发、代码片段和远程运维能力。",
+      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、文件管理、端口转发、代码片段和远程运维能力。",
       "state": {
         "disabled": "未启用",
         "enabled": "已启用"
@@ -3949,14 +4127,15 @@
         "commands_execute": "执行命令",
         "commands_read": "读取命令结果",
         "commands_interrupt": "中断命令",
-        "sftp_read": "读取 SFTP 文件",
-        "sftp_connect": "连接 SFTP 会话",
-        "sftp_close": "关闭 SFTP 会话",
-        "sftp_write": "修改 SFTP 文件",
-        "sftp_batch_rename": "高级批量重命名",
-        "sftp_file_search": "全局文件搜索",
-        "sftp_transfer": "启动文件传输",
-        "sftp_cancel": "取消 SFTP 任务",
+        "files_read": "读取文件",
+        "files_connect": "连接文件会话",
+        "files_close": "关闭文件会话",
+        "files_write": "修改文件",
+        "files_delete": "删除文件",
+        "files_batch_rename": "高级批量重命名",
+        "files_search": "全局文件搜索",
+        "files_transfer": "启动文件传输",
+        "files_cancel": "取消文件任务",
         "system_read": "读取系统信息",
         "processes_read": "读取进程",
         "processes_terminate": "终止进程",
@@ -3980,14 +4159,15 @@
         "commands_execute": "向 SSH 会话发送命令；默认需在 Termous 中逐次批准。",
         "commands_read": "读取该客户端创建的任务、输出和退出码。",
         "commands_interrupt": "请求中断该客户端创建的命令任务。",
-        "sftp_read": "列出目录、查看文件信息并读取受限文本内容。",
-        "sftp_connect": "使用已保存主机创建由该客户端管理的 SFTP 会话。",
-        "sftp_close": "关闭由该客户端创建的 SFTP 会话。",
-        "sftp_write": "保存文本、新建目录、重命名或修改权限；默认需在 Termous 中逐次批准。",
-        "sftp_batch_rename": "预览并按规则批量重命名同一远程目录中的项目；执行前默认需在 Termous 中逐次批准。",
-        "sftp_file_search": "使用远程 Linux 主机已安装的 fd 搜索文件和目录名称；此只读权限不会安装或更新远程软件。",
-        "sftp_transfer": "启动上传、下载或跨主机复制；默认需在 Termous 中逐次批准。",
-        "sftp_cancel": "取消该客户端创建的文件传输或批量重命名任务。",
+        "files_read": "列出目录、查看文件信息并读取受限文本内容。",
+        "files_connect": "使用已保存主机创建由该客户端管理的文件会话。",
+        "files_close": "关闭由该客户端创建的文件会话。",
+        "files_write": "保存文本、新建目录、重命名或修改权限；默认需在 Termous 中逐次批准。",
+        "files_delete": "预览并删除指定远程文件、文件夹或符号链接；执行前默认需逐次批准，已删除内容无法撤销。",
+        "files_batch_rename": "预览并按规则批量重命名同一远程目录中的项目；执行前默认需在 Termous 中逐次批准。",
+        "files_search": "使用远程 Linux 主机已安装的 fd 搜索文件和目录名称；此只读权限不会安装或更新远程软件。",
+        "files_transfer": "启动上传、下载或跨主机复制；默认需在 Termous 中逐次批准。",
+        "files_cancel": "取消该客户端创建的文件传输、批量重命名或删除任务。",
         "system_read": "读取 SSH 会话对应 Linux 主机的系统、硬件和网络摘要。",
         "processes_read": "列出进程并读取进程详情、资源占用和监听端口。",
         "processes_terminate": "向指定进程发送终止信号；默认需在 Termous 中逐次批准。",
@@ -4006,7 +4186,7 @@
         "hosts": "主机与发现",
         "sessions": "SSH 会话",
         "commands": "会话命令台",
-        "sftp": "SFTP 文件",
+        "files": "文件管理",
         "system": "系统信息",
         "processes": "进程管理",
         "services": "系统服务",
@@ -4019,7 +4199,7 @@
         "hosts": "查看已保存主机与网络可达性",
         "sessions": "查看或控制 Termous 中的 SSH 连接",
         "commands": "执行命令并读取结果",
-        "sftp": "连接远程文件系统并执行受控文件操作",
+        "files": "连接远程文件系统并执行受控文件操作",
         "system": "读取 Linux 系统、硬件和网络摘要",
         "processes": "查看进程并执行受控终止操作",
         "services": "查看和管理 systemd 服务",
@@ -4053,9 +4233,9 @@
       "approvalBypassed": "无需确认",
       "highRisk": "高风险",
       "approvalBypass": "无需审批",
-      "approvalBypassHint": "跳过命令、SFTP、远程运维、端口转发和代码片段敏感操作的逐次确认；仍然只能使用上方已授予的权限，且不会跳过主机密钥确认。",
+      "approvalBypassHint": "跳过命令、文件管理、远程运维、端口转发和代码片段敏感操作的逐次确认；仍然只能使用上方已授予的权限，且不会跳过主机密钥确认。",
       "approvalBypassTitle": "该客户端将直接执行敏感操作",
-      "approvalBypassDescription": "启用后，已授权的命令执行、SFTP 写入、文件传输、远程运维、端口转发和代码片段写操作不会再显示审批确认。此选项不会授予其他权限，主机密钥确认仍会照常显示；请仅为完全可信的客户端开启。",
+      "approvalBypassDescription": "启用后，已授权的命令执行、文件写入、文件传输、远程运维、端口转发和代码片段写操作不会再显示审批确认。此选项不会授予其他权限，主机密钥确认仍会照常显示；请仅为完全可信的客户端开启。",
       "permissionsEmpty": "至少选择一项权限。",
       "closeScopeTitle": "此权限可以关闭 SSH 会话",
       "closeScopeDescription": "启用后，客户端可直接关闭任意当前 SSH 会话，不会再次请求确认。请仅授予可信客户端。",
@@ -4090,16 +4270,31 @@
         "description": "外部客户端正在请求执行需要人工批准的操作。",
         "client": "请求客户端",
         "command": "待执行命令",
-        "sftpAction": {
+        "filesAction": {
           "saveText": "保存远程文本",
           "mkdir": "新建远程文件夹",
           "rename": "重命名远程项目",
+          "delete": "删除远程项目",
           "chmod": "修改远程权限",
           "upload": "上传本机文件",
           "download": "下载远程文件",
           "remoteCopy": "跨主机复制文件",
           "batchRename": "批量重命名远程项目",
-          "other": "SFTP 文件操作"
+          "other": "文件管理操作"
+        },
+        "deletePaths": "选中的顶层路径",
+        "deleteWarning": "删除后无法撤销。符号链接仅删除链接本身。",
+        "deleteScope": "删除范围",
+        "deleteTotalCount": "计划删除总数",
+        "deleteRecursive": {
+          "enabled": "包含目录内容",
+          "disabled": "仅选中的项目"
+        },
+        "deleteCounts": {
+          "top_level_count": "顶层项目",
+          "file_count": "文件",
+          "directory_count": "文件夹",
+          "symlink_count": "符号链接"
         },
         "remoteOpsDomain": {
           "system": "系统信息",

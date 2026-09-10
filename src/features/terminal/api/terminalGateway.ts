@@ -3,8 +3,9 @@ import type {
   CompletionResult,
   CompletionStatus,
 } from '#entities/session'
+import type { AgentDefaultModelStatusGateway } from '#entities/agent'
 
-export interface TerminalGateway {
+export interface TerminalGateway extends AgentDefaultModelStatusGateway {
   terminalFontFileUrl(id: string, sha256?: string): string
   websocketUrl(path: string): string
   sessionCompletionStatus(

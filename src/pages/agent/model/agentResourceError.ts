@@ -7,7 +7,7 @@ export type AgentResourceUnavailableReason =
   | 'unknown'
 
 export type AgentResourceError =
-  | { kind: 'unavailable'; reason: AgentResourceUnavailableReason }
+  | { kind: 'unavailable'; reason: AgentResourceUnavailableReason; resourceKind?: 'file_profile' }
   | { kind: 'revision_conflict' }
   | { kind: 'run_conflict' }
   | { kind: 'generic' }
@@ -23,7 +23,9 @@ const unavailableReasons = new Set<AgentResourceUnavailableReason>([
 export function resolveAgentResourceError(error: unknown): AgentResourceError {
   const code = errorCode(error)
   if (code === 'AGENT_RESOURCE_BINDING_UNAVAILABLE') {
-    return { kind: 'unavailable', reason: errorDetailReason(error) }
+    const details = error && typeof error === 'object' ? Reflect.get(error, 'details') : undefined
+    const file = details && typeof details === 'object' && Reflect.get(details, 'kind') === 'file_profile'
+    return { kind: 'unavailable', reason: errorDetailReason(error), ...(file ? { resourceKind: 'file_profile' as const } : {}) }
   }
   if (code === 'AGENT_REVISION_CONFLICT') return { kind: 'revision_conflict' }
   if (code === 'AGENT_RUN_CONFLICT') return { kind: 'run_conflict' }

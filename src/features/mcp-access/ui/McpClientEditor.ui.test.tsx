@@ -85,13 +85,14 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('commands_execute')).not.toBeChecked()
     expect(scopeCheckbox('commands_read')).not.toBeChecked()
     expect(scopeCheckbox('commands_interrupt')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_read')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_connect')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_close')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_write')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_file_search')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_transfer')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_cancel')).not.toBeChecked()
+    expect(scopeCheckbox('files_read')).not.toBeChecked()
+    expect(scopeCheckbox('files_connect')).not.toBeChecked()
+    expect(scopeCheckbox('files_close')).not.toBeChecked()
+    expect(scopeCheckbox('files_write')).not.toBeChecked()
+    expect(scopeCheckbox('files_delete')).not.toBeChecked()
+    expect(scopeCheckbox('files_search')).not.toBeChecked()
+    expect(scopeCheckbox('files_transfer')).not.toBeChecked()
+    expect(scopeCheckbox('files_cancel')).not.toBeChecked()
     expect(scopeCheckbox('system_read')).not.toBeChecked()
     expect(scopeCheckbox('processes_read')).not.toBeChecked()
     expect(scopeCheckbox('processes_terminate')).not.toBeChecked()
@@ -105,12 +106,12 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('forwarding_manage')).not.toBeChecked()
     expect(scopeCheckbox('snippets_read')).not.toBeChecked()
     expect(scopeCheckbox('snippets_write')).not.toBeChecked()
-    expect(scopeCheckbox('sftp_batch_rename')).not.toBeChecked()
+    expect(scopeCheckbox('files_batch_rename')).not.toBeChecked()
     expect(approvalBypassSwitch()).not.toBeChecked()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.hosts/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sessions/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.commands/ })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sftp/ })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.files/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.system/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.processes/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.services/ })).toBeInTheDocument()
@@ -118,8 +119,8 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.crontab/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.forwarding/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.snippets/ })).toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(10)
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/29')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
+    expect(screen.getByText('settings.mcp.selectedPermissions:2/30')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -127,14 +128,14 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    const trigger = screen.getByText('settings.mcp.scopeDescription.sftp_transfer')
+    const trigger = screen.getByText('settings.mcp.scopeDescription.files_transfer')
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
 
     await user.hover(trigger)
 
     const tooltip = await screen.findByRole('tooltip')
-    expect(tooltip).toHaveTextContent('settings.mcp.scope.sftp_transfer')
-    expect(tooltip).toHaveTextContent('settings.mcp.scopeDescription.sftp_transfer')
+    expect(tooltip).toHaveTextContent('settings.mcp.scope.files_transfer')
+    expect(tooltip).toHaveTextContent('settings.mcp.scopeDescription.files_transfer')
     expect(trigger).toHaveAttribute('aria-describedby', tooltip.id)
   })
 
@@ -153,7 +154,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).toBeChecked()
     expect(scopeCheckbox('hosts_probe')).toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:3/29')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:3/30')).toBeInTheDocument()
 
     const clearHosts = groupToggle('hosts')
     expect(clearHosts).toHaveAccessibleName(
@@ -165,7 +166,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).not.toBeChecked()
     expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:1/29')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:1/30')).toBeInTheDocument()
     expect(groupToggle('hosts')).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -197,7 +198,7 @@ describe('McpClientEditor', () => {
       onSubmit,
     })
 
-    await user.click(groupToggle('sftp'))
+    await user.click(groupToggle('files'))
 
     expect(approvalBypassSwitch()).toBeChecked()
     for (const scope of [
@@ -205,12 +206,13 @@ describe('McpClientEditor', () => {
       'connect',
       'close',
       'write',
+      'delete',
       'batch_rename',
-      'file_search',
+      'search',
       'transfer',
       'cancel',
     ]) {
-      expect(scopeCheckbox(`sftp_${scope}`)).toBeChecked()
+      expect(scopeCheckbox(`files_${scope}`)).toBeChecked()
     }
     await user.click(screen.getByRole('button', { name: 'app.save' }))
 
@@ -220,16 +222,28 @@ describe('McpClientEditor', () => {
       scopes: [
         'hosts:probe',
         'commands:interrupt',
-        'sftp:read',
-        'sftp:connect',
-        'sftp:close',
-        'sftp:write',
-        'sftp:batch_rename',
-        'sftp:file_search',
-        'sftp:transfer',
-        'sftp:cancel',
+        'files:read',
+        'files:connect',
+        'files:close',
+        'files:write',
+        'files:delete',
+        'files:batch_rename',
+        'files:search',
+        'files:transfer',
+        'files:cancel',
       ],
     })
+  })
+
+  it('文件管理写入权限不会隐式授权删除，删除默认保持审批', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderEditor({ editingClient: { ...client, scopes: ['files:write'] } })
+    expect(scopeCheckbox('files_write')).toBeChecked()
+    expect(scopeCheckbox('files_delete')).not.toBeChecked()
+    await user.click(scopeCheckbox('files_delete'))
+    expect(approvalBypassSwitch()).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(onSubmit).toHaveBeenCalledWith({ name: 'Codex', approval_bypass: false, scopes: ['files:write', 'files:delete'] })
   })
 
   it('编辑时回填权限，提交名称与规范顺序的精确权限集合', async () => {
@@ -243,7 +257,7 @@ describe('McpClientEditor', () => {
     await user.clear(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }))
     await user.type(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }), '  Codex Desktop  ')
     await user.click(scopeCheckbox('sessions_read'))
-    await user.click(scopeCheckbox('sftp_transfer'))
+    await user.click(scopeCheckbox('files_transfer'))
     await user.click(scopeCheckbox('docker_manage'))
     await user.click(approvalBypassSwitch())
     await user.click(screen.getByRole('button', { name: 'app.save' }))
@@ -252,7 +266,7 @@ describe('McpClientEditor', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       name: 'Codex Desktop',
       approval_bypass: true,
-      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'sftp:transfer', 'docker:manage'],
+      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'files:transfer', 'docker:manage'],
     })
   })
 
@@ -261,14 +275,14 @@ describe('McpClientEditor', () => {
     renderEditor()
 
     expect(approvalBypassSwitch()).not.toBeChecked()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(10)
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
     expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
 
     await user.click(approvalBypassSwitch())
 
     expect(approvalBypassSwitch()).toBeChecked()
     expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(10)
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(11)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')
@@ -289,7 +303,7 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(2)
+    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(3)
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
     await user.click(scopeCheckbox('sessions_close'))
     const alert = screen.getByRole('alert')

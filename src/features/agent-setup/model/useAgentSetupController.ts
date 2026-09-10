@@ -162,7 +162,11 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
 
   const setup = useCallback(() => execute(
     'setup',
-    { conflict: null, reconcileAfterSuccess: true },
+    {
+      conflict: null,
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
     async (signal, isCurrent) => {
       const next = await gateway.setup(signal)
       if (isCurrent()) setReadiness(next)
@@ -206,7 +210,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     )
   }, [execute, gateway, readiness])
 
-  const updatePolicy = useCallback((approvalBypass: boolean, syncScopes = false) => {
+  const updatePolicy = useCallback((approvalBypass: boolean) => {
     const policy = readiness?.mcp_policy
     if (!policy) return Promise.reject(new Error('Agent MCP policy is unavailable'))
     return execute(
@@ -219,7 +223,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
       async (signal, isCurrent) => {
         const next = await gateway.updateMcpPolicy({
           approval_bypass: approvalBypass,
-          sync_scopes: syncScopes,
+          sync_scopes: false,
           expected_revision: policy.revision,
         }, signal)
         if (isCurrent()) setReadiness((current) => current ? { ...current, mcp_policy: next } : current)

@@ -8,6 +8,40 @@ describe('AgentWorkspaceClient', () => {
     Reflect.deleteProperty(window, 'termous')
   })
 
+  it('终端引用通过既有附件上传传递来源，普通附件不发送额外字段', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const attachment = {
+      id: 'aga_ref', session_id: 'ags_target', original_name: 'terminal-reference.txt', mime_type: 'text/plain',
+      kind: 'text', size_bytes: 12, state: 'ready', revision: 1, created_at: origin.captured_at, updated_at: origin.captured_at,
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ...attachment, origin })).mockResolvedValueOnce(jsonResponse(attachment))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'renderer-token' }).agentWorkspace
+    const file = new File(['first\nsecond'], 'terminal-reference.txt', { type: 'text/plain' })
+    expect((await gateway.uploadAttachment('ags_target', file, undefined, origin)).origin).toEqual(origin)
+    await gateway.uploadAttachment('ags_target', file)
+    const reference = fetchMock.mock.calls[0]![1].body as FormData
+    expect(reference.get('session_id')).toBe('ags_target')
+    expect(reference.get('origin')).toBe(JSON.stringify(origin))
+    expect(await (reference.get('file') as File).text()).toBe('first\nsecond')
+    expect((fetchMock.mock.calls[1]![1].body as FormData).has('origin')).toBe(false)
+  })
+
+  it('恢复连接使用独立受理、查询和取消接口，取消不附加请求体', async () => {
+    const result = { instance_id: 'core', kind: 'ssh_session', can_recover: true, operation: null }
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(result))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'renderer-token' }).agentWorkspace
+    const input = { kind: 'ssh_session' as const, expected_revision: 2, client_request_id: 'request' }
+    expect(await gateway.recoverResourceBinding('agent/one', input)).toEqual(result)
+    await gateway.resourceBindingRecovery('agent/one')
+    await gateway.cancelResourceBindingRecovery('agent/one', 'recovery/one')
+    expect(requestAt(fetchMock, 0)).toMatchObject({ path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/recover', method: 'POST', body: input })
+    expect(requestAt(fetchMock, 1)).toMatchObject({ path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/recovery', search: '?kind=ssh_session' })
+    expect(requestAt(fetchMock, 2)).toMatchObject({ path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/recovery/recovery%2Fone/cancel', method: 'POST' })
+    expect(fetchMock.mock.calls[2]?.[1].body).toBeUndefined()
+  })
+
   it('使用固定 HTTP/WS 路由、稳定游标和类型化 Runtime IPC', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ items: [sessionFixture()] }))

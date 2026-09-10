@@ -43,7 +43,7 @@ const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
   hosts: Server,
   sessions: KeyRound,
   commands: TerminalSquare,
-  sftp: FolderKey,
+  files: FolderKey,
   system: Cpu,
   processes: Activity,
   services: ServerCog,

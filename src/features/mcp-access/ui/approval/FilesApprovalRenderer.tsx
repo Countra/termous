@@ -7,6 +7,7 @@ import {
   ListRestart,
   PencilLine,
   ShieldCheck,
+  Trash2,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
@@ -16,14 +17,15 @@ import { formatBytes } from '#shared/format'
 import { ApprovalPaths, ApprovalRenameMappings } from './ApprovalDetailFields'
 import styles from '../McpApprovalCoordinator.module.scss'
 
-export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
+export function FilesApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
-  const Icon = sftpActionIcons[operation.action] ?? Wrench
-  const actionKey = sftpActionKeys[operation.action] ?? 'settings.mcp.approval.sftpAction.other'
+  const Icon = filesActionIcons[operation.action] ?? Wrench
+  const actionKey = filesActionKeys[operation.action] ?? 'settings.mcp.approval.filesAction.other'
   const isBatchRename = operation.action === 'batch_rename'
+  const isDelete = operation.action === 'delete'
   const sourceHost = operation.host_name || operation.file_session_id
   const targetHost = operation.target_host_name || operation.target_file_session_id
-  const remotePathsLabel = operation.action === 'save_text' || operation.action === 'chmod'
+  const remotePathsLabel = isDelete ? 'settings.mcp.approval.deletePaths' : operation.action === 'save_text' || operation.action === 'chmod'
     ? 'settings.mcp.approval.remotePath'
     : 'settings.mcp.approval.remotePaths'
   const remoteTargetLabel = isBatchRename
@@ -35,7 +37,8 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
     || operation.item_count !== undefined
     || operation.total_bytes !== undefined
     || operation.rule_count !== undefined
-    || isBatchRename,
+    || isBatchRename
+    || isDelete,
   )
 
   return (
@@ -53,7 +56,7 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
         </div>
       ) : null}
 
-      <ApprovalPaths label={t(remotePathsLabel)} paths={operation.remote_paths} />
+      <ApprovalPaths label={t(remotePathsLabel)} paths={operation.remote_paths} focusable={isDelete} />
       <ApprovalPaths label={t(remoteTargetLabel)} paths={toPathList(operation.remote_target)} />
       <ApprovalPaths label={t('settings.mcp.approval.localPaths')} paths={operation.local_paths} />
       <ApprovalPaths label={t('settings.mcp.approval.localTarget')} paths={toPathList(operation.local_target)} />
@@ -62,8 +65,20 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
         mappings={operation.rename_mappings}
       />
 
+      {isDelete ? <p className={styles['delete-warning']}>{t('settings.mcp.approval.deleteWarning')}</p> : null}
+
       {hasOperationMeta ? (
         <div className={styles['operation-meta']}>
+          {isDelete && operation.recursive !== undefined ? (
+            <span>{t('settings.mcp.approval.deleteScope')}
+              <strong>{t(`settings.mcp.approval.deleteRecursive.${operation.recursive ? 'enabled' : 'disabled'}`)}</strong>
+            </span>
+          ) : null}
+          {isDelete ? (['top_level_count', 'file_count', 'directory_count', 'symlink_count'] as const).map((key) => (
+            operation[key] === undefined ? null : <span key={key}>
+              {t(`settings.mcp.approval.deleteCounts.${key}`)}<strong>{operation[key]}</strong>
+            </span>
+          )) : null}
           {operation.overwrite_policy ? (
             <span>
               {t('settings.mcp.approval.overwritePolicy')}
@@ -78,7 +93,7 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
           ) : null}
           {operation.item_count !== undefined ? (
             <span>
-              {t('settings.mcp.approval.itemCount')}
+              {t(isDelete ? 'settings.mcp.approval.deleteTotalCount' : 'settings.mcp.approval.itemCount')}
               <strong>{operation.item_count}</strong>
             </span>
           ) : null}
@@ -100,21 +115,23 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
   )
 }
 
-const sftpActionKeys: Record<string, string> = {
-  save_text: 'settings.mcp.approval.sftpAction.saveText',
-  mkdir: 'settings.mcp.approval.sftpAction.mkdir',
-  rename: 'settings.mcp.approval.sftpAction.rename',
-  chmod: 'settings.mcp.approval.sftpAction.chmod',
-  upload: 'settings.mcp.approval.sftpAction.upload',
-  download: 'settings.mcp.approval.sftpAction.download',
-  remote_copy: 'settings.mcp.approval.sftpAction.remoteCopy',
-  batch_rename: 'settings.mcp.approval.sftpAction.batchRename',
+const filesActionKeys: Record<string, string> = {
+  save_text: 'settings.mcp.approval.filesAction.saveText',
+  mkdir: 'settings.mcp.approval.filesAction.mkdir',
+  rename: 'settings.mcp.approval.filesAction.rename',
+  delete: 'settings.mcp.approval.filesAction.delete',
+  chmod: 'settings.mcp.approval.filesAction.chmod',
+  upload: 'settings.mcp.approval.filesAction.upload',
+  download: 'settings.mcp.approval.filesAction.download',
+  remote_copy: 'settings.mcp.approval.filesAction.remoteCopy',
+  batch_rename: 'settings.mcp.approval.filesAction.batchRename',
 }
 
-const sftpActionIcons: Record<string, LucideIcon> = {
+const filesActionIcons: Record<string, LucideIcon> = {
   save_text: FilePenLine,
   mkdir: FolderPlus,
   rename: PencilLine,
+  delete: Trash2,
   chmod: ShieldCheck,
   upload: FileUp,
   download: FileDown,

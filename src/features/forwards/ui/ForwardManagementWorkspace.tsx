@@ -23,10 +23,6 @@ import type {
 } from '#entities/forward'
 import type { Host } from '#entities/host'
 import {
-  buildForwardFailureAgentLaunchRequest,
-  type AgentLaunchRequest,
-} from '#entities/agent'
-import {
   selectDefaultSSHAccessProfile,
   sortSSHAccessProfiles,
 } from '#entities/ssh-access-profile'
@@ -62,7 +58,6 @@ export interface ForwardManagementWorkspaceProps {
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
-  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface ForwardFormState {
@@ -102,7 +97,6 @@ export function ForwardManagementWorkspace({
   onStartForward,
   onRestartForward,
   onStopForward,
-  onLaunchAgent,
 }: ForwardManagementWorkspaceProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -348,19 +342,6 @@ export function ForwardManagementWorkspace({
                   actionBusy={actionBusy}
                   onRestart={() => onRestartForward(forward.id)}
                   onStop={() => onStopForward(forward.id)}
-                  onLaunchAgent={onLaunchAgent ? () => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
-                    hostId: forward.host_id,
-                    forwardId: forward.id,
-                    forwardProfileId: forward.profile_id,
-                    status: forward.status,
-                    title: t('agent.launch.title.forwardFailure', {
-                      name: forward.name || t(`forwards.modeName.${forward.mode}`),
-                    }),
-                    summary: t('agent.launch.summary.forwardFailure', {
-                      status: t(`forwards.status.${forward.status}`),
-                      phase: t(`forwards.phaseName.${forward.phase}`),
-                    }),
-                  })) : undefined}
                 />
               ))}
             </div>
@@ -641,7 +622,6 @@ function ForwardRuntimeRow({
   actionBusy,
   onRestart,
   onStop,
-  onLaunchAgent,
 }: {
   forward: ForwardInstance
   hostName: string
@@ -649,7 +629,6 @@ function ForwardRuntimeRow({
   actionBusy: boolean
   onRestart: () => Promise<void>
   onStop: () => Promise<void>
-  onLaunchAgent?: () => void
 }) {
   const { t } = useTranslation()
   const modeLabel = t(`forwards.modeName.${forward.mode}`)
@@ -670,7 +649,6 @@ function ForwardRuntimeRow({
             disabled={actionBusy}
             onRestart={onRestart}
             onStop={onStop}
-            onLaunchAgent={onLaunchAgent}
           />
         </div>
       </div>

@@ -12,7 +12,6 @@ import type {
   ConnectionProxyInput,
 } from '#entities/connection-proxy'
 import type { HostAccessWorkspaceGateway, HostProvisionGateway } from '#features/host-access'
-import type { AgentLaunchRequest } from '#entities/agent'
 import {
   type HostGroup,
   type HostIcon,
@@ -58,7 +57,6 @@ export interface HostManagementWorkspaceProps {
   getHostIconUrl: (iconId: string) => string
   onDirtyChange?: (dirty: boolean) => void
   onSavingChange?: (saving: boolean) => void
-  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export interface HostAccessIntent {
@@ -103,7 +101,6 @@ export function HostManagementWorkspace({
   getHostIconUrl,
   onDirtyChange,
   onSavingChange,
-  onLaunchAgent,
 }: HostManagementWorkspaceProps) {
   const { t } = useTranslation()
   const initialEntryIntentRef = useRef(entryIntent)
@@ -385,7 +382,6 @@ export function HostManagementWorkspace({
             onManageIcons={() => setIconManagerOpen(true)}
             onDirtyChange={setAccessDirty}
             onProtectedIconIdChange={setAccessProtectedIconId}
-            onLaunchAgent={onLaunchAgent}
           />
         ) : (
           <HostCreateEditor

@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import type {
   AppBuildInfo,
   CoreFatalEvent,
+  CoreStartupSnapshot,
   TermousBridge,
   TrayCommand,
   TrayMenuState,
@@ -53,9 +54,11 @@ function deferred<T>() {
 function createBridge(options: {
   buildInfo?: Promise<AppBuildInfo>
   fatal?: Promise<CoreFatalEvent | null>
+  startup?: Promise<CoreStartupSnapshot>
   trayUpdate?: (state: TrayMenuState) => Promise<boolean>
 } = {}) {
   let fatalListener: ((fatal: CoreFatalEvent) => void) | null = null
+  let statusListener: ((status: CoreStartupSnapshot) => void) | null = null
   let trayListener: ((command: TrayCommand) => void) | null = null
   const fatalCleanup = vi.fn()
   const trayCleanup = vi.fn()
@@ -75,10 +78,20 @@ function createBridge(options: {
     getBuildInfo: () => options.buildInfo ?? Promise.resolve(initialBuildInfo),
     platform: 'win32',
     core: {
-      status: async () => ({
-        config: { apiBaseUrl: '', apiToken: '' },
-        fatal: null,
-      }),
+      status: async () => {
+        const fatal = await (options.fatal ?? Promise.resolve(null))
+        return {
+          config: { apiBaseUrl: '', apiToken: '' },
+          fatal,
+          startup: await (options.startup ?? Promise.resolve(startupSnapshot({
+            phase: fatal ? 'failed' : 'ready', failure: fatal,
+          }))),
+        }
+      },
+      onStatusChanged: (listener) => {
+        statusListener = listener
+        return () => { statusListener = null }
+      },
       shutdown: async () => true,
       getFatal: () => options.fatal ?? Promise.resolve(null),
       onFatal,
@@ -90,6 +103,7 @@ function createBridge(options: {
   return {
     bridge,
     emitFatal: (fatal: CoreFatalEvent) => fatalListener?.(fatal),
+    emitStatus: (status: CoreStartupSnapshot) => statusListener?.(status),
     emitTrayCommand: (command: unknown) => {
       const listener = trayListener as ((value: unknown) => void) | null
       listener?.(command)
@@ -100,6 +114,14 @@ function createBridge(options: {
     setTheme,
     trayCleanup,
     updateState,
+  }
+}
+
+function startupSnapshot(overrides: Partial<CoreStartupSnapshot> = {}): CoreStartupSnapshot {
+  return {
+    attemptId: 'startup-a', instanceId: 'process-a', revision: 1, phase: 'ready',
+    database: null, failure: null, startedAt: null, updatedAt: null, attention: null,
+    ...overrides,
   }
 }
 
@@ -236,7 +258,7 @@ test('卸载时同时清理 Core fatal 与托盘命令订阅', () => {
   expect(desktop.trayCleanup).toHaveBeenCalledTimes(1)
 })
 
-test('初始化结束、启动失败或原生 fatal 均会通知启动就绪', async () => {
+test('初始化结束、启动失败或原生 fatal 均通知页面可展示，并带所属启动轮次', async () => {
   const desktop = createBridge()
   installBridge(desktop.bridge)
   const initialOptions = runtimeOptions()
@@ -249,6 +271,7 @@ test('初始化结束、启动失败或原生 fatal 均会通知启动就绪', a
 
   harness.rerender({ ...initialOptions, startupFailed: true })
   expect(desktop.ready).toHaveBeenCalledTimes(1)
+  expect(desktop.ready).toHaveBeenLastCalledWith({ failed: true, attemptId: 'startup-a' })
 
   harness.rerender({ ...initialOptions, initializing: false })
   expect(desktop.ready).toHaveBeenCalledTimes(2)
@@ -260,6 +283,39 @@ test('初始化结束、启动失败或原生 fatal 均会通知启动就绪', a
     code: 'CORE_FATAL',
   }))
   expect(desktop.ready).toHaveBeenCalledTimes(3)
+})
+
+test('快照迟到不会清除新错误，旧页面不会确认恢复后的新启动轮次', async () => {
+  const pending = deferred<CoreStartupSnapshot>()
+  const desktop = createBridge({ startup: pending.promise })
+  installBridge(desktop.bridge)
+  const harness = renderHook(() => useDesktopBridgeRuntime(runtimeOptions({ initializing: false })))
+  const failure = { code: 'DB_MIGRATION_FAILED', message: '升级失败' }
+  act(() => desktop.emitStatus(startupSnapshot({
+    attemptId: 'startup-b', revision: 10, phase: 'failed', failure,
+  })))
+  await act(async () => pending.resolve(startupSnapshot()))
+  expect(harness.result.current.nativeCoreFatal?.code).toBe('DB_MIGRATION_FAILED')
+  expect(desktop.ready).toHaveBeenLastCalledWith({ failed: false, attemptId: 'startup-a' })
+})
+
+test('工作区初始化失败通知携带具体原因，正常状态不发送旧错误内容', async () => {
+  const desktop = createBridge()
+  installBridge(desktop.bridge)
+  const options = runtimeOptions({
+    startupFailed: true,
+    startupFailureMessage: '加载工作区失败：连接已关闭',
+  })
+  const harness = renderHook(
+    (current: HookOptions) => useDesktopBridgeRuntime(current),
+    { initialProps: options },
+  )
+  await act(async () => undefined)
+  expect(desktop.ready).toHaveBeenLastCalledWith({
+    failed: true, attemptId: 'startup-a', message: options.startupFailureMessage,
+  })
+  harness.rerender({ ...options, initializing: false, startupFailed: false })
+  expect(desktop.ready).toHaveBeenLastCalledWith({ failed: false, attemptId: 'startup-a' })
 })
 
 test('仅在 API 就绪且初始化完成后同步外观主题', () => {

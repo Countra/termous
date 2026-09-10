@@ -11,7 +11,7 @@ import type {
   AgentSessionMoveInput,
   AgentSessionUpdateInput,
   AgentResourceBindingUpdateInput,
-  AgentSourceContext,
+  AgentResourceKind,
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
@@ -248,9 +248,8 @@ export class AgentWorkspaceController {
     return session
   }
 
-  async createSession(input: AgentSessionInput) {
+  async createSession(input: AgentSessionInput, selectionIntent = this.state.selection_intent_revision) {
     return await this.runMutation(async () => {
-      const selectionIntent = this.state.selection_intent_revision
       const session = await this.gateway.createSession(input)
       // 创建期间侧栏仍可操作，迟到回执只能合并实体，不能抢回用户的新选择。
       this.acceptSession(session, selectionIntent === this.state.selection_intent_revision)
@@ -361,7 +360,6 @@ export class AgentWorkspaceController {
     sessionId: string,
     prompt: string,
     attachmentIds: string[] = [],
-    sourceContext?: AgentSourceContext,
   ) {
     return await this.runMutation(async () => {
       if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
@@ -375,7 +373,6 @@ export class AgentWorkspaceController {
         client_request_id: this.newClientRequestID(),
         prompt,
         attachment_ids: attachmentIds,
-        source_context: sourceContext,
         force_context_compression: forceContextCompression,
       })
       this.commit(replaceAgentRun(this.state, run))
@@ -713,13 +710,12 @@ export class AgentWorkspaceController {
     }
   }
 
-  async enqueueTurn(sessionId: string, prompt: string, attachmentIds: string[] = [], sourceContext?: AgentSourceContext) {
+  async enqueueTurn(sessionId: string, prompt: string, attachmentIds: string[] = []) {
     return await this.runMutation(async () => {
       if (!prompt.trim()) throw new AgentWorkspaceControllerError('AGENT_QUEUED_TURN_EMPTY')
       const request = {
         prompt,
         attachment_ids: attachmentIds,
-        source_context: sourceContext,
         force_context_compression: this.state.session_contexts[sessionId]?.compression_pending === true,
       }
       const pending = this.queuedTurnRequest(sessionId, request)
@@ -754,7 +750,6 @@ export class AgentWorkspaceController {
     request: {
       prompt: string
       attachment_ids: string[]
-      source_context?: AgentSourceContext
       force_context_compression: boolean
     },
     clientRequestID: string,
@@ -945,9 +940,17 @@ export class AgentWorkspaceController {
     })
   }
 
-  async removeResourceBinding(id: string, expectedRevision: number) {
+  acceptRecoveredResourceSession(session: AgentSession) {
+    // 重连快照可能已移除会话而没有 removed 事件；迟到恢复只能更新仍在工作区中的会话。
+    if (this.disposed || this.removedSessionIDs.has(session.id)
+      || !this.state.sessions.some((current) => current.id === session.id && !current.archived_at)) return
+    this.acceptSession(session)
+    void this.hydrateQueuedTurns(session.id).catch((error) => this.captureError(error))
+  }
+
+  async removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session') {
     return await this.runMutation(async () => {
-      const session = await this.gateway.removeResourceBinding(id, expectedRevision)
+      const session = await this.gateway.removeResourceBinding(id, expectedRevision, kind)
       this.acceptSession(session)
       return session
     })
@@ -1091,14 +1094,12 @@ export class AgentWorkspaceController {
     input: {
       prompt: string
       attachment_ids: string[]
-      source_context?: AgentSourceContext
       force_context_compression: boolean
     },
   ) {
     const fingerprint = JSON.stringify([
       input.prompt,
       input.attachment_ids,
-      input.source_context ?? null,
       input.force_context_compression,
     ])
     const current = this.queuedTurnRequests.get(sessionId)

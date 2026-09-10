@@ -190,9 +190,24 @@
   scrollbar-width: thin;
 }
 
+.path-list:focus-visible,
 .rename-map:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;
+}
+
+.approval-modal :global(.ant-modal-header) {
+  margin: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.delete-warning {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
 .rename-map-row {

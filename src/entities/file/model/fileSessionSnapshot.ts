@@ -21,6 +21,7 @@ const fileAccessCapabilities = new Set<FileAccessCapability>([
   'permission_edit',
   'transfer',
   'batch_rename',
+  'planned_delete',
   'name_search',
 ])
 

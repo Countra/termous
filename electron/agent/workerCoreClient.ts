@@ -78,6 +78,19 @@ export interface RuntimeSSHResourceBinding {
   bound_at: string
 }
 
+export interface RuntimeFileResourceBinding {
+  kind: 'file_profile'
+  file_access_profile_id: string
+  file_access_profile_name: string
+  host_id: string
+  ssh_profile_id: string
+  host_name: string
+  engine: 'sftp'
+  bound_at: string
+}
+
+export type RuntimeResourceBinding = RuntimeSSHResourceBinding | RuntimeFileResourceBinding
+
 export interface RuntimeBootstrap {
   core_instance_id: string
   run: {
@@ -93,7 +106,7 @@ export interface RuntimeBootstrap {
   }
   session: {
     id: string
-    resource_binding?: RuntimeSSHResourceBinding
+    resource_bindings?: RuntimeResourceBinding[]
   }
   messages: RuntimeMessageView[]
   runtime_bearer: string
@@ -126,9 +139,22 @@ export type RuntimeEventKind =
   | 'tool_failed'
   | 'usage'
   | 'error'
+  | 'retry'
   | 'compaction'
   | 'context_usage'
   | 'steer_applied'
+
+export interface RuntimeRetryEvent {
+  retry_id: string
+  assistant_message_id: string
+  purpose: 'response' | 'compaction'
+  after_part_sequence: number
+  status: 'waiting' | 'requesting' | 'completed' | 'failed' | 'cancelled'
+  attempt: number
+  max_retries: 3
+  delay_ms: number
+  error_message: string
+}
 
 export interface RuntimeEventInput {
   event_id: string
@@ -201,14 +227,13 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
       signal,
       this.bootstrapRequestTimeoutMs,
     )
-    if (!isRuntimeBootstrap(value, start)) {
+    if (!normalizeRuntimeResourceBindings(value) || !isRuntimeBootstrap(value, start)) {
       throw new WorkerCoreError('AGENT_RUNTIME_BOOTSTRAP_INVALID')
     }
     // Run 模型快照只允许在 Core 创建任务时确定，Worker 后续阶段不得改写。
     Object.freeze(value.model.snapshot)
-    if (value.session.resource_binding) {
-      Object.freeze(value.session.resource_binding)
-    }
+    value.session.resource_bindings?.forEach((binding) => Object.freeze(binding))
+    Object.freeze(value.session.resource_bindings)
     Object.freeze(value.session)
     return value
   }
@@ -413,8 +438,7 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || !validReasoningLevel(value.run.reasoning_level)
     || !isRecord(value.session)
     || value.session.id !== value.run.session_id
-    || (value.session.resource_binding !== undefined
-      && !isRuntimeSSHResourceBinding(value.session.resource_binding))
+    || !isRuntimeResourceBindings(value.session.resource_bindings)
     || !Array.isArray(value.messages)
     || !value.messages.every(isRuntimeMessageView)
     || typeof value.runtime_bearer !== 'string'
@@ -460,6 +484,41 @@ function isRuntimeSSHResourceBinding(value: unknown): value is RuntimeSSHResourc
     && Buffer.byteLength(value.host_name, 'utf8') <= 1024
     && value.platform === 'linux'
     && validRuntimeTimestamp(value.bound_at)
+}
+
+function isRuntimeFileResourceBinding(value: unknown): value is RuntimeFileResourceBinding {
+  return isRecord(value) && hasExactKeys(value, [
+    'kind', 'file_access_profile_id', 'file_access_profile_name', 'host_id', 'ssh_profile_id', 'host_name', 'engine', 'bound_at',
+  ]) && value.kind === 'file_profile' && value.engine === 'sftp'
+    && validOpaqueIdentifier(value.file_access_profile_id) && validOpaqueIdentifier(value.host_id)
+    && validOpaqueIdentifier(value.ssh_profile_id)
+    && typeof value.file_access_profile_name === 'string' && value.file_access_profile_name.trim().length > 0
+    && Buffer.byteLength(value.file_access_profile_name, 'utf8') <= 1024
+    && typeof value.host_name === 'string' && value.host_name.trim().length > 0
+    && Buffer.byteLength(value.host_name, 'utf8') <= 1024 && validRuntimeTimestamp(value.bound_at)
+}
+
+function isRuntimeResourceBindings(value: unknown): value is RuntimeResourceBinding[] {
+  return Array.isArray(value) && value.length <= 2
+    && value.every((binding) => isRuntimeSSHResourceBinding(binding) || isRuntimeFileResourceBinding(binding))
+    && new Set(value.map((binding: RuntimeResourceBinding) => binding.kind)).size === value.length
+}
+
+function normalizeRuntimeResourceBindings(value: unknown): boolean {
+  if (!isRecord(value) || !isRecord(value.session)) return false
+  const session = value.session
+  const legacy = session.resource_binding
+  if (legacy !== undefined && !isRuntimeSSHResourceBinding(legacy)) return false
+  const bindings = session.resource_bindings === undefined ? (legacy ? [legacy] : []) : session.resource_bindings
+  if (!isRuntimeResourceBindings(bindings)) return false
+  if (legacy) {
+    const ssh = bindings.find((binding) => binding.kind === 'ssh_session')
+    if (!ssh || Object.keys(legacy).some((key) => Reflect.get(ssh, key) !== Reflect.get(legacy, key))) return false
+  }
+  // 兼容字段只在入口对账，冻结后的 Worker 会话只有一份规范状态。
+  session.resource_bindings = [...bindings].sort((left, right) => Number(right.kind === 'ssh_session') - Number(left.kind === 'ssh_session'))
+  delete session.resource_binding
+  return true
 }
 
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]) {
@@ -521,7 +580,7 @@ function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
     && isRecord(value.content)
 }
 
-function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
+export function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
   return isRecord(value)
     && (value.api_mode === 'responses' || value.api_mode === 'chat_completions')
     && typeof value.base_url === 'string'

@@ -33,7 +33,7 @@ test('所有首版动作均由统一动作目录和上下文适配器承接', ()
     sources.editor,
   ].join('\n')
 
-  assert.equal(SHORTCUT_ACTIONS.length, 14)
+  assert.equal(SHORTCUT_ACTIONS.length, 15)
   for (const action of SHORTCUT_ACTIONS) {
     assert.match(
       adapterSources,

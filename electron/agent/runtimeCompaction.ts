@@ -12,6 +12,7 @@ import {
 import type { Api, Model, Tool } from '@earendil-works/pi-ai'
 import type { RuntimeUsage } from './runtimeUsage.ts'
 import type { RuntimeProviderUsage } from './runtimeProviderUsage.ts'
+import type { RuntimeRetryActivity } from './runtimeProviderRetry.ts'
 import {
   clearRuntimeCompactionUsage,
   cloneRuntimeCompactionCheckpoint,
@@ -75,6 +76,7 @@ export interface RuntimeCompactionOptions<TSource> {
   commit(candidate: RuntimeCompactionCommit<TSource>, signal?: AbortSignal): Promise<void>
   onActivity(activity: RuntimeCompactionActivity): Promise<void> | void
   onUsage?(usage: RuntimeUsage): Promise<void> | void
+  onRetry?(activity: RuntimeRetryActivity): Promise<void> | void
   onContextUsage?(usage: RuntimeCompactionContextUsage): Promise<void> | void
   now?: () => number
 }
@@ -166,7 +168,7 @@ export function createRuntimeCompactionController<TSource>(
       throwIfRuntimeCompactionAborted(signal)
       started = true
       await options.onActivity({ status: 'started', reason, tokensBefore })
-      const summary = createRuntimeCompactionModels(options.streamFn, options.onUsage, undefined, options.providerErrorSecrets)
+      const summary = createRuntimeCompactionModels(options.streamFn, options.onUsage, undefined, options.providerErrorSecrets, options.onRetry)
       // 连续 split turn 的空历史分支会遗漏 previousSummary，作为官方摘要消息补回输入。
       preserveRuntimeCompactionPreviousSummary(preparation)
       preparation.tokensBefore = tokensBefore

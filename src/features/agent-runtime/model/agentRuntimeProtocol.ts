@@ -1,3 +1,4 @@
+import { isAgentTerminalReferenceOrigin } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -17,6 +18,8 @@ import {
   type AgentAttachmentState,
   type AgentCompactionActivity,
   type AgentCompactionData,
+  type AgentRetryActivity,
+  type AgentRetryData,
   type AgentContextUsageData,
   type AgentJsonValue,
   type AgentMessage,
@@ -73,9 +76,12 @@ export class AgentRuntimeProtocolError extends Error {
 
 export function decodeAgentSession(value: unknown): AgentSession {
   const source = record(value, 'Agent 会话响应无效')
-  const resourceBinding = source.resource_binding === undefined
-    ? undefined
-    : decodeAgentResourceBinding(source.resource_binding)
+  // 旧 Core 的单引用仅在协议边界转换；应用内部始终使用集合。
+  const bindings = source.resource_bindings === undefined
+    ? (source.resource_binding === undefined ? [] : [source.resource_binding])
+    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 2)
+  const resourceBindings = bindings.map(decodeAgentResourceBinding)
+  unique(resourceBindings.map(({ kind }) => kind), 'Agent 资源绑定类型重复')
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
@@ -90,7 +96,7 @@ export function decodeAgentSession(value: unknown): AgentSession {
     revision: positiveInteger(source.revision, 'Agent 会话 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 会话创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 会话更新时间无效'),
-    ...(resourceBinding ? { resource_binding: resourceBinding } : {}),
+    resource_bindings: resourceBindings,
   }
 }
 
@@ -132,14 +138,27 @@ export function decodeAgentSessionMoveResult(value: unknown): { items: AgentSess
 
 export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding {
   const source = record(value, 'Agent 资源绑定响应无效')
-  return {
-    kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效'),
-    session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
+  const kind = enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效')
+  const common = {
     host_id: identifier(source.host_id, 'Agent 资源 Host ID 无效'),
     ssh_profile_id: identifier(source.ssh_profile_id, 'Agent 资源 SSH Profile ID 无效'),
     host_name: utf8(source.host_name, 'Agent 资源主机名称无效', 1_024),
-    platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
     bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效'),
+  }
+  if (kind === 'file_profile') {
+    if (source.session_id !== undefined || source.platform !== undefined) throw new AgentRuntimeProtocolError('文件引用包含终端身份')
+    return { ...common, kind,
+      file_access_profile_id: identifier(source.file_access_profile_id, 'Agent 文件 Profile ID 无效'),
+      file_access_profile_name: utf8(source.file_access_profile_name, 'Agent 文件配置名称无效', 1_024),
+      engine: enumValue(source.engine, ['sftp'] as const, 'Agent 文件引擎无效'),
+    }
+  }
+  if (source.file_access_profile_id !== undefined || source.file_access_profile_name !== undefined || source.engine !== undefined) {
+    throw new AgentRuntimeProtocolError('终端引用包含文件身份')
+  }
+  return { ...common, kind,
+    session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
+    platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
   }
 }
 
@@ -199,6 +218,15 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     updated_at: timestamp(source.updated_at, 'Agent 消息片段更新时间无效'),
   }
   const content = record(source.content, 'Agent 消息片段内容无效')
+  if (kind === 'tool_result' && content.response_failure !== undefined) {
+    throw new AgentRuntimeProtocolError('Agent 工具结果不得携带回答失败标记')
+  }
+  const failure = content.response_failure === undefined ? undefined
+    : record(content.response_failure, 'Agent 回答失败标记无效')
+  const responseFailure = failure ? { response_failure: {
+    attempt_id: identifier(failure.attempt_id, 'Agent 回答失败 Attempt ID 无效'),
+    error_message: utf8(failure.error_message, 'Agent 回答失败错误原文无效', 4 * 1024, true),
+  } } : {}
   const branches = ['text', 'reasoning', 'tool_call', 'tool_result'].filter((key) => content[key] !== undefined)
   if (branches.length !== 1 || branches[0] !== kind) {
     throw new AgentRuntimeProtocolError('Agent 消息片段判别分支无效')
@@ -210,6 +238,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     }
     return {
       ...base,
+      ...responseFailure,
       kind,
       text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true),
       ...(kind === 'text' && body.source_context !== undefined
@@ -219,7 +248,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
   if (kind === 'tool_call') {
-    return { ...base, kind, tool_call: {
+    return { ...base, ...responseFailure, kind, tool_call: {
       tool_call_id: identifier(body.tool_call_id, 'Agent Tool Call ID 无效', 256),
       tool_name: utf8(body.tool_name, 'Agent Tool 名称无效', 256),
       arguments: jsonValue(body.arguments),
@@ -241,6 +270,9 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   const id = identifier(source.id, 'Agent 消息 ID 无效')
   const sessionId = identifier(source.session_id, 'Agent 消息 Session ID 无效')
   const role = enumValue<AgentMessageRole>(source.role, agentMessageRoles, 'Agent 消息角色无效')
+  if (role !== 'assistant' && parts.some((part) => part.response_failure !== undefined)) {
+    throw new AgentRuntimeProtocolError('只有 Agent 回复消息可以携带回答失败标记')
+  }
   const status = enumValue<AgentMessageStatus>(source.status, agentMessageStatuses, 'Agent 消息状态无效')
   const turnUsage = source.turn_usage === undefined
     ? undefined
@@ -253,6 +285,14 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     unique(compactions.map(({ compaction_id }) => compaction_id), 'Agent 消息包含重复压缩记录')
     if ((compactions.length > 0 && role !== 'assistant') || compactions.some(({ assistant_message_id }) => assistant_message_id !== id)) {
       throw new AgentRuntimeProtocolError('Agent 消息压缩记录归属无效')
+    }
+  }
+  const retries = source.retries === undefined ? undefined
+    : array(source.retries, 'Agent 消息重试记录无效').map(decodeRetryActivity)
+  if (retries) {
+    unique(retries.map(({ retry_id }) => retry_id), 'Agent 消息包含重复重试记录')
+    if ((retries.length > 0 && role !== 'assistant') || retries.some(({ assistant_message_id }) => assistant_message_id !== id)) {
+      throw new AgentRuntimeProtocolError('Agent 消息重试记录归属无效')
     }
   }
   unique(attachments.map(({ id: attachmentId }) => attachmentId), 'Agent 消息包含重复附件 ID')
@@ -281,17 +321,22 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     attachments,
     turn_usage: turnUsage,
     ...(compactions ? { compactions } : {}),
+    ...(retries ? { retries } : {}),
   }
 }
 
 export function decodeAgentAttachment(value: unknown): AgentAttachment {
   const source = record(value, 'Agent 附件响应无效')
+  if (source.origin !== undefined && (source.kind !== 'text' || source.mime_type !== 'text/plain' || !isAgentTerminalReferenceOrigin(source.origin))) {
+    throw new AgentRuntimeProtocolError('Agent 终端引用来源无效')
+  }
   return {
     id: identifier(source.id, 'Agent 附件 ID 无效'),
     session_id: identifier(source.session_id, 'Agent 附件 Session ID 无效'),
     original_name: utf8(source.original_name, 'Agent 附件名称无效', 255),
     mime_type: utf8(source.mime_type, 'Agent 附件 MIME 无效', 128),
     kind: enumValue(source.kind, ['text', 'image'] as const, 'Agent 附件类型无效'),
+    ...(source.origin ? { origin: source.origin as AgentAttachment['origin'] } : {}),
     size_bytes: positiveInteger(source.size_bytes, 'Agent 附件大小无效'),
     state: enumValue<AgentAttachmentState>(source.state, agentAttachmentStates, 'Agent 附件状态无效'),
     expires_at: optionalTimestamp(source.expires_at, 'Agent 附件过期时间无效'),
@@ -376,12 +421,14 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'context_usage']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
   }
   switch (kind) {
+    case 'retry':
+      return { ...base, kind, payload: { retry: decodeRetryData(payload.retry) } }
     case 'compaction':
       return { ...base, kind, payload: { compaction: decodeCompactionData(payload.compaction) } }
     case 'context_usage': {
@@ -681,6 +728,35 @@ function decodeCompactionThreshold(value: unknown) {
   return threshold
 }
 
+function decodeRetryData(value: unknown): AgentRetryData {
+  const source = record(value, 'Agent 重试事件无效')
+  const status = enumValue(source.status, ['waiting', 'requesting', 'completed', 'failed', 'cancelled'] as const, 'Agent 重试状态无效')
+  const attempt = nonNegativeInteger(source.attempt, 'Agent 重试次数无效')
+  const duration = optionalNonNegativeInteger(source.duration_ms, 'Agent 重试耗时无效')
+  if (source.max_retries !== 3 || attempt > 3 || (status === 'waiting' && attempt >= 3)
+    || ((status === 'requesting' || status === 'completed') && attempt === 0)
+    || (duration !== undefined && (status === 'waiting' || status === 'requesting'))) {
+    throw new AgentRuntimeProtocolError('Agent 重试次数与阶段不匹配')
+  }
+  return {
+    retry_id: identifier(source.retry_id, 'Agent 重试 ID 无效'),
+    assistant_message_id: identifier(source.assistant_message_id, 'Agent 重试消息 ID 无效'),
+    purpose: enumValue(source.purpose, ['response', 'compaction'] as const, 'Agent 重试用途无效'),
+    after_part_sequence: nonNegativeInteger(source.after_part_sequence, 'Agent 重试位置无效'),
+    status,
+    attempt,
+    max_retries: 3,
+    delay_ms: nonNegativeInteger(source.delay_ms, 'Agent 重试等待时间无效'),
+    error_message: utf8(source.error_message, 'Agent 重试错误详情无效', 4096, true),
+    duration_ms: duration,
+  }
+}
+
+function decodeRetryActivity(value: unknown): AgentRetryActivity {
+  const source = record(value, 'Agent 重试活动无效')
+  return { ...decodeRetryData(source), created_at: timestamp(source.created_at, 'Agent 重试活动时间无效') }
+}
+
 function decodeCompactionData(value: unknown): AgentCompactionData {
   const source = record(value, 'Agent 上下文压缩事件无效')
   return {
@@ -750,10 +826,12 @@ function decodeAgentMessageTurnUsage(value: unknown) {
     : utf8(source.error_code, 'Agent 消息本轮错误码无效', 80)
   const startedAt = optionalTimestamp(source.started_at, 'Agent 消息本轮开始时间无效')
   const completedAt = optionalTimestamp(source.completed_at, 'Agent 消息本轮完成时间无效')
+  const errorMessage = optionalString(source.error_message, 'Agent 消息本轮错误说明无效', 4096)
   return {
     run_id: identifier(source.run_id, 'Agent 消息本轮 Run ID 无效'),
     usage: decodeUsage(source.usage),
     ...(errorCode ? { error_code: errorCode } : {}),
+    ...(errorMessage !== undefined ? { error_message: errorMessage } : {}),
     ...(startedAt ? { started_at: startedAt } : {}),
     ...(completedAt ? { completed_at: completedAt } : {}),
   }

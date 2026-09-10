@@ -115,3 +115,51 @@ test('安装失败恢复不成功时安全退出应用', async () => {
   assert.equal(closeCalls, 1)
   assert.equal(quitCalls, 1)
 })
+
+test('恢复失败被阻断工作区的诊断窗口接管后保留应用，用户仍可退出', async () => {
+  let closeCalls = 0
+  let quitCalls = 0
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async () => true,
+    prepareForExit: () => undefined,
+    recoverAfterFailedUpdateInstall: async () => { throw new Error('DB_VERSION_TOO_NEW') },
+    showRecoveryFailure: () => true,
+    closeAllWindows: () => { closeCalls += 1 },
+    quitApplication: () => { quitCalls += 1 },
+  })
+  await coordinator.prepareUpdateInstall()
+  assert.equal(await coordinator.handleUpdateInstallerFailure(new Error('installer')), false)
+  assert.equal(coordinator.isApplicationExiting(), false)
+  assert.equal(closeCalls, 0)
+  assert.equal(quitCalls, 0)
+  await coordinator.requestApplicationExit('main_window')
+  assert.equal(closeCalls, 1)
+  assert.equal(quitCalls, 1)
+})
+
+test('安装失败恢复仍在等待时，退出立即关闭 Core 并让恢复收口', async () => {
+  let finishRecovery: (recovered: boolean) => void = () => undefined
+  const recovering = new Promise<boolean>((resolve) => { finishRecovery = resolve })
+  let shutdownCalls = 0
+  let closeCalls = 0
+  let quitCalls = 0
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async (reason) => {
+      shutdownCalls += 1
+      if (reason === 'frontend_exit') finishRecovery(false)
+      return true
+    },
+    recoverAfterFailedUpdateInstall: () => recovering,
+    prepareForExit: () => undefined,
+    closeAllWindows: () => { closeCalls += 1 },
+    quitApplication: () => { quitCalls += 1 },
+  })
+  await coordinator.prepareUpdateInstall()
+  const recovery = coordinator.handleUpdateInstallerFailure(new Error('installer failed'))
+  const exiting = coordinator.requestApplicationExit('main_window')
+  assert.equal(shutdownCalls, 2)
+  assert.equal(await recovery, false)
+  assert.equal((await exiting).coreStopped, true)
+  assert.equal(closeCalls, 1)
+  assert.equal(quitCalls, 1)
+})

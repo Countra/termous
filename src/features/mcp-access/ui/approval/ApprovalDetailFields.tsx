@@ -23,12 +23,13 @@ export function ApprovalTargets({ targets }: { targets: McpApprovalTarget[] }) {
   )
 }
 
-export function ApprovalPaths({ label, paths }: { label: string; paths: string[] }) {
+export function ApprovalPaths({ label, paths, focusable = false }: { label: string; paths: string[]; focusable?: boolean }) {
   if (paths.length === 0) return null
   return (
     <div className={styles['path-group']}>
       <span>{label}</span>
-      <div className={styles['path-list']}>
+      <div className={styles['path-list']} tabIndex={focusable ? 0 : undefined}
+        role={focusable ? 'region' : undefined} aria-label={focusable ? label : undefined}>
         {paths.map((path, index) => <code key={`${index}:${path}`}>{path}</code>)}
       </div>
     </div>

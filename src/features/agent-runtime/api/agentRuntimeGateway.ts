@@ -11,6 +11,9 @@ import type {
   AgentRun,
   AgentRunEventPage,
   AgentResourceBindingUpdateInput,
+  AgentResourceKind,
+  AgentResourceRecoveryInput,
+  AgentResourceRecoveryView,
   AgentSession,
   AgentSessionGroup,
   AgentSessionMetadataInput,
@@ -20,7 +23,6 @@ import type {
   AgentSessionPage,
   AgentSessionUsage,
   AgentSessionUpdateInput,
-  AgentSourceContext,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
 
@@ -49,7 +51,6 @@ export interface AgentCreateRunInput {
   client_request_id: string
   prompt: string
   attachment_ids: string[]
-  source_context?: AgentSourceContext
   force_context_compression: boolean
 }
 
@@ -67,9 +68,12 @@ export interface AgentWorkspaceGateway {
   createSession(input: AgentSessionInput, signal?: AbortSignal): Promise<AgentSession>
   updateSession(id: string, input: AgentSessionUpdateInput, signal?: AbortSignal): Promise<AgentSession>
   replaceResourceBinding(id: string, input: AgentResourceBindingUpdateInput, signal?: AbortSignal): Promise<AgentSession>
-  removeResourceBinding(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentSession>
+  removeResourceBinding(id: string, expectedRevision: number, kind?: AgentResourceKind, signal?: AbortSignal): Promise<AgentSession>
+  recoverResourceBinding(id: string, input: AgentResourceRecoveryInput, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
+  resourceBindingRecovery(id: string, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
+  cancelResourceBindingRecovery(id: string, operationId: string, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
-  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal): Promise<AgentAttachment>
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
@@ -79,7 +83,6 @@ export interface AgentWorkspaceGateway {
     client_request_id: string
     prompt: string
     attachment_ids: string[]
-    source_context?: AgentSourceContext
     force_context_compression: boolean
   }, signal?: AbortSignal): Promise<AgentQueuedTurn>
   beginQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueuedTurn>

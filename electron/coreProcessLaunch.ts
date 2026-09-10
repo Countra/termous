@@ -4,6 +4,13 @@ import {
   type SpawnOptionsWithoutStdio,
 } from 'node:child_process'
 import path from 'node:path'
+import { CoreStartupEventParser, type CoreStartupEvent } from './coreStartupProtocol.ts'
+import { isCoreBindFailure } from './coreStartupState.ts'
+import {
+  hasChildProcessExited,
+  waitForChildProcessExit,
+  type ChildProcessExitObservable,
+} from './childProcessLifecycle.ts'
 
 export interface ManagedCoreArgumentsOptions {
   addr: string
@@ -16,6 +23,9 @@ export interface ManagedCoreLaunchOptions extends ManagedCoreArgumentsOptions {
   token: string
   environment: NodeJS.ProcessEnv
   parentPid: number
+  startupInstance?: string
+  onStartupEvent?: (event: CoreStartupEvent) => void
+  onStartupProtocolError?: (reason: 'invalid_message' | 'oversized_message') => void
 }
 
 export type ManagedCoreSpawn = (
@@ -58,6 +68,9 @@ export function spawnManagedCoreProcess(
     logDirectory,
     environment,
     parentPid,
+    startupInstance,
+    onStartupEvent,
+    onStartupProtocolError,
   }: ManagedCoreLaunchOptions,
   spawnProcess: ManagedCoreSpawn = spawn,
 ) {
@@ -74,14 +87,19 @@ export function spawnManagedCoreProcess(
       TERMOUS_REQUIRE_HEARTBEAT: '1',
       TERMOUS_HEARTBEAT_TIMEOUT: '30s',
       TERMOUS_PARENT_PID: String(parentPid),
+      TERMOUS_STARTUP_PROTOCOL: startupInstance ? '1' : '',
+      TERMOUS_STARTUP_INSTANCE: startupInstance ?? '',
     },
     windowsHide: true,
     stdio: 'pipe',
   })
 
-  // 托管进程的输出不展示，但必须持续消费，避免管道写满后阻塞 Core。
+  // 两条输出管道始终消费，状态协议只接受所属 Core 的结构化事件。
   child.stdout.on('data', () => undefined)
-  child.stderr.on('data', () => undefined)
+  const parser = new CoreStartupEventParser((event) => onStartupEvent?.(event), onStartupProtocolError)
+  child.stderr.on('data', (chunk: Buffer | string) => parser.write(chunk))
+  child.stderr.once('end', () => parser.end())
+  child.stderr.once('close', () => parser.end())
   return child
 }
 
@@ -108,7 +126,42 @@ export async function runManagedCorePortAttempts({
       if (isStopping()) {
         return { status: 'cancelled' }
       }
+      if (!isCoreBindFailure(error)) {
+        return { status: 'failed', lastError }
+      }
     }
   }
   return { status: 'failed', lastError }
+}
+
+export function waitForManagedCoreStartupOutput(
+  child: Pick<ChildProcessWithoutNullStreams, 'stderr'>,
+  timeoutMs = 500,
+) {
+  if (child.stderr.readableEnded || child.stderr.destroyed) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer)
+      child.stderr.removeListener('end', finish)
+      child.stderr.removeListener('close', finish)
+      resolve()
+    }
+    const timer = setTimeout(finish, timeoutMs)
+    child.stderr.once('end', finish)
+    child.stderr.once('close', finish)
+  })
+}
+
+export async function waitForManagedCoreFailureExit(
+  child: ChildProcessExitObservable,
+  isStopping: () => boolean,
+  timeoutMs = 12_000,
+) {
+  const deadline = Date.now() + timeoutMs
+  while (!hasChildProcessExited(child) && !isStopping()) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) return false
+    if (await waitForChildProcessExit(child, Math.min(remaining, 250))) return true
+  }
+  return hasChildProcessExited(child)
 }

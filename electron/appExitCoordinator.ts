@@ -29,6 +29,7 @@ export interface AppExitCoordinatorDependencies {
   shutdownCore(reason: CoreShutdownReason): Promise<boolean>
   prepareForExit(): void
   recoverAfterFailedUpdateInstall?(): Promise<boolean>
+  showRecoveryFailure?(): boolean
   closeAllWindows(): void
   quitApplication(): void
   reportError?(event: string, error: unknown): void
@@ -153,7 +154,19 @@ export class AppExitCoordinator {
         recoveryError,
       )
     }
-    // 恢复失败时继续退出，避免留下 Core 已停止但界面仍可操作的半关闭应用。
+    // 只有明确接管错误展示并阻断工作区时才保留窗口，否则维持原有退出兜底。
+    if (!this.exitRequested && !this.windowTeardownStarted) {
+      try {
+        if (this.dependencies.showRecoveryFailure?.()) {
+          this.nativeQuitAllowed = false
+          this.preparedForExit = false
+          this.updateInstallPromise = null
+          return false
+        }
+      } catch (error) {
+        this.dependencies.reportError?.('update-recovery-error-window-failed', error)
+      }
+    }
     await this.finishFailedUpdateRecovery()
     return false
   }
@@ -171,8 +184,10 @@ export class AppExitCoordinator {
     let coreStopped = false
     const updateRecoveryPromise = this.updateRecoveryPromise
     if (updateRecoveryPromise) {
+      // 恢复中的数据库处理可能很长；退出先中断所属 Core，再等待恢复链收口。
+      const stopping = this.stopCoreForApplicationExit()
       await updateRecoveryPromise
-      coreStopped = await this.stopCoreForApplicationExit()
+      coreStopped = await stopping
     } else if (this.updateInstallPromise) {
       const updateResult = await this.updateInstallPromise
       coreStopped = updateResult.status === 'ready_to_install'

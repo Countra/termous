@@ -15,6 +15,92 @@ import { AgentSettingsPanel } from './AgentSettingsPanel.tsx'
 describe('AgentSettingsPanel', () => {
   beforeEach(() => { document.body.innerHTML = '' })
 
+  it.each([false, true])('准备只调用 setup，展示服务端最新审批模式 %s', async (approvalBypass) => {
+    const user = userEvent.setup()
+    const initial = readinessFixture(1, 'apm-1')
+    initial.status = 'needs_repair'
+    initial.mcp_client.status = 'outdated'
+    initial.mcp_policy = {
+      ...initial.mcp_policy!, scope_count: 29, required_scope_count: 30,
+      scope_sync_required: true, approval_bypass: !approvalBypass,
+    }
+    const ready: AgentReadiness = {
+      ...initial, status: 'ready', mcp_client: { status: 'ready', message: '' },
+      mcp_policy: { ...initial.mcp_policy, approval_bypass: approvalBypass, scope_count: 30, scope_sync_required: false, revision: 3 },
+    }
+    const pending = deferred<AgentReadiness>()
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.setup).mockReturnValue(pending.promise)
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(ready)
+    renderPanel(gateway)
+    const prepare = await screen.findByRole('button', { name: 'settings.agent.readiness.setup' })
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+
+    await user.click(prepare)
+
+    await waitFor(() => expect(gateway.setup).toHaveBeenCalledExactlyOnceWith(expect.any(AbortSignal)))
+    expect(prepare).toHaveClass('ant-btn-loading')
+    expect(screen.getByRole('switch', { name: 'settings.agent.policy.approval' })).toBeDisabled()
+    pending.resolve(ready)
+
+    expect(await screen.findByRole('button', { name: 'settings.agent.readiness.checkAgain' })).toBeInTheDocument()
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+    expect(screen.getByRole('switch', { name: 'settings.agent.policy.approval' }))
+      .toHaveAttribute('aria-checked', String(approvalBypass))
+  })
+
+  it('准备后按服务端显示未就绪组件，不乐观标记可用', async () => {
+    const user = userEvent.setup()
+    const initial = readinessFixture(1, 'apm-1')
+    initial.status = 'needs_repair'
+    initial.mcp_client.status = 'outdated'
+    initial.mcp_policy = { ...initial.mcp_policy!, required_scope_count: 30, scope_sync_required: true }
+    const latest: AgentReadiness = {
+      ...initial, status: 'blocked',
+      mcp_client: { status: 'ready', message: '' },
+      skills_bundle: { status: 'unavailable', message: '服务端资源未就绪' },
+      mcp_policy: { ...initial.mcp_policy, scope_count: 30, scope_sync_required: false, revision: 2 },
+    }
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
+    vi.mocked(gateway.setup).mockResolvedValue(latest)
+    renderPanel(gateway)
+
+    await user.click(await screen.findByRole('button', { name: 'settings.agent.readiness.setup' }))
+
+    await waitFor(() => expect(screen.getAllByRole('status').some((node) =>
+      node.textContent === 'settings.agent.componentState.unavailable')).toBe(true))
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: 'settings.agent.readiness.setup',
+    })).toBeEnabled())
+    expect(gateway.readiness).toHaveBeenCalledTimes(2)
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'settings.agent.readiness.checkAgain' })).not.toBeInTheDocument()
+  })
+
+  it('准备失败后重新读取真实状态并保留错误，不自动重试', async () => {
+    const user = userEvent.setup()
+    const initial = readinessFixture(1, 'apm-1')
+    initial.status = 'needs_repair'
+    initial.mcp_client.status = 'outdated'
+    initial.mcp_policy = { ...initial.mcp_policy!, required_scope_count: 30, scope_sync_required: true }
+    const gateway = gatewayFixture({ readiness: initial })
+    vi.mocked(gateway.setup).mockRejectedValue(new Error('setup failed'))
+    renderPanel(gateway)
+
+    await user.click(await screen.findByRole('button', { name: 'settings.agent.readiness.setup' }))
+
+    expect(await screen.findByText('settings.agent.operationFailed')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: 'settings.agent.readiness.setup',
+    })).toBeEnabled())
+    expect(screen.getByText('settings.agent.error.generic')).toBeInTheDocument()
+    expect(gateway.setup).toHaveBeenCalledTimes(1)
+    expect(gateway.readiness).toHaveBeenCalledTimes(2)
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'settings.agent.readiness.checkAgain' })).not.toBeInTheDocument()
+  })
+
   it('自动压缩阈值默认 80，校验整数范围并随完整设置保存', async () => {
     const user = userEvent.setup()
     const gateway = gatewayFixture()
@@ -106,7 +192,7 @@ describe('AgentSettingsPanel', () => {
     expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'settings.agent.confirmBypass.confirm' }))
     await waitFor(() => expect(gateway.updateMcpPolicy).toHaveBeenCalledWith(
-      expect.objectContaining({ approval_bypass: true }), expect.any(AbortSignal),
+      { approval_bypass: true, sync_scopes: false, expected_revision: 1 }, expect.any(AbortSignal),
     ))
   })
 

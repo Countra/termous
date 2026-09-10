@@ -26,6 +26,8 @@ export {
   type AgentContextCheckpoint,
   type AgentCompactionActivity,
   type AgentCompactionData,
+  type AgentRetryActivity,
+  type AgentRetryData,
   type AgentContextUsageData,
   type AgentContextUsageBasis,
   type AgentContextCompressionStatus,
@@ -44,6 +46,7 @@ export {
   type AgentMessage,
   type AgentMessagePage,
   type AgentMessagePart,
+  type AgentResponseFailure,
   type AgentMessagePartKind,
   type AgentMessageRole,
   type AgentMessageStatus,
@@ -101,10 +104,36 @@ export {
 } from './model/types.ts'
 export {
   assignAgentLaunchIntentKey,
-  buildFilesAgentLaunchRequest,
-  buildForwardFailureAgentLaunchRequest,
-  buildHostProfileAgentLaunchRequest,
-  buildWorkbenchAgentLaunchRequest,
 } from './model/agentLaunchIntent.ts'
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
+export {
+  sameTerminalReferenceSource,
+  type AgentTerminalReferenceLaunch,
+  type AgentTerminalReferenceTarget,
+  type AgentReferenceTargetSummary,
+  type AgentReferenceTargetsSnapshot,
+} from './model/terminalReference.ts'
 export { compareAgentSessionOrder } from './model/sessionOrder.ts'
+export { mergeAgentRetryActivity } from './model/retryActivity.ts'
+export {
+  agentDefaultModelReasonKey,
+  decodeAgentDefaultModelStatus,
+  type AgentDefaultModelStatus,
+  type AgentDefaultModelStatusGateway,
+  type AgentDefaultModelStatusView,
+} from './model/agentDefaultModelStatus.ts'
+export { useAgentDefaultModelStatus } from './model/useAgentDefaultModelStatus.ts'
+export type { AgentTerminalReferenceOrigin } from '#common/contracts'
+export type { AgentResourceState, AgentFileResourceState, AgentSSHResourceBinding, AgentFileResourceBinding } from './model/types.ts'
+export {
+  getAgentResourceBinding, agentResourceBindingKey, resourceReference, resourceReferenceId, resourceProfileName, sameAgentResourceSource, resourceBindingMatchesSource,
+  type AgentConnectionReferenceLaunch, type AgentResourceReferenceLaunch, type AgentReferenceTarget,
+  type AgentConnectionReferenceSnapshot, type AgentConnectionReferenceProps,
+} from './model/resourceReference.ts'
+export { connectionReferenceMenuProps } from './model/resourceReference.ts'
+export {
+  agentResourceRecoveryStatuses, agentResourceRecoveryBlockedReasons,
+  isAgentResourceRecoveryActive, isAgentResourceRecoveryBlocking,
+  type AgentResourceRecoveryInput, type AgentResourceRecoveryOperation, type AgentResourceRecoveryView,
+  type AgentResourceRecoveryState, type AgentResourceRecoveryStatus, type AgentResourceRecoveryBlockedReason,
+} from './model/resourceRecovery.ts'

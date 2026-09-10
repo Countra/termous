@@ -247,6 +247,41 @@ describe('Agent 工作区页面投影', () => {
     expect(projectAgentMessages([message], undefined, [])[0]?.status).toBe('streaming')
   })
 
+  it.each([
+    ['termous.sftp.files.stat', 'termous.files.stat'],
+    ['termous.sftp.sessions.list', 'termous.files.sessions.list'],
+    ['termous.sftp.transfers.get', 'termous.files.transfers.get'],
+    ['termous.files.stat', 'termous.files.stat'],
+    ['termous.sftp.files.unknown', 'termous.sftp.files.unknown'],
+  ])('当前与归档消息仅转换工具显示名 %s，保留原记录及配对', (toolName, displayName) => {
+    const legacyHistoryFixture: AgentMessage = {
+      id: 'message-history', session_id: 'session-one', role: 'assistant', status: 'completed',
+      sequence: 1, revision: 1, attachments: [],
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+      parts: [
+        {
+          id: 'part-call', message_id: 'message-history', sequence: 1, revision: 1,
+          created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z', kind: 'tool_call',
+          tool_call: { tool_call_id: 'call-history', tool_name: toolName, arguments: { path: '/tmp/example' } },
+        },
+        {
+          id: 'part-result', message_id: 'message-history', sequence: 2, revision: 1,
+          created_at: '2026-08-29T00:00:01Z', updated_at: '2026-08-29T00:00:01Z', kind: 'tool_result',
+          tool_result: { tool_call_id: 'call-history', tool_name: toolName, content: { size: 0 }, is_error: false },
+        },
+      ],
+    }
+    const before = structuredClone(legacyHistoryFixture)
+    for (const run of [undefined, activeRun()]) {
+      const [projected] = projectAgentMessages([legacyHistoryFixture], run, [])
+      expect(projected?.parts).toEqual([expect.objectContaining({
+        kind: 'tool', name: displayName, status: 'completed',
+        detail: expect.stringContaining('"size": 0'),
+      })])
+    }
+    expect(legacyHistoryFixture).toEqual(before)
+  })
+
   it('reasoning 最终 Part 到达后立即收起，不等待整条消息结束', () => {
     const message: AgentMessage = {
       id: 'message-assistant',
@@ -393,7 +428,7 @@ describe('Agent 工作区页面投影', () => {
     ], run, [])[0]?.usage).toBeUndefined()
   })
 
-  it('失败原因优先使用匹配 Run，历史回放只恢复持久错误码且不借用其他会话详情', () => {
+  it('失败原因优先使用匹配 Run，保留原始详情且不借用其他会话详情', () => {
     const message: AgentMessage = {
       id: 'message-assistant', session_id: 'session-one', role: 'assistant', status: 'failed',
       sequence: 2, revision: 1, created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
@@ -404,7 +439,7 @@ describe('Agent 工作区页面投影', () => {
       status: 'failed', error_code: 'AGENT_MODEL_STREAM_INTERRUPTED', error_message: '  connection closed  ',
     })
     expect(projectAgentMessages([message], run, [])[0]).toMatchObject({
-      status: 'failed', error_code: 'AGENT_MODEL_STREAM_INTERRUPTED', error_message: 'connection closed',
+      status: 'failed', error_code: 'AGENT_MODEL_STREAM_INTERRUPTED', error_message: '  connection closed  ',
     })
     for (const otherRun of [undefined, { ...run, session_id: 'other-session' }, { ...run, assistant_message_id: 'other-message' }]) {
       const historical = projectAgentMessages([message], otherRun, [])[0]
@@ -414,7 +449,7 @@ describe('Agent 工作区页面投影', () => {
     const streaming = projectAgentMessages([{ ...message, status: 'streaming' }], run, [])[0]
     expect(streaming?.error_code).toBeUndefined()
     expect(streaming?.error_message).toBeUndefined()
-    expect(projectAgentMessages([message], { ...run, error_message: 'x'.repeat(5_000) }, [])[0]?.error_message?.length).toBe(4_096)
+    expect(projectAgentMessages([message], { ...run, error_message: 'x'.repeat(5_000) }, [])[0]?.error_message?.length).toBe(5_000)
   })
 
   it('后继 Run 开始后仍按历史终态元数据展示 steer 中断', () => {

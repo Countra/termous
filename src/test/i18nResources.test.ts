@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 import { mcpScopes } from '#entities/mcp-access'
+import { mcpScopeGroups } from '../features/mcp-access/model/mcpScopeCatalog.ts'
 import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
 import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
@@ -189,21 +190,9 @@ test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
     assertBilingualString(`settings.mcp.scope.${key}`)
     assertBilingualString(`settings.mcp.scopeDescription.${key}`)
   }
-  for (const group of [
-    'hosts',
-    'sessions',
-    'commands',
-    'sftp',
-    'system',
-    'processes',
-    'services',
-    'docker',
-    'crontab',
-    'forwarding',
-    'snippets',
-  ]) {
-    assertBilingualString(`settings.mcp.permissionGroup.${group}`)
-    assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)
+  for (const { key } of mcpScopeGroups) {
+    assertBilingualString(`settings.mcp.permissionGroup.${key}`)
+    assertBilingualString(`settings.mcp.permissionGroupHint.${key}`)
   }
 })
 

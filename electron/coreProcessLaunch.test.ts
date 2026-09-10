@@ -6,13 +6,18 @@ import type {
 import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 import test from 'node:test'
 import {
   buildManagedCoreArguments,
   runManagedCorePortAttempts,
   spawnManagedCoreProcess,
+  waitForManagedCoreStartupOutput,
+  waitForManagedCoreFailureExit,
   type ManagedCoreSpawn,
 } from './coreProcessLaunch.ts'
+import { CoreStartupError } from './coreStartupState.ts'
+import { coreStartupPrefix, type CoreStartupEvent } from './coreStartupProtocol.ts'
 
 const coreProcessSource = readFileSync(new URL('./coreProcess.ts', import.meta.url), 'utf8')
 
@@ -116,7 +121,7 @@ test('启动期退出也使用受控子进程终止链路', () => {
     coreProcessSource.indexOf('  restartAfterRestore()'),
   )
 
-  assert.match(shutdownSource, /if \(!this\.config\.managed\)[\s\S]*await this\.stopChildOnly\(\)/)
+  assert.match(shutdownSource, /if \(!this\.config\.managed \|\| !this\.runtimeReady\)[\s\S]*await this\.stopChildOnly\(\)/)
   assert.doesNotMatch(shutdownSource, /child\.kill\(/)
 })
 
@@ -161,7 +166,7 @@ test('失败进程确认退出后才继续尝试下一个端口', async () => {
     start: async (port) => {
       attemptedPorts.push(port)
       if (port === 8152) {
-        throw new Error('端口不可用')
+        throw new CoreStartupError({ code: 'CORE_BIND_FAILED', message: '端口不可用' })
       }
     },
     stopFailedAttempt: async () => {
@@ -172,4 +177,80 @@ test('失败进程确认退出后才继续尝试下一个端口', async () => {
   assert.deepEqual(result, { status: 'started', port: 8153 })
   assert.deepEqual(attemptedPorts, [8152, 8153])
   assert.equal(cleanupCalls, 1)
+})
+
+test('数据库错误和未知启动错误清理后直接返回，不更换端口', async () => {
+  for (const error of [
+    new CoreStartupError({ code: 'DB_VERSION_TOO_NEW', message: '数据库版本过高' }),
+    new Error('未知错误'),
+  ]) {
+    const ports: number[] = []
+    let cleanupCalls = 0
+    const result = await runManagedCorePortAttempts({
+      portStart: 8152, maxPortSwitches: 3, isStopping: () => false,
+      start: async (port) => { ports.push(port); throw error },
+      stopFailedAttempt: async () => { cleanupCalls += 1 },
+    })
+    assert.deepEqual(result, { status: 'failed', lastError: error })
+    assert.deepEqual(ports, [8152])
+    assert.equal(cleanupCalls, 1)
+  }
+})
+
+test('启动协议显式绑定实例，进程退出后的末尾失败事件排空后仍可读取', async () => {
+  const stderr = new PassThrough()
+  const child = { stdout: new PassThrough(), stderr } as unknown as ChildProcessWithoutNullStreams
+  const received: CoreStartupEvent[] = []
+  let launchedEnv: NodeJS.ProcessEnv | undefined
+  spawnManagedCoreProcess({
+    binaryPath: 'termous-core', addr: '127.0.0.1:8152', token: 'secret', packaged: false,
+    environment: { ...process.env }, parentPid: 42, startupInstance: 'instance-1',
+    onStartupEvent: (event) => received.push(event),
+  }, (_command, _args, options) => { launchedEnv = options.env; return child })
+  const failed: CoreStartupEvent = {
+    protocol: 1, instanceId: 'instance-1', pid: 123, sequence: 1,
+    at: '2026-09-07T12:00:00Z', phase: 'failed',
+    error: { code: 'DB_VERSION_TOO_NEW', message: '数据库版本过高' },
+  }
+  const encoded = `${coreStartupPrefix}${JSON.stringify(failed)}`
+  stderr.write(encoded.slice(0, 40))
+  const drained = waitForManagedCoreStartupOutput(child)
+  stderr.end(encoded.slice(40))
+  await drained
+  assert.equal(launchedEnv?.TERMOUS_STARTUP_PROTOCOL, '1')
+  assert.equal(launchedEnv?.TERMOUS_STARTUP_INSTANCE, 'instance-1')
+  assert.deepEqual(received, [failed])
+  child.stdout.destroy()
+})
+
+test('退出排空等待有界且清理临时监听器', async () => {
+  const stderr = new PassThrough()
+  const child = { stderr } as Pick<ChildProcessWithoutNullStreams, 'stderr'>
+  await waitForManagedCoreStartupOutput(child, 5)
+  assert.equal(stderr.listenerCount('end'), 0)
+  assert.equal(stderr.listenerCount('close'), 0)
+  stderr.destroy()
+})
+
+test('可信失败先等待进程自身完成清理，不立即终止；等待超时有界', async () => {
+  const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null })
+  const waiting = waitForManagedCoreFailureExit(child, () => false, 1000)
+  const timer = setTimeout(() => { child.exitCode = 1; child.emit('exit') }, 10)
+  assert.equal(await waiting, true)
+  clearTimeout(timer)
+  assert.equal(child.listenerCount('exit'), 0)
+
+  const stalled = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null })
+  assert.equal(await waitForManagedCoreFailureExit(stalled, () => false, 5), false)
+  assert.equal(stalled.listenerCount('exit'), 0)
+})
+
+test('用户退出可打断自动失败清理等待，不必等待完整期限', async () => {
+  const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null })
+  assert.equal(await waitForManagedCoreFailureExit(child, () => true, 12_000), false)
+  let stopping = false
+  const waiting = waitForManagedCoreFailureExit(child, () => stopping, 12_000)
+  stopping = true
+  assert.equal(await waiting, false)
+  assert.equal(child.listenerCount('exit'), 0)
 })

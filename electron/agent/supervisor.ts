@@ -95,6 +95,14 @@ export class AgentSupervisor {
     return { ...this.status }
   }
 
+  // 仅主进程内部使用；单次补全借用活租约，不创建聊天 Run 或推进其队列。
+  completionLease() {
+    if (!this.leaseEnabled || !this.lease || Date.parse(this.lease.expires_at) <= Date.now()) {
+      throw new Error('AGENT_RUNTIME_UNAVAILABLE')
+    }
+    return { ...this.lease }
+  }
+
   subscribe(listener: (status: AgentRuntimeStatus) => void) {
     this.listeners.add(listener)
     this.notifyListener(listener)

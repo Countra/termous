@@ -2,6 +2,7 @@ import {
   compareAgentSessionOrder,
   isAgentRunActive,
   isAgentRunTerminal,
+  mergeAgentRetryActivity,
   type AgentMessage,
   type AgentQueueState,
   type AgentQueuedTurn,
@@ -129,11 +130,29 @@ export function replaceAgentMessages(
   incoming: AgentMessage[],
 ): AgentWorkspaceState {
   if (incoming.some(({ session_id }) => session_id !== sessionId)) return current
-  const messages = dedupeByID(incoming, preferMessage)
+  const previousMessages = new Map((current.messages[sessionId] ?? []).map((message) => [message.id, message]))
+  const messages = dedupeByID(incoming, preferMessage).map((message) => {
+    const previous = previousMessages.get(message.id)
+    // 消息页与 Run 独立读取，迟到的旧列表不能抹掉已经确认的终态元数据。
+    const preferred = previous?.turn_usage && !message.turn_usage && previous.revision >= message.revision ? previous : message
+    const snapshot = previous ? retainResponseFailureParts(preferred, preferred === message ? previous : message) : preferred
+    return previous?.retries?.length ? { ...snapshot, retries: preferMessage(previous, message).retries } : snapshot
+  })
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
+  let overlays = current.run_part_overlays
+  for (const message of incoming) {
+    if (!message.turn_usage) continue
+    // 增量分页也携带本地消息，保留仍直接引用 overlay 的片段；新读到的终态片段才视为已落盘。
+    for (const part of message.parts) {
+      if (overlays[message.turn_usage.run_id]?.[part.id] !== part) {
+        overlays = removeRunPartOverlay(overlays, message.turn_usage.run_id, part.id)
+      }
+    }
+  }
   return replayRuntimeMessageProjection({
     ...current,
     messages: { ...current.messages, [sessionId]: messages },
+    run_part_overlays: overlays,
   }, sessionId)
 }
 
@@ -345,6 +364,12 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
     run_event_sequences: { ...current.run_event_sequences, [event.run_id]: event.sequence },
   }
   if (event.kind === 'message_delta') {
+    const message = current.messages[run.session_id]?.find(({ id }) => id === run.assistant_message_id)
+    const partId = event.payload.message_delta.part_id
+    if (message?.parts.some((part) => part.id === partId && part.response_failure)) return { state: stateWithCursor, gap: false }
+    // 终态 Run 可以先于片段到达；仅跳过已有完整片段且没有待完成 overlay 的旧 delta。
+    if (message?.turn_usage?.run_id === run.id && message.parts.some(({ id }) => id === partId)
+      && !current.run_part_overlays[run.id]?.[partId]) return { state: stateWithCursor, gap: false }
     stateWithCursor = applyRunEventToMessages(stateWithCursor, run, event)
     const overlay = stateWithCursor.messages[run.session_id]
       ?.find(({ id }) => id === run.assistant_message_id)
@@ -396,12 +421,26 @@ function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, eve
     ))) return current
     return acceptAgentContextUsage(current, run, event.payload.context_usage)
   }
-  if (event.kind !== 'compaction') return current
+  if (event.kind !== 'compaction' && event.kind !== 'retry') return current
   const messages = current.messages[run.session_id]
   if (!messages) return current
   return { ...current, messages: { ...current.messages, [run.session_id]: messages.map((message) => (
-    message.id === run.assistant_message_id ? mergeAgentCompactionActivity(message, event) : message
+    message.id !== run.assistant_message_id ? message
+      : event.kind === 'compaction' ? mergeAgentCompactionActivity(message, event)
+        : mergeRetryEvent(message, event)
   )) } }
+}
+
+function mergeRetryEvent(message: AgentMessage, event: Extract<AgentRunEvent, { kind: 'retry' }>): AgentMessage {
+  const incoming = { ...event.payload.retry, created_at: event.created_at }
+  if (incoming.assistant_message_id !== message.id) return message
+  const retries = message.retries ?? []
+  const previous = retries.find(({ retry_id }) => retry_id === incoming.retry_id)
+  const merged = mergeAgentRetryActivity(previous, incoming)
+  if (merged === previous) return message
+  return { ...message, retries: previous
+    ? retries.map((activity) => activity.retry_id === merged.retry_id ? merged : activity)
+    : [...retries, merged] }
 }
 
 function runRequiresReconcile(state: AgentWorkspaceState, run: AgentRun) {
@@ -563,7 +602,22 @@ function preferSession(left: AgentSession, right: AgentSession) {
 }
 
 function preferMessage(left: AgentMessage, right: AgentMessage) {
-  return left.revision >= right.revision ? left : right
+  const snapshot = left.revision > right.revision
+    || (left.revision === right.revision && (left.turn_usage !== undefined || right.turn_usage === undefined)) ? left : right
+  const preferred = retainResponseFailureParts(snapshot, snapshot === left ? right : left)
+  if (!left.retries?.length && !right.retries?.length) return preferred
+  const retries = new Map((left.retries ?? []).map((activity) => [activity.retry_id, activity]))
+  for (const activity of right.retries ?? []) retries.set(activity.retry_id, mergeAgentRetryActivity(retries.get(activity.retry_id), activity))
+  return { ...preferred, retries: [...retries.values()] }
+}
+
+function retainResponseFailureParts(preferred: AgentMessage, other: AgentMessage): AgentMessage {
+  let parts = preferred.parts
+  // 失败片段不可恢复为活动输出；旧分页和重连快照仍需保留已经确认的失败历史。
+  for (const part of other.parts) {
+    if (part.response_failure) parts = applyMessagePart(parts, part)
+  }
+  return parts === preferred.parts ? preferred : { ...preferred, parts }
 }
 
 function sortSessions(sessions: AgentSession[]) {
@@ -576,7 +630,7 @@ function replayRuntimeMessageProjection(current: AgentWorkspaceState, sessionId:
     if (run.session_id !== sessionId) continue
     for (const event of current.run_events[run.id] ?? []) {
       state = applyRunEventToMessages(state, run, event)
-      if (event.kind === 'compaction') state = applyAgentContextEvent(state, run, event)
+      if (event.kind === 'compaction' || event.kind === 'retry') state = applyAgentContextEvent(state, run, event)
     }
     for (const part of Object.values(current.run_part_overlays[run.id] ?? {})) {
       state = applyPartOverlayToMessages(state, run, part)
@@ -614,6 +668,10 @@ function runEventMessageProjectionValid(
     return event.payload.compaction.assistant_message_id === run.assistant_message_id
       && Boolean(current.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id))
   }
+  if (event.kind === 'retry') {
+    return event.payload.retry.assistant_message_id === run.assistant_message_id
+      && Boolean(current.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id))
+  }
   if (event.kind === 'message_delta') {
     const delta = event.payload.message_delta
     if (delta.message_id !== run.assistant_message_id) return false
@@ -627,6 +685,7 @@ function runEventMessageProjectionValid(
     if (part.message_id !== run.assistant_message_id) return false
     const message = current.messages[run.session_id]?.find(({ id }) => id === part.message_id)
     if (!message) return false
+    if (part.response_failure && message.role !== 'assistant') return false
     const existing = message.parts.find(({ id }) => id === part.id)
     return !existing || existing.kind === part.kind
   }
@@ -663,6 +722,7 @@ function applyMessageDelta(
 ) {
   const delta = event.payload.message_delta
   const existing = parts.find((part) => part.id === delta.part_id)
+  if (existing?.response_failure) return parts
   if (existing && existing.kind !== delta.kind) return parts
   const part: AgentMessage['parts'][number] = existing
     ? { ...existing, text: existing.text + delta.delta, updated_at: event.created_at }
@@ -680,6 +740,9 @@ function applyMessageDelta(
 }
 
 function applyMessagePart(parts: AgentMessage['parts'], part: AgentMessage['parts'][number]) {
+  const existing = parts.find(({ id }) => id === part.id)
+  if (existing === part || existing?.response_failure
+    && (!part.response_failure || existing.revision >= part.revision)) return parts
   return [part, ...parts.filter(({ id }) => id !== part.id)]
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
 }
@@ -692,6 +755,9 @@ function applyRunMessageStatus(current: AgentWorkspaceState, run: AgentRun) {
   const messages = current.messages[run.session_id]
   const index = messages?.findIndex(({ id }) => id === run.assistant_message_id) ?? -1
   if (!messages || index < 0 || run.status === 'queued') return current
+  const message = messages[index]!
+  // HTTP 消息页可能比先读取的 Run 更新；同一任务已落盘的终态不能回退成流式消息。
+  if (message.turn_usage?.run_id === run.id && !isAgentRunTerminal(run.status)) return current
   const status = run.status === 'completed'
     ? 'completed'
     : run.status === 'failed'
@@ -704,11 +770,11 @@ function applyRunMessageStatus(current: AgentWorkspaceState, run: AgentRun) {
         run_id: run.id,
         usage: run.usage,
         ...(run.error_code ? { error_code: run.error_code } : {}),
+        ...(run.error_message !== undefined ? { error_message: run.error_message } : {}),
         ...(run.started_at ? { started_at: run.started_at } : {}),
         ...(run.completed_at ? { completed_at: run.completed_at } : {}),
       }
     : undefined
-  const message = messages[index]!
   if (message.status === status && messageTurnUsageEqual(message.turn_usage, turnUsage)) return current
   const next = [...messages]
   next[index] = { ...message, status, updated_at: run.updated_at, turn_usage: turnUsage }
@@ -722,6 +788,7 @@ function messageTurnUsageEqual(
   if (!left || !right) return left === right
   return left.run_id === right.run_id
     && left.error_code === right.error_code
+    && left.error_message === right.error_message
     && left.started_at === right.started_at
     && left.completed_at === right.completed_at
     && left.usage.input_tokens === right.usage.input_tokens

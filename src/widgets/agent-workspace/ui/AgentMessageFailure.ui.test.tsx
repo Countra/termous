@@ -33,6 +33,27 @@ const failureCases = [
 ] as const
 
 describe('AgentMessageFailure', () => {
+  it.each([
+    ['AGENT_MCP_PROTOCOL_MISMATCH', 'AI 助手与 MCP 工具服务的协议版本不兼容', 'The AI assistant and MCP tool service use incompatible protocol versions.'],
+    ['AGENT_MCP_ENDPOINT_INVALID', 'AI 助手的 MCP 工具服务地址无效', 'The MCP tool service address is invalid.'],
+    ['AGENT_MCP_ENDPOINT_VIOLATION', 'AI 助手的 MCP 工具服务地址不符合本地连接要求', 'The MCP tool service address does not meet local connection requirements.'],
+    ['AGENT_MCP_TOOL_NAME_CONFLICT', 'MCP 工具名称重复或无效，AI 助手未能启动', 'MCP tool names are duplicated or invalid. The AI assistant could not start.'],
+    ['AGENT_MCP_TOOL_SCHEMA_INVALID', 'MCP 工具参数定义无效，AI 助手未能启动', 'An MCP tool parameter definition is invalid. The AI assistant could not start.'],
+    ['AGENT_MCP_TOOLS_EMPTY', 'MCP 工具服务没有返回可用工具，AI 助手未能启动', 'The MCP tool service returned no available tools. The AI assistant could not start.'],
+    ['AGENT_MCP_CONNECTION_FAILED', 'AI 助手连接 MCP 工具服务失败，请准备或修复后重试', 'The AI assistant could not connect to the MCP tool service. Prepare or repair it, then try again.'],
+  ])('MCP 启动错误 %s 用当前语言完整显示一次安全原因', async (error_code, chinese, english) => {
+    const localized = i18n.cloneInstance({ lng: 'zh-CN' })
+    await localized.changeLanguage('zh-CN')
+    const element = <I18nextProvider i18n={localized}>
+      <AgentMessageFailure message={{ status: 'failed', error_code, error_message: chinese }} />
+    </I18nextProvider>
+    const view = render(element)
+    expect(view.container.textContent).toBe(chinese)
+    await localized.changeLanguage('en-US')
+    view.rerender(element)
+    expect(view.container.textContent).toBe(english)
+  })
+
   it.each(failureCases)('用中英文显示 %s 的具体原因', async (error_code, chinese, english) => {
     const localized = i18n.cloneInstance({ lng: 'zh-CN' })
     await localized.changeLanguage('zh-CN')
@@ -75,5 +96,29 @@ describe('AgentMessageFailure', () => {
     </I18nextProvider>)
     expect(view.container.textContent).toBe('已由新消息中断')
     expect(screen.queryByText('provider detail')).not.toBeInTheDocument()
+  })
+
+  it.each(['response', 'compaction'] as const)('%s 失败活动与最终错误原文相同时只显示一次，多行和首尾空白保持不变', async (purpose) => {
+    const localized = i18n.cloneInstance({ lng: 'zh-CN' })
+    await localized.changeLanguage('zh-CN')
+    const detail = '  provider error\n请求被服务拒绝\nstatus 503  '
+    const message: AgentWorkspaceMessage = {
+      id: 'assistant', role: 'assistant', status: 'failed', created_at: '2026-09-08T00:00:00Z',
+      error_message: detail, attachments: [],
+      parts: [{ id: 'retry:one', kind: 'retry', activity: {
+        retry_id: 'one', assistant_message_id: 'assistant', purpose, status: 'failed',
+        attempt: 3, max_retries: 3, after_part_sequence: 0, delay_ms: 0, duration_ms: 7_000,
+        error_message: detail, created_at: '2026-09-08T00:00:00Z',
+      } }],
+    }
+    const element = (current: AgentWorkspaceMessage) => <I18nextProvider i18n={localized}>
+      <AgentConversation messages={[current]} runStatus="failed" loading={false} sessionKey="session" />
+    </I18nextProvider>
+    const { container, rerender } = render(element(message))
+    expect(container.textContent!.split(detail)).toHaveLength(2)
+    expect(screen.getByText('本次回复失败')).toBeInTheDocument()
+    rerender(element({ ...message, error_message: '不同的最终运行错误' }))
+    expect(container.textContent).toContain(detail)
+    expect(screen.getByText('不同的最终运行错误')).toBeInTheDocument()
   })
 })

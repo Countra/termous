@@ -43,6 +43,19 @@ test('空白区域按粘贴、清屏、全选和查找排序', () => {
   ])
 })
 
+test('AI 引用只随真实选区出现，链接选区也保留引用入口，来源不可用时禁用', () => {
+  assert.equal(buildTerminalContextMenu(snapshot(), { showAIReference: true, canReferenceSelection: true })
+    .some(({ type }) => type === 'reference'), false)
+  const selected = snapshot({ selectionText: 'https://example.com', target: { kind: 'url', source: 'selection', value: 'https://example.com' } })
+  assert.deepEqual(buildTerminalContextMenu(selected, { showAIReference: true, canReferenceSelection: true })[0], {
+    type: 'reference', key: 'reference_selection', disabled: false,
+  })
+  assert.deepEqual(buildTerminalContextMenu(selected, { showAIReference: true, canReferenceSelection: false })[0], {
+    type: 'reference', key: 'reference_selection', disabled: true,
+  })
+  assert.equal(buildTerminalContextMenu(selected).some(({ type }) => type === 'reference'), false)
+})
+
 test('URL 与路径使用专用动作且不重复复制动作', () => {
   assert.deepEqual(keys(buildTerminalContextMenu(snapshot({
     selectionText: 'https://example.com',

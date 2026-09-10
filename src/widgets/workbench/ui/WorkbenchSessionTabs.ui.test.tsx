@@ -8,7 +8,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('antd', () => ({
+vi.mock('antd', async (importOriginal) => ({
+  ...await importOriginal<typeof import('antd')>(),
   Dropdown: ({
     children,
     disabled,
@@ -48,7 +49,8 @@ vi.mock('antd', () => ({
 
 vi.mock('#features/hosts', () => ({ SessionQuickConnect: () => null }))
 
-vi.mock('#shared/ui', () => ({
+vi.mock('#shared/ui', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#shared/ui')>(),
   SessionTabStrip: ({ children }: { children?: ReactNode }) => <div role="tablist">{children}</div>,
   SessionTabButton: ({
     icon,

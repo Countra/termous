@@ -1,4 +1,5 @@
-import { Dropdown, Popover } from 'antd'
+import { SessionTargetDropdown } from '#shared/ui'
+import { Popover } from 'antd'
 import {
   Bot,
   CopyPlus,
@@ -23,6 +24,7 @@ import {
 import { SessionQuickConnect } from '#features/hosts'
 import { SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { HostAvatar, type Host } from '#entities/host'
+import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
 import type { Session } from '#entities/session'
 import type { SessionTabPreferenceMap } from '../model/sessionTabPreferences'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
@@ -38,7 +40,7 @@ export type SessionTabMenuAction =
   | 'color'
   | 'reset'
 
-interface WorkbenchSessionTabsProps {
+interface WorkbenchSessionTabsProps extends AgentConnectionReferenceProps {
   sessions: Session[]
   hosts: Host[]
   activeSessionId?: string
@@ -90,6 +92,8 @@ export function WorkbenchSessionTabs({
   onBeginDrag,
   onAuxClose,
   onClose,
+  getAgentConnectionReferenceSnapshot,
+  onReferenceAgentConnection,
 }: WorkbenchSessionTabsProps) {
   const { t } = useTranslation()
   const hostById = useMemo(
@@ -147,17 +151,15 @@ export function WorkbenchSessionTabs({
             ? (sessionClosing ? `${title} · ${originLabel}` : accessibleLabel)
             : undefined
           return (
-            <Dropdown
+            <SessionTargetDropdown
               key={session.id}
               disabled={sessionClosing}
-              trigger={['contextMenu']}
-              classNames={{ root: styles['terminal-tab-dropdown'] }}
-              menu={{
-                items: buildSessionTabMenuItems(session, preference, actionBusy, t),
-                onClick: ({ key, domEvent }) => {
+              popupClassName={styles['terminal-tab-dropdown']}
+              {...connectionReferenceMenuProps(session.kind === 'ssh' ? { kind: 'ssh_session', session_id: session.id } : undefined, { getAgentConnectionReferenceSnapshot, onReferenceAgentConnection })}
+              items={buildSessionTabMenuItems(session, preference, actionBusy, t)}
+              onMenuClick={({ key, domEvent }) => {
                   domEvent.stopPropagation()
                   onMenuAction(key as SessionTabMenuAction, session)
-                },
               }}
             >
               <span className={styles['session-tab-trigger']}>
@@ -220,7 +222,7 @@ export function WorkbenchSessionTabs({
                   />
                 </Popover>
               </span>
-            </Dropdown>
+            </SessionTargetDropdown>
           )
         })
       )}

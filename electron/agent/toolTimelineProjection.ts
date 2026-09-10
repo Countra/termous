@@ -129,7 +129,7 @@ function sensitiveSegment(value: string) {
     || value === 'bearer'
 }
 
-function redactSensitiveText(value: string) {
+export function redactSensitiveText(value: string) {
   return value
     .replace(
       /-----BEGIN [^-\r\n]*PRIVATE KEY-----[\s\S]*?-----END [^-\r\n]*PRIVATE KEY-----/gi,

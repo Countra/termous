@@ -21,6 +21,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
   const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
+  const [previewLocalAttachment, setPreviewLocalAttachment] = useState<AgentWorkspaceProps['draft_attachments'][number]>()
+  const onPreviewAttachment = useCallback((attachment: import('#entities/agent').AgentAttachment) => {
+    setPreviewLocalAttachment(undefined)
+    setPreviewAttachment(attachment)
+  }, [])
   const onDraftChange = useStableEventHandler(props.onDraftChange)
   const onAttachFiles = useStableEventHandler(props.onAttachFiles)
   const onRemoveAttachment = useStableEventHandler(props.onRemoveAttachment)
@@ -46,8 +51,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const onReplaceResourceBinding = useStableEventHandler(props.onReplaceResourceBinding)
   const onRemoveResourceBinding = useStableEventHandler(props.onRemoveResourceBinding)
   const onPreviewDraftAttachment = useCallback((item: AgentWorkspaceProps['draft_attachments'][number]) => {
-    if (item.attachment) setPreviewAttachment(item.attachment)
-  }, [])
+    if (item.origin) {
+      setPreviewAttachment(undefined)
+      setPreviewLocalAttachment(item)
+    } else if (item.attachment) onPreviewAttachment(item.attachment)
+  }, [onPreviewAttachment])
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
   const inputHistory = useMemo(() => agentComposerInputHistory(props.messages, props.queued_turns), [props.messages, props.queued_turns])
   const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
@@ -76,6 +84,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       sessions={props.sessions}
       selectedSessionId={props.selected_session_id}
       disabled={props.busy || props.run_blocked}
+      createDisabled={props.execution_blocked}
       {...props.session_management}
       queuedSessionId={queuedSessionId}
       onCreate={(groupId) => { props.onCreateSession(groupId); setSessionsOpen(false) }}
@@ -88,7 +97,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const inspector = (
     <AgentInspector
       inspector={props.inspector}
-      disabled={props.busy || active || props.run_blocked}
+      disabled={props.busy || active || props.run_blocked || props.execution_blocked === true}
       onContextCompressionPendingChange={props.onContextCompressionPendingChange}
       onRetryContext={props.onRetryContext}
       onRetryUsage={props.onRetryUsage}
@@ -129,24 +138,27 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           loading={props.loading}
           sessionKey={selectedSession?.id ?? 'new'}
           showTurnTokenUsage={props.show_turn_token_usage}
-          onPreviewAttachment={setPreviewAttachment}
+          onPreviewAttachment={onPreviewAttachment}
           onLoadAttachmentContent={onLoadAttachmentContent}
         />
         <AgentComposer
+          focusKey={props.composerFocusKey}
+          paneActive={props.composerActive}
           value={props.draft}
           sessionKey={props.selected_session_id ?? 'new'}
           inputHistory={inputHistory}
           runStatus={runStatus}
           disabled={props.busy || props.queue_busy}
           stopDisabled={props.stop_busy}
-          submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
-          sourceContext={props.draft_source_context}
-          resourceContext={props.resource_context}
+          submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || props.execution_blocked === true || props.resource_recovery_blocked === true || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
+          resourceContexts={props.resource_contexts}
           resourceChangeDisabled={props.busy
             || queueMode
             || Boolean(props.active_run)
             || Boolean(queuedSessionElsewhere)
-            || props.resource_context?.status === 'checking'}
+            || props.resource_contexts?.some(({ status }) => status === 'checking') === true}
+          resourceRecoveryDisabled={props.resource_recovery_disabled}
+          queueExecutionBlocked={props.resource_recovery_blocked || props.execution_blocked}
           attachments={props.draft_attachments}
           queuedTurns={props.queued_turns}
           queueState={props.queue_state}
@@ -169,7 +181,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onRemoveAttachment={onRemoveAttachment}
           onRetryAttachment={onRetryAttachment}
           onPreviewAttachment={onPreviewDraftAttachment}
-          onPreviewQueuedAttachment={setPreviewAttachment}
+          onPreviewQueuedAttachment={onPreviewAttachment}
           onLoadQueuedAttachment={onLoadAttachmentContent}
           onSend={onSend}
           onQueueTurn={onQueueTurn}
@@ -190,6 +202,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onOpenSettings={onOpenSettings}
           onReplaceResourceBinding={onReplaceResourceBinding}
           onRemoveResourceBinding={onRemoveResourceBinding}
+          onRecoverResourceBinding={props.onRecoverResourceBinding}
+          onCancelResourceRecovery={props.onCancelResourceRecovery}
         />
       </section>
       {inspectorOpen && !breakpoints.inspectorOverlay ? inspector : null}
@@ -234,7 +248,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       />
       <AgentAttachmentPreview
         attachment={previewAttachment}
-        onClose={() => setPreviewAttachment(undefined)}
+        local={previewLocalAttachment}
+        onClose={() => { setPreviewAttachment(undefined); setPreviewLocalAttachment(undefined) }}
         onLoad={props.onLoadAttachmentContent}
       />
     </div>

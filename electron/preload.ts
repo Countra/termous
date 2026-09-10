@@ -7,10 +7,14 @@ import type {
   AgentRuntimeStatus,
   AgentRuntimeSteerRequest,
   CoreFatalEvent,
+  CoreStartupSnapshot,
   DataPortabilityProgress,
   ExternalUrlOpenResult,
   FilePickerOptions,
   TermousBridge,
+  TerminalAICompletionRequest,
+  TerminalAICompletionCancel,
+  TerminalAICompletionResult,
   TrayCommand,
   UpdatePreferences,
   UpdatePreferencesPatch,
@@ -20,6 +24,7 @@ import type {
   UpdateSnapshot,
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
+import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
 } from './updateRuntimeSummaryRefresh'
@@ -120,6 +125,11 @@ const bridge = {
     status: () => ipcRenderer.invoke('core:status'),
     shutdown: () => ipcRenderer.invoke('core:shutdown') as Promise<boolean>,
     getFatal: () => ipcRenderer.invoke('core:get-fatal'),
+    onStatusChanged: (callback: (snapshot: CoreStartupSnapshot) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, snapshot: CoreStartupSnapshot) => callback(snapshot)
+      ipcRenderer.on('core:status-changed', listener)
+      return () => ipcRenderer.removeListener('core:status-changed', listener)
+    },
     onFatal: (callback: (event: CoreFatalEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, fatal: CoreFatalEvent) => callback(fatal)
       ipcRenderer.on('core:fatal', listener)
@@ -147,8 +157,16 @@ const bridge = {
       return () => ipcRenderer.removeListener(agentRuntimeIPCChannels.status, listener)
     },
   },
+  terminalAICompletion: {
+    generate: (request: TerminalAICompletionRequest) => ipcRenderer.invoke(terminalCompletionIPCChannels.generate, request) as Promise<TerminalAICompletionResult>,
+    cancel: (request: TerminalAICompletionCancel) => ipcRenderer.invoke(terminalCompletionIPCChannels.cancel, request) as Promise<void>,
+  },
   startup: {
-    ready: () => ipcRenderer.invoke('startup:ready') as Promise<boolean>,
+    ready: (result?: { failed?: boolean; message?: string; attemptId?: string }) => ipcRenderer.invoke('startup:ready', result) as Promise<boolean>,
+  },
+  diagnostics: {
+    copyStartupDiagnostics: () => ipcRenderer.invoke('diagnostics:copy-startup') as Promise<boolean>,
+    openLogsDirectory: () => ipcRenderer.invoke('diagnostics:open-logs'),
   },
   appearance: {
     setTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('appearance:set-theme', theme) as Promise<boolean>,

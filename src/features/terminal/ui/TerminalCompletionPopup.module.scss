@@ -56,6 +56,26 @@
   white-space: nowrap;
 }
 
+.ai-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--completion-accent);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ai-entry:focus-visible {
+  outline: 2px solid var(--completion-accent);
+  outline-offset: 2px;
+}
+
 .terminal-completion-shortcut kbd {
   display: inline-flex;
   box-sizing: border-box;

@@ -36,6 +36,7 @@ test('旧设置缺少智能补全字段时默认开启', () => {
 test('智能补全显式关闭不会被兼容默认值覆盖', () => {
   assert.deepEqual(normalizeCompletionSettings({ enabled: false }), {
     enabled: false,
+    ai_enabled: false,
     providers: {
       native: true,
       alias: true,
@@ -44,6 +45,15 @@ test('智能补全显式关闭不会被兼容默认值覆盖', () => {
       directory: true,
     },
   })
+})
+
+test('旧设置默认关闭 AI，显式开启保留且参与设置回执比较', () => {
+  const disabled = normalizeCompletionSettings({ enabled: true })
+  const enabled = normalizeCompletionSettings({ enabled: true, ai_enabled: true })
+  assert.equal(disabled.ai_enabled, false)
+  assert.equal(enabled.ai_enabled, true)
+  assert.equal(completionSettingsEqual(disabled, enabled), false)
+  assert.equal(normalizeCompletionSettings({ ai_enabled: false }).ai_enabled, false)
 })
 
 test('旧设置缺少来源配置时默认启用全部固定来源', () => {

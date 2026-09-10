@@ -3,15 +3,24 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { useTranslation } from 'react-i18next'
 import {
   isAgentModelRunnable,
+  isAgentResourceRecoveryBlocking,
+  agentResourceBindingKey,
+  getAgentResourceBinding,
+  resourceBindingMatchesSource,
+  resourceReference,
+  type AgentResourceBinding,
+  type AgentResourceState,
+  type AgentFileResourceState,
   type AgentLaunchIntent,
   type AgentModel,
   type AgentModelProvider,
   type AgentResourceReference,
   type AgentReasoningLevel,
   type AgentReadiness,
+  type AgentReferenceTargetsSnapshot,
+  type AgentResourceReferenceLaunch,
   type AgentSession,
   type AgentSSHResourceState,
-  type AgentSourceContext,
 } from '#entities/agent'
 import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
 import {
@@ -20,6 +29,10 @@ import {
   useAgentDraftAttachments,
   useAgentArchives,
   useAgentSessionManagement,
+  projectAgentReferenceTargets,
+  useAgentTerminalReferenceImport,
+  useAgentQueuedTurnEditOwners,
+  useAgentResourceRecovery,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import {
@@ -46,24 +59,32 @@ import {
 import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
 import { resolveAgentResourceError } from '../model/agentResourceError.ts'
 import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
+import { AgentTerminalReferenceImportNotice } from './AgentTerminalReferenceImportNotice.tsx'
 import styles from './AgentPage.module.scss'
+
+const noSSHResources: AgentSSHResourceState[] = []
 
 export function AgentPage({
   gateway,
   setupGateway,
-  sshResources = [],
+  sshResources = noSSHResources,
   sshResourcesReady = false,
+  fileResources = [],
+  fileResourcesReady = sshResourcesReady,
   enabled,
   active,
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
+  onReferenceTargetsChange,
   onOpenSettings,
 }: {
   gateway: AgentWorkspaceGateway
   setupGateway: AgentSetupGateway
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
+  fileResources?: AgentFileResourceState[]
+  fileResourcesReady?: boolean
   enabled: boolean
   active: boolean
   launchIntent?: AgentLaunchIntent | null
@@ -72,11 +93,14 @@ export function AgentPage({
     agentRunCount: number
     snapshotComplete: boolean
   }) => void
+  onReferenceTargetsChange?: (snapshot: AgentReferenceTargetsSnapshot) => void
   onOpenSettings?: () => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const controller = useMemo(() => new AgentWorkspaceController({ gateway }), [gateway])
+  const getQueuedEditOwner = useAgentQueuedTurnEditOwners(controller)
+  const [composerFocusKey, setComposerFocusKey] = useState(0)
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
   const management = useAgentSessionManagement(controller, gateway, state.sessions, enabled && active)
   const [archivesOpen, setArchivesOpen] = useState(false)
@@ -89,19 +113,18 @@ export function AgentPage({
   const [operationBusy, setOperationBusy] = useState<AgentOperationBusy>(() => createOperationBusy())
   const [draftModelId, setDraftModelId] = useState<string>()
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
-  const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
   const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
-  const handledLaunchIntentRef = useRef(0)
   const setupLoadRequestRef = useRef(0)
   const activeSetupEpochRef = useRef(0)
   const activeSetupReadyEpochRef = useRef(0)
   const activeSetupAbortRef = useRef<AbortController | null>(null)
   const notificationRef = useRef(notification)
   const tRef = useRef(t)
-  const previousQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
+  const previousQueuedTurnEditSessionIdsRef = useRef(new Map<string, string>())
+  const previousReferenceTargetsRef = useRef('')
   const committedQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
@@ -130,6 +153,13 @@ export function AgentPage({
     [management.searchResults, models, providers, state.runs],
   )
   const archiveMessages = useMemo(() => projectAgentMessages(archives.messages, undefined, []), [archives.messages])
+  const referenceTargets = useMemo(() => projectAgentReferenceTargets(state, enabled), [state, enabled])
+  useEffect(() => {
+    const signature = JSON.stringify(referenceTargets)
+    if (signature === previousReferenceTargetsRef.current) return
+    previousReferenceTargetsRef.current = signature
+    onReferenceTargetsChange?.(referenceTargets)
+  }, [onReferenceTargetsChange, referenceTargets])
 
   useEffect(() => {
     if (draftGroupId && !state.session_groups.some(({ id }) => id === draftGroupId)) setDraftGroupId(undefined)
@@ -282,6 +312,9 @@ export function AgentPage({
   const changeApprovalMode = useCallback(async (mode: AgentApprovalMode) => {
     const policy = readiness?.mcp_policy
     if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')
+    const epoch = activeSetupEpochRef.current
+    const isCurrent = () => activeSetupEpochRef.current === epoch
+      && activeSetupReadyEpochRef.current === epoch
     const updated = await perform(async () => {
       try {
         const next = await gateway.updateMcpPolicy({
@@ -289,16 +322,18 @@ export function AgentPage({
           sync_scopes: false,
           expected_revision: policy.revision,
         })
+        // 离页或重新水合后，旧策略回执不能覆盖当前页面的审批模式。
+        if (!isCurrent()) return
         setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
       } catch (error) {
-        const epoch = activeSetupEpochRef.current
+        if (!isCurrent()) return
         try {
           const nextReadiness = await setupGateway.readiness()
-          if (activeSetupEpochRef.current === epoch) setReadiness(nextReadiness)
+          if (isCurrent()) setReadiness(nextReadiness)
         } catch {
           // 保留原始策略更新错误；后续刷新仍会重新获取权威状态。
         }
-        throw error
+        if (isCurrent()) throw error
       }
     })
     if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
@@ -321,9 +356,8 @@ export function AgentPage({
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
   const createDraftSession = useCallback(async (
-    sourceContext?: AgentSourceContext,
     resourceReference?: AgentResourceReference,
-    automaticTitle = false,
+    selectionRevision = controller.getSnapshot().selection_intent_revision,
   ) => {
     const modelId = newSessionModelId
     if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
@@ -331,24 +365,23 @@ export function AgentPage({
     if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
       throw new Error('AGENT_MODEL_UNAVAILABLE')
     }
-    const selectionRevision = controller.getSnapshot().selection_intent_revision
     const session = await controller.createSession({
-      title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
-      group_id: sourceContext || resourceReference ? undefined : draftGroupId,
-      auto_title_allowed: automaticTitle && !sourceContext?.title,
+      title: tRef.current('agent.sessions.untitled'),
+      group_id: resourceReference ? undefined : draftGroupId,
+      auto_title_allowed: true,
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
       resource_reference: resourceReference,
-    })
+    }, selectionRevision)
     const current = controller.getSnapshot()
     if (current.selected_session_id === session.id && current.selection_intent_revision === selectionRevision + 1
-      && !sourceContext && !resourceReference) setDraftGroupId(undefined)
+      && !resourceReference) setDraftGroupId(undefined)
     return session
   }, [controller, draftGroupId, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
 
-  const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
+  const ensureAttachmentDraftSession = useCallback(() => {
     if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
-    const promise = createDraftSession(sourceContext, undefined, true).finally(() => {
+    const promise = createDraftSession().finally(() => {
       if (attachmentDraftSessionPromiseRef.current === promise) {
         attachmentDraftSessionPromiseRef.current = null
       }
@@ -357,26 +390,10 @@ export function AgentPage({
     return promise
   }, [createDraftSession])
 
-  const createIndependentDraftSession = useCallback(async (
-    sourceContext: AgentSourceContext,
-    resourceReference?: AgentResourceReference,
-  ) => {
-    const pendingAttachmentSession = attachmentDraftSessionPromiseRef.current
-    if (pendingAttachmentSession) {
-      try {
-        await pendingAttachmentSession
-      } catch {
-        // 附件草稿创建失败不应阻止业务入口随后创建独立会话。
-      }
-    }
-    return createDraftSession(sourceContext, resourceReference)
-  }, [createDraftSession])
-
   const ensureAttachmentSession = useCallback(async () => {
     const selection = controller.getSnapshot()
     if (selection.selected_session_id) return selection.selected_session_id
-    const sourceContext = draftSourceContexts.new
-    const session = await ensureAttachmentDraftSession(sourceContext)
+    const session = await ensureAttachmentDraftSession()
     const current = controller.getSnapshot()
     const ownsDraft = current.selected_session_id === session.id
       && current.selection_intent_revision === selection.selection_intent_revision + 1
@@ -384,15 +401,8 @@ export function AgentPage({
     // 创建期间继续输入的内容跟随原草稿；用户另开草稿后，迟到回执只保存发起时的内容。
     if (newDraft && !current.drafts[session.id]) controller.updateDraft(session.id, newDraft)
     if (ownsDraft) controller.updateDraft('new', '')
-    if (sourceContext) {
-      setDraftSourceContexts((contexts) => {
-        const next = { ...contexts, [session.id]: sourceContext }
-        if (ownsDraft && contexts.new === sourceContext) delete next.new
-        return next
-      })
-    }
     return session.id
-  }, [controller, draftSourceContexts.new, ensureAttachmentDraftSession])
+  }, [controller, ensureAttachmentDraftSession])
 
   const reportAttachmentError = useCallback((code: string) => {
     notificationRef.current.error({
@@ -413,6 +423,7 @@ export function AgentPage({
     gateway,
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
+    getOwnerId: () => 'draft',
   })
   const queuedTurnEditExistingSelections = useCallback((sessionId: string) => {
     const edit = controller.getSnapshot().queued_turn_edits[sessionId]
@@ -428,20 +439,21 @@ export function AgentPage({
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
     existingSelections: queuedTurnEditExistingSelections,
+    getOwnerId: (sessionId) => committedQueuedTurnEditSessionIdsRef.current.has(sessionId)
+      ? undefined : getQueuedEditOwner(sessionId),
   })
 
   useEffect(() => {
-    const current = new Set(Object.keys(state.queued_turn_edits ?? {}))
-    for (const sessionId of previousQueuedTurnEditSessionIdsRef.current) {
-      if (current.has(sessionId)) continue
-      if (committedQueuedTurnEditSessionIdsRef.current.delete(sessionId)) {
-        queuedTurnEditAttachments.clear(sessionId)
-      } else {
-        void queuedTurnEditAttachments.discard(sessionId)
-      }
+    const current = new Map(Object.keys(state.queued_turn_edits ?? {}).flatMap((sessionId) => {
+      const owner = getQueuedEditOwner(sessionId)
+      return owner ? [[sessionId, owner] as const] : []
+    }))
+    for (const [sessionId, owner] of previousQueuedTurnEditSessionIdsRef.current) {
+      if (current.get(sessionId) === owner) continue
+      void queuedTurnEditAttachments.discardOwner(sessionId, owner, committedQueuedTurnEditSessionIdsRef.current.delete(sessionId))
     }
     previousQueuedTurnEditSessionIdsRef.current = current
-  }, [queuedTurnEditAttachments, state.queued_turn_edits])
+  }, [getQueuedEditOwner, queuedTurnEditAttachments, state.queued_turn_edits])
   const activeSetupReady = active
     && activeSetupEpochRef.current > 0
     && activeSetupReadyEpoch === activeSetupEpochRef.current
@@ -465,8 +477,25 @@ export function AgentPage({
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
   const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined
+  const notifyRecoveryCompleted = useCallback((recovered: AgentSession) => {
+    const current = controller.getSnapshot().sessions.find((session) => session.id === recovered.id)
+    if (!current || current.archived_at || agentResourceBindingKey(getAgentResourceBinding(current.resource_bindings, 'ssh_session'))
+      !== agentResourceBindingKey(getAgentResourceBinding(recovered.resource_bindings, 'ssh_session'))) return
+    notificationRef.current.success({
+      key: `agent-resource-recovery-${recovered.id}`,
+      placement: 'topRight',
+      title: tRef.current('agent.resource.recovery.completed'),
+      description: tRef.current('agent.resource.recovery.completedDescription'),
+      duration: 2,
+      showProgress: false,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [controller])
+  const recovery = useAgentResourceRecovery(gateway, controller, selected,
+    enabled && active && state.snapshot_complete, selectedQueueState?.revision, sshResources, readiness, notifyRecoveryCompleted)
   const selectedDraftAttachmentRecords = selected && selectedQueuedTurnEdit
-    ? queuedTurnEditAttachments.records[selected.id]
+    ? queuedTurnEditAttachments.records[selected.id]?.filter((record) => !record.owner_id || record.owner_id === getQueuedEditOwner(selected.id))
     : draftAttachments.records[selected?.id ?? 'new']
   const projectedDraftAttachments = useMemo(
     () => (selectedDraftAttachmentRecords ?? []).map((record) => ({
@@ -478,21 +507,57 @@ export function AgentPage({
       phase: record.phase,
       attachment: record.attachment,
       error_code: record.error_code,
+      origin: record.origin,
     })),
     [selectedDraftAttachmentRecords],
   )
-  const resourceBinding = selected?.resource_binding
-  const resourceContext = useMemo(
-    () => resourceBinding
-      ? projectResourceContext(
-          resourceBinding,
-          sshResources,
-          sshResourcesReady && state.snapshot_complete,
-        )
-      : undefined,
-    [resourceBinding, sshResources, sshResourcesReady, state.snapshot_complete],
+  const resources = useMemo(() => [...sshResources, ...fileResources], [sshResources, fileResources])
+  const resourceContexts = useMemo(
+    () => (selected?.resource_bindings ?? []).map((binding) => projectResourceContext(
+      binding, resources, (binding.kind === 'ssh_session' ? sshResourcesReady : fileResourcesReady) && state.snapshot_complete,
+    )).map((context) => context.binding.kind === 'ssh_session' ? { ...context, recovery: recovery.state } : context),
+    [selected?.resource_bindings, resources, sshResourcesReady, fileResourcesReady, state.snapshot_complete, recovery.state],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
+  const createReferenceSession = useCallback(async (request: AgentResourceReferenceLaunch) => {
+    let selectionRevision = controller.getSnapshot().selection_intent_revision
+    const pendingAttachment = attachmentDraftSessionPromiseRef.current
+    if (pendingAttachment) {
+      const attachmentSession = await pendingAttachment.catch(() => undefined)
+      const current = controller.getSnapshot()
+      // 附件会话自动选中仍属于原发起动作；等待期间的用户选择不得被后续创建覆盖。
+      if (attachmentSession && current.selected_session_id === attachmentSession.id
+        && current.selection_intent_revision === selectionRevision + 1) {
+        selectionRevision = current.selection_intent_revision
+      }
+    }
+    return createDraftSession(request.resource_reference, selectionRevision)
+  }, [controller, createDraftSession])
+  const referenceImport = useAgentTerminalReferenceImport({
+    intent: launchIntent ?? undefined,
+    controller,
+    active,
+    ready: enabled && activeSetupReady && workspaceInfrastructureReady && state.snapshot_complete,
+    modelReady: newSessionModelRunnable,
+    resourcesReady: { ssh_session: sshResourcesReady, file_profile: fileResourcesReady },
+    resources,
+    createSession: createReferenceSession,
+    getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',
+    addReference: (sessionId, request, ownerId) => {
+      if (ownerId !== 'draft' && committedQueuedTurnEditSessionIdsRef.current.has(sessionId)) {
+        throw new Error('AGENT_TERMINAL_REFERENCE_EDIT_SAVING')
+      }
+      return (ownerId === 'draft' ? draftAttachments : queuedTurnEditAttachments)
+        .addTerminalReference(sessionId, { text: request.text, origin: request.origin }, ownerId)
+    },
+    onHandled: onLaunchIntentHandled,
+    onFocus: () => setComposerFocusKey((current) => current + 1),
+  })
+  const referenceNotice = active ? (
+    <AgentTerminalReferenceImportNotice job={referenceImport.current} resources={resources}
+      onConfirm={referenceImport.confirm} onRetry={referenceImport.retry} onDismiss={referenceImport.dismiss}
+      onOpenSettings={onOpenSettings} />
+  ) : null
   const approvalPolicy = useMemo(() => activeSetupReady && approvalBypass !== undefined
     ? {
         status: 'ready' as const,
@@ -500,54 +565,41 @@ export function AgentPage({
       }
     : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass])
 
-  useEffect(() => {
-    if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
-    if (handledLaunchIntentRef.current === launchIntent.key) return
-    handledLaunchIntentRef.current = launchIntent.key
-    const resourceReference = launchIntent.source === 'workbench'
-      ? launchIntent.resource_reference
-      : undefined
-    void createIndependentDraftSession(launchIntent.source_context, resourceReference).then((session) => {
-      const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
-      controller.updateDraft(session.id, prompt)
-      setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
-      onLaunchIntentHandled?.(launchIntent.key)
-    }).catch((error) => {
-      handledLaunchIntentRef.current = 0
-      onLaunchIntentHandled?.(launchIntent.key)
-      notifyError(notificationRef.current, tRef.current, error, 'resource')
-    })
-  }, [
-    activeSetupReady,
-    controller,
-    createIndependentDraftSession,
-    launchIntent,
-    newSessionModelRunnable,
-    onLaunchIntentHandled,
-    workspaceInfrastructureReady,
-  ])
-
-  if (!enabled || !readiness || !workspaceInfrastructureReady) {
-    return (
-      <div className={styles.page}>
-        <AgentReadinessSurface
-          readiness={readiness}
-          loading={setupLoading || operationBusy.workspace}
-          onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
-          onPrepare={() => void perform(async () => {
-            const epoch = activeSetupEpochRef.current
-            const result = await setupGateway.setup()
-            const catalog = await loadAgentModelCatalog(setupGateway)
-            if (activeSetupEpochRef.current !== epoch) return
-            acceptSetupSnapshot(result, catalog.providers, catalog.models)
-            markActiveSetupReady(epoch)
-          })}
-        />
-      </div>
-    )
+  // 连接恢复不依赖 Skills 或 Worker；已有引用的工作区保留访问，任务入口另行锁定。
+  const recoveryWorkspaceAvailable = state.snapshot_complete && state.sessions.some((session) => !session.archived_at
+    && session.resource_bindings?.some((binding) => binding.kind === 'ssh_session'))
+  const readinessSurface = <AgentReadinessSurface
+    readiness={readiness}
+    compact={enabled && Boolean(readiness) && recoveryWorkspaceAvailable}
+    loading={setupLoading || operationBusy.workspace}
+    onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
+    onPrepare={() => void perform(async () => {
+      if (!enabled || !active) return
+      const epoch = activeSetupEpochRef.current
+      activeSetupAbortRef.current?.abort()
+      const requestAbort = new AbortController()
+      activeSetupAbortRef.current = requestAbort
+      try {
+        const result = await setupGateway.setup(requestAbort.signal)
+        requestAbort.signal.throwIfAborted()
+        const catalog = await loadAgentModelCatalog(setupGateway, requestAbort.signal)
+        if (requestAbort.signal.aborted || activeSetupEpochRef.current !== epoch) return
+        acceptSetupSnapshot(result, catalog.providers, catalog.models)
+        markActiveSetupReady(epoch)
+      } catch (error) {
+        // 离页会撤销本次准备，迟到响应不再加载目录或更新当前页面。
+        if (!requestAbort.signal.aborted) throw error
+      } finally {
+        if (activeSetupAbortRef.current === requestAbort) activeSetupAbortRef.current = null
+      }
+    })}
+  />
+  if (!enabled || !readiness || !workspaceInfrastructureReady && !recoveryWorkspaceAvailable) {
+    return <div className={styles.page}>{referenceNotice}{readinessSurface}</div>
   }
 
-  const resourceRunBlocked = Boolean(resourceContext && resourceContext.status !== 'ready')
+  const resourceRunBlocked = resourceContexts.some(({ status }) => status !== 'ready')
+  const resourceRecoveryBlocked = isAgentResourceRecoveryBlocking(recovery.state)
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
@@ -611,7 +663,8 @@ export function AgentPage({
   }
   return (
     <div className={styles.page}>
-      {activeSetupFailed ? (
+      {referenceNotice}
+      {!workspaceInfrastructureReady ? readinessSurface : activeSetupFailed ? (
         <Alert
           className={styles.alert}
           type="warning"
@@ -643,6 +696,8 @@ export function AgentPage({
         />
       ) : null}
       <AgentWorkspace
+        composerFocusKey={composerFocusKey}
+        composerActive={active}
         sessions={workspaceSessions}
         session_management={{
           groups: state.session_groups,
@@ -676,7 +731,6 @@ export function AgentPage({
         approval_policy={approvalPolicy}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
-        draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
         draft_attachments={projectedDraftAttachments}
         queued_turns={selectedQueuedTurns}
         queued_turn_counts={queuedTurnCounts}
@@ -701,8 +755,13 @@ export function AgentPage({
           state.runtime_status,
         )}
         resource_run_blocked={resourceRunBlocked}
-        resource_context={resourceContext}
+        resource_contexts={resourceContexts}
+        execution_blocked={!workspaceInfrastructureReady}
+        resource_recovery_blocked={resourceRecoveryBlocked}
+        resource_recovery_disabled={!enabled || !state.snapshot_complete || Boolean(selected?.archived_at)
+          || Boolean(activeRun && activeRun.session_id === selected?.id)}
         onCreateSession={(groupId) => {
+          if (!workspaceInfrastructureReady) return
           controller.selectSession(undefined)
           setDraftGroupId(groupId)
           const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
@@ -719,7 +778,6 @@ export function AgentPage({
           const nextSessionId = selectionAfterSessionRemoval(workspaceSessions, sessionId)
           await management.metadata(sessionId, { archived: true })
           await draftAttachments.discard(sessionId)
-          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
           if (
             selection.selected_session_id === sessionId
             && controller.getSnapshot().selection_intent_revision === selection.selection_intent_revision
@@ -731,7 +789,6 @@ export function AgentPage({
           const session = requireSession(controller.getSnapshot().sessions, sessionId)
           await controller.deleteSession(sessionId, session.revision)
           draftAttachments.clear(sessionId)
-          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
         }).catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
         onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
@@ -793,9 +850,18 @@ export function AgentPage({
         })}
         onOpenSettings={onOpenSettings ?? (() => undefined)}
         onDraftChange={(value) => controller.updateDraft(selected?.id ?? 'new', value)}
-        onAttachFiles={selected && selectedQueuedTurnEdit
-          ? queuedTurnEditAttachments.add
-          : draftAttachments.add}
+        onAttachFiles={(files) => {
+          const selection = controller.getSnapshot()
+          const sessionId = selection.selected_session_id
+          if (!sessionId && !workspaceInfrastructureReady) return Promise.resolve()
+          const ownerId = sessionId ? getQueuedEditOwner(sessionId) ?? 'draft' : 'draft'
+          const attachments = ownerId === 'draft' ? draftAttachments : queuedTurnEditAttachments
+          if (sessionId) return attachments.add(files, { sessionId, ownerId })
+          return attachments.add(files, undefined, () => {
+            const latest = controller.getSnapshot()
+            return !latest.selected_session_id && latest.selection_intent_revision === selection.selection_intent_revision
+          })
+        }}
         onRemoveAttachment={selected && selectedQueuedTurnEdit
           ? queuedTurnEditAttachments.remove
           : draftAttachments.remove}
@@ -803,10 +869,10 @@ export function AgentPage({
           ? queuedTurnEditAttachments.retry
           : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
-        onSend={async (message, attachmentIds, sourceContext) => {
-          if (!activeSetupReady) return
+        onSend={async (message, attachmentIds) => {
+          if (!activeSetupReady || !workspaceInfrastructureReady) return
           await perform(async () => {
-            if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            if (resourceRunBlocked || isAgentResourceRecoveryBlocking(selected ? recovery.coordinator.getSnapshot()[selected.id] : undefined)) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             let targetSession = selected
             if (!targetSession) {
               const modelId = newSessionModelId
@@ -834,11 +900,10 @@ export function AgentPage({
             }
             const targetSessionId = targetSession.id
             const clearCommittedDraft = () => {
-              draftAttachments.clear(targetSessionId)
-              setDraftSourceContexts((contexts) => omitKey(contexts, targetSessionId))
+              draftAttachments.clearCommitted(targetSessionId, attachmentIds ?? [])
             }
             try {
-              await controller.startRun(targetSessionId, message, attachmentIds, sourceContext)
+              await controller.startRun(targetSessionId, message, attachmentIds)
             } catch (error) {
               if (
                 error instanceof AgentRuntimeStartError
@@ -849,11 +914,11 @@ export function AgentPage({
               throw error
             }
             clearCommittedDraft()
-          }, resourceContext ? 'resource' : 'generic')
+          }, resourceContexts.length ? 'resource' : 'generic')
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun(), 'generic', 'stop') }}
         onContextCompressionPendingChange={(enabled) => {
-          if (!selected) return
+          if (!selected || !workspaceInfrastructureReady) return
           try {
             controller.setContextCompressionPending(selected.id, enabled)
           } catch {
@@ -863,17 +928,17 @@ export function AgentPage({
         onRetryContext={() => {
           if (selected) void controller.reloadContext(selected.id)
         }}
-        onQueueTurn={async (message, attachmentIds, sourceContext) => {
-          if (!selected) return
+        onQueueTurn={async (message, attachmentIds) => {
+          if (!selected || !workspaceInfrastructureReady) return
           await perform(async () => {
+            if (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             const submittedDraft = controller.getSnapshot().drafts[selected.id]
-            await controller.enqueueTurn(selected.id, message, attachmentIds, sourceContext)
+            await controller.enqueueTurn(selected.id, message, attachmentIds)
             if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
               controller.updateDraft(selected.id, '')
             }
-            draftAttachments.clear(selected.id)
-            setDraftSourceContexts((contexts) => omitKey(contexts, selected.id))
-          }, resourceContext ? 'resource' : 'generic', 'queue')
+            draftAttachments.clearCommitted(selected.id, attachmentIds ?? [])
+          }, resourceContexts.length ? 'resource' : 'generic', 'queue')
         }}
         onBeginQueuedTurnEdit={async (turnId) => {
           if (selected) await perform(
@@ -921,34 +986,49 @@ export function AgentPage({
           ), 'generic', 'queue')
         }}
         onSteerQueuedTurn={async (turnId) => {
-          if (selected) await perform(
+          if (selected && workspaceInfrastructureReady) await perform(
             () => controller.steerQueuedTurn(selected.id, turnId),
             'generic',
             'queue',
           )
         }}
         onResumeQueue={async () => {
-          if (selected) await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
+          if (selected && workspaceInfrastructureReady && !isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) {
+            await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
+          }
         }}
         onRetryUsage={() => {
           if (selected) void controller.reloadUsage(selected.id)
         }}
         onApprovalModeChange={changeApprovalMode}
-        onReplaceResourceBinding={async (sessionId) => {
+        onReplaceResourceBinding={async (reference) => {
           if (!selected) return false
           return await performResourceMutation(selected.id, async () => {
             await controller.replaceResourceBinding(selected.id, {
-              kind: 'ssh_session',
-              session_id: sessionId,
+              ...reference,
               expected_revision: selected.revision,
             })
           })
         }}
-        onRemoveResourceBinding={async () => {
+        onRecoverResourceBinding={async () => {
+          const current = controller.getSnapshot().sessions.find(({ id }) => id === selected?.id)
+          if (!current) return false
+          const accepted = await recovery.coordinator.recover(current)
+          if (!accepted && recovery.coordinator.getSnapshot()[current.id]?.error_code === 'AGENT_REVISION_CONFLICT') {
+            try {
+              await controller.reloadSession(current.id)
+            } catch {
+              // 保留原始冲突诊断，后续工作区事件或用户重试负责恢复权威版本。
+            }
+          }
+          return accepted
+        }}
+        onCancelResourceRecovery={async () => selected ? recovery.coordinator.cancel(selected.id) : false}
+        onRemoveResourceBinding={async (kind) => {
           if (!selected) return false
-          return await performResourceMutation(
+          return performResourceMutation(
             selected.id,
-            () => controller.removeResourceBinding(selected.id, selected.revision),
+            () => controller.removeResourceBinding(selected.id, selected.revision, kind),
           )
         }}
       />
@@ -1017,21 +1097,20 @@ function updateInput(session: AgentSession, archived: boolean) {
 }
 
 function projectResourceContext(
-  binding: NonNullable<AgentSession['resource_binding']>,
-  resources: AgentSSHResourceState[],
+  binding: AgentResourceBinding,
+  resources: AgentResourceState[],
   snapshotReady: boolean,
 ): AgentWorkspaceResourceContext {
-  const live = resources.find(({ session_id }) => session_id === binding.session_id)
-  const identityMatches = live
-    && live.host_id === binding.host_id
-    && live.ssh_profile_id === binding.ssh_profile_id
+  const live = resources.find((source) => resourceBindingMatchesSource(binding, source))
+  const identityMatches = Boolean(live)
   return {
     binding,
-    status: !snapshotReady ? 'checking' : !identityMatches ? 'stale' : live.status,
+    status: !snapshotReady ? 'checking' : !live ? 'stale' : live.status,
     ...(identityMatches ? { live_resource: live } : {}),
     candidates: resources
-      .filter(({ status }) => status === 'ready')
-      .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at)),
+      .filter((source) => source.status === 'ready' && resourceReference(source).kind === binding.kind)
+      .sort((left, right) => 'started_at' in left && 'started_at' in right
+        ? Date.parse(right.started_at) - Date.parse(left.started_at) : left.host_name.localeCompare(right.host_name)),
   }
 }
 
@@ -1044,13 +1123,6 @@ function requireSession(sessions: AgentSession[], id: string) {
 function createSessionTitle(prompt: string, fallback: string) {
   const firstLine = prompt.split(/\r?\n/, 1)[0]?.trim() || fallback
   return Array.from(firstLine).slice(0, 48).join('')
-}
-
-function omitKey<Value>(values: Record<string, Value>, key: string) {
-  if (!(key in values)) return values
-  const next = { ...values }
-  delete next[key]
-  return next
 }
 
 function projectMcpConnection(
@@ -1075,8 +1147,8 @@ function notifyError(
     const resourceError = resolveAgentResourceError(error)
     if (resourceError.kind === 'unavailable') {
       notification.error({
-        title: t('agent.resource.error.unavailableTitle'),
-        description: t(`agent.resource.error.reason.${resourceError.reason}`),
+        title: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.errorTitle' : 'agent.resource.error.unavailableTitle'),
+        description: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.hint.stale' : `agent.resource.error.reason.${resourceError.reason}`),
         className: termousNotificationClassName,
       })
       return

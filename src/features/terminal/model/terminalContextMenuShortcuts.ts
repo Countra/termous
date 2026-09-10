@@ -5,6 +5,8 @@ export function terminalContextMenuShortcutAction(
   action: TerminalContextMenuActionKey,
 ): ShortcutActionId | null {
   switch (action) {
+    case 'ai_command':
+      return 'terminal.ai_completion.open'
     case 'reconnect':
       return 'terminal.session.reconnect'
     case 'copy_selection':

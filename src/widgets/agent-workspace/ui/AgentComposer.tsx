@@ -1,11 +1,11 @@
 import { ArrowUp, Check, CornerDownLeft, Eye, FileCode2, Paperclip, Pencil, RefreshCw, Square, Waypoints, X } from 'lucide-react'
-import { Button, Input, Tooltip } from 'antd'
-import { memo, useRef } from 'react'
+import { Button, Input, Tooltip, type GetRef } from 'antd'
+import { memo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { agentResourceBindingKey } from '#entities/agent'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
-  AgentSourceContext,
 } from '#entities/agent'
 import {
   AgentApprovalModeControl,
@@ -23,20 +23,24 @@ import { useAgentComposerHistory } from '../model/useAgentComposerHistory.ts'
 import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
+import { AgentTerminalReferenceCard } from './AgentTerminalReferenceCard.tsx'
 import { AgentQueuedTurnList } from './AgentQueuedTurnList.tsx'
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
   value,
+  focusKey,
+  paneActive = true,
   sessionKey,
   inputHistory,
   runStatus,
   disabled,
   stopDisabled,
   submitDisabled,
-  sourceContext,
-  resourceContext,
+  resourceContexts = [],
   resourceChangeDisabled,
+  resourceRecoveryDisabled = false,
+  queueExecutionBlocked = false,
   attachments,
   queuedTurns,
   queueState,
@@ -80,17 +84,22 @@ export const AgentComposer = memo(function AgentComposer({
   onOpenSettings,
   onReplaceResourceBinding,
   onRemoveResourceBinding,
+  onRecoverResourceBinding,
+  onCancelResourceRecovery,
 }: {
   value: string
+  focusKey?: number
+  paneActive?: boolean
   sessionKey: string
   inputHistory: readonly string[]
   runStatus: AgentWorkspaceRunStatus
   disabled: boolean
   stopDisabled: boolean
   submitDisabled: boolean
-  sourceContext?: AgentSourceContext
-  resourceContext?: AgentWorkspaceResourceContext
+  resourceContexts?: AgentWorkspaceResourceContext[]
   resourceChangeDisabled: boolean
+  resourceRecoveryDisabled?: boolean
+  queueExecutionBlocked?: boolean
   attachments: AgentWorkspaceDraftAttachment[]
   queuedTurns: AgentWorkspaceProps['queued_turns']
   queueState?: AgentWorkspaceProps['queue_state']
@@ -115,8 +124,8 @@ export const AgentComposer = memo(function AgentComposer({
   onPreviewAttachment: (attachment: AgentWorkspaceDraftAttachment) => void
   onPreviewQueuedAttachment: (attachment: import('#entities/agent').AgentAttachment) => void
   onLoadQueuedAttachment: (attachment: import('#entities/agent').AgentAttachment, signal?: AbortSignal) => Promise<Blob>
-  onSend: (value: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => void
-  onQueueTurn: (value: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => void
+  onSend: (value: string, attachmentIds: string[]) => void
+  onQueueTurn: (value: string, attachmentIds: string[]) => void
   onQueuedTurnEditChange: (value: string) => void
   onRemoveQueuedTurnEditAttachment: (attachmentId: string) => void
   onSaveQueuedTurnEdit: (attachmentIds: string[]) => void
@@ -136,14 +145,23 @@ export const AgentComposer = memo(function AgentComposer({
   onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
   onResetResponseOptions: () => void
   onOpenSettings: () => void
-  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
-  onRemoveResourceBinding: () => Promise<boolean>
+  onReplaceResourceBinding: AgentWorkspaceProps['onReplaceResourceBinding']
+  onRemoveResourceBinding: AgentWorkspaceProps['onRemoveResourceBinding']
+  onRecoverResourceBinding?: AgentWorkspaceProps['onRecoverResourceBinding']
+  onCancelResourceRecovery?: AgentWorkspaceProps['onCancelResourceRecovery']
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textAreaRef = useRef<GetRef<typeof Input.TextArea>>(null)
+  const focusedKeyRef = useRef<number | undefined>(undefined)
   const active = isActiveAgentRun(runStatus)
   const queueMode = active || queuedTurns.some(({ state }) => state === 'queued')
   const editing = Boolean(queuedTurnEdit)
+  useEffect(() => {
+    if (!focusKey || focusedKeyRef.current === focusKey || !paneActive || (disabled && (!active || editing))) return
+    focusedKeyRef.current = focusKey
+    textAreaRef.current?.focus({ preventScroll: true })
+  }, [active, disabled, editing, focusKey, paneActive])
   const inputValue = queuedTurnEdit?.text ?? value
   const inputHistoryNavigation = useAgentComposerHistory({
     sessionKey, value: inputValue, history: inputHistory, disabled: editing, onChange,
@@ -154,7 +172,9 @@ export const AgentComposer = memo(function AgentComposer({
   const retainedAttachments = editingTurn?.attachments.filter(({ id }) => (
     queuedTurnEdit?.retained_attachment_ids.includes(id)
   )) ?? []
-  const effectiveSourceContext = editing ? editingTurn?.source_context : sourceContext
+  const rawSourceContext = editingTurn?.source_context
+  // 旧连接来源说明不再作为草稿或附件；连接展示统一由持久化引用驱动。
+  const effectiveSourceContext = rawSourceContext?.kind === 'workbench' || rawSourceContext?.kind === 'files' ? undefined : rawSourceContext
   const attachmentsPending = attachments.some(({ phase }) => phase !== 'ready')
   const unsupportedImages = !supportsImages && attachments.some(({ kind, phase }) => kind === 'image' && phase === 'ready')
   const attachmentInputDisabled = disabled || attachments.length + retainedAttachments.length >= 8
@@ -164,8 +184,8 @@ export const AgentComposer = memo(function AgentComposer({
     inputHistoryNavigation.reset()
     const attachmentIds = attachments.flatMap(({ attachment }) => attachment ? [attachment.id] : [])
     if (editing) onSaveQueuedTurnEdit(attachmentIds)
-    else if (queueMode) onQueueTurn(inputValue, attachmentIds, sourceContext)
-    else onSend(inputValue, attachmentIds, sourceContext)
+    else if (queueMode) onQueueTurn(inputValue, attachmentIds)
+    else onSend(inputValue, attachmentIds)
   }
   return (
     <div className={styles.composer}>
@@ -174,6 +194,7 @@ export const AgentComposer = memo(function AgentComposer({
         queueState={queueState}
         disabled={disabled}
         canExecute={active && runStatus !== 'stopping' && !submitDisabled}
+        resumeDisabled={queueExecutionBlocked}
         editingTurnId={queuedTurnEdit?.turn_id}
         onEdit={onBeginQueuedTurnEdit}
         onExecute={onSteerQueuedTurn}
@@ -190,16 +211,20 @@ export const AgentComposer = memo(function AgentComposer({
             </Button>
           </div>
         ) : null}
-        {resourceContext || effectiveSourceContext || attachments.length > 0 || retainedAttachments.length > 0 ? (
+        {resourceContexts.length > 0 || effectiveSourceContext || attachments.length > 0 || retainedAttachments.length > 0 ? (
           <div className={styles['composer-tray']}>
-            {resourceContext ? (
+            {resourceContexts.map((resourceContext) => (
               <AgentResourceBindingControl
+                key={`${sessionKey}:${agentResourceBindingKey(resourceContext.binding)}`}
                 context={resourceContext}
                 disabled={resourceChangeDisabled}
                 onReplace={onReplaceResourceBinding}
-                onRemove={onRemoveResourceBinding}
+                onRemove={() => onRemoveResourceBinding(resourceContext.binding.kind)}
+                recoveryDisabled={resourceRecoveryDisabled}
+                onRecover={onRecoverResourceBinding}
+                onCancelRecovery={onCancelResourceRecovery}
               />
-            ) : null}
+            ))}
             {effectiveSourceContext ? (
               <div className={styles['source-context']}>
                 <Waypoints size={13} aria-hidden="true" />
@@ -208,7 +233,14 @@ export const AgentComposer = memo(function AgentComposer({
             ) : null}
             {attachments.length > 0 ? (
               <div className={styles.attachments} role="list" aria-label={t('agent.attachments.title')}>
-                {attachments.map((item) => (
+                {attachments.map((item) => item.origin ? (
+                  <AgentTerminalReferenceCard key={item.client_id} origin={item.origin} listItem
+                    disabled={disabled || item.phase === 'deleting'}
+                    status={item.phase === 'ready' ? undefined : attachmentStateLabel(item, t)}
+                    onPreview={() => onPreviewAttachment(item)}
+                    onRemove={() => onRemoveAttachment(item.client_id)}
+                    onRetry={item.phase === 'failed' ? () => onRetryAttachment(item.client_id) : undefined} />
+                ) : (
                   <div key={item.client_id} className={styles.attachment} data-kind={item.kind} data-phase={item.phase} role="listitem">
                     {item.kind === 'image' ? (
                       <button
@@ -253,7 +285,11 @@ export const AgentComposer = memo(function AgentComposer({
                 ))}
               </div>
             ) : null}
-            {retainedAttachments.map((attachment) => (
+            {retainedAttachments.map((attachment) => attachment.origin ? (
+              <AgentTerminalReferenceCard key={attachment.id} origin={attachment.origin} disabled={disabled}
+                onPreview={() => onPreviewQueuedAttachment(attachment)}
+                onRemove={() => onRemoveQueuedTurnEditAttachment(attachment.id)} />
+            ) : (
               <div key={attachment.id} className={styles.attachment} role="group" aria-label={attachment.original_name}>
                 {attachment.kind === 'image' ? (
                   <button
@@ -287,6 +323,7 @@ export const AgentComposer = memo(function AgentComposer({
           <div className={styles['attachment-warning']} role="alert">{t('agent.attachments.imageModelUnsupported')}</div>
         ) : null}
         <Input.TextArea
+          ref={textAreaRef}
           className={styles['composer-textarea']}
           variant="borderless"
           autoSize={{ minRows: 2, maxRows: 8 }}

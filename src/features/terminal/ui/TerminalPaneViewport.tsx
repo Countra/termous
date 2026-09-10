@@ -14,8 +14,18 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { Session } from '#entities/session'
+import { useAgentDefaultModelStatus } from '#entities/agent'
 import { TerminalCompletionPopup } from './TerminalCompletionPopup'
-import { TerminalContextMenu } from './TerminalContextMenu'
+import { TerminalAiCompletionPanel } from './TerminalAiCompletionPanel'
+import { useTerminalAiCompletion } from '../runtime/useTerminalAiCompletion'
+import { useTerminalAiCompletionPosition } from '../runtime/useTerminalAiCompletionPosition'
+import { TerminalContextMenu, terminalContextMenuSelector } from './TerminalContextMenu'
+import {
+  freezeTerminalAIReferenceSnapshot,
+  type TerminalAIReferenceProps,
+  type TerminalAIReferenceSelection,
+  type TerminalAIReferenceSnapshot,
+} from '../model/terminalAIReference'
 import {
   buildTerminalContextMenu,
   type TerminalContextMenuActionKey,
@@ -43,7 +53,7 @@ import {
 import noticeStyles from './TerminalCompletionNotice.module.scss'
 import styles from './TerminalPaneViewport.module.scss'
 
-interface TerminalPaneViewportProps {
+interface TerminalPaneViewportProps extends TerminalAIReferenceProps {
   paneId: string
   session: Session | null
   active: boolean
@@ -61,6 +71,7 @@ interface TerminalPaneViewportProps {
   onTerminalCleared?: (sessionId: string) => void
   onOpenPath?: (session: Session, path: string) => void
   onClose?: () => void
+  onOpenAgentSettings?: () => void
 }
 
 interface TerminalContextMenuState {
@@ -70,6 +81,8 @@ interface TerminalContextMenuState {
   items: TerminalContextMenuItem[]
   resolvedPath: string | null
   autoFocus: boolean
+  referenceSnapshot?: TerminalAIReferenceSnapshot
+  capturedAt: string
 }
 
 export function TerminalPaneViewport({
@@ -90,6 +103,9 @@ export function TerminalPaneViewport({
   onTerminalCleared,
   onOpenPath,
   onClose,
+  onOpenAgentSettings,
+  getAgentReferenceSnapshot,
+  onReferenceTerminalSelection,
 }: TerminalPaneViewportProps) {
   const paneHostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -118,6 +134,9 @@ export function TerminalPaneViewport({
     acceptSessionCompletion,
     retrySessionCompletion,
     closeSessionCompletion,
+    aiCompletionEnabled,
+    captureSessionAiInput,
+    getDefaultModelStatus,
   } = useTerminalRuntime()
   const { t } = useTranslation()
   const { runtime: shortcutRuntime, labels: shortcutLabels } = useShortcutRuntime()
@@ -129,13 +148,26 @@ export function TerminalPaneViewport({
   const shortcutContextId = sessionId ? `terminal.viewport:${paneId}` : null
   const completionRetrying = completionRetrySessionId === sessionId
   const completionShortcutFooterVisible = Boolean(
-    shortcutLabels.get('terminal.completion.previous')?.length
+    aiCompletionEnabled
+    || shortcutLabels.get('terminal.completion.previous')?.length
     || shortcutLabels.get('terminal.completion.next')?.length
     || shortcutLabels.get('terminal.completion.accept')?.length,
   )
   const completionPopupId = `terminal-completion-${paneId}`
   const completion = useSessionCompletionSnapshot(sessionId)
   const inputLock = useSessionInputLock(sessionId)
+  const ai = useTerminalAiCompletion(sessionId, Boolean(
+    active && workspaceActive && !searchPanel && !inputLock.locked
+    && session?.kind === 'ssh' && session.status === 'connected',
+  ))
+  const aiState = ai.state
+  const { open: openAiCompletion, close: closeAiCompletion } = ai
+  const aiPosition = useTerminalAiCompletionPosition(frameRef, sessionId, aiState.open, closeAiCompletion)
+  const defaultModel = useAgentDefaultModelStatus(getDefaultModelStatus, aiState.open)
+  const aiOpenRef = useRef(ai.open)
+  aiOpenRef.current = ai.open
+  const aiEnabledRef = useRef(ai.enabled)
+  aiEnabledRef.current = ai.enabled
   const cwdState = useSessionCwdState(sessionId)
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const DisconnectIcon = session?.status === 'failed' ? CircleAlert : WifiOff
@@ -148,6 +180,7 @@ export function TerminalPaneViewport({
     && !inputLock.locked
     && !searchPanel
     && !contextMenu
+    && !aiState.open
     && completion.readiness === 'ready'
     && completion.input.trust === 'trusted'
     && !completion.input.composing
@@ -219,6 +252,10 @@ export function TerminalPaneViewport({
       },
     })
     const disposeHandlers = [
+      shortcutRuntime.registerHandler(shortcutContextId, 'terminal.ai_completion.open', () => {
+        if (!aiEnabledRef.current) return 'fallthrough'
+        return aiOpenRef.current() ? 'handled' : 'blocked'
+      }),
       shortcutRuntime.registerHandler(shortcutContextId, 'terminal.search.open', () => {
         const current = shortcutStateRef.current
         if (current.session?.id !== sessionId || !current.onSearch) return 'fallthrough'
@@ -267,7 +304,7 @@ export function TerminalPaneViewport({
 
   const handleMouseDown = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (event.button === 2 || (event.target as Element).closest('[data-terminal-search-panel]')) {
+      if (event.button === 2 || (event.target as Element).closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`)) {
         return
       }
       onActivate()
@@ -292,6 +329,8 @@ export function TerminalPaneViewport({
       if (!snapshot) {
         return
       }
+      const reference = session.kind === 'ssh' && snapshot.selectionText && onReferenceTerminalSelection
+        ? getAgentReferenceSnapshot?.(session.id) : undefined
       const resolvedPath = snapshot.target?.kind === 'path'
         ? resolveTerminalContextPath(snapshot.target, cwdState?.confirmed_path)
         : null
@@ -318,7 +357,12 @@ export function TerminalPaneViewport({
         point,
         resolvedPath,
         autoFocus: !pointer,
+        // 子菜单跨 Portal 且选择期间会有新输出；引用始终使用打开菜单时的选区与来源身份。
+        referenceSnapshot: reference ? freezeTerminalAIReferenceSnapshot(reference) : undefined,
+        capturedAt: new Date().toISOString(),
         items: buildTerminalContextMenu(snapshot, {
+          showAIReference: session.kind === 'ssh' && Boolean(onReferenceTerminalSelection),
+          canReferenceSelection: Boolean(reference?.canReference && reference.source),
           showOpenPath: session.kind === 'ssh',
           canOpenPath: Boolean(
             resolvedPath &&
@@ -329,11 +373,15 @@ export function TerminalPaneViewport({
           ),
           canReconnect: Boolean(session.kind === 'ssh' && session.host_id && onReconnect),
           reconnectDisabled: actionBusy,
+          showAiCommand: ai.enabled,
+          canUseAiCommand: Boolean(captureSessionAiInput(session.id)),
         }),
       })
     },
     [
       actionBusy,
+      ai.enabled,
+      captureSessionAiInput,
       captureSessionContext,
       closeSessionCompletion,
       clearContextPathSelection,
@@ -343,12 +391,14 @@ export function TerminalPaneViewport({
       onReconnect,
       selectSessionContextRange,
       session,
+      getAgentReferenceSnapshot,
+      onReferenceTerminalSelection,
     ],
   )
 
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (!session || (event.target as Element).closest('[data-terminal-search-panel]')) {
+      if (!session || (event.target as Element).closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`)) {
         return
       }
       event.preventDefault()
@@ -386,7 +436,7 @@ export function TerminalPaneViewport({
     if (
       event.button !== 2
       || !event.shiftKey
-      || (event.target as Element).closest('[data-terminal-search-panel]')
+      || (event.target as Element).closest('[data-terminal-search-panel], [data-terminal-ai-completion]')
     ) {
       return
     }
@@ -397,7 +447,7 @@ export function TerminalPaneViewport({
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       const target = event.target as Element
-      const inSearchPanel = Boolean(target.closest('[data-terminal-search-panel]'))
+      const inSearchPanel = Boolean(target.closest(`[data-terminal-search-panel], [data-terminal-ai-completion], ${terminalContextMenuSelector}`))
       const opensContextMenu = event.key === 'ContextMenu'
         || (event.shiftKey && event.key === 'F10')
       if (session && opensContextMenu && !inSearchPanel) {
@@ -442,6 +492,9 @@ export function TerminalPaneViewport({
       }
       const target = frozen.snapshot.target
       switch (action) {
+        case 'ai_command':
+          openAiCompletion()
+          return
         case 'reconnect': {
           const currentSnapshot = captureSessionContext(session.id)
           if (
@@ -511,6 +564,7 @@ export function TerminalPaneViewport({
     },
     [
       contextMenu,
+      openAiCompletion,
       closeContextMenu,
       copyText,
       actionBusy,
@@ -530,6 +584,19 @@ export function TerminalPaneViewport({
     ],
   )
 
+  const handleReferenceTarget = useCallback((target: TerminalAIReferenceSelection['target']) => {
+    const frozen = contextMenu
+    const reference = frozen?.referenceSnapshot
+    if (!frozen || !reference?.canReference || !reference.ready || !reference.source
+      || sessionId !== frozen.snapshot.sessionId || !frozen.snapshot.selectionText) return
+    if (target.kind === 'session' && !reference.targets.some((item) => item.session_id === target.session_id && !item.disabled)) return
+    closeContextMenu()
+    onReferenceTerminalSelection?.({
+      target, selectionText: frozen.snapshot.selectionText, sourceSessionId: frozen.snapshot.sessionId,
+      source: reference.source, capturedAt: frozen.capturedAt,
+    })
+  }, [closeContextMenu, contextMenu, onReferenceTerminalSelection, sessionId])
+
   useEffect(() => {
     closeContextMenu()
   }, [closeContextMenu, sessionId])
@@ -541,19 +608,36 @@ export function TerminalPaneViewport({
   }, [closeContextMenu, workspaceActive])
 
   useEffect(() => {
+    if (!aiState.open || contextMenu) return
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229
+        || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
+      // 焦点离开浮层后仍可退出；浮层内部及其他弹窗、菜单沿用各自的键盘处理。
+      if (event.target instanceof Element && event.target.closest(
+        '[data-terminal-ai-completion], [data-terminal-search-panel], [data-terminal-context-menu], [role="dialog"], [role="menu"], [aria-modal="true"]',
+      )) return
+      event.preventDefault()
+      event.stopPropagation()
+      closeAiCompletion()
+    }
+    document.addEventListener('keydown', handleEscape, true)
+    return () => document.removeEventListener('keydown', handleEscape, true)
+  }, [closeAiCompletion, aiState.open, contextMenu])
+
+  useEffect(() => {
     if (!contextMenu) {
       return undefined
     }
 
     const handleDocumentPointerDown = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest('[data-terminal-context-menu]')) {
+      if (target instanceof Element && target.closest(terminalContextMenuSelector)) {
         return
       }
       closeContextMenu()
     }
     const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') {
+      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) {
         return
       }
       event.preventDefault()
@@ -596,7 +680,7 @@ export function TerminalPaneViewport({
       paneActive: active,
       workspaceActive,
       searchOpen: Boolean(searchPanel),
-      contextMenuOpen: Boolean(contextMenu),
+      contextMenuOpen: Boolean(contextMenu) || aiState.open,
     })
     setViewportCompletionActive(paneId, sessionId, interactionActive)
     return () => {
@@ -605,6 +689,7 @@ export function TerminalPaneViewport({
   }, [
     active,
     contextMenu,
+    aiState.open,
     paneId,
     searchPanel,
     session?.kind,
@@ -910,6 +995,27 @@ export function TerminalPaneViewport({
             })
           }
         }}
+        onOpenAi={ai.enabled ? () => { ai.open() } : undefined}
+      />
+      <TerminalAiCompletionPanel
+        open={aiState.open}
+        position={aiPosition}
+        themeMode={themeMode}
+        prompt={aiState.prompt}
+        onPromptChange={ai.updatePrompt}
+        state={aiState.phase}
+        model={ai.bridgeAvailable ? defaultModel : { status: 'unavailable', reason: 'desktop_required' }}
+        results={aiState.results}
+        selectedResultId={aiState.selectedResultId}
+        onSelectResult={ai.selectResult}
+        errorMessage={ai.errorMessage}
+        appendState={ai.appendState}
+        onGenerate={ai.generate}
+        onCancel={ai.cancel}
+        onAppend={ai.append}
+        onCopy={ai.copy}
+        onClose={ai.close}
+        onOpenSettings={() => { ai.close(); onOpenAgentSettings?.() }}
       />
       <TerminalContextMenu
         instanceId={contextMenu?.instanceId ?? 0}
@@ -917,6 +1023,8 @@ export function TerminalPaneViewport({
         autoFocus={contextMenu?.autoFocus ?? false}
         point={contextMenu?.point ?? { x: 0, y: 0 }}
         items={contextMenu?.items ?? []}
+        referenceSnapshot={contextMenu?.referenceSnapshot}
+        onReferenceTarget={handleReferenceTarget}
         onAction={(action) => void handleContextAction(action)}
         onOpenChange={(open) => {
           if (!open) {

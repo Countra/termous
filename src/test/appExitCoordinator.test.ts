@@ -242,7 +242,7 @@ test('安装器启动异常时记录错误并完成安全退出', async () => {
   ])
 })
 
-test('安装失败恢复期间退出会等待恢复并再次关闭 Core', async () => {
+test('安装失败恢复期间退出会立即停止 Core 并等待恢复收口', async () => {
   const recovery = deferred<boolean>()
   const finalShutdown = deferred<boolean>()
   const { coordinator, events } = coordinatorHarness({
@@ -270,6 +270,7 @@ test('安装失败恢复期间退出会等待恢复并再次关闭 Core', async 
     'prepare',
     'error:update-installer-launch-failed',
     'recover',
+    'shutdown:frontend_exit',
   ])
 
   recovery.resolve(true)

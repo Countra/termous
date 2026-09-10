@@ -1,6 +1,8 @@
 import type {
   AgentAttachment,
   AgentCompactionActivity,
+  AgentRetryActivity,
+  AgentResponseFailure,
   AgentContextCompressionStatus,
   AgentContextLastSnapshot,
   AgentContextUsageBasis,
@@ -9,8 +11,11 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
+  AgentResourceReference,
+  AgentResourceKind,
   AgentSessionGroup,
-  AgentSSHResourceState,
+  AgentResourceState,
+  AgentResourceRecoveryState,
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
@@ -46,7 +51,7 @@ export interface AgentWorkspaceSession {
   updated_at: string
   archived: boolean
   run_status: AgentWorkspaceRunStatus
-  resource_binding?: AgentResourceBinding
+  resource_bindings?: AgentResourceBinding[]
 }
 
 export type AgentWorkspaceResourceStatus = 'checking' | 'ready' | 'unavailable' | 'stale'
@@ -54,8 +59,9 @@ export type AgentWorkspaceResourceStatus = 'checking' | 'ready' | 'unavailable' 
 export interface AgentWorkspaceResourceContext {
   binding: AgentResourceBinding
   status: AgentWorkspaceResourceStatus
-  live_resource?: AgentSSHResourceState
-  candidates: AgentSSHResourceState[]
+  live_resource?: AgentResourceState
+  candidates: AgentResourceState[]
+  recovery?: AgentResourceRecoveryState
 }
 
 export type AgentWorkspaceModelUnavailableReason =
@@ -109,6 +115,8 @@ export type AgentWorkspaceMessagePart =
   | AgentWorkspaceReasoningPart
   | AgentWorkspaceToolPart
   | { id: string; kind: 'compaction'; activity: AgentCompactionActivity }
+  | { id: string; kind: 'retry'; activity: AgentRetryActivity }
+  | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
   id: string
@@ -125,6 +133,7 @@ export interface AgentWorkspaceMessage {
 }
 
 export interface AgentWorkspaceDraftAttachment {
+  origin?: AgentAttachment['origin']
   client_id: string
   name: string
   size_bytes: number
@@ -211,6 +220,8 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  composerFocusKey?: number
+  composerActive?: boolean
   sessions: AgentWorkspaceSession[]
   session_management?: AgentWorkspaceSessionManagement
   selected_session_id?: string
@@ -222,7 +233,6 @@ export interface AgentWorkspaceProps {
   approval_policy: AgentApprovalPolicyState
   inspector: AgentWorkspaceInspectorState
   draft: string
-  draft_source_context?: AgentSourceContext
   draft_attachments: AgentWorkspaceDraftAttachment[]
   queued_turns: AgentQueuedTurn[]
   queued_turn_counts: Record<string, number>
@@ -241,7 +251,10 @@ export interface AgentWorkspaceProps {
   }
   run_blocked: boolean
   resource_run_blocked: boolean
-  resource_context?: AgentWorkspaceResourceContext
+  resource_contexts?: AgentWorkspaceResourceContext[]
+  resource_recovery_blocked?: boolean
+  resource_recovery_disabled?: boolean
+  execution_blocked?: boolean
   onCreateSession: (groupId?: string) => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
@@ -256,8 +269,8 @@ export interface AgentWorkspaceProps {
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
-  onSend: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
-  onQueueTurn: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
+  onSend: (message: string, attachmentIds: string[]) => Promise<void>
+  onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>
   onBeginQueuedTurnEdit: (turnId: string) => Promise<void>
   onQueuedTurnEditChange: (value: string) => void
   onRemoveQueuedTurnEditAttachment: (attachmentId: string) => void
@@ -276,8 +289,10 @@ export interface AgentWorkspaceProps {
   onRetryContext: () => void
   onRetryUsage: () => void
   onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
-  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
-  onRemoveResourceBinding: () => Promise<boolean>
+  onReplaceResourceBinding: (reference: AgentResourceReference) => Promise<boolean>
+  onRemoveResourceBinding: (kind: AgentResourceKind) => Promise<boolean>
+  onRecoverResourceBinding?: () => Promise<boolean>
+  onCancelResourceRecovery?: () => Promise<boolean>
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

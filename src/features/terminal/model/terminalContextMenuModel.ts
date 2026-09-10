@@ -12,6 +12,7 @@ export type TerminalContextMenuActionKey =
   | 'clear'
   | 'select_all'
   | 'find'
+  | 'ai_command'
 
 export type TerminalContextMenuItem =
   | {
@@ -23,12 +24,21 @@ export type TerminalContextMenuItem =
     type: 'separator'
     key: string
   }
+  | {
+    type: 'reference'
+    key: 'reference_selection'
+    disabled: boolean
+  }
 
 export interface TerminalContextMenuOptions {
   canOpenPath?: boolean
   showOpenPath?: boolean
   canReconnect?: boolean
   reconnectDisabled?: boolean
+  showAiCommand?: boolean
+  canUseAiCommand?: boolean
+  showAIReference?: boolean
+  canReferenceSelection?: boolean
 }
 
 export function buildTerminalContextMenu(
@@ -36,6 +46,15 @@ export function buildTerminalContextMenu(
   options: TerminalContextMenuOptions = {},
 ): TerminalContextMenuItem[] {
   const items: TerminalContextMenuItem[] = []
+
+  if (options.showAiCommand) {
+    items.push(action('ai_command', !options.canUseAiCommand), separator('after-ai'))
+  }
+
+  if (options.showAIReference && snapshot.selectionText) {
+    items.push({ type: 'reference', key: 'reference_selection', disabled: !options.canReferenceSelection })
+    items.push(separator('after-reference'))
+  }
 
   if (snapshot.disconnected && options.canReconnect !== false) {
     items.push(action('reconnect', options.reconnectDisabled), separator('after-reconnect'))

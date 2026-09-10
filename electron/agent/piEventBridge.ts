@@ -14,7 +14,7 @@ import {
 } from './runtimeUsage.ts'
 import { isSkillResourceToolDetails } from './skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
-import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
+import { runtimeProviderFailure, sanitizeRuntimeProviderError } from './runtimeProviderFailure.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
 
 const maximumDeltaBytes = 240 * 1024
@@ -39,6 +39,7 @@ export interface RuntimeEventSink {
 interface StreamPartRef {
   id: string
   kind: 'text' | 'reasoning' | 'tool_call'
+  text: string
 }
 
 export class PiEventBridge {
@@ -73,8 +74,7 @@ export class PiEventBridge {
     switch (event.type) {
       case 'message_start':
         if (event.message.role === 'assistant') {
-          this.streamParts.clear()
-          this.persistedAssistantPartID = undefined
+          this.beginAssistantRequest()
         }
         return
       case 'message_update':
@@ -116,12 +116,23 @@ export class PiEventBridge {
     this.writer.push('usage', { usage: { ...this.usage } })
   }
 
+  beginAssistantRequest() {
+    this.streamParts.clear()
+    this.persistedAssistantPartID = undefined
+  }
+
+  finalizeFailedAttempt(message: AssistantMessage) {
+    this.persistAssistantContent(message, this.responseFailure(message))
+    this.beginAssistantRequest()
+  }
+
   private handleMessageUpdate(event: AssistantMessageEvent) {
     if (event.type !== 'text_delta' && event.type !== 'thinking_delta') {
       return
     }
     const kind = event.type === 'text_delta' ? 'text' : 'reasoning'
     const part = this.streamPart(event.contentIndex, kind)
+    part.text += event.delta
     for (const delta of splitUTF8(event.delta, maximumDeltaBytes)) {
       if (delta.length === 0) {
         continue
@@ -149,34 +160,8 @@ export class PiEventBridge {
 
   private persistAssistantMessage(message: AssistantMessage) {
     this.persistedAssistantPartID = undefined
-    message.content.forEach((content, contentIndex) => {
-      if (content.type === 'text') {
-        const part = this.streamPart(contentIndex, 'text')
-        this.pushMessagePart(part.id, 'text', { text: { text: content.text } })
-        return
-      }
-      if (content.type === 'thinking') {
-        const part = this.streamPart(contentIndex, 'reasoning')
-        this.pushMessagePart(part.id, 'reasoning', {
-          reasoning: {
-            text: content.thinking,
-            ...(content.thinkingSignature
-              ? { thinking_signature: content.thinkingSignature }
-              : {}),
-          },
-        })
-        return
-      }
-      const part = this.streamPart(contentIndex, 'tool_call')
-      this.pushMessagePart(part.id, 'tool_call', {
-        tool_call: {
-          tool_call_id: content.id,
-          tool_name: this.requireOriginalToolName(content.name),
-          arguments: content.arguments,
-        },
-      })
-    })
-    this.persistedAssistantPartID = this.streamParts.get(message.content.length - 1)?.id
+    this.persistAssistantContent(message,
+      message.stopReason === 'error' || message.stopReason === 'aborted' ? this.responseFailure(message) : undefined)
     const requestFailure = message.stopReason === 'error' || message.stopReason === 'aborted'
       ? this.requestFailure?.() : undefined
     // 门禁阻止触网后 pi 会合成零用量终态，不能据此把已确认的摘要用量降为部分统计。
@@ -184,10 +169,72 @@ export class PiEventBridge {
     if (message.stopReason === 'error') {
       this.runOutcome = 'failed'
       this.writer.push('error', {
-        error: requestFailure ?? runtimeProviderFailure(message.errorMessage, this.providerErrorSecrets),
+        error: requestFailure
+          ? { ...requestFailure, message: sanitizeRuntimeProviderError(requestFailure.message, this.providerErrorSecrets) }
+          : runtimeProviderFailure(message.errorMessage, this.providerErrorSecrets),
       })
     } else if (message.stopReason === 'aborted') {
       this.runOutcome = 'cancelled'
+    }
+  }
+
+  private responseFailure(message: AssistantMessage) {
+    return {
+      attempt_id: `agrat_${randomUUID()}`,
+      // pi 的取消终态仍可能携带断流诊断；保留历史标记，但不将主动停止展示为请求失败。
+      error_message: message.stopReason === 'aborted'
+        ? '' : sanitizeRuntimeProviderError(message.errorMessage ?? '', this.providerErrorSecrets),
+    }
+  }
+
+  private persistAssistantContent(message: AssistantMessage, failure?: ReturnType<PiEventBridge['responseFailure']>) {
+    const metadata = failure ? { response_failure: failure } : {}
+    const indices = new Set(message.content.map((_, index) => index))
+    if (failure) for (const index of this.streamParts.keys()) indices.add(index)
+    for (const contentIndex of [...indices].sort((left, right) => left - right)) {
+      let content = message.content[contentIndex]
+      const streamed = this.streamParts.get(contentIndex)
+      // 某些断流终态丢失 content，保留此前已经展示的正文，且不能把它恢复成有效模型上下文。
+      if (failure && streamed?.text && (!content
+        || (content.type === 'text' && content.text.length < streamed.text.length)
+        || (content.type === 'thinking' && content.thinking.length < streamed.text.length))) {
+        content = streamed.kind === 'reasoning'
+          ? { type: 'thinking', thinking: streamed.text }
+          : { type: 'text', text: streamed.text }
+      }
+      if (!content) continue
+      if (content.type === 'text') {
+        if (failure && content.text.length === 0) continue
+        const part = this.streamPart(contentIndex, 'text')
+        this.pushMessagePart(part.id, 'text', { text: { text: content.text }, ...metadata })
+        this.persistedAssistantPartID = part.id
+        continue
+      }
+      if (content.type === 'thinking') {
+        if (failure && content.thinking.length === 0) continue
+        const part = this.streamPart(contentIndex, 'reasoning')
+        this.pushMessagePart(part.id, 'reasoning', {
+          reasoning: {
+            text: content.thinking,
+            ...(content.thinkingSignature ? { thinking_signature: content.thinkingSignature } : {}),
+          },
+          ...metadata,
+        })
+        this.persistedAssistantPartID = part.id
+        continue
+      }
+      // 失败请求中的工具尚未执行；名称或 ID 仍未形成时不能伪造合法工具记录。
+      if (failure && (!content.id || !this.originalToolName(content.name))) continue
+      const part = this.streamPart(contentIndex, 'tool_call')
+      this.pushMessagePart(part.id, 'tool_call', {
+        tool_call: {
+          tool_call_id: content.id,
+          tool_name: this.requireOriginalToolName(content.name),
+          arguments: content.arguments,
+        },
+        ...metadata,
+      })
+      this.persistedAssistantPartID = part.id
     }
   }
 
@@ -262,7 +309,7 @@ export class PiEventBridge {
       }
       return current
     }
-    const created = { id: this.newPartID(), kind }
+    const created = { id: this.newPartID(), kind, text: '' }
     this.streamParts.set(index, created)
     return created
   }

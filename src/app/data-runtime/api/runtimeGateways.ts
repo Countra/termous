@@ -129,7 +129,7 @@ export function createRuntimeGatewaysFromConfig(
       fileRename,
       fileSearch,
     ),
-    terminal: createTerminalGateway(settings, sessions),
+    terminal: createTerminalGateway(settings, sessions, agentSetup),
     commandDispatch,
     mcpAccess,
     remoteDesktop,
@@ -299,8 +299,10 @@ function createFileGateway(
 function createTerminalGateway(
   settings: SettingsClient,
   sessions: SessionClient,
+  agentSetup: AgentSetupClient,
 ): TerminalGateway {
   return {
+    getDefaultModelStatus: (options) => agentSetup.getDefaultModelStatus(options),
     terminalFontFileUrl: (id, sha256) => settings.terminalFontFileUrl(id, sha256),
     websocketUrl: (path) => sessions.websocketUrl(path),
     sessionCompletionStatus: (id, options) => sessions.sessionCompletionStatus(id, options),

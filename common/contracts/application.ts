@@ -1,3 +1,5 @@
+import type { CoreStartupSnapshot } from './startup'
+
 export type AppLanguage = 'zh-CN' | 'en-US'
 
 export type AppTheme = 'dark' | 'light'
@@ -24,12 +26,14 @@ export interface CoreFatalEvent {
   title: string
   message: string
   code: string
+  details?: string
 }
 
 export interface CoreStatus {
   config: AppConfig
   fatal: CoreFatalEvent | null
   pid?: number
+  startup: CoreStartupSnapshot
 }
 
 export interface TrayRecentHost {

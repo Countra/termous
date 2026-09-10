@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, Button, Modal } from 'antd'
-import { LogOut, ServerOff } from 'lucide-react'
+import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
-import { ConfirmDialog, confirmDialogStyles, termousNotificationClassName } from '#shared/ui'
+import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
 import {
@@ -40,7 +39,7 @@ import {
 import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
-import { TerminalRuntimeProvider } from '#features/terminal'
+import { TerminalRuntimeProvider, type TerminalAIReferenceSelection } from '#features/terminal'
 import { RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
@@ -67,10 +66,15 @@ import type {
 import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/snippet'
 import {
   assignAgentLaunchIntentKey,
-  buildForwardFailureAgentLaunchRequest,
   type AgentLaunchIntent,
   type AgentLaunchRequest,
+  type AgentReferenceTargetsSnapshot,
+  type AgentResourceReference,
+  type AgentResourceState,
+  type AgentReferenceTarget,
 } from '#entities/agent'
+import { buildTerminalReferenceLaunch, projectTerminalAIReferenceSnapshot } from './model/agentTerminalReference.ts'
+import { buildConnectionReferenceLaunch, projectAgentFileResources, projectConnectionReferenceSnapshot } from './model/agentConnectionReference.ts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
@@ -93,6 +97,7 @@ import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscr
 import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
+import { CoreFatalDialog } from './CoreFatalDialog'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
@@ -287,6 +292,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     agentRunCount: 0,
     snapshotComplete: false,
   })
+  const [agentReferenceTargets, setAgentReferenceTargets] = useState<AgentReferenceTargetsSnapshot>({ ready: false, targets: [] })
   const [remoteDesktopRuntimeSessions, setRemoteDesktopRuntimeSessions] = useState(
     data.remoteDesktopSessions,
   )
@@ -382,9 +388,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       t,
       notifiedForwardFailuresRef,
       notifiedForwardRuntimeErrorsRef,
-      launchAgent,
     )
-  }, [forwardErrorEvent, launchAgent, notification, t])
+  }, [forwardErrorEvent, notification, t])
 
   const selectedLegacyHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -460,6 +465,32 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => projectAgentSSHResources(data.sessions, data.hosts, data.sshAccessProfiles),
     [data.hosts, data.sessions, data.sshAccessProfiles],
   )
+  const referenceTerminalSelection = useCallback((selection: TerminalAIReferenceSelection) => {
+    try {
+      launchAgent(buildTerminalReferenceLaunch(selection, agentSSHResources))
+    } catch (error) {
+      notification.warning({
+        title: t('agent.terminalReference.failed'),
+        description: t(`agent.terminalReference.errors.${error instanceof Error ? error.message : 'unknown'}`, {
+          defaultValue: t('agent.terminalReference.errors.unknown'),
+        }),
+        className: termousNotificationClassName,
+      })
+    }
+  }, [agentSSHResources, launchAgent, notification, t])
+  const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
+    [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
+  const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
+  const referenceAgentConnection = useCallback((source: AgentResourceState, target: AgentReferenceTarget) => {
+    try {
+      launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
+    } catch (error) {
+      notification.warning({ title: t('agent.connectionReference.failed'),
+        description: t(`agent.connectionReference.errors.${error instanceof Error ? error.message : 'unknown'}`, {
+          defaultValue: t('agent.connectionReference.errors.unknown'),
+        }), className: termousNotificationClassName })
+    }
+  }, [agentResources, launchAgent, notification, t])
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
   const hostAccessGateway = useMemo<HostAccessWorkspaceGateway & HostProvisionGateway>(() => ({
@@ -1098,6 +1129,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     initialBuildInfo: developmentUpdateSimulation?.buildInfo ?? null,
     initializing,
     startupFailed: Boolean(error),
+    startupFailureMessage: error ?? undefined,
     apiReady,
     appearanceTheme: data.settings.appearance.theme,
     onThemeChange: setTheme,
@@ -1111,6 +1143,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     code: 'LOCAL_API_UNAVAILABLE',
   } : null)
   const productTourReady = !initializing && apiReady && !coreFatal
+  const agentReferenceResourcesReady = apiReady && !coreFatal && sessionSnapshotReady
+  const agentFileResourcesReady = apiReady && !coreFatal && !initializing
+  const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
+    sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
+  ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
+  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentResourceReference) => projectConnectionReferenceSnapshot(
+    reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
+  ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
     || actionBusy
     || hostSaving
@@ -1281,7 +1321,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-                          onLaunchAgent={launchAgent}
+                          onOpenAgentSettings={openAgentSettings}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
+                          getAgentReferenceSnapshot={getAgentReferenceSnapshot}
+                          onReferenceTerminalSelection={referenceTerminalSelection}
                         />
                       </div>
 
@@ -1293,16 +1337,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
+                          fileResources={agentFileResources}
+                          fileResourcesReady={agentFileResourcesReady}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
-                          launchIntent={agentLaunchIntent}
+                          launchIntent={page === 'agent' ? agentLaunchIntent : null}
                           onLaunchIntentHandled={(key) => {
                             if (agentLaunchIntent?.key === key) {
                               clearAgentLaunchIntent()
                             }
                           }}
                           onRuntimeSummaryChange={setAgentRuntimeSummary}
+                          onReferenceTargetsChange={setAgentReferenceTargets}
                           onOpenSettings={openAgentSettings}
                         />
                       </div>
@@ -1348,7 +1395,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setHostsDirty}
                           onSavingChange={handleHostSavingChange}
-                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1406,7 +1452,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onUpdateLocalPathMapping={actions.updateLocalPathMapping}
                           onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
                           onReorderLocalPathMappings={actions.reorderLocalPathMappings}
-                          onLaunchAgent={launchAgent}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
                         />
                       ) : null}
 
@@ -1422,7 +1469,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1461,6 +1507,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           appVersion={appVersion}
                           dataPortabilityGateway={gateways.dataPortability}
                           agentSetupGateway={gateways.agentSetup}
+                          defaultModelStatusGateway={gateways.terminal}
                           updatePreferencesRuntime={updatePreferencesRuntime}
                           actionBusy={actionBusy}
                           onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
@@ -1559,41 +1606,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         hosts={data.hosts}
         onBlockingChange={setHostKeyApprovalBlocking}
       />
-      <Modal
-        centered
-        width={420}
-        open={Boolean(coreFatal)}
-        title={null}
-        footer={null}
-        closable={false}
-        closeIcon={null}
-        mask={{ closable: false }}
-        keyboard={false}
-        className={styles['core-fatal-modal']}
-        wrapClassName={`${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`}
-        rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}
-        getContainer={() => document.body}
-      >
-        <section className={styles['core-fatal-dialog']} aria-labelledby="core-fatal-title">
-          <div className={styles['core-fatal-icon']}>
-            <ServerOff size={22} aria-hidden="true" />
-          </div>
-          <div className={styles['core-fatal-copy']}>
-            <h2 id="core-fatal-title">{t('app.coreFatalTitle')}</h2>
-          </div>
-          <div className={styles['core-fatal-actions']}>
-            <Button
-              type="primary"
-              danger
-              className={styles['core-fatal-exit-button']}
-              icon={<LogOut size={16} aria-hidden="true" />}
-              onClick={() => void getTermousBridge()?.windowControls?.confirmClose()}
-            >
-              {t('app.exit')}
-            </Button>
-          </div>
-        </section>
-        </Modal>
+      <CoreFatalDialog key={coreFatal?.code ?? 'none'} fatal={coreFatal} />
           </TerminalRuntimeProvider>
         </TransferRuntimeProvider>
       </FilesWorkspaceRuntimeProvider>
@@ -1629,7 +1642,6 @@ function notifyForwardError(
   t: (key: string, options?: Record<string, unknown>) => string,
   failedRef: React.MutableRefObject<Set<string>>,
   runtimeRef: React.MutableRefObject<Map<string, string>>,
-  onLaunchAgent: (intent: AgentLaunchRequest) => void,
 ) {
   if (event.forward.status !== 'failed') {
     failedRef.current.delete(event.forward.id)
@@ -1659,27 +1671,6 @@ function notifyForwardError(
       duration: 6,
       role: 'alert',
       className: termousNotificationClassName,
-      actions: (
-        <Button
-          type="text"
-          size="small"
-          onClick={() => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
-            hostId: event.forward.host_id,
-            forwardId: event.forward.id,
-            forwardProfileId: event.forward.profile_id,
-            status: event.forward.status,
-            title: t('agent.launch.title.forwardFailure', {
-              name: event.forward.name || t(`forwards.modeName.${event.forward.mode}`),
-            }),
-            summary: t('agent.launch.summary.forwardFailure', {
-              status: t(`forwards.status.${event.forward.status}`),
-              phase: t(`forwards.phaseName.${event.forward.phase}`),
-            }),
-          }))}
-        >
-          {t('agent.launch.action')}
-        </Button>
-      ),
     })
   }
 }

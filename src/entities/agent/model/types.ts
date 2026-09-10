@@ -204,12 +204,15 @@ export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 export const agentAttachmentStates = ['ready', 'reserved', 'bound'] as const
 export type AgentAttachmentState = (typeof agentAttachmentStates)[number]
 
+export type AgentTerminalReferenceOrigin = import('#common/contracts').AgentTerminalReferenceOrigin
+
 export interface AgentAttachment {
   id: string
   session_id: string
   original_name: string
   mime_type: string
   kind: 'text' | 'image'
+  origin?: AgentTerminalReferenceOrigin
   size_bytes: number
   state: AgentAttachmentState
   expires_at?: string
@@ -228,21 +231,39 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session'] as const
+export const agentResourceKinds = ['ssh_session', 'file_profile'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
 
-export interface AgentResourceReference {
-  kind: AgentResourceKind
-  session_id: string
-}
+export type AgentResourceReference =
+  | { kind: 'ssh_session'; session_id: string }
+  | { kind: 'file_profile'; file_access_profile_id: string }
 
-export interface AgentResourceBinding extends AgentResourceReference {
+interface AgentResourceBindingBase {
   host_id: string
   ssh_profile_id: string
   host_name: string
-  platform: 'linux'
   bound_at: string
 }
+
+export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'ssh_session'; session_id: string; platform: 'linux' }
+  | { kind: 'file_profile'; file_access_profile_id: string; file_access_profile_name: string; engine: 'sftp' }
+)
+
+export type AgentSSHResourceBinding = Extract<AgentResourceBinding, { kind: 'ssh_session' }>
+export type AgentFileResourceBinding = Extract<AgentResourceBinding, { kind: 'file_profile' }>
+
+export interface AgentFileResourceState {
+  file_access_profile_id: string
+  file_access_profile_name: string
+  host_id: string
+  host_name: string
+  ssh_profile_id: string
+  engine: 'sftp'
+  status: 'ready' | 'unavailable'
+}
+
+export type AgentResourceState = AgentSSHResourceState | AgentFileResourceState
 
 export interface AgentSSHResourceState {
   session_id: string
@@ -254,36 +275,20 @@ export interface AgentSSHResourceState {
   started_at: string
 }
 
-export type AgentLaunchIntent = {
-  key: number
-  source_context: AgentSourceContext
-} & (
+export type AgentLaunchIntent = { key: number } & (
   | {
-      source: 'workbench'
-      host_id: string
-      ssh_profile_id: string
-      connection_status: string
+      source: 'terminal_selection'
+      target: { kind: 'new' } | { kind: 'session'; session_id: string }
+      text: string
+      origin: import('#common/contracts').AgentTerminalReferenceOrigin
+      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' }>
+      source_resource: AgentSSHResourceState
+    }
+  | {
+      source: 'connection_reference'
+      target: { kind: 'new' } | { kind: 'session'; session_id: string }
       resource_reference: AgentResourceReference
-    }
-  | {
-      source: 'files'
-      host_id: string
-      file_access_profile_id?: string
-      connection_status: string
-    }
-  | {
-      source: 'host_profile'
-      host_id: string
-      profile_kind?: 'ssh' | 'file' | 'remote_desktop'
-      profile_id?: string
-    }
-  | {
-      source: 'forward_failure'
-      host_id?: string
-      forward_id: string
-      forward_profile_id?: string
-      status: string
-      error_code?: string
+      source_resource: AgentResourceState
     }
 )
 
@@ -315,7 +320,7 @@ export interface AgentSession {
   revision: number
   created_at: string
   updated_at: string
-  resource_binding?: AgentResourceBinding
+  resource_bindings?: AgentResourceBinding[]
 }
 
 export interface AgentSessionPage {
@@ -364,7 +369,7 @@ export interface AgentSessionMoveInput {
   placement: 'before' | 'after'
 }
 
-export interface AgentResourceBindingUpdateInput extends AgentResourceReference {
+export type AgentResourceBindingUpdateInput = AgentResourceReference & {
   expected_revision: number
 }
 
@@ -381,6 +386,11 @@ export interface AgentToolResultPart {
   is_error: boolean
 }
 
+export interface AgentResponseFailure {
+  attempt_id: string
+  error_message: string
+}
+
 export type AgentMessagePart = {
   id: string
   message_id: string
@@ -389,10 +399,10 @@ export type AgentMessagePart = {
   created_at: string
   updated_at: string
 } & (
-  | { kind: 'text'; text: string; source_context?: AgentSourceContext }
-  | { kind: 'reasoning'; text: string }
-  | { kind: 'tool_call'; tool_call: AgentToolCallPart }
-  | { kind: 'tool_result'; tool_result: AgentToolResultPart }
+  | { kind: 'text'; text: string; source_context?: AgentSourceContext; response_failure?: AgentResponseFailure }
+  | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
+  | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
+  | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
 )
 
 export interface AgentMessage {
@@ -408,6 +418,24 @@ export interface AgentMessage {
   attachments: AgentAttachment[]
   turn_usage?: AgentMessageTurnUsage
   compactions?: AgentCompactionActivity[]
+  retries?: AgentRetryActivity[]
+}
+
+export interface AgentRetryData {
+  retry_id: string
+  assistant_message_id: string
+  purpose: 'response' | 'compaction'
+  after_part_sequence: number
+  status: 'waiting' | 'requesting' | 'completed' | 'failed' | 'cancelled'
+  attempt: number
+  max_retries: 3
+  delay_ms: number
+  error_message: string
+  duration_ms?: number
+}
+
+export interface AgentRetryActivity extends AgentRetryData {
+  created_at: string
 }
 
 export interface AgentCompactionData {
@@ -452,6 +480,7 @@ export interface AgentMessageTurnUsage {
   run_id: string
   usage: AgentUsage
   error_code?: string
+  error_message?: string
   started_at?: string
   completed_at?: string
 }
@@ -597,6 +626,7 @@ export const agentRunEventKinds = [
   'steer_applied',
   'usage',
   'compaction',
+  'retry',
   'context_usage',
   'error',
 ] as const
@@ -646,6 +676,7 @@ export type AgentRunEvent =
     }>
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
   | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
+  | AgentRunEventBase<'retry', { retry: AgentRetryData }>
   | AgentRunEventBase<'context_usage', { context_usage: AgentContextUsageData }>
   | AgentRunEventBase<'error', { error: { code: string; message: string } }>
 

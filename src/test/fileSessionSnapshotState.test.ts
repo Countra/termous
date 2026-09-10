@@ -66,6 +66,12 @@ test('文件会话 HTTP 与 WebSocket 合同都要求完整访问身份', () => 
   }), /连接代际/)
 })
 
+test('文件会话 HTTP 与事件快照保留计划删除能力', () => {
+  const session = fileSession('delete-capable', { capabilities: ['browse', 'planned_delete'] })
+  assert.deepEqual(normalizeFileSessionResponse(session).capabilities, ['browse', 'planned_delete'])
+  assert.deepEqual(normalizeFileSessionEventResponse(session).capabilities, ['browse', 'planned_delete'])
+})
+
 test('文件会话快照使用独立连接代际、实例和修订游标', () => {
   const first = decideFileSessionSnapshot(initialFileSessionSnapshotCursor, {
     type: 'file_session_snapshot',

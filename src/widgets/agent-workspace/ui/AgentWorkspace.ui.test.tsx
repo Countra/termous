@@ -22,6 +22,34 @@ describe('AgentWorkspace', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['切换会话', '替换引用', '同源重新绑定'] as const)('%s 后关闭旧文件引用确认，保留草稿', async (change) => {
+    const context: NonNullable<AgentWorkspaceProps['resource_contexts']>[number] = {
+      binding: {
+        kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '文件配置',
+        host_id: 'host-one', host_name: '文件主机', ssh_profile_id: 'ssh-one', engine: 'sftp',
+        bound_at: '2026-09-09T01:00:00Z',
+      },
+      status: 'ready', candidates: [],
+    }
+    const props = fixtureProps({ draft: '保留用户草稿', resource_contexts: [context] })
+    const view = renderWorkspace(props)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.fileResource.aria' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.resource.remove' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.fileResource.removeTitle')
+
+    const changedContext = { ...context, binding: { ...context.binding,
+      ...(change === '替换引用' ? { file_access_profile_id: 'file-two' } : {}),
+      ...(change === '同源重新绑定' ? { bound_at: '2026-09-09T02:00:00Z' } : {}),
+    } }
+    view.rerender(<AntdApp><AgentWorkspace {...props}
+      selected_session_id={change === '切换会话' ? 'session-2' : props.selected_session_id}
+      sessions={[...props.sessions, { ...props.sessions[0]!, id: 'session-2' }]}
+      resource_contexts={[changedContext]} /></AntdApp>)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(props.onRemoveResourceBinding).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('agent.composer.placeholder')).toHaveValue('保留用户草稿')
+  })
+
   it('输入框回看当前会话用户文本，编辑后保留草稿而不再切换历史', () => {
     const props = fixtureProps({
       messages: [{
@@ -85,12 +113,12 @@ describe('AgentWorkspace', () => {
       expect(event.defaultPrevented).toBe(false)
     }
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(props.onSend).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+    expect(props.onSend).toHaveBeenCalledExactlyOnceWith('中文输入', [])
     view.rerender(<AntdApp><AgentWorkspace {...props} sessions={[{ ...props.sessions[0]!, run_status: 'running' }]} /></AntdApp>)
     fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
     expect(props.onQueueTurn).not.toHaveBeenCalled()
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+    expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [])
   })
 
   it('展示真实 reasoning 与 Tool 时间线并路由发送、排队和停止', async () => {
@@ -102,7 +130,7 @@ describe('AgentWorkspace', () => {
     expect(screen.getByText('agent.tool.status.completed')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'agent.composer.send' }))
-    expect(props.onSend).toHaveBeenCalledWith('hello', [], undefined)
+    expect(props.onSend).toHaveBeenCalledWith('hello', [])
 
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       draft: 'adjust',
@@ -112,7 +140,7 @@ describe('AgentWorkspace', () => {
     })} /></AntdApp>)
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'agent.composer.queue' }))
-    expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [], undefined)
+    expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [])
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledTimes(1)
   })
@@ -204,7 +232,7 @@ describe('AgentWorkspace', () => {
     expect(within(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).getByText('Local model')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(queue)
-    expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [], undefined)
+    expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [])
   })
 
   it('排队消息提供编辑、立即执行、删除与继续入口', async () => {
@@ -375,7 +403,6 @@ describe('AgentWorkspace', () => {
     }))
     const onAttachFiles = vi.fn(async () => undefined)
     renderWorkspace(fixtureProps({
-      draft_source_context: { kind: 'host_profile', entity_id: 'draft-host', title: '普通草稿来源', summary: 'draft' },
       queued_turns: [{
         id: 'queued-edit', session_id: 'session-1', client_request_id: 'request-edit',
         queue_sequence: 1, prompt: '检查配置', model_id: 'model-1', reasoning_level: 'medium',
@@ -390,7 +417,6 @@ describe('AgentWorkspace', () => {
     }))
 
     expect(screen.getByText('排队消息来源')).toBeInTheDocument()
-    expect(screen.queryByText('普通草稿来源')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.attachments.add' })).toBeDisabled()
     expect(screen.getAllByTitle('screen.png')).toHaveLength(2)
     const paste = createEvent.paste(screen.getByPlaceholderText('agent.composer.queuePlaceholder'), {
@@ -1115,6 +1141,76 @@ describe('AgentWorkspace', () => {
     expect(screen.getByText('agent.attachments.deleting')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
+  })
+
+  it('终端引用失败草稿仍可完整预览并提供重试与移除，未激活面板不抢焦点', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const props = fixtureProps({
+      composerFocusKey: 1, composerActive: false,
+      draft_attachments: [{ client_id: 'draft-ref', kind: 'text', name: 'terminal-reference.txt', size_bytes: 17,
+        file: new File(['first\n<script>raw</script>'], 'terminal-reference.txt', { type: 'text/plain' }),
+        phase: 'failed', origin, error_code: 'NETWORK_ERROR' }],
+    })
+    const view = renderWorkspace(props)
+    const input = screen.getByPlaceholderText('agent.composer.placeholder')
+    expect(input).not.toHaveFocus()
+    view.rerender(<AntdApp><AgentWorkspace {...props} composerActive /></AntdApp>)
+    await waitFor(() => expect(input).toHaveFocus())
+    expect(screen.queryByText('terminal-reference.txt')).not.toBeInTheDocument()
+    const card = within(screen.getByRole('list', { name: 'agent.attachments.title' }))
+      .getByRole('listitem', { name: 'agent.attachments.terminalReference' })
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.retryName' }))
+    expect(props.onRetryAttachment).toHaveBeenCalledExactlyOnceWith('draft-ref')
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.removeName' }))
+    expect(props.onRemoveAttachment).toHaveBeenCalledExactlyOnceWith('draft-ref')
+    fireEvent.click(within(card).getByRole('button', { name: 'agent.attachments.previewName' }))
+    expect(await screen.findByText('first <script>raw</script>')).toBeInTheDocument()
+    expect(props.onLoadAttachmentContent).not.toHaveBeenCalled()
+  })
+
+  it('恢复连接期间保留输入与排队编辑能力，只禁止追加发送和继续队列', async () => {
+    const props = fixtureProps({
+      draft: '保留可编辑草稿', resource_recovery_blocked: true,
+      queued_turns: [queuedTurn('queued-1', 1)],
+      queue_state: { session_id: 'session-1', state: 'paused', revision: 1 },
+    })
+    renderWorkspace(props)
+    const composer = screen.getByPlaceholderText('agent.composer.queuePlaceholder')
+    expect(composer).toBeEnabled()
+    expect(composer).toHaveValue('保留可编辑草稿')
+    fireEvent.change(composer, { target: { value: '恢复时继续编辑' } })
+    expect(props.onDraftChange).toHaveBeenCalledWith('恢复时继续编辑')
+    expect(screen.getByRole('button', { name: 'agent.composer.queue' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.queue.resume' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.queue.actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.queue.editMessage' }))
+    expect(props.onBeginQueuedTurnEdit).toHaveBeenCalledWith('queued-1')
+  })
+
+  it('运行环境未就绪时只关闭任务与新建，保留已有聊天导航和草稿编辑', () => {
+    const props = fixtureProps({ execution_blocked: true, draft: '保留草稿',
+      sessions: [...fixtureProps().sessions, { ...fixtureProps().sessions[0]!, id: 'session-other', title: '已有恢复会话' }],
+      queued_turns: [queuedTurn('queued-one', 1)], queue_state: { session_id: 'session-1', state: 'paused', revision: 1 } })
+    renderWorkspace(props)
+    expect(screen.getByRole('button', { name: 'agent.sessions.new' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.queue' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.queue.resume' })).toBeDisabled()
+    expect(screen.getByPlaceholderText('agent.composer.queuePlaceholder')).toBeEnabled()
+    fireEvent.click(screen.getByText('已有恢复会话'))
+    expect(props.onSelectSession).toHaveBeenCalledWith('session-other')
+  })
+
+  it('历史终端引用沿用鉴权附件加载器，展示来源和行数', async () => {
+    const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
+    const props = fixtureProps({
+      messages: [{ id: 'message-reference', role: 'user', status: 'completed', created_at: origin.captured_at, parts: [], attachments: [attachment({ origin })] }],
+      onLoadAttachmentContent: vi.fn(async () => new Blob(['first\nsecond'], { type: 'text/plain' })),
+    })
+    renderWorkspace(props)
+    expect(screen.getByText('agent.attachments.terminalReferenceLines')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.attachments.previewName' }))
+    expect(await screen.findByText('first second')).toBeInTheDocument()
+    expect(props.onLoadAttachmentContent).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-one', origin }), expect.any(AbortSignal))
   })
 
   it('通过受鉴权的 Blob 加载器预览历史文本附件', async () => {

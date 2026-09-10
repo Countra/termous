@@ -10,7 +10,6 @@ import { Compile } from 'typebox/compile'
 import { encodeMCPToolName } from './toolNameCodec.ts'
 
 export const agentMCPProtocolVersion = '2025-11-25'
-export const expectedAgentMCPToolCount = 76
 
 const mcpConnectTimeoutMs = 15_000
 const mcpToolTimeoutMs = 10 * 60_000
@@ -35,7 +34,6 @@ export interface ConnectAgentMCPOptions {
   protocolVersion: string
   signal?: AbortSignal
   fetch?: typeof globalThis.fetch
-  expectedToolCount?: number
 }
 
 export async function connectAgentMCP(
@@ -82,7 +80,6 @@ export async function connectAgentMCP(
       timeout: mcpConnectTimeoutMs,
       cacheMode: 'bypass',
     })
-    const expectedCount = options.expectedToolCount ?? expectedAgentMCPToolCount
     const invocation = createSerialToolInvoker(async (definition, args, signal) => {
       return await client.callTool(
         { name: definition.name, arguments: args },
@@ -94,7 +91,7 @@ export async function connectAgentMCP(
         },
       )
     })
-    const mapped = mapMCPTools(listed.tools, invocation, expectedCount)
+    const mapped = mapMCPTools(listed.tools, invocation)
     return {
       tools: mapped.tools,
       originalName: (encodedName) => mapped.originalNames.get(encodedName) ?? null,
@@ -117,10 +114,10 @@ export type MCPToolInvoker = (
 export function mapMCPTools(
   definitions: MCPTool[],
   invoke: MCPToolInvoker,
-  expectedCount = expectedAgentMCPToolCount,
 ) {
-  if (definitions.length !== expectedCount) {
-    throw new Error('AGENT_MCP_TOOL_COUNT_MISMATCH')
+  // 工具目录由 Core 按当前能力与权限返回，不能把旧版本的工具数量作为启动条件。
+  if (definitions.length === 0) {
+    throw new Error('AGENT_MCP_TOOLS_EMPTY')
   }
   const originalNames = new Map<string, string>()
   const tools = definitions.map((definition): AgentTool => {

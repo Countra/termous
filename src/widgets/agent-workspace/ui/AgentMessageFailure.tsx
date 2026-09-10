@@ -1,7 +1,18 @@
 import { CircleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { AgentResponseFailure as ResponseFailure } from '#entities/agent'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import styles from './AgentMessageFailure.module.scss'
+
+const mcpFailureKeys = new Map(Object.entries({
+  AGENT_MCP_PROTOCOL_MISMATCH: 'mcpProtocolMismatch',
+  AGENT_MCP_ENDPOINT_INVALID: 'mcpEndpointInvalid',
+  AGENT_MCP_ENDPOINT_VIOLATION: 'mcpEndpointViolation',
+  AGENT_MCP_TOOL_NAME_CONFLICT: 'mcpToolNameConflict',
+  AGENT_MCP_TOOL_SCHEMA_INVALID: 'mcpToolSchemaInvalid',
+  AGENT_MCP_TOOLS_EMPTY: 'mcpToolsEmpty',
+  AGENT_MCP_CONNECTION_FAILED: 'mcpConnectionFailed',
+}))
 
 const failureKeys = new Map(Object.entries({
   AGENT_MODEL_STREAM_INTERRUPTED: 'streamInterrupted',
@@ -31,15 +42,22 @@ const failureKeys = new Map(Object.entries({
 }))
 
 export function AgentMessageFailure({ message }: {
-  message: Pick<AgentWorkspaceMessage, 'status' | 'error_code' | 'error_message'>
+  message: Pick<AgentWorkspaceMessage, 'status' | 'error_code' | 'error_message'> & Partial<Pick<AgentWorkspaceMessage, 'parts'>>
 }) {
   const { t } = useTranslation()
   if (message.status !== 'failed' && message.status !== 'interrupted' && message.status !== 'interrupted_by_steer') return null
+  const mcpReason = message.status === 'failed' && message.error_code
+    ? mcpFailureKeys.get(message.error_code) : undefined
   const reason = message.status === 'failed' && message.error_code
-    ? failureKeys.get(message.error_code)
+    ? mcpReason ?? failureKeys.get(message.error_code)
       ?? (message.error_code.startsWith('AGENT_RUNTIME_CONTEXT_COMPRESSION_') ? 'compactionFailed' : undefined)
     : undefined
-  const details = message.status === 'failed' ? message.error_message?.trim().slice(0, 4_096) : undefined
+  const errorAlreadyShown = message.parts?.some((part) => (
+    part.kind === 'response_failure' && part.failure.error_message === message.error_message
+    || part.kind === 'retry' && part.activity.status === 'failed' && part.activity.error_message === message.error_message
+  ))
+  // MCP 启动错误仅含固定安全说明，按错误码本地化，避免重复显示原语言说明。
+  const details = message.status === 'failed' && !errorAlreadyShown && !mcpReason ? message.error_message : undefined
   return (
     <div className={styles.failure} data-status={message.status}>
       <CircleAlert size={14} aria-hidden="true" />
@@ -47,6 +65,16 @@ export function AgentMessageFailure({ message }: {
         <span>{t(reason ? `agent.message.failure.${reason}` : `agent.message.${message.status}`)}</span>
         {details ? <span className={styles.details}>{details}</span> : null}
       </div>
+    </div>
+  )
+}
+
+export function AgentResponseFailure({ failure }: { failure: ResponseFailure }) {
+  if (!failure.error_message) return null
+  return (
+    <div className={styles.failure} data-response-attempt-id={failure.attempt_id} aria-live="off">
+      <CircleAlert size={14} aria-hidden="true" />
+      <span className={`${styles.content} ${styles.details}`}>{failure.error_message}</span>
     </div>
   )
 }

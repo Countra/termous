@@ -312,6 +312,15 @@ test("提交构建按分支选择平台并复用 Release 打包路径", async ()
   const goStep = steps.find(({ name }) => name === "Setup Go");
   assert.ok(goStep);
   assert.equal(goStep.with.cache, false);
+  assert.equal(goStep.with["go-version"], "${{ vars.GO_VERSION }}");
+  assert.equal(
+    goStep.with["go-version-file"],
+    "${{ !vars.GO_VERSION && 'backend/go.mod' || '' }}",
+  );
+  assert.ok(
+    steps.indexOf(coreCheckout) < steps.indexOf(goStep),
+    "必须先检出固定版本的 Core，再读取其 Go 工具链要求",
+  );
 });
 
 test("提交构建只读且不使用 GitHub Storage", async () => {

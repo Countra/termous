@@ -32,6 +32,12 @@
     "minimizeToTray": "Minimize to tray",
     "exitAndDisconnect": "Exit and disconnect",
     "coreFatalTitle": "Core connection error",
+    "databaseStartupFailed": "Database preparation failed",
+    "diagnosticsDetails": "Error details",
+    "copyDiagnostics": "Copy diagnostics",
+    "openLogs": "Open logs",
+    "diagnosticsCopied": "Diagnostics copied",
+    "diagnosticsActionFailed": "The action could not be completed. Please try again.",
     "coreFatalDescription": "The core service has stopped or is not responding. Exit and reopen Termous.",
     "exit": "Exit app",
     "loading": "Loading",
@@ -166,28 +172,38 @@
     "conversation": {
       "jumpToLatest": "Jump to latest message"
     },
-    "launch": {
-      "action": "Ask Agent",
-      "title": {
-        "workbench": "Handle the terminal connection for {{name}}",
-        "files": "Handle the file connection for {{name}}",
-        "host": "Handle host {{name}}",
-        "profile": "Handle access profile {{name}}",
-        "forwardFailure": "Investigate port forward {{name}}"
-      },
-      "summary": {
-        "workbench": "SSH connection status: {{status}}",
-        "files": "File connection status: {{status}}",
-        "host": "Source: host management",
-        "profile": "Access type: {{technology}}",
-        "forwardFailure": "Forward status: {{status}}; phase: {{phase}}"
-      },
-      "prompt": {
-        "workbench": "Inspect this terminal connection and help me handle the current issue.",
-        "files": "Inspect this file connection and help me handle the current issue.",
-        "host_profile": "Inspect this host or access profile and help me handle the current issue.",
-        "forward_failure": "Analyze this port forwarding failure and suggest how to resolve it."
+    "terminalReference": {
+      "confirmTitle": "Switch SSH connection?",
+      "confirmDescription": "The selection will be added to your draft. Existing content will be kept, and nothing will be sent automatically.",
+      "confirmReplace": "Switch and add",
+      "currentAssociation": "Currently linked",
+      "nextAssociation": "Switch to",
+      "profileUnavailable": "Connection name unavailable",
+      "unknownHost": "Current SSH host",
+      "profileIdentifier": "Connection profile ID",
+      "sessionIdentifier": "SSH session ID",
+      "completed": "Terminal content added",
+      "completedDescription": "Added to your draft. Review it before sending.",
+      "failed": "Could not add terminal content",
+      "configuration": "Configure an available AI model first",
+      "retained": "The selected terminal content from {{host}} has been preserved.",
+      "openSettings": "Open AI assistant settings",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "The source SSH session disconnected or changed. Restore the connection and select the text again.",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "The target conversation was deleted, archived, or is unavailable. The selected text is preserved.",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "The target has an active task or queued messages, so its SSH association cannot be changed yet.",
+        "AGENT_TERMINAL_REFERENCE_EDIT_CHANGED": "The queued-message edit changed. Please confirm the reference target again.",
+        "AGENT_TERMINAL_REFERENCE_EDIT_SAVING": "The queued message is being saved. Your selected text is preserved; retry after saving finishes.",
+        "AGENT_TERMINAL_REFERENCE_ATTACHMENT_REJECTED": "The reference was not added. Check attachment limits and the edit state before retrying.",
+        "AGENT_TERMINAL_REFERENCE_INVALID": "The selection is empty, contains unsupported characters, or exceeds 256 KiB. Select the text again.",
+        "AGENT_REVISION_CONFLICT": "The target conversation changed. Its state has been refreshed; please try again.",
+        "AGENT_RUN_CONFLICT": "The target is running, so its SSH association cannot be changed yet.",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The source SSH session is unavailable. Check the connection before retrying.",
+        "unknown": "The operation did not finish. Your selected text is preserved. Check the connection and target before retrying."
       }
+    },
+    "launch": {
+      "action": "Ask Agent"
     },
     "message": {
       "copied": "Copied",
@@ -198,6 +214,13 @@
       "agent": "Agent",
       "failed": "This response failed",
       "failure": {
+        "mcpProtocolMismatch": "The AI assistant and MCP tool service use incompatible protocol versions.",
+        "mcpEndpointInvalid": "The MCP tool service address is invalid.",
+        "mcpEndpointViolation": "The MCP tool service address does not meet local connection requirements.",
+        "mcpToolNameConflict": "MCP tool names are duplicated or invalid. The AI assistant could not start.",
+        "mcpToolSchemaInvalid": "An MCP tool parameter definition is invalid. The AI assistant could not start.",
+        "mcpToolsEmpty": "The MCP tool service returned no available tools. The AI assistant could not start.",
+        "mcpConnectionFailed": "The AI assistant could not connect to the MCP tool service. Prepare or repair it, then try again.",
         "streamInterrupted": "The model connection was interrupted before the response finished. Check your network and try again.",
         "timeout": "The model response timed out. Try again later.",
         "rateLimited": "The model service hit a rate or quota limit. Check your quota and try again later.",
@@ -238,6 +261,17 @@
       "contextWindow": "This run's model context window: {{tokens}} tokens.",
       "duration": "Duration: {{duration}}."
     },
+    "retry": {
+      "waiting": "Waiting to reconnect · {{attempt}}/{{max}}",
+      "requesting": "Reconnecting · {{attempt}}/{{max}}",
+      "completed": "Reconnected",
+      "failed": "Reconnection failed",
+      "cancelled": "Reconnection cancelled",
+      "compaction": "Summary request",
+      "wait": "Retry in {{seconds}} s",
+      "attempts_one": "{{count}} retry made",
+      "attempts_other": "{{count}} retries made"
+    },
     "reasoning": {
       "running": "Thinking",
       "completed": "Reasoning"
@@ -275,6 +309,43 @@
         "manual": "Manually added"
       }
     },
+    "fileResource": {
+      "errorTitle": "Referenced file profile is unavailable",
+      "details": "Referenced file connection",
+      "profile": "File profile",
+      "session": "Profile ID",
+      "aria": "Referenced file connection for {{host}}, {{status}}",
+      "tooltip": "File connection · {{host}} · {{status}}",
+      "selectLabel": "Choose another file profile",
+      "selectPlaceholder": "Choose an available file profile",
+      "noCandidates": "No other file profiles available",
+      "removeTitle": "Remove file connection reference?",
+      "removeDescription": "Remove the file profile reference for {{host}}. Keep the draft, attachments and message history.",
+      "confirmTitle": "Replace file connection reference?",
+      "confirmDescription": "Replace the current file profile reference and keep the terminal reference and draft.",
+      "hint": {
+        "checking": "Checking the file profile before starting a task.",
+        "unavailable": "The file profile is unavailable. Replace or remove its reference. Closing or disconnecting the original tab does not invalidate the reference.",
+        "stale": "The file profile was deleted or its host or SSH association changed. Replace or remove its reference."
+      }
+    },
+    "connectionReference": {
+      "completed": "Connection referenced",
+      "failed": "Could not reference connection",
+      "confirmDescription": "This replaces the terminal connection reference. The file connection reference and existing draft are preserved.",
+      "confirmReplace": "Replace reference",
+      "retained": "The connection reference for {{host}} is retained. Complete AI assistant setup first.",
+      "completedDescription": "The connection is now referenced by the selected conversation.",
+      "errors": {
+        "AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE": "The source connection or profile is no longer valid. Check it and reference it again.",
+        "AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE": "The target conversation was deleted, archived, or is unavailable. Select another conversation.",
+        "AGENT_TERMINAL_REFERENCE_BINDING_LOCKED": "The target has a running task or queued messages. Its connection references cannot be changed yet.",
+        "AGENT_REVISION_CONFLICT": "The target conversation was updated. Its state has been refreshed; try again.",
+        "AGENT_RUN_CONFLICT": "The target is running. Its references cannot be changed yet.",
+        "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The referenced connection or profile is unavailable. Check it, then replace or remove the reference.",
+        "unknown": "The connection reference was not completed. Check the source and target conversation, then try again."
+      }
+    },
     "resource": {
       "details": "Referenced SSH connection",
       "host": "Host",
@@ -289,7 +360,7 @@
       },
       "hint": {
         "checking": "Waiting for the latest SSH session snapshot from Core. The task will not be submitted until it is verified.",
-        "unavailable": "This connection is not ready. Your draft is preserved. If the original session disconnected, reconnect and explicitly replace the reference, or detach it.",
+        "unavailable": "This connection is not ready. Your draft is preserved. Recover the connection, replace the reference, or detach it.",
         "stale": "The original connection was closed or Core restarted. A new connection using the same profile will not be selected automatically."
       },
       "aria": "Referenced SSH connection for {{host}}, {{status}}",
@@ -303,6 +374,35 @@
       "removeTitle": "Detach SSH connection?",
       "removeDescription": "This Agent session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
       "activeRunLocked": "Connections cannot be replaced or detached while a task is running",
+      "recovery": {
+        "details": "Recover the referenced SSH connection",
+        "title": "Connection recovery",
+        "completed": "SSH connection recovered",
+        "completedDescription": "The reference has been updated. Queued messages remain paused until you resume them.",
+        "infrastructureUnavailable": "The AI runtime is not ready, so new sessions and tasks are disabled. Existing sessions remain accessible, and the connection service checks SSH recovery independently.",
+        "recover": "Recover connection",
+        "retry": "Retry recovery",
+        "cancel": "Cancel recovery",
+        "checking": "Checking whether the original profile can be recovered.",
+        "description": "Reconnect using the original profile and update this reference. Queued messages stay paused until you resume them.",
+        "uncertain": "Checking the recovery result. No duplicate connection will be created. You can retry to check and continue the original request.",
+        "failed": "The connection could not be recovered. Retry when ready. The original reference and queued messages are preserved.",
+        "status": {
+          "connecting": "Creating a new connection. Queued messages are paused.",
+          "waiting_host_trust": "Waiting for host identity confirmation. Review the host trust prompt.",
+          "cancelling": "Cancelling recovery and cleaning up its connection.",
+          "failed": "Recovery failed. The original reference and queued messages are preserved.",
+          "cancelled": "Recovery cancelled. The original reference and queued messages are preserved."
+        },
+        "blocked": {
+          "no_binding": "This session has no SSH reference.",
+          "archived": "Connections cannot be recovered for archived sessions.",
+          "active_run": "Wait for this session's current task to finish before recovering the connection.",
+          "profile_unavailable": "The original SSH profile is unavailable. Replace or detach the reference.",
+          "mcp_unavailable": "The AI connection service is unavailable. Check the assistant settings.",
+          "closing": "Core is shutting down. Connection recovery is temporarily unavailable."
+        }
+      },
       "error": {
         "unavailableTitle": "Referenced SSH connection unavailable",
         "conflictTitle": "Connection reference changed",
@@ -343,6 +443,8 @@
       "preview": "Preview attachment",
       "previewName": "Preview {{name}}",
       "previewFailed": "Could not load the attachment preview",
+      "terminalReference": "Terminal reference · {{host}}",
+      "terminalReferenceLines": "{{count}} lines",
       "retryName": "Retry {{name}}",
       "removeName": "Remove {{name}}",
       "size": "{{size}}",
@@ -355,6 +457,7 @@
         "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "Image attachments must total 20 MiB or less.",
         "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "The image type does not match its content. Only PNG, JPEG, and WebP are supported.",
         "AGENT_ATTACHMENT_TEXT_ENCODING": "Text attachments must be valid UTF-8 and cannot contain NUL characters.",
+        "AGENT_ATTACHMENT_ORIGIN_INVALID": "The terminal reference source is invalid. Select the terminal content again.",
         "AGENT_ATTACHMENT_DELETE_FAILED": "The attachment could not be deleted. Try again.",
         "AGENT_ATTACHMENT_LIMIT": "The attachment count or size exceeds the allowed limit.",
         "AGENT_ATTACHMENT_CONFLICT": "The attachment changed. Refresh and try again.",
@@ -431,7 +534,7 @@
     },
     "readiness": {
       "title": "Prepare the Agent runtime",
-      "description": "The Agent works through Termous MCP and read-only Skill resources. Initial setup enables MCP, creates a managed client with all {{count}} current scopes, and keeps per-operation approval enabled; models remain managed under Settings > Agent.",
+      "description": "The Agent uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > Agent.",
       "prepare": "Set up or repair",
       "loadFailed": "Agent runtime status is temporarily unavailable"
     },
@@ -624,6 +727,7 @@
     "global": {
       "view": "View update",
       "aboutTooltip": "About Termous",
+      "aboutMenuLabel": "About",
       "checkingTooltip": "Checking for updates",
       "openFailed": "Could not open About Termous",
       "availableTitle": "Termous {{version}} is available",
@@ -1801,7 +1905,17 @@
       "copyLink": "Copy link",
       "openPath": "Open in file manager",
       "copyPath": "Copy path",
-      "reconnect": "Reconnect"
+      "reconnect": "Reconnect",
+      "referenceSelection": "Send to AI assistant"
+    },
+    "aiReference": {
+      "sourceUnavailable": "Requires a ready Linux SSH connection",
+      "newSession": "New conversation",
+      "search": "Search conversation titles",
+      "loading": "Loading conversations…",
+      "noSessions": "No existing conversations",
+      "noMatches": "No matching conversations",
+      "binding_locked": "Running or queued; linked host cannot be changed"
     },
     "completion": {
       "label": "Command suggestions",
@@ -1825,6 +1939,67 @@
         "history": "History",
         "directory": "Directory",
         "other": "Other"
+      }
+    },
+    "aiCompletion": {
+      "title": "AI command completion",
+      "close": "Close AI command completion",
+      "prompt": "Describe what you want to do",
+      "placeholder": "Describe the command you need…",
+      "inputHint": "Enter to generate · Shift+Enter for a new line",
+      "generate": "Generate command",
+      "generateMore": "Generate another",
+      "candidatesLabel": "Command suggestions",
+      "listHint": "↑↓ to select · Enter or double-click to insert",
+      "generating": "Generating command…",
+      "cancel": "Cancel generation",
+      "retry": "Generate again",
+      "append": "Insert into terminal",
+      "alreadyEntered": "Already entered",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed. Try again.",
+      "defaultModel": "Default model",
+      "modelLoading": "Loading…",
+      "modelUnset": "Not configured",
+      "modelNotConfigured": "Choose a default model in AI settings first.",
+      "modelUnavailable": "The default model is unavailable. Check AI settings.",
+      "modelStatusFailed": "The default model status could not be loaded.",
+      "desktopRequired": "Use the desktop app for AI command completion.",
+      "requestFailed": "The command could not be generated. Try again.",
+      "errors": {
+        "AI_COMPLETION_CANCEL_FAILED": "The cancellation request could not be completed. Try again.",
+        "AI_COMPLETION_PROMPT_TOO_LONG": "The input is too long. Shorten the description and try again.",
+        "AI_COMPLETION_INVALID_RESULT": "The model did not return a valid command. Generate again.",
+        "AI_COMPLETION_BRIDGE_FAILED": "The AI command completion service could not be reached. Try again.",
+        "TERMINAL_AI_CANCELLED": "Command generation was cancelled.",
+        "TERMINAL_AI_UNAVAILABLE": "AI command completion is temporarily unavailable.",
+        "TERMINAL_AI_BUSY": "A command is already being generated. Try again shortly.",
+        "TERMINAL_AI_TIMEOUT": "Command generation timed out. Try again.",
+        "TERMINAL_AI_RESPONSE_INVALID": "The completion service returned an invalid result. Try again.",
+        "TERMINAL_AI_WORKER_EXITED": "The command generation service stopped. Try again.",
+        "TERMINAL_AI_WORKER_FAILED": "The command generation service encountered a problem. Try again.",
+        "TERMINAL_AI_BOOTSTRAP_FAILED": "The command generation request could not be prepared. Try again.",
+        "TERMINAL_AI_OUTPUT_TRUNCATED": "Command generation did not finish. Generate again.",
+        "TERMINAL_AI_OUTPUT_INVALID": "The model returned an invalid command format. Generate again.",
+        "TERMINAL_AI_REQUEST_FAILED": "The command could not be generated. Try again.",
+        "TERMINAL_AI_BOOTSTRAP_INVALID": "The command generation configuration is invalid. Check AI settings.",
+        "TERMINAL_AI_REQUEST_INVALID": "This request could not be submitted. Enter the description again.",
+        "COMPLETION_DISABLED": "AI command completion is off. Enable it in terminal settings.",
+        "COMPLETION_SESSION_NOT_FOUND": "This terminal session no longer exists.",
+        "COMPLETION_SESSION_NOT_READY": "The terminal session is not ready. Connect and try again.",
+        "COMPLETION_STALE_PROMPT": "The terminal input has changed. Open AI command completion again.",
+        "COMPLETION_INVALID_QUERY": "The current input is unavailable. Enter the description again.",
+        "COMPLETION_UNAVAILABLE": "AI command completion is currently unavailable for this terminal.",
+        "AGENT_NOT_READY": "The local AI service is not ready. Try again shortly.",
+        "AGENT_MODEL_UNAVAILABLE": "The default model is unavailable. Check AI settings.",
+        "AGENT_REVISION_CONFLICT": "The model credentials have changed. Check AI settings and try again."
+      },
+      "openSettings": "Open AI settings",
+      "appendHint": {
+        "mismatch": "The current input does not match this command. Copy it to edit manually.",
+        "exact": "This command is already on the terminal input line.",
+        "stale": "The terminal input has changed. Copy the command or generate again."
       }
     },
     "tabMenu": {
@@ -3388,6 +3563,8 @@
     "connectionLimits": "Existing terminal state, in-progress file work, and established TCP connections cannot be resumed or restored automatically.",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
+    "completionAiEnabled": "Enable AI command completion",
+    "completionAiHint": "Use the default AI model to turn natural language into a command, then confirm to insert it.",
     "completionHint": "Suggest commands using Bash completion, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
@@ -3458,6 +3635,10 @@
         "terminal_completion_accept": {
           "name": "Accept completion suggestion",
           "description": "Accepts the current suggestion. A non-exact match is inserted without running the command."
+        },
+        "terminal_ai_completion_open": {
+          "name": "Open AI command completion",
+          "description": "Describe a task in the current terminal and generate a command with the default AI model."
         },
         "terminal_search_open": {
           "name": "Open terminal search",
@@ -3610,7 +3791,7 @@
       "operationFailed": "The Agent setting operation failed",
       "readiness": {
         "title": "Runtime readiness",
-      "description": "Check MCP, Skills, and the default model. Initial setup creates a managed client with per-action approval.",
+      "description": "Check MCP, Skills, and the default model to prepare or repair the Agent runtime.",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
@@ -3645,15 +3826,13 @@
       },
       "policy": {
         "title": "MCP approval policy",
-        "description": "This policy applies only to the Agent-managed client and does not change external MCP clients.",
+        "description": "The built-in Agent always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
         "approval": "Tool execution approval",
         "review": "Ask every time",
         "bypass": "No confirmation",
         "reviewHint": "Sensitive operations continue to use the global MCP approval interface.",
         "bypassHint": "The Agent can execute tools within its granted scopes without confirmation. Use with care.",
-        "unavailable": "Complete initial setup to manage the approval policy.",
-        "scopeOutdated": "{{current}}/{{required}} scopes are granted. New scopes are not granted automatically.",
-        "sync": "Sync scopes"
+        "unavailable": "Complete initial setup to manage the approval policy."
       },
       "models": {
         "default": "Default",
@@ -3937,7 +4116,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP access",
-      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, SFTP files, port forwarding, code snippets, and remote operations.",
+      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, file management, port forwarding, code snippets, and remote operations.",
       "state": {
         "disabled": "Disabled",
         "enabled": "Enabled"
@@ -3973,14 +4152,15 @@
         "commands_execute": "Execute commands",
         "commands_read": "Read command results",
         "commands_interrupt": "Interrupt commands",
-        "sftp_read": "Read SFTP files",
-        "sftp_connect": "Connect SFTP sessions",
-        "sftp_close": "Close SFTP sessions",
-        "sftp_write": "Modify SFTP files",
-        "sftp_batch_rename": "Advanced batch rename",
-        "sftp_file_search": "Global file search",
-        "sftp_transfer": "Start file transfers",
-        "sftp_cancel": "Cancel SFTP tasks",
+        "files_read": "Read files",
+        "files_connect": "Connect file sessions",
+        "files_close": "Close file sessions",
+        "files_write": "Modify files",
+        "files_delete": "Delete files",
+        "files_batch_rename": "Advanced batch rename",
+        "files_search": "Global file search",
+        "files_transfer": "Start file transfers",
+        "files_cancel": "Cancel file tasks",
         "system_read": "Read system information",
         "processes_read": "Read processes",
         "processes_terminate": "Terminate processes",
@@ -4004,14 +4184,15 @@
         "commands_execute": "Send commands to SSH sessions; by default, every request requires approval in Termous.",
         "commands_read": "Read tasks, output, and exit codes created by this client.",
         "commands_interrupt": "Request interruption of command tasks created by this client.",
-        "sftp_read": "List directories, inspect files, and read size-limited text content.",
-        "sftp_connect": "Create SFTP sessions owned and managed by this client from saved hosts.",
-        "sftp_close": "Close SFTP sessions created by this client.",
-        "sftp_write": "Save text, create directories, rename entries, or change permissions; by default, each operation requires approval in Termous.",
-        "sftp_batch_rename": "Preview and apply rule-based batch renames to entries in one remote directory; by default, execution requires approval in Termous.",
-        "sftp_file_search": "Search file and directory names across the remote Linux host using its installed fd tool; this read-only permission does not install or update remote software.",
-        "sftp_transfer": "Start uploads, downloads, or cross-host copies; by default, each transfer requires approval in Termous.",
-        "sftp_cancel": "Cancel file transfer or batch rename tasks created by this client.",
+        "files_read": "List directories, inspect files, and read size-limited text content.",
+        "files_connect": "Create file sessions owned and managed by this client from saved hosts.",
+        "files_close": "Close file sessions created by this client.",
+        "files_write": "Save text, create directories, rename entries, or change permissions; by default, each operation requires approval in Termous.",
+        "files_delete": "Preview and delete selected remote files, directories, or symbolic links; execution requires approval by default, and completed deletions cannot be undone.",
+        "files_batch_rename": "Preview and apply rule-based batch renames to entries in one remote directory; by default, execution requires approval in Termous.",
+        "files_search": "Search file and directory names across the remote Linux host using its installed fd tool; this read-only permission does not install or update remote software.",
+        "files_transfer": "Start uploads, downloads, or cross-host copies; by default, each transfer requires approval in Termous.",
+        "files_cancel": "Cancel file transfer, batch rename, or deletion tasks created by this client.",
         "system_read": "Read system, hardware, and network summaries for the Linux host behind an SSH session.",
         "processes_read": "List processes and read process details, resource usage, and listening ports.",
         "processes_terminate": "Send a termination signal to a process; by default, every request requires approval in Termous.",
@@ -4030,7 +4211,7 @@
         "hosts": "Hosts and discovery",
         "sessions": "SSH sessions",
         "commands": "Session command console",
-        "sftp": "SFTP files",
+        "files": "File management",
         "system": "System information",
         "processes": "Process management",
         "services": "System services",
@@ -4043,7 +4224,7 @@
         "hosts": "View saved hosts and network reachability",
         "sessions": "View or control SSH connections in Termous",
         "commands": "Run commands and read their results",
-        "sftp": "Connect to remote filesystems and perform controlled file operations",
+        "files": "Connect to remote filesystems and perform controlled file operations",
         "system": "Read Linux system, hardware, and network summaries",
         "processes": "Inspect processes and perform controlled termination",
         "services": "Inspect and manage systemd services",
@@ -4077,9 +4258,9 @@
       "approvalBypassed": "No approval",
       "highRisk": "High risk",
       "approvalBypass": "Skip approvals",
-      "approvalBypassHint": "Skip per-operation confirmation for sensitive command, SFTP, remote-operation, port-forwarding, and snippet changes; access remains limited to the scopes granted above, and Host Key confirmation is never skipped.",
+      "approvalBypassHint": "Skip per-operation confirmation for sensitive command, file-management, remote-operation, port-forwarding, and snippet changes; access remains limited to the scopes granted above, and Host Key confirmation is never skipped.",
       "approvalBypassTitle": "This client will run sensitive operations directly",
-      "approvalBypassDescription": "Approved command execution, SFTP writes, file transfers, remote operations, port forwarding, and snippet changes will no longer show a confirmation. This option grants no additional scopes, and Host Key confirmation still appears; enable it only for fully trusted clients.",
+      "approvalBypassDescription": "Approved command execution, file writes, file transfers, remote operations, port forwarding, and snippet changes will no longer show a confirmation. This option grants no additional scopes, and Host Key confirmation still appears; enable it only for fully trusted clients.",
       "permissionsEmpty": "Select at least one permission.",
       "closeScopeTitle": "This permission can close SSH sessions",
       "closeScopeDescription": "The client can directly close any current SSH session without another confirmation. Grant this only to trusted clients.",
@@ -4114,16 +4295,31 @@
         "description": "An external client is requesting an operation that requires your approval.",
         "client": "Requesting client",
         "command": "Command to run",
-        "sftpAction": {
+        "filesAction": {
           "saveText": "Save remote text",
           "mkdir": "Create remote folder",
           "rename": "Rename remote entry",
+          "delete": "Delete remote entries",
           "chmod": "Change remote permissions",
           "upload": "Upload local files",
           "download": "Download remote files",
           "remoteCopy": "Copy files between hosts",
           "batchRename": "Batch rename remote entries",
-          "other": "SFTP file operation"
+          "other": "File operation"
+        },
+        "deletePaths": "Selected top-level paths",
+        "deleteWarning": "Deletion cannot be undone. Symbolic links are removed without following their targets.",
+        "deleteScope": "Delete scope",
+        "deleteTotalCount": "Total entries to delete",
+        "deleteRecursive": {
+          "enabled": "Includes directory contents",
+          "disabled": "Selected entries only"
+        },
+        "deleteCounts": {
+          "top_level_count": "Top-level entries",
+          "file_count": "Files",
+          "directory_count": "Directories",
+          "symlink_count": "Symbolic links"
         },
         "remoteOpsDomain": {
           "system": "System information",

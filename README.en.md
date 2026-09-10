@@ -31,7 +31,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 | Terminals and remote files require constant switching | Use SFTP, directory following, bookmarks, and the workstation file panel in the same session |
 | The same diagnostics must run on several servers | Send once to the current, selected, or all connected sessions and review each result separately |
 | Common commands and server actions are repeated | Reduce repetitive work with snippets, command aliases, scheduled tasks, and remote operations panels |
-| Troubleshooting requires copying information between servers and AI tools | Reference sessions, files, or failures in the built-in AI assistant, or authorize external tools through MCP |
+| Troubleshooting requires copying information between servers and AI tools | Associate SSH or file connections from session tabs, send selected terminal text to the built-in AI assistant, or authorize external tools through MCP |
 
 ## Quick start
 
@@ -39,7 +39,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 2. Enter the host details on the Hosts page and add SSH or remote desktop connections in the connection configuration tab. Select a credential for SSH. When creating a host, fill in the tabs before saving everything together, or save the host without a connection.
 3. Click "Connect" in the top bar, choose a host and a specific connection, and open a terminal, file session, or remote desktop.
 4. The SSH workstation provides files, monitoring, processes, services, Docker, firewall, and other tools on the right. Use the bottom session command console for several connected sessions, or the standalone Files page for directories, search, and transfers.
-5. To use the AI assistant, complete its initial setup, add a model provider under Settings → AI Assistant, and choose a model. To connect an external AI tool, create a client under Settings → MCP and copy its connection configuration.
+5. To use the AI assistant, complete its initial setup, add a model provider under Settings → AI Assistant, and choose a model. Right-click a terminal or file session tab and choose "Ask Agent" to associate it with a new conversation or search for an existing one, then enter your question. To connect an external AI tool, create a client under Settings → MCP and copy its connection configuration.
 6. Reopen the feature tour at any time to learn about credentials, host connections, the workstation, file management, and key settings.
 
 ## Highlights
@@ -52,6 +52,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - Interrupt one or all targets. Collapsing the console does not interrupt a task, and its height can be adjusted by dragging.
 - Context-aware smart completion combines Termous-managed aliases, safe single-line snippets, remote command history, current-directory suggestions, and Bash commands. Each source can be enabled or disabled independently.
 - Completion inserts a candidate without executing it; Tab always remains available for the remote shell's native completion.
+- Optional AI command completion uses the default model from AI settings to turn a natural-language request into a single-line command and explanation. Copy or insert a candidate, generate another, or cancel generation. Enable this option in terminal settings; it is off by default, and you confirm execution after insertion.
 - Terminal search and a context-aware menu for copy, find, paste, opening supported HTTP/HTTPS links, and locating remote paths in the workstation file panel.
 - Bidirectional directory following between the terminal and workstation file panel, with compact remote bookmarks.
 - Local PowerShell / CMD sessions on Windows.
@@ -112,7 +113,12 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 
 - Connect a custom model service, manage its model catalog, and choose models and run settings per conversation. A working model service must be configured separately.
 - Follow streamed replies, reasoning, tool execution, and approval progress, and stop tasks when needed.
-- Attach text or images, paste images, ask from host, workstation, file, or forwarding failure entries, and reference a connected SSH session.
+- Temporary model request failures are retried automatically up to three times, with reconnection status and the error reason shown. If a streamed response is interrupted, the partial output remains in history while the response is regenerated; completed tool operations are not repeated by the retry.
+- Attach text or images and paste images. Send selected terminal text from its context menu to a new or specified conversation; the selection is attached with its source information.
+- The "Ask Agent" action on terminal and file session tabs supports conversation search and pinned indicators. Passing a connection only establishes a reference; it does not prefill or send a question, or overwrite an existing draft.
+- Each conversation can reference one SSH session and one file configuration at the same time. Replacing a reference of the same type requires confirmation; inspect, replace, or remove either independently while preserving drafts, attachments, and history.
+- When an SSH reference becomes unavailable, use "Recover connection" in its card details to connect with the original SSH configuration and update the reference once ready. Host-key confirmation, cancellation, and retry are supported. Existing queued messages are preserved and paused; resume the queue manually afterward. Recovery does not replay historical commands.
+- File references use a saved file configuration, and the assistant operates through its own file session. Closing or disconnecting the original file tab does not invalidate the reference. Replace or remove it if the configuration is deleted or its host/SSH configuration association becomes invalid.
 - Add messages while a task runs, reorder or edit pending messages, or choose immediate execution.
 - Rename, group, pin, search, reorder, archive, and restore conversations. New messages do not change your manual ordering.
 - Automatically compact long conversations while preserving the complete chat history. The default threshold is 80%, adjustable from 50% to 95%; you can also request compaction before the next send and view its status, before-and-after usage, and duration.
@@ -122,7 +128,9 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 ### MCP and external AI tools
 
 - Manage the service and clients under Settings → MCP, assign permissions to each tool, regenerate tokens, or remove access.
-- Supported operations cover SSH commands, system and process management, systemd, Docker, scheduled tasks, SFTP files, port forwarding, and snippets.
+- Supported operations cover SSH commands, system and process management, systemd, Docker, scheduled tasks, file management, port forwarding, and snippets.
+- File tools use `termous.files.*` names and `files:*` permissions. Existing client configuration is migrated automatically; external tool calls must use the new names.
+- File deletion requires the separate `files:delete` permission, previews the scope before execution under the client's approval policy, and supports asynchronous tasks, per-item results, and cancellation. Upgrading does not automatically grant deletion access to existing external clients.
 - Approve operations individually or allow a trusted client to run without per-operation approval. Granted permissions and host-key confirmation still apply.
 - Use the address and client token provided in Settings and keep Termous running. The address may change after an application restart; use the current address shown there.
 - [Termous Skills](https://github.com/Countra/termous-skills) provides workflows that can be installed in external clients as needed. These skills are already included with the built-in AI assistant.
@@ -133,6 +141,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - Dark and light themes.
 - Shortcut settings can search actions, record keys, detect conflicts, and restore defaults for common terminal, smart completion, file list, and remote editor actions.
 - In-app update checks, downloads, and installation.
+- The startup window shows database checks and upgrades, with diagnostics retained on failure. Open About from the Help menu to view application information.
 - Encrypted `.tobp` backups with full, merge, and selective restore modes.
 - A reusable feature tour covering host connections, file bookmarks, local directories, transfers, and key settings.
 - Connection cleanup reminder before closing.
@@ -155,7 +164,8 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 Termous is a desktop workstation that runs locally. Credentials are kept in secure storage on the device, and SSH host identity is verified through a unified fingerprint trust flow. Encrypted backups do not export the device's master key, and downloaded updates are verified before installation.
 
 - When using the AI assistant, conversation content, selected attachments, and relevant tool results are sent to your configured model service. Conversation history is stored locally, and model service keys are encrypted on the device.
-- External MCP clients have separate tokens and permissions. The built-in AI assistant has its own approval setting. Skipping per-operation approval does not grant additional permissions or bypass host-key confirmation.
+- AI command completion sends your request, current input, and shell, directory, and platform information to the default model service. It does not create a conversation task or persist the request and generated results.
+- External MCP clients have separate tokens and manually granted permissions. The built-in AI assistant automatically receives the current MCP capabilities and has its own approval setting, which upgrades preserve. Skipping per-operation approval does not bypass host-key confirmation or permission checks.
 - Connection proxies accept only unauthenticated HTTP and SOCKS5 endpoints so proxy credentials do not enter host configuration, logs, or backups.
 - The session command console sends only to SSH sessions confirmed at an idle prompt and locks their terminal input while a task runs. Command text and results are not written to the database, backups, or logs.
 - Smart completion keeps a limited amount of remote history and directory index data only in memory for the current SSH session. It is released when the session closes and is not persisted to local data, backups, or logs.

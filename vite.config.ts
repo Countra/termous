@@ -8,6 +8,7 @@ const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
   : {
       main: 'electron/main.ts',
       'agent-worker': 'electron/agent/worker.ts',
+      'terminal-completion-worker': 'electron/terminalCompletion/worker.ts',
     }
 
 // https://vite.dev/config/
@@ -22,6 +23,7 @@ export default defineConfig({
         input: {
           preload: path.join(__dirname, 'electron/preload.ts'),
           'update-preload': path.join(__dirname, 'electron/update-preload.ts'),
+          'startup-preload': path.join(__dirname, 'electron/startup-preload.ts'),
         },
         vite: {
           build: {

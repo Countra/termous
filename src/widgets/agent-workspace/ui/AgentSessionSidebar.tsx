@@ -25,6 +25,7 @@ export interface AgentSessionSidebarProps {
   groups?: AgentSessionGroup[]
   selectedSessionId?: string
   disabled: boolean
+  createDisabled?: boolean
   queuedSessionId?: string
   pendingIds?: ReadonlySet<string>
   onCreate: (groupId?: string) => void
@@ -125,7 +126,7 @@ export function AgentSessionSidebar(props: AgentSessionSidebarProps) {
       pointerProps={group ? handlePointerProps({ kind: 'group', id: group.id }) : undefined}
       dropActive={drop?.kind === 'group' && drop.id === group?.id && !pinned || drop?.kind === 'pin-area' && pinned}
       dropPlacement={drop?.kind === 'group-order' && drop.id === group?.id ? drop.placement : undefined}
-      execute={execute} onToggle={() => toggle(key)} onCreate={props.onCreate} onRename={props.onRenameGroup}
+      execute={execute} onToggle={() => toggle(key)} onCreate={props.createDisabled ? undefined : props.onCreate} onRename={props.onRenameGroup}
       onDelete={props.onDeleteGroup ? setDeletingGroup : undefined} onMove={props.onMoveGroup} onEditingChange={changeEditing}
     >{items.map((session) => renderRow(session, pinned, items))}</AgentSessionGroupSection>
   }
@@ -136,7 +137,7 @@ export function AgentSessionSidebar(props: AgentSessionSidebarProps) {
         <div className={styles['session-sidebar-title']}>
           <strong>{t('agent.sessions.title')}</strong>
           <span>
-            <Tooltip title={t('agent.sessions.new')}><Button type="text" disabled={disabled} aria-label={t('agent.sessions.new')} icon={<MessageSquarePlus size={15} />} onClick={() => props.onCreate()} /></Tooltip>
+            <Tooltip title={t('agent.sessions.new')}><Button type="text" disabled={disabled || props.createDisabled} aria-label={t('agent.sessions.new')} icon={<MessageSquarePlus size={15} />} onClick={() => props.onCreate()} /></Tooltip>
             {props.onCreateGroup ? <Tooltip title={t('agent.sessions.createGroup')}><Button type="text" disabled={disabled || pending.has('group-create')} aria-label={t('agent.sessions.createGroup')} icon={<FolderPlus size={15} />} onClick={() => setCreatingGroup(true)} /></Tooltip> : null}
             {props.onClose ? <Tooltip title={t('app.close')}><Button type="text" aria-label={t('app.close')} icon={<PanelLeftClose size={16} />} onClick={props.onClose} /></Tooltip> : null}
           </span>

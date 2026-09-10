@@ -42,6 +42,18 @@ const items: CompletionItem[] = [
 ]
 
 describe('终端补全候选交互', () => {
+  it('没有自定义补全快捷键时仍保留 AI 页脚入口，不接受普通候选', () => {
+    const onOpenAi = vi.fn()
+    const onAccept = vi.fn()
+    render(<TerminalCompletionPopup open items={items} selectedIndex={0} themeMode="dark"
+      position={{ left: 0, top: 0, maxWidth: 320, maxHeight: 240, placement: 'below' }}
+      onSelectedIndexChange={vi.fn()} onAccept={onAccept} onOpenAi={onOpenAi} />)
+    fireEvent.click(screen.getByRole('button', { name: 'terminal.aiCompletion.title' }))
+    expect(onOpenAi).toHaveBeenCalledOnce()
+    expect(onAccept).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+  })
+
   it('鼠标悬停只展示视觉反馈，左键单击仍选择并接受目标候选', () => {
     const onSelectedIndexChange = vi.fn()
     const onAccept = vi.fn()

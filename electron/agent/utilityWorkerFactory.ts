@@ -6,17 +6,20 @@ export interface UtilityWorkerFactoryOptions {
   modulePath: string
   cwd: string
   environment?: NodeJS.ProcessEnv
+  serviceName?: string
 }
 
 export class UtilityWorkerFactory implements AgentWorkerFactory {
   private readonly modulePath: string
   private readonly cwd: string
   private readonly environment: Record<string, string>
+  private readonly serviceName: string
 
   constructor(options: UtilityWorkerFactoryOptions) {
     this.modulePath = options.modulePath
     this.cwd = options.cwd
     this.environment = sanitizedWorkerEnvironment(options.environment ?? process.env)
+    this.serviceName = options.serviceName ?? 'Termous Agent Run'
   }
 
   create() {
@@ -24,7 +27,7 @@ export class UtilityWorkerFactory implements AgentWorkerFactory {
       cwd: this.cwd,
       env: this.environment,
       execArgv: [],
-      serviceName: 'Termous Agent Run',
+      serviceName: this.serviceName,
       stdio: 'ignore',
     })
     return new ElectronAgentWorkerProcess(child)

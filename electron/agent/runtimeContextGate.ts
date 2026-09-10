@@ -6,6 +6,7 @@ import { createRuntimeCompactionController } from './runtimeCompaction.ts'
 import type { RuntimeContextImages } from './runtimeContextImages.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { isRuntimeCheckpointInput } from './runtimeCheckpoint.ts'
+import { projectRuntimeToolHistory } from './runtimeToolHistory.ts'
 import type {
   RuntimeBootstrap,
   RuntimeCheckpointInput,
@@ -36,10 +37,11 @@ interface CompactionSource {
 export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
   let persistedCheckpoint = options.bootstrap.context.checkpoint
   let active: CompactionSource | undefined
+  const retryPositions = new Map<string, number>()
   const now = options.now ?? Date.now
   const checkpoint = persistedCheckpoint && {
     summary: persistedCheckpoint.summary,
-    retainedTail: persistedCheckpoint.retained_tail ?? [],
+    retainedTail: (persistedCheckpoint.retained_tail ?? []).map(projectRuntimeToolHistory),
     coveredRawLength: 1 + (persistedCheckpoint.retained_tail?.length ?? 0),
     tokensBefore: persistedCheckpoint.estimated_tokens,
     timestamp: now(),
@@ -119,6 +121,18 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
       if (activity.status !== 'started') active = undefined
     },
     onUsage: (usage) => { options.bridge.addUsage(usage) },
+    onRetry: async (activity) => {
+      const position = retryPositions.get(activity.retry_id) ?? options.bridge.partSequence()
+      retryPositions.set(activity.retry_id, position)
+      options.events.push('retry', { retry: {
+        ...activity, assistant_message_id: options.bootstrap.run.assistant_message_id,
+        purpose: 'compaction', after_part_sequence: position,
+      } })
+      await options.events.flush()
+      if (activity.status === 'completed' || activity.status === 'failed' || activity.status === 'cancelled') {
+        retryPositions.delete(activity.retry_id)
+      }
+    },
     onContextUsage: (usage) => {
       // 能力位独立于原生用量恢复，避免新版字段被严格解码的旧 Core 拒绝。
       const { basis, compression_status, ...legacy } = usage
@@ -149,6 +163,6 @@ export function runtimeContextFailureMessage(code: string, detail?: string) {
   if (code === 'AGENT_RUNTIME_CONTEXT_COMPRESSION_CHECKPOINT_FAILED') {
     return '摘要保存未能确认，当前回复已停止；已保存的记录仍保留，下次发送时会重新加载。'
   }
-  if (detail) return `${detail}。原始记录和上次成功摘要仍保留；下一次发送时可以重试。`
+  if (detail) return detail
   return '上下文压缩失败，已保留原始记录；下一次发送时可以重试。'
 }

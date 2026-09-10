@@ -21,7 +21,7 @@ const model: Model<'openai-responses'> = {
 
 const providerUsage = { input_tokens: 1500, output_tokens: 100, total_tokens: 1600 }
 
-test('真实 Responses 部分输出后断流保留正文并报告流中断，不重试请求', async () => {
+test('底层 Responses 部分输出后断流保留正文并报告流中断，不叠加 HTTP 重试', async () => {
   const result = await runResponsesFixture([])
 
   assert.equal(result.message.stopReason, 'error')
@@ -31,6 +31,18 @@ test('真实 Responses 部分输出后断流保留正文并报告流中断，不
   assert.equal(result.message.usage.totalTokens, 0)
   assert.equal(result.requests, 1)
   assertPartialTextPreserved(result.events)
+})
+
+test('真实 Responses 部分输出后主动停止，取消诊断不作为失败原文落入历史', async () => {
+  const result = await runResponsesFixture([], true)
+
+  assert.equal(result.message.stopReason, 'aborted')
+  assert.equal(result.outcome, 'cancelled')
+  assert.equal(result.error, undefined)
+  assert.equal(result.requests, 1)
+  assertPartialTextPreserved(result.events)
+  const part = objectValue(result.events.find((event) => event.kind === 'message_part')!.payload.message_part)
+  assert.equal(objectValue(objectValue(part.content).response_failure).error_message, '')
 })
 
 test('真实 Responses server_error 分类为服务端失败且不泄漏 Provider 敏感详情', async () => {
@@ -83,7 +95,7 @@ interface PersistedEvent {
   payload: Record<string, unknown>
 }
 
-async function runResponsesFixture(terminalEvents: Array<Record<string, unknown>>) {
+async function runResponsesFixture(terminalEvents: Array<Record<string, unknown>>, abortOnText = false) {
   const prefix = [
     { type: 'response.created', response: { id: 'resp_fixture' } },
     {
@@ -120,7 +132,12 @@ async function runResponsesFixture(terminalEvents: Array<Record<string, unknown>
     },
     streamFn: createRuntimeStreamFunction(undefined, providerFetch),
   })
-  const unsubscribe = agent.subscribe((event) => bridge.handle(event))
+  const unsubscribe = agent.subscribe((event) => {
+    bridge.handle(event)
+    if (abortOnText && event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
+      agent.abort()
+    }
+  })
   try {
     await agent.continue()
     await agent.waitForIdle()

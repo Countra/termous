@@ -28,12 +28,14 @@ import {
   decodeAgentSessionContext,
   decodeAgentSessionPage,
   decodeAgentSessionUsage,
+  decodeAgentResourceRecoveryView,
 } from '#features/agent-runtime'
 import type {
   AgentRun,
   AgentQueuedTurnMovePlacement,
-  AgentSourceContext,
   AgentResourceBindingUpdateInput,
+  AgentResourceKind,
+  AgentResourceRecoveryInput,
   AgentSessionInput,
   AgentSessionMetadataInput,
   AgentSessionMoveInput,
@@ -117,9 +119,9 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     }).then(decodeAgentSession)
   }
 
-  removeResourceBinding(id: string, expectedRevision: number, signal?: AbortSignal) {
+  removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session', signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding`, {
-      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
+      method: 'DELETE', body: { kind, expected_revision: expectedRevision }, signal,
     }).then(decodeAgentSession)
   }
 
@@ -129,10 +131,28 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     })
   }
 
-  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal) {
+  recoverResourceBinding(id: string, input: AgentResourceRecoveryInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recover`, {
+      method: 'POST', body: input, signal,
+    }).then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  resourceBindingRecovery(id: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recovery?kind=ssh_session`, { signal })
+      .then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  cancelResourceBindingRecovery(id: string, operationId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recovery/${encodeURIComponent(operationId)}/cancel`, {
+      method: 'POST', signal,
+    }).then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: import('#entities/agent').AgentAttachment['origin']) {
     const body = new FormData()
     body.append('session_id', sessionId)
     body.append('file', file, file.name)
+    if (origin) body.append('origin', JSON.stringify(origin))
     return this.request<unknown>(`${agentPath}/attachments`, {
       method: 'POST', body, signal, timeoutMs: 45_000,
     }).then(decodeAgentAttachment)
@@ -175,7 +195,6 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     client_request_id: string
     prompt: string
     attachment_ids: string[]
-    source_context?: AgentSourceContext
     force_context_compression: boolean
   }, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/queued-turns`, {

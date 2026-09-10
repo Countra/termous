@@ -1,11 +1,13 @@
+import { SessionTargetDropdown } from '#shared/ui'
 import { Bot, Folder } from 'lucide-react'
 import { startTransition, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
 import type { FileSession } from '#entities/file'
 import { HostAvatar, type Host } from '#entities/host'
 import { SessionTabButton } from '#shared/ui'
 
-interface FileSessionTabProps {
+interface FileSessionTabProps extends AgentConnectionReferenceProps {
   fileSession: FileSession
   host?: Pick<Host, 'icon_id' | 'name'>
   getHostIconUrl: (iconId: string) => string
@@ -27,6 +29,8 @@ export function FileSessionTab({
   onSelect,
   onAuxClose,
   onClose,
+  getAgentConnectionReferenceSnapshot,
+  onReferenceAgentConnection,
 }: FileSessionTabProps) {
   const { t } = useTranslation()
   const statusLabel = t(`files.sessionStatus.${fileSession.status}`)
@@ -51,6 +55,8 @@ export function FileSessionTab({
     : undefined
 
   return (
+    <SessionTargetDropdown disabled={closing}
+      {...connectionReferenceMenuProps(fileSession.file_access_profile_id ? { kind: 'file_profile', file_access_profile_id: fileSession.file_access_profile_id } : undefined, { getAgentConnectionReferenceSnapshot, onReferenceAgentConnection })}>
     <SessionTabButton
       active={active}
       role="tab"
@@ -80,5 +86,6 @@ export function FileSessionTab({
       closeLabel={`${t('app.close')} ${label}`}
       onClose={() => onClose(fileSession.id)}
     />
+    </SessionTargetDropdown>
   )
 }
