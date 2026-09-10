@@ -290,22 +290,6 @@ export type AgentLaunchIntent = { key: number } & (
       resource_reference: AgentResourceReference
       source_resource: AgentResourceState
     }
-  | ({ source_context: AgentSourceContext } & (
-  | {
-      source: 'host_profile'
-      host_id: string
-      profile_kind?: 'ssh' | 'file' | 'remote_desktop'
-      profile_id?: string
-    }
-  | {
-      source: 'forward_failure'
-      host_id?: string
-      forward_id: string
-      forward_profile_id?: string
-      status: string
-      error_code?: string
-    }
-  ))
 )
 
 export type AgentLaunchRequest = AgentLaunchIntent extends infer Intent

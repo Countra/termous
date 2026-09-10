@@ -668,7 +668,7 @@ describe('AgentPage', () => {
       await send('保留的本地草稿')
     })
     expect(harness.createSession).toHaveBeenCalledTimes(1)
-    expect(harness.startRun).toHaveBeenCalledWith('session-created', '保留的本地草稿', undefined, undefined)
+    expect(harness.startRun).toHaveBeenCalledWith('session-created', '保留的本地草稿', undefined)
   })
 
   it('取消排队消息编辑只通过状态收口清理一次新上传附件', async () => {
@@ -723,7 +723,7 @@ describe('AgentPage', () => {
     expect(harness.updateSession).not.toHaveBeenCalled()
     expect(harness.updateSessionMetadata).not.toHaveBeenCalled()
     expect(harness.startRun).toHaveBeenCalledWith(
-      'session-created', '检查生产连接', ['attachment-one'], undefined,
+      'session-created', '检查生产连接', ['attachment-one'],
     )
     expect(harness.clearCommittedAttachments).toHaveBeenCalledWith('session-created', ['attachment-one'])
   })
@@ -765,7 +765,7 @@ describe('AgentPage', () => {
     expect(harness.updateSessionMetadata).toHaveBeenCalledTimes(1)
     expect(harness.updateSession).not.toHaveBeenCalled()
     expect((harness.state.sessions as AgentSession[]).find(({ id }) => id === 'session-created')?.title).toBe('新会话')
-    expect(harness.startRun).toHaveBeenCalledWith('session-created', '这条提示不能再改标题', ['attachment-one'], undefined)
+    expect(harness.startRun).toHaveBeenCalledWith('session-created', '这条提示不能再改标题', ['attachment-one'])
   })
 
   it('附件会话创建期间继续输入，完成后迁移最新草稿', async () => {
@@ -838,7 +838,7 @@ describe('AgentPage', () => {
     })
     pending.resolve({ ...sessions[0], id: 'session-delayed' })
     await act(async () => { await sending })
-    expect(harness.startRun).toHaveBeenCalledWith('session-delayed', '已提交的原消息', undefined, undefined)
+    expect(harness.startRun).toHaveBeenCalledWith('session-delayed', '已提交的原消息', undefined)
     expect(harness.workspaceProps?.selected_session_id).toBeUndefined()
     expect(harness.workspaceProps?.draft).toBe('后开的草稿')
     await act(async () => {
@@ -967,30 +967,23 @@ describe('AgentPage', () => {
     expect(harness.workspaceProps?.draft).toBe('新选择的会话草稿')
   })
 
-  it('Run 已创建但 Runtime 启动失败时清理已提交附件和来源上下文', async () => {
+  it('Run 已创建但 Runtime 启动失败时清理已提交附件', async () => {
     harness.startRun.mockRejectedValueOnce(new AgentRuntimeStartError(
       'AGENT_RUNTIME_START_REJECTED',
-      { session_id: 'session-created' } as AgentRun,
+      { session_id: 'session-one' } as AgentRun,
     ))
-    renderPage({ launchIntent: launchIntent() })
-    await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBe('session-created'))
-    await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toEqual(
-      launchIntent().source_context,
-    ))
-    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
-      }))
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
 
     await act(async () => {
       const send = harness.workspaceProps?.onSend as (
         message: string,
         attachmentIds: string[],
-        sourceContext: import('#entities/agent').AgentSourceContext,
       ) => Promise<void>
-      await send('检查生产连接', ['attachment-one'], launchIntent().source_context)
+      await send('检查生产连接', ['attachment-one'])
     })
 
-    expect(harness.clearCommittedAttachments).toHaveBeenCalledWith('session-created', ['attachment-one'])
-    await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toBeUndefined())
+    expect(harness.clearCommittedAttachments).toHaveBeenCalledWith('session-one', ['attachment-one'])
   })
 
   it('Run 创建失败时保留未提交附件草稿', async () => {
@@ -1146,6 +1139,31 @@ describe('AgentPage', () => {
     expect(harness.resourceBindingRecovery).not.toHaveBeenCalled()
   })
 
+  it('文件引用接管后清除导航意图，异步完成仍使用文件目录的就绪状态', async () => {
+    const file: AgentFileResourceState = { file_access_profile_id: 'files', file_access_profile_name: '文件配置',
+      host_id: 'host', host_name: '主机', ssh_profile_id: 'ssh-profile', engine: 'sftp', status: 'ready' }
+    const pending = deferred<AgentSession>()
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    const onLaunchIntentHandled = vi.fn()
+    const page = renderPage({ sshResourcesReady: false, fileResources: [file], fileResourcesReady: true,
+      onLaunchIntentHandled, launchIntent: { key: 35, source: 'connection_reference', target: { kind: 'new' },
+        source_resource: file, resource_reference: { kind: 'file_profile', file_access_profile_id: file.file_access_profile_id } } })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    expect(onLaunchIntentHandled).toHaveBeenCalledWith(35)
+    page.rerenderPage({ launchIntent: null })
+    await act(async () => {
+      pending.resolve({ ...sessions[0]!, id: 'session-file', resource_bindings: [
+        { ...file, kind: 'file_profile', bound_at: sessions[0]!.created_at },
+      ] })
+      await pending.promise
+    })
+    await waitFor(() => expect(harness.workspaceProps?.composerFocusKey).toBe(1))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(false)
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
+    expect(harness.addTerminalReference).not.toHaveBeenCalled()
+  })
+
   it.each(['skills_bundle', 'mcp_runtime', 'mcp_client'] as const)('%s 未就绪时已有引用仍可访问，执行和新建入口保持关闭', async (component) => {
     const readiness = readinessFixture('needs_setup')
     readiness[component] = { status: 'missing', message: '尚未准备' }
@@ -1161,8 +1179,8 @@ describe('AgentPage', () => {
     await act(async () => {
       const props = harness.workspaceProps as unknown as AgentWorkspaceProps
       props.onCreateSession()
-      await props.onSend('不能执行', [], undefined)
-      await props.onQueueTurn('不能追加', [], undefined)
+      await props.onSend('不能执行', [])
+      await props.onQueueTurn('不能追加', [])
       await props.onResumeQueue()
       props.onContextCompressionPendingChange(true)
       await props.onRecoverResourceBinding!()
@@ -1266,17 +1284,9 @@ describe('AgentPage', () => {
     expect(harness.reloadSession).toHaveBeenCalledWith('session-one')
   })
 
-  it('业务来源创建失败时释放 pending intent，允许用户重新发起', async () => {
-    const onLaunchIntentHandled = vi.fn()
-    harness.createSession.mockRejectedValueOnce(new Error('failed'))
-    renderPage({ launchIntent: launchIntent(), onLaunchIntentHandled })
-
-    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
-    expect(harness.startRun).not.toHaveBeenCalled()
-  })
-
-  it('默认模型不可用时保留业务来源，选择可运行模型后自动创建草稿', async () => {
+  it('默认模型不可用时保留连接引用，选择可运行模型后创建引用会话', async () => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
     const disabledProvider = { ...providerFixture(), enabled: false }
     const runnableProvider = {
       ...providerFixture(),
@@ -1293,14 +1303,16 @@ describe('AgentPage', () => {
     harness.state = { ...workspaceState(), selected_session_id: undefined }
     const onLaunchIntentHandled = vi.fn()
     renderPage({
-      launchIntent: launchIntent(),
+      launchIntent: connectionReferenceIntent(source),
+      sshResources: [source],
+      sshResourcesReady: true,
       onLaunchIntentHandled,
       readiness: readinessFixture('needs_setup', 'missing'),
     })
 
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
     expect(harness.createSession).not.toHaveBeenCalled()
-    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).toHaveBeenCalledWith(7)
 
     act(() => {
       const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
@@ -1309,7 +1321,12 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.host_profile')
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      resource_reference: { kind: 'ssh_session', session_id: source.session_id },
+      auto_title_allowed: true,
+    }))
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.startRun).not.toHaveBeenCalled()
   })
 
   it('切换模型时在同一次会话更新中回退不受支持的推理档位', async () => {
@@ -1558,7 +1575,9 @@ describe('AgentPage', () => {
     expect(page.queryByText('agent.error.operation')).not.toBeInTheDocument()
   })
 
-  it('重新激活时等待当前模型目录水合后再处理业务来源', async () => {
+  it('重新激活时等待当前模型目录水合后再处理连接引用', async () => {
+    const source = sshResource('ssh-source')
+    prepareTerminalReferenceMocks(source)
     const initialProvider = providerFixture()
     const disabledProvider = { ...initialProvider, enabled: false }
     const runnableProvider = {
@@ -1579,7 +1598,7 @@ describe('AgentPage', () => {
         ],
       })
     const onLaunchIntentHandled = vi.fn()
-    const page = renderPage()
+    const page = renderPage({ sshResources: [source], sshResourcesReady: true })
     await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
 
     act(() => {
@@ -1589,12 +1608,12 @@ describe('AgentPage', () => {
     page.rerenderPage({ active: false })
     page.rerenderPage({
       active: true,
-      launchIntent: launchIntent(),
+      launchIntent: connectionReferenceIntent(source),
       onLaunchIntentHandled,
     })
     await waitFor(() => expect(harness.modelProviders).toHaveBeenCalledTimes(2))
     expect(harness.createSession).not.toHaveBeenCalled()
-    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).toHaveBeenCalledWith(7)
 
     await act(async () => {
       pendingProviders.resolve({ items: [disabledProvider, runnableProvider] })
@@ -1603,7 +1622,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect((harness.workspaceProps?.models as Array<{ id: string }>))
       .toEqual(expect.arrayContaining([expect.objectContaining({ id: 'model-two' })])))
     expect(harness.createSession).not.toHaveBeenCalled()
-    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).toHaveBeenCalledWith(7)
 
     act(() => {
       const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
@@ -1676,58 +1695,6 @@ describe('AgentPage', () => {
       status: 'ready',
       mode: 'bypass',
     })
-  })
-
-  it('业务入口创建独立草稿但不自动发送或覆盖当前会话草稿', async () => {
-    const onLaunchIntentHandled = vi.fn()
-    harness.state = {
-      ...workspaceState(),
-      drafts: { 'session-one': { text: '当前会话草稿', updated_at: 1 } },
-    }
-    renderPage({ launchIntent: launchIntent(), onLaunchIntentHandled })
-
-    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
-    expect(harness.startRun).not.toHaveBeenCalled()
-    expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
-      .toBe('当前会话草稿')
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.host_profile')
-  })
-
-  it('附件草稿创建在途时业务入口等待后创建独立会话', async () => {
-    const attachmentSession = { ...sessions[0], id: 'session-attachment', title: 'Attachment' }
-    const launchSession = { ...sessions[0], id: 'session-launch', title: 'Launch' }
-    const pendingAttachmentSession = deferred<AgentSession>()
-    harness.createSession
-      .mockImplementationOnce(() => pendingAttachmentSession.promise)
-      .mockResolvedValueOnce(launchSession)
-    harness.state = {
-      ...workspaceState(),
-      selected_session_id: undefined,
-      drafts: { new: { text: '附件草稿', updated_at: 1 } },
-    }
-    const onLaunchIntentHandled = vi.fn()
-    const page = renderPage()
-    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
-
-    let attachmentCreation!: Promise<string>
-    act(() => {
-      attachmentCreation = harness.attachmentOptions!.ensureSession()
-    })
-    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
-
-    page.rerenderPage({ launchIntent: launchIntent(), onLaunchIntentHandled })
-    await act(async () => { await Promise.resolve() })
-    expect(harness.createSession).toHaveBeenCalledTimes(1)
-
-    pendingAttachmentSession.resolve(attachmentSession)
-    await act(async () => { await attachmentCreation })
-    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
-
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-attachment', '附件草稿')
-    expect(harness.updateDraft).toHaveBeenCalledWith('session-launch', 'agent.launch.prompt.host_profile')
-    expect(harness.selectSession).toHaveBeenCalledWith('session-attachment')
-    expect(harness.selectSession).toHaveBeenCalledWith('session-launch')
   })
 
   it('归档会话时丢弃未绑定附件，删除会话时释放本地附件记录', async () => {
@@ -1887,7 +1854,7 @@ function renderPage({
     session: vi.fn(async (id: string) => (harness.state.sessions as AgentSession[]).find((session) => session.id === id)),
   } as unknown as AgentWorkspaceGateway
   const element = (next: {
-    launchIntent?: AgentLaunchIntent
+    launchIntent?: AgentLaunchIntent | null
     onLaunchIntentHandled?: (key: number) => void
     active?: boolean
   } = {}) => (
@@ -1901,7 +1868,7 @@ function renderPage({
         sshResourcesReady={sshResourcesReady}
         fileResources={fileResources}
         fileResourcesReady={fileResourcesReady}
-        launchIntent={next.launchIntent ?? launchIntent}
+        launchIntent={next.launchIntent === undefined ? launchIntent : next.launchIntent}
         onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}
         onRuntimeSummaryChange={onRuntimeSummaryChange}
       />
@@ -1913,7 +1880,7 @@ function renderPage({
   return {
     ...view,
     rerenderPage: (next: {
-      launchIntent?: AgentLaunchIntent
+      launchIntent?: AgentLaunchIntent | null
       onLaunchIntentHandled?: (key: number) => void
       active?: boolean
     }) => view.rerender(element(next)),
@@ -2093,18 +2060,12 @@ function terminalReferenceIntent(source: AgentSSHResourceState): Extract<AgentLa
   }
 }
 
-function launchIntent(): Extract<AgentLaunchIntent, { source: 'host_profile' }> {
+function connectionReferenceIntent(source: AgentSSHResourceState): Extract<AgentLaunchIntent, { source: 'connection_reference' }> {
   return {
     key: 7,
-    source: 'host_profile',
-    profile_kind: 'ssh',
-    profile_id: 'ssh-one',
-    host_id: 'host-one',
-    source_context: {
-      kind: 'host_profile',
-      entity_id: 'host-one',
-      title: '生产主机',
-      summary: '连接已就绪',
-    },
+    source: 'connection_reference',
+    target: { kind: 'new' },
+    resource_reference: { kind: 'ssh_session', session_id: source.session_id },
+    source_resource: source,
   }
 }

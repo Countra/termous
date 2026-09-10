@@ -233,7 +233,6 @@ export interface AgentWorkspaceProps {
   approval_policy: AgentApprovalPolicyState
   inspector: AgentWorkspaceInspectorState
   draft: string
-  draft_source_context?: AgentSourceContext
   draft_attachments: AgentWorkspaceDraftAttachment[]
   queued_turns: AgentQueuedTurn[]
   queued_turn_counts: Record<string, number>
@@ -270,8 +269,8 @@ export interface AgentWorkspaceProps {
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
-  onSend: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
-  onQueueTurn: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
+  onSend: (message: string, attachmentIds: string[]) => Promise<void>
+  onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>
   onBeginQueuedTurnEdit: (turnId: string) => Promise<void>
   onQueuedTurnEditChange: (value: string) => void
   onRemoveQueuedTurnEditAttachment: (attachmentId: string) => void

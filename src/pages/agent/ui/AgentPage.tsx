@@ -21,7 +21,6 @@ import {
   type AgentResourceReferenceLaunch,
   type AgentSession,
   type AgentSSHResourceState,
-  type AgentSourceContext,
 } from '#entities/agent'
 import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
 import {
@@ -114,12 +113,10 @@ export function AgentPage({
   const [operationBusy, setOperationBusy] = useState<AgentOperationBusy>(() => createOperationBusy())
   const [draftModelId, setDraftModelId] = useState<string>()
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
-  const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
   const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
-  const handledLaunchIntentRef = useRef(0)
   const setupLoadRequestRef = useRef(0)
   const activeSetupEpochRef = useRef(0)
   const activeSetupReadyEpochRef = useRef(0)
@@ -359,9 +356,7 @@ export function AgentPage({
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
   const createDraftSession = useCallback(async (
-    sourceContext?: AgentSourceContext,
     resourceReference?: AgentResourceReference,
-    automaticTitle = false,
     selectionRevision = controller.getSnapshot().selection_intent_revision,
   ) => {
     const modelId = newSessionModelId
@@ -371,22 +366,22 @@ export function AgentPage({
       throw new Error('AGENT_MODEL_UNAVAILABLE')
     }
     const session = await controller.createSession({
-      title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
-      group_id: sourceContext || resourceReference ? undefined : draftGroupId,
-      auto_title_allowed: automaticTitle && !sourceContext?.title,
+      title: tRef.current('agent.sessions.untitled'),
+      group_id: resourceReference ? undefined : draftGroupId,
+      auto_title_allowed: true,
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
       resource_reference: resourceReference,
     }, selectionRevision)
     const current = controller.getSnapshot()
     if (current.selected_session_id === session.id && current.selection_intent_revision === selectionRevision + 1
-      && !sourceContext && !resourceReference) setDraftGroupId(undefined)
+      && !resourceReference) setDraftGroupId(undefined)
     return session
   }, [controller, draftGroupId, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
 
-  const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
+  const ensureAttachmentDraftSession = useCallback(() => {
     if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
-    const promise = createDraftSession(sourceContext, undefined, true).finally(() => {
+    const promise = createDraftSession().finally(() => {
       if (attachmentDraftSessionPromiseRef.current === promise) {
         attachmentDraftSessionPromiseRef.current = null
       }
@@ -395,25 +390,10 @@ export function AgentPage({
     return promise
   }, [createDraftSession])
 
-  const createIndependentDraftSession = useCallback(async (
-    sourceContext: AgentSourceContext,
-  ) => {
-    const pendingAttachmentSession = attachmentDraftSessionPromiseRef.current
-    if (pendingAttachmentSession) {
-      try {
-        await pendingAttachmentSession
-      } catch {
-        // 附件草稿创建失败不应阻止业务入口随后创建独立会话。
-      }
-    }
-    return createDraftSession(sourceContext)
-  }, [createDraftSession])
-
   const ensureAttachmentSession = useCallback(async () => {
     const selection = controller.getSnapshot()
     if (selection.selected_session_id) return selection.selected_session_id
-    const sourceContext = draftSourceContexts.new
-    const session = await ensureAttachmentDraftSession(sourceContext)
+    const session = await ensureAttachmentDraftSession()
     const current = controller.getSnapshot()
     const ownsDraft = current.selected_session_id === session.id
       && current.selection_intent_revision === selection.selection_intent_revision + 1
@@ -421,15 +401,8 @@ export function AgentPage({
     // 创建期间继续输入的内容跟随原草稿；用户另开草稿后，迟到回执只保存发起时的内容。
     if (newDraft && !current.drafts[session.id]) controller.updateDraft(session.id, newDraft)
     if (ownsDraft) controller.updateDraft('new', '')
-    if (sourceContext) {
-      setDraftSourceContexts((contexts) => {
-        const next = { ...contexts, [session.id]: sourceContext }
-        if (ownsDraft && contexts.new === sourceContext) delete next.new
-        return next
-      })
-    }
     return session.id
-  }, [controller, draftSourceContexts.new, ensureAttachmentDraftSession])
+  }, [controller, ensureAttachmentDraftSession])
 
   const reportAttachmentError = useCallback((code: string) => {
     notificationRef.current.error({
@@ -558,16 +531,15 @@ export function AgentPage({
         selectionRevision = current.selection_intent_revision
       }
     }
-    return createDraftSession(undefined, request.resource_reference, true, selectionRevision)
+    return createDraftSession(request.resource_reference, selectionRevision)
   }, [controller, createDraftSession])
   const referenceImport = useAgentTerminalReferenceImport({
-    intent: launchIntent?.source === 'terminal_selection' || launchIntent?.source === 'connection_reference' ? launchIntent : undefined,
+    intent: launchIntent ?? undefined,
     controller,
     active,
     ready: enabled && activeSetupReady && workspaceInfrastructureReady && state.snapshot_complete,
     modelReady: newSessionModelRunnable,
-    resourcesReady: launchIntent?.source === 'connection_reference' && launchIntent.resource_reference.kind === 'file_profile'
-      ? fileResourcesReady : sshResourcesReady,
+    resourcesReady: { ssh_session: sshResourcesReady, file_profile: fileResourcesReady },
     resources,
     createSession: createReferenceSession,
     getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',
@@ -592,31 +564,6 @@ export function AgentPage({
         mode: agentApprovalModeFromBypass(approvalBypass),
       }
     : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass])
-
-  useEffect(() => {
-    if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
-    if (launchIntent.source === 'terminal_selection' || launchIntent.source === 'connection_reference') return
-    if (handledLaunchIntentRef.current === launchIntent.key) return
-    handledLaunchIntentRef.current = launchIntent.key
-    void createIndependentDraftSession(launchIntent.source_context).then((session) => {
-      const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
-      controller.updateDraft(session.id, prompt)
-      setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
-      onLaunchIntentHandled?.(launchIntent.key)
-    }).catch((error) => {
-      handledLaunchIntentRef.current = 0
-      onLaunchIntentHandled?.(launchIntent.key)
-      notifyError(notificationRef.current, tRef.current, error, 'resource')
-    })
-  }, [
-    activeSetupReady,
-    controller,
-    createIndependentDraftSession,
-    launchIntent,
-    newSessionModelRunnable,
-    onLaunchIntentHandled,
-    workspaceInfrastructureReady,
-  ])
 
   // 连接恢复不依赖 Skills 或 Worker；已有引用的工作区保留访问，任务入口另行锁定。
   const recoveryWorkspaceAvailable = state.snapshot_complete && state.sessions.some((session) => !session.archived_at
@@ -784,7 +731,6 @@ export function AgentPage({
         approval_policy={approvalPolicy}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
-        draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
         draft_attachments={projectedDraftAttachments}
         queued_turns={selectedQueuedTurns}
         queued_turn_counts={queuedTurnCounts}
@@ -832,7 +778,6 @@ export function AgentPage({
           const nextSessionId = selectionAfterSessionRemoval(workspaceSessions, sessionId)
           await management.metadata(sessionId, { archived: true })
           await draftAttachments.discard(sessionId)
-          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
           if (
             selection.selected_session_id === sessionId
             && controller.getSnapshot().selection_intent_revision === selection.selection_intent_revision
@@ -844,7 +789,6 @@ export function AgentPage({
           const session = requireSession(controller.getSnapshot().sessions, sessionId)
           await controller.deleteSession(sessionId, session.revision)
           draftAttachments.clear(sessionId)
-          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
         }).catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
         onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
@@ -925,7 +869,7 @@ export function AgentPage({
           ? queuedTurnEditAttachments.retry
           : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
-        onSend={async (message, attachmentIds, sourceContext) => {
+        onSend={async (message, attachmentIds) => {
           if (!activeSetupReady || !workspaceInfrastructureReady) return
           await perform(async () => {
             if (resourceRunBlocked || isAgentResourceRecoveryBlocking(selected ? recovery.coordinator.getSnapshot()[selected.id] : undefined)) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
@@ -957,10 +901,9 @@ export function AgentPage({
             const targetSessionId = targetSession.id
             const clearCommittedDraft = () => {
               draftAttachments.clearCommitted(targetSessionId, attachmentIds ?? [])
-              setDraftSourceContexts((contexts) => omitKey(contexts, targetSessionId))
             }
             try {
-              await controller.startRun(targetSessionId, message, attachmentIds, sourceContext)
+              await controller.startRun(targetSessionId, message, attachmentIds)
             } catch (error) {
               if (
                 error instanceof AgentRuntimeStartError
@@ -985,17 +928,16 @@ export function AgentPage({
         onRetryContext={() => {
           if (selected) void controller.reloadContext(selected.id)
         }}
-        onQueueTurn={async (message, attachmentIds, sourceContext) => {
+        onQueueTurn={async (message, attachmentIds) => {
           if (!selected || !workspaceInfrastructureReady) return
           await perform(async () => {
             if (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             const submittedDraft = controller.getSnapshot().drafts[selected.id]
-            await controller.enqueueTurn(selected.id, message, attachmentIds, sourceContext)
+            await controller.enqueueTurn(selected.id, message, attachmentIds)
             if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
               controller.updateDraft(selected.id, '')
             }
             draftAttachments.clearCommitted(selected.id, attachmentIds ?? [])
-            setDraftSourceContexts((contexts) => omitKey(contexts, selected.id))
           }, resourceContexts.length ? 'resource' : 'generic', 'queue')
         }}
         onBeginQueuedTurnEdit={async (turnId) => {
@@ -1084,13 +1026,10 @@ export function AgentPage({
         onCancelResourceRecovery={async () => selected ? recovery.coordinator.cancel(selected.id) : false}
         onRemoveResourceBinding={async (kind) => {
           if (!selected) return false
-          const removed = await performResourceMutation(
+          return performResourceMutation(
             selected.id,
             () => controller.removeResourceBinding(selected.id, selected.revision, kind),
           )
-          if (removed) setDraftSourceContexts((contexts) => contexts[selected.id]?.kind === (kind === 'ssh_session' ? 'workbench' : 'files')
-            ? omitKey(contexts, selected.id) : contexts)
-          return removed
         }}
       />
       <AgentArchiveManager
@@ -1184,13 +1123,6 @@ function requireSession(sessions: AgentSession[], id: string) {
 function createSessionTitle(prompt: string, fallback: string) {
   const firstLine = prompt.split(/\r?\n/, 1)[0]?.trim() || fallback
   return Array.from(firstLine).slice(0, 48).join('')
-}
-
-function omitKey<Value>(values: Record<string, Value>, key: string) {
-  if (!(key in values)) return values
-  const next = { ...values }
-  delete next[key]
-  return next
 }
 
 function projectMcpConnection(

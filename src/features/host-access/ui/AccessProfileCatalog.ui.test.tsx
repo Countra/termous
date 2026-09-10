@@ -57,8 +57,8 @@ function accessCatalog(): HostAccessCatalog {
 }
 
 describe('访问方式目录', () => {
-  it('通过行内操作传递 Profile 的稳定身份', () => {
-    const onLaunchAgent = vi.fn()
+  it('通过行内编辑操作传递 Profile，目录不再提供旧 AI 入口', () => {
+    const onEditSSH = vi.fn()
     render(
       <AccessProfileCatalog
         catalog={accessCatalog()}
@@ -67,7 +67,7 @@ describe('访问方式目录', () => {
         sshReachabilityRefreshing={false}
         onRefreshSSHReachability={vi.fn()}
         onCreateSSH={vi.fn()}
-        onEditSSH={vi.fn()}
+        onEditSSH={onEditSSH}
         onDeleteSSH={vi.fn()}
         onSetDefaultSSH={vi.fn()}
         onEditFile={vi.fn()}
@@ -76,14 +76,14 @@ describe('访问方式目录', () => {
         onEditRemoteDesktop={vi.fn()}
         onDeleteRemoteDesktop={vi.fn()}
         onSetDefaultRemoteDesktop={vi.fn()}
-        onLaunchAgent={onLaunchAgent}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'agent.launch.action Primary SSH',
+      name: 'app.edit Primary SSH',
     }))
-    expect(onLaunchAgent).toHaveBeenCalledWith('ssh', 'ssh-a', 'Primary SSH', 'SSH')
+    expect(onEditSSH).toHaveBeenCalledWith(accessCatalog().ssh[0])
+    expect(screen.queryByRole('button', { name: /agent.launch.action/ })).not.toBeInTheDocument()
   })
 
   it('SFTP 只提供编辑与默认项操作，不提供删除或改绑入口', () => {

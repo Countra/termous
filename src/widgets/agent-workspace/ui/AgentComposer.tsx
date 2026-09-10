@@ -6,7 +6,6 @@ import { agentResourceBindingKey } from '#entities/agent'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
-  AgentSourceContext,
 } from '#entities/agent'
 import {
   AgentApprovalModeControl,
@@ -38,7 +37,6 @@ export const AgentComposer = memo(function AgentComposer({
   disabled,
   stopDisabled,
   submitDisabled,
-  sourceContext,
   resourceContexts = [],
   resourceChangeDisabled,
   resourceRecoveryDisabled = false,
@@ -98,7 +96,6 @@ export const AgentComposer = memo(function AgentComposer({
   disabled: boolean
   stopDisabled: boolean
   submitDisabled: boolean
-  sourceContext?: AgentSourceContext
   resourceContexts?: AgentWorkspaceResourceContext[]
   resourceChangeDisabled: boolean
   resourceRecoveryDisabled?: boolean
@@ -127,8 +124,8 @@ export const AgentComposer = memo(function AgentComposer({
   onPreviewAttachment: (attachment: AgentWorkspaceDraftAttachment) => void
   onPreviewQueuedAttachment: (attachment: import('#entities/agent').AgentAttachment) => void
   onLoadQueuedAttachment: (attachment: import('#entities/agent').AgentAttachment, signal?: AbortSignal) => Promise<Blob>
-  onSend: (value: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => void
-  onQueueTurn: (value: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => void
+  onSend: (value: string, attachmentIds: string[]) => void
+  onQueueTurn: (value: string, attachmentIds: string[]) => void
   onQueuedTurnEditChange: (value: string) => void
   onRemoveQueuedTurnEditAttachment: (attachmentId: string) => void
   onSaveQueuedTurnEdit: (attachmentIds: string[]) => void
@@ -175,7 +172,7 @@ export const AgentComposer = memo(function AgentComposer({
   const retainedAttachments = editingTurn?.attachments.filter(({ id }) => (
     queuedTurnEdit?.retained_attachment_ids.includes(id)
   )) ?? []
-  const rawSourceContext = editing ? editingTurn?.source_context : sourceContext
+  const rawSourceContext = editingTurn?.source_context
   // 旧连接来源说明不再作为草稿或附件；连接展示统一由持久化引用驱动。
   const effectiveSourceContext = rawSourceContext?.kind === 'workbench' || rawSourceContext?.kind === 'files' ? undefined : rawSourceContext
   const attachmentsPending = attachments.some(({ phase }) => phase !== 'ready')
@@ -187,8 +184,8 @@ export const AgentComposer = memo(function AgentComposer({
     inputHistoryNavigation.reset()
     const attachmentIds = attachments.flatMap(({ attachment }) => attachment ? [attachment.id] : [])
     if (editing) onSaveQueuedTurnEdit(attachmentIds)
-    else if (queueMode) onQueueTurn(inputValue, attachmentIds, effectiveSourceContext)
-    else onSend(inputValue, attachmentIds, effectiveSourceContext)
+    else if (queueMode) onQueueTurn(inputValue, attachmentIds)
+    else onSend(inputValue, attachmentIds)
   }
   return (
     <div className={styles.composer}>

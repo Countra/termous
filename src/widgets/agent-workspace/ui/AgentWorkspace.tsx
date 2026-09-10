@@ -151,7 +151,6 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           disabled={props.busy || props.queue_busy}
           stopDisabled={props.stop_busy}
           submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || props.execution_blocked === true || props.resource_recovery_blocked === true || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
-          sourceContext={props.draft_source_context}
           resourceContexts={props.resource_contexts}
           resourceChangeDisabled={props.busy
             || queueMode

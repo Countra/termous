@@ -203,21 +203,7 @@
       }
     },
     "launch": {
-      "action": "交给 AI 助手",
-      "title": {
-        "host": "处理主机 {{name}}",
-        "profile": "处理访问配置 {{name}}",
-        "forwardFailure": "排查端口转发 {{name}}"
-      },
-      "summary": {
-        "host": "来源：主机管理",
-        "profile": "访问类型：{{technology}}",
-        "forwardFailure": "转发状态：{{status}}；阶段：{{phase}}"
-      },
-      "prompt": {
-        "host_profile": "请检查这个主机或访问配置，并协助我处理当前问题。",
-        "forward_failure": "请分析这次端口转发失败，并给出处理方案。"
-      }
+      "action": "交给 AI 助手"
     },
     "message": {
       "copied": "已复制",

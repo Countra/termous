@@ -113,12 +113,12 @@ describe('AgentWorkspace', () => {
       expect(event.defaultPrevented).toBe(false)
     }
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(props.onSend).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+    expect(props.onSend).toHaveBeenCalledExactlyOnceWith('中文输入', [])
     view.rerender(<AntdApp><AgentWorkspace {...props} sessions={[{ ...props.sessions[0]!, run_status: 'running' }]} /></AntdApp>)
     fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
     expect(props.onQueueTurn).not.toHaveBeenCalled()
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [], undefined)
+    expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [])
   })
 
   it('展示真实 reasoning 与 Tool 时间线并路由发送、排队和停止', async () => {
@@ -130,7 +130,7 @@ describe('AgentWorkspace', () => {
     expect(screen.getByText('agent.tool.status.completed')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'agent.composer.send' }))
-    expect(props.onSend).toHaveBeenCalledWith('hello', [], undefined)
+    expect(props.onSend).toHaveBeenCalledWith('hello', [])
 
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       draft: 'adjust',
@@ -140,7 +140,7 @@ describe('AgentWorkspace', () => {
     })} /></AntdApp>)
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'agent.composer.queue' }))
-    expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [], undefined)
+    expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [])
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledTimes(1)
   })
@@ -232,7 +232,7 @@ describe('AgentWorkspace', () => {
     expect(within(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).getByText('Local model')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(queue)
-    expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [], undefined)
+    expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [])
   })
 
   it('排队消息提供编辑、立即执行、删除与继续入口', async () => {
@@ -403,7 +403,6 @@ describe('AgentWorkspace', () => {
     }))
     const onAttachFiles = vi.fn(async () => undefined)
     renderWorkspace(fixtureProps({
-      draft_source_context: { kind: 'host_profile', entity_id: 'draft-host', title: '普通草稿来源', summary: 'draft' },
       queued_turns: [{
         id: 'queued-edit', session_id: 'session-1', client_request_id: 'request-edit',
         queue_sequence: 1, prompt: '检查配置', model_id: 'model-1', reasoning_level: 'medium',
@@ -418,7 +417,6 @@ describe('AgentWorkspace', () => {
     }))
 
     expect(screen.getByText('排队消息来源')).toBeInTheDocument()
-    expect(screen.queryByText('普通草稿来源')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.attachments.add' })).toBeDisabled()
     expect(screen.getAllByTitle('screen.png')).toHaveLength(2)
     const paste = createEvent.paste(screen.getByPlaceholderText('agent.composer.queuePlaceholder'), {

@@ -25,7 +25,7 @@ const testState = vi.hoisted(() => {
     agentUnmounts: 0,
     agentLaunchIntent: null as import('#entities/agent').AgentLaunchIntent | null,
     onAgentLaunchIntentHandled: null as ((key: number) => void) | null,
-    onHostsLaunchAgent: null as ((intent: import('#entities/agent').AgentLaunchRequest) => void) | null,
+    onWorkbenchReferenceAgentConnection: null as import('#entities/agent').AgentConnectionReferenceProps['onReferenceAgentConnection'] | null,
     forwardErrorEvent: null as import('#entities/forward').ForwardEvent | null,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
@@ -280,6 +280,7 @@ vi.mock('#widgets/workbench', () => ({
     data?: unknown
     getHostIconUrl: (iconId: string) => string
     onSnippetUsed?: (snippetId: string) => Promise<void>
+    onReferenceAgentConnection?: import('#entities/agent').AgentConnectionReferenceProps['onReferenceAgentConnection']
   }) => {
     const {
       active,
@@ -305,6 +306,7 @@ vi.mock('#widgets/workbench', () => ({
     testState.projectionKeys.workbenchSnippetView = Object.keys(snippetView).sort()
     testState.workbenchForwardsIsArray = Array.isArray(forwards)
     testState.workbenchHostIconURL = getHostIconUrl('icon-a')
+    testState.onWorkbenchReferenceAgentConnection = props.onReferenceAgentConnection ?? null
     const [snippetUsageState, setSnippetUsageState] = useState('idle')
     useEffect(() => {
       testState.workbenchMounts += 1
@@ -354,7 +356,6 @@ vi.mock('#pages/hosts', () => ({
     onDirtyChange,
     accessIntent,
     onAccessIntentHandled,
-    onLaunchAgent,
   }: {
     data: Record<string, unknown>
     selectedHostId: string
@@ -366,7 +367,6 @@ vi.mock('#pages/hosts', () => ({
     onDirtyChange: (dirty: boolean) => void
     accessIntent?: { key: number; hostId: string } | null
     onAccessIntentHandled?: (key: number) => void
-    onLaunchAgent?: (intent: import('#entities/agent').AgentLaunchRequest) => void
   }) => {
     const [tourView, setTourView] = useState<'catalog' | 'asset' | 'connections' | 'existing'>(() => {
       if (entryIntent?.mode === 'catalog') return 'catalog'
@@ -383,7 +383,6 @@ vi.mock('#pages/hosts', () => ({
     testState.projectionKeys.hosts = Object.keys(data).sort()
     testState.hostAccessIntent = accessIntent ?? null
     testState.onAccessIntentHandled = onAccessIntentHandled ?? null
-    testState.onHostsLaunchAgent = onLaunchAgent ?? null
     if (testState.productTourPageHarness) {
       return (
         <div data-testid="hosts-page">
@@ -761,7 +760,7 @@ describe('应用运行时组合合同', () => {
     testState.agentUnmounts = 0
     testState.agentLaunchIntent = null
     testState.onAgentLaunchIntentHandled = null
-    testState.onHostsLaunchAgent = null
+    testState.onWorkbenchReferenceAgentConnection = null
     testState.forwardErrorEvent = null
     testState.initializing = false
     testState.apiReady = false
@@ -1522,42 +1521,42 @@ describe('应用运行时组合合同', () => {
     expect(screen.getByTestId('files-page')).toBeInTheDocument()
   })
 
-  it('Agent 来源意图在脏草稿取消时清理，确认后按 key 单次消费', async () => {
+  it('连接引用等待导航确认后才交给 Agent，取消后再次进入不执行旧引用', async () => {
+    const file: import('#entities/agent').AgentFileResourceState = {
+      file_access_profile_id: 'file-a', file_access_profile_name: '文件配置', host_id: 'host-a',
+      host_name: '主机', ssh_profile_id: 'ssh-a', engine: 'sftp', status: 'ready',
+    }
+    testState.data.hostAssets.push({ id: file.host_id, name: file.host_name })
+    testState.data.sshAccessProfiles.push({ id: file.ssh_profile_id, host_id: file.host_id })
+    testState.data.fileAccessProfiles.push({ id: file.file_access_profile_id, name: file.file_access_profile_name,
+      host_id: file.host_id, engine: 'sftp', engine_config_version: 1, sftp: { ssh_profile_id: file.ssh_profile_id } })
     const user = userEvent.setup()
     render(<App />)
-    const request = {
-      source: 'host_profile' as const,
-      host_id: 'host-a',
-      profile_kind: 'ssh' as const,
-      profile_id: 'ssh-a',
-      source_context: {
-        kind: 'host_profile' as const,
-        entity_id: 'ssh-a',
-        title: 'Host A',
-        summary: 'SSH',
-      },
-    }
 
     await user.click(screen.getByRole('button', { name: 'hosts' }))
     await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
-    act(() => testState.onHostsLaunchAgent?.(request))
-
+    act(() => testState.onWorkbenchReferenceAgentConnection?.(file, { kind: 'new' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('hosts.unsavedTitle')
-    expect(testState.agentLaunchIntent).toMatchObject({ key: 1, profile_id: 'ssh-a' })
-
+    expect(testState.agentLaunchIntent).toBeNull()
     await user.click(screen.getByRole('button', { name: 'confirm-cancel' }))
-    await waitFor(() => expect(testState.agentLaunchIntent).toBeNull())
 
-    act(() => testState.onHostsLaunchAgent?.(request))
+    await user.click(screen.getByRole('button', { name: 'agent' }))
     await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
-
     expect(screen.getByTestId('agent-page')).toHaveAttribute('data-active', 'true')
-    expect(testState.agentLaunchIntent).toMatchObject({ key: 2, profile_id: 'ssh-a' })
+    expect(testState.agentLaunchIntent).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    act(() => testState.onWorkbenchReferenceAgentConnection?.(file, { kind: 'new' }))
+    expect(testState.agentLaunchIntent).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
+    expect(testState.agentLaunchIntent).toMatchObject({ key: 2, source: 'connection_reference',
+      resource_reference: { kind: 'file_profile', file_access_profile_id: file.file_access_profile_id } })
     act(() => testState.onAgentLaunchIntentHandled?.(2))
-    await waitFor(() => expect(testState.agentLaunchIntent).toBeNull())
+    expect(testState.agentLaunchIntent).toBeNull()
   })
 
-  it('后台转发失败通知提供脱敏的 Agent 入口', async () => {
+  it('后台转发失败保留错误通知和去重，不提供 AI 转交操作', async () => {
     testState.forwardErrorEvent = {
       type: 'error',
       message: 'sensitive runtime detail',
@@ -1583,25 +1582,23 @@ describe('应用运行时组合合同', () => {
         last_error: 'sensitive runtime detail',
       },
     }
-    render(<App />)
+    const view = render(<App />)
 
     await waitFor(() => expect(testState.notifications.error).toHaveBeenCalledOnce())
-    const notification = testState.notifications.error.mock.calls[0]?.[0] as {
-      actions?: ReactNode
-    }
-    expect(notification.actions).toBeTruthy()
-    render(<>{notification.actions}</>)
-    await userEvent.click(screen.getByRole('button', { name: 'agent.launch.action' }))
-
-    expect(testState.agentLaunchIntent).toMatchObject({
-      source: 'forward_failure',
-      forward_id: 'forward-a',
-      host_id: 'host-a',
-      status: 'failed',
+    const notification = testState.notifications.error.mock.calls[0]?.[0]
+    expect(notification).toMatchObject({
+      title: 'forwards.startFailed',
+      description: 'sensitive runtime detail',
+      duration: 6,
+      role: 'alert',
     })
-    expect(testState.agentLaunchIntent).not.toHaveProperty('error_message')
-    const intent = testState.agentLaunchIntent
-    expect(intent?.source === 'forward_failure' ? intent.source_context.summary : undefined).not.toContain('sensitive runtime detail')
+    expect(notification).not.toHaveProperty('actions')
+    expect(testState.agentLaunchIntent).toBeNull()
+    expect(screen.getByTestId('agent-page')).toHaveAttribute('data-active', 'false')
+
+    testState.forwardErrorEvent = { ...testState.forwardErrorEvent }
+    view.rerender(<App />)
+    expect(testState.notifications.error).toHaveBeenCalledOnce()
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

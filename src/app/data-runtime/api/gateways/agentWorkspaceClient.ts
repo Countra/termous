@@ -33,7 +33,6 @@ import {
 import type {
   AgentRun,
   AgentQueuedTurnMovePlacement,
-  AgentSourceContext,
   AgentResourceBindingUpdateInput,
   AgentResourceKind,
   AgentResourceRecoveryInput,
@@ -196,7 +195,6 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     client_request_id: string
     prompt: string
     attachment_ids: string[]
-    source_context?: AgentSourceContext
     force_context_compression: boolean
   }, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/queued-turns`, {

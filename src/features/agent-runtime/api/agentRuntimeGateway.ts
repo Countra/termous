@@ -23,7 +23,6 @@ import type {
   AgentSessionPage,
   AgentSessionUsage,
   AgentSessionUpdateInput,
-  AgentSourceContext,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
 
@@ -52,7 +51,6 @@ export interface AgentCreateRunInput {
   client_request_id: string
   prompt: string
   attachment_ids: string[]
-  source_context?: AgentSourceContext
   force_context_compression: boolean
 }
 
@@ -85,7 +83,6 @@ export interface AgentWorkspaceGateway {
     client_request_id: string
     prompt: string
     attachment_ids: string[]
-    source_context?: AgentSourceContext
     force_context_compression: boolean
   }, signal?: AbortSignal): Promise<AgentQueuedTurn>
   beginQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueuedTurn>

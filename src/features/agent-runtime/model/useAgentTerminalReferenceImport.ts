@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAgentResourceBinding, resourceReference, resourceReferenceId, sameAgentResourceSource, type AgentLaunchIntent, type AgentSession, type AgentResourceState, type AgentResourceReferenceLaunch, type AgentTerminalReferenceLaunch } from '#entities/agent'
+import { getAgentResourceBinding, resourceReference, resourceReferenceId, sameAgentResourceSource, type AgentLaunchIntent, type AgentSession, type AgentResourceKind, type AgentResourceState, type AgentResourceReferenceLaunch, type AgentTerminalReferenceLaunch } from '#entities/agent'
 import type { AgentWorkspaceController } from '../runtime/AgentWorkspaceController.ts'
 import { projectAgentReferenceTargets, terminalReferenceBindingKey, terminalReferenceChangesBinding, validateTerminalReferenceText } from './agentTerminalReference.ts'
 
@@ -20,7 +20,7 @@ interface Options {
   active: boolean
   ready: boolean
   modelReady: boolean
-  resourcesReady: boolean
+  resourcesReady: Record<AgentResourceKind, boolean>
   resources: AgentResourceState[]
   createSession: (request: AgentResourceReferenceLaunch) => Promise<AgentSession>
   getOwnerId: (sessionId: string) => string
@@ -38,6 +38,8 @@ export function useAgentTerminalReferenceImport(options: Options) {
   const mountedRef = useRef(true)
   optionsRef.current = options
   const current = jobs[0]
+  // 就绪门禁跟随队首任务，导航意图清除或后续引用入队不能改变其资源类型。
+  const currentResourcesReady = current ? options.resourcesReady[current.request.resource_reference.kind] : false
 
   useEffect(() => {
     mountedRef.current = true
@@ -71,7 +73,7 @@ export function useAgentTerminalReferenceImport(options: Options) {
     const alive = () => mountedRef.current && !cancelledRef.current.has(key)
     const requireSource = () => {
       const value = optionsRef.current
-      if (!value.resourcesReady || !sameAgentResourceSource(job.request.source_resource,
+      if (!value.resourcesReady[job.request.resource_reference.kind] || !sameAgentResourceSource(job.request.source_resource,
         value.resources.find((source) => resourceReference(source).kind === job.request.resource_reference.kind
           && resourceReferenceId(resourceReference(source)) === resourceReferenceId(job.request.resource_reference)))) {
         throw new Error('AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE')
@@ -148,14 +150,14 @@ export function useAgentTerminalReferenceImport(options: Options) {
   }, [update])
 
   useEffect(() => {
-    if (!current || !options.active || !options.ready || !options.resourcesReady || busyRef.current) return
+    if (!current || !options.active || !options.ready || !currentResourcesReady || busyRef.current) return
     if (current.stage !== 'pending' && current.stage !== 'configuration') return
     if (!current.targetId && current.request.target.kind === 'new' && !options.modelReady) {
       if (current.stage !== 'configuration') update(current.request.key, { stage: 'configuration' })
       return
     }
     void execute(current)
-  }, [current, execute, options.active, options.modelReady, options.ready, options.resourcesReady, update])
+  }, [current, currentResourcesReady, execute, options.active, options.modelReady, options.ready, update])
 
   return {
     current,

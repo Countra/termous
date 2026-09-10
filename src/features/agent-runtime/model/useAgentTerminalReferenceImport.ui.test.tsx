@@ -10,6 +10,27 @@ type Options = Parameters<typeof useAgentTerminalReferenceImport>[0]
 type Intent = Extract<AgentLaunchIntent, { source: 'terminal_selection' }>
 
 describe('useAgentTerminalReferenceImport', () => {
+  it.each(['ssh_session', 'file_profile'] as const)('%s 引用排队时按各自资源就绪状态执行，不借用后续引用的状态', async (kind) => {
+    const fixture = setup()
+    const first = kind === 'ssh_session' ? intent() : fileIntent()
+    const second = { ...(kind === 'ssh_session' ? fileIntent() : intent()), key: 2 }
+    const options = fixture.options({ intent: first, resources: [source, fileSource],
+      resourcesReady: { ssh_session: kind !== 'ssh_session', file_profile: kind !== 'file_profile' } })
+    const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
+    await waitFor(() => expect(view.result.current.current?.request.key).toBe(first.key))
+    view.rerender({ ...options, intent: second })
+    expect(options.onHandled).toHaveBeenCalledTimes(2)
+    expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
+    expect(options.addReference).not.toHaveBeenCalled()
+
+    view.rerender({ ...options, intent: undefined,
+      resourcesReady: { ssh_session: kind === 'ssh_session', file_profile: kind === 'file_profile' } })
+    await waitFor(() => expect(view.result.current.current?.request.key).toBe(second.key))
+    expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledOnce()
+    expect(options.addReference).toHaveBeenCalledTimes(kind === 'ssh_session' ? 1 : 0)
+    expect(view.result.current.current?.stage).toBe('pending')
+  })
+
   it('文件引用保留 SSH 引用和草稿，不读取附件编辑归属', async () => {
     const fixture = setup({ drafts: { [targetId]: { text: '保留的提问', updated_at: 1 } } })
     const options = fixture.options({ intent: fileIntent(), resources: [source, fileSource],
@@ -359,7 +380,7 @@ function setup(initial: Partial<AgentWorkspaceState> = {}) {
     patch: (patch: Partial<AgentWorkspaceState>) => { state = { ...state, ...patch } },
     options: (overrides: Partial<Options> = {}): Options => ({
       intent: intent(), controller: controller as unknown as AgentWorkspaceController, active: true, ready: true,
-      modelReady: true, resourcesReady: true, resources: [{ ...source }],
+      modelReady: true, resourcesReady: { ssh_session: true, file_profile: true }, resources: [{ ...source }],
       createSession: vi.fn(async () => {
         const created = session({ id: 'ags-created' })
         state = { ...state, sessions: [...state.sessions, created] }

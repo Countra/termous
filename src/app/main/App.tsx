@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, Button } from 'antd'
+import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
@@ -66,7 +66,6 @@ import type {
 import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/snippet'
 import {
   assignAgentLaunchIntentKey,
-  buildForwardFailureAgentLaunchRequest,
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentReferenceTargetsSnapshot,
@@ -389,9 +388,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       t,
       notifiedForwardFailuresRef,
       notifiedForwardRuntimeErrorsRef,
-      launchAgent,
     )
-  }, [forwardErrorEvent, launchAgent, notification, t])
+  }, [forwardErrorEvent, notification, t])
 
   const selectedLegacyHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -1324,7 +1322,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
                           onOpenAgentSettings={openAgentSettings}
-                          onLaunchAgent={launchAgent}
                           getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
                           onReferenceAgentConnection={referenceAgentConnection}
                           getAgentReferenceSnapshot={getAgentReferenceSnapshot}
@@ -1345,7 +1342,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
-                          launchIntent={agentLaunchIntent}
+                          launchIntent={page === 'agent' ? agentLaunchIntent : null}
                           onLaunchIntentHandled={(key) => {
                             if (agentLaunchIntent?.key === key) {
                               clearAgentLaunchIntent()
@@ -1398,7 +1395,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setHostsDirty}
                           onSavingChange={handleHostSavingChange}
-                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1473,7 +1469,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1647,7 +1642,6 @@ function notifyForwardError(
   t: (key: string, options?: Record<string, unknown>) => string,
   failedRef: React.MutableRefObject<Set<string>>,
   runtimeRef: React.MutableRefObject<Map<string, string>>,
-  onLaunchAgent: (intent: AgentLaunchRequest) => void,
 ) {
   if (event.forward.status !== 'failed') {
     failedRef.current.delete(event.forward.id)
@@ -1677,27 +1671,6 @@ function notifyForwardError(
       duration: 6,
       role: 'alert',
       className: termousNotificationClassName,
-      actions: (
-        <Button
-          type="text"
-          size="small"
-          onClick={() => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
-            hostId: event.forward.host_id,
-            forwardId: event.forward.id,
-            forwardProfileId: event.forward.profile_id,
-            status: event.forward.status,
-            title: t('agent.launch.title.forwardFailure', {
-              name: event.forward.name || t(`forwards.modeName.${event.forward.mode}`),
-            }),
-            summary: t('agent.launch.summary.forwardFailure', {
-              status: t(`forwards.status.${event.forward.status}`),
-              phase: t(`forwards.phaseName.${event.forward.phase}`),
-            }),
-          }))}
-        >
-          {t('agent.launch.action')}
-        </Button>
-      ),
     })
   }
 }

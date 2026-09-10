@@ -203,21 +203,7 @@
       }
     },
     "launch": {
-      "action": "Ask Agent",
-      "title": {
-        "host": "Handle host {{name}}",
-        "profile": "Handle access profile {{name}}",
-        "forwardFailure": "Investigate port forward {{name}}"
-      },
-      "summary": {
-        "host": "Source: host management",
-        "profile": "Access type: {{technology}}",
-        "forwardFailure": "Forward status: {{status}}; phase: {{phase}}"
-      },
-      "prompt": {
-        "host_profile": "Inspect this host or access profile and help me handle the current issue.",
-        "forward_failure": "Analyze this port forwarding failure and suggest how to resolve it."
-      }
+      "action": "Ask Agent"
     },
     "message": {
       "copied": "Copied",

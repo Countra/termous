@@ -34,7 +34,7 @@ import type { CodeSnippet } from '#entities/snippet'
 import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
 import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
-import type { AgentLaunchRequest, AgentConnectionReferenceProps } from '#entities/agent'
+import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type {
   FileBookmark,
   FileBookmarkInput,
@@ -181,7 +181,6 @@ export interface WorkbenchPageProps extends TerminalAIReferenceProps, AgentConne
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
   onOpenAgentSettings?: () => void
-  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export function WorkbenchPage({
@@ -225,7 +224,6 @@ export function WorkbenchPage({
   getAgentConnectionReferenceSnapshot,
   onReferenceAgentConnection,
   onOpenAgentSettings,
-  onLaunchAgent,
   getAgentReferenceSnapshot,
   onReferenceTerminalSelection,
 }: WorkbenchPageProps) {
@@ -1513,7 +1511,6 @@ export function WorkbenchPage({
                 onStartForward={onStartForward}
                 onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
-                onLaunchAgent={onLaunchAgent}
               />
           ),
           aliases: (

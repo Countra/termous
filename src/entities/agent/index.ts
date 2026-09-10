@@ -104,8 +104,6 @@ export {
 } from './model/types.ts'
 export {
   assignAgentLaunchIntentKey,
-  buildForwardFailureAgentLaunchRequest,
-  buildHostProfileAgentLaunchRequest,
 } from './model/agentLaunchIntent.ts'
 export { isAgentModelRunnable } from './model/modelAvailability.ts'
 export {

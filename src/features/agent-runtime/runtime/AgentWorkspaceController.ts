@@ -12,7 +12,6 @@ import type {
   AgentSessionUpdateInput,
   AgentResourceBindingUpdateInput,
   AgentResourceKind,
-  AgentSourceContext,
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
@@ -361,7 +360,6 @@ export class AgentWorkspaceController {
     sessionId: string,
     prompt: string,
     attachmentIds: string[] = [],
-    sourceContext?: AgentSourceContext,
   ) {
     return await this.runMutation(async () => {
       if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
@@ -375,7 +373,6 @@ export class AgentWorkspaceController {
         client_request_id: this.newClientRequestID(),
         prompt,
         attachment_ids: attachmentIds,
-        source_context: sourceContext,
         force_context_compression: forceContextCompression,
       })
       this.commit(replaceAgentRun(this.state, run))
@@ -713,13 +710,12 @@ export class AgentWorkspaceController {
     }
   }
 
-  async enqueueTurn(sessionId: string, prompt: string, attachmentIds: string[] = [], sourceContext?: AgentSourceContext) {
+  async enqueueTurn(sessionId: string, prompt: string, attachmentIds: string[] = []) {
     return await this.runMutation(async () => {
       if (!prompt.trim()) throw new AgentWorkspaceControllerError('AGENT_QUEUED_TURN_EMPTY')
       const request = {
         prompt,
         attachment_ids: attachmentIds,
-        source_context: sourceContext,
         force_context_compression: this.state.session_contexts[sessionId]?.compression_pending === true,
       }
       const pending = this.queuedTurnRequest(sessionId, request)
@@ -754,7 +750,6 @@ export class AgentWorkspaceController {
     request: {
       prompt: string
       attachment_ids: string[]
-      source_context?: AgentSourceContext
       force_context_compression: boolean
     },
     clientRequestID: string,
@@ -1099,14 +1094,12 @@ export class AgentWorkspaceController {
     input: {
       prompt: string
       attachment_ids: string[]
-      source_context?: AgentSourceContext
       force_context_compression: boolean
     },
   ) {
     const fingerprint = JSON.stringify([
       input.prompt,
       input.attachment_ids,
-      input.source_context ?? null,
       input.force_context_compression,
     ])
     const current = this.queuedTurnRequests.get(sessionId)
