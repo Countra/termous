@@ -374,7 +374,7 @@
       },
       "hint": {
         "checking": "Waiting for the latest SSH session snapshot from Core. The task will not be submitted until it is verified.",
-        "unavailable": "This connection is not ready. Your draft is preserved. If the original session disconnected, reconnect and explicitly replace the reference, or detach it.",
+        "unavailable": "This connection is not ready. Your draft is preserved. Recover the connection, replace the reference, or detach it.",
         "stale": "The original connection was closed or Core restarted. A new connection using the same profile will not be selected automatically."
       },
       "aria": "Referenced SSH connection for {{host}}, {{status}}",
@@ -388,6 +388,35 @@
       "removeTitle": "Detach SSH connection?",
       "removeDescription": "This Agent session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
       "activeRunLocked": "Connections cannot be replaced or detached while a task is running",
+      "recovery": {
+        "details": "Recover the referenced SSH connection",
+        "title": "Connection recovery",
+        "completed": "SSH connection recovered",
+        "completedDescription": "The reference has been updated. Queued messages remain paused until you resume them.",
+        "infrastructureUnavailable": "The AI runtime is not ready, so new sessions and tasks are disabled. Existing sessions remain accessible, and the connection service checks SSH recovery independently.",
+        "recover": "Recover connection",
+        "retry": "Retry recovery",
+        "cancel": "Cancel recovery",
+        "checking": "Checking whether the original profile can be recovered.",
+        "description": "Reconnect using the original profile and update this reference. Queued messages stay paused until you resume them.",
+        "uncertain": "Checking the recovery result. No duplicate connection will be created. You can retry to check and continue the original request.",
+        "failed": "The connection could not be recovered. Retry when ready. The original reference and queued messages are preserved.",
+        "status": {
+          "connecting": "Creating a new connection. Queued messages are paused.",
+          "waiting_host_trust": "Waiting for host identity confirmation. Review the host trust prompt.",
+          "cancelling": "Cancelling recovery and cleaning up its connection.",
+          "failed": "Recovery failed. The original reference and queued messages are preserved.",
+          "cancelled": "Recovery cancelled. The original reference and queued messages are preserved."
+        },
+        "blocked": {
+          "no_binding": "This session has no SSH reference.",
+          "archived": "Connections cannot be recovered for archived sessions.",
+          "active_run": "Wait for this session's current task to finish before recovering the connection.",
+          "profile_unavailable": "The original SSH profile is unavailable. Replace or detach the reference.",
+          "mcp_unavailable": "The AI connection service is unavailable. Check the assistant settings.",
+          "closing": "Core is shutting down. Connection recovery is temporarily unavailable."
+        }
+      },
       "error": {
         "unavailableTitle": "Referenced SSH connection unavailable",
         "conflictTitle": "Connection reference changed",

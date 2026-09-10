@@ -28,6 +28,7 @@ import {
   decodeAgentSessionContext,
   decodeAgentSessionPage,
   decodeAgentSessionUsage,
+  decodeAgentResourceRecoveryView,
 } from '#features/agent-runtime'
 import type {
   AgentRun,
@@ -35,6 +36,7 @@ import type {
   AgentSourceContext,
   AgentResourceBindingUpdateInput,
   AgentResourceKind,
+  AgentResourceRecoveryInput,
   AgentSessionInput,
   AgentSessionMetadataInput,
   AgentSessionMoveInput,
@@ -128,6 +130,23 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     return this.request<void>(`${agentPath}/sessions/${encodeURIComponent(id)}`, {
       method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
     })
+  }
+
+  recoverResourceBinding(id: string, input: AgentResourceRecoveryInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recover`, {
+      method: 'POST', body: input, signal,
+    }).then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  resourceBindingRecovery(id: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recovery?kind=ssh_session`, { signal })
+      .then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  cancelResourceBindingRecovery(id: string, operationId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recovery/${encodeURIComponent(operationId)}/cancel`, {
+      method: 'POST', signal,
+    }).then((value) => decodeAgentResourceRecoveryView(value, id))
   }
 
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: import('#entities/agent').AgentAttachment['origin']) {

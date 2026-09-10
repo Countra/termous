@@ -945,6 +945,14 @@ export class AgentWorkspaceController {
     })
   }
 
+  acceptRecoveredResourceSession(session: AgentSession) {
+    // 重连快照可能已移除会话而没有 removed 事件；迟到恢复只能更新仍在工作区中的会话。
+    if (this.disposed || this.removedSessionIDs.has(session.id)
+      || !this.state.sessions.some((current) => current.id === session.id && !current.archived_at)) return
+    this.acceptSession(session)
+    void this.hydrateQueuedTurns(session.id).catch((error) => this.captureError(error))
+  }
+
   async removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session') {
     return await this.runMutation(async () => {
       const session = await this.gateway.removeResourceBinding(id, expectedRevision, kind)

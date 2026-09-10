@@ -1170,6 +1170,38 @@ describe('AgentWorkspace', () => {
     expect(props.onLoadAttachmentContent).not.toHaveBeenCalled()
   })
 
+  it('恢复连接期间保留输入与排队编辑能力，只禁止追加发送和继续队列', async () => {
+    const props = fixtureProps({
+      draft: '保留可编辑草稿', resource_recovery_blocked: true,
+      queued_turns: [queuedTurn('queued-1', 1)],
+      queue_state: { session_id: 'session-1', state: 'paused', revision: 1 },
+    })
+    renderWorkspace(props)
+    const composer = screen.getByPlaceholderText('agent.composer.queuePlaceholder')
+    expect(composer).toBeEnabled()
+    expect(composer).toHaveValue('保留可编辑草稿')
+    fireEvent.change(composer, { target: { value: '恢复时继续编辑' } })
+    expect(props.onDraftChange).toHaveBeenCalledWith('恢复时继续编辑')
+    expect(screen.getByRole('button', { name: 'agent.composer.queue' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.queue.resume' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.queue.actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.queue.editMessage' }))
+    expect(props.onBeginQueuedTurnEdit).toHaveBeenCalledWith('queued-1')
+  })
+
+  it('运行环境未就绪时只关闭任务与新建，保留已有聊天导航和草稿编辑', () => {
+    const props = fixtureProps({ execution_blocked: true, draft: '保留草稿',
+      sessions: [...fixtureProps().sessions, { ...fixtureProps().sessions[0]!, id: 'session-other', title: '已有恢复会话' }],
+      queued_turns: [queuedTurn('queued-one', 1)], queue_state: { session_id: 'session-1', state: 'paused', revision: 1 } })
+    renderWorkspace(props)
+    expect(screen.getByRole('button', { name: 'agent.sessions.new' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.queue' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.queue.resume' })).toBeDisabled()
+    expect(screen.getByPlaceholderText('agent.composer.queuePlaceholder')).toBeEnabled()
+    fireEvent.click(screen.getByText('已有恢复会话'))
+    expect(props.onSelectSession).toHaveBeenCalledWith('session-other')
+  })
+
   it('历史终端引用沿用鉴权附件加载器，展示来源和行数', async () => {
     const origin = { kind: 'terminal_selection' as const, source_session_id: 'ssh_source', host_name: 'Production', captured_at: '2026-09-08T06:00:00Z', line_count: 2 }
     const props = fixtureProps({

@@ -57,7 +57,7 @@ const verifiedResourceSystemRules = [
   '端口转发仅在复用 SSH 会话时使用当前绑定；用户明确选择 profile_id、host_id 或 ssh_profile_id 作为转发来源时保留该来源，不得擅自改为 session_id。',
   'AGENT_RESOURCE_BINDING_MISMATCH 且 dispatched=false 表示本次调用在本地被拦截，尚未发送到 MCP；按返回的本轮目标修正参数即可，不代表新绑定已失效。',
   '不得把 source_context.entity_id、host_id 或 ssh_profile_id 当作 session_id。',
-  '如果该 Session 失效或工具返回 Session 不可用，停止目标操作；不得自动连接、替换或选择同 Profile 的其他 Session。',
+  '如果该 Session 失效或工具返回 Session 不可用，停止目标操作，提示用户在界面恢复连接或替换引用；不得自动连接、替换或选择同 Profile 的其他 Session。',
   '用户需要另一条连接时，应先在 Termous 界面重新绑定。',
 ] as const
 

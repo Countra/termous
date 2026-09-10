@@ -84,6 +84,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       sessions={props.sessions}
       selectedSessionId={props.selected_session_id}
       disabled={props.busy || props.run_blocked}
+      createDisabled={props.execution_blocked}
       {...props.session_management}
       queuedSessionId={queuedSessionId}
       onCreate={(groupId) => { props.onCreateSession(groupId); setSessionsOpen(false) }}
@@ -96,7 +97,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const inspector = (
     <AgentInspector
       inspector={props.inspector}
-      disabled={props.busy || active || props.run_blocked}
+      disabled={props.busy || active || props.run_blocked || props.execution_blocked === true}
       onContextCompressionPendingChange={props.onContextCompressionPendingChange}
       onRetryContext={props.onRetryContext}
       onRetryUsage={props.onRetryUsage}
@@ -149,7 +150,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           runStatus={runStatus}
           disabled={props.busy || props.queue_busy}
           stopDisabled={props.stop_busy}
-          submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
+          submitDisabled={props.busy || props.queue_busy || props.run_blocked || props.resource_run_blocked || props.execution_blocked === true || props.resource_recovery_blocked === true || Boolean(queuedSessionElsewhere) || (!queueMode && !props.model_runnable)}
           sourceContext={props.draft_source_context}
           resourceContexts={props.resource_contexts}
           resourceChangeDisabled={props.busy
@@ -157,6 +158,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             || Boolean(props.active_run)
             || Boolean(queuedSessionElsewhere)
             || props.resource_contexts?.some(({ status }) => status === 'checking') === true}
+          resourceRecoveryDisabled={props.resource_recovery_disabled}
+          queueExecutionBlocked={props.resource_recovery_blocked || props.execution_blocked}
           attachments={props.draft_attachments}
           queuedTurns={props.queued_turns}
           queueState={props.queue_state}
@@ -200,6 +203,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onOpenSettings={onOpenSettings}
           onReplaceResourceBinding={onReplaceResourceBinding}
           onRemoveResourceBinding={onRemoveResourceBinding}
+          onRecoverResourceBinding={props.onRecoverResourceBinding}
+          onCancelResourceRecovery={props.onCancelResourceRecovery}
         />
       </section>
       {inspectorOpen && !breakpoints.inspectorOverlay ? inspector : null}

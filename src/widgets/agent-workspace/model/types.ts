@@ -15,6 +15,7 @@ import type {
   AgentResourceKind,
   AgentSessionGroup,
   AgentResourceState,
+  AgentResourceRecoveryState,
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
@@ -60,6 +61,7 @@ export interface AgentWorkspaceResourceContext {
   status: AgentWorkspaceResourceStatus
   live_resource?: AgentResourceState
   candidates: AgentResourceState[]
+  recovery?: AgentResourceRecoveryState
 }
 
 export type AgentWorkspaceModelUnavailableReason =
@@ -251,6 +253,9 @@ export interface AgentWorkspaceProps {
   run_blocked: boolean
   resource_run_blocked: boolean
   resource_contexts?: AgentWorkspaceResourceContext[]
+  resource_recovery_blocked?: boolean
+  resource_recovery_disabled?: boolean
+  execution_blocked?: boolean
   onCreateSession: (groupId?: string) => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
@@ -287,6 +292,8 @@ export interface AgentWorkspaceProps {
   onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
   onReplaceResourceBinding: (reference: AgentResourceReference) => Promise<boolean>
   onRemoveResourceBinding: (kind: AgentResourceKind) => Promise<boolean>
+  onRecoverResourceBinding?: () => Promise<boolean>
+  onCancelResourceRecovery?: () => Promise<boolean>
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

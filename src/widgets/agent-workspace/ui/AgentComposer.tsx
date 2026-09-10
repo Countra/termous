@@ -41,6 +41,8 @@ export const AgentComposer = memo(function AgentComposer({
   sourceContext,
   resourceContexts = [],
   resourceChangeDisabled,
+  resourceRecoveryDisabled = false,
+  queueExecutionBlocked = false,
   attachments,
   queuedTurns,
   queueState,
@@ -84,6 +86,8 @@ export const AgentComposer = memo(function AgentComposer({
   onOpenSettings,
   onReplaceResourceBinding,
   onRemoveResourceBinding,
+  onRecoverResourceBinding,
+  onCancelResourceRecovery,
 }: {
   value: string
   focusKey?: number
@@ -97,6 +101,8 @@ export const AgentComposer = memo(function AgentComposer({
   sourceContext?: AgentSourceContext
   resourceContexts?: AgentWorkspaceResourceContext[]
   resourceChangeDisabled: boolean
+  resourceRecoveryDisabled?: boolean
+  queueExecutionBlocked?: boolean
   attachments: AgentWorkspaceDraftAttachment[]
   queuedTurns: AgentWorkspaceProps['queued_turns']
   queueState?: AgentWorkspaceProps['queue_state']
@@ -144,6 +150,8 @@ export const AgentComposer = memo(function AgentComposer({
   onOpenSettings: () => void
   onReplaceResourceBinding: AgentWorkspaceProps['onReplaceResourceBinding']
   onRemoveResourceBinding: AgentWorkspaceProps['onRemoveResourceBinding']
+  onRecoverResourceBinding?: AgentWorkspaceProps['onRecoverResourceBinding']
+  onCancelResourceRecovery?: AgentWorkspaceProps['onCancelResourceRecovery']
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -189,6 +197,7 @@ export const AgentComposer = memo(function AgentComposer({
         queueState={queueState}
         disabled={disabled}
         canExecute={active && runStatus !== 'stopping' && !submitDisabled}
+        resumeDisabled={queueExecutionBlocked}
         editingTurnId={queuedTurnEdit?.turn_id}
         onEdit={onBeginQueuedTurnEdit}
         onExecute={onSteerQueuedTurn}
@@ -214,6 +223,9 @@ export const AgentComposer = memo(function AgentComposer({
                 disabled={resourceChangeDisabled}
                 onReplace={onReplaceResourceBinding}
                 onRemove={() => onRemoveResourceBinding(resourceContext.binding.kind)}
+                recoveryDisabled={resourceRecoveryDisabled}
+                onRecover={onRecoverResourceBinding}
+                onCancelRecovery={onCancelResourceRecovery}
               />
             ))}
             {effectiveSourceContext ? (

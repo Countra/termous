@@ -373,7 +373,7 @@
       },
       "hint": {
         "checking": "正在等待 Core 返回最新的 SSH 会话状态，确认完成前不会提交任务。",
-        "unavailable": "当前连接未处于就绪状态。草稿会保留；若原会话已断开，请重新连接后显式更换引用，或解除引用。",
+        "unavailable": "当前连接未处于就绪状态。草稿会保留；可以恢复连接、更换引用或解除引用。",
         "stale": "原连接已关闭或 Core 已重启，不会自动切换到同配置的新连接。"
       },
       "aria": "已引用 {{host}} 的 SSH 连接，{{status}}",
@@ -387,6 +387,35 @@
       "removeTitle": "解除 SSH 连接引用？",
       "removeDescription": "解除后，当前 AI 助手会话将不再固定使用“{{host}}”的 SSH 连接，历史消息不会改变。",
       "activeRunLocked": "任务运行期间不能更换或解除连接",
+      "recovery": {
+        "details": "恢复引用的 SSH 连接",
+        "title": "连接恢复",
+        "completed": "SSH 连接已恢复",
+        "completedDescription": "已更新当前引用。待发送消息仍暂停，请确认后继续。",
+        "infrastructureUnavailable": "AI 运行环境尚未就绪，暂时不能新建或执行任务。已有会话和引用仍可查看，SSH 恢复状态由连接服务独立判断。",
+        "recover": "恢复连接",
+        "retry": "重试恢复",
+        "cancel": "取消恢复",
+        "checking": "正在确认原配置是否可恢复。",
+        "description": "按原配置新建连接并更新引用。排队消息保持暂停，由你手动继续。",
+        "uncertain": "正在确认恢复结果。不会重复建立连接；也可以重试查询并继续原请求。",
+        "failed": "暂时无法恢复连接，请重试。原引用和待发送消息已保留。",
+        "status": {
+          "connecting": "正在建立新连接，待发送消息已暂停。",
+          "waiting_host_trust": "等待确认主机身份，请处理主机信任提示。",
+          "cancelling": "正在取消恢复并清理本次连接。",
+          "failed": "恢复失败，原引用和待发送消息已保留。",
+          "cancelled": "已取消恢复，原引用和待发送消息已保留。"
+        },
+        "blocked": {
+          "no_binding": "当前会话没有 SSH 引用。",
+          "archived": "归档会话不能恢复连接。",
+          "active_run": "请等待当前会话的任务结束，再恢复连接。",
+          "profile_unavailable": "原 SSH 配置已不可用，请更换或解除引用。",
+          "mcp_unavailable": "AI 助手的连接服务不可用，请检查助手设置。",
+          "closing": "Core 正在关闭，暂时不能恢复连接。"
+        }
+      },
       "error": {
         "unavailableTitle": "无法使用引用的 SSH 连接",
         "conflictTitle": "连接引用已发生变化",

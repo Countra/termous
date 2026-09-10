@@ -133,3 +133,9 @@ export {
   type AgentConnectionReferenceSnapshot, type AgentConnectionReferenceProps,
 } from './model/resourceReference.ts'
 export { connectionReferenceMenuProps } from './model/resourceReference.ts'
+export {
+  agentResourceRecoveryStatuses, agentResourceRecoveryBlockedReasons,
+  isAgentResourceRecoveryActive, isAgentResourceRecoveryBlocking,
+  type AgentResourceRecoveryInput, type AgentResourceRecoveryOperation, type AgentResourceRecoveryView,
+  type AgentResourceRecoveryState, type AgentResourceRecoveryStatus, type AgentResourceRecoveryBlockedReason,
+} from './model/resourceRecovery.ts'

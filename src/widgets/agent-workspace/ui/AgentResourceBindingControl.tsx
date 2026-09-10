@@ -2,11 +2,12 @@ import { Button, Select, Tooltip } from 'antd'
 import { Check, FolderOpen, Link2Off, RefreshCw, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConfirmDialog, FilterPopover, uiStyles } from '#shared/ui'
+import { ConfirmDialog, ConnectionActionButton, FilterPopover, uiStyles } from '#shared/ui'
 import { resourceReference, resourceReferenceId, resourceProfileName, resourceBindingMatchesSource, sameAgentResourceSource,
   type AgentResourceReference, type AgentResourceState } from '#entities/agent'
 import type { AgentWorkspaceResourceContext } from '../model/types.ts'
 import styles from './AgentResourceBindingControl.module.scss'
+import { AgentResourceRecoveryActions } from './AgentResourceRecoveryActions.tsx'
 
 const resourceTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` }
 
@@ -15,11 +16,17 @@ export function AgentResourceBindingControl({
   disabled,
   onReplace,
   onRemove,
+  recoveryDisabled = false,
+  onRecover,
+  onCancelRecovery,
 }: {
   context: AgentWorkspaceResourceContext
   disabled: boolean
   onReplace: (reference: AgentResourceReference) => Promise<boolean>
   onRemove: () => Promise<boolean>
+  recoveryDisabled?: boolean
+  onRecover?: () => Promise<boolean>
+  onCancelRecovery?: () => Promise<boolean>
 }) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -31,6 +38,7 @@ export function AgentResourceBindingControl({
   const [candidateSource, setCandidateSource] = useState<AgentResourceState>()
   const bindingId = resourceReferenceId(resourceReference(context.binding))
   const file = context.binding.kind === 'file_profile'
+  const hasRecovery = !file && Boolean(onRecover && onCancelRecovery)
   const ResourceIcon = file ? FolderOpen : TerminalSquare
   const copy = file ? 'agent.fileResource' : 'agent.resource'
   const candidates = useMemo(
@@ -95,9 +103,14 @@ export function AgentResourceBindingControl({
         <div><dt>{t(`${copy}.session`)}</dt><dd title={bindingId}>{sessionLabel}</dd></div>
         <div><dt>{t('agent.resource.boundAt')}</dt><dd>{formatDate(context.binding.bound_at, i18n.language)}</dd></div>
       </dl>
-      {context.status !== 'ready' ? (
+      {context.status !== 'ready' && !hasRecovery ? (
         <p className={styles.warning} role="status">{t(`${copy}.hint.${context.status}`)}</p>
       ) : null}
+      {context.binding.kind === 'ssh_session' && onRecover && onCancelRecovery
+        && (context.status !== 'ready' || context.recovery?.view?.operation) ? (
+          <AgentResourceRecoveryActions binding={context.binding} state={context.recovery}
+            disabled={recoveryDisabled} connectionReady={context.status === 'ready'} onRecover={onRecover} onCancel={onCancelRecovery} />
+        ) : null}
       {editing ? (
         <div className={styles.rebind}>
           <Select
@@ -116,10 +129,10 @@ export function AgentResourceBindingControl({
             onChange={(id: string) => setCandidateSource(candidates.find((source) => resourceReferenceId(resourceReference(source)) === id))}
           />
           <div className={styles['rebind-actions']}>
-            <Button size="small" disabled={pending} onClick={() => setEditing(false)}>{t('app.cancel')}</Button>
-            <Button
+            <Button size="small" className={`${uiStyles['secondary-button']} ${styles['action-button']}`} disabled={pending} onClick={() => setEditing(false)}>{t('app.cancel')}</Button>
+            <ConnectionActionButton
               size="small"
-              type="primary"
+              className={styles['action-button']}
               icon={<Check size={13} />}
               loading={pending}
               disabled={!candidateReady || disabled}
@@ -127,19 +140,21 @@ export function AgentResourceBindingControl({
                 () => onReplace(resourceReference(candidate)),
                 () => { setOpen(false); setEditing(false); setCandidateSource(undefined) },
               )}
-            >{t('agent.resource.confirmReplace')}</Button>
+            >{t('agent.resource.confirmReplace')}</ConnectionActionButton>
           </div>
         </div>
       ) : (
-        <div className={styles.actions}>
+        <div className={styles['footer-actions']}>
           <Button
             size="small"
+            className={`${uiStyles['secondary-button']} ${styles['action-button']}`}
             icon={<RefreshCw size={13} />}
             disabled={disabled || pending || candidates.length === 0}
             onClick={() => setEditing(true)}
           >{t('agent.resource.replace')}</Button>
           <Button
             size="small"
+            className={`${uiStyles['danger-button']} ${styles['action-button']}`}
             danger
             icon={<Link2Off size={13} />}
             disabled={disabled || pending}

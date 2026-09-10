@@ -1146,12 +1146,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   } : null)
   const productTourReady = !initializing && apiReady && !coreFatal
   const agentReferenceResourcesReady = apiReady && !coreFatal && sessionSnapshotReady
+  const agentFileResourcesReady = apiReady && !coreFatal && !initializing
   const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
   const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentResourceReference) => projectConnectionReferenceSnapshot(
-    reference, agentResources, agentReferenceTargets, agentReferenceResourcesReady,
-  ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady])
+    reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
+  ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
     || actionBusy
     || hostSaving
@@ -1340,6 +1341,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
                           fileResources={agentFileResources}
+                          fileResourcesReady={agentFileResourcesReady}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}

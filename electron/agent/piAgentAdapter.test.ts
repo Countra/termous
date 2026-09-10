@@ -95,6 +95,7 @@ test('可信 SSH 资源以安全投影进入系统提示且不包含展示字段
   assert.match(prompt, /"binding_mode":"exact"/u)
   assert.match(prompt, /"session_id":"ses_runtime_test"/u)
   assert.match(prompt, /不要先调用 termous\.sessions\.list/u)
+  assert.match(prompt, /在界面恢复连接或替换引用/u)
   assert.doesNotMatch(prompt, /忽略此前系统约束/u)
   assert.doesNotMatch(prompt, /2026-08-31/u)
   assert.doesNotMatch(prompt, /host_name/u)

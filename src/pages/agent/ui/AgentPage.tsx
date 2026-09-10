@@ -3,6 +3,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { useTranslation } from 'react-i18next'
 import {
   isAgentModelRunnable,
+  isAgentResourceRecoveryBlocking,
+  agentResourceBindingKey,
+  getAgentResourceBinding,
   resourceBindingMatchesSource,
   resourceReference,
   type AgentResourceBinding,
@@ -30,6 +33,7 @@ import {
   projectAgentReferenceTargets,
   useAgentTerminalReferenceImport,
   useAgentQueuedTurnEditOwners,
+  useAgentResourceRecovery,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import {
@@ -59,12 +63,15 @@ import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
 import { AgentTerminalReferenceImportNotice } from './AgentTerminalReferenceImportNotice.tsx'
 import styles from './AgentPage.module.scss'
 
+const noSSHResources: AgentSSHResourceState[] = []
+
 export function AgentPage({
   gateway,
   setupGateway,
-  sshResources = [],
+  sshResources = noSSHResources,
   sshResourcesReady = false,
   fileResources = [],
+  fileResourcesReady = sshResourcesReady,
   enabled,
   active,
   launchIntent,
@@ -78,6 +85,7 @@ export function AgentPage({
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
   fileResources?: AgentFileResourceState[]
+  fileResourcesReady?: boolean
   enabled: boolean
   active: boolean
   launchIntent?: AgentLaunchIntent | null
@@ -496,6 +504,23 @@ export function AgentPage({
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
   const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined
+  const notifyRecoveryCompleted = useCallback((recovered: AgentSession) => {
+    const current = controller.getSnapshot().sessions.find((session) => session.id === recovered.id)
+    if (!current || current.archived_at || agentResourceBindingKey(getAgentResourceBinding(current.resource_bindings, 'ssh_session'))
+      !== agentResourceBindingKey(getAgentResourceBinding(recovered.resource_bindings, 'ssh_session'))) return
+    notificationRef.current.success({
+      key: `agent-resource-recovery-${recovered.id}`,
+      placement: 'topRight',
+      title: tRef.current('agent.resource.recovery.completed'),
+      description: tRef.current('agent.resource.recovery.completedDescription'),
+      duration: 2,
+      showProgress: false,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [controller])
+  const recovery = useAgentResourceRecovery(gateway, controller, selected,
+    enabled && active && state.snapshot_complete, selectedQueueState?.revision, sshResources, readiness, notifyRecoveryCompleted)
   const selectedDraftAttachmentRecords = selected && selectedQueuedTurnEdit
     ? queuedTurnEditAttachments.records[selected.id]?.filter((record) => !record.owner_id || record.owner_id === getQueuedEditOwner(selected.id))
     : draftAttachments.records[selected?.id ?? 'new']
@@ -516,9 +541,9 @@ export function AgentPage({
   const resources = useMemo(() => [...sshResources, ...fileResources], [sshResources, fileResources])
   const resourceContexts = useMemo(
     () => (selected?.resource_bindings ?? []).map((binding) => projectResourceContext(
-      binding, resources, sshResourcesReady && state.snapshot_complete,
-    )),
-    [selected?.resource_bindings, resources, sshResourcesReady, state.snapshot_complete],
+      binding, resources, (binding.kind === 'ssh_session' ? sshResourcesReady : fileResourcesReady) && state.snapshot_complete,
+    )).map((context) => context.binding.kind === 'ssh_session' ? { ...context, recovery: recovery.state } : context),
+    [selected?.resource_bindings, resources, sshResourcesReady, fileResourcesReady, state.snapshot_complete, recovery.state],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
   const createReferenceSession = useCallback(async (request: AgentResourceReferenceLaunch) => {
@@ -539,9 +564,10 @@ export function AgentPage({
     intent: launchIntent?.source === 'terminal_selection' || launchIntent?.source === 'connection_reference' ? launchIntent : undefined,
     controller,
     active,
-    ready: enabled && activeSetupReady && state.snapshot_complete,
+    ready: enabled && activeSetupReady && workspaceInfrastructureReady && state.snapshot_complete,
     modelReady: newSessionModelRunnable,
-    resourcesReady: sshResourcesReady,
+    resourcesReady: launchIntent?.source === 'connection_reference' && launchIntent.resource_reference.kind === 'file_profile'
+      ? fileResourcesReady : sshResourcesReady,
     resources,
     createSession: createReferenceSession,
     getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',
@@ -592,40 +618,41 @@ export function AgentPage({
     workspaceInfrastructureReady,
   ])
 
-  if (!enabled || !readiness || !workspaceInfrastructureReady) {
-    return (
-      <div className={styles.page}>
-        {referenceNotice}
-        <AgentReadinessSurface
-          readiness={readiness}
-          loading={setupLoading || operationBusy.workspace}
-          onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
-          onPrepare={() => void perform(async () => {
-            if (!enabled || !active) return
-            const epoch = activeSetupEpochRef.current
-            activeSetupAbortRef.current?.abort()
-            const requestAbort = new AbortController()
-            activeSetupAbortRef.current = requestAbort
-            try {
-              const result = await setupGateway.setup(requestAbort.signal)
-              requestAbort.signal.throwIfAborted()
-              const catalog = await loadAgentModelCatalog(setupGateway, requestAbort.signal)
-              if (requestAbort.signal.aborted || activeSetupEpochRef.current !== epoch) return
-              acceptSetupSnapshot(result, catalog.providers, catalog.models)
-              markActiveSetupReady(epoch)
-            } catch (error) {
-              // 离页会撤销本次准备，迟到响应不再加载目录或更新当前页面。
-              if (!requestAbort.signal.aborted) throw error
-            } finally {
-              if (activeSetupAbortRef.current === requestAbort) activeSetupAbortRef.current = null
-            }
-          })}
-        />
-      </div>
-    )
+  // 连接恢复不依赖 Skills 或 Worker；已有引用的工作区保留访问，任务入口另行锁定。
+  const recoveryWorkspaceAvailable = state.snapshot_complete && state.sessions.some((session) => !session.archived_at
+    && session.resource_bindings?.some((binding) => binding.kind === 'ssh_session'))
+  const readinessSurface = <AgentReadinessSurface
+    readiness={readiness}
+    compact={enabled && Boolean(readiness) && recoveryWorkspaceAvailable}
+    loading={setupLoading || operationBusy.workspace}
+    onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
+    onPrepare={() => void perform(async () => {
+      if (!enabled || !active) return
+      const epoch = activeSetupEpochRef.current
+      activeSetupAbortRef.current?.abort()
+      const requestAbort = new AbortController()
+      activeSetupAbortRef.current = requestAbort
+      try {
+        const result = await setupGateway.setup(requestAbort.signal)
+        requestAbort.signal.throwIfAborted()
+        const catalog = await loadAgentModelCatalog(setupGateway, requestAbort.signal)
+        if (requestAbort.signal.aborted || activeSetupEpochRef.current !== epoch) return
+        acceptSetupSnapshot(result, catalog.providers, catalog.models)
+        markActiveSetupReady(epoch)
+      } catch (error) {
+        // 离页会撤销本次准备，迟到响应不再加载目录或更新当前页面。
+        if (!requestAbort.signal.aborted) throw error
+      } finally {
+        if (activeSetupAbortRef.current === requestAbort) activeSetupAbortRef.current = null
+      }
+    })}
+  />
+  if (!enabled || !readiness || !workspaceInfrastructureReady && !recoveryWorkspaceAvailable) {
+    return <div className={styles.page}>{referenceNotice}{readinessSurface}</div>
   }
 
   const resourceRunBlocked = resourceContexts.some(({ status }) => status !== 'ready')
+  const resourceRecoveryBlocked = isAgentResourceRecoveryBlocking(recovery.state)
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
@@ -690,7 +717,7 @@ export function AgentPage({
   return (
     <div className={styles.page}>
       {referenceNotice}
-      {activeSetupFailed ? (
+      {!workspaceInfrastructureReady ? readinessSurface : activeSetupFailed ? (
         <Alert
           className={styles.alert}
           type="warning"
@@ -783,7 +810,12 @@ export function AgentPage({
         )}
         resource_run_blocked={resourceRunBlocked}
         resource_contexts={resourceContexts}
+        execution_blocked={!workspaceInfrastructureReady}
+        resource_recovery_blocked={resourceRecoveryBlocked}
+        resource_recovery_disabled={!enabled || !state.snapshot_complete || Boolean(selected?.archived_at)
+          || Boolean(activeRun && activeRun.session_id === selected?.id)}
         onCreateSession={(groupId) => {
+          if (!workspaceInfrastructureReady) return
           controller.selectSession(undefined)
           setDraftGroupId(groupId)
           const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
@@ -877,6 +909,7 @@ export function AgentPage({
         onAttachFiles={(files) => {
           const selection = controller.getSnapshot()
           const sessionId = selection.selected_session_id
+          if (!sessionId && !workspaceInfrastructureReady) return Promise.resolve()
           const ownerId = sessionId ? getQueuedEditOwner(sessionId) ?? 'draft' : 'draft'
           const attachments = ownerId === 'draft' ? draftAttachments : queuedTurnEditAttachments
           if (sessionId) return attachments.add(files, { sessionId, ownerId })
@@ -893,9 +926,9 @@ export function AgentPage({
           : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
         onSend={async (message, attachmentIds, sourceContext) => {
-          if (!activeSetupReady) return
+          if (!activeSetupReady || !workspaceInfrastructureReady) return
           await perform(async () => {
-            if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            if (resourceRunBlocked || isAgentResourceRecoveryBlocking(selected ? recovery.coordinator.getSnapshot()[selected.id] : undefined)) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             let targetSession = selected
             if (!targetSession) {
               const modelId = newSessionModelId
@@ -942,7 +975,7 @@ export function AgentPage({
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun(), 'generic', 'stop') }}
         onContextCompressionPendingChange={(enabled) => {
-          if (!selected) return
+          if (!selected || !workspaceInfrastructureReady) return
           try {
             controller.setContextCompressionPending(selected.id, enabled)
           } catch {
@@ -953,8 +986,9 @@ export function AgentPage({
           if (selected) void controller.reloadContext(selected.id)
         }}
         onQueueTurn={async (message, attachmentIds, sourceContext) => {
-          if (!selected) return
+          if (!selected || !workspaceInfrastructureReady) return
           await perform(async () => {
+            if (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             const submittedDraft = controller.getSnapshot().drafts[selected.id]
             await controller.enqueueTurn(selected.id, message, attachmentIds, sourceContext)
             if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
@@ -1010,14 +1044,16 @@ export function AgentPage({
           ), 'generic', 'queue')
         }}
         onSteerQueuedTurn={async (turnId) => {
-          if (selected) await perform(
+          if (selected && workspaceInfrastructureReady) await perform(
             () => controller.steerQueuedTurn(selected.id, turnId),
             'generic',
             'queue',
           )
         }}
         onResumeQueue={async () => {
-          if (selected) await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
+          if (selected && workspaceInfrastructureReady && !isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) {
+            await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
+          }
         }}
         onRetryUsage={() => {
           if (selected) void controller.reloadUsage(selected.id)
@@ -1032,6 +1068,20 @@ export function AgentPage({
             })
           })
         }}
+        onRecoverResourceBinding={async () => {
+          const current = controller.getSnapshot().sessions.find(({ id }) => id === selected?.id)
+          if (!current) return false
+          const accepted = await recovery.coordinator.recover(current)
+          if (!accepted && recovery.coordinator.getSnapshot()[current.id]?.error_code === 'AGENT_REVISION_CONFLICT') {
+            try {
+              await controller.reloadSession(current.id)
+            } catch {
+              // 保留原始冲突诊断，后续工作区事件或用户重试负责恢复权威版本。
+            }
+          }
+          return accepted
+        }}
+        onCancelResourceRecovery={async () => selected ? recovery.coordinator.cancel(selected.id) : false}
         onRemoveResourceBinding={async (kind) => {
           if (!selected) return false
           const removed = await performResourceMutation(

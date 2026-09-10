@@ -178,6 +178,22 @@ test('迟到的更新响应不会覆盖 WebSocket 已接收的更高会话 revis
   controller.close()
 })
 
+test('重连快照已移除的会话不会被迟到 SSH 恢复结果重新插入', async (context) => {
+  const { controller, socket } = await startControllerWithQueue(new FakeGateway(), [])
+  context.after(() => controller.close())
+  const other = agentSessionFixture({ id: 'ags-other' })
+  socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture(), other], active_runs: [] })
+  controller.selectSession(other.id)
+  controller.updateDraft(other.id, '当前聊天的草稿')
+  socket.message({ type: 'snapshot', revision: 2, sessions: [other], active_runs: [] })
+
+  controller.acceptRecoveredResourceSession(agentSessionFixture({ title: '迟到的恢复结果', revision: 2 }))
+
+  assert.deepEqual(controller.getSnapshot().sessions.map(({ id }) => id), [other.id])
+  assert.equal(controller.getSnapshot().selected_session_id, other.id)
+  assert.equal(controller.getSnapshot().drafts[other.id]?.text, '当前聊天的草稿')
+})
+
 test('资源绑定 revision 冲突恢复可单独刷新权威会话', async () => {
   const gateway = new FakeGateway()
   gateway.sessionImpl = async (id) => {
@@ -2434,6 +2450,9 @@ class FakeGateway implements AgentWorkspaceGateway {
   async wakeQueue() { return commandResult(true) }
   async replaceResourceBinding() { return agentSessionFixture() }
   async removeResourceBinding() { return agentSessionFixture() }
+  async recoverResourceBinding(): Promise<never> { throw new Error('测试未配置连接恢复') }
+  async resourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复查询') }
+  async cancelResourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复取消') }
   usage(sessionId: string, signal?: AbortSignal) {
     if (signal) this.usageSignals.push(signal)
     this.usageCalls += 1

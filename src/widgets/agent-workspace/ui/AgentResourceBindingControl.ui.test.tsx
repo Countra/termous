@@ -51,6 +51,9 @@ vi.mock('antd', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  ConnectionActionButton: ({ children, disabled, onClick }: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) => (
+    <button type="button" disabled={disabled} onClick={onClick}>{children}</button>
+  ),
   FilterPopover: ({ children, content, open, destroyOnHidden, onOpenChange }: {
     children: ReactNode
     content: ReactNode
@@ -75,6 +78,98 @@ vi.mock('#shared/ui', () => ({
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 
 describe('Agent SSH 资源绑定控件', () => {
+  it.each([undefined, 'AGENT_RESOURCE_RECOVERY_QUERY_FAILED'])('恢复成功且连接就绪后保持收起，不因后续查询错误重开：%s', (errorCode) => {
+    const context = resourceContext()
+    render(<AgentResourceBindingControl disabled={false} onReplace={vi.fn()} onRemove={vi.fn()}
+      onRecover={vi.fn()} onCancelRecovery={vi.fn()} context={{ ...context, recovery: {
+        checking: false, submitting: false, uncertain: false, error_code: errorCode,
+        view: { instance_id: 'core', kind: 'ssh_session', can_recover: false, blocked_reason: 'ready', operation: {
+          id: 'recovery', instance_id: 'core', session_id: 'agent', kind: 'ssh_session', client_request_id: 'request',
+          revision: 3, status: 'succeeded', source_binding: context.binding as Extract<typeof context.binding, { kind: 'ssh_session' }>,
+          retryable: false, created_at: context.binding.bound_at, updated_at: context.binding.bound_at,
+        } },
+      } }} />)
+    const chip = screen.getByRole('button', { name: /agent.resource.aria/ })
+    fireEvent.click(chip)
+    expect(screen.queryByText('agent.resource.recovery.title')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.resource.replace' })).toBeInTheDocument()
+    fireEvent.click(chip)
+    fireEvent.click(chip)
+    expect(screen.queryByLabelText('agent.resource.recovery.details')).not.toBeInTheDocument()
+  })
+
+  it('恢复后的连接再次失效时不继续显示成功说明', () => {
+    const context = resourceContext()
+    const props = { disabled: false, onReplace: vi.fn(), onRemove: vi.fn(), onRecover: vi.fn(), onCancelRecovery: vi.fn() }
+    render(<AgentResourceBindingControl {...props} context={{ ...context, status: 'stale', recovery: {
+      checking: false, submitting: false, uncertain: false,
+      view: { instance_id: 'core', kind: 'ssh_session', can_recover: true, operation: {
+        id: 'recovery', instance_id: 'core', session_id: 'agent', kind: 'ssh_session', client_request_id: 'request',
+        revision: 3, status: 'succeeded', source_binding: context.binding as Extract<typeof context.binding, { kind: 'ssh_session' }>,
+        retryable: false, created_at: context.binding.bound_at, updated_at: context.binding.bound_at,
+      } },
+    } }} />)
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
+    expect(screen.queryByText('agent.resource.hint.stale')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('agent.resource.recovery.description')
+    expect(screen.getByRole('button', { name: 'agent.resource.recovery.recover' })).toBeEnabled()
+  })
+
+  it('普通替换因待派发队列禁用时仍可单独恢复，并提供取消连接操作', async () => {
+    const context = resourceContext()
+    const recover = vi.fn().mockResolvedValue(true)
+    const cancel = vi.fn().mockResolvedValue(true)
+    const state = { checking: false, submitting: false, uncertain: false,
+      view: { instance_id: 'core', kind: 'ssh_session' as const, can_recover: true, operation: null } }
+    const props = { disabled: true, recoveryDisabled: false, onReplace: vi.fn(), onRemove: vi.fn(), onRecover: recover, onCancelRecovery: cancel }
+    const view = render(<AgentResourceBindingControl {...props} context={{ ...context, status: 'stale', recovery: state }} />)
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
+    expect(screen.getByRole('button', { name: 'agent.resource.replace' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.recovery.recover' }))
+    await waitFor(() => expect(recover).toHaveBeenCalledOnce())
+    view.rerender(<AgentResourceBindingControl {...props} context={{ ...context, status: 'stale', recovery: { ...state, view: {
+      ...state.view, can_recover: false, blocked_reason: 'recovering', operation: {
+        id: 'recovery', instance_id: 'core', session_id: 'agent', kind: 'ssh_session', client_request_id: 'request',
+        revision: 1, status: 'waiting_host_trust', source_binding: context.binding as Extract<typeof context.binding, { kind: 'ssh_session' }>,
+        retryable: true, created_at: context.binding.bound_at, updated_at: context.binding.bound_at,
+      },
+    } } }} />)
+    expect(screen.getByText('agent.resource.recovery.status.waiting_host_trust')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.recovery.cancel' }))
+    await waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+  })
+
+  it('恢复查询失败可重试，任务锁定时不能恢复', () => {
+    const props = { disabled: false, recoveryDisabled: true, onReplace: vi.fn(), onRemove: vi.fn(), onRecover: vi.fn(), onCancelRecovery: vi.fn() }
+    const view = render(<AgentResourceBindingControl {...props} context={{ ...resourceContext(), status: 'stale', recovery: {
+      checking: false, submitting: false, uncertain: false, error_code: 'AGENT_RESOURCE_RECOVERY_QUERY_FAILED',
+    } }} />)
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
+    expect(screen.getByRole('button', { name: 'agent.resource.recovery.retry' })).toBeDisabled()
+    view.rerender(<AgentResourceBindingControl {...props} recoveryDisabled={false} context={{ ...resourceContext(), status: 'stale', recovery: {
+      checking: false, submitting: false, uncertain: false, error_code: 'AGENT_RESOURCE_RECOVERY_QUERY_FAILED',
+    } }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.recovery.retry' })).toBeEnabled()
+  })
+
+  it.each(['stale', 'ready'] as const)('取消时连接清理失败仍展示诊断，当前连接状态=%s', (status) => {
+    const context = resourceContext()
+    render(<AgentResourceBindingControl disabled={false} onReplace={vi.fn()} onRemove={vi.fn()}
+      onRecover={vi.fn()} onCancelRecovery={vi.fn()} context={{ ...context, status, recovery: {
+        checking: false, submitting: false, uncertain: false, view: {
+          instance_id: 'core', kind: 'ssh_session', can_recover: status !== 'ready', blocked_reason: status === 'ready' ? 'ready' : undefined, operation: {
+            id: 'recovery', instance_id: 'core', session_id: 'agent', kind: 'ssh_session', client_request_id: 'request',
+            revision: 3, status: 'cancelled', source_binding: context.binding as Extract<typeof context.binding, { kind: 'ssh_session' }>,
+            retryable: true, created_at: context.binding.bound_at, updated_at: context.binding.bound_at,
+            error_code: 'CLEANUP_FAILED', message: '已取消，但连接清理失败，请重试。',
+          },
+        },
+      } }} />)
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
+    expect(screen.getByText('已取消，但连接清理失败，请重试。')).toBeInTheDocument()
+    expect(screen.queryByText('agent.resource.recovery.status.cancelled')).not.toBeInTheDocument()
+  })
+
   it('常驻展示状态并通过显式选择完成重绑与解除', async () => {
     const replace = vi.fn().mockResolvedValue(true)
     const remove = vi.fn().mockResolvedValue(true)
