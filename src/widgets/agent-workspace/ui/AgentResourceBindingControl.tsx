@@ -2,7 +2,7 @@ import { Button, Select, Tooltip } from 'antd'
 import { Check, FolderOpen, Link2Off, RefreshCw, ServerCog, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConfirmDialog, ConnectionActionButton, FilterPopover, uiStyles } from '#shared/ui'
+import { ConfirmDialog, ConnectionActionButton, FilterPopover, customSelectStyles, uiStyles } from '#shared/ui'
 import { resourceReference, resourceReferenceId, resourceProfileName, resourceBindingMatchesSource, sameAgentResourceSource,
   type AgentResourceReference, type AgentResourceState } from '#entities/agent'
 import type { AgentWorkspaceResourceContext, AgentWorkspaceSSHProfileAssociationMode } from '../model/types.ts'
@@ -122,7 +122,12 @@ export function AgentResourceBindingControl({
         <div className={styles.rebind}>
           <Select
             value={candidateId}
-            className={styles.select}
+            className={`${customSelectStyles.select} ${styles.select} termous-select`}
+            classNames={{
+              popup: {
+                root: `${customSelectStyles['select-popup']} termous-select-popup`,
+              },
+            }}
             disabled={pending || disabled}
             placeholder={t(`${copy}.selectPlaceholder`)}
             aria-label={t(`${copy}.selectLabel`)}

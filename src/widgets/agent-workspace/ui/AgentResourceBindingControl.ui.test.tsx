@@ -41,11 +41,17 @@ vi.mock('antd', () => ({
       </div>
     )
   },
-  Select: ({ options, disabled, onChange }: {
+  Select: ({ options, disabled, className, classNames, onChange }: {
     options: Array<{ value: string; label: string }>
     disabled?: boolean
+    className?: string
+    classNames?: { popup?: { root?: string } }
     onChange: (value: string) => void
-  }) => <div>{options.map((option) => (
+  }) => <div
+    data-testid="resource-rebind-select"
+    data-select-class={className}
+    data-popup-class={classNames?.popup?.root}
+  >{options.map((option) => (
     <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)}>{option.label}</button>
   ))}</div>,
 }))
@@ -72,6 +78,7 @@ vi.mock('#shared/ui', () => ({
   ConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) => (
     open ? <button type="button" onClick={onConfirm}>confirm-detach</button> : null
   ),
+  customSelectStyles: { select: 'shared-select', 'select-popup': 'shared-select-popup' },
   uiStyles: { tooltip: 'shared-tooltip' },
 }))
 
@@ -186,6 +193,14 @@ describe('Agent SSH 资源绑定控件', () => {
       .toHaveAttribute('data-resource-status', 'ready')
     fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
+    expect(screen.getByTestId('resource-rebind-select')).toHaveAttribute(
+      'data-select-class',
+      expect.stringContaining('shared-select'),
+    )
+    expect(screen.getByTestId('resource-rebind-select')).toHaveAttribute(
+      'data-popup-class',
+      'shared-select-popup termous-select-popup',
+    )
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
     await waitFor(() => expect(replace).toHaveBeenCalledWith({ kind: 'ssh_session', session_id: 'ses-two' }))
