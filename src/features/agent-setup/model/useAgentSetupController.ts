@@ -180,6 +180,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     global_context_window_tokens?: number
     global_max_output_tokens?: number
     context_compaction_threshold_percent?: number
+    connect_ssh_profile_on_bind?: boolean
     show_turn_token_usage?: boolean
   }) => {
     if (!readiness) return Promise.reject(new Error('Agent settings are unavailable'))
@@ -201,6 +202,8 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
             ?? currentSettings.global_max_output_tokens,
           context_compaction_threshold_percent: patch.context_compaction_threshold_percent
             ?? currentSettings.context_compaction_threshold_percent,
+          connect_ssh_profile_on_bind: patch.connect_ssh_profile_on_bind
+            ?? currentSettings.connect_ssh_profile_on_bind,
           show_turn_token_usage: patch.show_turn_token_usage ?? currentSettings.show_turn_token_usage,
           expected_revision: currentSettings.revision,
         }, signal)

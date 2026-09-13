@@ -7,6 +7,7 @@ import {
   agentMessageStatuses,
   agentModelReasoningControls,
   agentReasoningLevels,
+  agentResourceSlot,
   agentResourceKinds,
   agentRunEventKinds,
   agentRunStatuses,
@@ -81,7 +82,7 @@ export function decodeAgentSession(value: unknown): AgentSession {
     ? (source.resource_binding === undefined ? [] : [source.resource_binding])
     : array(source.resource_bindings, 'Agent 资源绑定集合无效', 2)
   const resourceBindings = bindings.map(decodeAgentResourceBinding)
-  unique(resourceBindings.map(({ kind }) => kind), 'Agent 资源绑定类型重复')
+  unique(resourceBindings.map(({ kind }) => agentResourceSlot(kind)), 'Agent 资源绑定槽位重复')
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
@@ -146,16 +147,27 @@ export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding
     bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效'),
   }
   if (kind === 'file_profile') {
-    if (source.session_id !== undefined || source.platform !== undefined) throw new AgentRuntimeProtocolError('文件引用包含终端身份')
+    if (source.session_id !== undefined || source.platform !== undefined || source.ssh_profile_name !== undefined) {
+      throw new AgentRuntimeProtocolError('文件引用包含 SSH 身份')
+    }
     return { ...common, kind,
       file_access_profile_id: identifier(source.file_access_profile_id, 'Agent 文件 Profile ID 无效'),
       file_access_profile_name: utf8(source.file_access_profile_name, 'Agent 文件配置名称无效', 1_024),
       engine: enumValue(source.engine, ['sftp'] as const, 'Agent 文件引擎无效'),
     }
   }
-  if (source.file_access_profile_id !== undefined || source.file_access_profile_name !== undefined || source.engine !== undefined) {
-    throw new AgentRuntimeProtocolError('终端引用包含文件身份')
+  if (source.file_access_profile_id !== undefined || source.file_access_profile_name !== undefined
+    || source.engine !== undefined) {
+    throw new AgentRuntimeProtocolError('SSH 引用包含文件身份')
   }
+  if (kind === 'ssh_profile') {
+    if (source.session_id !== undefined) throw new AgentRuntimeProtocolError('SSH Profile 引用包含会话身份')
+    return { ...common, kind,
+      ssh_profile_name: utf8(source.ssh_profile_name, 'Agent SSH Profile 名称无效', 1_024),
+      platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
+    }
+  }
+  if (source.ssh_profile_name !== undefined) throw new AgentRuntimeProtocolError('SSH 会话引用包含 Profile 展示字段')
   return { ...common, kind,
     session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
     platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),

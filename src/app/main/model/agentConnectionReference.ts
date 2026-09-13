@@ -1,6 +1,7 @@
 import { getAgentResourceBinding, resourceBindingMatchesSource, resourceReference, resourceReferenceId, sameAgentResourceSource,
-  type AgentConnectionReferenceLaunch, type AgentConnectionReferenceSnapshot, type AgentFileResourceState,
-  type AgentReferenceTarget, type AgentReferenceTargetsSnapshot, type AgentResourceReference, type AgentResourceState } from '#entities/agent'
+  type AgentConnectionReferenceLaunch, type AgentConnectionReferenceSnapshot, type AgentConnectionResourceReference,
+  type AgentConnectionResourceState, type AgentFileResourceState,
+  type AgentReferenceTarget, type AgentReferenceTargetsSnapshot } from '#entities/agent'
 import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
@@ -21,7 +22,7 @@ export function projectAgentFileResources(profiles: FileAccessProfile[], hosts: 
   })
 }
 
-export function projectConnectionReferenceSnapshot(reference: AgentResourceReference, resources: AgentResourceState[],
+export function projectConnectionReferenceSnapshot(reference: AgentConnectionResourceReference, resources: AgentConnectionResourceState[],
   sessions: AgentReferenceTargetsSnapshot, resourcesReady: boolean): AgentConnectionReferenceSnapshot {
   const source = resources.find((resource) => resourceReference(resource).kind === reference.kind
     && resourceReferenceId(resourceReference(resource)) === resourceReferenceId(reference))
@@ -36,8 +37,8 @@ export function projectConnectionReferenceSnapshot(reference: AgentResourceRefer
   }
 }
 
-export function buildConnectionReferenceLaunch(source: AgentResourceState, target: AgentReferenceTarget,
-  resources: AgentResourceState[]): AgentConnectionReferenceLaunch {
+export function buildConnectionReferenceLaunch(source: AgentConnectionResourceState, target: AgentReferenceTarget,
+  resources: AgentConnectionResourceState[]): AgentConnectionReferenceLaunch {
   if (!resources.some((current) => sameAgentResourceSource(source, current))) throw new Error('AGENT_TERMINAL_REFERENCE_SOURCE_UNAVAILABLE')
   return { source: 'connection_reference', target, source_resource: { ...source }, resource_reference: resourceReference(source) }
 }

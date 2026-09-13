@@ -77,6 +77,27 @@ export function AgentRuntimeSettings({
             onConflictVisibilityChange={onDefaultsConflictVisibilityChange}
           />
 
+          <section className={styles['agent-setting-row']} aria-labelledby="agent-profile-binding-title">
+            <div className={styles['agent-setting-copy']}>
+              <strong id="agent-profile-binding-title">{t('settings.agent.profileBinding.title')}</strong>
+              <span>{t('settings.agent.profileBinding.description')}</span>
+            </div>
+            <div className={styles['toggle-control']}>
+              <span>{t(readiness.settings.connect_ssh_profile_on_bind
+                ? 'settings.agent.profileBinding.immediate'
+                : 'settings.agent.profileBinding.onDemand')}</span>
+              <Switch
+                aria-label={t('settings.agent.profileBinding.toggle')}
+                checked={readiness.settings.connect_ssh_profile_on_bind}
+                loading={runtime.mutation === 'settings'}
+                disabled={busy}
+                onChange={(checked) => consume(runtime.updateSettings({
+                  connect_ssh_profile_on_bind: checked,
+                }))}
+              />
+            </div>
+          </section>
+
           <section className={styles['agent-setting-row']} aria-labelledby="agent-turn-usage-title">
             <div className={styles['agent-setting-copy']}>
               <strong id="agent-turn-usage-title">{t('settings.agent.turnUsage.title')}</strong>

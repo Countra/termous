@@ -69,8 +69,8 @@ import {
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentReferenceTargetsSnapshot,
-  type AgentResourceReference,
-  type AgentResourceState,
+  type AgentConnectionResourceReference,
+  type AgentConnectionResourceState,
   type AgentReferenceTarget,
 } from '#entities/agent'
 import { buildTerminalReferenceLaunch, projectTerminalAIReferenceSnapshot } from './model/agentTerminalReference.ts'
@@ -95,6 +95,7 @@ import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
 import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
 import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
+import { projectAgentSlashCandidates } from './model/projectAgentSlashCandidates.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 import { CoreFatalDialog } from './CoreFatalDialog'
@@ -480,8 +481,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [agentSSHResources, launchAgent, notification, t])
   const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
     [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
+  const agentSlashCandidates = useMemo(() => projectAgentSlashCandidates({
+    sessions: data.sessions,
+    displayedFileSessions,
+    hosts: data.hosts,
+    hostAssets: data.hostAssets,
+    sshAccessProfiles: data.sshAccessProfiles,
+    fileAccessProfiles: data.fileAccessProfiles,
+    closingFileSessionIds,
+  }), [
+    closingFileSessionIds,
+    data.fileAccessProfiles,
+    data.hostAssets,
+    data.hosts,
+    data.sessions,
+    data.sshAccessProfiles,
+    displayedFileSessions,
+  ])
   const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
-  const referenceAgentConnection = useCallback((source: AgentResourceState, target: AgentReferenceTarget) => {
+  const referenceAgentConnection = useCallback((source: AgentConnectionResourceState, target: AgentReferenceTarget) => {
     try {
       launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
     } catch (error) {
@@ -1148,7 +1166,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
-  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentResourceReference) => projectConnectionReferenceSnapshot(
+  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentConnectionResourceReference) => projectConnectionReferenceSnapshot(
     reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
@@ -1337,8 +1355,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
+                          sshProfileResourcesReady={agentFileResourcesReady}
                           fileResources={agentFileResources}
                           fileResourcesReady={agentFileResourcesReady}
+                          slashCandidates={agentSlashCandidates}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}

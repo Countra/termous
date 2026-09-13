@@ -148,6 +148,32 @@ test('bootstrap 严格校验可信 SSH 资源绑定且拒绝未声明字段', as
   }
 })
 
+test('bootstrap 严格校验可信 SSH Profile 绑定且冻结规范快照', async () => {
+  const valid = bootstrapResponse()
+  valid.session.resource_bindings = [runtimeSSHProfileBinding()]
+  const accepted = await new WorkerCoreClient({
+    fetch: async () => Response.json(valid),
+  }).bootstrap(start)
+  assert.deepEqual(accepted.session.resource_bindings?.[0], runtimeSSHProfileBinding())
+  assert.equal(Object.isFrozen(accepted.session.resource_bindings?.[0]), true)
+
+  for (const mutate of [
+    (value: Record<string, unknown>) => { value.ssh_profile_name = '  ' },
+    (value: Record<string, unknown>) => { value.ssh_profile_id = 'ssh invalid' },
+    (value: Record<string, unknown>) => { value.platform = 'windows' },
+    (value: Record<string, unknown>) => { value.session_id = 'ses_not_allowed' },
+    (value: Record<string, unknown>) => { delete value.host_id },
+  ]) {
+    const response = bootstrapResponse()
+    response.session.resource_bindings = [runtimeSSHProfileBinding()]
+    mutate(response.session.resource_bindings[0] as unknown as Record<string, unknown>)
+    await assert.rejects(
+      new WorkerCoreClient({ fetch: async () => Response.json(response) }).bootstrap(start),
+      /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+    )
+  }
+})
+
 test('bootstrap 冻结双资源，拒绝重复类型和原文件会话 ID，并对账旧投影', async () => {
   const ssh = runtimeResourceBinding()
   const file = { kind: 'file_profile' as const, file_access_profile_id: 'file_one', file_access_profile_name: '文件配置',
@@ -166,6 +192,14 @@ test('bootstrap 冻结双资源，拒绝重复类型和原文件会话 ID，并�
   }
   await assert.rejects(bootstrap({ resource_bindings: [file], resource_binding: ssh }), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
   assert.deepEqual((await bootstrap({ resource_binding: ssh })).session.resource_bindings, [ssh])
+
+  const profile = runtimeSSHProfileBinding()
+  assert.deepEqual((await bootstrap({ resource_bindings: [file, profile] })).session.resource_bindings, [profile, file])
+  await assert.rejects(bootstrap({ resource_bindings: [ssh, profile] }), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+  await assert.rejects(
+    bootstrap({ resource_bindings: [profile], resource_binding: ssh }),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/,
+  )
 })
 
 test('bootstrap 严格校验推理控制、支持档位及本次 Run 档位', async () => {
@@ -429,6 +463,18 @@ function runtimeResourceBinding(): Extract<NonNullable<RuntimeBootstrap['session
     session_id: 'ses_runtime_test',
     host_id: 'hst_runtime_test',
     ssh_profile_id: 'ssh_runtime_test',
+    host_name: 'Production',
+    platform: 'linux',
+    bound_at: '2026-08-31T02:20:30Z',
+  }
+}
+
+function runtimeSSHProfileBinding(): Extract<NonNullable<RuntimeBootstrap['session']['resource_bindings']>[number], { kind: 'ssh_profile' }> {
+  return {
+    kind: 'ssh_profile',
+    ssh_profile_id: 'ssh_runtime_test',
+    ssh_profile_name: 'Production deploy',
+    host_id: 'hst_runtime_test',
     host_name: 'Production',
     platform: 'linux',
     bound_at: '2026-08-31T02:20:30Z',

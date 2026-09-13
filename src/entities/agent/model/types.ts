@@ -16,6 +16,7 @@ export interface AgentSettings {
   global_context_window_tokens: number
   global_max_output_tokens: number
   context_compaction_threshold_percent: number
+  connect_ssh_profile_on_bind: boolean
   show_turn_token_usage: boolean
   revision: number
   created_at: string
@@ -231,11 +232,13 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session', 'file_profile'] as const
+export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
+export type AgentResourceSlot = 'ssh' | 'file'
 
 export type AgentResourceReference =
   | { kind: 'ssh_session'; session_id: string }
+  | { kind: 'ssh_profile'; ssh_profile_id: string }
   | { kind: 'file_profile'; file_access_profile_id: string }
 
 interface AgentResourceBindingBase {
@@ -247,11 +250,14 @@ interface AgentResourceBindingBase {
 
 export type AgentResourceBinding = AgentResourceBindingBase & (
   | { kind: 'ssh_session'; session_id: string; platform: 'linux' }
+  | { kind: 'ssh_profile'; ssh_profile_name: string; platform: 'linux' }
   | { kind: 'file_profile'; file_access_profile_id: string; file_access_profile_name: string; engine: 'sftp' }
 )
 
 export type AgentSSHResourceBinding = Extract<AgentResourceBinding, { kind: 'ssh_session' }>
+export type AgentSSHProfileResourceBinding = Extract<AgentResourceBinding, { kind: 'ssh_profile' }>
 export type AgentFileResourceBinding = Extract<AgentResourceBinding, { kind: 'file_profile' }>
+export type AgentSSHSlotResourceBinding = AgentSSHResourceBinding | AgentSSHProfileResourceBinding
 
 export interface AgentFileResourceState {
   file_access_profile_id: string
@@ -263,7 +269,7 @@ export interface AgentFileResourceState {
   status: 'ready' | 'unavailable'
 }
 
-export type AgentResourceState = AgentSSHResourceState | AgentFileResourceState
+export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState
 
 export interface AgentSSHResourceState {
   session_id: string
@@ -273,6 +279,15 @@ export interface AgentSSHResourceState {
   ssh_profile_name: string
   status: 'ready' | 'unavailable'
   started_at: string
+}
+
+export interface AgentSSHProfileResourceState {
+  host_id: string
+  ssh_profile_id: string
+  host_name: string
+  ssh_profile_name: string
+  platform: 'linux'
+  status: 'ready' | 'unavailable'
 }
 
 export type AgentLaunchIntent = { key: number } & (
@@ -287,8 +302,8 @@ export type AgentLaunchIntent = { key: number } & (
   | {
       source: 'connection_reference'
       target: { kind: 'new' } | { kind: 'session'; session_id: string }
-      resource_reference: AgentResourceReference
-      source_resource: AgentResourceState
+      resource_reference: Exclude<AgentResourceReference, { kind: 'ssh_profile' }>
+      source_resource: AgentSSHResourceState | AgentFileResourceState
     }
 )
 

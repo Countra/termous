@@ -42,6 +42,35 @@ describe('AgentWorkspaceClient', () => {
     expect(fetchMock.mock.calls[2]?.[1].body).toBeUndefined()
   })
 
+  it('Profile 连接使用独立受理、可选精确查询和幂等取消接口', async () => {
+    const result = { instance_id: 'core', operation: null }
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(result))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'renderer-token' }).agentWorkspace
+    const input = {
+      kind: 'ssh_session' as const, ssh_profile_id: 'profile/one', expected_revision: 2,
+      expected_instance_id: 'core', client_request_id: 'request/one',
+    }
+    await gateway.connectResourceBinding('agent/one', input)
+    await gateway.resourceBindingConnection('agent/one')
+    await gateway.resourceBindingConnection('agent/one', 'request/one')
+    await gateway.cancelResourceBindingConnection('agent/one', 'connection/one')
+    expect(requestAt(fetchMock, 0)).toMatchObject({
+      path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/connect', method: 'POST', body: input,
+    })
+    expect(requestAt(fetchMock, 1)).toMatchObject({
+      path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/connection', search: '',
+    })
+    expect(requestAt(fetchMock, 2)).toMatchObject({
+      path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/connection',
+      search: '?client_request_id=request%2Fone',
+    })
+    expect(requestAt(fetchMock, 3)).toMatchObject({
+      path: '/api/v1/agent/sessions/agent%2Fone/resource-binding/connection/connection%2Fone/cancel', method: 'POST',
+    })
+    expect(fetchMock.mock.calls[3]?.[1].body).toBeUndefined()
+  })
+
   it('使用固定 HTTP/WS 路由、稳定游标和类型化 Runtime IPC', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ items: [sessionFixture()] }))

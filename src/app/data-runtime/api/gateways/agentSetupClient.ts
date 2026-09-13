@@ -46,6 +46,7 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
     global_context_window_tokens: number
     global_max_output_tokens: number
     context_compaction_threshold_percent: number
+    connect_ssh_profile_on_bind: boolean
     show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal) {

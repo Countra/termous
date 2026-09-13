@@ -226,6 +226,59 @@ describe('Agent SSH 资源绑定控件', () => {
     await waitFor(() => expect(remove).toHaveBeenCalledOnce())
   })
 
+  it.each([
+    ['on_demand', 'agent.sshProfileResource.confirmReplaceOnDemand'],
+    ['immediate', 'agent.sshProfileResource.confirmReplaceImmediate'],
+  ] as const)('SSH Profile 标签保持简洁并使用 %s 更换行为', async (
+    associationMode,
+    confirmCopy,
+  ) => {
+    const replace = vi.fn().mockResolvedValue(true)
+    const binding = {
+      kind: 'ssh_profile' as const,
+      ssh_profile_id: 'ssh-one',
+      ssh_profile_name: '默认配置',
+      host_id: 'host-one',
+      host_name: 'Production',
+      platform: 'linux' as const,
+      bound_at: '2026-08-31T08:00:00Z',
+    }
+    render(<AgentResourceBindingControl disabled={false} onReplace={replace} onRemove={vi.fn()}
+      sshProfileAssociationMode={associationMode}
+      onRecover={vi.fn()} onCancelRecovery={vi.fn()} context={{
+        binding,
+        status: 'ready',
+        live_resource: { ...binding, status: 'ready' },
+        candidates: [{
+          host_id: 'host-two', host_name: 'Fallback', ssh_profile_id: 'ssh-two',
+          ssh_profile_name: '备用配置', platform: 'linux', status: 'ready',
+        }],
+      }} />)
+
+    const chip = screen.getByRole('button', { name: /agent.sshProfileResource.aria/ })
+    expect(chip).toHaveAttribute('data-resource-kind', 'ssh_profile')
+    expect(chip).toHaveTextContent('Production')
+    expect(chip).not.toHaveTextContent('agent.sshProfileResource.onDemand')
+    expect(chip.querySelector('small')).not.toBeInTheDocument()
+    expect(chip.querySelector('i')).not.toBeInTheDocument()
+    expect(chip.querySelector('.lucide-server-cog')).toBeInTheDocument()
+    fireEvent.click(chip)
+    expect(screen.getByRole('group', { name: 'agent.sshProfileResource.details' })).toBeInTheDocument()
+    expect(screen.getByText('默认配置')).toBeInTheDocument()
+    expect(screen.queryByText('agent.sshProfileResource.connectionMode')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.sshProfileResource.onDemand')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.resource.session')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.resource.recovery.title')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.sshProfileResource.replace' }))
+    expect(screen.getByRole('button', { name: confirmCopy })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /Fallback.*备用配置/ }))
+    fireEvent.click(screen.getByRole('button', { name: confirmCopy }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({
+      kind: 'ssh_profile', ssh_profile_id: 'ssh-two',
+    }))
+  })
+
   it('相同文件 Profile 的关联身份变化后仍可显式重新绑定，确认前身份再变则清除选择', async () => {
     const replace = vi.fn().mockResolvedValue(true)
     const remove = vi.fn().mockResolvedValue(true)

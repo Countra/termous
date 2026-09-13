@@ -37,6 +37,7 @@ describe('AgentSetupClient', () => {
       default_model_id: 'apm-1', default_reasoning_level: 'high',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false, expected_revision: 2,
     })
     await client.readiness()
@@ -66,6 +67,7 @@ describe('AgentSetupClient', () => {
         default_model_id: 'apm-1', default_reasoning_level: 'high',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
         context_compaction_threshold_percent: 80,
+        connect_ssh_profile_on_bind: false,
         show_turn_token_usage: false, expected_revision: 2,
       },
     })
@@ -120,6 +122,7 @@ function settingsFixture(revision: number) {
     default_model_id: 'apm-1', default_reasoning_level: 'high',
     global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
     context_compaction_threshold_percent: 80,
+    connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true, revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }

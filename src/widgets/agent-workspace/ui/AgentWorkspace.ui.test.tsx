@@ -50,6 +50,29 @@ describe('AgentWorkspace', () => {
     expect(screen.getByPlaceholderText('agent.composer.placeholder')).toHaveValue('保留用户草稿')
   })
 
+  it('将立即连接策略传递至 SSH Profile 资源卡换绑入口', async () => {
+    const context: NonNullable<AgentWorkspaceProps['resource_contexts']>[number] = {
+      binding: {
+        kind: 'ssh_profile', ssh_profile_id: 'ssh-one', ssh_profile_name: '默认配置',
+        host_id: 'host-one', host_name: '生产主机', platform: 'linux',
+        bound_at: '2026-09-09T01:00:00Z',
+      },
+      status: 'ready',
+      candidates: [{
+        host_id: 'host-two', host_name: '备用主机', ssh_profile_id: 'ssh-two',
+        ssh_profile_name: '备用配置', platform: 'linux', status: 'ready',
+      }],
+    }
+    renderWorkspace(fixtureProps({
+      resource_contexts: [context],
+      sshProfileAssociationMode: 'immediate',
+    }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.sshProfileResource.aria' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.sshProfileResource.replace' }))
+    expect(screen.getByRole('button', { name: 'agent.sshProfileResource.confirmReplaceImmediate' })).toBeDisabled()
+  })
+
   it('输入框回看当前会话用户文本，编辑后保留草稿而不再切换历史', () => {
     const props = fixtureProps({
       messages: [{
@@ -119,6 +142,55 @@ describe('AgentWorkspace', () => {
     expect(props.onQueueTurn).not.toHaveBeenCalled()
     fireEvent.keyDown(textarea, { key: 'Enter' })
     expect(props.onQueueTurn).toHaveBeenCalledExactlyOnceWith('中文输入', [])
+  })
+
+  it('Slash 菜单打开和命令执行期间禁用提交，修饰回车不会发送命令原文', async () => {
+    const user = userEvent.setup()
+    const pending = deferred<boolean>()
+    const props = fixtureProps({
+      slashAvailability: {
+        session: { enabled: true },
+        profile: { enabled: true },
+        compact: { enabled: true },
+      },
+      onExecuteSlashCommand: vi.fn(() => pending.promise),
+    })
+    const view = renderWorkspace(props)
+    const textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+
+    await user.type(textarea, '/')
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })
+    expect(props.onSend).not.toHaveBeenCalled()
+
+    fireEvent.change(textarea, { target: { value: '/compact 保留正文' } })
+    view.rerender(<AntdApp><AgentWorkspace {...props} draft="/compact 保留正文" /></AntdApp>)
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    await waitFor(() => expect(props.onExecuteSlashCommand).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true })
+    expect(props.onSend).not.toHaveBeenCalled()
+
+    pending.resolve(false)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled())
+  })
+
+  it('在输入区标记下一条消息的上下文整理，并支持取消预约', async () => {
+    const user = userEvent.setup()
+    const base = fixtureProps()
+    const onContextCompressionPendingChange = vi.fn()
+    const props = fixtureProps({
+      inspector: {
+        ...base.inspector,
+        context: { ...base.inspector.context, compression_pending: true },
+      },
+      onContextCompressionPendingChange,
+    })
+    renderWorkspace(props)
+
+    expect(screen.getByText('agent.composer.compressionPending')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'agent.composer.cancelCompression' }))
+    expect(onContextCompressionPendingChange).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('展示真实 reasoning 与 Tool 时间线并路由发送、排队和停止', async () => {

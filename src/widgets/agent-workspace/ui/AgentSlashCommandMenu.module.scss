@@ -1,0 +1,344 @@
+.menu {
+  position: absolute;
+  z-index: 12;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: grid;
+  width: 100%;
+  max-width: none;
+  max-height: min(360px, var(--agent-slash-available-height, 360px));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 84%, transparent);
+  border-radius: 12px;
+  background: var(--termous-dropdown-bg, var(--surface-strong));
+  box-shadow:
+    0 18px 38px rgb(0 0 0 / 26%),
+    var(--inner-highlight);
+  color: var(--text-primary);
+}
+
+.header {
+  display: grid;
+  min-height: 34px;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 46%, transparent);
+  color: var(--text-secondary);
+  padding: 3px 9px;
+}
+
+.header strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.back {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.back {
+  cursor: pointer;
+}
+
+.back:hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.back:focus-visible,
+.search:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 56%, transparent);
+  outline-offset: -2px;
+}
+
+.header-copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.header-path {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.spinner {
+  color: var(--accent);
+  animation: slash-spin 900ms linear infinite;
+}
+
+.list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 7px;
+  outline: none;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.resources {
+  padding-top: 5px;
+}
+
+.resource-status {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  gap: 6px;
+  line-height: 16px;
+  padding: 5px 13px;
+}
+
+.resource-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-status > svg {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.resource-status > .spinner {
+  color: var(--accent);
+}
+
+.group-label {
+  min-height: 20px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+  padding: 1px 9px 3px;
+}
+
+.group-label-secondary {
+  margin-top: 5px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding-top: 8px;
+}
+
+.option {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  grid-template-columns: 28px minmax(0, 1fr) 22px;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  gap: 5px;
+  padding: 7px 8px;
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.option.resource {
+  min-height: 52px;
+}
+
+.option[aria-selected='true'] {
+  background: color-mix(in srgb, var(--row-hover-bg) 88%, var(--accent-soft));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, var(--border) 80%);
+}
+
+.option:hover:not([aria-disabled='true']) {
+  background: var(--row-hover-bg);
+  box-shadow: none;
+}
+
+.list:focus-visible .option[aria-selected='true'] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.option[aria-selected='true'] .icon {
+  color: var(--accent);
+}
+
+.option:hover:not([aria-disabled='true']) .icon,
+.option:hover:not([aria-disabled='true']) .chevron {
+  color: var(--text-primary);
+}
+
+.option[aria-selected='true'] .chevron {
+  color: var(--text-secondary);
+}
+
+.option[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.62;
+}
+
+.icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.command {
+  grid-template-columns: 28px max-content minmax(0, 1fr) 22px;
+  min-height: 42px;
+}
+
+.command .copy {
+  display: contents;
+}
+
+.command .copy strong {
+  grid-column: 2;
+}
+
+.command .copy small {
+  grid-column: 3;
+  margin-left: 7px;
+}
+
+.copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 1px;
+}
+
+.copy strong,
+.copy small {
+  overflow: hidden;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command .copy small {
+  align-self: center;
+}
+
+.copy strong {
+  font-size: 13px;
+  font-weight: 630;
+  line-height: 18px;
+}
+
+.copy small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.copy .reason {
+  color: var(--danger);
+}
+
+.chevron,
+.current {
+  justify-self: center;
+  color: var(--text-muted);
+}
+
+.current {
+  color: var(--accent);
+}
+
+.search {
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  gap: 4px;
+  padding: 4px 13px;
+}
+
+.search input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.search input::placeholder {
+  color: var(--text-muted);
+}
+
+.empty {
+  display: grid;
+  min-height: 92px;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 18px;
+  text-align: center;
+}
+
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes slash-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .icon {
+    transition: none;
+  }
+
+  .spinner {
+    animation: none;
+  }
+}
+
+@container agent-workspace (width <= 480px) {
+  .command {
+    grid-template-columns: 28px minmax(0, max-content) minmax(0, 1fr) 20px;
+  }
+
+  .command .copy small {
+    overflow: hidden;
+    margin-left: 5px;
+  }
+}

@@ -19,6 +19,7 @@
     "confirmDelete": "确认删除",
     "collapse": "折叠",
     "expand": "展开",
+    "back": "返回",
     "reorder": "拖动调整顺序",
     "moveUp": "上移",
     "moveDown": "下移",
@@ -291,6 +292,9 @@
       "queue": "加入队列",
       "send": "发送",
       "stop": "停止任务",
+      "compressionPending": "下次发送时尝试压缩上下文",
+      "compressionPendingHint": "仅作用于下一条新消息",
+      "cancelCompression": "取消下次整理",
       "responseOptions": "模型与推理设置",
       "reasoning": "推理强度",
       "resetResponseOptions": "恢复默认配置",
@@ -326,6 +330,32 @@
         "checking": "正在确认文件配置，确认完成前不会提交任务。",
         "unavailable": "文件配置当前不可用，请更换配置或解除引用。原文件标签关闭或断开不会使引用失效。",
         "stale": "文件配置已删除或配置归属已变化，请更换配置或解除引用。"
+      }
+    },
+    "sshProfileResource": {
+      "details": "已关联的 SSH 配置",
+      "profile": "SSH 配置",
+      "aria": "已关联 {{host}} 的 SSH 配置，{{status}}",
+      "tooltip": "SSH 配置 · {{host}} · {{status}}",
+      "selectLabel": "选择新的 SSH 配置",
+      "selectPlaceholder": "选择可用的 SSH 配置",
+      "noCandidates": "暂无其他可用 SSH 配置",
+      "replace": "更换配置",
+      "confirmReplaceOnDemand": "仅关联 Profile",
+      "confirmReplaceImmediate": "连接并更换",
+      "remove": "解除关联",
+      "removeTitle": "解除 SSH 配置关联？",
+      "removeDescription": "解除后，当前 AI 助手会话将不再按需使用“{{host}}”的 SSH 配置，草稿和历史消息不会改变。",
+      "status": {
+        "checking": "正在确认配置",
+        "ready": "按需连接",
+        "unavailable": "配置暂不可用",
+        "stale": "原配置已失效"
+      },
+      "hint": {
+        "checking": "正在确认 SSH 配置，确认完成前不会提交任务。",
+        "unavailable": "SSH 配置当前不可用，请更换配置或解除关联。",
+        "stale": "SSH 配置已删除或主机归属已变化，请更换配置或解除关联。"
       }
     },
     "connectionReference": {
@@ -465,6 +495,132 @@
         "NETWORK_ERROR": "无法连接本地 Core，请稍后重试。",
         "REQUEST_TIMEOUT": "附件操作超时，请稍后重试。",
         "unknown": "附件操作失败，请稍后重试。"
+      }
+    },
+    "slash": {
+      "title": "斜杠命令",
+      "commands": {
+        "title": "命令",
+        "session": {
+          "title": "选择会话类型",
+          "description": "关联现有的 SSH 或文件会话"
+        },
+        "profile": {
+          "title": "选择配置类型",
+          "description": "通过 SSH 或文件配置建立关联"
+        },
+        "compact": {
+          "title": "整理上下文",
+          "description": "下一条消息发送前整理上下文"
+        }
+      },
+      "groups": {
+        "resources": "资源关联",
+        "context": "上下文"
+      },
+      "resourceKind": {
+        "title": "选择资源类型",
+        "ssh": {
+          "title": "SSH 连接",
+          "description": "使用 SSH 会话或配置"
+        },
+        "file": {
+          "title": "文件访问",
+          "description": "使用文件会话或配置"
+        }
+      },
+      "search": "搜索主机、配置或 ID",
+      "processing": "正在处理所选资源…",
+      "searchEmpty": "未找到匹配的资源",
+      "resources": {
+        "title": "选择资源",
+        "empty": "暂无可选资源"
+      },
+      "results": "{{count}} 项结果",
+      "sessionCount": "{{count}} 个会话",
+      "current": "当前关联",
+      "status": {
+        "ready": "已就绪",
+        "connected": "已连接",
+        "connecting": "正在连接",
+        "waiting_host_trust": "等待主机信任",
+        "disconnected": "已断开",
+        "failed": "连接失败",
+        "unavailable": "不可用"
+      },
+      "disabled": {
+        "archived": "归档会话不可执行此命令",
+        "session_not_ready": "会话尚未连接并就绪",
+        "host_missing": "所属主机已不存在",
+        "profile_missing": "关联的文件配置已不存在",
+        "profile_invalid": "配置不完整",
+        "ssh_profile_missing": "关联的 SSH 配置已不存在",
+        "profile_host_mismatch": "配置的主机归属不一致",
+        "unsupported_engine": "仅支持 SFTP 文件配置",
+        "unsupported_platform": "首版仅支持 Linux 主机",
+        "active_run": "任务运行期间不可更换资源",
+        "queued_edit": "请先完成待处理消息编辑",
+        "queued_messages": "请先处理待发送消息",
+        "resource_busy": "SSH 连接操作正在进行",
+        "mutation_busy": "当前会话正在处理操作",
+        "compression_unavailable": "当前上下文不支持整理",
+        "empty_draft": "请先输入要发送的消息",
+        "workspace_unavailable": "工作区尚未就绪"
+      },
+      "replace": {
+        "title": "替换当前资源？",
+        "description": "当前已关联“{{current}}”。是否替换为“{{next}}”？",
+        "confirm": "替换"
+      },
+      "compact": {
+        "accepted": "已安排上下文整理",
+        "acceptedDescription": "将在下一条新消息发送前整理上下文。"
+      },
+      "binding": {
+        "completed": "资源已关联",
+        "completedDescription": "已更新当前 AI 助手会话的资源关联。"
+      },
+      "connection": {
+        "title": "SSH 配置连接",
+        "target": "SSH 配置 · {{host}} / {{profile}}",
+        "uncertain": "暂时无法确认连接状态，正在与 Core 对账。",
+        "failed": "SSH 配置连接失败，请重试。",
+        "cancel": "取消",
+        "retry": "重试",
+        "dismiss": "关闭连接状态",
+        "completed": "SSH 配置已连接",
+        "completedDescription": "已更新当前 AI 助手会话的 SSH 连接。",
+        "status": {
+          "connecting": "正在建立 SSH 连接…",
+          "waiting_host_trust": "等待确认主机密钥…",
+          "cancelling": "正在取消并清理临时连接…",
+          "succeeded": "连接已建立，正在同步会话…",
+          "failed": "SSH 连接失败",
+          "cancelled": "SSH 连接已取消"
+        },
+        "error": {
+          "AGENT_RESOURCE_CONNECTION_QUERY_FAILED": "无法读取连接状态，正在重试。",
+          "AGENT_RESOURCE_CONNECTION_FAILED": "未能发起 SSH 连接，请重试。",
+          "AGENT_RESOURCE_CONNECTION_CANCEL_FAILED": "未能取消 SSH 连接，请重试。",
+          "AGENT_RESOURCE_CONNECTION_CONFLICT": "当前会话已有连接操作或待处理消息。",
+          "AGENT_RESOURCE_CONNECTION_TIMEOUT": "SSH 连接超时，请重试。",
+          "AGENT_REVISION_CONFLICT": "会话资源已变化，请重新选择配置。",
+          "AGENT_RUN_CONFLICT": "任务运行期间不能更换 SSH 连接。",
+          "AGENT_NOT_READY": "SSH 连接服务尚未就绪，请检查 MCP 设置与权限。",
+          "AGENT_RESOURCE_BINDING_UNAVAILABLE": "所选配置或连接已不可用，请刷新后重试。",
+          "SSH_CONNECT_FAILED": "无法建立 SSH 连接，请检查主机与网络。",
+          "SSH_AUTH_FAILED": "SSH 身份验证失败，请检查凭据。",
+          "HOST_KEY_UNKNOWN": "主机密钥尚未信任，请确认后重试。",
+          "HOST_KEY_CHANGED": "主机密钥已更改，请确认主机身份。",
+          "JUMP_HOST_FAILED": "无法连接跳板主机，请检查配置。",
+          "NETWORK_ERROR": "无法连接本地 Core，正在重试。",
+          "REQUEST_TIMEOUT": "请求超时，请重试。",
+          "REQUEST_ABORTED": "请求已取消。",
+          "VALIDATION_ERROR": "连接请求无效，请重新选择配置。",
+          "NOT_FOUND": "连接操作已不存在，请刷新后重试。",
+          "INTERNAL_ERROR": "连接未完成，请检查状态后重试。",
+          "unknown": "SSH 配置连接失败，请重试。"
+        }
       }
     },
     "approvalMode": {
@@ -3791,6 +3947,13 @@
         "description": "每次模型请求前检查上下文占用；达到阈值后先压缩历史，再继续执行。不会中断正在执行的工具。",
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
+      },
+      "profileBinding": {
+        "title": "SSH Profile 关联方式",
+        "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
+        "toggle": "关联 SSH Profile 时自动连接",
+        "immediate": "立即连接",
+        "onDemand": "按需连接"
       },
       "turnUsage": {
         "title": "每轮 Token 用量",

@@ -19,6 +19,7 @@
     "confirmDelete": "Confirm delete",
     "collapse": "Collapse",
     "expand": "Expand",
+    "back": "Back",
     "reorder": "Drag to reorder",
     "moveUp": "Move up",
     "moveDown": "Move down",
@@ -292,6 +293,9 @@
       "queue": "Add to queue",
       "send": "Send",
       "stop": "Stop task",
+      "compressionPending": "Try compacting context on next send",
+      "compressionPendingHint": "Applies only to your next new message",
+      "cancelCompression": "Cancel scheduled compaction",
       "responseOptions": "Model and reasoning settings",
       "reasoning": "Reasoning effort",
       "resetResponseOptions": "Reset to defaults",
@@ -327,6 +331,32 @@
         "checking": "Checking the file profile before starting a task.",
         "unavailable": "The file profile is unavailable. Replace or remove its reference. Closing or disconnecting the original tab does not invalidate the reference.",
         "stale": "The file profile was deleted or its host or SSH association changed. Replace or remove its reference."
+      }
+    },
+    "sshProfileResource": {
+      "details": "Linked SSH profile",
+      "profile": "SSH profile",
+      "aria": "Linked SSH profile for {{host}}, {{status}}",
+      "tooltip": "SSH profile · {{host}} · {{status}}",
+      "selectLabel": "Choose another SSH profile",
+      "selectPlaceholder": "Choose an available SSH profile",
+      "noCandidates": "No other SSH profiles available",
+      "replace": "Replace profile",
+      "confirmReplaceOnDemand": "Link Profile only",
+      "confirmReplaceImmediate": "Connect and replace",
+      "remove": "Remove link",
+      "removeTitle": "Remove SSH profile link?",
+      "removeDescription": "This Agent session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
+      "status": {
+        "checking": "Checking profile",
+        "ready": "On demand",
+        "unavailable": "Profile unavailable",
+        "stale": "Profile expired"
+      },
+      "hint": {
+        "checking": "Checking the SSH profile before starting a task.",
+        "unavailable": "The SSH profile is unavailable. Replace the profile or remove its link.",
+        "stale": "The SSH profile was deleted or moved to another host. Replace the profile or remove its link."
       }
     },
     "connectionReference": {
@@ -466,6 +496,132 @@
         "NETWORK_ERROR": "Could not reach the local Core. Try again.",
         "REQUEST_TIMEOUT": "The attachment operation timed out. Try again.",
         "unknown": "The attachment operation failed. Try again."
+      }
+    },
+    "slash": {
+      "title": "Slash commands",
+      "commands": {
+        "title": "Commands",
+        "session": {
+          "title": "Choose session type",
+          "description": "Link an existing SSH or file session"
+        },
+        "profile": {
+          "title": "Choose profile type",
+          "description": "Link through an SSH or file profile"
+        },
+        "compact": {
+          "title": "Compact context",
+          "description": "Compact context before the next message"
+        }
+      },
+      "groups": {
+        "resources": "Resources",
+        "context": "Context"
+      },
+      "resourceKind": {
+        "title": "Choose resource type",
+        "ssh": {
+          "title": "SSH connection",
+          "description": "Use an SSH session or profile"
+        },
+        "file": {
+          "title": "File access",
+          "description": "Use a file session or profile"
+        }
+      },
+      "search": "Search hosts, profiles, or IDs",
+      "processing": "Processing the selected resource…",
+      "searchEmpty": "No matching resources",
+      "resources": {
+        "title": "Choose resource",
+        "empty": "No resources available"
+      },
+      "results": "{{count}} results",
+      "sessionCount": "{{count}} sessions",
+      "current": "Currently linked",
+      "status": {
+        "ready": "Ready",
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "waiting_host_trust": "Waiting for host trust",
+        "disconnected": "Disconnected",
+        "failed": "Connection failed",
+        "unavailable": "Unavailable"
+      },
+      "disabled": {
+        "archived": "Archived conversations cannot run this command",
+        "session_not_ready": "The session is not connected and ready",
+        "host_missing": "The host no longer exists",
+        "profile_missing": "The linked file profile no longer exists",
+        "profile_invalid": "The profile is incomplete",
+        "ssh_profile_missing": "The linked SSH profile no longer exists",
+        "profile_host_mismatch": "The profile belongs to a different host",
+        "unsupported_engine": "Only SFTP file profiles are supported",
+        "unsupported_platform": "The first release supports Linux hosts only",
+        "active_run": "Resources cannot be changed while a task is running",
+        "queued_edit": "Finish editing the pending message first",
+        "queued_messages": "Handle pending messages first",
+        "resource_busy": "An SSH connection operation is in progress",
+        "mutation_busy": "This session is processing an operation",
+        "compression_unavailable": "This context cannot be compacted",
+        "empty_draft": "Enter a message to send first",
+        "workspace_unavailable": "The workspace is not ready"
+      },
+      "replace": {
+        "title": "Replace the current resource?",
+        "description": "This conversation is linked to \"{{current}}\". Replace it with \"{{next}}\"?",
+        "confirm": "Replace"
+      },
+      "compact": {
+        "accepted": "Context compaction scheduled",
+        "acceptedDescription": "Context will be compacted before the next new message."
+      },
+      "binding": {
+        "completed": "Resource linked",
+        "completedDescription": "The resource link for this Agent session has been updated."
+      },
+      "connection": {
+        "title": "SSH profile connection",
+        "target": "SSH profile · {{host}} / {{profile}}",
+        "uncertain": "The connection status is uncertain. Reconciling with Core.",
+        "failed": "The SSH profile connection failed. Try again.",
+        "cancel": "Cancel",
+        "retry": "Retry",
+        "dismiss": "Dismiss connection status",
+        "completed": "SSH profile connected",
+        "completedDescription": "The SSH connection for this Agent session has been updated.",
+        "status": {
+          "connecting": "Establishing the SSH connection…",
+          "waiting_host_trust": "Waiting for host key confirmation…",
+          "cancelling": "Cancelling and cleaning up the temporary connection…",
+          "succeeded": "Connected. Synchronizing the session…",
+          "failed": "SSH connection failed",
+          "cancelled": "SSH connection cancelled"
+        },
+        "error": {
+          "AGENT_RESOURCE_CONNECTION_QUERY_FAILED": "Could not read the connection status. Retrying.",
+          "AGENT_RESOURCE_CONNECTION_FAILED": "Could not start the SSH connection. Try again.",
+          "AGENT_RESOURCE_CONNECTION_CANCEL_FAILED": "Could not cancel the SSH connection. Try again.",
+          "AGENT_RESOURCE_CONNECTION_CONFLICT": "This session already has a connection operation or pending messages.",
+          "AGENT_RESOURCE_CONNECTION_TIMEOUT": "The SSH connection timed out. Try again.",
+          "AGENT_REVISION_CONFLICT": "The session resources changed. Select the profile again.",
+          "AGENT_RUN_CONFLICT": "The SSH connection cannot be changed while a task is running.",
+          "AGENT_NOT_READY": "The SSH connection service is not ready. Check MCP settings and permissions.",
+          "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The selected profile or connection is unavailable. Refresh and try again.",
+          "SSH_CONNECT_FAILED": "Could not establish the SSH connection. Check the host and network.",
+          "SSH_AUTH_FAILED": "SSH authentication failed. Check the credential.",
+          "HOST_KEY_UNKNOWN": "The host key is not trusted yet. Confirm it and try again.",
+          "HOST_KEY_CHANGED": "The host key changed. Verify the host identity.",
+          "JUMP_HOST_FAILED": "Could not connect to the jump host. Check its profile.",
+          "NETWORK_ERROR": "Could not reach the local Core. Retrying.",
+          "REQUEST_TIMEOUT": "The request timed out. Try again.",
+          "REQUEST_ABORTED": "The request was cancelled.",
+          "VALIDATION_ERROR": "The connection request is invalid. Select the profile again.",
+          "NOT_FOUND": "The connection operation no longer exists. Refresh and try again.",
+          "INTERNAL_ERROR": "The connection did not complete. Check its status and try again.",
+          "unknown": "The SSH profile connection failed. Try again."
+        }
       }
     },
     "approvalMode": {
@@ -3816,6 +3972,13 @@
         "description": "Check context usage before each model request. At the threshold, compact history before continuing. Running tools are not interrupted.",
         "hint": "50–95%, default 80%. Recent conversation is retained. Changes apply to new runs.",
         "validation": "Enter a whole percentage from 50 to 95."
+      },
+      "profileBinding": {
+        "title": "SSH Profile association",
+        "description": "When off, only associate the Profile so the Agent can create an SSH session on demand. When on, connect immediately during association.",
+        "toggle": "Connect when associating an SSH Profile",
+        "immediate": "Connect now",
+        "onDemand": "On demand"
       },
       "turnUsage": {
         "title": "Per-turn token usage",

@@ -77,4 +77,6 @@ export {
   type AgentDraftAttachmentRecord,
 } from './useAgentDraftAttachments.ts'
 export { decodeAgentResourceRecoveryView } from './agentResourceRecoveryProtocol.ts'
+export { decodeAgentResourceConnectionView } from './agentResourceConnectionProtocol.ts'
 export { useAgentResourceRecovery } from './useAgentResourceRecovery.ts'
+export { useAgentResourceBindingConnection } from './useAgentResourceBindingConnection.ts'

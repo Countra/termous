@@ -11,6 +11,8 @@ import type {
   AgentRun,
   AgentRunEventPage,
   AgentResourceBindingUpdateInput,
+  AgentResourceConnectionInput,
+  AgentResourceConnectionView,
   AgentResourceKind,
   AgentResourceRecoveryInput,
   AgentResourceRecoveryView,
@@ -72,6 +74,9 @@ export interface AgentWorkspaceGateway {
   recoverResourceBinding(id: string, input: AgentResourceRecoveryInput, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
   resourceBindingRecovery(id: string, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
   cancelResourceBindingRecovery(id: string, operationId: string, signal?: AbortSignal): Promise<AgentResourceRecoveryView>
+  connectResourceBinding(id: string, input: AgentResourceConnectionInput, signal?: AbortSignal): Promise<AgentResourceConnectionView>
+  resourceBindingConnection(id: string, clientRequestId?: string, signal?: AbortSignal): Promise<AgentResourceConnectionView>
+  cancelResourceBindingConnection(id: string, operationId: string, signal?: AbortSignal): Promise<AgentResourceConnectionView>
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>

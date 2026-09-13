@@ -1,6 +1,6 @@
-import { ArrowUp, Check, CornerDownLeft, Eye, FileCode2, Paperclip, Pencil, RefreshCw, Square, Waypoints, X } from 'lucide-react'
+import { ArrowUp, Check, CornerDownLeft, Eye, FileCode2, Minimize2, Paperclip, Pencil, RefreshCw, Square, Waypoints, X } from 'lucide-react'
 import { Button, Input, Tooltip, type GetRef } from 'antd'
-import { memo, useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { agentResourceBindingKey } from '#entities/agent'
 import type {
@@ -20,11 +20,14 @@ import type {
 } from '../model/types.ts'
 import { isActiveAgentRun } from '../model/types.ts'
 import { useAgentComposerHistory } from '../model/useAgentComposerHistory.ts'
+import { useAgentSlashCommands } from '../model/useAgentSlashCommands.ts'
 import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
 import { AgentTerminalReferenceCard } from './AgentTerminalReferenceCard.tsx'
 import { AgentQueuedTurnList } from './AgentQueuedTurnList.tsx'
+import { AgentSlashCommandMenu } from './AgentSlashCommandMenu.tsx'
+import { AgentProfileConnectionStatus } from './AgentProfileConnectionStatus.tsx'
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
@@ -41,6 +44,12 @@ export const AgentComposer = memo(function AgentComposer({
   resourceChangeDisabled,
   resourceRecoveryDisabled = false,
   queueExecutionBlocked = false,
+  slashCandidates,
+  slashAvailability,
+  sshProfileAssociationMode = 'on_demand',
+  profileConnection,
+  contextCompressionPending = false,
+  contextCompressionDisabled = false,
   attachments,
   queuedTurns,
   queueState,
@@ -86,6 +95,11 @@ export const AgentComposer = memo(function AgentComposer({
   onRemoveResourceBinding,
   onRecoverResourceBinding,
   onCancelResourceRecovery,
+  onExecuteSlashCommand,
+  onRetryProfileConnection,
+  onCancelProfileConnection,
+  onDismissProfileConnection,
+  onContextCompressionPendingChange,
 }: {
   value: string
   focusKey?: number
@@ -100,6 +114,12 @@ export const AgentComposer = memo(function AgentComposer({
   resourceChangeDisabled: boolean
   resourceRecoveryDisabled?: boolean
   queueExecutionBlocked?: boolean
+  slashCandidates?: AgentWorkspaceProps['slashCandidates']
+  slashAvailability?: AgentWorkspaceProps['slashAvailability']
+  sshProfileAssociationMode?: AgentWorkspaceProps['sshProfileAssociationMode']
+  profileConnection?: AgentWorkspaceProps['profileConnection']
+  contextCompressionPending?: boolean
+  contextCompressionDisabled?: boolean
   attachments: AgentWorkspaceDraftAttachment[]
   queuedTurns: AgentWorkspaceProps['queued_turns']
   queueState?: AgentWorkspaceProps['queue_state']
@@ -149,10 +169,16 @@ export const AgentComposer = memo(function AgentComposer({
   onRemoveResourceBinding: AgentWorkspaceProps['onRemoveResourceBinding']
   onRecoverResourceBinding?: AgentWorkspaceProps['onRecoverResourceBinding']
   onCancelResourceRecovery?: AgentWorkspaceProps['onCancelResourceRecovery']
+  onExecuteSlashCommand?: AgentWorkspaceProps['onExecuteSlashCommand']
+  onRetryProfileConnection?: AgentWorkspaceProps['onRetryProfileConnection']
+  onCancelProfileConnection?: AgentWorkspaceProps['onCancelProfileConnection']
+  onDismissProfileConnection?: AgentWorkspaceProps['onDismissProfileConnection']
+  onContextCompressionPendingChange?: AgentWorkspaceProps['onContextCompressionPendingChange']
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textAreaRef = useRef<GetRef<typeof Input.TextArea>>(null)
+  const composerInputWrapRef = useRef<HTMLDivElement>(null)
   const focusedKeyRef = useRef<number | undefined>(undefined)
   const active = isActiveAgentRun(runStatus)
   const queueMode = active || queuedTurns.some(({ state }) => state === 'queued')
@@ -163,9 +189,37 @@ export const AgentComposer = memo(function AgentComposer({
     textAreaRef.current?.focus({ preventScroll: true })
   }, [active, disabled, editing, focusKey, paneActive])
   const inputValue = queuedTurnEdit?.text ?? value
-  const inputHistoryNavigation = useAgentComposerHistory({
-    sessionKey, value: inputValue, history: inputHistory, disabled: editing, onChange,
+  const slashCommands = useAgentSlashCommands({
+    value: inputValue,
+    owner: sessionKey,
+    editing,
+    active: paneActive,
+    containerRef: composerInputWrapRef,
+    catalog: slashCandidates,
+    availability: slashAvailability,
+    onChange,
+    onExecute: onExecuteSlashCommand,
   })
+  const onNativeSlashBeforeInput = slashCommands.onNativeBeforeInput
+  useEffect(() => {
+    const container = composerInputWrapRef.current
+    const handleBeforeInput = (event: Event) => onNativeSlashBeforeInput(event as InputEvent)
+    container?.addEventListener('beforeinput', handleBeforeInput)
+    return () => container?.removeEventListener('beforeinput', handleBeforeInput)
+  }, [onNativeSlashBeforeInput])
+  const inputHistoryNavigation = useAgentComposerHistory({
+    sessionKey,
+    value: inputValue,
+    history: inputHistory,
+    disabled: editing,
+    onChange: (nextValue) => {
+      slashCommands.suppressActivation()
+      onChange(nextValue)
+    },
+  })
+  const focusComposer = useCallback(() => {
+    textAreaRef.current?.focus({ preventScroll: true })
+  }, [])
   const editingTurn = queuedTurnEdit
     ? queuedTurns.find(({ id }) => id === queuedTurnEdit.turn_id)
     : undefined
@@ -178,7 +232,11 @@ export const AgentComposer = memo(function AgentComposer({
   const attachmentsPending = attachments.some(({ phase }) => phase !== 'ready')
   const unsupportedImages = !supportsImages && attachments.some(({ kind, phase }) => kind === 'image' && phase === 'ready')
   const attachmentInputDisabled = disabled || attachments.length + retainedAttachments.length >= 8
-  const blocked = (editing ? disabled : submitDisabled) || attachmentsPending || unsupportedImages
+  const blocked = (editing ? disabled : submitDisabled)
+    || attachmentsPending
+    || unsupportedImages
+    || slashCommands.state.level !== 'closed'
+    || slashCommands.executing
   const submit = () => {
     if (!inputValue.trim() || blocked || runStatus === 'stopping') return
     inputHistoryNavigation.reset()
@@ -202,13 +260,48 @@ export const AgentComposer = memo(function AgentComposer({
         onMove={onMoveQueuedTurn}
         onResume={onResumeQueue}
       />
-      <div className={styles['composer-input']}>
-        {editing ? (
+      <div ref={composerInputWrapRef} className={styles['composer-input-wrap']}>
+        <AgentSlashCommandMenu
+          controller={slashCommands}
+          onFocusComposer={focusComposer}
+        />
+        <div className={styles['composer-input']}>
+          <AgentProfileConnectionStatus
+            state={profileConnection}
+            onRetry={onRetryProfileConnection}
+            onCancel={onCancelProfileConnection}
+            onDismiss={onDismissProfileConnection}
+          />
+          {editing ? (
           <div className={styles['edit-status']}>
             <span><Pencil size={12} aria-hidden="true" />{t('agent.queue.editing')}</span>
             <Button type="text" size="small" disabled={disabled} onClick={onCancelQueuedTurnEdit}>
               {t('app.cancel')}
             </Button>
+          </div>
+        ) : null}
+        {contextCompressionPending ? (
+          <div className={styles['compression-pending']} role="status" aria-live="polite">
+            <span className={styles['compression-pending-copy']}>
+              <span className={styles['compression-pending-icon']} aria-hidden="true">
+                <Minimize2 size={13} />
+              </span>
+              <span>
+                <strong>{t('agent.composer.compressionPending')}</strong>
+                <small>{t('agent.composer.compressionPendingHint')}</small>
+              </span>
+            </span>
+            <Tooltip title={t('agent.composer.cancelCompression')}>
+              <Button
+                type="text"
+                size="small"
+                className={styles['compression-pending-dismiss']}
+                aria-label={t('agent.composer.cancelCompression')}
+                disabled={contextCompressionDisabled}
+                icon={<X size={13} />}
+                onClick={() => onContextCompressionPendingChange?.(false)}
+              />
+            </Tooltip>
           </div>
         ) : null}
         {resourceContexts.length > 0 || effectiveSourceContext || attachments.length > 0 || retainedAttachments.length > 0 ? (
@@ -218,6 +311,7 @@ export const AgentComposer = memo(function AgentComposer({
                 key={`${sessionKey}:${agentResourceBindingKey(resourceContext.binding)}`}
                 context={resourceContext}
                 disabled={resourceChangeDisabled}
+                sshProfileAssociationMode={sshProfileAssociationMode}
                 onReplace={onReplaceResourceBinding}
                 onRemove={() => onRemoveResourceBinding(resourceContext.binding.kind)}
                 recoveryDisabled={resourceRecoveryDisabled}
@@ -330,14 +424,22 @@ export const AgentComposer = memo(function AgentComposer({
           value={inputValue}
           disabled={disabled && (!active || editing)}
           placeholder={t(queueMode ? 'agent.composer.queuePlaceholder' : 'agent.composer.placeholder')}
+          aria-expanded={slashCommands.state.level !== 'closed'}
+          aria-controls={slashCommands.state.level === 'closed' ? undefined : `${slashCommands.menuId}-list`}
+          aria-activedescendant={slashCommands.state.level === 'root' ? slashCommands.activeOptionId : undefined}
+          aria-haspopup="listbox"
           onChange={(event) => {
             inputHistoryNavigation.reset()
             if (editing) onQueuedTurnEditChange(event.target.value)
-            else onChange(event.target.value)
+            else slashCommands.onInputValueChange(event.target.value)
           }}
           onPointerDown={inputHistoryNavigation.reset}
-          onCompositionStart={inputHistoryNavigation.reset}
+          onCompositionStart={() => {
+            inputHistoryNavigation.reset()
+            slashCommands.suppressActivation()
+          }}
           onPaste={(event) => {
+            slashCommands.suppressActivation()
             if (attachmentInputDisabled) return
             const files = clipboardAttachmentFiles(event.clipboardData)
             if (files.length === 0) return
@@ -345,6 +447,7 @@ export const AgentComposer = memo(function AgentComposer({
             onAttachFiles(files)
           }}
           onKeyDown={(event) => {
+            if (slashCommands.onTextareaKeyDown(event)) return
             inputHistoryNavigation.onKeyDown(event)
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
               event.preventDefault()
@@ -417,6 +520,7 @@ export const AgentComposer = memo(function AgentComposer({
               />
             </Tooltip>
           </div>
+        </div>
         </div>
       </div>
     </div>

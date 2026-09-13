@@ -61,6 +61,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
+  const contextCompressionDisabled = props.busy
+    || props.queue_busy
+    || active
+    || props.run_blocked
+    || props.execution_blocked === true
   const queueMode = active || props.queued_turns.some(({ state }) => state === 'queued')
   const activeRunElsewhere = props.active_run
     && props.active_run.session_id !== props.selected_session_id
@@ -106,12 +111,13 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   )
 
   if (props.loading && props.sessions.length === 0) {
-    return <div ref={workspaceRef} className={styles.workspace}><div className={styles.skeleton}><Skeleton active paragraph={{ rows: 10 }} /></div></div>
+    return <div ref={workspaceRef} data-agent-workspace className={styles.workspace}><div className={styles.skeleton}><Skeleton active paragraph={{ rows: 10 }} /></div></div>
   }
 
   return (
     <div
       ref={workspaceRef}
+      data-agent-workspace
       className={`${styles.workspace} ${inspectorOpen && !breakpoints.inspectorOverlay ? styles['has-inspector'] : ''} ${breakpoints.sessionsOverlay ? styles['has-sessions-overlay'] : ''}`}
     >
       {!breakpoints.sessionsOverlay ? sidebar : null}
@@ -159,6 +165,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
             || props.resource_contexts?.some(({ status }) => status === 'checking') === true}
           resourceRecoveryDisabled={props.resource_recovery_disabled}
           queueExecutionBlocked={props.resource_recovery_blocked || props.execution_blocked}
+          slashCandidates={props.slashCandidates}
+          slashAvailability={props.slashAvailability}
+          sshProfileAssociationMode={props.sshProfileAssociationMode}
+          profileConnection={props.profileConnection}
+          contextCompressionPending={props.inspector.context.compression_pending}
+          contextCompressionDisabled={contextCompressionDisabled}
           attachments={props.draft_attachments}
           queuedTurns={props.queued_turns}
           queueState={props.queue_state}
@@ -204,6 +216,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onRemoveResourceBinding={onRemoveResourceBinding}
           onRecoverResourceBinding={props.onRecoverResourceBinding}
           onCancelResourceRecovery={props.onCancelResourceRecovery}
+          onExecuteSlashCommand={props.onExecuteSlashCommand}
+          onRetryProfileConnection={props.onRetryProfileConnection}
+          onCancelProfileConnection={props.onCancelProfileConnection}
+          onDismissProfileConnection={props.onDismissProfileConnection}
+          onContextCompressionPendingChange={props.onContextCompressionPendingChange}
         />
       </section>
       {inspectorOpen && !breakpoints.inspectorOverlay ? inspector : null}
