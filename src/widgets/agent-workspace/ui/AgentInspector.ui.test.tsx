@@ -24,7 +24,7 @@ describe('AgentInspector 模型上下文评估', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(screen.queryByText('0%')).not.toBeInTheDocument()
     expect(screen.queryByText('38%')).not.toBeInTheDocument()
-    expect(screen.queryByText('上下文占用较高；达到压缩阈值时，将在下一次请求前尝试自动压缩。')).not.toBeInTheDocument()
+    expect(screen.queryByText('上下文占用较高；达到整理阈值时，将在下一次请求前自动整理上下文。')).not.toBeInTheDocument()
   })
 
   it('未知能力在加载与错误状态允许键盘预约，明确不可用才禁用', async () => {

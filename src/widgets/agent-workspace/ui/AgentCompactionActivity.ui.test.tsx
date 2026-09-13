@@ -17,20 +17,20 @@ describe('AgentCompactionActivity', () => {
     const started = { ...activity, tokens_before: 80_000, context_window_tokens: 100_000 }
     const { rerender, element } = await renderActivity(started)
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('正在压缩上下文…')
+    expect(status).toHaveTextContent('正在整理上下文…')
     expect(status).toHaveTextContent('80%')
     expect(status).not.toHaveTextContent('→')
     expect(status).toHaveAttribute('aria-atomic', 'true')
     rerender(element({ ...started, status: 'completed', tokens_after: 30_000, duration_ms: 2_400 }))
     expect(screen.getByRole('status')).toBe(status)
-    expect(status).toHaveTextContent('上下文已自动压缩')
+    expect(status).toHaveTextContent('已自动整理上下文')
     expect(status).toHaveTextContent('80% → 30%')
     expect(status).toHaveTextContent('2.4 s')
   })
 
   it.each(['failed', 'cancelled'] as const)('显示 %s 的压前比例和真实耗时，不误报压后值', async (status) => {
     await renderActivity({ ...activity, status, tokens_before: 80_000, tokens_after: 30_000, context_window_tokens: 100_000, duration_ms: 350 })
-    expect(screen.getByRole('status')).toHaveTextContent(status === 'failed' ? '上下文压缩失败' : '上下文压缩已取消')
+    expect(screen.getByRole('status')).toHaveTextContent(status === 'failed' ? '整理上下文失败' : '整理上下文已取消')
     expect(screen.getByRole('status')).toHaveTextContent('80%')
     expect(screen.getByRole('status')).toHaveTextContent('350 ms')
     expect(screen.getByRole('status')).not.toHaveTextContent('→')
@@ -39,7 +39,7 @@ describe('AgentCompactionActivity', () => {
 
   it('手动压缩完成使用独立文案', async () => {
     await renderActivity({ ...activity, reason: 'manual', status: 'completed' })
-    expect(screen.getByRole('status')).toHaveTextContent('上下文已压缩')
+    expect(screen.getByRole('status')).toHaveTextContent('已整理上下文')
   })
 
   it('百分比最多一位小数，保留超过窗口的真实值和零 token', async () => {
@@ -68,10 +68,10 @@ describe('AgentCompactionActivity', () => {
 
   it('元信息可通过键盘聚焦，说明真实 token、当次窗口及耗时', async () => {
     await renderActivity({ ...activity, status: 'completed', tokens_after: 8_000, context_window_tokens: 32_768, duration_ms: 2_400 })
-    const metadata = screen.getByRole('group', { name: '估算占用：压缩前 26,500 token，压缩后 8,000 token。 当次模型上下文窗口为 32,768 token。 耗时 2.4 s。' })
+    const metadata = screen.getByRole('group', { name: '估算占用：整理前 26,500 token，整理后 8,000 token。 当次模型上下文窗口为 32,768 token。 耗时 2.4 s。' })
     await userEvent.setup().tab()
     expect(metadata).toHaveFocus()
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('压缩前 26,500 token，压缩后 8,000 token。')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('整理前 26,500 token，整理后 8,000 token。')
   })
 
   it('英文状态和指标说明使用对应翻译', async () => {

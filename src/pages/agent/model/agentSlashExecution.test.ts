@@ -96,6 +96,8 @@ test('compact 只在命令之外仍有正文时允许为新草稿创建会话', 
   assert.equal(compactDraftHasPayload('/compact'), false)
   assert.equal(compactDraftHasPayload('/c'), false)
   assert.equal(compactDraftHasPayload('/compact\r\n\t'), false)
+  assert.equal(compactDraftHasPayload('  /compact'), false)
+  assert.equal(compactDraftHasPayload('正文 /compact'), true)
   assert.equal(compactDraftHasPayload('/compact\n继续处理'), true)
   assert.equal(compactSlashDisabledReason({
     selected: false,

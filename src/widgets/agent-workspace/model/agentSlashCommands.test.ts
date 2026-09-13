@@ -13,20 +13,21 @@ import {
 } from './agentSlashCommands.ts'
 
 describe('Agent Slash 命令解析', () => {
-  const parseCases: Array<[string, string, string | undefined, string, number]> = [
+  const parseCases: Array<[string, string, string | undefined, string, number, number?]> = [
     ['/', '', undefined, '/', 1],
     ['/se', 'se', undefined, '/se', 3],
     ['/session', 'session', 'session', '/session', 8],
     ['/profile 后续正文', 'profile', 'profile', '/profile ', 9],
     ['/compact\n下一行', 'compact', 'compact', '/compact\n', 9],
     ['/session\r\n下一行', 'session', 'session', '/session\r\n', 10],
+    ['before /profile after', 'profile', 'profile', '/profile ', 16, 7],
   ]
-  for (const [value, query, exact, fragment, end] of parseCases) {
+  for (const [value, query, exact, fragment, end, captureStart = 0] of parseCases) {
     it(`解析 ${JSON.stringify(value)} 并精确捕获可消费片段`, () => {
-      const parsed = parseAgentSlashInput(value, 'session-a')
+      const parsed = parseAgentSlashInput(value, 'session-a', captureStart)
       assert.equal(parsed?.query, query)
       assert.equal(parsed?.exact_command_id, exact)
-      assert.deepEqual(parsed?.capture, { owner: 'session-a', start: 0, end, raw_fragment: fragment })
+      assert.deepEqual(parsed?.capture, { owner: 'session-a', start: captureStart, end, raw_fragment: fragment })
     })
   }
 
@@ -43,7 +44,7 @@ describe('Agent Slash 命令解析', () => {
     })
   }
 
-  it('只有 insertText 且命令位于索引零时允许激活', () => {
+  it('只有直接键入且命令位于开头或 ASCII 空格后时允许激活', () => {
     const input = {
       value: '', owner: 'session-a', start: 0, end: 0, data: '/', inputType: 'insertText', isComposing: false,
     }
@@ -51,7 +52,10 @@ describe('Agent Slash 命令解析', () => {
     assert.equal(isAgentSlashInsertTextActivation({ ...input, inputType: 'insertFromPaste' }), false)
     assert.equal(isAgentSlashInsertTextActivation({ ...input, inputType: 'historyUndo' }), false)
     assert.equal(isAgentSlashInsertTextActivation({ ...input, isComposing: true }), false)
+    assert.equal(isAgentSlashInsertTextActivation({ ...input, value: '正文 ', start: 3, end: 3 }), true)
     assert.equal(isAgentSlashInsertTextActivation({ ...input, value: '正文', start: 2, end: 2 }), false)
+    assert.equal(isAgentSlashInsertTextActivation({ ...input, value: '正文\n', start: 3, end: 3 }), false)
+    assert.equal(isAgentSlashInsertTextActivation({ ...input, value: '正文　', start: 3, end: 3 }), false)
     assert.equal(isAgentSlashInsertTextActivation({ ...input, value: '/', start: 1, end: 1, data: 's' }), false)
   })
 
@@ -60,6 +64,9 @@ describe('Agent Slash 命令解析', () => {
     assert.equal(consumeAgentSlashCapture('/session  保留空格', 'session-a', capture), ' 保留空格')
     assert.equal(consumeAgentSlashCapture('/profile  保留空格', 'session-a', capture), null)
     assert.equal(consumeAgentSlashCapture('/session  保留空格', 'session-b', capture), null)
+
+    const inline = parseAgentSlashInput('已有内容 /session 后续', 'session-a', 5)!.capture
+    assert.equal(consumeAgentSlashCapture('已有内容 /session 后续', 'session-a', inline), '已有内容 后续')
   })
 })
 

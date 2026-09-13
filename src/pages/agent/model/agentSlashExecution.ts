@@ -21,7 +21,7 @@ export interface AgentSlashExecutionSnapshot {
 }
 
 export function compactDraftHasPayload(value: string) {
-  return value.replace(/^\/[a-z]*(?= |\r?\n|$)(?: |\r?\n)?/, '').trim().length > 0
+  return value.replace(/(^| )\/[a-z]*(?= |\r?\n|$)(?: |\r?\n)?/, '$1').trim().length > 0
 }
 
 export function slashCommandAvailability(enabled: boolean, disabledReason?: string) {

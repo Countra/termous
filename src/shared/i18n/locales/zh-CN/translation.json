@@ -239,12 +239,12 @@
         "compactionContentFiltered": "模型服务的内容策略阻止了上下文摘要生成，本次回复已停止。",
         "compactionTruncated": "上下文摘要被模型输出上限截断，本次回复已停止。请检查模型输出预算。",
         "compactionCheckpointFailed": "上下文摘要未能确认保存，本次回复已停止，原有历史仍保留。",
-        "compactionUnavailable": "上下文已达到容量门限，但当前没有可压缩的历史。请检查容量设置或新建会话。",
-        "compactionInsufficient": "压缩后仍没有足够的上下文空间，本次回复已停止。请检查容量设置或新建会话。",
-        "compactionAborted": "上下文压缩已取消，本次回复未继续。",
-        "compactionSettingsInvalid": "上下文压缩的容量配置无效，请检查模型窗口与输出预算。",
-        "compactionInvalid": "上下文压缩结果或恢复状态无效，本次回复已停止，原有历史仍保留。",
-        "compactionFailed": "上下文压缩未能完成，本次回复已停止，原有历史仍保留。"
+        "compactionUnavailable": "上下文已达到容量门限，但当前没有可整理的历史。请检查容量设置或新建会话。",
+        "compactionInsufficient": "整理后仍没有足够的上下文空间，本次回复已停止。请检查容量设置或新建会话。",
+        "compactionAborted": "整理上下文已取消，本次回复未继续。",
+        "compactionSettingsInvalid": "整理上下文的容量配置无效，请检查模型窗口与输出预算。",
+        "compactionInvalid": "整理上下文结果或恢复状态无效，本次回复已停止，原有历史仍保留。",
+        "compactionFailed": "整理上下文未能完成，本次回复已停止，原有历史仍保留。"
       },
       "interrupted": "本次回复已中断",
       "interrupted_by_steer": "已由新消息中断",
@@ -252,13 +252,13 @@
       "turnTotal": "总量"
     },
     "compaction": {
-      "started": "正在压缩上下文…",
-      "completed": "上下文已自动压缩",
-      "manualCompleted": "上下文已压缩",
-      "failed": "上下文压缩失败",
-      "cancelled": "上下文压缩已取消",
-      "tokensBefore": "估算占用：压缩前 {{before}} token。",
-      "tokensBeforeAfter": "估算占用：压缩前 {{before}} token，压缩后 {{after}} token。",
+      "started": "正在整理上下文…",
+      "completed": "已自动整理上下文",
+      "manualCompleted": "已整理上下文",
+      "failed": "整理上下文失败",
+      "cancelled": "整理上下文已取消",
+      "tokensBefore": "估算占用：整理前 {{before}} token。",
+      "tokensBeforeAfter": "估算占用：整理前 {{before}} token，整理后 {{after}} token。",
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
     },
@@ -292,7 +292,7 @@
       "queue": "加入队列",
       "send": "发送",
       "stop": "停止任务",
-      "compressionPending": "下次发送时尝试压缩上下文",
+      "compressionPending": "下次发送前整理上下文",
       "compressionPendingHint": "仅作用于下一条新消息",
       "cancelCompression": "取消下次整理",
       "responseOptions": "模型与推理设置",
@@ -648,7 +648,7 @@
       "contextPendingHint": "下次发送时更新；上次占用仅供参考。",
       "lastContextReference": "上次 {{model}}：{{percent}} · {{tokens}} / {{window}} token",
       "contextUnavailable": "选择一个会话后查看上下文容量",
-      "contextWarning": "上下文占用较高；达到压缩阈值时，将在下一次请求前尝试自动压缩。",
+      "contextWarning": "上下文占用较高；达到整理阈值时，将在下一次请求前自动整理上下文。",
       "contextLoadFailed": "暂时无法读取上下文状态",
       "checkpoint": "最近整理",
       "checkpointMeta": "约 {{tokens}} token · {{time}}",
@@ -3943,8 +3943,8 @@
         "unavailable": "当前无法使用"
       },
       "compaction": {
-        "threshold": "自动压缩阈值",
-        "description": "每次模型请求前检查上下文占用；达到阈值后先压缩历史，再继续执行。不会中断正在执行的工具。",
+        "threshold": "自动整理阈值",
+        "description": "每次模型请求前检查上下文占用；达到阈值后先整理历史，再继续执行。不会中断正在执行的工具。",
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
       },
@@ -4850,7 +4850,7 @@
       },
       "settingsAgent": {
         "title": "配置内置 AI 助手",
-        "description": "配置模型提供商并同步模型目录，选择新会话的默认模型和运行参数。还可调整自动上下文压缩阈值、Token 用量显示，并检查助手所需的 MCP 与 Skills 是否就绪。"
+        "description": "配置模型提供商并同步模型目录，选择新会话的默认模型和运行参数。还可调整自动整理上下文阈值、Token 用量显示，并检查助手所需的 MCP 与 Skills 是否就绪。"
       },
       "settingsData": {
         "title": "备份与恢复工作配置",

@@ -122,6 +122,23 @@ describe('Agent Slash 上拉菜单', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('在正文 ASCII 空格后直接键入并只消费中间命令', async () => {
+    const user = userEvent.setup()
+    const onExecute = vi.fn(async () => true)
+    render(<SlashHarness onExecute={onExecute} />)
+    const textarea = composer()
+
+    await user.type(textarea, 'before /compact')
+    expect(screen.getByRole('listbox', { name: 'agent.slash.commands.title' })).toBeInTheDocument()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({
+      command_id: 'compact',
+      capture: { owner: 'session-a', start: 7, end: 15, raw_fragment: '/compact' },
+    })))
+    await waitFor(() => expect(textarea).toHaveValue('before '))
+  })
+
   it('根层优先消费方向键和 Enter，并把焦点逐层交给类型与搜索', async () => {
     const user = userEvent.setup()
     const onFallbackKey = vi.fn()

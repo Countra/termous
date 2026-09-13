@@ -54,11 +54,13 @@ export type AgentSlashMenuAction =
   | { type: 'search'; query: string; active_id?: string }
   | { type: 'back'; active_id?: string }
 
-export function parseAgentSlashInput(value: string, owner: string): AgentSlashParseResult | null {
-  const match = /^\/([a-z]*)/.exec(value)
+export function parseAgentSlashInput(value: string, owner: string, start = 0): AgentSlashParseResult | null {
+  if (!Number.isSafeInteger(start) || start < 0 || start > value.length
+    || start > 0 && value[start - 1] !== ' ') return null
+  const match = /^\/([a-z]*)/.exec(value.slice(start))
   if (!match) return null
   const query = match[1]!
-  const tokenEnd = match[0].length
+  const tokenEnd = start + match[0].length
   const separator = value.slice(tokenEnd, tokenEnd + 2)
   const nextCharacter = value[tokenEnd]
   const hasAllowedBoundary = nextCharacter === undefined
@@ -79,7 +81,7 @@ export function parseAgentSlashInput(value: string, owner: string): AgentSlashPa
     query,
     exact_command_id: exactCommandId,
     matching_command_ids: [...matchingCommandIds],
-    capture: { owner, start: 0, end, raw_fragment: value.slice(0, end) },
+    capture: { owner, start, end, raw_fragment: value.slice(start, end) },
   }
 }
 
@@ -100,9 +102,10 @@ export function isAgentSlashInsertTextActivation({
   inputType: string
   isComposing: boolean
 }) {
-  if (inputType !== 'insertText' || isComposing || data !== '/' || start !== 0) return false
+  if (inputType !== 'insertText' || isComposing || data !== '/'
+    || start !== 0 && value[start - 1] !== ' ') return false
   const nextValue = value.slice(0, start) + data + value.slice(end)
-  const parsed = parseAgentSlashInput(nextValue, owner)
+  const parsed = parseAgentSlashInput(nextValue, owner, start)
   return Boolean(parsed)
 }
 

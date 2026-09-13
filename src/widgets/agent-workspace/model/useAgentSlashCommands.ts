@@ -64,7 +64,7 @@ export function useAgentSlashCommands({
   const valueRef = useRef(value)
   const ownerRef = useRef(owner)
   const acceptedValueRef = useRef(value)
-  const activationRef = useRef(false)
+  const activationStartRef = useRef<number | null>(null)
   const restoreFocusRef = useRef(false)
   const executionSequenceRef = useRef(0)
   const enabled = Boolean(availability && onExecute) && !editing && active
@@ -74,7 +74,7 @@ export function useAgentSlashCommands({
   ownerRef.current = owner
 
   const close = useCallback((restoreFocus = false) => {
-    activationRef.current = false
+    activationStartRef.current = null
     restoreFocusRef.current = restoreFocus
     dispatch({ type: 'close' })
   }, [])
@@ -139,14 +139,14 @@ export function useAgentSlashCommands({
   }, [availability, resourceCandidates, state])
 
   const onNativeBeforeInput = useCallback((event: InputEvent) => {
-    activationRef.current = false
+    activationStartRef.current = null
     if (!enabled || executingRef.current) return
     if (!(event.target instanceof HTMLTextAreaElement)) return
     const textarea = event.target
     if (event.inputType !== 'insertText' || event.isComposing || event.data == null) return
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
-    activationRef.current = isAgentSlashInsertTextActivation({
+    if (isAgentSlashInsertTextActivation({
       value: textarea.value,
       owner: ownerRef.current,
       start,
@@ -154,14 +154,19 @@ export function useAgentSlashCommands({
       data: event.data,
       inputType: event.inputType,
       isComposing: event.isComposing,
-    })
+    })) activationStartRef.current = start
   }, [enabled])
 
   const onInputValueChange = useCallback((nextValue: string) => {
     valueRef.current = nextValue
     acceptedValueRef.current = nextValue
     const currentState = stateRef.current
-    const parsed = parseAgentSlashInput(nextValue, ownerRef.current)
+    const activationStart = activationStartRef.current
+    const parsed = parseAgentSlashInput(
+      nextValue,
+      ownerRef.current,
+      currentState.level === 'root' ? currentState.capture.start : activationStart ?? 0,
+    )
     if (currentState.level === 'root') {
       if (!parsed) close()
       else dispatch({
@@ -169,14 +174,14 @@ export function useAgentSlashCommands({
         parsed,
         active_id: initialCommandId(parsed.matching_command_ids, availability),
       })
-    } else if (currentState.level === 'closed' && activationRef.current && parsed) {
+    } else if (currentState.level === 'closed' && activationStart !== null && parsed) {
       dispatch({
         type: 'open',
         parsed,
         active_id: initialCommandId(parsed.matching_command_ids, availability),
       })
     } else if (currentState.level !== 'closed') close()
-    activationRef.current = false
+    activationStartRef.current = null
     onChange(nextValue)
   }, [availability, close, onChange])
 
@@ -358,7 +363,7 @@ export function useAgentSlashCommands({
   }, [])
 
   const suppressActivation = useCallback(() => {
-    activationRef.current = false
+    activationStartRef.current = null
     close()
   }, [close])
 
