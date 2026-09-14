@@ -16,6 +16,8 @@ import type {
   OverwritePolicy,
   RemoteCopyTransferInput,
   RemoteDirectoryListing,
+  RemoteDirectorySize,
+  RemoteDirectorySizeRequest,
   RemoteFileEntry,
   RemoteTextSaveRequest,
   TransferTask,
@@ -72,6 +74,11 @@ export interface FileSessionGateway {
     path: string,
     signal?: AbortSignal,
   ) => Promise<RemoteFileEntry>
+  calculateFileSessionDirectorySize: (
+    fileSessionId: string,
+    input: RemoteDirectorySizeRequest,
+    signal?: AbortSignal,
+  ) => Promise<RemoteDirectorySize>
   mkdirFileSessionFile: (fileSessionId: string, path: string) => Promise<void>
   renameFileSessionFile: (
     fileSessionId: string,

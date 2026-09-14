@@ -6,6 +6,8 @@ import {
   type FileSessionCreateInput,
   type OverwritePolicy,
   type RemoteDirectoryListing,
+  type RemoteDirectorySize,
+  type RemoteDirectorySizeRequest,
   type RemoteFileEntry,
   type RemoteTextFile,
   type RemoteTextSaveRequest,
@@ -107,6 +109,22 @@ statFileSessionFile(fileSessionId: string, path: string, signal?: AbortSignal) {
     return this.request<RemoteFileEntry>(
       `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`,
       { signal },
+    )
+  }
+
+  calculateFileSessionDirectorySize(
+    fileSessionId: string,
+    body: RemoteDirectorySizeRequest,
+    signal?: AbortSignal,
+  ) {
+    return this.request<RemoteDirectorySize>(
+      `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/directory-size`,
+      {
+        method: 'POST',
+        body,
+        signal,
+        timeoutMs: 910_000,
+      },
     )
   }
 

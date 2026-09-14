@@ -51,6 +51,21 @@ export interface RemoteDirectoryListing {
   read_at: string
 }
 
+export interface RemoteDirectorySizeRequest {
+  path: string
+  expected_connection_generation: number
+}
+
+export interface RemoteDirectorySize {
+  file_session_id: string
+  path: string
+  total_bytes: number
+  estimated: boolean
+  connection_generation: number
+  calculated_at: string
+  duration_ms: number
+}
+
 export type RemoteTextEncoding = 'utf-8'
 
 export type RemoteTextLineEnding = 'lf' | 'crlf' | 'cr' | 'mixed' | 'none'
@@ -165,6 +180,7 @@ export type FileAccessCapability =
   | 'batch_rename'
   | 'planned_delete'
   | 'name_search'
+  | 'directory_size'
 
 interface FileSessionCreateOptions {
   sourceSessionId?: string

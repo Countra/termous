@@ -26,6 +26,8 @@ export type {
   LocalTreeEntryKind,
   OverwritePolicy,
   RemoteDirectoryListing,
+  RemoteDirectorySize,
+  RemoteDirectorySizeRequest,
   RemoteFileEntry,
   RemoteFileKind,
   RemoteImageFile,

@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { RemoteDirectoryViewState } from './filesWorkspaceState'
+import type { DirectorySizeResultCache } from '#features/remote-file'
 import type { PendingFileOperation } from '#features/transfers'
 
 export type FilesWorkspaceSessionStateUpdater = (
@@ -13,6 +14,7 @@ export interface FilesWorkspaceUploadRefreshTarget {
 
 export interface FilesWorkspaceRuntimeValue {
   states: Record<string, RemoteDirectoryViewState>
+  directorySizeCache: DirectorySizeResultCache
   pendingTransferOperations: PendingFileOperation[]
   pendingTransferActionIds: ReadonlySet<string>
   updateSession: (

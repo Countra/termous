@@ -96,6 +96,7 @@ import {
 import {
   advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
+  DirectorySizeField,
   formatRemoteFilePathsForClipboard,
   isAdvancedRenameSourceSessionCurrent,
   loadAdvancedRenameModal,
@@ -107,6 +108,7 @@ import {
   useGlobalFileSearchRuntime,
   validateAdvancedRenameSource,
   type AdvancedRenameSourceSnapshot,
+  type DirectorySizeResultCache,
   type GlobalFileSearchRevealResult,
   type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
@@ -421,6 +423,7 @@ function FilesWorkspaceContent({
   const pendingPanelFocusRestoreRef = useRef<'local' | 'inspector' | 'transfers' | null>(null)
   const {
     states: workspaceStates,
+    directorySizeCache,
     pendingTransferOperations,
     pendingTransferActionIds,
     updateSession: updateWorkspaceSession,
@@ -3993,9 +3996,15 @@ function FilesWorkspaceContent({
                     />
                   </header>
                   <FileDetailPanel
+                    api={api}
+                    directorySizeCache={directorySizeCache}
                     host={activeFileSessionHost}
+                    fileSession={activeFileSession ?? undefined}
+                    listingReadAt={workspaceViewState.listing?.read_at ?? ''}
                     entry={activeEntry}
                     connected={fileActionsEnabled}
+                    directorySizeEnabled={fileActionsEnabled && !directoryRequestLoading}
+                    onDirectorySizeError={notifyError}
                     onEditPermissions={openPermissions}
                   />
                 </>
@@ -4462,18 +4471,32 @@ function FilesDirectorySkeleton({ label }: { label: string }) {
 }
 
 function FileDetailPanel({
+  api,
+  directorySizeCache,
   host,
+  fileSession,
+  listingReadAt,
   entry,
   connected,
+  directorySizeEnabled,
+  onDirectorySizeError,
   onEditPermissions,
 }: {
+  api: FileGateway
+  directorySizeCache: DirectorySizeResultCache
   host?: Host
+  fileSession?: FileSession
+  listingReadAt: string
   entry: RemoteFileEntry | null
   connected: boolean
+  directorySizeEnabled: boolean
+  onDirectorySizeError: (error: unknown) => void
   onEditPermissions: (entry: RemoteFileEntry) => void
 }) {
   const { t } = useTranslation()
   const extended = entry?.extended?.filter((item) => item.type || item.data) ?? []
+  const directorySizeSupported = entry?.kind === 'directory'
+    && fileSession?.capabilities?.includes('directory_size')
 
   return (
     <section className={styles['files-detail-panel']}>
@@ -4498,8 +4521,23 @@ function FileDetailPanel({
               <dd>{renderFileDetailValue(t(`files.kindName.${entry.kind}`))}</dd>
             </div>
             <div>
-              <dt>{t('files.size')}</dt>
-              <dd>{renderFileDetailValue(entry.kind === 'directory' ? '-' : formatBytes(entry.size))}</dd>
+              <dt>{t(directorySizeSupported ? 'files.directorySize.label' : 'files.size')}</dt>
+              <dd>
+                {directorySizeSupported && fileSession ? (
+                  <DirectorySizeField
+                    api={api}
+                    cache={directorySizeCache}
+                    source={{
+                      fileSessionId: fileSession.id,
+                      connectionGeneration: fileSession.connection_generation ?? 0,
+                      path: entry.path,
+                      listingReadAt,
+                    }}
+                    enabled={directorySizeEnabled}
+                    onError={onDirectorySizeError}
+                  />
+                ) : renderFileDetailValue(entry.kind === 'directory' ? '-' : formatBytes(entry.size))}
+              </dd>
             </div>
             <div>
               <dt>{t('files.mode')}</dt>

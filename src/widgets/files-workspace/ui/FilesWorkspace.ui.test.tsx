@@ -1,7 +1,7 @@
 import { App as AntdApp } from 'antd'
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FileSession, LocalPathMapping } from '#entities/file'
+import type { FileSession, LocalPathMapping, RemoteFileEntry } from '#entities/file'
 import { defaultTerminalSettings } from '#entities/settings'
 import { ShortcutRuntime, ShortcutRuntimeContextProvider } from '#entities/shortcuts'
 import type { FileGateway } from '#features/files'
@@ -39,19 +39,23 @@ const mapping: LocalPathMapping = {
   updated_at: '2026-09-07T00:00:00Z',
 }
 
-function fileGateway() {
+function fileGateway(
+  activeSession: FileSession = session,
+  entries: RemoteFileEntry[] = [],
+) {
   return {
-    getFileSession: vi.fn().mockResolvedValue(session),
+    getFileSession: vi.fn().mockResolvedValue(activeSession),
     fileSessionEventsUrl: vi.fn().mockReturnValue('ws://localhost/files-tour'),
     listFileSessionFiles: vi.fn().mockResolvedValue({
-      file_session_id: session.id,
-      host_id: session.host_id,
-      path: session.current_path,
+      file_session_id: activeSession.id,
+      host_id: activeSession.host_id,
+      path: activeSession.current_path,
       parent_path: '/',
-      entries: [],
+      entries,
       read_at: '2026-09-07T00:00:00Z',
     }),
     statFileSessionFile: vi.fn(),
+    calculateFileSessionDirectorySize: vi.fn(),
     mkdirFileSessionFile: vi.fn(),
     renameFileSessionFile: vi.fn(),
     chmodFileSessionFile: vi.fn(),
@@ -87,22 +91,30 @@ function fileGateway() {
   } satisfies FileGateway
 }
 
-function renderWorkspace(connected: boolean) {
-  const api = fileGateway()
+function renderWorkspace(
+  connected: boolean,
+  options: {
+    activeSession?: FileSession
+    entries?: RemoteFileEntry[]
+    automaticRemoteRequestsEnabled?: boolean
+  } = {},
+) {
+  const activeSession = options.activeSession ?? session
+  const api = fileGateway(activeSession, options.entries)
   const props: FilesWorkspaceProps = {
     fileGateway: api,
-    automaticRemoteRequestsEnabled: false,
+    automaticRemoteRequestsEnabled: options.automaticRemoteRequestsEnabled ?? false,
     getHostIconUrl: vi.fn(),
     data: {
       hosts: [],
-      fileSessions: connected ? [session] : [],
+      fileSessions: connected ? [activeSession] : [],
       fileBookmarkGroups: [],
       fileBookmarks: [],
       localPathMappings: connected ? [mapping] : [],
       settings: { terminal: defaultTerminalSettings },
     },
     theme: 'dark',
-    activeFileSession: connected ? session : null,
+    activeFileSession: connected ? activeSession : null,
     closingFileSessionIds: [],
     bookmarkManagementIntent: null,
     onConsumeBookmarkManagementIntent: vi.fn(),
@@ -212,5 +224,41 @@ describe('真实文件工作区向导入口', () => {
     expect(props.onOpenFileSessionLauncher).not.toHaveBeenCalled()
     expect(props.onConnectFileSession).not.toHaveBeenCalled()
     expect(props.onReconnectFileSession).not.toHaveBeenCalled()
+  })
+})
+
+describe('目录总大小详情入口', () => {
+  const directory: RemoteFileEntry = {
+    name: 'data',
+    path: '/srv/data',
+    kind: 'directory',
+    size: 0,
+    is_hidden: false,
+  }
+
+  it.each([
+    { supported: true, expectedLabel: 'files.directorySize.label' },
+    { supported: false, expectedLabel: 'files.size' },
+  ])('能力支持为 $supported 时保持对应详情行为', async ({ supported, expectedLabel }) => {
+    const activeSession: FileSession = {
+      ...session,
+      capabilities: supported ? ['directory_size'] : [],
+    }
+    const { api } = renderWorkspace(true, {
+      activeSession,
+      entries: [directory],
+      automaticRemoteRequestsEnabled: true,
+    })
+
+    await waitFor(() => expect(api.listFileSessionFiles).toHaveBeenCalledOnce())
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.details' }))
+
+    expect(await screen.findByText(expectedLabel)).toBeVisible()
+    if (supported) {
+      expect(screen.getByRole('button', { name: 'files.directorySize.calculate' })).toBeVisible()
+    } else {
+      expect(screen.queryByRole('button', { name: 'files.directorySize.calculate' })).toBeNull()
+    }
   })
 })

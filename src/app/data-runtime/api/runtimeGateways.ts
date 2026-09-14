@@ -203,6 +203,9 @@ function createFileGateway(
     statFileSessionFile: (fileSessionId, path, signal) => (
       sessions.statFileSessionFile(fileSessionId, path, signal)
     ),
+    calculateFileSessionDirectorySize: (fileSessionId, input, signal) => (
+      sessions.calculateFileSessionDirectorySize(fileSessionId, input, signal)
+    ),
     mkdirFileSessionFile: (fileSessionId, path) => (
       sessions.mkdirFileSessionFile(fileSessionId, path)
     ),

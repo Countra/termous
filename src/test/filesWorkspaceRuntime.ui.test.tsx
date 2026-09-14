@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import type { FileSession, RemoteDirectorySize } from '#entities/file'
+import type { DirectorySizeSource } from '#features/remote-file'
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import {
   useFilesWorkspaceRuntime,
@@ -105,6 +107,62 @@ describe('文件工作区运行时合同', () => {
     expect(getRuntime().consumeUploadRefreshTask('upload-a')).toEqual({
       fileSessionId: 'file-session-target',
       targetPath: '/srv/project',
+    })
+  })
+
+  it('文件会话进入关闭流程时清理目录大小缓存', async () => {
+    let capturedRuntime: FilesWorkspaceRuntimeValue | null = null
+    const getRuntime = () => {
+      if (!capturedRuntime) {
+        throw new Error('文件工作区运行时尚未就绪')
+      }
+      return capturedRuntime
+    }
+    const fileSession: FileSession = {
+      id: 'file-session-a',
+      host_id: 'host-a',
+      origin: 'app',
+      status: 'connected',
+      current_path: '/srv',
+      connection_generation: 3,
+      started_at: '2026-09-14T10:00:00Z',
+    }
+    const source: DirectorySizeSource = {
+      fileSessionId: fileSession.id,
+      connectionGeneration: 3,
+      path: '/srv/project',
+      listingReadAt: '2026-09-14T10:01:00Z',
+    }
+    const result: RemoteDirectorySize = {
+      file_session_id: fileSession.id,
+      path: source.path,
+      total_bytes: 1024,
+      estimated: false,
+      connection_generation: 3,
+      calculated_at: '2026-09-14T10:02:00Z',
+      duration_ms: 10,
+    }
+    const view = render(
+      <FilesWorkspaceRuntimeProvider fileSessions={[fileSession]} closingFileSessionIds={[]}>
+        <RuntimeProbe onRuntime={(value) => { capturedRuntime = value }} />
+      </FilesWorkspaceRuntimeProvider>,
+    )
+
+    await waitFor(() => expect(capturedRuntime).not.toBeNull())
+    act(() => getRuntime().directorySizeCache.set(source, result))
+    expect(getRuntime().directorySizeCache.get(source)?.total_bytes).toBe(1024)
+
+    view.rerender(
+      <FilesWorkspaceRuntimeProvider
+        fileSessions={[fileSession]}
+        closingFileSessionIds={[fileSession.id]}
+      >
+        <RuntimeProbe onRuntime={(value) => { capturedRuntime = value }} />
+      </FilesWorkspaceRuntimeProvider>,
+    )
+
+    await waitFor(() => {
+      expect(getRuntime().directorySizeCache.get(source)).toBeUndefined()
     })
   })
 })

@@ -1236,7 +1236,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           return 'handled'
         },
       }} />
-      <FilesWorkspaceRuntimeProvider>
+      <FilesWorkspaceRuntimeProvider
+        fileSessions={data.fileSessions}
+        closingFileSessionIds={closingFileSessionIds}
+      >
         <TransferRuntimeProvider api={gateways.transfers} enabled={runtimeConfigReady}>
           <UpdateRuntimeSummaryReporter
             apiReady={apiReady}

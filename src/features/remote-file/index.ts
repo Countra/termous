@@ -1,5 +1,12 @@
 export { buildRemoteFileActionMenu } from './ui/RemoteFileActionMenu.tsx'
 export { RemotePermissionModal } from './ui/RemotePermissionModal.tsx'
+export { DirectorySizeField } from './directory-size/ui/DirectorySizeField.tsx'
+export {
+  DirectorySizeResultCache,
+  directorySizeResultCacheLimit,
+} from './directory-size/model/DirectorySizeResultCache.ts'
+export type { DirectorySizeCacheSession } from './directory-size/model/DirectorySizeResultCache.ts'
+export type { DirectorySizeSource } from './directory-size/model/types.ts'
 export {
   formatRemoteFilePathsForClipboard,
   runRemoteFileAction,

@@ -2748,6 +2748,17 @@
     "noHost": "请选择主机",
     "noHostHint": "选择一台已配置的 SSH 主机后浏览远程目录。",
     "directoryReadFailed": "读取远程目录失败",
+    "directorySize": {
+      "label": "总大小",
+      "calculate": "计算",
+      "calculating": "正在计算",
+      "cancel": "取消计算",
+      "retry": "重试",
+      "recalculate": "重新计算目录总大小",
+      "failed": "计算失败",
+      "estimatedValue": "约 {{value}}",
+      "calculatedAt": "计算于 {{time}}"
+    },
     "pathNavigation": "远程路径导航",
     "back": "后退",
     "forward": "前进",

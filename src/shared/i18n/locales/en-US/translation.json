@@ -2760,6 +2760,17 @@
     "noHost": "Select a host",
     "noHostHint": "Choose a configured SSH host to browse remote directories.",
     "directoryReadFailed": "Failed to read remote directory",
+    "directorySize": {
+      "label": "Total size",
+      "calculate": "Calculate",
+      "calculating": "Calculating",
+      "cancel": "Cancel calculation",
+      "retry": "Retry",
+      "recalculate": "Recalculate total size",
+      "failed": "Calculation failed",
+      "estimatedValue": "About {{value}}",
+      "calculatedAt": "Calculated at {{time}}"
+    },
     "pathNavigation": "Remote path navigation",
     "back": "Back",
     "forward": "Forward",

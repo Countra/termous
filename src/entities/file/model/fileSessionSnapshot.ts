@@ -23,6 +23,7 @@ const fileAccessCapabilities = new Set<FileAccessCapability>([
   'batch_rename',
   'planned_delete',
   'name_search',
+  'directory_size',
 ])
 
 export interface FileSessionSnapshotEvent {
