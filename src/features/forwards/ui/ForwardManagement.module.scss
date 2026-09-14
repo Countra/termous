@@ -967,10 +967,6 @@
   padding: 10px;
 }
 
-.forward-session-row.is-running {
-  border-color: color-mix(in srgb, #43cb98 28%, var(--border));
-}
-
 .forward-session-row.is-failed {
   border-color: color-mix(in srgb, #ff656d 34%, var(--border));
 }
@@ -1357,14 +1353,23 @@
   transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 
+/* 运行态通过中性容器层次承载，状态色仅保留在徽标文字与图标中。 */
+.forward-session-row.is-running,
+.forwarding-runtime-row.is-running {
+  border-color: color-mix(in srgb, var(--border-strong) 44%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 36%, var(--surface-subtle));
+}
+
+.forward-session-row.is-running :global(.status-badge),
+.forwarding-runtime-row.is-running :global(.status-badge) {
+  border-color: color-mix(in srgb, var(--border-strong) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+
 .forwarding-profile-row:hover,
 .forwarding-runtime-row:hover {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
   background: color-mix(in srgb, var(--accent) 4%, var(--surface-subtle));
-}
-
-.forwarding-runtime-row.is-running {
-  border-color: color-mix(in srgb, #43cb98 27%, var(--border));
 }
 
 .forwarding-row-heading {

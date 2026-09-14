@@ -70,6 +70,18 @@ test('端口转发关键交互尺寸和响应式边界保持不变', () => {
   assert.match(source, /@container forwarding-page \(max-width:\s*660px\)/)
 })
 
+test('运行实例使用中性容器层次而不是绿色边框或状态轨', () => {
+  assert.match(
+    source,
+    /\.forward-session-row\.is-running,\s*\.forwarding-runtime-row\.is-running\s*\{[\s\S]*?border-color:\s*color-mix\(in srgb, var\(--border-strong\)[\s\S]*?background:\s*color-mix\(in srgb, var\(--surface-strong\)/,
+  )
+  assert.match(
+    source,
+    /\.forward-session-row\.is-running :global\(\.status-badge\),\s*\.forwarding-runtime-row\.is-running :global\(\.status-badge\)\s*\{[\s\S]*?border-color:\s*color-mix\(in srgb, var\(--border-strong\)/,
+  )
+  assert.doesNotMatch(source, /\.forward(?:-session|ing-runtime)-row\.is-running::/)
+})
+
 test('端口转发编辑弹窗使用稳定高度并仅滚动正文区域', () => {
   assert.match(
     source,
