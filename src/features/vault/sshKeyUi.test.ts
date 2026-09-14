@@ -5,6 +5,7 @@ import { buildPrivateKeyDraft, type SSHKeyInfo } from '#entities/credential'
 import { TermousApiError } from '#shared/api'
 import {
   privateKeyNameFromFile,
+  readDroppedPrivateKeyFile,
   sshKeyAlgorithmSummary,
   sshKeyErrorMessage,
 } from './model/sshKeyUi.ts'
@@ -64,5 +65,45 @@ test('SSH Key 错误只映射已知稳定错误码', () => {
   assert.equal(
     sshKeyErrorMessage(new Error('unexpected failure'), translate),
     'vault.sshKey.errors.unknown',
+  )
+})
+
+test('拖放私钥读取不限制文件扩展名或媒体类型', async () => {
+  const content = '-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----\n'
+  const bytes = new TextEncoder().encode(content)
+  const file = {
+    name: 'production-key.custom-binary',
+    type: 'application/octet-stream',
+    size: bytes.byteLength,
+    arrayBuffer: async () => bytes.slice().buffer,
+  }
+  const result = await readDroppedPrivateKeyFile(file)
+
+  assert.deepEqual(result, {
+    fileName: 'production-key.custom-binary',
+    privateKey: content,
+  })
+})
+
+test('拖放私钥读取沿用空文件、大小和读取失败边界', async () => {
+  await assert.rejects(
+    readDroppedPrivateKeyFile({ name: 'empty', size: 0, arrayBuffer: async () => new ArrayBuffer(0) }),
+    /ssh_private_key_empty/,
+  )
+  await assert.rejects(
+    readDroppedPrivateKeyFile({ name: 'large', size: (1 << 20) + 1, arrayBuffer: async () => new ArrayBuffer(0) }),
+    /ssh_private_key_too_large/,
+  )
+  await assert.rejects(
+    readDroppedPrivateKeyFile({ name: 'changed', size: 1, arrayBuffer: async () => new ArrayBuffer((1 << 20) + 1) }),
+    /ssh_private_key_too_large/,
+  )
+  await assert.rejects(
+    readDroppedPrivateKeyFile({
+      name: 'unreadable',
+      size: 1,
+      arrayBuffer: async () => { throw new Error('disk failure') },
+    }),
+    /ssh_private_key_read_failed/,
   )
 })

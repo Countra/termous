@@ -75,6 +75,7 @@ function credentialEditorProps(): ComponentProps<typeof CredentialEditor> {
     onDelete: vi.fn(),
     onDiscard: vi.fn(),
     onImportKey: vi.fn(),
+    onImportKeyFiles: vi.fn(),
   }
 }
 
@@ -202,5 +203,53 @@ describe('管理编辑器模式视觉合同', () => {
 
     expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent(passwordCredential.name)
     expect(document.querySelector('[data-editor-mode="edit"]')).not.toHaveTextContent('vault.newCredential')
+  })
+
+  it('私钥文本区接收文件拖放并呈现明确的释放状态', () => {
+    const props = credentialEditorProps()
+    const onImportKeyFiles = vi.fn()
+    const view = render(
+      <CredentialEditor
+        {...props}
+        draft={{ ...props.draft, type: 'private_key', secret: '' }}
+        onImportKeyFiles={onImportKeyFiles}
+      />,
+    )
+    const textarea = document.querySelector('textarea[name="credential-private-key"]') as HTMLTextAreaElement
+    const file = new File(['private-key'], 'id_ed25519.unknown', { type: 'application/octet-stream' })
+    const dataTransfer = { types: ['Files'], files: [file], dropEffect: 'none' }
+
+    fireEvent.dragEnter(textarea, { dataTransfer })
+    expect(screen.getByRole('status')).toHaveTextContent('vault.sshKey.dropActive')
+
+    fireEvent.dragEnter(textarea, { dataTransfer })
+    fireEvent.dragLeave(textarea, { dataTransfer })
+    expect(screen.getByRole('status')).toHaveTextContent('vault.sshKey.dropActive')
+
+    fireEvent.dragOver(textarea, { dataTransfer })
+    expect(dataTransfer.dropEffect).toBe('copy')
+
+    fireEvent.drop(textarea, { dataTransfer })
+    expect(onImportKeyFiles).toHaveBeenCalledExactlyOnceWith([file])
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    onImportKeyFiles.mockClear()
+    view.rerender(
+      <CredentialEditor
+        {...props}
+        draft={{ ...props.draft, type: 'private_key', secret: '' }}
+        importBusy
+        onImportKeyFiles={onImportKeyFiles}
+      />,
+    )
+    const disabledTextarea = document.querySelector('textarea[name="credential-private-key"]') as HTMLTextAreaElement
+    const blockedTransfer = { types: ['Files'], files: [file], dropEffect: 'copy' }
+    expect(disabledTextarea).toBeDisabled()
+    fireEvent.dragEnter(disabledTextarea, { dataTransfer: blockedTransfer })
+    fireEvent.dragOver(disabledTextarea, { dataTransfer: blockedTransfer })
+    fireEvent.drop(disabledTextarea, { dataTransfer: blockedTransfer })
+    expect(blockedTransfer.dropEffect).toBe('none')
+    expect(onImportKeyFiles).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

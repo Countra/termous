@@ -2,6 +2,49 @@ import type { TFunction } from 'i18next'
 import type { SSHKeyInfo } from '#entities/credential'
 import { TermousApiError } from '#shared/api'
 
+const SSH_PRIVATE_KEY_FILE_MAX_BYTES = 1 << 20
+
+interface PrivateKeyFileSource {
+  readonly name: string
+  readonly size: number
+  arrayBuffer: () => Promise<ArrayBuffer>
+}
+
+export interface PrivateKeyImportSource {
+  fileName: string
+  privateKey: string
+}
+
+function assertPrivateKeyFileSize(size: number) {
+  if (size <= 0) {
+    throw new Error('ssh_private_key_empty')
+  }
+  if (size > SSH_PRIVATE_KEY_FILE_MAX_BYTES) {
+    throw new Error('ssh_private_key_too_large')
+  }
+}
+
+export async function readDroppedPrivateKeyFile(file: PrivateKeyFileSource): Promise<PrivateKeyImportSource> {
+  assertPrivateKeyFileSize(file.size)
+  let buffer: ArrayBuffer
+  try {
+    buffer = await file.arrayBuffer()
+  } catch {
+    throw new Error('ssh_private_key_read_failed')
+  }
+
+  const bytes = new Uint8Array(buffer)
+  try {
+    assertPrivateKeyFileSize(bytes.byteLength)
+    return {
+      fileName: file.name,
+      privateKey: new TextDecoder().decode(bytes),
+    }
+  } finally {
+    bytes.fill(0)
+  }
+}
+
 export function privateKeyNameFromFile(fileName: string | undefined, fallbackName: string) {
   const name = fileName?.trim().replace(/\.(key|pem|openssh)$/i, '')
   return name || fallbackName

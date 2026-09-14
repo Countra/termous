@@ -20,7 +20,12 @@ import {
   type CredentialGatewayFactory,
 } from '../api/credentialGateway.ts'
 import { validateCredentialInput } from '../model/credentialCatalog.ts'
-import { privateKeyNameFromFile, sshKeyErrorMessage } from '../model/sshKeyUi.ts'
+import {
+  privateKeyNameFromFile,
+  readDroppedPrivateKeyFile,
+  sshKeyErrorMessage,
+  type PrivateKeyImportSource,
+} from '../model/sshKeyUi.ts'
 import { CredentialCatalog } from './CredentialCatalog'
 import { CredentialEditor } from './CredentialEditor'
 import { PrivateKeyPassphraseModal, type PrivateKeyUnlockInput } from './PrivateKeyPassphraseModal'
@@ -43,11 +48,6 @@ type CredentialIntent =
   | { type: 'generate' }
   | { type: 'change_type'; credentialType: CredentialType }
 
-interface PendingPrivateKeyImport {
-  fileName: string
-  privateKey: string
-}
-
 export function VaultWorkspace({
   className,
   credentials,
@@ -67,7 +67,7 @@ export function VaultWorkspace({
   const [generationOpen, setGenerationOpen] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState('')
-  const [pendingImport, setPendingImport] = useState<PendingPrivateKeyImport | null>(null)
+  const [pendingImport, setPendingImport] = useState<PrivateKeyImportSource | null>(null)
   const gatewayRef = useRef<ReturnType<CredentialGatewayFactory> | null>(null)
   const gatewayFactoryRef = useRef(createGateway)
   const importControllerRef = useRef<AbortController | null>(null)
@@ -137,7 +137,7 @@ export function VaultWorkspace({
     setPendingImport(null)
   }, [])
 
-  const applyImportedKey = useCallback((source: PendingPrivateKeyImport, result: SSHKeyInspectResult, unlock?: PrivateKeyUnlockInput) => {
+  const applyImportedKey = useCallback((source: PrivateKeyImportSource, result: SSHKeyInspectResult, unlock?: PrivateKeyUnlockInput) => {
     const importedName = privateKeyNameFromFile(source.fileName, t('vault.sshKey.defaultName'))
     setDraft((current) => {
       const credentialName = current.name.trim() || importedName
@@ -166,7 +166,7 @@ export function VaultWorkspace({
     clearPendingImport()
   }, [clearPendingImport, t])
 
-  const inspectImportedKey = useCallback(async (source: PendingPrivateKeyImport, unlock?: PrivateKeyUnlockInput) => {
+  const inspectImportedKey = useCallback(async (source: PrivateKeyImportSource, unlock?: PrivateKeyUnlockInput) => {
     const revision = importRevisionRef.current + 1
     importRevisionRef.current = revision
     importControllerRef.current?.abort()
@@ -176,6 +176,9 @@ export function VaultWorkspace({
     setImportError('')
     try {
       const gateway = await getGateway()
+      if (revision !== importRevisionRef.current || controller.signal.aborted) {
+        return
+      }
       const result = await gateway.inspectSSHKey({
         private_key_openssh: source.privateKey,
         passphrase: unlock?.source === 'new' ? unlock.passphrase : undefined,
@@ -233,7 +236,39 @@ export function VaultWorkspace({
     }
   }, [inspectImportedKey, t])
 
+  const beginDroppedImport = useCallback(async (files: File[]) => {
+    setImportError('')
+    if (files.length !== 1) {
+      setImportError(t('vault.sshKey.errors.single_file_required'))
+      return
+    }
+
+    const revision = importRevisionRef.current + 1
+    importRevisionRef.current = revision
+    importControllerRef.current?.abort()
+    importControllerRef.current = null
+    setPendingImport(null)
+    setImportBusy(true)
+    try {
+      const source = await readDroppedPrivateKeyFile(files[0])
+      if (revision !== importRevisionRef.current) {
+        return
+      }
+      await inspectImportedKey(source)
+    } catch (error) {
+      if (revision === importRevisionRef.current) {
+        setImportError(sshKeyErrorMessage(error, t))
+      }
+    } finally {
+      if (revision === importRevisionRef.current) {
+        setImportBusy(false)
+      }
+    }
+  }, [inspectImportedKey, t])
+
   const applyIntent = useCallback(async (intent: CredentialIntent) => {
+    clearPendingImport()
+    setImportError('')
     if (intent.type === 'select') {
       loadCredentialById(intent.credentialId)
       return
@@ -259,7 +294,7 @@ export function VaultWorkspace({
     }
     setDraft(baseline)
     setActiveView('catalog')
-  }, [baseline, loadCredentialById, startCreate])
+  }, [baseline, clearPendingImport, loadCredentialById, startCreate])
 
   const requestIntent = useCallback((intent: CredentialIntent) => {
     if (intent.type === 'select' && intent.credentialId === editingId) {
@@ -361,6 +396,7 @@ export function VaultWorkspace({
             onDelete={() => void removeCurrentCredential()}
             onDiscard={() => setDraft(baseline)}
             onImportKey={() => void beginImport()}
+            onImportKeyFiles={(files) => void beginDroppedImport(files)}
           />
         )}
       />

@@ -52,26 +52,32 @@ vi.mock('../features/vault/ui/CredentialEditor', () => ({
     editingCredential,
     draft,
     dirty,
+    importError,
     onChange,
     onBack,
     onSave,
     onDelete,
     onDiscard,
+    onImportKeyFiles,
   }: {
     editingCredential?: CredentialView
     draft: CredentialInput
     dirty: boolean
+    importError: string
     onChange: (patch: Partial<CredentialInput>) => void
     onBack: () => void
     onSave: () => void
     onDelete: () => void
     onDiscard: () => void
+    onImportKeyFiles: (files: File[]) => void
   }) => (
     <section data-testid="credential-editor">
       <output data-testid="editing-id">{editingCredential?.id ?? 'new'}</output>
       <output data-testid="draft-name">{draft.name}</output>
+      <output data-testid="draft-secret">{draft.secret}</output>
       <output data-testid="draft-metadata">{JSON.stringify(draft.metadata)}</output>
       <output data-testid="draft-dirty">{String(dirty)}</output>
+      <output data-testid="import-error">{importError}</output>
       <input
         aria-label="credential-draft-name"
         value={draft.name}
@@ -81,6 +87,29 @@ vi.mock('../features/vault/ui/CredentialEditor', () => ({
       <button type="button" onClick={onSave}>save-credential</button>
       <button type="button" onClick={onDelete}>delete-credential</button>
       <button type="button" onClick={onDiscard}>discard-credential</button>
+      <button
+        type="button"
+        onClick={() => {
+          const bytes = new TextEncoder().encode('PRIVATE KEY FROM DROP')
+          onImportKeyFiles([{
+            name: 'fixture.custom-format',
+            size: bytes.byteLength,
+            type: 'application/x-termous-fixture',
+            arrayBuffer: async () => bytes.slice().buffer,
+          } as File])
+        }}
+      >
+        drop-private-key
+      </button>
+      <button
+        type="button"
+        onClick={() => onImportKeyFiles([
+          { name: 'first', size: 1, arrayBuffer: async () => new ArrayBuffer(1) } as File,
+          { name: 'second', size: 1, arrayBuffer: async () => new ArrayBuffer(1) } as File,
+        ])}
+      >
+        drop-multiple-private-keys
+      </button>
     </section>
   ),
 }))
@@ -416,6 +445,90 @@ describe('凭据库页面状态合同', () => {
       { algorithm: 'ed25519' },
       expect.any(AbortSignal),
     )
+  })
+
+  it('拖放任意扩展名文件后复用 SSH Key 检查流程并更新草稿', async () => {
+    const user = userEvent.setup()
+    gatewayMocks.inspectSSHKey.mockResolvedValue({
+      encrypted: false,
+      info: generatedKeyPair.info,
+    })
+    renderVault([])
+
+    await user.click(screen.getByRole('button', { name: 'drop-private-key' }))
+
+    await waitFor(() => {
+      expect(gatewayMocks.inspectSSHKey).toHaveBeenCalledExactlyOnceWith(
+        { private_key_openssh: 'PRIVATE KEY FROM DROP' },
+        expect.any(AbortSignal),
+      )
+      expect(screen.getByTestId('draft-name')).toHaveTextContent('fixture.custom-format')
+      expect(screen.getByTestId('draft-secret')).toHaveTextContent('PRIVATE KEY FROM DROP')
+      expect(screen.getByTestId('draft-dirty')).toHaveTextContent('true')
+    })
+  })
+
+  it('拖放密钥检查期间切换凭据会取消请求并拒绝迟到结果', async () => {
+    const user = userEvent.setup()
+    const inspection = deferred<{
+      encrypted: false,
+      info: typeof generatedKeyPair.info,
+    }>()
+    gatewayMocks.inspectSSHKey.mockReturnValue(inspection.promise)
+    renderVault([credential('credential-a', 'Alpha')])
+
+    await user.click(screen.getByRole('button', { name: 'drop-private-key' }))
+    await waitFor(() => expect(gatewayMocks.inspectSSHKey).toHaveBeenCalledOnce())
+    const signal = gatewayMocks.inspectSSHKey.mock.calls[0]?.[1] as AbortSignal
+
+    await user.click(screen.getByRole('button', { name: 'select-credential-a' }))
+    expect(signal.aborted).toBe(true)
+
+    await act(async () => {
+      inspection.resolve({ encrypted: false, info: generatedKeyPair.info })
+      await inspection.promise
+    })
+
+    expect(screen.getByTestId('editing-id')).toHaveTextContent('credential-a')
+    expect(screen.getByTestId('draft-name')).toHaveTextContent('Alpha')
+    expect(screen.getByTestId('draft-secret')).not.toHaveTextContent('PRIVATE KEY FROM DROP')
+  })
+
+  it('运行时 API 初始化期间切换凭据不会发出失效的密钥检查', async () => {
+    const user = userEvent.setup()
+    const gatewayRequest = deferred<{
+      generateSSHKey: typeof gatewayMocks.generateSSHKey
+      inspectSSHKey: typeof gatewayMocks.inspectSSHKey
+    }>()
+    gatewayMocks.createGateway.mockReturnValue(gatewayRequest.promise)
+    renderVault([credential('credential-a', 'Alpha')])
+
+    await user.click(screen.getByRole('button', { name: 'drop-private-key' }))
+    await waitFor(() => expect(gatewayMocks.createGateway).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole('button', { name: 'select-credential-a' }))
+
+    await act(async () => {
+      gatewayRequest.resolve({
+        generateSSHKey: gatewayMocks.generateSSHKey,
+        inspectSSHKey: gatewayMocks.inspectSSHKey,
+      })
+      await gatewayRequest.promise
+    })
+
+    expect(gatewayMocks.inspectSSHKey).not.toHaveBeenCalled()
+    expect(screen.getByTestId('editing-id')).toHaveTextContent('credential-a')
+    expect(screen.getByTestId('draft-name')).toHaveTextContent('Alpha')
+  })
+
+  it('一次拖放多个文件时不读取内容或调用密钥检查', async () => {
+    const user = userEvent.setup()
+    renderVault([])
+
+    await user.click(screen.getByRole('button', { name: 'drop-multiple-private-keys' }))
+
+    expect(gatewayMocks.createGateway).not.toHaveBeenCalled()
+    expect(gatewayMocks.inspectSSHKey).not.toHaveBeenCalled()
+    expect(screen.getByTestId('import-error')).toHaveTextContent('vault.sshKey.errors.single_file_required')
   })
 
   it('运行时 API 工厂变化后不再复用旧网关', async () => {
