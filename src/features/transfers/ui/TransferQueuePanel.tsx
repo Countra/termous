@@ -320,7 +320,7 @@ function TransferTaskRow({
       task={task}
       hostLabel={route
         ? undefined
-        : showHostContext
+        : showHostContext && task.host_id
           ? hostNames[task.host_id]
           : undefined}
       remoteRoute={route ? {
