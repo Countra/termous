@@ -11,6 +11,7 @@ import type {
   FileRenamePresetInput,
 } from '#entities/file'
 import { TermousApiTransport } from '#shared/api'
+import { requireCanonicalRemotePath } from '#shared/path'
 import { normalizeArray } from './responseNormalizers'
 
 export class FileRenameClient extends TermousApiTransport {
@@ -53,15 +54,27 @@ export class FileRenameClient extends TermousApiTransport {
     return this.request<AdvancedRenamePreview>(
       `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/batch-rename/preview`,
       { method: 'POST', body: input, signal },
-    )
+    ).then(validateAdvancedRenamePreview)
   }
 
   createFileSessionBatchRename(fileSessionId: string, input: AdvancedRenameExecuteInput) {
     return this.request<FileOperationTask>(
       `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/batch-rename`,
       { method: 'POST', body: input },
-    )
+    ).then(validateFileOperationTask)
   }
+}
+
+function validateAdvancedRenamePreview(preview: AdvancedRenamePreview) {
+  for (const item of preview.items) {
+    requireCanonicalRemotePath(item.source_path)
+  }
+  return preview
+}
+
+function validateFileOperationTask(task: FileOperationTask) {
+  requireCanonicalRemotePath(task.path)
+  return task
 }
 
 function normalizeFileRenamePreset(value: FileRenamePreset): FileRenamePreset {

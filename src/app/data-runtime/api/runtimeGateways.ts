@@ -246,12 +246,14 @@ function createFileGateway(
       remoteDir,
       overwritePolicy,
       overwriteItemIds,
+      overwriteConfirmations,
     ) => transfers.createFileSessionUploadTransfer(
       fileSessionId,
       localGrantId,
       remoteDir,
       overwritePolicy,
       overwriteItemIds,
+      overwriteConfirmations,
     ),
     createFileSessionDownloadTransfer: (
       fileSessionId,

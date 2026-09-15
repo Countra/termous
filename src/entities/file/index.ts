@@ -45,6 +45,7 @@ export type {
   TransferOrigin,
   TransferTask,
   TransferType,
+  UploadOverwriteConfirmation,
 } from './model/types.ts'
 export type {
   AdvancedRenameCaseConfig,

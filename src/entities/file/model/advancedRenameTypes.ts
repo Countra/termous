@@ -165,6 +165,7 @@ export interface AdvancedRenamePreviewItem {
   kind: RemoteFileKind
   size: number
   modified_at?: string
+  version_token?: string
   status: AdvancedRenamePreviewStatus
   diagnostics?: AdvancedRenameDiagnostic[]
 }

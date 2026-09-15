@@ -4,6 +4,7 @@ import type {
   LocalGrantItem,
   LocalGrantSource,
   RemoteFileEntry,
+  UploadOverwriteConfirmation,
 } from '#entities/file'
 import { TermousApiError } from '#shared/api'
 import { joinPath } from '#shared/path'
@@ -41,7 +42,11 @@ export interface UploadConflictWorkflowOptions<Task> {
   stat: (path: string) => Promise<RemoteFileEntry>
   requestPolicy: (request: UploadConflictRequest) => Promise<UploadConflictPolicy | null>
   isCurrent: () => boolean
-  createUpload: (grantId: string, overwriteItemIds: string[]) => Promise<Task>
+  createUpload: (
+    grantId: string,
+    overwriteItemIds: string[],
+    overwriteConfirmations: UploadOverwriteConfirmation[],
+  ) => Promise<Task>
 }
 
 export function findUploadFileConflicts(
@@ -151,6 +156,33 @@ export function remapConfirmedOverwriteItemIds(
   return mappedIds.length === confirmedIds.size ? mappedIds : null
 }
 
+export function remapConfirmedOverwrites(
+  originalItems: readonly LocalGrantItem[],
+  refreshedItems: readonly LocalGrantItem[],
+  conflicts: readonly UploadFileConflict[],
+): { itemIds: string[]; confirmations: UploadOverwriteConfirmation[] } | null {
+  const itemIds = remapConfirmedOverwriteItemIds(originalItems, refreshedItems, conflicts)
+  if (!itemIds) {
+    return null
+  }
+  const tokenByOriginalID = new Map(
+    conflicts.map(({ incoming, existing }) => [incoming.id, existing.version_token ?? '']),
+  )
+  const confirmations: UploadOverwriteConfirmation[] = []
+  for (let index = 0; index < originalItems.length; index += 1) {
+    const original = originalItems[index]
+    const refreshed = refreshedItems[index]
+    if (!original || !refreshed) {
+      continue
+    }
+    const versionToken = tokenByOriginalID.get(original.id)
+    if (versionToken) {
+      confirmations.push({ item_id: refreshed.id, version_token: versionToken })
+    }
+  }
+  return { itemIds, confirmations }
+}
+
 async function releaseUnusedGrant(
   releaseGrant: (id: string) => Promise<void>,
   id: string,
@@ -206,6 +238,7 @@ export async function createUploadWithConflictDecision<Task>(
     }
 
     let overwriteItemIds: string[] = []
+    let overwriteConfirmations: UploadOverwriteConfirmation[] = []
     if (conflicts.length > 0) {
       const inspectedGrant = activeGrant
       await releaseUnusedGrant(options.releaseGrant, inspectedGrant.id)
@@ -221,19 +254,20 @@ export async function createUploadWithConflictDecision<Task>(
       }
 
       if (policy === 'overwrite') {
-        const mappedIds = remapConfirmedOverwriteItemIds(
+        const mapped = remapConfirmedOverwrites(
           inspectedGrant.items,
           activeGrant.items,
           conflicts,
         )
-        if (!mappedIds) {
+        if (!mapped) {
           throw new Error('The selected local files changed before the upload could start')
         }
-        overwriteItemIds = mappedIds
+        overwriteItemIds = mapped.itemIds
+        overwriteConfirmations = mapped.confirmations
       }
     }
 
-    const task = await options.createUpload(activeGrant.id, overwriteItemIds)
+    const task = await options.createUpload(activeGrant.id, overwriteItemIds, overwriteConfirmations)
     grantIsOwned = false
     return task
   } finally {

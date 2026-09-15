@@ -955,12 +955,13 @@ function WorkbenchFilesPanelContent({
         stat: (path) => api.statFileSessionFile(fileSessionId, path),
         requestPolicy: uploadConflictDecision.requestPolicy,
         isCurrent: isCurrentUploadSession,
-        createUpload: (grantId, overwriteItemIds) => api.createFileSessionUploadTransfer(
+        createUpload: (grantId, overwriteItemIds, overwriteConfirmations) => api.createFileSessionUploadTransfer(
           fileSessionId,
           grantId,
           remoteDir,
           'rename',
           overwriteItemIds,
+          overwriteConfirmations,
         ),
       })
       if (!task) {

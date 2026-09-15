@@ -35,6 +35,7 @@ export interface RemoteFileEntry {
   is_hidden: boolean
   target?: string
   extended?: SftpExtendedAttribute[]
+  version_token?: string
 }
 
 export interface SftpExtendedAttribute {
@@ -85,6 +86,7 @@ export interface RemoteTextFile {
   mode?: string
   permission_octal?: string
   loaded_at: string
+  version_token?: string
 }
 
 export interface RemoteTextSaveRequest {
@@ -96,6 +98,7 @@ export interface RemoteTextSaveRequest {
   line_ending: RemoteTextLineEnding
   has_bom: boolean
   force: boolean
+  base_version_token?: string
 }
 
 export interface RemoteTextSaveResult {
@@ -112,6 +115,7 @@ export interface RemoteImageFile {
   sha256: string
   modified_at?: string
   loaded_at: string
+  version_token?: string
 }
 
 export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete'
@@ -137,7 +141,8 @@ export interface FileOperationTask {
   id: string
   revision: number
   file_session_id: string
-  host_id: string
+  host_id?: string
+  engine?: string
   type: FileOperationType
   status: FileOperationStatus
   phase: FileOperationPhase
@@ -292,6 +297,11 @@ export interface LocalGrantItem {
   name: string
   kind: 'file' | 'directory'
   size?: number
+}
+
+export interface UploadOverwriteConfirmation {
+  item_id: string
+  version_token: string
 }
 
 export interface LocalFileGrant {

@@ -1,6 +1,7 @@
 export {
   InvalidRemotePosixPathError,
   normalizeRemotePosixPath,
+  requireCanonicalRemotePath,
   requireRemotePosixPath,
 } from './remotePosixPath.ts'
 export {

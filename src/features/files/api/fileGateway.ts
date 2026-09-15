@@ -21,6 +21,7 @@ import type {
   RemoteFileEntry,
   RemoteTextSaveRequest,
   TransferTask,
+  UploadOverwriteConfirmation,
 } from '#entities/file'
 
 export interface AdvancedRenameGateway {
@@ -143,6 +144,7 @@ export interface FileTransferGateway {
     remoteDir: string,
     overwritePolicy?: OverwritePolicy,
     overwriteItemIds?: string[],
+    overwriteConfirmations?: UploadOverwriteConfirmation[],
   ) => Promise<TransferTask>
   createFileSessionDownloadTransfer: (
     fileSessionId: string,

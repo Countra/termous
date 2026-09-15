@@ -7,6 +7,7 @@ import {
   normalizeRemotePosixPath,
   parentPath,
   pathBase,
+  requireCanonicalRemotePath,
   requireRemotePosixPath,
 } from '#shared/path'
 
@@ -40,4 +41,12 @@ test('共享 POSIX 规范化拒绝相对路径、控制字符和非法 Unicode',
   assert.equal(normalizeRemotePosixPath('/root/😀'), '/root/😀')
   assert.throws(() => requireRemotePosixPath('root'), InvalidRemotePosixPathError)
   assert.throws(() => normalizeRemotePath('/root\u0000bad'), InvalidRemotePosixPathError)
+})
+
+test('服务端路径校验拒绝非规范路径且不静默改写', () => {
+  assert.equal(requireCanonicalRemotePath('/root/file.txt'), '/root/file.txt')
+  assert.equal(requireCanonicalRemotePath('/root/line\nname'), '/root/line\nname')
+  assert.throws(() => requireCanonicalRemotePath('/root//file.txt'), InvalidRemotePosixPathError)
+  assert.throws(() => requireCanonicalRemotePath('/root/../file.txt'), InvalidRemotePosixPathError)
+  assert.throws(() => requireCanonicalRemotePath('/root\u0000file.txt'), InvalidRemotePosixPathError)
 })

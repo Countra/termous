@@ -36,6 +36,7 @@ function remoteEntry(
     kind,
     size: 256,
     is_hidden: false,
+    version_token: `version-${name}`,
   }
 }
 
@@ -258,7 +259,11 @@ test('覆盖确认后刷新授权且只把已确认文件标记为覆盖', async
   const refreshedItems = originalItems.map((item, index) => ({ ...item, id: `fresh-${index}` }))
   const grants = [grant('inspect', originalItems), grant('fresh', refreshedItems)]
   const released: string[] = []
-  const uploads: Array<{ grantId: string; overwriteItemIds: string[] }> = []
+  const uploads: Array<{
+    grantId: string
+    overwriteItemIds: string[]
+    overwriteConfirmations: Array<{ item_id: string; version_token: string }>
+  }> = []
 
   const result = await createUploadWithConflictDecision({
     source: 'picker',
@@ -275,15 +280,19 @@ test('覆盖确认后刷新授权且只把已确认文件标记为覆盖', async
     },
     requestPolicy: async () => 'overwrite',
     isCurrent: () => true,
-    createUpload: async (grantId, overwriteItemIds) => {
-      uploads.push({ grantId, overwriteItemIds })
+    createUpload: async (grantId, overwriteItemIds, overwriteConfirmations) => {
+      uploads.push({ grantId, overwriteItemIds, overwriteConfirmations })
       return { id: 'transfer' }
     },
   })
 
   assert.deepEqual(result, { id: 'transfer' })
   assert.deepEqual(released, ['inspect'])
-  assert.deepEqual(uploads, [{ grantId: 'fresh', overwriteItemIds: ['fresh-0'] }])
+  assert.deepEqual(uploads, [{
+    grantId: 'fresh',
+    overwriteItemIds: ['fresh-0'],
+    overwriteConfirmations: [{ item_id: 'fresh-0', version_token: 'version-report.txt' }],
+  }])
 })
 
 test('取消冲突确认会释放检查授权且不创建上传任务', async () => {

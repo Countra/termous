@@ -1472,7 +1472,7 @@ function FilesWorkspaceContent({
         stat: (path) => api.statFileSessionFile(fileSessionId, path),
         requestPolicy: uploadConflictDecision.requestPolicy,
         isCurrent: isCurrentUploadSession,
-        createUpload: async (grantId, overwriteItemIds) => {
+        createUpload: async (grantId, overwriteItemIds, overwriteConfirmations) => {
           const pendingId = startPendingTransferOperation({
             hostId: fileSession?.host_id ?? '',
             fileSessionId,
@@ -1489,6 +1489,7 @@ function FilesWorkspaceContent({
               remoteDir,
               'rename',
               overwriteItemIds,
+              overwriteConfirmations,
             )
             trackUploadRefreshTask(nextTask)
             upsertTransfer(nextTask)

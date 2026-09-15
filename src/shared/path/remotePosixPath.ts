@@ -45,6 +45,20 @@ export function requireRemotePosixPath(value: string): string {
   return normalized
 }
 
+export function requireCanonicalRemotePath(value: string): string {
+  if (
+    !value.startsWith('/')
+    || value.includes('\u0000')
+    || containsUnpairedSurrogate(value)
+    || (value !== '/' && value.split('/').slice(1).some((segment) => (
+      segment === '' || segment === '.' || segment === '..'
+    )))
+  ) {
+    throw new InvalidRemotePosixPathError(value)
+  }
+  return value
+}
+
 function containsControlCharacter(value: string) {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index)

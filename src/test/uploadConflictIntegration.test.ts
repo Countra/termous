@@ -39,7 +39,7 @@ function assertSharedUploadConflictFlow(
   assert.match(source, /isCurrent:\s*isCurrentUploadSession/)
   assert.match(
     source,
-    /createFileSessionUploadTransfer\(\s*fileSessionId,\s*grantId,\s*remoteDir,\s*['"]rename['"],\s*overwriteItemIds,?\s*\)/,
+    /createFileSessionUploadTransfer\(\s*fileSessionId,\s*grantId,\s*remoteDir,\s*['"]rename['"],\s*overwriteItemIds,\s*overwriteConfirmations,?\s*\)/,
   )
 }
 

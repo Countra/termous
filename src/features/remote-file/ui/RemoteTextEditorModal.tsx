@@ -244,6 +244,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
           line_ending: file.line_ending,
           has_bom: file.has_bom,
           force,
+          base_version_token: file.version_token,
         },
         controller.signal,
       )
