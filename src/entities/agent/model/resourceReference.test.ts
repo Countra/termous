@@ -29,7 +29,7 @@ test('SSH Profile 不会误匹配同主机同 Profile 的 SSH 会话绑定', () 
   assert.equal(resourceBindingMatchesSource(sshSessionBinding(), sshProfileSource()), false)
 })
 
-test('SSH 会话和文件 Profile 仍按各自完整身份匹配', () => {
+test('SSH 会话按完整身份匹配，文件 Profile 只按稳定身份匹配', () => {
   const session = sshSessionSource()
   const sessionBinding = sshSessionBinding()
   assert.equal(resourceBindingMatchesSource(sessionBinding, session), true)
@@ -38,7 +38,10 @@ test('SSH 会话和文件 Profile 仍按各自完整身份匹配', () => {
   const file = fileProfileSource()
   const fileBinding = fileProfileBinding()
   assert.equal(resourceBindingMatchesSource(fileBinding, file), true)
-  assert.equal(resourceBindingMatchesSource({ ...fileBinding, ssh_profile_id: 'profile-other' }, file), false)
+  assert.equal(resourceBindingMatchesSource({ ...fileBinding, ssh_profile_id: 'profile-other' }, file), true)
+  assert.equal(resourceBindingMatchesSource({ ...fileBinding, host_id: 'host-other' }, file), true)
+  assert.equal(resourceBindingMatchesSource({ ...fileBinding, file_access_profile_id: 'file-other' }, file), false)
+  assert.equal(resourceBindingMatchesSource({ ...fileBinding, engine: 'webdav' }, file), false)
 })
 
 function sshProfileSource(): AgentSSHProfileResourceState {

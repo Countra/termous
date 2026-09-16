@@ -37,7 +37,7 @@ export function AgentTerminalReferenceConfirmDialog({ binding, source, resources
             profileId={binding?.kind === 'file_profile' ? binding.file_access_profile_id : binding?.ssh_profile_id}
             sessionId={binding?.kind === 'ssh_session' ? binding.session_id : undefined} />
           <ConnectionSummary destination label={t('agent.terminalReference.nextAssociation')}
-            host={source.host_name} profile={resourceProfileName(source) || t('agent.terminalReference.profileUnavailable')}
+            host={source.host_name || t('agent.terminalReference.unknownHost')} profile={resourceProfileName(source) || t('agent.terminalReference.profileUnavailable')}
             profileId={file ? resourceReferenceId(resourceReference(source)) : source.ssh_profile_id}
             sessionId={'session_id' in source ? source.session_id : undefined} />
         </div>

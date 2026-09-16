@@ -2,7 +2,7 @@ import { getAgentResourceBinding, resourceBindingMatchesSource, resourceReferenc
   type AgentConnectionReferenceLaunch, type AgentConnectionReferenceSnapshot, type AgentConnectionResourceReference,
   type AgentConnectionResourceState, type AgentFileResourceState,
   type AgentReferenceTarget, type AgentReferenceTargetsSnapshot } from '#entities/agent'
-import type { FileAccessProfile } from '#entities/file-access-profile'
+import { getSFTPAccessConfig, type FileAccessProfile } from '#entities/file-access-profile'
 import type { HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
@@ -11,13 +11,16 @@ export function projectAgentFileResources(profiles: FileAccessProfile[], hosts: 
   const sshById = new Map(sshProfiles.map((profile) => [profile.id, profile]))
   // 文件引用的生命周期属于配置，不能受桌面标签连接状态影响。
   return [...new Map(profiles.map((profile) => [profile.id, profile])).values()].map((profile) => {
-    const host = hostById.get(profile.host_id)
-    const ssh = sshById.get(profile.sftp?.ssh_profile_id)
+    const host = profile.host_id ? hostById.get(profile.host_id) : undefined
+    const sshProfileId = getSFTPAccessConfig(profile)?.ssh_profile_id
+    const ssh = sshProfileId ? sshById.get(sshProfileId) : undefined
+    const sftpReady = profile.engine !== 'sftp'
+      || Boolean(host && ssh && ssh.host_id === host.id && profile.engine_config_version === 1)
     return {
       file_access_profile_id: profile.id, file_access_profile_name: profile.name,
       host_id: profile.host_id, host_name: host?.name ?? profile.host_id,
-      ssh_profile_id: profile.sftp?.ssh_profile_id ?? '', engine: profile.engine,
-      status: host && ssh && ssh.host_id === host.id && profile.engine === 'sftp' && profile.engine_config_version === 1 ? 'ready' : 'unavailable',
+      ssh_profile_id: sshProfileId, engine: profile.engine,
+      status: profile.name.trim() && sftpReady ? 'ready' : 'unavailable',
     }
   })
 }

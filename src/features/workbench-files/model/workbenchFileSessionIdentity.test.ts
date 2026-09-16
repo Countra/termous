@@ -29,6 +29,7 @@ function sshSession(overrides: Partial<Session> = {}): Session {
 }
 
 function fileProfile(overrides: Partial<FileAccessProfile> = {}): FileAccessProfile {
+  const config = { ssh_profile_id: 'ssh-1' }
   return {
     id: 'file-1',
     host_id: 'host-1',
@@ -41,6 +42,7 @@ function fileProfile(overrides: Partial<FileAccessProfile> = {}): FileAccessProf
     created_at: '2026-08-25T00:00:00Z',
     updated_at: '2026-08-25T00:00:00Z',
     ...overrides,
+    config: overrides.config ?? config,
   }
 }
 

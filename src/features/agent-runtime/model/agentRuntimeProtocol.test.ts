@@ -79,7 +79,10 @@ test('Agent 资源集合拒绝重复槽位、超过容量和混合身份字段',
   assert.throws(() => decode([file, file, file]), /绑定集合无效/)
   assert.throws(() => decode(null), /绑定集合无效/)
   assert.throws(() => decode([{ ...file, session_id: 'original-file-tab' }]), /文件引用包含 SSH 身份/)
-  assert.throws(() => decode([{ ...file, engine: 'unknown' }]), /文件引擎无效/)
+  const unknownEngineBinding = decode([{ ...file, engine: 'object-store' }]).resource_bindings?.[0]
+  assert.equal(unknownEngineBinding?.kind, 'file_profile')
+  assert.equal(unknownEngineBinding?.kind === 'file_profile' ? unknownEngineBinding.engine : '', 'object-store')
+  assert.throws(() => decode([{ ...file, engine: '' }]), /文件引擎无效/)
   assert.throws(() => decode([{ ...file, file_access_profile_id: '' }]), /文件 Profile ID 无效/)
 })
 

@@ -1584,7 +1584,7 @@ function projectResourceContext(
     candidates: resources
       .filter((source) => source.status === 'ready' && resourceReference(source).kind === binding.kind)
       .sort((left, right) => 'started_at' in left && 'started_at' in right
-        ? Date.parse(right.started_at) - Date.parse(left.started_at) : left.host_name.localeCompare(right.host_name)),
+        ? Date.parse(right.started_at) - Date.parse(left.started_at) : (left.host_name ?? '').localeCompare(right.host_name ?? '')),
   }
 }
 

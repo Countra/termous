@@ -74,6 +74,8 @@ test('空 Profile ID 不会误计缺少身份的历史会话', () => {
 test('删除提示按后端权威引用和本地实时状态的较大值展示', () => {
   assert.deepEqual(mergeSSHProfileRuntimeUsage({
     companion_files: 1,
+    companion_agent_sessions: 0,
+    independent_file_profiles: 0,
     forward_profiles: 0,
     remote_desktop_routes: 0,
     jump_profile_consumers: 0,

@@ -1,9 +1,15 @@
 import type { AppConfig } from '#common/contracts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import {
+  decodeFileAccessEngineDescriptors,
+  decodeFileAccessProfile,
+  decodeFileAccessProfileReferences,
+  decodeFileAccessProfiles,
   sortFileAccessProfiles,
-  type FileAccessProfile,
-  type FileAccessProfileMetadataInput,
+  type FileAccessEngineDescriptor,
+  type FileAccessProfileCreateInput,
+  type FileAccessProfilePatchInput,
+  type FileAccessProfileReferences,
 } from '#entities/file-access-profile'
 import {
   normalizeHostAccessCatalog,
@@ -228,7 +234,10 @@ export class HostClient extends TermousApiTransport {
   hostAccessCatalog(hostId: string) {
     return this.request<HostAccessCatalog>(
       `/api/v1/hosts/${encodeURIComponent(hostId)}/access-profiles`,
-    ).then(normalizeHostAccessCatalog)
+    ).then((catalog) => normalizeHostAccessCatalog({
+      ...catalog,
+      files: decodeFileAccessProfiles(catalog.files),
+    }))
   }
 
   sshAccessProfiles(hostId?: string) {
@@ -290,39 +299,64 @@ export class HostClient extends TermousApiTransport {
 
   fileAccessProfiles(hostId?: string) {
     const query = hostFilterQuery(hostId)
-    return this.request<FileAccessProfile[]>(
+    return this.request<unknown>(
       `/api/v1/file-access-profiles${query}`,
-    ).then(normalizeArray).then(sortFileAccessProfiles)
+    ).then(decodeFileAccessProfiles).then(sortFileAccessProfiles)
   }
 
   fileAccessProfile(id: string) {
-    return this.request<FileAccessProfile>(
+    return this.request<unknown>(
       `/api/v1/file-access-profiles/${encodeURIComponent(id)}`,
-    )
+    ).then(decodeFileAccessProfile)
+  }
+
+  fileAccessEngines(): Promise<FileAccessEngineDescriptor[]> {
+    return this.request<unknown>('/api/v1/file-access-engines')
+      .then(decodeFileAccessEngineDescriptors)
+  }
+
+  createFileAccessProfile(input: FileAccessProfileCreateInput) {
+    return this.request<unknown>('/api/v1/file-access-profiles', {
+      method: 'POST',
+      body: input,
+    }).then(decodeFileAccessProfile)
   }
 
   updateFileAccessProfile(
     id: string,
     expectedUpdatedAt: string,
-    input: FileAccessProfileMetadataInput,
+    input: FileAccessProfilePatchInput,
   ) {
-    return this.request<FileAccessProfile>(
+    return this.request<unknown>(
       `/api/v1/file-access-profiles/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
         body: { ...input, expected_updated_at: expectedUpdatedAt },
       },
-    )
+    ).then(decodeFileAccessProfile)
+  }
+
+  inspectFileAccessProfileReferences(id: string): Promise<FileAccessProfileReferences> {
+    return this.request<unknown>(
+      `/api/v1/file-access-profiles/${encodeURIComponent(id)}/references`,
+    ).then(decodeFileAccessProfileReferences)
+  }
+
+  deleteFileAccessProfile(id: string, expectedUpdatedAt: string) {
+    return this.request<void>(`/api/v1/file-access-profiles/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      body: { expected_updated_at: expectedUpdatedAt },
+    })
   }
 
   setDefaultFileAccessProfile(id: string, expectedUpdatedAt: string) {
-    return this.request<FileAccessProfile>(
+    return this.request<unknown>(
       `/api/v1/file-access-profiles/${encodeURIComponent(id)}/default`,
       {
         method: 'POST',
         body: { expected_updated_at: expectedUpdatedAt },
       },
-    )
+    ).then(decodeFileAccessProfile)
   }
 
   remoteDesktopAccessProfiles(hostId?: string) {

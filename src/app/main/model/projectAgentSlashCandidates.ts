@@ -9,7 +9,7 @@ import type {
   AgentSlashSSHSessionCandidate,
   AgentSlashSSHSessionStatus,
 } from '#entities/agent'
-import type { FileAccessProfile } from '#entities/file-access-profile'
+import { getSFTPAccessConfig, type FileAccessProfile } from '#entities/file-access-profile'
 import type { FileSession } from '#entities/file'
 import type { HostAsset } from '#entities/host-asset'
 import type { Host } from '#entities/host'
@@ -135,14 +135,14 @@ export function projectAgentSlashSSHProfileCandidates(
   const profiles = new Map(input.sshAccessProfiles.map((profile) => [profile.id, profile]))
   return [...new Map(input.sshAccessProfiles.map((profile) => [profile.id, profile])).values()]
     .map((profile): AgentSlashSSHProfileCandidate => {
-      const host = hostAssets.get(profile.host_id)
+      const host = profile.host_id ? hostAssets.get(profile.host_id) : undefined
       const disabledReason = sshProfileDisabledReason(profile, host, profiles)
       return {
         id: `profile:ssh:${profile.id}`,
         kind: 'ssh_profile',
         resource_kind: 'ssh',
-        host_id: profile.host_id,
-        host_name: host?.name ?? profile.host_id,
+        host_id: profile.host_id ?? '',
+        host_name: host?.name ?? profile.host_id ?? profile.name,
         profile_id: profile.id,
         profile_name: profile.name || profile.id,
         ssh_profile_id: profile.id,
@@ -161,14 +161,14 @@ export function projectAgentSlashFileProfileCandidates(
   const sshProfiles = new Map(input.sshAccessProfiles.map((profile) => [profile.id, profile]))
   return [...new Map(input.fileAccessProfiles.map((profile) => [profile.id, profile])).values()]
     .map((profile): AgentSlashFileProfileCandidate => {
-      const host = hostAssets.get(profile.host_id)
+      const host = profile.host_id ? hostAssets.get(profile.host_id) : undefined
       const disabledReason = fileProfileDisabledReason(profile, host, sshProfiles)
       return {
         id: `profile:file:${profile.id}`,
         kind: 'file_profile',
         resource_kind: 'file',
-        host_id: profile.host_id,
-        host_name: host?.name ?? profile.host_id,
+        host_id: profile.host_id ?? '',
+        host_name: host?.name ?? profile.host_id ?? profile.name,
         profile_id: profile.id,
         profile_name: profile.name || profile.id,
         file_access_profile_id: profile.id,
@@ -214,11 +214,13 @@ function fileProfileDisabledReason(
   sshProfiles: ReadonlyMap<string, SSHAccessProfile>,
 ): AgentSlashCandidateDisabledReason | undefined {
   if (!profile) return 'profile_missing'
-  if (String(profile.engine) !== 'sftp' || Number(profile.engine_config_version) !== 1) return 'unsupported_engine'
+  if (!profile.name.trim()) return 'profile_invalid'
+  if (String(profile.engine) !== 'sftp') return undefined
+  const config = getSFTPAccessConfig(profile)
+  if (!config) return 'unsupported_engine'
   if (!host) return 'host_missing'
   if (String(host.platform) !== 'linux') return 'unsupported_platform'
-  if (!profile.name.trim()) return 'profile_invalid'
-  const sshProfile = sshProfiles.get(profile.sftp.ssh_profile_id)
+  const sshProfile = sshProfiles.get(config.ssh_profile_id)
   if (!sshProfile) return 'ssh_profile_missing'
   if (sshProfile.host_id !== profile.host_id) return 'profile_host_mismatch'
   return sshProfileDisabledReason(sshProfile, host, sshProfiles)

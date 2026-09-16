@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   fileAccessProfileMetadataInputsEqual,
+  getSFTPAccessConfig,
   normalizeFileAccessProfileMetadataInput,
   selectCompanionSFTPFileAccessProfile,
   selectDefaultFileAccessProfile,
@@ -22,7 +23,7 @@ test('文件 Profile 默认项与顺序使用强类型 SFTP 投影', () => {
   const first = profile('file_b', 1, true)
   const second = profile('file_a', 0, false)
   assert.deepEqual(sortFileAccessProfiles([first, second]).map((item) => item.id), ['file_a', 'file_b'])
-  assert.equal(selectDefaultFileAccessProfile([first, second], 'hst_1')?.sftp.ssh_profile_id, 'ssh_b')
+  assert.equal(selectDefaultFileAccessProfile([first, second], 'hst_1')?.sftp?.ssh_profile_id, 'ssh_b')
 })
 
 test('伴生 SFTP 仅在主机和 SSH Profile 唯一匹配时返回', () => {
@@ -53,12 +54,35 @@ test('文件访问公共投影隐藏 SFTP 私有配置', () => {
     profileId: 'file-primary',
     hostId: 'hst_1',
     name: 'file-primary',
-    technology: { id: 'sftp', label: 'SFTP' },
+    technology: { id: 'sftp', label: 'SFTP', editable: true },
     routeDependency: { kind: 'ssh_profile', profileId: 'ssh-primary' },
     isDefault: true,
     sortOrder: 0,
   })
   assert.equal('sftp' in projection, false)
+})
+
+test('SFTP 业务投影只读取 canonical config', () => {
+  const canonicalOnly = profile('file-canonical', 0, true, 'ssh-canonical')
+  delete canonicalOnly.sftp
+  assert.deepEqual(getSFTPAccessConfig(canonicalOnly), { ssh_profile_id: 'ssh-canonical' })
+  assert.equal(
+    selectCompanionSFTPFileAccessProfile([canonicalOnly], 'hst_1', 'ssh-canonical'),
+    canonicalOnly,
+  )
+  assert.equal(getSFTPAccessConfig({ ...canonicalOnly, engine_config_version: 2 }), undefined)
+  assert.equal(getSFTPAccessConfig({
+    ...canonicalOnly,
+    sftp: { ssh_profile_id: 'ssh-conflict' },
+  }), undefined)
+})
+
+test('前端未知的 SFTP 配置版本保持只读', () => {
+  const projection = projectFileAccessProfile({
+    ...profile('file-next', 0, true, 'ssh-next'),
+    engine_config_version: 2,
+  })
+  assert.equal(projection.technology.editable, false)
 })
 
 function profile(
@@ -73,6 +97,7 @@ function profile(
     name: id,
     engine: 'sftp',
     engine_config_version: 1,
+    config: { ssh_profile_id: sshProfileId },
     sftp: { ssh_profile_id: sshProfileId },
     is_default: isDefault,
     sort_order: sortOrder,

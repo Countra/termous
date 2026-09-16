@@ -10,8 +10,11 @@ import type {
 } from '#common/contracts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type {
+  FileAccessEngineDescriptor,
   FileAccessProfile,
-  FileAccessProfileMetadataInput,
+  FileAccessProfileCreateInput,
+  FileAccessProfilePatchInput,
+  FileAccessProfileReferences,
 } from '#entities/file-access-profile'
 import type {
   CredentialInput,
@@ -172,11 +175,15 @@ export interface HostCommandGateway {
   inspectSSHAccessProfileReferences: (id: string) => Promise<SSHAccessProfileReferences>
   fileAccessProfiles: (hostId?: string) => Promise<FileAccessProfile[]>
   fileAccessProfile: (id: string) => Promise<FileAccessProfile>
+  fileAccessEngines: () => Promise<FileAccessEngineDescriptor[]>
+  createFileAccessProfile: (input: FileAccessProfileCreateInput) => Promise<FileAccessProfile>
   updateFileAccessProfile: (
     id: string,
     expectedUpdatedAt: string,
-    input: FileAccessProfileMetadataInput,
+    input: FileAccessProfilePatchInput,
   ) => Promise<FileAccessProfile>
+  inspectFileAccessProfileReferences: (id: string) => Promise<FileAccessProfileReferences>
+  deleteFileAccessProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
   setDefaultFileAccessProfile: (
     id: string,
     expectedUpdatedAt: string,

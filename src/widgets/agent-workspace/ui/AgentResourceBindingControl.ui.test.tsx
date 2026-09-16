@@ -294,7 +294,7 @@ describe('Agent SSH 资源绑定控件', () => {
     }))
   })
 
-  it('相同文件 Profile 的关联身份变化后仍可显式重新绑定，确认前身份再变则清除选择', async () => {
+  it('文件 Profile 按稳定身份去重，候选稳定身份变化时清除选择', async () => {
     const replace = vi.fn().mockResolvedValue(true)
     const remove = vi.fn().mockResolvedValue(true)
     const binding = {
@@ -302,22 +302,34 @@ describe('Agent SSH 资源绑定控件', () => {
       host_id: 'host-one', ssh_profile_id: 'ssh-old', host_name: 'Production', engine: 'sftp' as const,
       bound_at: '2026-08-31T08:00:00Z',
     }
-    const candidate = { ...binding, ssh_profile_id: 'ssh-new', status: 'ready' as const }
+    const sameProfile = { ...binding, ssh_profile_id: 'ssh-new', status: 'ready' as const }
+    const candidate = {
+      ...binding,
+      file_access_profile_id: 'file-two',
+      file_access_profile_name: '归档文件',
+      ssh_profile_id: 'ssh-new',
+      status: 'ready' as const,
+    }
     const props = { disabled: false, onReplace: replace, onRemove: remove }
     const view = render(<AgentResourceBindingControl {...props}
-      context={{ binding, status: 'stale', candidates: [candidate] }} />)
+      context={{ binding, status: 'stale', candidates: [sameProfile, candidate] }} />)
     fireEvent.click(screen.getByRole('button', { name: /agent.fileResource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
-    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    expect(screen.queryByRole('button', { name: /Production.*应用文件/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Production.*归档文件/ }))
     expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
 
     view.rerender(<AgentResourceBindingControl {...props}
       context={{ binding, status: 'stale', candidates: [{ ...candidate, ssh_profile_id: 'ssh-third' }] }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
+
+    view.rerender(<AgentResourceBindingControl {...props}
+      context={{ binding, status: 'stale', candidates: [{ ...candidate, file_access_profile_id: 'file-three' }] }} />)
     expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeDisabled()
     expect(replace).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Production.*归档文件/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
-    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'file_profile', file_access_profile_id: 'file-one' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'file_profile', file_access_profile_id: 'file-three' }))
   })
 
   it('失效状态仍展示引用且活动任务期间禁止修改', () => {

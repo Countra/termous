@@ -1,16 +1,18 @@
 import type { FileAccessEngine, FileAccessProfile } from './types.ts'
+import { getSFTPAccessConfig } from './fileAccessProfile.ts'
 
 export interface FileAccessTechnologyDescriptor {
   id: FileAccessEngine
   label: string
+  editable: boolean
 }
 
 export interface FileAccessProfileProjection {
   profileId: string
-  hostId: string
+  hostId?: string
   name: string
   technology: FileAccessTechnologyDescriptor
-  routeDependency: {
+  routeDependency?: {
     kind: 'ssh_profile'
     profileId: string
   }
@@ -18,40 +20,22 @@ export interface FileAccessProfileProjection {
   sortOrder: number
 }
 
-const technologyDescriptors = {
-  sftp: { id: 'sftp', label: 'SFTP' },
-} satisfies Record<FileAccessEngine, FileAccessTechnologyDescriptor>
-
-type FileAccessProfileProjectors = {
-  [Engine in FileAccessEngine]: (
-    profile: Extract<FileAccessProfile, { engine: Engine }>,
-  ) => FileAccessProfileProjection
-}
-
-const profileProjectors = {
-  sftp: (profile) => ({
-    profileId: profile.id,
-    hostId: profile.host_id,
-    name: profile.name,
-    technology: technologyDescriptors.sftp,
-    routeDependency: {
-      kind: 'ssh_profile',
-      profileId: profile.sftp.ssh_profile_id,
-    },
-    isDefault: profile.is_default,
-    sortOrder: profile.sort_order,
-  }),
-} satisfies FileAccessProfileProjectors
-
-export function getFileAccessTechnologyDescriptor(engine: FileAccessEngine) {
-  return technologyDescriptors[engine]
+export function getFileAccessTechnologyDescriptor(engine: FileAccessEngine, configVersion: number) {
+  if (engine === 'sftp') return { id: engine, label: 'SFTP', editable: configVersion === 1 }
+  return { id: engine, label: engine.toUpperCase(), editable: false }
 }
 
 export function projectFileAccessProfile(
   profile: FileAccessProfile,
 ): FileAccessProfileProjection {
-  const projector = profileProjectors[profile.engine] as (
-    candidate: FileAccessProfile,
-  ) => FileAccessProfileProjection
-  return projector(profile)
+  const sshProfileId = getSFTPAccessConfig(profile)?.ssh_profile_id
+  return {
+    profileId: profile.id,
+    hostId: profile.host_id,
+    name: profile.name,
+    technology: getFileAccessTechnologyDescriptor(profile.engine, profile.engine_config_version),
+    routeDependency: sshProfileId ? { kind: 'ssh_profile', profileId: sshProfileId } : undefined,
+    isDefault: profile.is_default,
+    sortOrder: profile.sort_order,
+  }
 }

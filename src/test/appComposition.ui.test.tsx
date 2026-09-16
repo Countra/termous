@@ -1351,6 +1351,7 @@ describe('应用运行时组合合同', () => {
       name: 'Primary files',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh-a' },
       sftp: { ssh_profile_id: 'ssh-a' },
       is_default: true,
       sort_order: 0,
@@ -1528,8 +1529,19 @@ describe('应用运行时组合合同', () => {
     }
     testState.data.hostAssets.push({ id: file.host_id, name: file.host_name })
     testState.data.sshAccessProfiles.push({ id: file.ssh_profile_id, host_id: file.host_id })
-    testState.data.fileAccessProfiles.push({ id: file.file_access_profile_id, name: file.file_access_profile_name,
-      host_id: file.host_id, engine: 'sftp', engine_config_version: 1, sftp: { ssh_profile_id: file.ssh_profile_id } })
+    testState.data.fileAccessProfiles.push({
+      id: file.file_access_profile_id,
+      name: file.file_access_profile_name,
+      host_id: file.host_id,
+      engine: 'sftp',
+      engine_config_version: 1,
+      config: { ssh_profile_id: file.ssh_profile_id },
+      sftp: { ssh_profile_id: file.ssh_profile_id },
+      is_default: true,
+      sort_order: 0,
+      created_at: '2026-09-16T00:00:00Z',
+      updated_at: '2026-09-16T00:00:00Z',
+    })
     const user = userEvent.setup()
     render(<App />)
 

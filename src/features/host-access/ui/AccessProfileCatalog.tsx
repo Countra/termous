@@ -36,7 +36,9 @@ interface AccessProfileCatalogProps {
   onEditSSH: (profile: SSHAccessProfile) => void
   onDeleteSSH: (profile: SSHAccessProfile) => void
   onSetDefaultSSH: (profile: SSHAccessProfile) => void
+  onCreateFile: () => void
   onEditFile: (profile: FileAccessProfile) => void
+  onDeleteFile: (profile: FileAccessProfile) => void
   onSetDefaultFile: (profile: FileAccessProfile) => void
   onCreateRemoteDesktop: () => void
   onEditRemoteDesktop: (profile: RemoteDesktopAccessProfile) => void
@@ -55,7 +57,9 @@ export function AccessProfileCatalog({
   onEditSSH,
   onDeleteSSH,
   onSetDefaultSSH,
+  onCreateFile,
   onEditFile,
+  onDeleteFile,
   onSetDefaultFile,
   onCreateRemoteDesktop,
   onEditRemoteDesktop,
@@ -120,23 +124,34 @@ export function AccessProfileCatalog({
         icon={<FolderSync size={16} />}
         title={t('hosts.access.file.title')}
         count={catalog.files.length}
+        actionLabel={t('hosts.access.file.add')}
+        actionDisabled={busy}
+        onAdd={onCreateFile}
       >
         {catalog.files.length === 0 ? (
           <ProfileEmpty label={t('hosts.access.file.empty')} />
         ) : catalog.files.map((profile) => {
           const projection = projectFileAccessProfile(profile)
-          const ssh = sshById.get(projection.routeDependency.profileId)
+          const ssh = projection.routeDependency
+            ? sshById.get(projection.routeDependency.profileId)
+            : undefined
+          const detail = ssh
+            ? t('hosts.access.file.boundTo', { name: ssh.name || ssh.address })
+            : profile.engine === 'sftp'
+              ? t('hosts.access.file.missingSSH')
+              : t('hosts.access.file.unsupportedEditor')
           return (
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
               type={projection.technology.label}
-              detail={ssh
-                ? t('hosts.access.file.boundTo', { name: ssh.name || ssh.address })
-                : t('hosts.access.file.missingSSH')}
+              detail={detail}
               isDefault={profile.is_default}
               busy={busy}
+              editDisabled={!projection.technology.editable}
+              deleteDisabled={profile.is_default && catalog.files.length > 1}
               onEdit={() => onEditFile(profile)}
+              onDelete={() => onDeleteFile(profile)}
               onSetDefault={() => onSetDefaultFile(profile)}
             />
           )
@@ -236,6 +251,7 @@ function AccessProfileRow({
   isDefault,
   busy,
   deleteDisabled = false,
+  editDisabled = false,
   onEdit,
   onDelete,
   onSetDefault,
@@ -248,6 +264,7 @@ function AccessProfileRow({
   isDefault: boolean
   busy: boolean
   deleteDisabled?: boolean
+  editDisabled?: boolean
   onEdit: () => void
   onDelete?: () => void
   onSetDefault: () => void
@@ -290,7 +307,7 @@ function AccessProfileRow({
               size="small"
               icon={<Pencil size={14} />}
               aria-label={`${t('app.edit')} ${name}`}
-              disabled={busy}
+              disabled={busy || editDisabled}
               onClick={onEdit}
             />
           </Tooltip>

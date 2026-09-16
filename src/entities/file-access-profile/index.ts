@@ -1,6 +1,7 @@
 export {
   fileAccessProfileMetadataInputsEqual,
   fileAccessProfileToMetadataInput,
+  getSFTPAccessConfig,
   normalizeFileAccessProfileMetadataInput,
   selectCompanionSFTPFileAccessProfile,
   selectDefaultFileAccessProfile,
@@ -11,10 +12,23 @@ export {
   getFileAccessTechnologyDescriptor,
   projectFileAccessProfile,
 } from './model/accessProfileProjection.ts'
+export {
+  decodeFileAccessEngineDescriptors,
+  decodeFileAccessProfile,
+  decodeFileAccessProfileReferences,
+  decodeFileAccessProfiles,
+  isSFTPFileAccessProfile,
+} from './model/fileAccessProfileCodec.ts'
 export type {
   FileAccessEngine,
+  FileAccessEngineDescriptor,
   FileAccessProfile,
+  FileAccessProfileCreateInput,
+  FileAccessProfileHostScope,
+  FileAccessProfileLifecycleOwner,
   FileAccessProfileMetadataInput,
+  FileAccessProfilePatchInput,
+  FileAccessProfileReferences,
   FileAccessProfileValidationErrors,
   SFTPFileAccessProfile,
   SFTPAccessConfig,

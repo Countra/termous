@@ -239,6 +239,7 @@ function fileProfile(
     name,
     engine: 'sftp',
     engine_config_version: 1,
+    config: { ssh_profile_id: sshProfileId },
     sftp: { ssh_profile_id: sshProfileId },
     is_default: sortOrder === 0,
     sort_order: sortOrder,

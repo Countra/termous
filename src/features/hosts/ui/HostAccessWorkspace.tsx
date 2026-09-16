@@ -10,7 +10,6 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { HostAsset } from '#entities/host-asset'
-import { projectFileAccessProfile } from '#entities/file-access-profile'
 import {
   AccessProfileCatalog,
   AccessProfileEditorShell,
@@ -20,7 +19,7 @@ import {
   type HostAccessWorkspaceGateway,
   useSSHProfileReachability,
 } from '#features/host-access'
-import { SFTPProfileEditor } from '#features/manage-file-access'
+import { FileAccessProfileEditor } from '#features/manage-file-access'
 import { VNCProfileEditor } from '#features/manage-remote-desktop'
 import { SSHProfileEditor } from '#features/manage-ssh-access'
 import {
@@ -157,31 +156,34 @@ export function HostAccessWorkspace({
       )
     }
     if (editor.kind === 'file') {
-      const profile = catalog.files.find((item) => item.id === editor.profileId)
-      const projection = profile ? projectFileAccessProfile(profile) : undefined
-      const sshProfile = profile
-        ? catalog.ssh.find((item) => item.id === projection?.routeDependency.profileId)
+      const profile = editor.mode === 'edit'
+        ? catalog.files.find((item) => item.id === editor.profileId)
         : undefined
       return (
         <>
           <AccessProfileEditorShell
-            mode="edit"
-            title={controller.fileDraft.name.trim() || t('hosts.access.file.edit')}
+            mode={editor.mode}
+            title={editor.mode === 'create'
+              ? t('hosts.access.file.createTitle')
+              : controller.fileDraft.name.trim() || t('hosts.access.file.edit')}
             icon={<Layers3 size={17} />}
             dirty={controller.profileDirty}
             busy={busy}
             saveDisabled={controller.profileSaveDisabled}
             error={controller.mutationError}
+            canDelete={editor.mode === 'edit'}
+            deleteDisabled={Boolean(profile?.is_default && catalog.files.length > 1)}
+            deleteDisabledReason={t('hosts.access.switchDefaultBeforeDelete')}
             onBack={controller.requestCloseEditor}
             onDiscard={controller.discardProfile}
             onSave={() => void controller.saveProfile()}
+            onDelete={profile ? () => void controller.requestDeleteFile(profile.id) : undefined}
           >
-            <SFTPProfileEditor
+            <FileAccessProfileEditor
+              mode={editor.mode}
               draft={controller.fileDraft}
-              sshProfile={sshProfile}
-              error={controller.profileValidationVisible && controller.fileErrors.name
-                ? profileNameError(controller.fileDraft.name, t)
-                : undefined}
+              sshProfiles={catalog.ssh}
+              errors={controller.profileValidationVisible ? controller.fileErrors : undefined}
               disabled={busy}
               onChange={controller.setFileDraft}
             />
@@ -398,7 +400,9 @@ function renderOverviewBody({
       onEditSSH={(profile) => controller.requestEditor({ kind: 'ssh', mode: 'edit', profileId: profile.id })}
       onDeleteSSH={(profile) => void controller.requestDeleteSSH(profile.id)}
       onSetDefaultSSH={(profile) => void controller.setDefaultProfile('ssh', profile.id)}
+      onCreateFile={() => controller.requestEditor({ kind: 'file', mode: 'create' })}
       onEditFile={(profile) => controller.requestEditor({ kind: 'file', mode: 'edit', profileId: profile.id })}
+      onDeleteFile={(profile) => void controller.requestDeleteFile(profile.id)}
       onSetDefaultFile={(profile) => void controller.setDefaultProfile('file', profile.id)}
       onCreateRemoteDesktop={() => controller.requestEditor({ kind: 'remote_desktop', mode: 'create' })}
       onEditRemoteDesktop={(profile) => controller.requestEditor({ kind: 'remote_desktop', mode: 'edit', profileId: profile.id })}
@@ -431,10 +435,14 @@ function renderDialogs(
     : 0
   const blocking = deleteTarget?.kind === 'ssh'
     ? deleteTarget.references.blocking_total > 0 || (runtimeUsage?.total ?? 0) > 0
-    : remoteDesktopRuntimeUsage > 0
+    : deleteTarget?.kind === 'file'
+      ? deleteTarget.references.blocking_total > 0
+      : remoteDesktopRuntimeUsage > 0
   const deleteDescription = deleteTarget?.kind === 'ssh'
     ? t(blocking ? 'hosts.access.ssh.deleteBlocked' : 'hosts.access.ssh.deleteDescription', {
       files: deleteTarget.references.companion_files,
+      companionAgents: deleteTarget.references.companion_agent_sessions,
+      independentFiles: deleteTarget.references.independent_file_profiles,
       forwards: deleteTarget.references.forward_profiles,
       desktops: deleteTarget.references.remote_desktop_routes,
       jumps: deleteTarget.references.jump_profile_consumers,
@@ -443,12 +451,19 @@ function renderDialogs(
       backgroundForwards: runtimeUsage?.backgroundForwards ?? 0,
       remoteDesktopSessions: runtimeUsage?.remoteDesktopSessions ?? 0,
     })
-    : t(blocking ? 'hosts.access.desktop.deleteBlocked' : 'hosts.access.desktop.deleteDescription', {
-      sessions: remoteDesktopRuntimeUsage,
-    })
+    : deleteTarget?.kind === 'file'
+      ? t(blocking ? 'hosts.access.file.deleteBlocked' : 'hosts.access.file.deleteDescription', {
+          agents: deleteTarget.references.agent_sessions,
+          sessions: deleteTarget.references.active_file_sessions,
+        })
+      : t(blocking ? 'hosts.access.desktop.deleteBlocked' : 'hosts.access.desktop.deleteDescription', {
+          sessions: remoteDesktopRuntimeUsage,
+        })
   const blockingTitle = deleteTarget?.kind === 'remote_desktop'
     ? 'hosts.access.desktop.deleteBlockedTitle'
-    : 'hosts.access.ssh.deleteBlockedTitle'
+    : deleteTarget?.kind === 'file'
+      ? 'hosts.access.file.deleteBlockedTitle'
+      : 'hosts.access.ssh.deleteBlockedTitle'
   return (
     <>
       <ConfirmDialog

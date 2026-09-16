@@ -60,10 +60,14 @@ export function resourceReferenceId(reference: AgentResourceReference) {
 
 // 确认只属于当时的引用身份；展示名称变化无需中断操作，重新绑定则必须重新确认。
 export function agentResourceBindingKey(binding: AgentResourceBinding | null | undefined): string {
-  return JSON.stringify(binding ? [
+  if (!binding) return JSON.stringify(null)
+  if (binding.kind === 'file_profile') {
+    return JSON.stringify([binding.kind, binding.file_access_profile_id, binding.engine, binding.bound_at])
+  }
+  return JSON.stringify([
     binding.kind, resourceReferenceId(resourceReference(binding)), binding.host_id, binding.ssh_profile_id,
-    binding.kind === 'file_profile' ? binding.engine : binding.platform, binding.bound_at,
-  ] : null)
+    binding.platform, binding.bound_at,
+  ])
 }
 
 export function resourceProfileName(resource: AgentResourceState) {
@@ -73,8 +77,7 @@ export function resourceProfileName(resource: AgentResourceState) {
 export function sameAgentResourceSource(captured: AgentResourceState, current: AgentResourceState | undefined): boolean {
   if ('file_access_profile_id' in captured) {
     return Boolean(current && 'file_access_profile_id' in current && current.status === 'ready'
-      && current.file_access_profile_id === captured.file_access_profile_id && current.host_id === captured.host_id
-      && current.ssh_profile_id === captured.ssh_profile_id && current.engine === captured.engine)
+      && current.file_access_profile_id === captured.file_access_profile_id && current.engine === captured.engine)
   }
   if ('session_id' in captured) {
     return current !== undefined && 'session_id' in current && sameTerminalReferenceSource(captured, current)
@@ -87,8 +90,6 @@ export function sameAgentResourceSource(captured: AgentResourceState, current: A
 export function resourceBindingMatchesSource(binding: AgentResourceBinding | undefined, source: AgentResourceState): boolean {
   if ('file_access_profile_id' in source) {
     return Boolean(binding && binding.kind === 'file_profile'
-      && binding.host_id === source.host_id
-      && binding.ssh_profile_id === source.ssh_profile_id
       && binding.file_access_profile_id === source.file_access_profile_id
       && binding.engine === source.engine)
   }

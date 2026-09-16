@@ -242,16 +242,21 @@ export type AgentResourceReference =
   | { kind: 'file_profile'; file_access_profile_id: string }
 
 interface AgentResourceBindingBase {
-  host_id: string
-  ssh_profile_id: string
-  host_name: string
   bound_at: string
 }
 
 export type AgentResourceBinding = AgentResourceBindingBase & (
-  | { kind: 'ssh_session'; session_id: string; platform: 'linux' }
-  | { kind: 'ssh_profile'; ssh_profile_name: string; platform: 'linux' }
-  | { kind: 'file_profile'; file_access_profile_id: string; file_access_profile_name: string; engine: 'sftp' }
+  | { kind: 'ssh_session'; session_id: string; host_id: string; ssh_profile_id: string; host_name: string; platform: 'linux' }
+  | { kind: 'ssh_profile'; host_id: string; ssh_profile_id: string; host_name: string; ssh_profile_name: string; platform: 'linux' }
+  | {
+      kind: 'file_profile'
+      file_access_profile_id: string
+      file_access_profile_name: string
+      engine: string
+      host_id?: string
+      host_name?: string
+      ssh_profile_id?: string
+    }
 )
 
 export type AgentSSHResourceBinding = Extract<AgentResourceBinding, { kind: 'ssh_session' }>
@@ -262,10 +267,10 @@ export type AgentSSHSlotResourceBinding = AgentSSHResourceBinding | AgentSSHProf
 export interface AgentFileResourceState {
   file_access_profile_id: string
   file_access_profile_name: string
-  host_id: string
-  host_name: string
-  ssh_profile_id: string
-  engine: 'sftp'
+  host_id?: string
+  host_name?: string
+  ssh_profile_id?: string
+  engine: string
   status: 'ready' | 'unavailable'
 }
 
