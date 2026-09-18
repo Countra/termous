@@ -17,6 +17,7 @@ export interface FileAccessProfile {
   name: string
   engine: FileAccessEngine
   engine_config_version: number
+  secret_refs?: Record<string, string>
   config: Record<string, unknown>
   lifecycle_owner?: FileAccessProfileLifecycleOwner
   /** v1 SFTP 兼容投影，仅供旧调用链读取。 */
@@ -42,6 +43,7 @@ export interface FileAccessEngineDescriptor {
   current_config_version: number
   host_scope: FileAccessProfileHostScope
   capabilities: string[]
+  secret_slots?: Array<{ name: string; required: boolean; type: 'secret'; purpose: 'file_access_auth' }>
 }
 
 export interface FileAccessProfileReferences {
@@ -58,12 +60,14 @@ export interface FileAccessProfileCreateInput {
   name: string
   engine: FileAccessEngine
   engine_config_version: number
+  secret_refs?: Record<string, string>
   config: Record<string, unknown>
 }
 
 export interface FileAccessProfilePatchInput {
   name?: string
   engine_config_version?: number
+  secret_refs?: Record<string, string>
   config?: Record<string, unknown>
 }
 
