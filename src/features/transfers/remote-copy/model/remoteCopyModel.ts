@@ -12,7 +12,7 @@ import { remoteCopyBatchTargetLimit } from './types.ts'
 export function filterRemoteCopyTargetSessions(
   hosts: readonly Host[],
   fileSessions: readonly FileSession[],
-  sourceHostId: string,
+  sourceSessionId: string,
   search = '',
 ): RemoteCopyTargetSession[] {
   const hostById = new Map(hosts.map((host) => [host.id, host]))
@@ -20,7 +20,7 @@ export function filterRemoteCopyTargetSessions(
     const host = hostById.get(session.host_id)
     if (
       !host
-      || session.host_id === sourceHostId
+      || session.id === sourceSessionId
       || session.status !== 'connected'
       || !isValidGeneration(session.connection_generation)
     ) {

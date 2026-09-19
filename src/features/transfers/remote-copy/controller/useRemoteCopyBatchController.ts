@@ -38,8 +38,8 @@ export function useRemoteCopyBatchController({
     [source.entries],
   )
   const allTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.hostId),
-    [fileSessions, hosts, source.hostId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId),
+    [fileSessions, hosts, source.fileSessionId],
   )
   const [search, setSearch] = useState('')
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
@@ -77,8 +77,8 @@ export function useRemoteCopyBatchController({
   sourceIdentityRef.current = sourceIdentity
 
   const visibleTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.hostId, search),
-    [fileSessions, hosts, search, source.hostId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId, search),
+    [fileSessions, hosts, search, source.fileSessionId],
   )
   const selectedSessionIdSet = useMemo(
     () => new Set(selectedSessionIds),

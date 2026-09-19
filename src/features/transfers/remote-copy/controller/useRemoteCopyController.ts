@@ -56,8 +56,8 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
     [source.entries],
   )
   const allTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.hostId),
-    [fileSessions, hosts, source.hostId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId),
+    [fileSessions, hosts, source.fileSessionId],
   )
   const [search, setSearch] = useState('')
   const [selectedSessionId, setSelectedSessionId] = useState('')
@@ -95,7 +95,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
     const filteredTargets = filterRemoteCopyTargetSessions(
       hosts,
       fileSessions,
-      source.hostId,
+      source.fileSessionId,
       search,
     )
     if (
@@ -105,7 +105,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
       return filteredTargets
     }
     return [selectedTarget, ...filteredTargets]
-  }, [fileSessions, hosts, search, selectedTarget, source.hostId])
+  }, [fileSessions, hosts, search, selectedTarget, source.fileSessionId])
   const currentPath = directory.listing?.path ?? ''
   const normalizedPathInput = normalizeRemotePosixPath(pathInput)
   const pathInputValid = normalizedPathInput !== null

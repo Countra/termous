@@ -53,26 +53,28 @@ function session(
   }
 }
 
-test('跨主机目标只保留其他主机上可冻结 generation 的连接会话', () => {
+test('传输目标保留同主机的其他连接会话并校验 generation', () => {
   const hosts = [host('source', '源主机'), host('target', '目标主机')]
   const sessions = [
     session('source-session', 'source'),
+    session('source-independent', 'source'),
     session('target-a-12345678', 'target'),
     session('target-b-87654321', 'target'),
     session('disconnected', 'target', { status: 'disconnected' }),
     session('missing-generation', 'target', { connection_generation: undefined }),
   ]
 
-  const result = filterRemoteCopyTargetSessions(hosts, sessions, 'source')
+  const result = filterRemoteCopyTargetSessions(hosts, sessions, 'source-session')
 
   assert.deepEqual(result.map((item) => item.session.id), [
     'target-a-12345678',
     'target-b-87654321',
+    'source-independent',
   ])
   assert.equal(result[0]?.duplicateHostSession, true)
   assert.equal(result[0]?.shortSessionId, '12345678')
   assert.deepEqual(
-    filterRemoteCopyTargetSessions(hosts, sessions, 'source', '8765').map((item) => item.session.id),
+    filterRemoteCopyTargetSessions(hosts, sessions, 'source-session', '8765').map((item) => item.session.id),
     ['target-b-87654321'],
   )
 })
@@ -105,7 +107,7 @@ test('批量目标选择按主机互斥、清理失效会话并限制为十六�
     sessions.push(session(`session-${index}`, hostId))
   }
   sessions.push(session('session-0-new', 'target-0', { connection_generation: 2 }))
-  const targets = filterRemoteCopyTargetSessions(hosts, sessions, 'source')
+  const targets = filterRemoteCopyTargetSessions(hosts, sessions, 'source-session')
 
   const replaced = toggleRemoteCopyBatchTarget(['session-0'], 'session-0-new', targets)
   assert.deepEqual(replaced, { sessionIds: ['session-0-new'], limitReached: false })
@@ -133,8 +135,9 @@ test('批量失败状态按主机绑定到重连后的最新会话', () => {
   const hosts = [host('source', '源主机'), host('target', '目标主机')]
   const targets = filterRemoteCopyTargetSessions(hosts, [
     session('source-session', 'source'),
+    session('source-independent', 'source'),
     session('target-session-new', 'target', { connection_generation: 2 }),
-  ], 'source')
+  ], 'source-session')
   const failure: RemoteCopyBatchFailure = {
     sessionId: 'target-session-old',
     hostId: 'target',
