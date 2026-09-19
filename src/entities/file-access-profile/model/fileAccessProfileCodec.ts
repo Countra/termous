@@ -42,6 +42,8 @@ export function decodeFileAccessProfile(value: unknown): FileAccessProfile {
   }
   if (hostId) result.host_id = hostId
   if (sftp) result.sftp = { ...sftp }
+  const secretRefs = decodeSecretRefs(source.secret_refs)
+  if (secretRefs) result.secret_refs = secretRefs
   const lastDirectory = optionalString(source.last_directory, '文件 Profile 最近目录无效')
   if (lastDirectory) result.last_directory = lastDirectory
   const lifecycleOwner = decodeLifecycleOwner(source.lifecycle_owner)
@@ -75,13 +77,16 @@ export function decodeFileAccessEngineDescriptors(value: unknown): FileAccessEng
     if (!configVersions.includes(currentConfigVersion)) {
       throw new Error('文件 Engine 当前版本无效')
     }
-    return {
+    const descriptor: FileAccessEngineDescriptor = {
       id: requiredString(source.id, '文件 Engine ID 无效'),
       config_versions: [...configVersions],
       current_config_version: currentConfigVersion,
       host_scope: hostScope as FileAccessEngineDescriptor['host_scope'],
       capabilities: [...source.capabilities],
     }
+    const secretSlots = decodeSecretSlots(source.secret_slots)
+    if (secretSlots) descriptor.secret_slots = secretSlots
+    return descriptor
   })
 }
 
@@ -122,6 +127,34 @@ function decodeLifecycleOwner(value: unknown): FileAccessProfileLifecycleOwner |
     kind: requiredString(source.kind, '文件 Profile 生命周期所有者类型无效'),
     id: requiredString(source.id, '文件 Profile 生命周期所有者 ID 无效'),
   }
+}
+
+const secretSlotName = /^[a-z][a-z0-9_]{0,63}$/
+
+function decodeSecretRefs(value: unknown): Record<string, string> | undefined {
+  if (value === undefined || value === null) return undefined
+  const source = objectValue(value, '文件 Profile 秘密引用无效')
+  return Object.fromEntries(Object.entries(source).map(([slot, id]) => {
+    if (!secretSlotName.test(slot) || typeof id !== 'string' || !id || id.trim() !== id) {
+      throw new Error('文件 Profile 秘密引用无效')
+    }
+    return [slot, id]
+  }))
+}
+
+function decodeSecretSlots(value: unknown): FileAccessEngineDescriptor['secret_slots'] {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value)) throw new Error('文件 Engine 秘密槽位无效')
+  const names = new Set<string>()
+  return value.map((item) => {
+    const slot = objectValue(item, '文件 Engine 秘密槽位无效')
+    if (typeof slot.name !== 'string' || !secretSlotName.test(slot.name) || names.has(slot.name)
+      || typeof slot.required !== 'boolean' || slot.type !== 'secret' || slot.purpose !== 'file_access_auth') {
+      throw new Error('文件 Engine 秘密槽位无效')
+    }
+    names.add(slot.name)
+    return { name: slot.name, required: slot.required, type: 'secret', purpose: 'file_access_auth' }
+  })
 }
 
 function objectValue(value: unknown, message: string): Record<string, unknown> {

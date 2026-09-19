@@ -101,6 +101,44 @@ test('严格解码 Engine Descriptor 与引用摘要', () => {
   })
 })
 
+test('秘密引用和槽位随响应保留且不共享可变对象', () => {
+  const refs = { token: 'credential_1' }
+  const slots = [{ name: 'token', required: true, type: 'secret', purpose: 'file_access_auth' }]
+  const profile = decodeFileAccessProfile({
+    ...base, engine: 'fixture', config: {}, secret_refs: refs,
+  })
+  const [descriptor] = decodeFileAccessEngineDescriptors([{
+    id: 'fixture', config_versions: [1], current_config_version: 1,
+    host_scope: 'forbidden', capabilities: ['browse'], secret_slots: slots,
+  }])
+
+  refs.token = 'credential_2'
+  slots[0].name = 'changed'
+  assert.deepEqual(profile.secret_refs, { token: 'credential_1' })
+  assert.deepEqual(descriptor?.secret_slots, [{
+    name: 'token', required: true, type: 'secret', purpose: 'file_access_auth',
+  }])
+  assert.deepEqual(decodeFileAccessProfile({
+    ...base, config: { ssh_profile_id: 'ssh_1' }, secret_refs: {},
+  }).secret_refs, {})
+})
+
+test('拒绝畸形秘密引用和引擎秘密槽位', () => {
+  for (const refs of [[], { token: '' }, { token: ' credential_1' }, { token: 1 }, { 'bad-slot': 'credential_1' }]) {
+    assert.throws(() => decodeFileAccessProfile({
+      ...base, engine: 'fixture', config: {}, secret_refs: refs,
+    }), /秘密引用无效/)
+  }
+  const slot = { name: 'token', required: true, type: 'secret', purpose: 'file_access_auth' }
+  for (const slots of [{}, [slot, slot], [{ ...slot, name: 'bad-slot' }],
+    [{ ...slot, required: 'true' }], [{ ...slot, type: 'password' }], [{ ...slot, purpose: 'ssh_auth' }]]) {
+    assert.throws(() => decodeFileAccessEngineDescriptors([{
+      id: 'fixture', config_versions: [1], current_config_version: 1,
+      host_scope: 'forbidden', capabilities: ['browse'], secret_slots: slots,
+    }]), /秘密槽位无效/)
+  }
+})
+
 test('拒绝非法 Engine 版本合同和非 JSON 配置', () => {
   const descriptor = {
     id: 'sftp', config_versions: [1], current_config_version: 1,
