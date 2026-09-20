@@ -1,4 +1,5 @@
 import type { AgentWorkerStartMessage } from './protocol.ts'
+import type { RuntimeAuditEvent } from './runtimeAuditWriter.ts'
 import { isRecord, validGeneration } from './protocol.ts'
 import { isRuntimeProviderUsage, type RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import {
@@ -188,6 +189,7 @@ export interface RuntimeSteerResult {
 }
 
 export interface WorkerCoreClientPort {
+  appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal): Promise<void>
   bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal): Promise<RuntimeBootstrap>
   appendEvents(
     start: AgentWorkerStartMessage,
@@ -246,6 +248,13 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     Object.freeze(value.session.resource_bindings)
     Object.freeze(value.session)
     return value
+  }
+
+  async appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-audit-events`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, events }),
+    }, runtimeBearer, signal, 2_000)
+    if (!isRecord(result) || result.accepted !== events.length) throw new WorkerCoreError('AGENT_AUDIT_RESPONSE_INVALID')
   }
 
   async appendEvents(

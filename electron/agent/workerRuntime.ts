@@ -1,3 +1,4 @@
+import { readSkillResourceToolName } from './skillBundle.ts'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import {
   connectAgentMCP,
@@ -22,6 +23,7 @@ import {
   validRunID,
 } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { RuntimeAuditWriter } from './runtimeAuditWriter.ts'
 import { projectWorkerMCPFailure } from './workerMCPFailure.ts'
 import {
   WorkerCoreClient,
@@ -56,6 +58,7 @@ export class AgentWorkerRuntime {
   private startMessage: AgentWorkerStartMessage | null = null
   private bootstrap: RuntimeBootstrap | null = null
   private events: RuntimeEventWriter | null = null
+  private audit: RuntimeAuditWriter | null = null
   private mcp: AgentMCPConnection | null = null
   private agent: PiAgentController | null = null
   private steerTail: Promise<void> = Promise.resolve()
@@ -151,7 +154,13 @@ export class AgentWorkerRuntime {
         settled = await this.persistTerminalStatus('cancelled')
         return
       }
+      this.audit = new RuntimeAuditWriter({
+        submit: (events, signal) => this.core.appendAuditEvents(start, bootstrap.runtime_bearer, events, signal),
+        isCancelled: () => this.abortRequested,
+        originalName: (name) => this.mcp?.originalName(name) ?? (name === readSkillResourceToolName ? name : null),
+      })
       this.agent = this.createAgent({
+        audit: this.audit,
         bootstrap,
         mcp: this.mcp,
         events: this.events,
@@ -292,6 +301,7 @@ export class AgentWorkerRuntime {
   private async persistTerminalStatus(
     outcome: 'completed' | 'cancelled' | 'failed',
   ) {
+    await this.audit?.close()
     const events = this.events
     if (!events) {
       return outcome
@@ -315,6 +325,8 @@ export class AgentWorkerRuntime {
     this.rejectPendingSteers('AGENT_RUNTIME_STEER_CLOSED')
     this.agent?.abort()
     await this.agent?.waitForIdle().catch(() => undefined)
+    await this.audit?.close()
+    this.audit = null
     this.agent?.close()
     this.agent = null
     await this.steerTail.catch(() => undefined)

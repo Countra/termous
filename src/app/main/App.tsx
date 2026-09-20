@@ -6,6 +6,7 @@ import { AppShell } from '#app/app-shell'
 import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
+import { AuditPage } from '#pages/audit'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -1522,6 +1523,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
 
+                      {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           initialTab={settingsInitialTab}

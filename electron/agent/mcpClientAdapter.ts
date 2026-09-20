@@ -80,9 +80,9 @@ export async function connectAgentMCP(
       timeout: mcpConnectTimeoutMs,
       cacheMode: 'bypass',
     })
-    const invocation = createSerialToolInvoker(async (definition, args, signal) => {
+    const invocation = createSerialToolInvoker(async (definition, args, signal, toolCallID) => {
       return await client.callTool(
-        { name: definition.name, arguments: args },
+        { name: definition.name, arguments: args, ...(toolCallID ? { _meta: { 'termous/tool-call-id': toolCallID } } : {}) },
         {
           signal,
           timeout: mcpToolTimeoutMs,
@@ -109,6 +109,7 @@ export type MCPToolInvoker = (
   definition: MCPTool,
   args: Record<string, unknown>,
   signal?: AbortSignal,
+  toolCallID?: string,
 ) => Promise<CallToolResult>
 
 export function mapMCPTools(
@@ -138,11 +139,12 @@ export function mapMCPTools(
       description: definition.description || definition.title || definition.name,
       parameters,
       executionMode: 'sequential',
-      execute: async (_toolCallID, params, signal) => {
+      execute: async (toolCallID, params, signal) => {
         const result = await invoke(
           definition,
           params as Record<string, unknown>,
           signal,
+          toolCallID,
         )
         return {
           content: projectMCPContent(result),
@@ -160,12 +162,12 @@ export function mapMCPTools(
 
 export function createSerialToolInvoker(invoke: MCPToolInvoker): MCPToolInvoker {
   let tail: Promise<void> = Promise.resolve()
-  return (definition, args, signal) => {
+  return (definition, args, signal, toolCallID) => {
     const operation = tail.then(async () => {
       if (signal?.aborted) {
         throw new DOMException('工具调用已取消', 'AbortError')
       }
-      return await invoke(definition, args, signal)
+      return await invoke(definition, args, signal, toolCallID)
     })
     tail = operation.then(() => undefined, () => undefined)
     return operation

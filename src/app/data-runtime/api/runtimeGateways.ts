@@ -1,3 +1,5 @@
+import type { AuditGateway } from '#features/audit'
+import { AuditClient } from './gateways/auditClient'
 import type { AppConfig } from '#common/contracts'
 import type { AliasGateway } from '#features/alias'
 import type { AgentSetupGateway } from '#features/agent-setup'
@@ -42,6 +44,7 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly audit: AuditGateway
   readonly agentSetup: AgentSetupGateway
   readonly agentWorkspace: AgentWorkspaceGateway
   readonly runtime: DomainGateway<RuntimeClient>
@@ -73,6 +76,7 @@ export interface RuntimeGateways {
 export function createRuntimeGatewaysFromConfig(
   config: Partial<AppConfig> = {},
 ): RuntimeGateways {
+  const audit = new AuditClient(config)
   const runtime = new RuntimeClient(config)
   const agentSetup = new AgentSetupClient(config)
   const agentWorkspace = new AgentWorkspaceClient(config)
@@ -101,6 +105,7 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    audit,
     agentSetup,
     agentWorkspace,
     runtime,

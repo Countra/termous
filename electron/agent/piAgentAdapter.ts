@@ -90,6 +90,7 @@ export interface PiAgentController {
 }
 
 export interface CreatePiAgentOptions {
+  audit?: { capture(event: AgentEvent): void }
   bootstrap: RuntimeBootstrap
   mcp: AgentMCPConnection
   events: RuntimeEventWriter
@@ -188,6 +189,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const unsubscribe = agent.subscribe((event) =>
     handlePiEvent(event, {
       handle: async (value) => {
+        options.audit?.capture(value)
         if (value.type === 'message_end' && value.message.role === 'user') {
           const source = steerSources.get(value.message)
           if (source) {

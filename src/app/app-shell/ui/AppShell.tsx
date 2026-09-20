@@ -1,5 +1,6 @@
 import {
   Bot,
+  ClipboardList,
   ChevronDown,
   CircleHelp,
   DatabaseZap,
@@ -55,6 +56,7 @@ const navItems = [
   { key: 'forwards' as const, icon: Route },
   { key: 'snippets' as const, icon: FileCode2 },
   { key: 'agent' as const, icon: Bot },
+  { key: 'audit' as const, icon: ClipboardList },
 ]
 
 const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {

@@ -324,7 +324,8 @@ for (const [history, apiMode] of [
       onFailure: (error) => { throw error },
       core: {
         bootstrap: async () => bootstrap,
-        appendEvents: async (_start, _bearer, batch) => {
+        appendAuditEvents: async () => {},
+      appendEvents: async (_start, _bearer, batch) => {
           events.push(...batch)
           return batch[batch.length - 1]!.sequence
         },
@@ -459,6 +460,7 @@ test('真实 pi 消费追加指令时只发送消息引用，不泄漏持久化�
     onFailure: (error) => { throw error },
     core: {
       bootstrap: async () => bootstrap,
+      appendAuditEvents: async () => {},
       appendEvents: async (_start, _bearer, batch) => {
         events.push(...batch)
         return batch[batch.length - 1]!.sequence
@@ -518,7 +520,8 @@ for (const apiMode of ['responses', 'chat_completions'] as const) {
       onFailure: (error) => { throw error },
       core: {
         bootstrap: async () => bootstrap,
-        appendEvents: async (_start, _bearer, batch) => {
+        appendAuditEvents: async () => {},
+      appendEvents: async (_start, _bearer, batch) => {
           events.push(...batch)
           return batch[batch.length - 1]!.sequence
         },
@@ -593,7 +596,8 @@ for (const purpose of ['response', 'compaction'] as const) {
       onFailure: (error) => { failures.push(error); agent.abort() },
       core: {
         bootstrap: async () => bootstrap,
-        appendEvents: async (_start, _bearer, batch) => {
+        appendAuditEvents: async () => {},
+      appendEvents: async (_start, _bearer, batch) => {
           const retry = batch.find((event) => event.kind === 'retry')
           if (retry) {
             retryPurposes.push((retry.payload.retry as Record<string, unknown>).purpose)

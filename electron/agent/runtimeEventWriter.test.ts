@@ -20,6 +20,7 @@ const start: AgentWorkerStartMessage = {
 }
 
 class RecordingCore implements WorkerCoreClientPort {
+  async appendAuditEvents() {}
   readonly batches: RuntimeEventInput[][] = []
   readonly order: string[] = []
 

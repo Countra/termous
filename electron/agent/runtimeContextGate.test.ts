@@ -260,7 +260,8 @@ function gateFixture(options: GateFixtureOptions = {}) {
   }
   const core: WorkerCoreClientPort = {
     bootstrap: async () => bootstrap,
-    appendEvents: async (_start, _bearer, batch) => {
+    appendAuditEvents: async () => {},
+      appendEvents: async (_start, _bearer, batch) => {
       for (const event of batch) {
         acceptSequence(event.sequence)
         assert.ok(event.kind !== 'compaction'
