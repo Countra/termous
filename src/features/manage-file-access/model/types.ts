@@ -25,7 +25,17 @@ export interface S3ProfileDraft {
   clear_session_token: boolean
 }
 
-export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft
+export interface WebDAVProfileDraft {
+  engine: 'webdav'
+  host_id: string
+  name: string
+  endpoint: string
+  username: string
+  password: string
+  password_configured: boolean
+}
+
+export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft | WebDAVProfileDraft
 
 export interface FileAccessProfileEditorErrors {
   endpoint?: 'required' | 'invalid'
@@ -33,6 +43,8 @@ export interface FileAccessProfileEditorErrors {
   prefix?: 'invalid'
   access_key?: 'required'
   secret_key?: 'required'
+  username?: 'required' | 'invalid'
+  password?: 'required'
   name?: 'required' | 'too_long'
   ssh_profile_id?: 'required' | 'unavailable'
 }

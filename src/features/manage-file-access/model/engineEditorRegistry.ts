@@ -2,6 +2,7 @@ import { getSFTPAccessConfig } from '#entities/file-access-profile'
 import { SFTPProfileEditor } from '../engines/sftp/SFTPProfileEditor.tsx'
 export type { FileAccessProfileEditorDefinition } from './types.ts'
 import { s3Editor } from '../engines/s3/definition.ts'
+import { webdavEditor } from '../engines/webdav/definition.ts'
 import type {
   FileAccessProfileEditorDraft,
   FileAccessProfileEditorDefinition,
@@ -72,7 +73,7 @@ function requireSFTP(draft: FileAccessProfileEditorDraft) {
   return draft
 }
 
-const definitions = new Map<string, FileAccessProfileEditorDefinition>([['sftp', sftpEditor], ['s3', s3Editor]])
+const definitions = new Map<string, FileAccessProfileEditorDefinition>([['sftp', sftpEditor], ['s3', s3Editor], ['webdav', webdavEditor]])
 
 export function getFileAccessProfileEditor(engine: string, configVersion?: number) {
   const definition = definitions.get(engine)

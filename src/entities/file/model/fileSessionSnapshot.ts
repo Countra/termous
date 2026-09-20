@@ -105,7 +105,8 @@ function decodeFileSessionAccessIdentity(session: Record<string, unknown>): Pick
   'file_access_profile_id' | 'ssh_profile_id' | 'engine' | 'namespace' | 'capabilities'
 > {
   const engine = requireString(session.engine, '文件会话引擎缺失')
-  if (engine !== 'sftp' && engine !== 's3') {
+  // 引擎由后端冻结注册中心校验；前端按能力工作，避免每新增协议都修改会话白名单。
+  if (!/^[a-z][a-z0-9_]{0,31}$/u.test(engine)) {
     throw new FileSessionSnapshotProtocolError('文件会话引擎无效')
   }
   return {

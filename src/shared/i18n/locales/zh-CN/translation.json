@@ -2746,6 +2746,20 @@
     }
   },
   "files": {
+    "webdav": {
+      "name": "配置名称",
+      "endpoint": "服务地址（HTTP / HTTPS）",
+      "username": "用户名",
+      "password": "密码 / 应用密码",
+      "configured": "已配置，留空保留",
+      "authHint": "地址可包含 WebDAV 根目录路径。使用账号密码认证，密码加密保存；编辑时留空保留原值。",
+      "httpHint": "已选择 HTTP，账号、密码及文件内容将以明文传输。建议使用 HTTPS。",
+      "errors": {
+        "endpoint": "请输入完整 HTTP / HTTPS 地址，可包含根目录路径，不能包含认证信息、查询参数、片段或非规范路径段。",
+        "username": "请输入用户名，不能包含冒号或控制字符。",
+        "password": "请输入密码或应用密码。"
+      }
+    },
     "s3": {
       "name": "配置名称",
       "endpoint": "服务地址（HTTP / HTTPS）",

@@ -894,6 +894,7 @@ describe('应用运行时组合合同', () => {
       'fileBookmarkGroups',
       'fileBookmarks',
       'fileSessions',
+      'hostAssets',
       'hosts',
       'localPathMappings',
       'settings',

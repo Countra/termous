@@ -2758,6 +2758,20 @@
     }
   },
   "files": {
+    "webdav": {
+      "name": "Profile name",
+      "endpoint": "Endpoint (HTTP / HTTPS)",
+      "username": "Username",
+      "password": "Password / app password",
+      "configured": "Configured; leave blank to keep",
+      "authHint": "The endpoint may include the WebDAV root path. Uses username and password authentication. Passwords are encrypted locally; leave blank when editing to keep the saved value.",
+      "httpHint": "HTTP sends your username, password and file contents without encryption. HTTPS is recommended.",
+      "errors": {
+        "endpoint": "Enter a full HTTP / HTTPS URL, optionally with a root path, without credentials, query parameters, fragments or non-canonical path segments.",
+        "username": "Enter a username without colons or control characters.",
+        "password": "Enter a password or app password."
+      }
+    },
     "s3": {
       "name": "Profile name",
       "endpoint": "Endpoint (HTTP / HTTPS)",

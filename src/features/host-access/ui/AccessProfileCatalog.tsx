@@ -144,7 +144,7 @@ export function AccessProfileCatalog({
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
-              type={projection.technology.id.toUpperCase()}
+              type={projection.technology.shortLabel ?? projection.technology.id.toUpperCase()}
               typeLabel={projection.technology.label}
               detail={detail}
               isDefault={profile.is_default}
