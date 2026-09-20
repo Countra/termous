@@ -1,6 +1,6 @@
-import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import { CustomSelect } from '#shared/ui'
 import {
   getFileAccessProfileEditor,
   listFileAccessProfileEditors,
@@ -35,24 +35,22 @@ export function FileAccessProfileEditor({
 
   return (
     <div className={styles.root}>
-      <label className={styles.field}>
-        <span>{t('hosts.access.file.type')}</span>
-        <Select
-          value={draft.engine}
-          aria-label={t('hosts.access.file.type')}
-          disabled={disabled || mode === 'edit'}
-          options={listFileAccessProfileEditors().map((item) => ({
-            value: item.engine,
-            label: item.label,
-          }))}
-          onChange={(engine) => {
-            const nextDefinition = getFileAccessProfileEditor(engine)
-            const next = nextDefinition?.createDraft(draft.host_id, sshProfiles)
-            const defaultName = definition.createDraft(draft.host_id, sshProfiles).name
-            if (next) onChange({ ...next, name: draft.name === defaultName ? next.name : draft.name })
-          }}
-        />
-      </label>
+      <CustomSelect
+        className={styles.field}
+        label={t('hosts.access.file.type')}
+        value={draft.engine}
+        disabled={disabled || mode === 'edit'}
+        options={listFileAccessProfileEditors().map((item) => ({
+          value: item.engine,
+          label: item.label,
+        }))}
+        onChange={(engine) => {
+          const nextDefinition = getFileAccessProfileEditor(engine)
+          const next = nextDefinition?.createDraft(draft.host_id, sshProfiles)
+          const defaultName = definition.createDraft(draft.host_id, sshProfiles).name
+          if (next) onChange({ ...next, name: draft.name === defaultName ? next.name : draft.name })
+        }}
+      />
       <Editor
         draft={draft}
         sshProfiles={sshProfiles}

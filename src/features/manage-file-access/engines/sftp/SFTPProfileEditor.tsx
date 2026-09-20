@@ -1,6 +1,7 @@
 import { Input, Select } from 'antd'
 import { Link2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { customSelectStyles } from '#shared/ui'
 import type { FileAccessProfileEditorViewProps } from '../../model/types.ts'
 import styles from './SFTPProfileEditor.module.scss'
 
@@ -31,6 +32,7 @@ export function SFTPProfileEditor({
       <label className={styles.field}>
         <span>{t('hosts.access.file.binding')}</span>
         <Select
+          classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
           value={draft.ssh_profile_id || undefined}
           placeholder={t('hosts.access.file.selectSSH')}
           disabled={disabled}

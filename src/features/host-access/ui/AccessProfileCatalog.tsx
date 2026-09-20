@@ -144,7 +144,8 @@ export function AccessProfileCatalog({
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
-              type={projection.technology.label}
+              type={projection.technology.id.toUpperCase()}
+              typeLabel={projection.technology.label}
               detail={detail}
               isDefault={profile.is_default}
               busy={busy}
@@ -247,6 +248,7 @@ function AccessProfileSection({
 function AccessProfileRow({
   name,
   type,
+  typeLabel = type,
   detail,
   isDefault,
   busy,
@@ -260,6 +262,7 @@ function AccessProfileRow({
 }: {
   name: string
   type: string
+  typeLabel?: string
   detail: string
   isDefault: boolean
   busy: boolean
@@ -276,7 +279,9 @@ function AccessProfileRow({
   const deleteDisabledReason = t('hosts.access.switchDefaultBeforeDelete')
   return (
     <div className={styles.row} data-default={isDefault ? 'true' : 'false'}>
-      <span className={styles['row-kind']}>{type}</span>
+      <Tooltip title={typeLabel}>
+        <span className={styles['row-kind']} aria-label={typeLabel}>{type}</span>
+      </Tooltip>
       <span className={styles['row-copy']}>
         <span>
           <strong>{name}</strong>
