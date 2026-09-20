@@ -124,6 +124,20 @@ test('VNC 直连无需 SSH Profile 即可作为默认远程桌面连接', () => 
   assert.equal(menu.defaultItem?.endpoint, '192.0.2.10:5901')
 })
 
+test('主机的默认 S3 文件配置不依赖 SSH，菜单展示存储端点', () => {
+  const profile: FileAccessProfile = {
+    ...fileProfile('s3-a', 'host-a', '', true), engine: 's3',
+    config: { endpoint: 'https://minio.example', bucket: 'test-bucket', prefix: 'work/' },
+  }
+  const menu = buildHostLauncherProfileMenu(profileData({ fileAccessProfiles: [profile] }), 'host-a', 'files')
+  assert.equal(menu.defaultResolution, 'resolved')
+  assert.equal(menu.defaultItem?.availability, 'ready')
+  assert.equal(menu.defaultItem?.hostId, 'host-a')
+  assert.equal(menu.defaultItem?.route, null)
+  assert.equal(menu.defaultItem?.endpoint, 'https://minio.example / test-bucket / work/')
+  assert.deepEqual(buildHostLauncherProfileMenu(profileData({ fileAccessProfiles: [profile] }), 'host-b', 'files').items, [])
+})
+
 test('文件快捷动作只解析当前 SSH Profile 唯一绑定的 SFTP Profile', () => {
   const data = profileData({
     sshAccessProfiles: [

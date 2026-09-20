@@ -1,5 +1,7 @@
 import type { FileSession, RemoteFileEntry } from '#entities/file'
 import type { Host } from '#entities/host'
+import type { FileAccessProfile } from '#entities/file-access-profile'
+import { projectFileAccessProfile } from '#entities/file-access-profile'
 import { normalizeRemotePosixPath } from '#shared/path'
 import type {
   RemoteCopyBatchFailure,
@@ -14,51 +16,31 @@ export function filterRemoteCopyTargetSessions(
   fileSessions: readonly FileSession[],
   sourceSessionId: string,
   search = '',
+  profiles: readonly FileAccessProfile[] = [],
 ): RemoteCopyTargetSession[] {
   const hostById = new Map(hosts.map((host) => [host.id, host]))
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
   const connected = fileSessions.flatMap((session) => {
     const host = hostById.get(session.host_id)
-    if (
-      !host
-      || session.id === sourceSessionId
-      || session.status !== 'connected'
-      || !isValidGeneration(session.connection_generation)
-    ) {
-      return []
-    }
-    return [{ host, session }]
+    const profile = profileById.get(session.file_access_profile_id ?? '')
+    const endpoint = profile ? projectFileAccessProfile(profile).endpoint : undefined
+    if ((!host && !session.file_access_profile_id) || session.id === sourceSessionId
+      || session.status !== 'connected' || !isValidGeneration(session.connection_generation)
+      || session.capabilities && !session.capabilities.includes('transfer_receive')) return []
+    return [{
+      host, session: session as FileSession & { connection_generation: number },
+      identity: session.file_access_profile_id ?? session.host_id,
+      name: profile?.name ?? host?.name ?? session.file_access_profile_id ?? session.id,
+      description: endpoint ?? (host ? `${host.username}@${host.address}` : session.engine ?? ''),
+    }]
   })
-  const hostCounts = new Map<string, number>()
-  for (const candidate of connected) {
-    hostCounts.set(candidate.host.id, (hostCounts.get(candidate.host.id) ?? 0) + 1)
-  }
+  const counts = new Map<string, number>()
+  for (const candidate of connected) counts.set(candidate.identity, (counts.get(candidate.identity) ?? 0) + 1)
   const query = search.trim().toLocaleLowerCase()
-
-  return connected
-    .filter(({ host, session }) => {
-      if (!query) {
-        return true
-      }
-      return [
-        host.name,
-        host.address,
-        host.username,
-        host.id,
-        session.id,
-        session.current_path,
-      ].some((value) => value.toLocaleLowerCase().includes(query))
-    })
-    .map(({ host, session }) => ({
-      host,
-      session: session as FileSession & { connection_generation: number },
-      shortSessionId: shortRemoteCopySessionId(session.id),
-      duplicateHostSession: (hostCounts.get(host.id) ?? 0) > 1,
-    }))
-    .sort((left, right) => (
-      left.host.name.localeCompare(right.host.name)
-      || left.session.started_at.localeCompare(right.session.started_at)
-      || left.session.id.localeCompare(right.session.id)
-    ))
+  return connected.filter((target) => !query || [target.name, target.description, target.identity, target.session.id, target.session.current_path]
+    .some((value) => value.toLocaleLowerCase().includes(query)))
+    .map((target) => ({ ...target, shortSessionId: shortRemoteCopySessionId(target.session.id), duplicateHostSession: (counts.get(target.identity) ?? 0) > 1 }))
+    .sort((left, right) => left.name.localeCompare(right.name) || left.session.started_at.localeCompare(right.session.started_at) || left.session.id.localeCompare(right.session.id))
 }
 
 export function validateRemoteCopySource(
@@ -92,12 +74,12 @@ export function reconcileRemoteCopyBatchSelection(
     const target = targetBySessionId.get(sessionId)
     if (
       !target
-      || selectedHostIds.has(target.host.id)
+      || selectedHostIds.has(target.identity)
       || result.length >= remoteCopyBatchTargetLimit
     ) {
       continue
     }
-    selectedHostIds.add(target.host.id)
+    selectedHostIds.add(target.identity)
     result.push(sessionId)
   }
   return result
@@ -119,7 +101,7 @@ export function toggleRemoteCopyBatchTarget(
     return { sessionIds: current, limitReached: false }
   }
   const sameHostSessionId = current.find(
-    (sessionId) => targetBySessionId.get(sessionId)?.host.id === target.host.id,
+    (sessionId) => targetBySessionId.get(sessionId)?.identity === target.identity,
   )
   if (!sameHostSessionId && current.length >= remoteCopyBatchTargetLimit) {
     return { sessionIds: current, limitReached: true }
@@ -140,14 +122,14 @@ export function rebindRemoteCopyBatchFailures(
   const targetBySessionId = new Map(targets.map((target) => [target.session.id, target]))
   return failures.map((failure) => {
     const target = targetBySessionId.get(failure.sessionId)
-      ?? targets.find((candidate) => candidate.host.id === failure.hostId)
+      ?? targets.find((candidate) => candidate.identity === failure.targetId)
     if (!target) {
       return failure
     }
     return {
       ...failure,
       sessionId: target.session.id,
-      hostName: target.host.name,
+      targetName: target.name,
     }
   })
 }

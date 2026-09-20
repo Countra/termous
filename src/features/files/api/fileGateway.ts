@@ -111,6 +111,8 @@ export interface FileSessionGateway {
 }
 
 export interface FileOperationGateway {
+  createFileSessionRenameOperation: (id: string, generation: number, source: string, target: string) => Promise<FileOperationTask>
+  createFileSessionMoveOperation: (id: string, generation: number, sources: string[], targetDir: string, policy?: OverwritePolicy) => Promise<FileOperationTask>
   createFileSessionTextReadOperation: (
     fileSessionId: string,
     path: string,

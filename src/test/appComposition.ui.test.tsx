@@ -890,6 +890,7 @@ describe('应用运行时组合合同', () => {
 
     await user.click(screen.getByRole('button', { name: 'files' }))
     expect(testState.projectionKeys.files).toEqual([
+      'fileAccessProfiles',
       'fileBookmarkGroups',
       'fileBookmarks',
       'fileSessions',

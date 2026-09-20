@@ -1,3 +1,4 @@
+import { fileOperationCapabilities } from '#entities/file'
 import {
   useCallback,
   useEffect,
@@ -95,6 +96,7 @@ export function useFilesWorkspaceDragController({
   onRemoteMoveUnavailable,
   onDroppedPathsUnavailable,
 }: UseFilesWorkspaceDragControllerOptions) {
+  const canReceive = fileActionsEnabled && fileOperationCapabilities(activeFileSession).receive
   const dragDepthRef = useRef(0)
   const autoScrollFrameRef = useRef<number | null>(null)
   const autoScrollSpeedRef = useRef(0)
@@ -203,7 +205,7 @@ export function useFilesWorkspaceDragController({
     const currentSession = fileSessionsRef.current.find(
       (session) => session.id === activeFileSessionIdRef.current,
     )
-    if (!currentSession) {
+    if (!currentSession || !fileOperationCapabilities(currentSession).rename) {
       return null
     }
     const validation = validateRemoteFileDrag(transaction, {
@@ -338,9 +340,9 @@ export function useFilesWorkspaceDragController({
     }
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = fileActionsEnabled ? 'copy' : 'none'
-    setDragActive(fileActionsEnabled)
-    setDropTargetDirectoryPath(fileActionsEnabled ? normalizedTargetPath : null)
+    event.dataTransfer.dropEffect = canReceive ? 'copy' : 'none'
+    setDragActive(canReceive)
+    setDropTargetDirectoryPath(canReceive ? normalizedTargetPath : null)
   }
 
   const onBreadcrumbDragLeave = (targetPath: string, event: DragEvent<HTMLButtonElement>) => {
@@ -400,11 +402,11 @@ export function useFilesWorkspaceDragController({
     event.stopPropagation()
     resetDragState()
     const paths = await resolveDroppedLocalPaths(event.dataTransfer)
-    if (fileActionsEnabled && (!paths || paths.length === 0)) {
+    if (canReceive && (!paths || paths.length === 0)) {
       onDroppedPathsUnavailable()
       return
     }
-    await onUploadLocalPaths(paths ?? [], normalizedTargetPath)
+    if (canReceive) await onUploadLocalPaths(paths ?? [], normalizedTargetPath)
   }
 
   const onDragEnter = (event: DragEvent<HTMLElement>) => {
@@ -418,7 +420,7 @@ export function useFilesWorkspaceDragController({
     }
     event.preventDefault()
     event.stopPropagation()
-    if (!fileActionsEnabled) {
+    if (!canReceive) {
       event.dataTransfer.dropEffect = 'none'
       resetDragState()
       return
@@ -444,12 +446,12 @@ export function useFilesWorkspaceDragController({
     }
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = fileActionsEnabled ? 'copy' : 'none'
-    setDragActive(fileActionsEnabled)
+    event.dataTransfer.dropEffect = canReceive ? 'copy' : 'none'
+    setDragActive(canReceive)
     setDropTargetDirectoryPath(
-      fileActionsEnabled ? findDirectoryDropTargetPath(event.target) : null,
+      canReceive ? findDirectoryDropTargetPath(event.target) : null,
     )
-    if (fileActionsEnabled) {
+    if (canReceive) {
       updateFileDragAutoScroll(event)
     } else {
       stopFileDragAutoScroll()
@@ -506,17 +508,17 @@ export function useFilesWorkspaceDragController({
       return
     }
     const shouldUpload = hasDraggedFiles(event)
-    const targetPath = fileActionsEnabled
+    const targetPath = canReceive
       ? findDirectoryDropTargetPath(event.target) ?? currentPath
       : currentPath
     event.preventDefault()
     event.stopPropagation()
     resetDragState()
-    if (!shouldUpload || !fileActionsEnabled) {
+    if (!shouldUpload || !canReceive) {
       return
     }
     const paths = await resolveDroppedLocalPaths(event.dataTransfer)
-    if (fileActionsEnabled && (!paths || paths.length === 0)) {
+    if (canReceive && (!paths || paths.length === 0)) {
       onDroppedPathsUnavailable()
       return
     }
@@ -528,6 +530,7 @@ export function useFilesWorkspaceDragController({
     if (
       !activeFileSession
       || !fileActionsEnabled
+      || !fileOperationCapabilities(activeFileSession).transfer
       || loading
       || target?.closest('.ant-checkbox, [data-files-drag-block]')
     ) {

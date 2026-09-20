@@ -58,6 +58,8 @@ function fileGateway(
     calculateFileSessionDirectorySize: vi.fn(),
     mkdirFileSessionFile: vi.fn(),
     renameFileSessionFile: vi.fn(),
+    createFileSessionRenameOperation: vi.fn(),
+    createFileSessionMoveOperation: vi.fn(),
     chmodFileSessionFile: vi.fn(),
     deleteFileSessionFiles: vi.fn(),
     copyFileSessionFiles: vi.fn(),
@@ -97,6 +99,7 @@ function renderWorkspace(
     activeSession?: FileSession
     entries?: RemoteFileEntry[]
     automaticRemoteRequestsEnabled?: boolean
+    hostAssets?: FilesWorkspaceProps['data']['hostAssets']
   } = {},
 ) {
   const activeSession = options.activeSession ?? session
@@ -107,6 +110,7 @@ function renderWorkspace(
     getHostIconUrl: vi.fn(),
     data: {
       hosts: [],
+      hostAssets: options.hostAssets,
       fileSessions: connected ? [activeSession] : [],
       fileBookmarkGroups: [],
       fileBookmarks: [],
@@ -260,5 +264,74 @@ describe('目录总大小详情入口', () => {
     } else {
       expect(screen.queryByRole('button', { name: 'files.directorySize.calculate' })).toBeNull()
     }
+  })
+})
+
+describe('主机下不同存储引擎的能力边界', () => {
+  it.each(['sftp', 's3'])('%s 改名使用相同动作与任务视图', async (engine) => {
+    const { api } = renderWorkspace(true, {
+      activeSession: { ...session, engine, capabilities: ['browse', 'entry_mutate'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    api.createFileSessionRenameOperation.mockResolvedValue({
+      id: 'move-task', revision: 1, file_session_id: session.id, engine, type: 'move', status: 'completed', phase: 'done',
+      path: '/srv/notes.txt', total_bytes: 1, transferred_bytes: 1, remaining_bytes: 0,
+      phase_total_bytes: 1, phase_transferred_bytes: 1, phase_progress_percent: 100, progress_percent: 100,
+      speed_bytes_per_sec: 0, average_speed_bytes_per_sec: 0, elapsed_seconds: 1, cancellable: false,
+      created_at: session.started_at,
+    })
+    api.fileOperationResult.mockResolvedValue({ non_atomic: engine === 's3', partial: false, uncertain: false, items: [
+      { source_path: '/srv/notes.txt', target_path: '/srv/renamed.txt', status: 'moved', removed: true },
+    ] })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.rename' }))
+    fireEvent.change(await screen.findByDisplayValue('notes.txt'), { target: { value: 'renamed.txt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.update' }))
+    await waitFor(() => expect(api.createFileSessionRenameOperation).toHaveBeenCalledWith(session.id, 1, '/srv/notes.txt', '/srv/renamed.txt'))
+    await waitFor(() => expect(api.fileOperationResult).toHaveBeenCalledWith('move-task'))
+    expect(api.renameFileSessionFile).not.toHaveBeenCalled()
+    expect(await screen.findByText('/srv/renamed.txt')).toBeInTheDocument()
+  })
+
+  it('S3 使用统一改名能力，隐藏权限、批量改名及 SSH 搜索', async () => {
+    const { api } = renderWorkspace(true, {
+      hostAssets: [{ id: session.host_id, name: '对象存储主机', platform: 'linux', group_id: '', tags: [], favorite: false, created_at: session.started_at, updated_at: session.started_at }],
+      activeSession: { ...session, engine: 's3', capabilities: ['browse', 'content_read', 'content_write', 'entry_create', 'transfer', 'transfer_receive', 'entry_mutate', 'planned_delete'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    await waitFor(() => expect(api.listFileSessionFiles).toHaveBeenCalledOnce())
+    expect(screen.getByRole('tab', { name: /对象存储主机/ })).toBeVisible()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    expect(screen.getByRole('button', { name: 'files.rename' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'files.copy' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'files.advancedRename.action' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'files.globalSearch.action' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'files.actions' }))
+    expect(screen.queryByRole('menuitem', { name: /files.editPermissions/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /files.advancedRename.action/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'files.details' }))
+    expect(screen.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
+    expect(screen.queryByText('files.noHost')).toBeNull()
+    expect(screen.queryByText('files.ownerUid')).toBeNull()
+    expect(screen.queryByText('files.groupGid')).toBeNull()
+    expect(screen.queryByText('files.mode')).toBeNull()
+  })
+
+  it('只浏览能力拒绝双击读取和上传、移动', async () => {
+    const { api } = renderWorkspace(true, {
+      activeSession: { ...session, engine: 's3', capabilities: ['browse'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    await waitFor(() => expect(api.listFileSessionFiles).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'files.uploadFiles' })).toBeDisabled()
+    fireEvent.doubleClick(await screen.findByText('notes.txt'))
+    expect(api.createFileSessionTextReadOperation).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row 1' }))
+    expect(screen.getByRole('button', { name: 'files.rename' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'files.cut' })).toBeDisabled()
   })
 })

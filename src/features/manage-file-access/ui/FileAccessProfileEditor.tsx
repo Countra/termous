@@ -48,7 +48,8 @@ export function FileAccessProfileEditor({
           onChange={(engine) => {
             const nextDefinition = getFileAccessProfileEditor(engine)
             const next = nextDefinition?.createDraft(draft.host_id, sshProfiles)
-            if (next) onChange({ ...next, name: draft.name })
+            const defaultName = definition.createDraft(draft.host_id, sshProfiles).name
+            if (next) onChange({ ...next, name: draft.name === defaultName ? next.name : draft.name })
           }}
         />
       </label>

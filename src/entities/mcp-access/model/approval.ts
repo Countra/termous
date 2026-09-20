@@ -51,6 +51,7 @@ export interface McpApprovalOperation {
   total_bytes?: number
   rule_count?: number
   rename_mappings: McpApprovalRenameMapping[]
+  non_atomic?: boolean
 }
 
 export interface McpApprovalTarget {

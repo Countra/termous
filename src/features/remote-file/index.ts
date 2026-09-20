@@ -47,3 +47,5 @@ export const loadRemoteImageViewerModal = () => import('./ui/RemoteImageViewerMo
 
 export const loadAdvancedRenameModal = () => import('./advanced-rename/ui/AdvancedRenameModal.tsx')
   .then((module) => ({ default: module.AdvancedRenameModal }))
+
+export { FileMoveOperationModal } from './move/FileMoveOperationModal.tsx'

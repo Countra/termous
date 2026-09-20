@@ -65,6 +65,7 @@ export function FilesApprovalRenderer({ operation }: { operation: McpApprovalOpe
         mappings={operation.rename_mappings}
       />
 
+      {operation.non_atomic ? <p className={styles['delete-warning']}>{t('files.move.nonAtomic')}</p> : null}
       {isDelete ? <p className={styles['delete-warning']}>{t('settings.mcp.approval.deleteWarning')}</p> : null}
 
       {hasOperationMeta ? (

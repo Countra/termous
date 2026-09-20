@@ -139,7 +139,7 @@ export function AccessProfileCatalog({
             ? t('hosts.access.file.boundTo', { name: ssh.name || ssh.address })
             : profile.engine === 'sftp'
               ? t('hosts.access.file.missingSSH')
-              : t('hosts.access.file.unsupportedEditor')
+              : projection.endpoint ?? t('hosts.access.file.unsupportedEditor')
           return (
             <AccessProfileRow
               key={profile.id}

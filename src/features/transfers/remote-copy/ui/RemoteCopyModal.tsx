@@ -52,6 +52,8 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
     active: open && mode === 'batch',
   })
   const sourceHost = hosts.find((host) => host.id === source.hostId)
+  const sourceSession = props.fileSessions.find((session) => session.id === source.fileSessionId)
+  const sourceName = props.profiles?.find((profile) => profile.id === sourceSession?.file_access_profile_id)?.name ?? sourceHost?.name ?? source.fileSessionId
   const breadcrumbs = useMemo(
     () => buildRemotePathBreadcrumbs(controller.currentPath || controller.pathInput),
     [controller.currentPath, controller.pathInput],
@@ -108,9 +110,9 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
           </span>
           <span className={chromeStyles['source-summary']}>
             <small>{t('files.remoteCopy.source')}</small>
-            <strong title={sourceHost?.name ?? source.hostId}>
+            <strong title={sourceName}>
               <Server size={13} aria-hidden="true" />
-              {sourceHost?.name ?? source.hostId}
+              {sourceName}
             </strong>
             <span>{t('files.remoteCopy.sourceItems', { count: source.entries.length })}</span>
           </span>
@@ -349,23 +351,23 @@ function TargetSessionPane({
           </div>
         ) : targets.map((target) => {
           const selected = selectedIdSet.has(target.session.id)
-          const hostCompleted = completedHostIds.has(target.host.id)
+          const hostCompleted = completedHostIds.has(target.identity)
           const completed = completedSessionIds.has(target.session.id)
             || (mode === 'batch' && hostCompleted)
           const failure = failureBySessionId.get(target.session.id)
           const targetDisabled = disabled || hostCompleted || failure?.retryable === false
           const content = (
             <>
-              <HostAvatar
+              {target.host ? <HostAvatar
                 host={target.host}
                 getIconUrl={getHostIconUrl}
                 className={styles['target-avatar']}
                 size={30}
                 iconSize={15}
-              />
+              /> : <Server size={20} aria-hidden="true" />}
               <span className={styles['target-copy']}>
-                <strong>{target.host.name}</strong>
-                <small>{target.host.username}@{target.host.address}</small>
+                <strong>{target.name}</strong>
+                <small>{target.description}</small>
                 {target.duplicateHostSession ? (
                   <small>{t('files.remoteCopy.sessionSuffix', { id: target.shortSessionId })}</small>
                 ) : null}
@@ -512,7 +514,7 @@ function BatchOutcomeAlert({
         <ul className={styles['batch-failure-list']}>
           {failures.map((failure) => (
             <li key={failure.sessionId}>
-              <strong>{failure.hostName}</strong>
+              <strong>{failure.targetName}</strong>
               <span>{failure.message.startsWith('files.')
                 ? t(failure.message)
                 : failure.message}</span>
@@ -631,7 +633,7 @@ function DirectoryPane({
           <FolderOpen size={15} aria-hidden="true" />
           <span>
             <strong>{t('files.remoteCopy.targetDirectory')}</strong>
-            {target ? <small title={target.host.name}>{target.host.name}</small> : null}
+            {target ? <small title={target.name}>{target.name}</small> : null}
           </span>
         </span>
         <div className={styles['browser-actions']}>

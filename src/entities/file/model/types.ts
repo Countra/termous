@@ -118,7 +118,7 @@ export interface RemoteImageFile {
   version_token?: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete' | 'move'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -176,6 +176,8 @@ export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | '
 export type FileSessionOrigin = 'app' | 'mcp'
 
 export type FileAccessCapability =
+  | 'entry_create'
+  | 'transfer_receive'
   | 'browse'
   | 'content_read'
   | 'content_write'

@@ -183,7 +183,7 @@ function toFileMenuItem(
     actionId: 'openFiles',
     technology: profile.technology.id,
     name: displayName(profile.name, route?.endpoint ?? profile.technology.label),
-    endpoint: route?.endpoint ?? '',
+    endpoint: route?.endpoint ?? profile.endpoint ?? '',
     route,
     isDefault: profile.isDefault,
     sortOrder: profile.sortOrder,

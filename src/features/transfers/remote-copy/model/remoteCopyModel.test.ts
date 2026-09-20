@@ -140,8 +140,8 @@ test('批量失败状态按主机绑定到重连后的最新会话', () => {
   ], 'source-session')
   const failure: RemoteCopyBatchFailure = {
     sessionId: 'target-session-old',
-    hostId: 'target',
-    hostName: '旧名称',
+    targetId: 'target',
+    targetName: '旧名称',
     message: 'files.remoteCopy.batchUncertain',
     retryable: false,
   }
@@ -149,7 +149,7 @@ test('批量失败状态按主机绑定到重连后的最新会话', () => {
   assert.deepEqual(rebindRemoteCopyBatchFailures([failure], targets), [{
     ...failure,
     sessionId: 'target-session-new',
-    hostName: '目标主机',
+    targetName: '目标主机',
   }])
   assert.deepEqual(rebindRemoteCopyBatchFailures([failure], []), [failure])
 })

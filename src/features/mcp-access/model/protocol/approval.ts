@@ -190,6 +190,7 @@ function decodeMcpApprovalOperation(
   if (renameMappings.length > maxBatchRenameMappings) {
     throw new McpAccessProtocolError('MCP 文件管理批量重命名映射数量超出限制')
   }
+  const nonAtomic = optionalBoolean(operation.non_atomic, 'MCP 移动非原子标识无效')
   const itemCount = optionalNonNegativeInteger(operation.item_count, 'MCP 文件管理审批项目数无效')
   const totalBytes = optionalNonNegativeInteger(operation.total_bytes, 'MCP 文件管理审批字节数无效')
   const remotePaths = optionalStringArray(operation.remote_paths, 'MCP 文件管理审批远程路径无效')
@@ -249,6 +250,7 @@ function decodeMcpApprovalOperation(
     ...deleteDetails,
     total_bytes: totalBytes,
     rule_count: ruleCount,
+    non_atomic: nonAtomic,
     rename_mappings: renameMappings.map((mappingValue) => {
       const mapping = requireRecord(mappingValue, 'MCP 文件管理批量重命名映射项无效')
       return {

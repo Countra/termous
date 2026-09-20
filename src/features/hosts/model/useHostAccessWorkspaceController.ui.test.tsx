@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessManagementGateway } from '#features/host-access'
+import { getFileAccessProfileEditor } from '#features/manage-file-access'
 import { TermousApiError } from '#shared/api'
 import { useHostAccessWorkspaceController, type HostDetailView } from './useHostAccessWorkspaceController.ts'
 
@@ -152,7 +153,7 @@ function ControllerHarness({
       <output data-testid="catalog-error">{controller.error?.message ?? ''}</output>
       <output data-testid="file-count">{controller.catalog?.files.length ?? 0}</output>
       <output data-testid="file-name">{controller.fileDraft.name}</output>
-      <output data-testid="file-ssh-profile">{controller.fileDraft.ssh_profile_id}</output>
+      <output data-testid="file-ssh-profile">{controller.fileDraft.engine === 'sftp' ? controller.fileDraft.ssh_profile_id : ''}</output>
       <output data-testid="delete-target">{controller.deleteTarget?.kind ?? ''}</output>
       <output data-testid="default-ssh">{controller.catalog?.ssh.find((profile) => profile.is_default)?.id ?? ''}</output>
       <output data-testid="vnc-name">{controller.vncDraft.name}</output>
@@ -195,6 +196,10 @@ function ControllerHarness({
       <button type="button" onClick={() => void controller.saveProfile()}>save-profile</button>
       <button type="button" onClick={() => void controller.setDefaultProfile('ssh', 'ssh-secondary')}>default-secondary</button>
       <button type="button" onClick={() => controller.requestEditor({ kind: 'file', mode: 'create' })}>create-file</button>
+      <button type="button" onClick={() => {
+        const value = getFileAccessProfileEditor('s3')?.createDraft(host.id, [])
+        if (value?.engine === 's3') controller.setFileDraft({ ...value, name: 'MinIO', endpoint: 'https://minio.example', bucket: 'test-bucket', access_key: 'ak', secret_key: 'sk' })
+      }}>fill-s3</button>
       <button
         type="button"
         onClick={() => controller.requestEditor({
@@ -207,7 +212,7 @@ function ControllerHarness({
       </button>
       <button
         type="button"
-        onClick={() => controller.setFileDraft({
+        onClick={() => controller.fileDraft.engine === 'sftp' && controller.setFileDraft({
           ...controller.fileDraft,
           name: 'Rebound files',
           ssh_profile_id: 'ssh-secondary',
@@ -479,6 +484,26 @@ describe('主机访问方式 Controller', () => {
       config: { ssh_profile_id: 'ssh-host-a' },
     }))
     await waitFor(() => expect(screen.getByTestId('file-count')).toHaveTextContent('2'))
+  })
+
+  it('无 SSH 的主机通过统一 Controller 创建 S3 并重载文件目录', async () => {
+    const initial = catalog('host-a', { ssh: [], files: [] })
+    const created = { id: 's3-a', host_id: 'host-a', name: 'MinIO', engine: 's3', engine_config_version: 1,
+      config: { endpoint: 'https://minio.example', bucket: 'test-bucket' }, is_default: true, sort_order: 0, created_at: '', updated_at: '' }
+    const api = gateway(initial)
+    vi.mocked(api.createFileProfile).mockResolvedValue(created)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(initial).mockResolvedValueOnce({ ...initial, files: [created] })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'create-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'fill-s3' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+    await waitFor(() => expect(api.createFileProfile).toHaveBeenCalledWith({
+      host_id: 'host-a', name: 'MinIO', engine: 's3', engine_config_version: 1,
+      config: { endpoint: 'https://minio.example', bucket: 'test-bucket', prefix: '', region: '', addressing_style: 'path' },
+      secret_values: { access_key: 'ak', secret_key: 'sk' }, clear_secret_slots: [],
+    }))
+    await waitFor(() => expect(screen.getByTestId('file-count')).toHaveTextContent('1'))
   })
 
   it('编辑文件 Profile 可改绑同 Host SSH 并使用当前 CAS 版本', async () => {

@@ -12,6 +12,7 @@ export function SFTPProfileEditor({
   onChange,
 }: FileAccessProfileEditorViewProps) {
   const { t } = useTranslation()
+  if (draft.engine !== 'sftp') return null
 
   return (
     <div className={styles.form}>

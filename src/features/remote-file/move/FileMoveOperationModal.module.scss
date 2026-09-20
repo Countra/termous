@@ -1,0 +1,29 @@
+.modal {
+  max-width: calc(100vw - 28px);
+}
+
+.content {
+  display: grid;
+  min-width: 0;
+  max-height: calc(100dvh - 200px);
+  gap: 14px;
+  overflow: auto;
+}
+
+.status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.outcome {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+
+  small {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+}

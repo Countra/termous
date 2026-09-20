@@ -6,6 +6,7 @@ import type {
   TransferTask,
 } from '#entities/file'
 import type { Host } from '#entities/host'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 
 export type RemoteCopyConflictPolicy = 'rename' | 'skip' | 'overwrite'
 export type RemoteCopyMode = 'single' | 'batch'
@@ -71,8 +72,8 @@ export type RemoteCopyOverwriteConfirmation =
 
 export interface RemoteCopyBatchFailure {
   sessionId: string
-  hostId: string
-  hostName: string
+  targetId: string
+  targetName: string
   message: string
   retryable: boolean
 }
@@ -83,7 +84,10 @@ export interface RemoteCopyBatchOutcome {
 }
 
 export interface RemoteCopyTargetSession {
-  host: Host
+  host?: Host
+  identity: string
+  name: string
+  description: string
   session: FileSession & { connection_generation: number }
   shortSessionId: string
   duplicateHostSession: boolean
@@ -92,6 +96,7 @@ export interface RemoteCopyTargetSession {
 export interface RemoteCopyModalProps {
   open: boolean
   source: RemoteCopySourceSnapshot
+  profiles?: readonly FileAccessProfile[]
   hosts: readonly Host[]
   fileSessions: readonly FileSession[]
   getHostIconUrl: (iconId: string) => string

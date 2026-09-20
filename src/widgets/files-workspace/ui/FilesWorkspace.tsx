@@ -57,9 +57,13 @@ import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton,
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
+import type { FileAccessProfile } from '#entities/file-access-profile'
+import { fileOperationCapabilities } from '#entities/file'
 import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { ThemeMode } from '#shared/theme'
 import type {
+  FileOperationTask,
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkGroupInput,
@@ -97,6 +101,7 @@ import {
   advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
   DirectorySizeField,
+  FileMoveOperationModal,
   formatRemoteFilePathsForClipboard,
   isAdvancedRenameSourceSessionCurrent,
   loadAdvancedRenameModal,
@@ -180,7 +185,9 @@ const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 
 export interface FilesWorkspaceData {
+  fileAccessProfiles?: FileAccessProfile[]
   hosts: Host[]
+  hostAssets?: HostAsset[]
   fileSessions: FileSession[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
@@ -456,6 +463,7 @@ function FilesWorkspaceContent({
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
+  const [moveOperation, setMoveOperation] = useState<{ task: FileOperationTask; clipboard: RemoteClipboard | null } | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
   const [textEditorTarget, setTextEditorTarget] = useState<SessionBoundRemotePath | null>(null)
   const [imageViewerTarget, setImageViewerTarget] = useState<SessionBoundRemotePath | null>(null)
@@ -831,9 +839,10 @@ function FilesWorkspaceContent({
     updatePendingTransferOperation(id, { status: 'error', description, indeterminate: false })
   }, [updatePendingTransferOperation])
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
+  const activeFileSessionHostName = data.hostAssets?.find((host) => host.id === activeFileSession?.host_id)?.name ?? activeFileSessionHost?.name
   const transferHostNames = useMemo(
-    () => Object.fromEntries(data.hosts.map((host) => [host.id, host.name])),
-    [data.hosts],
+    () => Object.fromEntries([...data.hosts, ...(data.hostAssets ?? [])].map((host) => [host.id, host.name])),
+    [data.hosts, data.hostAssets],
   )
   const activeFileSessionId = activeFileSession?.id ?? ''
   const activeFileSessionIdRef = useRef(activeFileSessionId)
@@ -970,6 +979,7 @@ function FilesWorkspaceContent({
       === activeFileSessionConnectionGeneration
   )
   const fileActionsEnabled = fileSessionConnected && fileListingCurrent
+  const operationCapabilities = fileOperationCapabilities(activeFileSession)
   const selectedPathsKey = [...selectedPaths].sort().join('\u0000')
   const stableSelectedPaths = useMemo(
     () => selectedPathsKey ? selectedPathsKey.split('\u0000') : [],
@@ -1026,15 +1036,17 @@ function FilesWorkspaceContent({
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
   )
+  const showPermissionMetadata = operationCapabilities.permissions
+    || entries.some((entry) => entry.permissions || entry.permission_octal)
   const fileTableScrollWidth = useMemo(
     () => (
       78
       + fileColumnWidths.name
       + (screens.md ? fileColumnWidths.size : 0)
       + (screens.lg ? fileColumnWidths.modified : 0)
-      + (screens.xl ? fileColumnWidths.permissions : 0)
+      + (screens.xl && showPermissionMetadata ? fileColumnWidths.permissions : 0)
     ),
-    [fileColumnWidths, screens.lg, screens.md, screens.xl],
+    [fileColumnWidths, screens.lg, screens.md, screens.xl, showPermissionMetadata],
   )
   useEffect(
     () => () => {
@@ -1457,6 +1469,7 @@ function FilesWorkspaceContent({
     if (
       !fileSessionId
       || paths.length === 0
+      || !fileOperationCapabilities(fileSession).receive
       || !isCurrentUploadSession()
     ) {
       return
@@ -1597,7 +1610,7 @@ function FilesWorkspaceContent({
   }
 
   const downloadPaths = async (paths: string[]) => {
-    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0) {
+    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0 || !operationCapabilities.transfer) {
       return
     }
     const filesBridge = getTermousBridge()?.files
@@ -1668,7 +1681,7 @@ function FilesWorkspaceContent({
     const currentSession = fileSessionsRef.current.find(
       (session) => session.id === activeFileSessionIdRef.current,
     )
-    if (!currentSession) {
+    if (!currentSession || !fileOperationCapabilities(currentSession).rename) {
       return
     }
     if (!isCurrentFileListingAvailable(
@@ -1703,28 +1716,14 @@ function FilesWorkspaceContent({
             connectionGeneration: latestSession.connection_generation ?? 0,
           })
         : null
-      if (!latestValidation?.ok) {
+      if (!latestSession || !latestValidation?.ok) {
         throw new Error(t('files.connectionRequired'))
       }
-      await api.moveFileSessionFiles(
-        transaction.fileSessionId,
-        [...transaction.paths],
-        targetPath,
-        'rename',
+      const task = await api.createFileSessionMoveOperation(
+        transaction.fileSessionId, latestSession.connection_generation ?? 0, [...transaction.paths], targetPath, 'rename',
       )
-      setRemoteClipboard((current) => {
-        if (
-          !matchesRemoteClipboard(current, clipboardSnapshot)
-          || !current
-          || current.hostId !== transaction.hostId
-          || !current.paths.some((path) => transaction.paths.includes(path))
-        ) {
-          return current
-        }
-        return null
-      })
-      await loadDirectory(currentPath, { kind: 'refresh' })
-    }, t('files.operationDone'))
+      setMoveOperation({ task, clipboard: clipboardSnapshot })
+    }, t('files.move.started'))
   }
 
   const pasteRemoteClipboard = async () => {
@@ -1732,7 +1731,8 @@ function FilesWorkspaceContent({
       !fileActionsEnabled
       || !remoteClipboard
       || !activeFileSession
-      || remoteClipboard.hostId !== activeFileSession.host_id
+      || !operationCapabilities.receive
+      || remoteClipboard.mode === 'cut' && (remoteClipboard.fileSessionId !== activeFileSession.id || !operationCapabilities.rename)
       || !isCurrentFileListingAvailable(
         remoteClipboard.fileSessionId,
         remoteClipboard.connectionGeneration,
@@ -1746,22 +1746,29 @@ function FilesWorkspaceContent({
     await runFileAction(async () => {
       requireCurrentFileListing(targetSessionId, targetGeneration)
       if (clipboardSnapshot.mode === 'cut') {
-        await api.moveFileSessionFiles(targetSessionId, clipboardSnapshot.paths, currentPath, 'rename')
-        setRemoteClipboard((current) => (
-          matchesRemoteClipboard(current, clipboardSnapshot) ? null : current
-        ))
+        const task = await api.createFileSessionMoveOperation(targetSessionId, targetGeneration, clipboardSnapshot.paths, currentPath, 'rename')
+        setMoveOperation({ task, clipboard: clipboardSnapshot })
       } else {
-        await api.copyFileSessionFiles(targetSessionId, clipboardSnapshot.paths, currentPath, 'rename')
+        const created = await api.createRemoteCopyTransfer({
+          source_file_session_id: clipboardSnapshot.fileSessionId,
+          source_connection_generation: clipboardSnapshot.connectionGeneration,
+          target_file_session_id: targetSessionId, target_connection_generation: targetGeneration,
+          source_paths: clipboardSnapshot.paths, target_dir: currentPath,
+          target_dir_mode: 'require_existing', overwrite_policy: 'rename',
+        })
+        handleRemoteCopyCreated([created])
       }
       await loadDirectory(currentPath, { kind: 'refresh' })
-    }, t('files.operationDone'))
+    }, t(clipboardSnapshot.mode === 'cut' ? 'files.move.started' : 'files.operationDone'))
     return true
   }
 
   const pasteFromClipboard = async () => {
-    if (await pasteRemoteClipboard()) {
+    if (remoteClipboard) {
+      await pasteRemoteClipboard()
       return
     }
+    if (!operationCapabilities.receive) return
     const filesBridge = getTermousBridge()?.files
     const paths = await filesBridge?.readClipboardFilePaths()
     if (paths?.length) {
@@ -1770,7 +1777,7 @@ function FilesWorkspaceContent({
   }
 
   const openCreateDirectory = () => {
-    if (!fileActionsEnabled || !activeFileSessionId) {
+    if (!fileActionsEnabled || !activeFileSessionId || !operationCapabilities.create) {
       return
     }
     const fileSessionId = activeFileSessionId
@@ -1798,7 +1805,7 @@ function FilesWorkspaceContent({
   }
 
   const openRename = (entry = selectedEntries[0]) => {
-    if (!entry || !fileActionsEnabled || !activeFileSessionId) {
+    if (!entry || !fileActionsEnabled || !activeFileSessionId || !operationCapabilities.rename) {
       return
     }
     const fileSessionId = activeFileSessionId
@@ -1818,14 +1825,14 @@ function FilesWorkspaceContent({
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
         }
-        await api.renameFileSessionFile(fileSessionId, entry.path, joinPath(parentPath(entry.path), cleanName))
-        await loadDirectory(currentPath, { kind: 'refresh' })
+        const task = await api.createFileSessionRenameOperation(fileSessionId, connectionGeneration, entry.path, joinPath(parentPath(entry.path), cleanName))
+        setMoveOperation({ task, clipboard: null })
       },
     })
   }
 
   const openAdvancedRename = (entry = selectedEntries[0]) => {
-    if (!entry || !fileActionsEnabled || !activeFileSession || !workspaceViewState.listing) {
+    if (!entry || !fileActionsEnabled || !activeFileSession || !workspaceViewState.listing || !operationCapabilities.batchRename) {
       return
     }
     const snapshot = snapshotRemoteFileActionSelection(entry, selectedPaths, entries)
@@ -1859,7 +1866,7 @@ function FilesWorkspaceContent({
   }
 
   const openPermissions = (entry = selectedEntries[0]) => {
-    if (!entry || !fileActionsEnabled || !activeFileSessionId) {
+    if (!entry || !fileActionsEnabled || !activeFileSessionId || !operationCapabilities.permissions) {
       return
     }
     setPermissionTarget({ fileSessionId: activeFileSessionId, entry })
@@ -1868,7 +1875,7 @@ function FilesWorkspaceContent({
   }
 
   const openFileEntry = (entry = selectedEntries[0]) => {
-    if (!entry || !fileActionsEnabled) {
+    if (!entry || !fileActionsEnabled || !operationCapabilities.read) {
       return
     }
     if (entry.kind !== 'file') {
@@ -1980,7 +1987,7 @@ function FilesWorkspaceContent({
   }
 
   const confirmDelete = (paths = selectedPaths) => {
-    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0) {
+    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0 || !operationCapabilities.remove) {
       return
     }
     const fileSessionId = activeFileSessionId
@@ -2002,19 +2009,21 @@ function FilesWorkspaceContent({
   }
 
   const pickFiles = async () => {
+    if (!operationCapabilities.receive) return
     const filesBridge = getTermousBridge()?.files
     const paths = await filesBridge?.pickFiles()
     await uploadLocalPaths('picker', paths ?? [])
   }
 
   const pickFolder = async () => {
+    if (!operationCapabilities.receive) return
     const filesBridge = getTermousBridge()?.files
     const paths = await filesBridge?.pickDirectory()
     await uploadLocalPaths('picker', paths ?? [])
   }
 
   const copySelected = (mode: 'copy' | 'cut') => {
-    if (selectedPaths.length === 0 || !activeFileSession || !fileActionsEnabled) {
+    if (selectedPaths.length === 0 || !activeFileSession || !fileActionsEnabled || (mode === 'cut' ? !operationCapabilities.rename : !operationCapabilities.transfer)) {
       return
     }
     setRemoteClipboard({
@@ -2273,7 +2282,7 @@ function FilesWorkspaceContent({
   }, [updateActiveWorkspaceView])
 
   const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
-    const items = buildRemoteFileActionMenu(entry, t) ?? []
+    const items = buildRemoteFileActionMenu(entry, t, { capabilities: activeFileSession?.capabilities }) ?? []
     return items.flatMap((item) => {
       if (!item || !('key' in item) || item.key !== 'download') {
         return [item]
@@ -2294,6 +2303,7 @@ function FilesWorkspaceContent({
     if (!fileActionsEnabled) {
       return
     }
+    if (!(rowMenu(entry) ?? []).some((item) => item && 'key' in item && item.key === key)) return
     const actionPaths = selectedPaths.includes(entry.path)
       ? [...selectedPaths]
       : [entry.path]
@@ -2539,6 +2549,7 @@ function FilesWorkspaceContent({
       {
         title: t('files.permissions'),
         dataIndex: 'permissions',
+        hidden: !showPermissionMetadata,
         width: fileColumnWidths.permissions,
         onHeaderCell: () => resizableHeader('permissions'),
         responsive: ['xl'],
@@ -2576,6 +2587,7 @@ function FilesWorkspaceContent({
   }, [
     fileColumnWidths,
     fileActionsEnabled,
+    showPermissionMetadata,
     t,
     workspaceViewState.sortState.direction,
     workspaceViewState.sortState.key,
@@ -3150,7 +3162,7 @@ function FilesWorkspaceContent({
         key: 'upload-folder',
         icon: <Folder size={14} aria-hidden="true" />,
         label: t('files.uploadFolder'),
-        disabled: actionDisabled,
+        disabled: actionDisabled || !operationCapabilities.receive,
       },
     ],
     onClick: ({ key }) => {
@@ -3161,18 +3173,18 @@ function FilesWorkspaceContent({
   }
   const selectionMoreActions: MenuProps = {
     items: [
-      {
+      ...(operationCapabilities.batchRename ? [{
         key: 'advanced-rename',
         icon: <ListRestart size={14} aria-hidden="true" />,
         label: t('files.advancedRename.action'),
         disabled: !fileActionsEnabled || selectedPaths.length === 0,
-      },
-      {
+      }] : []),
+      ...(operationCapabilities.permissions ? [{
         key: 'permissions',
         icon: <ShieldCheck size={14} aria-hidden="true" />,
         label: t('files.editPermissions'),
         disabled: !fileActionsEnabled || selectedPaths.length !== 1,
-      },
+      }] : []),
     ],
     onClick: ({ key }) => {
       if (key === 'advanced-rename') {
@@ -3245,8 +3257,9 @@ function FilesWorkspaceContent({
               <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />
             ) : (
               data.fileSessions.map((fileSession) => {
-                const host = data.hosts.find((item) => item.id === fileSession.host_id)
-                const label = host?.name ?? shortId(fileSession.id)
+                const host = data.hostAssets?.find((item) => item.id === fileSession.host_id) ?? data.hosts.find((item) => item.id === fileSession.host_id)
+                const profile = data.fileAccessProfiles?.find((item) => item.id === fileSession.file_access_profile_id)
+                const label = profile?.name ?? host?.name ?? shortId(fileSession.id)
                 const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
                 return (
                   <FileSessionTab
@@ -3448,12 +3461,12 @@ function FilesWorkspaceContent({
                       onClick={beginPathEdit}
                     />
                   </Tooltip>
-                  <Tooltip title={t('files.globalSearch.action')}>
+                  {operationCapabilities.search ? <Tooltip title={t('files.globalSearch.action')}>
                     <Button
                       type="text"
                       className={styles['files-path-action']}
                       aria-label={t('files.globalSearch.action')}
-                      disabled={!fileSessionConnected}
+                      disabled={!fileSessionConnected || !operationCapabilities.search}
                       icon={<FolderSearch2 size={14} aria-hidden="true" />}
                       onClick={() => {
                         if (!activeFileSession) {
@@ -3462,7 +3475,7 @@ function FilesWorkspaceContent({
                         const source: GlobalFileSearchSource = {
                           fileSessionId: activeFileSession.id,
                           connectionGeneration: activeFileSession.connection_generation ?? 0,
-                          hostName: activeFileSessionHost?.name ?? shortId(activeFileSession.id),
+                          hostName: activeFileSessionHostName ?? shortId(activeFileSession.id),
                           currentPath,
                         }
                         globalFileSearchRuntime.openSearch({
@@ -3474,7 +3487,7 @@ function FilesWorkspaceContent({
                         })
                       }}
                     />
-                  </Tooltip>
+                  </Tooltip> : null}
                 </>
               )}
               <span className={styles['files-path-action-divider']} aria-hidden="true" />
@@ -3556,7 +3569,7 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={styles['files-command-button']}
-                  disabled={!fileActionsEnabled}
+                  disabled={!fileActionsEnabled || !operationCapabilities.transfer}
                   icon={<Copy size={15} aria-hidden="true" />}
                   onClick={() => copySelected('copy')}
                 >
@@ -3565,7 +3578,7 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={styles['files-command-button']}
-                  disabled={!fileActionsEnabled}
+                  disabled={!fileActionsEnabled || !operationCapabilities.rename}
                   icon={<Scissors size={15} aria-hidden="true" />}
                   onClick={() => copySelected('cut')}
                 >
@@ -3574,31 +3587,31 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={styles['files-command-button']}
-                  disabled={!fileActionsEnabled || selectedPaths.length !== 1}
+                  disabled={!fileActionsEnabled || !operationCapabilities.rename || selectedPaths.length !== 1}
                   icon={<Pencil size={15} aria-hidden="true" />}
                   onClick={() => openRename()}
                 >
                   {t('files.rename')}
                 </Button>
-                <Button
+                {operationCapabilities.batchRename ? <Button
                   type="text"
                   className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
-                  disabled={!fileActionsEnabled}
+                  disabled={!fileActionsEnabled || !operationCapabilities.batchRename}
                   icon={<ListRestart size={15} aria-hidden="true" />}
                   onClick={() => openAdvancedRename()}
                 >
                   {t('files.advancedRename.action')}
-                </Button>
-                <Button
+                </Button> : null}
+                {operationCapabilities.permissions ? <Button
                   type="text"
                   className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
-                  disabled={!fileActionsEnabled || selectedPaths.length !== 1}
+                  disabled={!fileActionsEnabled || !operationCapabilities.permissions || selectedPaths.length !== 1}
                   icon={<ShieldCheck size={15} aria-hidden="true" />}
                   onClick={() => openPermissions()}
                 >
                   {t('files.editPermissions')}
-                </Button>
-                <Dropdown
+                </Button> : null}
+                {selectionMoreActions.items?.length ? <Dropdown
                   menu={selectionMoreActions}
                   trigger={['click']}
                   popupRender={renderFilesRowMenu}
@@ -3611,14 +3624,14 @@ function FilesWorkspaceContent({
                     aria-label={t('files.actions')}
                     icon={<MoreHorizontal size={16} aria-hidden="true" />}
                   />
-                </Dropdown>
+                </Dropdown> : null}
               </>
             ) : (
               <>
                 <Button
                   type="primary"
                   className={styles['files-upload-button']}
-                  disabled={actionDisabled}
+                  disabled={actionDisabled || !operationCapabilities.receive}
                   icon={<Upload size={16} aria-hidden="true" />}
                   onClick={() => void pickFiles()}
                 >
@@ -3627,7 +3640,7 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={styles['files-command-button']}
-                  disabled={actionDisabled}
+                  disabled={actionDisabled || !operationCapabilities.create}
                   icon={<FolderPlus size={15} aria-hidden="true" />}
                   onClick={openCreateDirectory}
                 >
@@ -3636,7 +3649,7 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
-                  disabled={actionDisabled}
+                  disabled={actionDisabled || !operationCapabilities.receive}
                   icon={<Clipboard size={15} aria-hidden="true" />}
                   onClick={() => void pasteFromClipboard()}
                 >
@@ -3666,7 +3679,7 @@ function FilesWorkspaceContent({
                   type="text"
                   danger
                   className={`${styles['files-command-button']} ${styles['files-delete-command']}`}
-                  disabled={!fileActionsEnabled}
+                  disabled={!fileActionsEnabled || !operationCapabilities.remove}
                   icon={<Trash2 size={15} aria-hidden="true" />}
                   onClick={() => confirmDelete()}
                 >
@@ -3999,7 +4012,7 @@ function FilesWorkspaceContent({
                   <FileDetailPanel
                     api={api}
                     directorySizeCache={directorySizeCache}
-                    host={activeFileSessionHost}
+                    sourceName={data.fileAccessProfiles?.find((profile) => profile.id === activeFileSession?.file_access_profile_id)?.name ?? activeFileSessionHostName ?? activeFileSession?.engine ?? ''}
                     fileSession={activeFileSession ?? undefined}
                     listingReadAt={workspaceViewState.listing?.read_at ?? ''}
                     entry={activeEntry}
@@ -4143,7 +4156,7 @@ function FilesWorkspaceContent({
             <span className={`${styles['files-status-connection']} ${styles[`is-${connectionStatusKey}`]}`}>
               <i aria-hidden="true" />
               {activeFileSession
-                ? `${activeFileSessionHost?.name ?? shortId(activeFileSession.id)} · ${t(`files.sessionStatus.${connectionStatusKey}`)}`
+                ? `${activeFileSessionHostName ?? shortId(activeFileSession.id)} · ${t(`files.sessionStatus.${connectionStatusKey}`)}`
                 : t('files.noFileSession')}
             </span>
           </div>
@@ -4250,8 +4263,16 @@ function FilesWorkspaceContent({
         </div>
       ) : null}
       <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
+      {moveOperation ? <FileMoveOperationModal api={api} initialTask={moveOperation.task} onClose={() => setMoveOperation(null)} onFinished={(task) => {
+        if (task.status === 'completed' && !task.partial && moveOperation.clipboard) {
+          setRemoteClipboard((current) => matchesRemoteClipboard(current, moveOperation.clipboard) ? null : current)
+        }
+        if (activeFileSessionIdRef.current === task.file_session_id) void loadDirectory(currentPath, { kind: 'refresh' })
+        notification[task.status === 'completed' ? 'success' : 'warning']({ title: t(task.status === 'completed' ? 'files.move.done' : 'files.move.incomplete'), duration: 5 })
+      }} /> : null}
       {remoteCopySource ? (
         <RemoteCopyModal
+          profiles={data.fileAccessProfiles}
           open
           source={remoteCopySource}
           hosts={data.hosts}
@@ -4312,6 +4333,7 @@ function FilesWorkspaceContent({
       {textEditorTarget?.fileSessionId === activeFileSessionId ? (
         <Suspense fallback={null}>
           <RemoteTextEditorModal
+            readOnly={!operationCapabilities.write}
             api={api}
             open
             disabled={!fileSessionConnected || activeFileSessionClosing}
@@ -4474,7 +4496,7 @@ function FilesDirectorySkeleton({ label }: { label: string }) {
 function FileDetailPanel({
   api,
   directorySizeCache,
-  host,
+  sourceName,
   fileSession,
   listingReadAt,
   entry,
@@ -4485,7 +4507,7 @@ function FileDetailPanel({
 }: {
   api: FileGateway
   directorySizeCache: DirectorySizeResultCache
-  host?: Host
+  sourceName: string
   fileSession?: FileSession
   listingReadAt: string
   entry: RemoteFileEntry | null
@@ -4496,6 +4518,7 @@ function FileDetailPanel({
 }) {
   const { t } = useTranslation()
   const extended = entry?.extended?.filter((item) => item.type || item.data) ?? []
+  const canEditPermissions = fileOperationCapabilities(fileSession).permissions
   const directorySizeSupported = entry?.kind === 'directory'
     && fileSession?.capabilities?.includes('directory_size')
 
@@ -4509,7 +4532,7 @@ function FileDetailPanel({
             </span>
             <div className={styles['files-detail-hero-copy']}>
               <strong>{entry.name}</strong>
-              <span>{host ? host.name : t('files.noHost')}</span>
+              <span>{sourceName}</span>
             </div>
           </div>
           <dl className={styles['files-detail-list']}>
@@ -4540,15 +4563,15 @@ function FileDetailPanel({
                 ) : renderFileDetailValue(entry.kind === 'directory' ? '-' : formatBytes(entry.size))}
               </dd>
             </div>
-            <div>
+            {entry.mode ? <div>
               <dt>{t('files.mode')}</dt>
               <dd>{renderFileDetailValue(entry.mode)}</dd>
-            </div>
-            <div>
+            </div> : null}
+            {canEditPermissions || entry.permissions || entry.permission_octal ? <div>
               <dt>{t('files.permissions')}</dt>
               <dd className={styles['files-permission-detail']}>
                 {renderFileDetailValue(formatPermission(entry))}
-                <Tooltip title={connected ? null : t('files.connectionRequired')}>
+                {canEditPermissions ? <Tooltip title={connected ? null : t('files.connectionRequired')}>
                   <Button
                     type="text"
                     size="small"
@@ -4559,29 +4582,29 @@ function FileDetailPanel({
                   >
                     {t('files.editPermissions')}
                   </Button>
-                </Tooltip>
+                </Tooltip> : null}
               </dd>
-            </div>
+            </div> : null}
             <div>
               <dt>{t('files.modified')}</dt>
               <dd>{renderFileDetailValue(formatDate(entry.modified_at))}</dd>
             </div>
-            <div>
+            {entry.accessed_at ? <div>
               <dt>{t('files.accessed')}</dt>
               <dd>{renderFileDetailValue(formatDate(entry.accessed_at))}</dd>
-            </div>
+            </div> : null}
             <div>
               <dt>{t('files.hidden')}</dt>
               <dd>{renderFileDetailValue(entry.is_hidden ? t('files.yes') : t('files.no'))}</dd>
             </div>
-            <div>
+            {entry.uid != null ? <div>
               <dt>{t('files.ownerUid')}</dt>
               <dd>{renderFileDetailValue(entry.uid)}</dd>
-            </div>
-            <div>
+            </div> : null}
+            {entry.gid != null ? <div>
               <dt>{t('files.groupGid')}</dt>
               <dd>{renderFileDetailValue(entry.gid)}</dd>
-            </div>
+            </div> : null}
             {entry.target ? (
               <div>
                 <dt>{t('files.symlinkTarget')}</dt>
@@ -4681,9 +4704,10 @@ function FileSessionProgress({
   const progress = Math.max(0, Math.min(100, fileSession.progress ?? 0))
   const phase = fileSession.phase ?? 'queued'
   const terminal = fileSession.status === 'failed' || fileSession.status === 'disconnected'
+  const usesSSH = Boolean(fileSession.ssh_profile_id) || !fileSession.engine || fileSession.engine === 'sftp'
   const phaseOrder: FileSessionPhase[] = fileSession.status === 'waiting_trust'
     ? waitingTrustFileSessionPhaseOrder
-    : fileSessionPhaseOrder
+    : usesSSH ? fileSessionPhaseOrder : ['queued', 'resolving_auth', 'dialing', 'ready']
   const currentIndex = phaseOrder.indexOf(phase)
   const phaseLabel = proxyRoute && phase === 'dialing'
     ? t(proxyRoute === 'jump'

@@ -42,6 +42,19 @@ describe('文件操作 API 虚拟路径合同', () => {
     vi.unstubAllGlobals()
   })
 
+  it('异步改名和移动复用既有动作接口，不提交内部计划', async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ...operationTask('/a'), type: 'move' }), { status: 201 })))
+    vi.stubGlobal('fetch', fetch)
+    const api = createFilesGateway()
+    await api.createFileSessionRenameOperation('session', 7, '/a', '/b')
+    await api.createFileSessionMoveOperation('session', 7, ['/a'], '/folder', 'skip')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(`${API_BASE_URL}/api/v1/file-sessions/session/files/rename`)
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({ source_path: '/a', target_path: '/b', async: true, expected_connection_generation: 7 })
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(`${API_BASE_URL}/api/v1/file-sessions/session/files/move`)
+    expect(JSON.parse(fetch.mock.calls[1]?.[1].body)).toEqual({ source_paths: ['/a'], target_dir: '/folder', overwrite_policy: 'skip', async: true, expected_connection_generation: 7 })
+  })
+
   it('接受规范任务路径并拒绝服务端返回的非规范路径', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(operationTask('/srv/example.txt')), { status: 201 }))

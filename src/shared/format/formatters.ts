@@ -13,7 +13,8 @@ export function formatBytes(value: number) {
 }
 
 export function formatDate(value?: string) {
-  if (!value) {
+  // Go 的零时间表示未提供时间，不能作为公元 1 年展示。
+  if (!value || /^0001-01-01T00:00:00(?:\.0+)?(?:Z|\+00:00)$/.test(value)) {
     return '-'
   }
   const date = new Date(value)

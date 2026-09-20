@@ -175,3 +175,6 @@ export {
   transferProgress,
   transferStatusClass,
 } from './model/filePresentation.ts'
+export { fileOperationCapabilities } from './model/fileCapabilities.ts'
+
+export type { FileMoveResult } from './model/moveTypes.ts'

@@ -1,35 +1,12 @@
-import type {
-  FileAccessEngine,
-  FileAccessProfile,
-  FileAccessProfileCreateInput,
-  FileAccessProfilePatchInput,
-} from '#entities/file-access-profile'
 import { getSFTPAccessConfig } from '#entities/file-access-profile'
-import type { SSHAccessProfile } from '#entities/ssh-access-profile'
-import type { ComponentType } from 'react'
 import { SFTPProfileEditor } from '../engines/sftp/SFTPProfileEditor.tsx'
+export type { FileAccessProfileEditorDefinition } from './types.ts'
+import { s3Editor } from '../engines/s3/definition.ts'
 import type {
   FileAccessProfileEditorDraft,
-  FileAccessProfileEditorErrors,
-  FileAccessProfileEditorViewProps,
+  FileAccessProfileEditorDefinition,
 } from './types.ts'
 
-export interface FileAccessProfileEditorDefinition {
-  engine: FileAccessEngine
-  configVersion: number
-  label: string
-  Editor: ComponentType<FileAccessProfileEditorViewProps>
-  createDraft: (hostId: string, sshProfiles: SSHAccessProfile[]) => FileAccessProfileEditorDraft
-  editDraft: (profile: FileAccessProfile) => FileAccessProfileEditorDraft | undefined
-  normalize: (draft: FileAccessProfileEditorDraft) => FileAccessProfileEditorDraft
-  validate: (
-    draft: FileAccessProfileEditorDraft,
-    sshProfiles: SSHAccessProfile[],
-  ) => FileAccessProfileEditorErrors
-  summary: (draft: FileAccessProfileEditorDraft, sshProfiles: SSHAccessProfile[]) => string
-  toCreateInput: (draft: FileAccessProfileEditorDraft) => FileAccessProfileCreateInput
-  toPatchInput: (draft: FileAccessProfileEditorDraft) => FileAccessProfilePatchInput
-}
 
 const sftpEditor: FileAccessProfileEditorDefinition = {
   engine: 'sftp',
@@ -55,14 +32,14 @@ const sftpEditor: FileAccessProfileEditorDefinition = {
       : undefined
   },
   normalize: (draft) => ({
-    ...draft,
+    ...requireSFTP(draft),
     host_id: draft.host_id.trim(),
     name: draft.name.trim(),
-    ssh_profile_id: draft.ssh_profile_id.trim(),
+    ssh_profile_id: requireSFTP(draft).ssh_profile_id.trim(),
   }),
   validate: (draft, sshProfiles) => {
     const name = draft.name.trim()
-    const sshProfileId = draft.ssh_profile_id.trim()
+    const sshProfileId = requireSFTP(draft).ssh_profile_id.trim()
     return {
       name: !name ? 'required' : Array.from(name).length > 80 ? 'too_long' : undefined,
       ssh_profile_id: !sshProfileId
@@ -73,24 +50,29 @@ const sftpEditor: FileAccessProfileEditorDefinition = {
     }
   },
   summary: (draft, sshProfiles) => {
-    const profile = sshProfiles.find((item) => item.id === draft.ssh_profile_id)
-    return profile?.name || profile?.address || draft.ssh_profile_id
+    const profile = sshProfiles.find((item) => item.id === requireSFTP(draft).ssh_profile_id)
+    return profile?.name || profile?.address || requireSFTP(draft).ssh_profile_id
   },
   toCreateInput: (draft) => ({
     host_id: draft.host_id,
     name: draft.name,
     engine: 'sftp',
     engine_config_version: 1,
-    config: { ssh_profile_id: draft.ssh_profile_id },
+    config: { ssh_profile_id: requireSFTP(draft).ssh_profile_id },
   }),
   toPatchInput: (draft) => ({
     name: draft.name,
     engine_config_version: 1,
-    config: { ssh_profile_id: draft.ssh_profile_id },
+    config: { ssh_profile_id: requireSFTP(draft).ssh_profile_id },
   }),
 }
 
-const definitions = new Map<string, FileAccessProfileEditorDefinition>([['sftp', sftpEditor]])
+function requireSFTP(draft: FileAccessProfileEditorDraft) {
+  if (draft.engine !== 'sftp') throw new Error('文件配置编辑器类型不一致')
+  return draft
+}
+
+const definitions = new Map<string, FileAccessProfileEditorDefinition>([['sftp', sftpEditor], ['s3', s3Editor]])
 
 export function getFileAccessProfileEditor(engine: string, configVersion?: number) {
   const definition = definitions.get(engine)

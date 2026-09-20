@@ -200,6 +200,24 @@ describe('HostLauncherModal 行为合同', () => {
     vi.clearAllMocks()
   })
 
+  it('无 SSH 的主机通过文件快捷操作打开默认 S3 配置', async () => {
+    const current = host('s3-host', 'Object storage')
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+    render(<HostLauncherModal open instanceKey={1}
+      data={{ ...data([]), hostAssets: [toHostAsset(current)], fileAccessProfiles: [{
+        ...fileProfile(current), engine: 's3', sftp: undefined,
+        config: { endpoint: 'https://minio.example', bucket: 'test-bucket' },
+      }] }} selectedHostId={current.id} actionBusy={false}
+      onClose={vi.fn()} onSelectHost={vi.fn()} onConnectSSHProfile={vi.fn()}
+      onCreateHost={vi.fn()} onEditHost={vi.fn()} onManageHostAccess={vi.fn()}
+      onOpenFileProfile={onOpenFileProfile} onOpenRemoteDesktopProfile={vi.fn()}
+      onOpenForward={vi.fn()} onToggleFavorite={vi.fn()} onRefreshReachability={vi.fn()}
+      getHostIconUrl={() => ''} />)
+    expect(screen.getByRole('button', { name: 'app.connect' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'workbench.hostLauncher.openFiles' }))
+    await waitFor(() => expect(onOpenFileProfile).toHaveBeenCalledWith('s3-host-file', 's3-host'))
+  })
+
   it('无 SSH 的主机资产仍可管理且不会伪造连接信息', async () => {
     const assetOnly = toHostAsset(host('asset-only', 'Asset only'))
     const onManageHostAccess = vi.fn()

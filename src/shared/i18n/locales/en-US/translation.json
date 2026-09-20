@@ -1442,6 +1442,8 @@
       }
     },
     "files": {
+
+
       "emptyDirectory": "This directory is empty",
       "emptyDirectoryHint": "Drop files here to upload.",
       "remoteFiles": "Remote files",
@@ -2756,17 +2758,65 @@
     }
   },
   "files": {
+    "s3": {
+      "name": "Profile name",
+      "endpoint": "Endpoint (HTTP / HTTPS)",
+      "bucket": "Bucket",
+      "prefix": "Prefix (optional)",
+      "region": "Region (optional)",
+      "addressing": "Addressing style",
+      "access_key": "Access Key",
+      "secret_key": "Secret Key",
+      "session_token": "Session Token (optional)",
+      "configured": "Configured; leave blank to keep",
+      "clearToken": "Clear saved Session Token",
+      "requiredSecret": "Enter authentication material",
+      "errors": {
+        "endpoint": "Enter a full HTTP / HTTPS endpoint without credentials, a path, query parameters or fragment.",
+        "bucket": "Enter a valid 3–63 character bucket name using lowercase letters, digits, hyphens and dots.",
+        "prefix": "Use a prefix without a leading /, empty segments, . or .., up to 1023 bytes."
+      },
+      "addressingOptions": {
+        "path": "Path style (recommended for MinIO)",
+        "virtual": "Virtual-hosted style",
+        "auto": "Automatic"
+      },
+      "authHint": "Authentication material is encrypted locally. Leave blank when editing to keep the saved value.",
+      "httpHint": "HTTP is selected; this connection will not use TLS. Authentication material remains encrypted locally."
+    },
+    "move": {
+      "title": "Move operation",
+      "started": "Move operation started",
+      "done": "Move completed",
+      "incomplete": "Move incomplete; review the item results",
+      "loadingResult": "Loading move results…",
+      "cancelling": "Cancelling…",
+      "resultFailed": "Could not load move results",
+      "nonAtomic": "Copies and verifies all contents before deleting sources. This cannot guarantee atomicity against external changes. Failure or cancellation preserves copied targets.",
+      "source": "Source",
+      "target": "Target",
+      "status": "Result",
+      "close": "Close",
+      "statuses": {
+        "pending": "Pending",
+        "copied": "Copied; source retained",
+        "moved": "Moved",
+        "skipped": "Skipped",
+        "failed": "Failed; check both locations",
+        "uncertain": "Uncertain; check both locations"
+      }
+    },
     "hostSearch": "Search hosts",
     "openFileSession": "Open file session",
     "connect": "Connect",
     "reconnect": "Reconnect",
     "reconnectFailed": "Failed to reconnect the file session",
-    "sessions": "SFTP sessions",
-    "noFileSession": "No SFTP session",
-    "noFileSessionHint": "Use the plus button to choose a host and create or reuse an independent SFTP file session.",
-    "fileSessionCreated": "SFTP file session created",
+    "sessions": "File sessions",
+    "noFileSession": "No file session",
+    "noFileSessionHint": "Use the plus button to choose a host and its file access profile.",
+    "fileSessionCreated": "File session created",
     "noHost": "Select a host",
-    "noHostHint": "Choose a configured SSH host to browse remote directories.",
+    "noHostHint": "Choose a host's file access profile to browse remote directories.",
     "directoryReadFailed": "Failed to read remote directory",
     "directorySize": {
       "label": "Total size",
@@ -3326,8 +3376,8 @@
       "sourceItems_other": "{{count}} items",
       "targetSession": "Target session",
       "targetHosts": "Target hosts",
-      "availableSessions_one": "{{count}} available SFTP session",
-      "availableSessions_other": "{{count}} available SFTP sessions",
+      "availableSessions_one": "{{count}} available file session",
+      "availableSessions_other": "{{count}} available file sessions",
       "searchSessions": "Search hosts or sessions",
       "noTargets": "No other connected host sessions",
       "sessionSuffix": "Session {{id}}",
@@ -3394,7 +3444,7 @@
     "deleteTitle": "Delete remote files?",
     "deleteDescription": "{{count}} remote item(s) will be deleted. This cannot be undone.",
     "closingFileSession": "Closing file session",
-    "closingFileSessionHint": "Finishing the current SFTP session. Cached files remain read-only until the tab closes.",
+    "closingFileSessionHint": "Finishing the current file session. Cached files remain read-only until the tab closes.",
     "sessionStatus": {
       "connecting": "Connecting",
       "connected": "Connected",
@@ -3578,9 +3628,9 @@
     "bookmarkGroupName": "Group name",
     "bookmarkGroupNamePlaceholder": "For example Production",
     "noBookmarks": "No bookmarks",
-    "noBookmarksHint": "Save common remote directories as bookmarks and jump to them from any SFTP session.",
+    "noBookmarksHint": "Save common remote directories as bookmarks and jump to them from file sessions.",
     "emptyBookmarkGroup": "No bookmarks",
-    "bookmarkNoSession": "No available SFTP session",
+    "bookmarkNoSession": "No available file session",
     "bookmarkActionFailed": "Bookmark operation failed",
     "bookmarkMutationBusy": "Another bookmark operation is in progress. Try again shortly.",
     "bookmarkNameRequired": "Enter a bookmark name",
@@ -4861,7 +4911,7 @@
       },
       "files": {
         "title": "Manage remote files",
-        "description": "The Files page hosts standalone SFTP sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
+        "description": "The Files page hosts file sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
       },
       "filesBookmarks": {
         "title": "Bookmark remote paths",

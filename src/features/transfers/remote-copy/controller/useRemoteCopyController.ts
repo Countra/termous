@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { RemoteDirectoryListing } from '#entities/file'
+import { fileOperationCapabilities, type RemoteDirectoryListing } from '#entities/file'
 import { joinPath, normalizeRemotePosixPath } from '#shared/path'
 import {
   filterRemoteCopyTargetSessions,
@@ -43,6 +43,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
     open,
     source,
     hosts,
+    profiles,
     fileSessions,
     listDirectories,
     createDirectory,
@@ -56,8 +57,8 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
     [source.entries],
   )
   const allTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId),
-    [fileSessions, hosts, source.fileSessionId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId, '', profiles),
+    [fileSessions, hosts, profiles, source.fileSessionId],
   )
   const [search, setSearch] = useState('')
   const [selectedSessionId, setSelectedSessionId] = useState('')
@@ -97,6 +98,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
       fileSessions,
       source.fileSessionId,
       search,
+      profiles,
     )
     if (
       !selectedTarget
@@ -105,7 +107,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
       return filteredTargets
     }
     return [selectedTarget, ...filteredTargets]
-  }, [fileSessions, hosts, search, selectedTarget, source.fileSessionId])
+  }, [fileSessions, hosts, profiles, search, selectedTarget, source.fileSessionId])
   const currentPath = directory.listing?.path ?? ''
   const normalizedPathInput = normalizeRemotePosixPath(pathInput)
   const pathInputValid = normalizedPathInput !== null
@@ -303,6 +305,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
       || creatingDirectoryRef.current
       || submittingRef.current
       || !selectedTarget
+      || !fileOperationCapabilities(selectedTarget.session).create
       || directory.status !== 'ready'
       || directory.fileSessionId !== selectedTarget.session.id
       || directory.connectionGeneration !== selectedTarget.session.connection_generation
@@ -400,7 +403,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
         const confirmed = await confirmOverwrite({
           mode: 'single',
           sourceCount: source.entries.length,
-          targetHostName: selectedTarget.host.name,
+          targetHostName: selectedTarget.name,
           targetPath: currentPath,
         })
         if (!confirmed) {
@@ -497,6 +500,7 @@ export function useRemoteCopyController({ active, ...props }: UseRemoteCopyContr
     canCreateDirectory: Boolean(
       active
       && selectedTarget
+      && fileOperationCapabilities(selectedTarget.session).create
       && directory.status === 'ready'
       && directory.fileSessionId === selectedTarget.session.id
       && directory.connectionGeneration === selectedTarget.session.connection_generation

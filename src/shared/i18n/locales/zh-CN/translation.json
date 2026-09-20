@@ -1439,6 +1439,8 @@
       }
     },
     "files": {
+
+
       "emptyDirectory": "目录为空",
       "emptyDirectoryHint": "可以将文件拖到这里上传。",
       "remoteFiles": "远程文件",
@@ -2744,17 +2746,65 @@
     }
   },
   "files": {
+    "s3": {
+      "name": "配置名称",
+      "endpoint": "服务地址（HTTP / HTTPS）",
+      "bucket": "Bucket",
+      "prefix": "前缀（可选）",
+      "region": "Region（可选）",
+      "addressing": "寻址方式",
+      "access_key": "Access Key",
+      "secret_key": "Secret Key",
+      "session_token": "Session Token（可选）",
+      "configured": "已配置，留空保留",
+      "clearToken": "清除已保存的 Session Token",
+      "requiredSecret": "请输入认证材料",
+      "errors": {
+        "endpoint": "请输入完整的 HTTP / HTTPS 地址，不包含账号、路径、查询参数或片段。",
+        "bucket": "请输入 3–63 位有效 Bucket 名称，仅使用小写字母、数字、连字符和点。",
+        "prefix": "前缀不能以 / 开头，或包含空路径段、.、..，长度不能超过 1023 字节。"
+      },
+      "addressingOptions": {
+        "path": "路径寻址（MinIO 推荐）",
+        "virtual": "虚拟主机寻址",
+        "auto": "自动选择"
+      },
+      "authHint": "认证材料加密保存；编辑时留空保留原值。",
+      "httpHint": "已选择 HTTP，连接不会使用 TLS 加密。认证材料仍在本机加密保存。"
+    },
+    "move": {
+      "title": "移动任务",
+      "started": "移动任务已创建",
+      "done": "移动已完成",
+      "incomplete": "移动未全部完成，请核对逐项结果",
+      "loadingResult": "正在读取移动结果…",
+      "cancelling": "正在取消…",
+      "resultFailed": "读取移动结果失败",
+      "nonAtomic": "完整复制并复核后再删除来源。无法保证与其他客户端并发修改之间的原子性；失败或取消会保留已复制目标。",
+      "source": "来源",
+      "target": "目标",
+      "status": "结果",
+      "close": "关闭",
+      "statuses": {
+        "pending": "未执行",
+        "copied": "已复制，来源保留",
+        "moved": "已移动",
+        "skipped": "已跳过",
+        "failed": "失败，请核对两端",
+        "uncertain": "结果不确定，请核对两端"
+      }
+    },
     "hostSearch": "搜索主机",
     "openFileSession": "打开文件会话",
     "connect": "连接",
     "reconnect": "重新连接",
     "reconnectFailed": "重新连接文件会话失败",
-    "sessions": "SFTP 会话",
-    "noFileSession": "暂无 SFTP 会话",
-    "noFileSessionHint": "点击加号选择主机，创建或复用独立的 SFTP 文件会话。",
-    "fileSessionCreated": "SFTP 文件会话已创建",
+    "sessions": "文件会话",
+    "noFileSession": "暂无文件会话",
+    "noFileSessionHint": "点击加号选择主机及其文件访问配置，打开文件会话。",
+    "fileSessionCreated": "文件会话已创建",
     "noHost": "请选择主机",
-    "noHostHint": "选择一台已配置的 SSH 主机后浏览远程目录。",
+    "noHostHint": "选择主机的文件访问配置后浏览远程目录。",
     "directoryReadFailed": "读取远程目录失败",
     "directorySize": {
       "label": "总大小",
@@ -3308,7 +3358,7 @@
       "sourceItems": "{{count}} 个项目",
       "targetSession": "目标会话",
       "targetHosts": "目标主机",
-      "availableSessions": "{{count}} 个可用 SFTP 会话",
+      "availableSessions": "{{count}} 个可用文件会话",
       "searchSessions": "搜索主机或会话",
       "noTargets": "暂无可用的其他主机会话",
       "sessionSuffix": "会话 {{id}}",
@@ -3369,7 +3419,7 @@
     "deleteTitle": "删除远程文件？",
     "deleteDescription": "将删除 {{count}} 个远程项目，此操作不可撤销。",
     "closingFileSession": "正在关闭文件会话",
-    "closingFileSessionHint": "正在结束当前 SFTP 会话，标签关闭前缓存文件保持只读。",
+    "closingFileSessionHint": "正在结束当前文件会话，标签关闭前缓存文件保持只读。",
     "sessionStatus": {
       "connecting": "连接中",
       "connected": "已连接",
@@ -3553,9 +3603,9 @@
     "bookmarkGroupName": "分组名称",
     "bookmarkGroupNamePlaceholder": "例如 生产环境",
     "noBookmarks": "暂无书签",
-    "noBookmarksHint": "将常用远程目录保存为书签，后续可在任意 SFTP 会话中快速跳转。",
+    "noBookmarksHint": "将常用远程目录保存为书签，后续可在文件会话中快速跳转。",
     "emptyBookmarkGroup": "暂无书签",
-    "bookmarkNoSession": "当前没有可用的 SFTP 会话",
+    "bookmarkNoSession": "当前没有可用的文件会话",
     "bookmarkActionFailed": "书签操作失败",
     "bookmarkMutationBusy": "另一项书签操作正在进行，请稍后重试",
     "bookmarkNameRequired": "请输入书签名称",
@@ -4835,7 +4885,7 @@
       },
       "files": {
         "title": "管理远程文件",
-        "description": "文件管理页集中承载独立 SFTP 会话，可浏览远程目录、上传下载文件、跟踪传输任务，并复用书签和本地目录映射。"
+        "description": "文件管理页集中承载文件会话，可浏览远程目录、上传下载文件、跟踪传输任务，并复用书签和本地目录映射。"
       },
       "filesBookmarks": {
         "title": "收藏常用远程路径",

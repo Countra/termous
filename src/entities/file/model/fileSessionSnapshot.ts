@@ -14,6 +14,8 @@ const fileSessionStatuses = new Set<FileSessionStatus>([
   'failed',
 ])
 const fileAccessCapabilities = new Set<FileAccessCapability>([
+  'entry_create',
+  'transfer_receive',
   'browse',
   'content_read',
   'content_write',
@@ -103,7 +105,7 @@ function decodeFileSessionAccessIdentity(session: Record<string, unknown>): Pick
   'file_access_profile_id' | 'ssh_profile_id' | 'engine' | 'namespace' | 'capabilities'
 > {
   const engine = requireString(session.engine, '文件会话引擎缺失')
-  if (engine !== 'sftp') {
+  if (engine !== 'sftp' && engine !== 's3') {
     throw new FileSessionSnapshotProtocolError('文件会话引擎无效')
   }
   return {
@@ -111,7 +113,7 @@ function decodeFileSessionAccessIdentity(session: Record<string, unknown>): Pick
       session.file_access_profile_id,
       '文件访问 Profile ID 缺失',
     ),
-    ssh_profile_id: requireString(session.ssh_profile_id, 'SSH Profile ID 缺失'),
+    ssh_profile_id: engine === 'sftp' ? requireString(session.ssh_profile_id, 'SSH Profile ID 缺失') : undefined,
     engine,
     namespace: requireString(session.namespace, '文件会话命名空间缺失'),
     capabilities: decodeFileAccessCapabilities(session.capabilities),

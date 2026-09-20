@@ -1,9 +1,20 @@
 import type { AppConfig } from '#common/contracts';
-import type { FileOperationTask, RemoteTextSaveRequest } from '#entities/file';
+import type { FileOperationTask, OverwritePolicy, RemoteTextSaveRequest } from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 import { requireCanonicalRemotePath } from '#shared/path';
 
 export class FileOperationClient extends TermousApiTransport {
+  createFileSessionRenameOperation(id: string, generation: number, source: string, target: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(id)}/files/rename`, {
+      method: 'PATCH', body: { source_path: source, target_path: target, async: true, expected_connection_generation: generation },
+    }).then(validateFileOperationTask)
+  }
+
+  createFileSessionMoveOperation(id: string, generation: number, sources: string[], targetDir: string, policy: OverwritePolicy = 'rename') {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(id)}/files/move`, {
+      method: 'POST', body: { source_paths: sources, target_dir: targetDir, overwrite_policy: policy, async: true, expected_connection_generation: generation },
+    }).then(validateFileOperationTask)
+  }
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
   }

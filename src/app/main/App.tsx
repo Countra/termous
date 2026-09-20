@@ -598,7 +598,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   ])
 
   const filesPageData = useMemo<FilesPageProps['data']>(() => ({
+    fileAccessProfiles: data.fileAccessProfiles,
     hosts: data.hosts,
+    hostAssets: data.hostAssets,
     fileSessions: displayedFileSessions,
     fileBookmarkGroups: data.fileBookmarkGroups,
     fileBookmarks: data.fileBookmarks,
@@ -610,7 +612,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.fileBookmarkGroups,
     data.fileBookmarks,
     data.hosts,
+    data.hostAssets,
     data.localPathMappings,
+    data.fileAccessProfiles,
     data.settings.terminal,
     displayedFileSessions,
   ])

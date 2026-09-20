@@ -56,6 +56,8 @@ export interface FileAccessProfileReferences {
 }
 
 export interface FileAccessProfileCreateInput {
+  secret_values?: Record<string, string>
+  clear_secret_slots?: string[]
   host_id?: string
   name: string
   engine: FileAccessEngine
@@ -65,6 +67,8 @@ export interface FileAccessProfileCreateInput {
 }
 
 export interface FileAccessProfilePatchInput {
+  secret_values?: Record<string, string>
+  clear_secret_slots?: string[]
   name?: string
   engine_config_version?: number
   secret_refs?: Record<string, string>

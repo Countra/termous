@@ -30,6 +30,7 @@ interface RemoteTextEditorModalProps {
   api: FileOperationGateway
   open: boolean
   disabled?: boolean
+  readOnly?: boolean
   closing?: boolean
   fileSessionId: string
   connectionGeneration: number
@@ -44,7 +45,7 @@ const editorLanguage = new Compartment()
 const editorTheme = new Compartment()
 const editorEditable = new Compartment()
 
-export function RemoteTextEditorModal({ api, open, disabled = false, closing = false, fileSessionId, connectionGeneration, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
+export function RemoteTextEditorModal({ api, open, disabled = false, readOnly = false, closing = false, fileSessionId, connectionGeneration, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const shortcutInstanceId = useId()
@@ -57,6 +58,8 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
   const editorThemeModeRef = useRef<ThemeMode>(editorThemeMode)
   const openRef = useRef(open)
   openRef.current = open
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
   const connectionGenerationRef = useRef(connectionGeneration)
@@ -204,7 +207,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
 
   const saveFile = useCallback(async (force = false) => {
     if (
-      disabledRef.current
+      disabledRef.current || readOnlyRef.current
       || generationStaleRef.current
       || loadingRef.current
       || reloadConfirmationOpenRef.current
@@ -371,8 +374,8 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
   }, [editorThemeMode])
 
   useEffect(() => {
-    editorViewRef.current?.dispatch({ effects: editorEditable.reconfigure(EditorView.editable.of(!disabled)) })
-  }, [disabled])
+    editorViewRef.current?.dispatch({ effects: editorEditable.reconfigure(EditorView.editable.of(!disabled && !readOnly)) })
+  }, [disabled, readOnly])
 
   const requestClose = useCallback(() => {
     if (!dirty) {
@@ -535,7 +538,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
           EditorView.lineWrapping,
           editorLanguage.of([]),
           editorTheme.of(codeMirrorTheme(editorThemeModeRef.current)),
-          editorEditable.of(EditorView.editable.of(!disabledRef.current)),
+          editorEditable.of(EditorView.editable.of(!disabledRef.current && !readOnlyRef.current)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) {
               return
@@ -709,7 +712,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
             <Button
               type="primary"
               className={`${uiStyles['primary-button']} primary-button`}
-              disabled={disabled || generationStale || !file || loading || !dirty}
+              disabled={disabled || readOnly || generationStale || !file || loading || !dirty}
               loading={saving}
               icon={<Save size={14} />}
               onClick={() => void saveFile(false)}
