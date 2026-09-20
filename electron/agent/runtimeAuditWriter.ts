@@ -52,7 +52,7 @@ export class RuntimeAuditWriter {
       if (event.type === 'tool_execution_start') {
         if (this.started.size >= 512) this.started.delete(this.started.keys().next().value ?? '')
         this.started.set(event.toolCallId, now)
-        this.push({ id: `audit_${randomUUID()}`, tool_call_id: event.toolCallId, tool_name: name, phase: 'start', outcome: 'started', occurred_at: new Date(now).toISOString(), duration_ms: 0, parameters: original ? auditParameters(event.args) : {} })
+        this.push({ id: `audit_${randomUUID()}`, tool_call_id: event.toolCallId, tool_name: name, phase: 'start', outcome: 'started', occurred_at: new Date(now).toISOString(), duration_ms: 0, parameters: original ? auditParameters(event.args, original) : {} })
       } else {
         const start = this.started.get(event.toolCallId) ?? now
         this.started.delete(event.toolCallId)
@@ -72,7 +72,7 @@ export class RuntimeAuditWriter {
   push(event: RuntimeAuditEvent) {
     if (!this.accepting) return
     const bytes = Buffer.byteLength(JSON.stringify(event), 'utf8')
-    if (bytes > 32 * 1024 || this.pending.length >= 512 || this.bytes + bytes > 4 * 1024 * 1024) { this.drop(1); return }
+    if (bytes > 80 * 1024 || this.pending.length >= 512 || this.bytes + bytes > 4 * 1024 * 1024) { this.drop(1); return }
     this.pending.push({ event, bytes })
     this.bytes += bytes
     if (this.pending.length >= 32) void this.flush()

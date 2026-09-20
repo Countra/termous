@@ -2,6 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { auditOutcome, auditParameters, auditResult } from './auditProjection.ts'
 
+test('命令执行参数完整保留，其他工具及结果继续脱敏', () => {
+  const command = `  curl -u 'alice:PASS' -H 'Authorization: Bearer TOKEN' https://host/?sig=SIGNED\nprintf 中文\n${'x'.repeat(6000)}`
+  const parameters = auditParameters({ command, source: { password: 'PRIVATE_VALUE' }, content: 'FILE_BODY' }, 'termous.commands.dispatch')
+  assert.equal(parameters.command, command)
+  assert.doesNotMatch(JSON.stringify(parameters), /PRIVATE_VALUE|FILE_BODY/)
+  assert.doesNotMatch(JSON.stringify(auditParameters({ command }, 'termous.snippets.create')), /alice:PASS|Bearer TOKEN|sig=SIGNED/)
+  assert.equal(auditParameters({ command: '<'.repeat(8192) }, 'termous.commands.dispatch').command, '<'.repeat(8192))
+  assert.equal(auditParameters({ command: 'x'.repeat(8193) }, 'termous.commands.dispatch')._truncated, true)
+})
+
 test('Worker 与 Core 对进行中、部分完成和不确定结果采用相同分类', () => {
   for (const state of ['enqueued', 'verifying', 'validating', 'interrupting', 'waiting_host_trust']) {
     assert.equal(auditOutcome(auditResult({ operation: { phase: state } })), 'accepted', state)

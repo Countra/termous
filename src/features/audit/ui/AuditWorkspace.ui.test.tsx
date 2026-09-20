@@ -19,6 +19,108 @@ function gateway(): AuditGateway {
 }
 
 describe('审计中心', () => {
+  it('指定搜索范围与高级条件组合，范围切换清空分页并取消旧请求', async () => {
+    const api = gateway()
+    render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
+    await screen.findByText('列出主机')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '搜索范围' }))
+    fireEvent.click(await screen.findByText('执行命令', { selector: '.select-option-content span' }))
+    expect(api.events).toHaveBeenCalledOnce()
+    const input = screen.getByRole('textbox', { name: '关键词搜索' })
+    expect(input).toHaveAttribute('placeholder', '输入命令片段，如 systemctl restart')
+    fireEvent.change(input, { target: { value: 'curl --token EXACT' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, search: 'curl --token EXACT', search_field: 'command', cursor: undefined }, expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole('button', { name: '更多筛选' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: '操作' }), { target: { value: 'termous.commands.dispatch' } })
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith(expect.objectContaining({ search_field: 'command', action: 'termous.commands.dispatch' }), expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole('button', { name: /^更多筛选/ }))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith(expect.objectContaining({ search_field: 'command', cursor: 'next' }), expect.any(AbortSignal)))
+    const calls = vi.mocked(api.events).mock.calls
+    const oldSignal = calls[calls.length - 1][1]
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '搜索范围' }))
+    fireEvent.click(await screen.findByText('摘要与错误', { selector: '.select-option-content span' }))
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'curl --token EXACT', search_field: 'summary', action: 'termous.commands.dispatch', cursor: undefined }), expect.any(AbortSignal)))
+    expect(oldSignal?.aborted).toBe(true)
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '重置' }))
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50 }, expect.any(AbortSignal)))
+    expect(input).toHaveValue('')
+    expect(input).toHaveAttribute('placeholder', '搜索命令、路径、发起者、目标或错误摘要')
+  })
+
+  it('关键词自动查询并重置分页，支持清除、回车和组合输入', async () => {
+    const api = gateway()
+    render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
+    await screen.findByText('列出主机')
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, cursor: 'next' }, expect.any(AbortSignal)))
+    const input = screen.getByRole('textbox', { name: '关键词搜索' })
+    fireEvent.change(input, { target: { value: 'curl' } })
+    fireEvent.change(input, { target: { value: 'curl --token EXACT' } })
+    expect(api.events).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, cursor: undefined, search: 'curl --token EXACT' }, expect.any(AbortSignal)))
+    expect(api.events).toHaveBeenCalledTimes(3)
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: 'zhong' } })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 350)) })
+    expect(api.events).toHaveBeenCalledTimes(3)
+    fireEvent.compositionEnd(input, { target: { value: '中文_100%' } })
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, cursor: undefined, search: '中文_100%' }, expect.any(AbortSignal)))
+
+    fireEvent.change(input, { target: { value: 'task-123' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, cursor: undefined, search: 'task-123' }, expect.any(AbortSignal)))
+    fireEvent.change(input, { target: { value: '' } })
+    await waitFor(() => expect(api.events).toHaveBeenLastCalledWith({ limit: 50, cursor: undefined, search: undefined }, expect.any(AbortSignal)))
+
+    fireEvent.change(input, { target: { value: 'pending' } })
+    fireEvent.click(screen.getByRole('button', { name: '重置' }))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 350)) })
+    expect(input).toHaveValue('')
+    expect(api.events).toHaveBeenLastCalledWith({ limit: 50 }, expect.any(AbortSignal))
+  })
+
+  it('新关键词取消旧查询，旧结果不能覆盖新结果', async () => {
+    const api = gateway()
+    let finishOld: (page: AuditPage) => void = () => undefined
+    let oldSignal: AbortSignal | undefined
+    api.events = vi.fn(async (query, signal) => {
+      if (query.search === 'old') {
+        oldSignal = signal
+        return new Promise<AuditPage>((resolve) => { finishOld = resolve })
+      }
+      return { items: [{ ...event, actor_name: query.search === 'new' ? '新结果' : '初始结果' }] }
+    })
+    render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
+    await screen.findByText('初始结果')
+    const input = screen.getByRole('textbox', { name: '关键词搜索' })
+    fireEvent.change(input, { target: { value: 'old' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(oldSignal).toBeDefined())
+    fireEvent.change(input, { target: { value: 'new' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    await screen.findByText('新结果')
+    expect(oldSignal?.aborted).toBe(true)
+    await act(async () => { finishOld({ items: [{ ...event, actor_name: '旧结果' }] }) })
+    expect(screen.queryByText('旧结果')).not.toBeInTheDocument()
+    expect(screen.getByText('新结果')).toBeInTheDocument()
+  })
+
+  it('命令详情保留原始凭据参数、长文本和 HTML 字面量', async () => {
+    const api = gateway()
+    const command = `curl --token KEEP_EXACT\n${'x'.repeat(6000)}\n<script>literal</script>`
+    api.event = vi.fn(async () => ({ ...event, action: 'termous.commands.dispatch', details: { parameters: { command } } }))
+    render(<ConfigProvider><AuditDetailsPanel api={api} id="one" onClose={vi.fn()} onSelect={vi.fn()} /></ConfigProvider>)
+    await screen.findByText('操作参数')
+    const fields = screen.getByRole('dialog').querySelector('dd')
+    expect(fields?.textContent).toBe(command)
+    expect(screen.getByRole('dialog').querySelector('script')).toBeNull()
+  })
+
   it('手动刷新、游标翻页及重置保留明确的请求边界', async () => {
     const api = gateway()
     render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
@@ -44,7 +146,7 @@ describe('审计中心', () => {
     await screen.findByText('详情版本 2 暂不支持结构化展示，以下提供只读 JSON')
     expect(api.event).toHaveBeenCalledWith('one', expect.any(AbortSignal))
     await waitFor(() => expect(api.events).toHaveBeenCalledWith({ correlation_id: 'call', from: new Date(0).toISOString(), limit: 50, sort_by: 'received_at', sort_order: 'asc' }, expect.any(AbortSignal)))
-    fireEvent.click(screen.getByText('查看脱敏 JSON'))
+    fireEvent.click(screen.getByText('查看审计 JSON'))
     expect(screen.getByText(/<img src=x/)).toBeInTheDocument()
     expect(document.querySelector('img[src="x"]')).toBeNull()
     expect(screen.getByText(event.action)).toBeInTheDocument()

@@ -71,6 +71,32 @@
   padding-bottom: 1px;
 }
 
+.search-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: end;
+  gap: 8px 12px;
+}
+
+.search-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.search {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.search > span {
+  font-weight: 650;
+}
+
 .active-filter:global(.ant-btn) {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
@@ -285,8 +311,14 @@
   overflow-wrap: anywhere;
 }
 
+.drawer-root {
+  // Portal 覆盖 Electron 顶部拖拽区时，遮罩与关闭按钮必须仍接收鼠标事件。
+  -webkit-app-region: no-drag;
+}
+
 .drawer {
   max-width: 100vw;
+  -webkit-app-region: no-drag;
 }
 
 .drawer:global(.ant-drawer-section) {
@@ -306,6 +338,11 @@
   display: grid;
   gap: 20px;
   overflow-wrap: anywhere;
+  transition: opacity 120ms ease-out;
+}
+
+.details:not([inert]) {
+  animation: detail-enter 160ms ease-out;
 }
 
 .details h3 {
@@ -373,6 +410,42 @@
   overflow-wrap: anywhere;
 }
 
+.detail-content {
+  position: relative;
+  min-height: 240px;
+}
+
+.detail-content[data-loading='true'] > .details {
+  opacity: 0.3;
+}
+
+.detail-loading {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 72px;
+  background: color-mix(in srgb, var(--app-bg-elevated) 60%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@keyframes detail-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .details,
+  .details:not([inert]) {
+    animation: none;
+    transition: none;
+  }
+}
+
 @media (width <= 1100px) {
   .filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -389,11 +462,27 @@
   }
 
   .filters {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-row {
+    grid-template-columns: 150px minmax(0, 1fr);
   }
 
   .fields > div {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+}
+
+@media (width <= 480px) {
+  .filters,
+  .search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filters {
+    max-height: 50%;
+    overflow-y: auto;
   }
 }

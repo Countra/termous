@@ -54,6 +54,7 @@
   gap: 12px;
   padding: 12px 10px 12px 28px;
   border-radius: 8px;
+  transition: background-color 160ms ease-out;
 }
 
 .item::before {
@@ -135,10 +136,17 @@
 }
 
 .current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding-inline: 7px;
   color: var(--accent);
   font-size: 12px;
   font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item { transition: none; }
 }
 
 .loading,

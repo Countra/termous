@@ -7,6 +7,21 @@ function event(id: string): RuntimeAuditEvent {
   return { id, tool_call_id: 'call-1', tool_name: 'termous.hosts.list', phase: 'start', outcome: 'started', occurred_at: new Date().toISOString(), duration_ms: 0 }
 }
 
+test('真实工具生命周期上报保留完整命令且仍遵守批量字节上限', async () => {
+  const batches: RuntimeAuditEvent[][] = []
+  const writer = new RuntimeAuditWriter({ originalName: () => 'termous.commands.dispatch', submit: async (items) => { batches.push(items) } })
+  const command = "curl --token EXACT\n" + '\x01'.repeat(8000)
+  for (let index = 0; index < 30; index++) {
+    writer.capture({ type: 'tool_execution_start', toolCallId: `call-${index}`, toolName: 'dispatch', args: { command } })
+  }
+  await writer.close()
+  assert.equal(batches.flat().length, 30)
+  for (const batch of batches) {
+    assert.ok(Buffer.byteLength(JSON.stringify({ generation: 1, events: batch })) < 512 * 1024)
+    for (const item of batch) assert.equal(item.parameters?.command, command)
+  }
+})
+
 test('审计按批提交，失败有限重试且正常排空', async () => {
   let attempts = 0
   const batches: RuntimeAuditEvent[][] = []

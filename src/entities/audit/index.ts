@@ -1,6 +1,7 @@
 export type AuditSource = 'ai_assistant' | 'mcp' | 'user'
 export type AuditLevel = 'info' | 'warn' | 'error'
 export type AuditEventType = 'tool' | 'approval' | 'operation'
+export type AuditSearchField = 'all' | 'command' | 'path' | 'actor' | 'target' | 'identifier' | 'summary' | 'action'
 export type AuditSortField = 'received_at' | 'source' | 'action' | 'scope' | 'outcome' | 'actor_name' | 'resource_id' | 'duration_ms'
 
 export interface AuditEvent {
@@ -42,6 +43,8 @@ export interface AuditStatus {
 }
 
 export interface AuditQuery {
+  search?: string
+  search_field?: AuditSearchField
   source?: string
   level?: string
   type?: string

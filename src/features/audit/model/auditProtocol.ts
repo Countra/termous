@@ -29,7 +29,10 @@ export function decodeAuditEvent(value: unknown): AuditEvent {
   for (const key of ['user_agent', 'request_id', 'resource_type', 'resource_id']) {
     if (value[key] !== undefined && (typeof value[key] !== 'string' || value[key].length > 2048)) return invalid()
   }
-  if (value.details !== undefined && (!object(value.details) || !bounded(value.details) || new TextEncoder().encode(JSON.stringify(value.details)).length > 16_384)) return invalid()
+  // 原始命令最多 8 KiB，JSON 转义后仍须完整接收；普通详情维持原来的 16 KiB 上限。
+  const command = object(value.details) && object(value.details.parameters) ? value.details.parameters.command : undefined
+  const commandLimit = ['termous.commands.dispatch', 'commands.dispatch.finished'].includes(String(value.action)) && typeof command === 'string' && new TextEncoder().encode(command).length <= 8192
+  if (value.details !== undefined && (!object(value.details) || !bounded(value.details) || new TextEncoder().encode(JSON.stringify(value.details)).length > (commandLimit ? 80 * 1024 : 16_384))) return invalid()
   return value as unknown as AuditEvent
 }
 

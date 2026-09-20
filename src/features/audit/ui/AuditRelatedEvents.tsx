@@ -8,10 +8,11 @@ import { auditActionLabel } from '../model/auditLabels.ts'
 import styles from './AuditRelatedEvents.module.scss'
 import shared from './AuditWorkspace.module.scss'
 
-export function AuditRelatedEvents({ api, correlationId, selectedId, onSelect }: {
+export function AuditRelatedEvents({ api, correlationId, selectedId, loadingId, onSelect }: {
   api: AuditGateway
   correlationId: string
   selectedId: string
+  loadingId?: string | null
   onSelect: (id: string) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -68,7 +69,7 @@ export function AuditRelatedEvents({ api, correlationId, selectedId, onSelect }:
             const label = auditActionLabel(t, item.action)
             const meta = `${t(`audit.types.${item.type}`)} · ${t(`audit.producers.${item.producer}`, { defaultValue: item.producer })}`
             return (
-              <li key={item.id} className={styles.item} aria-current={selected ? 'step' : undefined} data-outcome={item.outcome}>
+              <li key={item.id} className={styles.item} aria-current={selected ? 'step' : undefined} aria-busy={item.id === loadingId} data-outcome={item.outcome}>
                 <div className={styles.content}>
                   <div className={styles.title}>
                     <Typography.Text className={styles.action} ellipsis={{ tooltip: label }}>{label}</Typography.Text>
@@ -78,7 +79,7 @@ export function AuditRelatedEvents({ api, correlationId, selectedId, onSelect }:
                   <div className={styles.time}><time dateTime={item.received_at}>{new Date(item.received_at).toLocaleString(i18n.language)}</time>{item.outcome !== 'started' ? <span>{item.duration_ms} ms</span> : null}</div>
                 </div>
                 <div className={styles.selection}>
-                  {selected ? <span className={styles.current}>{t('audit.currentEvent')}</span> : <Button type="text" size="small" className={shared['detail-button']} icon={<Eye size={14} aria-hidden="true" />} onClick={() => onSelect(item.id)}>{t('audit.viewEvent')}</Button>}
+                  {selected ? <span className={styles.current}>{item.id === loadingId ? <><Spin size="small" /><span>{t('audit.switchingEvent')}</span></> : t('audit.currentEvent')}</span> : <Button type="text" size="small" className={shared['detail-button']} icon={<Eye size={14} aria-hidden="true" />} onClick={() => onSelect(item.id)}>{t('audit.viewEvent')}</Button>}
                 </div>
               </li>
             )

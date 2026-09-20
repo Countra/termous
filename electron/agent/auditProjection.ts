@@ -70,10 +70,16 @@ function projectAuditValue(value: Record<string, unknown>): Record<string, unkno
   return result
 }
 
-export function auditParameters(value: unknown): Record<string, unknown> {
+export function auditParameters(value: unknown, toolName = ''): Record<string, unknown> {
   if (!isRecord(value)) return {}
   const selected = Object.fromEntries(Object.entries(value).filter(([key]) => parameterFields.has(key)))
-  return projectAuditValue(selected)
+  const command = toolName === 'termous.commands.dispatch' && typeof selected.command === 'string'
+    && Buffer.byteLength(selected.command, 'utf8') <= 8 * 1024 ? selected.command : undefined
+  // 命令原文是执行证据，单独保留；其余字段继续使用统一脱敏和容量限制。
+  if (command !== undefined) delete selected.command
+  const result = projectAuditValue(selected)
+  if (command !== undefined) result.command = command
+  return result
 }
 
 export function auditResult(value: unknown, depth = 0, budget = { nodes: 256 }): Record<string, unknown> {

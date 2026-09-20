@@ -1,11 +1,12 @@
-import { Alert, Button, ConfigProvider, Empty, Input, Space, Table, Tag, Typography, type TableProps } from 'antd'
-import { ClipboardList, Eye, Filter, RefreshCw } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Alert, Button, ConfigProvider, Empty, Space, Table, Tag, Typography, type TableProps } from 'antd'
+import { ClipboardList, Eye, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuditEvent, AuditPage, AuditQuery, AuditSortField, AuditStatus } from '#entities/audit'
-import { CustomSelect, DateTimePicker, FilterPopover } from '#shared/ui'
 import type { AuditGateway } from '../api/auditGateway.ts'
-import { auditActionLabel, auditScopeLabel, auditScopes } from '../model/auditLabels.ts'
+import { auditActionLabel, auditScopeLabel } from '../model/auditLabels.ts'
+import type { AuditFilterValues } from '../model/useAuditFilters.ts'
+import { AuditFilters } from './AuditFilters.tsx'
 import { AuditDetailsPanel } from './AuditDetailsPanel.tsx'
 import { AuditResizableHeaderCell, type AuditResizableHeaderCellProps } from './AuditResizableHeaderCell.tsx'
 import styles from './AuditWorkspace.module.scss'
@@ -24,7 +25,6 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
   const [history, setHistory] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [columnWidths, setColumnWidths] = useState(defaultColumnWidths)
   const [tableHeight, setTableHeight] = useState(240)
   const tableShell = useRef<HTMLDivElement>(null)
@@ -51,16 +51,11 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
     return () => controller.abort()
   }, [api, query, revision])
 
-  const changeFilter = (key: keyof AuditQuery, value: string | undefined) => {
+  const changeFilters = useCallback((values: AuditFilterValues) => {
     setBusy(true)
     setHistory([])
-    setQuery((current) => ({ ...current, [key]: value || undefined, cursor: undefined }))
-  }
-  const selectFilter = (key: keyof AuditQuery, values: string[], labels: string) => (
-    <CustomSelect label={t(`audit.${key}`)} value={String(query[key] ?? '')} options={[{ value: '', label: t('audit.all') }, ...values.map((value) => ({ value, label: t(`audit.${labels}.${value}`) }))]} onChange={(value) => changeFilter(key, value)} />
-  )
-  const hasFilters = Object.entries(query).some(([key, value]) => !['limit', 'cursor', 'sort_by', 'sort_order'].includes(key) && Boolean(value))
-  const extraFilterCount = ['level', 'from', 'until', 'scope', 'action', 'correlation_id'].filter((key) => Boolean(query[key as keyof AuditQuery])).length
+    setQuery(({ sort_by, sort_order }) => ({ limit: 50, ...(sort_by ? { sort_by, sort_order } : {}), ...values, ...(Object.keys(values).length ? { cursor: undefined } : {}) }))
+  }, [])
   const sortColumn = (field: AuditSortField) => ({
     key: field,
     sorter: true,
@@ -99,21 +94,7 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
       </header>
       {statusFailed || (status && status.state !== 'ready') || (status?.dropped ?? 0) > 0 ? <Alert type="warning" showIcon title={t('audit.degraded')} description={statusFailed ? t('audit.statusFailed') : t('audit.health', { queued: status?.queued ?? 0, dropped: status?.dropped ?? 0, failures: status?.write_failures ?? 0 })} /> : null}
       {status?.last_error ? <p className={styles.warning}>{status.last_error}</p> : null}
-      <div className={styles.filters}>
-        {selectFilter('source', ['ai_assistant', 'mcp'], 'sources')}
-        {selectFilter('type', ['tool', 'approval', 'operation'], 'types')}
-        {selectFilter('outcome', ['started', 'accepted', 'succeeded', 'failed', 'partial', 'cancelled', 'denied', 'expired', 'unknown'], 'outcomes')}
-        <div className={styles['filter-actions']}>
-          <FilterPopover open={filtersOpen} onOpenChange={setFiltersOpen} content={<div className={styles['more-filters']}>
-            {selectFilter('level', ['info', 'warn', 'error'], 'levels')}
-            <label>{t('audit.from')}<DateTimePicker ariaLabel={t('audit.from')} needConfirm={false} value={query.from ? new Date(query.from) : null} onChange={(value) => changeFilter('from', value?.toISOString())} placeholder={t('audit.lastSevenDays')} /></label>
-            <label>{t('audit.until')}<DateTimePicker ariaLabel={t('audit.until')} needConfirm={false} value={query.until ? new Date(query.until) : null} onChange={(value) => changeFilter('until', value?.toISOString())} /></label>
-            {selectFilter('scope', auditScopes, 'scopes')}
-            {(['action', 'correlation_id'] as const).map((key) => <label key={key}>{t(`audit.${key}`)}<Input aria-label={t(`audit.${key}`)} value={query[key] ?? ''} maxLength={200} allowClear placeholder={key === 'action' ? t('audit.actionPlaceholder') : undefined} onChange={(event) => changeFilter(key, event.target.value)} /></label>)}
-          </div>}><Button icon={<Filter size={15} />} className={extraFilterCount ? styles['active-filter'] : undefined}>{t('audit.moreFilters')}{extraFilterCount > 0 ? <span className={styles['filter-count']}>{extraFilterCount}</span> : null}</Button></FilterPopover>
-          <Button type="text" disabled={!hasFilters} onClick={() => { setHistory([]); setQuery(({ sort_by, sort_order }) => ({ limit: 50, ...(sort_by ? { sort_by, sort_order } : {}) })); setBusy(true) }}>{t('audit.reset')}</Button>
-        </div>
-      </div>
+      <AuditFilters onChange={changeFilters} />
       {failed ? <Alert type="error" showIcon title={t('audit.loadFailed')} /> : null}
       <div ref={tableShell} className={styles.table}>
         <ConfigProvider theme={{ components: { Table: { headerBorderRadius: 0 } } }}>

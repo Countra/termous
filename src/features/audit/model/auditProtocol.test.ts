@@ -4,6 +4,15 @@ import { decodeAuditDetails, decodeAuditEvent, decodeAuditPage, decodeAuditStatu
 
 const event = { id: 'one', occurred_at: '2026-09-20T00:00:00Z', received_at: '2026-09-20T00:00:01Z', source: 'mcp', producer: 'mcp_server', level: 'info', type: 'tool', action: 'termous.hosts.list', scope: 'hosts', outcome: 'succeeded', actor_id: 'client', actor_name: 'Client', correlation_id: 'call', duration_ms: 2, summary: '', details_version: 1 }
 
+test('完整命令的 JSON 转义不触发普通详情大小上限', () => {
+  const command = `curl --token EXACT\n${'\x01'.repeat(8000)}`
+  const value = { ...event, action: 'termous.commands.dispatch', details: { parameters: { command } } }
+  assert.deepEqual(decodeAuditEvent(value).details?.parameters, { command })
+  assert.equal(decodeAuditDetails(decodeAuditEvent(value)).kind, 'tool')
+  assert.throws(() => decodeAuditEvent({ ...value, action: 'unknown' }))
+  assert.throws(() => decodeAuditEvent({ ...value, details: { parameters: { command: '\x01'.repeat(8193) } } }))
+})
+
 test('版本化详情与未知版本安全回退', () => {
   assert.equal(decodeAuditDetails(decodeAuditEvent({ ...event, details: { result: { status: 'done' } } })).kind, 'tool')
   const unknown = decodeAuditEvent({ ...event, details_version: 2, details: { html: '<script>alert(1)</script>' } })
