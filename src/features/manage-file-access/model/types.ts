@@ -35,7 +35,20 @@ export interface WebDAVProfileDraft {
   password_configured: boolean
 }
 
-export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft | WebDAVProfileDraft
+export interface FTPProfileDraft {
+  engine: 'ftp'
+  host_id: string
+  name: string
+  host: string
+  port: number | null
+  security: 'none' | 'explicit_tls' | 'implicit_tls'
+  username: string
+  password: string
+  password_configured: boolean
+  root_path: string
+}
+
+export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft | WebDAVProfileDraft | FTPProfileDraft
 
 export interface FileAccessProfileEditorErrors {
   endpoint?: 'required' | 'invalid'
@@ -44,7 +57,10 @@ export interface FileAccessProfileEditorErrors {
   access_key?: 'required'
   secret_key?: 'required'
   username?: 'required' | 'invalid'
-  password?: 'required'
+  password?: 'required' | 'invalid'
+  host?: 'required' | 'invalid'
+  port?: 'invalid'
+  root_path?: 'invalid'
   name?: 'required' | 'too_long'
   ssh_profile_id?: 'required' | 'unavailable'
 }

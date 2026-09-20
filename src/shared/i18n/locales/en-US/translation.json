@@ -2993,6 +2993,27 @@
     }
   },
   "files": {
+    "ftp": {
+      "name": "Profile name",
+      "host": "Server address",
+      "port": "Port",
+      "security": "Connection encryption",
+      "username": "Username",
+      "password": "Password",
+      "root_path": "Workspace root directory",
+      "configured": "Configured; leave blank to keep",
+      "securityOptions": { "none": "FTP · Unencrypted", "explicit_tls": "FTPS · Explicit TLS", "implicit_tls": "FTPS · Implicit TLS" },
+      "plainHint": "Plain FTP sends credentials and file contents without encryption. FTPS is recommended.",
+      "tlsHint": "TLS protects both control and data connections using system-trusted server certificates. Passwords are stored encrypted; leave blank when editing to keep the current value.",
+      "writeHint": "Writes and renames recheck the destination but cannot fully prevent concurrent changes by other clients. Choose auto-rename or skip when copying to an existing file. Transactional batch rename is unavailable.",
+      "errors": {
+        "host": "Enter a domain or IP address without a scheme, port or path.",
+        "port": "Enter an integer between 1 and 65535.",
+        "username": "Enter a username without control characters.",
+        "password": "Enter a password without CR, LF or NUL.",
+        "root_path": "Enter a canonical absolute path without dot segments, repeated separators or control characters."
+      }
+    },
     "webdav": {
       "name": "Profile name",
       "endpoint": "Endpoint (HTTP / HTTPS)",
@@ -3041,7 +3062,7 @@
       "loadingResult": "Loading move results…",
       "cancelling": "Cancelling…",
       "resultFailed": "Could not load move results",
-      "nonAtomic": "Copies and verifies all contents before deleting sources. This cannot guarantee atomicity against external changes. Failure or cancellation preserves copied targets.",
+      "nonAtomic": "This operation cannot guarantee atomicity against changes by other clients. After failure or cancellation, check the source, destination and results; completed changes are not automatically rolled back.",
       "source": "Source",
       "target": "Target",
       "status": "Result",

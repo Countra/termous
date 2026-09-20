@@ -2981,6 +2981,27 @@
     }
   },
   "files": {
+    "ftp": {
+      "name": "配置名称",
+      "host": "服务器地址",
+      "port": "端口",
+      "security": "连接加密",
+      "username": "用户名",
+      "password": "密码",
+      "root_path": "工作区根目录",
+      "configured": "已配置，留空保留",
+      "securityOptions": { "none": "FTP · 不加密", "explicit_tls": "FTPS · 显式 TLS", "implicit_tls": "FTPS · 隐式 TLS" },
+      "plainHint": "已选择明文 FTP，账号、密码及文件内容不会加密。建议使用 FTPS。",
+      "tlsHint": "控制连接和文件传输均使用 TLS，验证系统信任的服务器证书。密码加密保存，编辑时留空保留。",
+      "writeHint": "写入及改名前会复核目标，但无法完全避免其他客户端的并发修改。复制到已有文件请使用自动改名或跳过；不支持事务式批量改名。",
+      "errors": {
+        "host": "请输入域名或 IP 地址，不包含协议、端口和路径。",
+        "port": "端口必须为 1 到 65535 的整数。",
+        "username": "请输入用户名，不能包含控制字符。",
+        "password": "请输入密码，不能包含回车、换行或 NUL。",
+        "root_path": "请输入规范绝对路径，不包含点路径段、重复分隔符或控制字符。"
+      }
+    },
     "webdav": {
       "name": "配置名称",
       "endpoint": "服务地址（HTTP / HTTPS）",
@@ -3029,7 +3050,7 @@
       "loadingResult": "正在读取移动结果…",
       "cancelling": "正在取消…",
       "resultFailed": "读取移动结果失败",
-      "nonAtomic": "完整复制并复核后再删除来源。无法保证与其他客户端并发修改之间的原子性；失败或取消会保留已复制目标。",
+      "nonAtomic": "无法保证与其他客户端并发修改之间的原子性。失败或取消后请检查来源、目标及操作结果；已经完成的修改不会自动回滚。",
       "source": "来源",
       "target": "目标",
       "status": "结果",

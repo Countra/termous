@@ -26,6 +26,7 @@ export function getFileAccessTechnologyDescriptor(engine: FileAccessEngine, conf
   if (engine === 'sftp') return { id: engine, label: 'SFTP', editable: configVersion === 1 }
   if (engine === 's3') return { id: engine, label: 'S3 / MinIO', editable: configVersion === 1 }
   if (engine === 'webdav') return { id: engine, label: 'WebDAV', shortLabel: 'DAV', editable: configVersion === 1 }
+  if (engine === 'ftp') return { id: engine, label: 'FTP', editable: configVersion === 1 }
   return { id: engine, label: engine.toUpperCase(), editable: false }
 }
 
@@ -41,6 +42,9 @@ export function projectFileAccessProfile(
       ? { endpoint: `${profile.config.endpoint} / ${profile.config.bucket}${profile.config.prefix ? ` / ${profile.config.prefix}` : ''}` }
       : {}),
     technology: getFileAccessTechnologyDescriptor(profile.engine, profile.engine_config_version),
+    ...(profile.engine === 'ftp' && profile.engine_config_version === 1 && typeof profile.config.host === 'string' && typeof profile.config.port === 'number'
+      ? { endpoint: `${profile.config.security === 'none' ? 'FTP' : profile.config.security === 'implicit_tls' ? 'FTPS (TLS)' : 'FTPS (AUTH TLS)'} · ${profile.config.host.includes(':') && !profile.config.host.startsWith('[') ? `[${profile.config.host}]` : profile.config.host}:${profile.config.port} · ${profile.config.root_path || '/'}` }
+      : {}),
     ...(profile.engine === 'webdav' && profile.engine_config_version === 1 && typeof profile.config.endpoint === 'string' && typeof profile.config.username === 'string'
       ? { endpoint: `${profile.config.endpoint} · ${profile.config.username}` }
       : {}),
