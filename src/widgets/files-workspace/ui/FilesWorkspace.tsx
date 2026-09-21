@@ -87,6 +87,7 @@ import {
   RemoteCopyModal,
   TransferQueueDock,
   TransferQueuePanel,
+  TransferSummary,
   UploadConflictDialog,
   validateRemoteCopySource,
   type RemoteCopyCreateRequest,
@@ -4202,15 +4203,9 @@ function FilesWorkspaceContent({
             >
               <Activity size={13} aria-hidden="true" />
               {activeTransferCount > 0 ? (
-                <>
-                  <span>{t('files.activeTransferCount', { count: activeTransferCount })}</span>
-                  {activeTransfers.length > 0 ? (
-                    <>
-                      <span>{Math.round(activeTransferProgress)}%</span>
-                      <span>{t('files.transferSpeed', { value: formatBytes(activeTransferSpeed) })}</span>
-                    </>
-                  ) : null}
-                </>
+                <TransferSummary count={activeTransferCount} scopeKey={activeTransfers.map((task) => task.id).join(',')}
+                  progress={activeTransfers.length > 0 ? activeTransferProgress : undefined}
+                  speed={activeTransfers.length > 0 ? activeTransferSpeed : undefined} />
               ) : (
                 <span>{t('files.noActiveTransfers')}</span>
               )}

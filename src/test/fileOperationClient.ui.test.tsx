@@ -40,6 +40,7 @@ function operationTask(path: string) {
 describe('文件操作 API 虚拟路径合同', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('异步改名和移动复用既有动作接口，不提交内部计划', async () => {
@@ -108,5 +109,34 @@ describe('文件操作 API 虚拟路径合同', () => {
     for (let index = 0; index < 5; index += 1) {
       await expect(files.fileOperationResult(`fop-${index}`)).resolves.toBeDefined()
     }
+  })
+
+  it.each([
+    ['JSON', '取消'], ['Blob', '取消'], ['Blob', '超时'],
+  ])('%s 响应头到达后，正文阶段仍支持%s并释放计时器', async (kind, ending) => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (
+      new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(new DOMException('读取已中止', 'AbortError'))
+          }, { once: true })
+        },
+      }))
+    )))
+    const files = createFilesGateway()
+    const controller = new AbortController()
+    const request = kind === 'Blob'
+      ? files.fileOperationBlobResult('operation', controller.signal)
+      : files.fileOperationResult('operation', controller.signal)
+    const assertion = expect(request).rejects.toMatchObject({
+      code: ending === '取消' ? 'REQUEST_ABORTED' : 'REQUEST_TIMEOUT',
+    })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(vi.getTimerCount()).toBe(1)
+    if (ending === '取消') controller.abort()
+    else await vi.advanceTimersByTimeAsync(90_000)
+    await assertion
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

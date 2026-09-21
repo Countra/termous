@@ -26,13 +26,14 @@
     .remote-image-viewer {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
-      min-height: min(760px, calc(100vh - 88px));
-      max-height: calc(100vh - 64px);
+      height: min(760px, calc(100dvh - 88px));
+      min-height: 0;
       background: var(--ant-modal-content-bg);
     }
 
     .remote-image-viewer-header,
     .remote-image-viewer-footer {
+      flex-wrap: wrap;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -59,10 +60,11 @@
     }
 
     .remote-image-viewer-stage {
+      position: relative;
       overflow: hidden;
       display: grid;
       height: 100%;
-      min-height: 360px;
+      min-height: 0;
       place-items: center;
       border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
       border-radius: 15px;
@@ -80,26 +82,23 @@
     }
 
     .remote-image-viewer-stage img {
+      position: absolute;
+      top: 50%;
+      left: 50%;
       display: block;
       max-width: none;
       max-height: none;
       user-select: none;
       transform-origin: center;
-      transition: transform 0.12s ease;
       will-change: transform;
-    }
-
-    .remote-image-viewer-stage img.is-fit {
-      max-width: calc(100% - 36px);
-      max-height: calc(100% - 36px);
-      object-fit: contain;
+      pointer-events: none;
     }
 
     .remote-image-viewer-loading,
     .remote-image-viewer-state {
       display: grid;
       height: 100%;
-      min-height: 360px;
+      min-height: 0;
       place-content: center;
       justify-items: center;
       gap: 12px;
@@ -122,7 +121,7 @@
 
     .remote-image-viewer-actions {
       display: flex;
-      flex: 0 0 auto;
+      flex: 0 1 auto;
       flex-wrap: wrap;
       align-items: center;
       justify-content: flex-end;
@@ -132,10 +131,18 @@
   }
 }
 
-.root.light {
+.root.light :global(.remote-image-viewer-modal.ant-modal) {
   --ant-modal-content-bg: #f7f9fc;
 }
 
 .root.light :global(.remote-image-viewer-stage) {
   background: #eef2f7;
+}
+
+.zoom-value {
+  width: 6ch;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }

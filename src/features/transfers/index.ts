@@ -19,6 +19,7 @@ export type {
 export { FilesBottomDrawer } from './ui/FilesBottomDrawer.tsx'
 export { TransferQueueDock } from './ui/TransferQueueDock.tsx'
 export { TransferQueuePanel } from './ui/TransferQueuePanel.tsx'
+export { TransferSummary } from './ui/TransferSummary.tsx'
 export { RemoteCopyModal } from './remote-copy/ui/RemoteCopyModal.tsx'
 export {
   buildRemotePathBreadcrumbs,

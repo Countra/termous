@@ -48,15 +48,17 @@ fileOperation(id: string) {
       .then(validateFileOperationTask)
   }
 
-fileOperationResult<T>(id: string) {
+fileOperationResult<T>(id: string, signal?: AbortSignal) {
     return this.request<T>(`/api/v1/file-operations/${encodeURIComponent(id)}/result`, {
       timeoutMs: 90_000,
+      signal,
     }).then(validateFileOperationResult)
   }
 
-fileOperationBlobResult(id: string) {
+fileOperationBlobResult(id: string, signal?: AbortSignal) {
     return this.requestBlob(`/api/v1/file-operations/${encodeURIComponent(id)}/blob`, {
       timeoutMs: 90_000,
+      signal,
     })
   }
 

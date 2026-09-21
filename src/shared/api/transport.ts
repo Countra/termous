@@ -137,7 +137,8 @@ export class TermousApiTransport {
       if (!response.ok) {
         throw await this.toError(response)
       }
-      return response.blob()
+      // 正文读取也属于请求生命周期，结束前不能清除超时和调用方取消监听。
+      return await response.blob()
     } catch (error) {
       if (error instanceof TermousApiError) {
         throw error

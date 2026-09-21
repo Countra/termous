@@ -461,6 +461,12 @@
       }
 
       .transfer-live-summary > span {
+        width: calc(16ch + 8px);
+        flex-basis: calc(16ch + 8px);
+        grid-template-columns: 5ch 11ch;
+      }
+
+      .transfer-live-summary > span > span {
         display: none;
       }
     }

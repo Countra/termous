@@ -1,0 +1,24 @@
+.summary {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 5ch 11ch;
+  flex: 0 0 244px;
+  align-items: center;
+  gap: 8px;
+  width: 244px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.label,
+.number {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.number {
+  color: var(--text-primary);
+  font-weight: 650;
+  text-align: right;
+}

@@ -241,8 +241,8 @@ function createFileGateway(
       operations.createFileSessionImageReadOperation(fileSessionId, path)
     ),
     fileOperation: (id) => operations.fileOperation(id),
-    fileOperationResult: <Result>(id: string) => operations.fileOperationResult<Result>(id),
-    fileOperationBlobResult: (id) => operations.fileOperationBlobResult(id),
+    fileOperationResult: <Result>(id: string, signal?: AbortSignal) => operations.fileOperationResult<Result>(id, signal),
+    fileOperationBlobResult: (id, signal) => operations.fileOperationBlobResult(id, signal),
     cancelFileOperation: (id) => operations.cancelFileOperation(id),
     fileOperationEventsUrl: (fileSessionId) => operations.fileOperationEventsUrl(fileSessionId),
     createLocalFileGrant: (source, paths) => transfers.createLocalFileGrant(source, paths),

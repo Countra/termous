@@ -3562,6 +3562,7 @@
     "imageViewerFit": "适应窗口",
     "imageViewerActualSize": "原始大小",
     "imageViewerZoomOut": "缩小",
+    "imageViewerZoom": "缩放比例",
     "imageViewerZoomIn": "放大",
     "imageViewerRotateLeft": "向左旋转",
     "imageViewerRotateRight": "向右旋转",

@@ -19,8 +19,8 @@ export interface FileOperationGateway {
     path: string,
   ) => Promise<FileOperationTask>
   fileOperation: (id: string) => Promise<FileOperationTask>
-  fileOperationResult: <Result>(id: string) => Promise<Result>
-  fileOperationBlobResult: (id: string) => Promise<Blob>
+  fileOperationResult: <Result>(id: string, signal?: AbortSignal) => Promise<Result>
+  fileOperationBlobResult: (id: string, signal?: AbortSignal) => Promise<Blob>
   cancelFileOperation: (id: string) => Promise<void>
   fileOperationEventsUrl: (fileSessionId: string) => string
 }

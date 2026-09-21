@@ -3574,6 +3574,7 @@
     "imageViewerFit": "Fit to window",
     "imageViewerActualSize": "Actual size",
     "imageViewerZoomOut": "Zoom out",
+    "imageViewerZoom": "Zoom level",
     "imageViewerZoomIn": "Zoom in",
     "imageViewerRotateLeft": "Rotate left",
     "imageViewerRotateRight": "Rotate right",
