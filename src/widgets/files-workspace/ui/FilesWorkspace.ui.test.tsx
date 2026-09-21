@@ -1,4 +1,4 @@
-import { App as AntdApp } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileSession, LocalPathMapping, RemoteFileEntry } from '#entities/file'
@@ -158,20 +158,21 @@ function renderWorkspace(
     labels: new Map(),
     bindingSignatures: new Map(),
   }
-  const view = render(
-    <AntdApp>
+  const renderTree = (currentProps: FilesWorkspaceProps) => (
+    <ConfigProvider theme={{ token: { motion: false } }}><AntdApp>
       <ShortcutRuntimeContextProvider value={shortcutContext}>
         <TransferRuntimeContext.Provider value={transfers}>
-          <GlobalFileSearchRuntimeProvider api={api} fileSessions={props.data.fileSessions}>
+          <GlobalFileSearchRuntimeProvider api={api} fileSessions={currentProps.data.fileSessions}>
             <FilesWorkspaceRuntimeProvider>
-              <FilesWorkspace {...props} />
+              <FilesWorkspace {...currentProps} />
             </FilesWorkspaceRuntimeProvider>
           </GlobalFileSearchRuntimeProvider>
         </TransferRuntimeContext.Provider>
       </ShortcutRuntimeContextProvider>
-    </AntdApp>,
+    </AntdApp></ConfigProvider>
   )
-  return { ...view, api, props, transfers }
+  const view = render(renderTree(props))
+  return { ...view, api, props, transfers, rerenderWorkspace: (currentProps: FilesWorkspaceProps) => view.rerender(renderTree(currentProps)) }
 }
 
 let scrollToDescriptor: PropertyDescriptor | undefined
@@ -268,6 +269,74 @@ describe('目录总大小详情入口', () => {
 })
 
 describe('主机下不同存储引擎的能力边界', () => {
+  it('弹窗打开后会话重连，拒绝提交旧代次并只显示一次原因', async () => {
+    const { api, props, rerenderWorkspace } = renderWorkspace(true, {
+      activeSession: { ...session, capabilities: ['browse', 'entry_mutate'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.rename' }))
+    fireEvent.change(await screen.findByDisplayValue('notes.txt'), { target: { value: 'changed.txt' } })
+    const reconnected = { ...props.activeFileSession!, connection_generation: 2 }
+    api.getFileSession.mockResolvedValue(reconnected)
+    rerenderWorkspace({ ...props, activeFileSession: reconnected, data: { ...props.data, fileSessions: [reconnected] } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.update' }))
+    await waitFor(() => expect(screen.getAllByText('files.connectionRequired')).toHaveLength(1))
+    expect(api.createFileSessionRenameOperation).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('changed.txt')).toBeInTheDocument()
+  })
+
+  it.each(['文件', '文件夹'])('改名被同名%s占用时显示原因，保留输入并允许修改后重试', async (kind) => {
+    const { api } = renderWorkspace(true, {
+      activeSession: { ...session, capabilities: ['browse', 'entry_mutate'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    const message = `无法重命名：目标路径“/srv/occupied”已存在同名${kind}，请使用其他名称`
+    api.createFileSessionRenameOperation.mockRejectedValueOnce(new Error(message))
+    api.createFileSessionRenameOperation.mockResolvedValueOnce({
+      id: 'rename-retry', revision: 1, file_session_id: session.id, type: 'move', status: 'completed', phase: 'done',
+      path: '/srv/notes.txt', total_bytes: 1, transferred_bytes: 1, remaining_bytes: 0,
+      phase_total_bytes: 1, phase_transferred_bytes: 1, phase_progress_percent: 100, progress_percent: 100,
+      speed_bytes_per_sec: 0, average_speed_bytes_per_sec: 0, elapsed_seconds: 1, cancellable: false,
+      created_at: session.started_at,
+    })
+    api.fileOperationResult.mockResolvedValue({ non_atomic: false, partial: false, uncertain: false, items: [
+      { source_path: '/srv/notes.txt', target_path: '/srv/available', status: 'moved', removed: true },
+    ] })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.rename' }))
+    fireEvent.change(await screen.findByDisplayValue('notes.txt'), { target: { value: 'occupied' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.update' }))
+
+    await waitFor(() => expect(screen.getByText(message)).toBeVisible())
+    expect(screen.getByDisplayValue('occupied')).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'app.update' })).not.toHaveClass('ant-btn-loading'))
+    fireEvent.change(screen.getByDisplayValue('occupied'), { target: { value: 'available' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.update' }))
+    await waitFor(() => expect(api.createFileSessionRenameOperation).toHaveBeenLastCalledWith(session.id, 1, '/srv/notes.txt', '/srv/available'))
+    expect(await screen.findByTitle('/srv/available')).toHaveTextContent('available')
+  })
+
+  it.each([
+    { name: '   ', error: 'files.nameRequired' },
+    { name: 'notes.txt', error: 'files.nameUnchanged' },
+  ])('名称为 "$name" 时显示校验错误而不提交改名', async ({ name, error }) => {
+    const { api } = renderWorkspace(true, {
+      activeSession: { ...session, capabilities: ['browse', 'entry_mutate'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'files.rename' }))
+    fireEvent.change(await screen.findByDisplayValue('notes.txt'), { target: { value: name } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.update' }))
+    await waitFor(() => expect(screen.getByText(error)).toBeVisible())
+    expect(api.createFileSessionRenameOperation).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'app.update' })).toBeVisible()
+  })
+
   it.each(['sftp', 's3'])('%s 改名使用相同动作与任务视图', async (engine) => {
     const { api } = renderWorkspace(true, {
       activeSession: { ...session, engine, capabilities: ['browse', 'entry_mutate'] },
@@ -291,7 +360,8 @@ describe('主机下不同存储引擎的能力边界', () => {
     await waitFor(() => expect(api.createFileSessionRenameOperation).toHaveBeenCalledWith(session.id, 1, '/srv/notes.txt', '/srv/renamed.txt'))
     await waitFor(() => expect(api.fileOperationResult).toHaveBeenCalledWith('move-task'))
     expect(api.renameFileSessionFile).not.toHaveBeenCalled()
-    expect(await screen.findByText('/srv/renamed.txt')).toBeInTheDocument()
+    expect(await screen.findByTitle('/srv/renamed.txt')).toHaveTextContent('renamed.txt')
+    await waitFor(() => expect(screen.getByText('files.move.renameTitle')).toBeVisible())
   })
 
   it('S3 使用统一改名能力，隐藏权限、批量改名及 SSH 搜索', async () => {

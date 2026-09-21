@@ -74,6 +74,7 @@ import {
   type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
   RemotePermissionModal,
+  RemoteRenameModal,
 } from '#features/remote-file'
 import type { AppTheme as ThemeMode, TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -294,6 +295,7 @@ function WorkbenchFilesPanelContent({
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ entry: RemoteFileEntry; fileSessionId: string; connectionGeneration: number } | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
@@ -1054,23 +1056,8 @@ function WorkbenchFilesPanelContent({
   }
 
   const renameEntry = (entry: RemoteFileEntry) => {
-    let name = entry.name
-    modal.confirm({
-      title: t('files.rename'),
-      icon: null,
-      content: <Input autoFocus defaultValue={entry.name} onChange={(event) => { name = event.target.value }} />,
-      okText: t('app.save'),
-      cancelText: t('app.cancel'),
-      className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
-      onOk: async () => {
-        if (!files.fileSession?.id || !name.trim()) {
-          throw new Error(t('files.nameRequired'))
-        }
-        await api.renameFileSessionFile(files.fileSession.id, entry.path, joinPath(parentPath(entry.path), name.trim()))
-        await files.loadDirectory(currentPath)
-      },
-    })
+    if (!files.fileSession?.id) return
+    setRenameTarget({ entry, fileSessionId: files.fileSession.id, connectionGeneration: files.fileSession.connection_generation ?? 0 })
   }
 
   const deleteEntry = (entry: RemoteFileEntry) => modal.confirm({
@@ -1873,6 +1860,21 @@ function WorkbenchFilesPanelContent({
             }}
           />
         </Suspense>
+      ) : null}
+      {renameTarget ? (
+        <RemoteRenameModal
+          initialName={renameTarget.entry.name}
+          confirmLabel={t('app.save')}
+          onClose={() => setRenameTarget(null)}
+          onSubmit={async (name) => {
+            const { entry, fileSessionId, connectionGeneration } = renameTarget
+            if (!files.connected || closing || files.fileSession?.id !== fileSessionId || (files.fileSession.connection_generation ?? 0) !== connectionGeneration) {
+              throw new Error(t('files.connectionRequired'))
+            }
+            await api.renameFileSessionFile(fileSessionId, entry.path, joinPath(parentPath(entry.path), name))
+            await files.loadDirectory(currentPath)
+          }}
+        />
       ) : null}
       <RemotePermissionModal
         entry={permissionEntry}

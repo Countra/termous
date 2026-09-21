@@ -10,6 +10,7 @@ interface ObserveFileOperationOptions {
   api: FileOperationObserverGateway
   initialTask: FileOperationTask
   onTask?: (task: FileOperationTask) => void
+  onObservationError?: (error: Error | null) => void
 }
 
 export interface FileOperationObservation {
@@ -25,6 +26,7 @@ export function observeFileOperation({
   api,
   initialTask,
   onTask,
+  onObservationError,
 }: ObserveFileOperationOptions): FileOperationObservation {
   let disposed = false
   let settled = false
@@ -32,6 +34,7 @@ export function observeFileOperation({
   let pollTimer = 0
   let lastRevision = 0
   let lastProgress = 0
+  let observedUpdates = 0
   let resolveTerminal: (task: FileOperationTask | null) => void = () => undefined
 
   const terminal = new Promise<FileOperationTask | null>((resolve) => {
@@ -78,9 +81,14 @@ export function observeFileOperation({
     clearPollTimer()
     pollTimer = window.setTimeout(() => {
       pollTimer = 0
+      const updatesAtRequest = observedUpdates
       void api.fileOperation(initialTask.id)
         .then(handleTask)
-        .catch(() => undefined)
+        .catch((error: unknown) => {
+          if (!disposed && !settled && observedUpdates === updatesAtRequest) {
+            onObservationError?.(error instanceof Error ? error : new Error(''))
+          }
+        })
         .finally(() => {
           if (!disposed && !settled) {
             schedulePoll(1000)
@@ -96,9 +104,15 @@ export function observeFileOperation({
     const terminalTask = isFileOperationTerminal(task)
     const revision = task.revision || 0
     if (revision > 0) {
-      if (revision < lastRevision || (revision === lastRevision && !terminalTask)) {
+      if (revision < lastRevision) {
         return
       }
+    }
+    // 同一版本的查询成功也说明链路已恢复；迟到失败不能覆盖较新的有效快照。
+    observedUpdates += 1
+    onObservationError?.(null)
+    if (revision > 0) {
+      if (revision === lastRevision && !terminalTask) return
       lastRevision = revision
     } else if (!terminalTask && (task.progress_percent || 0) < lastProgress) {
       return

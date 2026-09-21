@@ -108,6 +108,7 @@ import {
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   RemotePermissionModal,
+  RemoteRenameModal,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
   useGlobalFileSearchRuntime,
@@ -463,8 +464,9 @@ function FilesWorkspaceContent({
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
-  const [moveOperation, setMoveOperation] = useState<{ task: FileOperationTask; clipboard: RemoteClipboard | null } | null>(null)
+  const [moveOperation, setMoveOperation] = useState<{ task: FileOperationTask; clipboard: RemoteClipboard | null; rename?: { sourcePath: string; targetPath: string } } | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
+  const [renameTarget, setRenameTarget] = useState<(SessionBoundRemoteEntry & { connectionGeneration: number }) | null>(null)
   const [textEditorTarget, setTextEditorTarget] = useState<SessionBoundRemotePath | null>(null)
   const [imageViewerTarget, setImageViewerTarget] = useState<SessionBoundRemotePath | null>(null)
 
@@ -1808,27 +1810,7 @@ function FilesWorkspaceContent({
     if (!entry || !fileActionsEnabled || !activeFileSessionId || !operationCapabilities.rename) {
       return
     }
-    const fileSessionId = activeFileSessionId
-    const connectionGeneration = activeFileSessionConnectionGeneration
-    let name = entry.name
-    modal.confirm({
-      title: t('files.rename'),
-      icon: null,
-      content: <Input autoFocus defaultValue={entry.name} onChange={(event) => { name = event.target.value }} />,
-      okText: t('app.update'),
-      cancelText: t('app.cancel'),
-      className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
-      onOk: async () => {
-        requireCurrentFileListing(fileSessionId, connectionGeneration)
-        const cleanName = name.trim()
-        if (!cleanName) {
-          throw new Error(t('files.nameRequired'))
-        }
-        const task = await api.createFileSessionRenameOperation(fileSessionId, connectionGeneration, entry.path, joinPath(parentPath(entry.path), cleanName))
-        setMoveOperation({ task, clipboard: null })
-      },
-    })
+    setRenameTarget({ entry, fileSessionId: activeFileSessionId, connectionGeneration: activeFileSessionConnectionGeneration })
   }
 
   const openAdvancedRename = (entry = selectedEntries[0]) => {
@@ -4263,12 +4245,14 @@ function FilesWorkspaceContent({
         </div>
       ) : null}
       <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
-      {moveOperation ? <FileMoveOperationModal api={api} initialTask={moveOperation.task} onClose={() => setMoveOperation(null)} onFinished={(task) => {
+      {moveOperation ? <FileMoveOperationModal key={moveOperation.task.id} api={api} initialTask={moveOperation.task} rename={moveOperation.rename} onClose={() => setMoveOperation(null)} onFinished={(task) => {
         if (task.status === 'completed' && !task.partial && moveOperation.clipboard) {
           setRemoteClipboard((current) => matchesRemoteClipboard(current, moveOperation.clipboard) ? null : current)
         }
         if (activeFileSessionIdRef.current === task.file_session_id) void loadDirectory(currentPath, { kind: 'refresh' })
-        notification[task.status === 'completed' ? 'success' : 'warning']({ title: t(task.status === 'completed' ? 'files.move.done' : 'files.move.incomplete'), duration: 5 })
+        const succeeded = task.status === 'completed' && !task.partial
+        const feedback = task.error_code === 'SFTP_RENAME_UNCERTAIN' ? 'uncertain' : task.partial ? 'partial' : task.status === 'cancelled' ? 'cancelled' : succeeded ? 'done' : 'failed'
+        notification[succeeded ? 'success' : 'warning']({ title: t(`files.move.feedback.${feedback}`, { action: t(moveOperation.rename ? 'files.rename' : 'files.move.action') }), duration: 5 })
       }} /> : null}
       {remoteCopySource ? (
         <RemoteCopyModal
@@ -4318,6 +4302,21 @@ function FilesWorkspaceContent({
             }}
           />
         </Suspense>
+      ) : null}
+      {renameTarget ? (
+        <RemoteRenameModal
+          initialName={renameTarget.entry.name}
+          onClose={() => setRenameTarget(null)}
+          onSubmit={async (name) => {
+            const { entry, fileSessionId, connectionGeneration } = renameTarget
+            if (!isCurrentFileListingAvailable(fileSessionId, connectionGeneration)) {
+              throw new Error(t('files.connectionRequired'))
+            }
+            const targetPath = joinPath(parentPath(entry.path), name)
+            const task = await api.createFileSessionRenameOperation(fileSessionId, connectionGeneration, entry.path, targetPath)
+            setMoveOperation({ task, clipboard: null, rename: { sourcePath: entry.path, targetPath } })
+          }}
+        />
       ) : null}
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}

@@ -1,5 +1,6 @@
 export { buildRemoteFileActionMenu } from './ui/RemoteFileActionMenu.tsx'
 export { RemotePermissionModal } from './ui/RemotePermissionModal.tsx'
+export { RemoteRenameModal } from './ui/RemoteRenameModal.tsx'
 export { DirectorySizeField } from './directory-size/ui/DirectorySizeField.tsx'
 export {
   DirectorySizeResultCache,

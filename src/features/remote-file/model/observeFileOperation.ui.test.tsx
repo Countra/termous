@@ -87,6 +87,39 @@ afterEach(() => {
 })
 
 describe('文件操作共享观察器', () => {
+  it('状态读取失败可见，同一版本快照恢复后清除错误且不伪造终态', async () => {
+    const failure = new Error('请求超时')
+    const fileOperation = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(task())
+    const onObservationError = vi.fn()
+    const onTask = vi.fn()
+    const observation = observeFileOperation({ api: api(fileOperation), initialTask: task(), onTask, onObservationError })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(onObservationError).toHaveBeenLastCalledWith(failure)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onObservationError).toHaveBeenLastCalledWith(null)
+    expect(onTask).toHaveBeenCalledOnce()
+    observation.dispose()
+    await expect(observation.terminal).resolves.toBeNull()
+  })
+
+  it.each(['updated', 'disposed'])('轮询迟到失败不覆盖 %s 后的观察状态', async (reason) => {
+    let fail!: (error: unknown) => void
+    const fileOperation = vi.fn(() => new Promise<FileOperationTask>((_resolve, reject) => { fail = reject }))
+    const onObservationError = vi.fn()
+    const observation = observeFileOperation({ api: api(fileOperation), initialTask: task(), onObservationError })
+    await vi.advanceTimersByTimeAsync(2000)
+    if (reason === 'disposed') {
+      observation.dispose()
+    } else {
+      FakeWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'file_operation_update', task: task({ revision: 2 }) }) })
+    }
+    onObservationError.mockClear()
+    fail(new Error('迟到失败'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onObservationError).not.toHaveBeenCalled()
+    observation.dispose()
+  })
+
   it('忽略陈旧 revision、保持进度单调并返回终态', async () => {
     const onTask = vi.fn()
     const observation = observeFileOperation({ api: api(), initialTask: task(), onTask })
