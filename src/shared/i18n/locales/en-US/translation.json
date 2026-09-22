@@ -3936,10 +3936,14 @@
     "deleteBookmarkGroupHint": "Bookmarks in this group will move to Ungrouped."
   },
   "forwards": {
+    "autoStart": "Connect on startup",
+    "autoStartHint": "Connect this forward automatically the next time Termous starts. If it fails, you can retry manually.",
+    "autoStartBadge": "Auto-connect",
+    "autoStartFailed": "Automatic connection failed",
     "title": "Port Forwarding",
     "subtitle": "Manage current-session and background SSH forwarding tasks",
     "profiles": "Background profiles",
-    "profilesHint": "Save common forwarding rules and start them manually.",
+    "profilesHint": "Save forwarding rules to connect on demand or when Termous starts.",
     "runtime": "Runtime instances",
     "runtimeHint": "{{count}} background forward(s) are running",
     "overview": "Forwarding overview",

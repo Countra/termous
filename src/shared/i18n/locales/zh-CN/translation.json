@@ -3911,10 +3911,14 @@
     "deleteBookmarkGroupHint": "分组内书签会移动到未分组。"
   },
   "forwards": {
+    "autoStart": "启动时自动连接",
+    "autoStartHint": "下次启动 Termous 时自动连接此转发。连接失败后可手动重试。",
+    "autoStartBadge": "自动连接",
+    "autoStartFailed": "自动连接失败",
     "title": "端口转发",
     "subtitle": "管理当前会话和后台 SSH 端口转发任务",
     "profiles": "后台配置",
-    "profilesHint": "保存常用转发规则，手动启动或停止。",
+    "profilesHint": "保存常用转发规则，按需连接或随软件启动自动连接。",
     "runtime": "运行实例",
     "runtimeHint": "{{count}} 个后台转发正在运行",
     "overview": "转发概览",

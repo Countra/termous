@@ -32,13 +32,24 @@ function sortForwardProfiles(left: ForwardProfile, right: ForwardProfile) {
 }
 
 export function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
+  if (next.profile_id && next.start_origin === 'startup' && next.status === 'failed'
+    && forwards.some((item) => item.id !== next.id && item.profile_id === next.profile_id && item.status !== 'failed' && item.status !== 'stopped')) {
+    return forwards
+  }
+  if (next.profile_id && next.status !== 'failed' && next.status !== 'stopped') {
+    forwards = forwards.filter((item) => !(item.profile_id === next.profile_id && item.start_origin === 'startup' && item.status === 'failed'))
+  }
   const exists = forwards.some((forward) => forward.id === next.id)
   const merged = exists ? forwards.map((forward) => (forward.id === next.id ? next : forward)) : [next, ...forwards]
   return [...merged].sort(sortForwards)
 }
 
 export function visibleForwards(forwards: ForwardInstance[]) {
-  return forwards.filter((forward) => !shouldRemoveForward(forward))
+  const activeProfileIds = new Set(forwards
+    .filter((forward) => forward.profile_id && forward.status !== 'failed' && forward.status !== 'stopped')
+    .map((forward) => forward.profile_id))
+  return forwards.filter((forward) => !shouldRemoveForward(forward)
+    && !(forward.start_origin === 'startup' && forward.status === 'failed' && activeProfileIds.has(forward.profile_id)))
 }
 
 export function reconcileForwardReloadSnapshot(
@@ -61,7 +72,8 @@ export function reconcileForwardReloadSnapshot(
       merged.delete(forwardId)
     }
   }
-  return [...merged.values()].sort(sortForwards)
+  // 重载期间的新实例可能已替换旧失败，即使旧实例的删除事件尚未到达也不能重新显示。
+  return visibleForwards([...merged.values()]).sort(sortForwards)
 }
 
 export function settleForwardStartCompletion(
@@ -134,11 +146,11 @@ export function rememberForwardEventSnapshot(
 }
 
 export function shouldRemoveForward(forward: ForwardInstance) {
-  return forward.status === 'stopped' || forward.status === 'failed'
+  return forward.status === 'stopped' || (forward.status === 'failed' && forward.start_origin !== 'startup')
 }
 
 export function shouldEmitForwardError(event: ForwardEvent) {
-  if (event.type === 'snapshot') {
+  if (event.type === 'snapshot' || event.type === 'deleted') {
     return false
   }
   if (event.forward.status === 'reconnecting') {

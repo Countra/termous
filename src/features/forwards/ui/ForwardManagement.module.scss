@@ -1434,6 +1434,62 @@
 .forwarding-row-mode {
   display: flex;
   min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.forwarding-auto-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  :global(.ant-switch) {
+    flex-shrink: 0;
+  }
+}
+
+.forwarding-auto-start-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  padding: 3px 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.forwarding-startup-failure {
+  display: grid;
+  gap: 4px;
+  border-left: 2px solid var(--danger);
+  padding-left: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  strong {
+    color: var(--danger);
+  }
+
+  span {
+    color: var(--text-secondary);
+  }
 }
 
 .forwarding-profile-row .forward-route-diagram,

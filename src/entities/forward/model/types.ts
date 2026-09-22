@@ -18,6 +18,7 @@ export type ForwardPhase =
   | 'failed'
 
 export interface ForwardProfile {
+  auto_start?: boolean
   id: string
   name: string
   description?: string
@@ -33,6 +34,7 @@ export interface ForwardProfile {
 }
 
 export interface ForwardProfileInput {
+  auto_start?: boolean
   name: string
   description: string
   mode: ForwardMode
@@ -60,6 +62,7 @@ export interface ForwardStartRequest {
 }
 
 export interface ForwardInstance {
+  start_origin?: 'startup'
   id: string
   profile_id?: string
   session_id?: string

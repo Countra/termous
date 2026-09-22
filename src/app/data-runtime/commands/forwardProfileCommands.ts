@@ -20,6 +20,7 @@ export function createForwardProfileCommands(api: ForwardProfileCommandGateway, 
       setData((current) => ({
         ...current,
         forwardProfiles: current.forwardProfiles.filter((profile) => profile.id !== id),
+        forwards: current.forwards.filter((forward) => !(forward.profile_id === id && forward.start_origin === 'startup' && forward.status === 'failed')),
       }))
     },
   }
