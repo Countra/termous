@@ -3940,6 +3940,8 @@
     "autoStartHint": "Connect this forward automatically the next time Termous starts. If it fails, you can retry manually.",
     "autoStartBadge": "Auto-connect",
     "autoStartFailed": "Automatic connection failed",
+    "autoStartFailureDetails": "Automatic connection failed, view details",
+    "autoStartFailedAt": "Failed at",
     "title": "Port Forwarding",
     "subtitle": "Manage current-session and background SSH forwarding tasks",
     "profiles": "Background profiles",

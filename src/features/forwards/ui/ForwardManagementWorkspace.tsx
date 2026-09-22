@@ -37,6 +37,7 @@ import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
+import { ForwardAutoStartFailure } from './ForwardAutoStartFailure'
 import styles from './ForwardManagement.module.scss'
 
 const scopedClassName = (...classNames: string[]) => classNames
@@ -628,14 +629,16 @@ function ForwardProfileRow({
       </div>
       <div className={scopedClassName('forwarding-row-mode')}>
         <ForwardModeBadge compact mode={profile.mode} />
-        {profile.auto_start ? <span className={scopedClassName('forwarding-auto-start-badge')}>{t('forwards.autoStartBadge')}</span> : null}
+        {!running && startupFailure ? (
+          <ForwardAutoStartFailure
+            key={startupFailure.id}
+            reason={startupFailure.last_error || startupFailure.status_message}
+            failedAt={startupFailure.stopped_at}
+          />
+        ) : profile.auto_start ? (
+          <span className={scopedClassName('forwarding-auto-start-badge')}>{t('forwards.autoStartBadge')}</span>
+        ) : null}
       </div>
-      {!running && startupFailure ? (
-        <div className={scopedClassName('forwarding-startup-failure')} role="status">
-          <strong>{t('forwards.autoStartFailed')}</strong>
-          <span>{startupFailure.last_error || startupFailure.status_message}</span>
-        </div>
-      ) : null}
       <ForwardRouteDiagram
         compact
         mode={profile.mode}

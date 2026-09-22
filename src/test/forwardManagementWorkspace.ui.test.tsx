@@ -17,7 +17,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('antd', () => {
+vi.mock('antd', async (importOriginal) => {
+  const { Tooltip } = await importOriginal<typeof import('antd')>()
   interface ButtonProps {
     children?: ReactNode
     disabled?: boolean
@@ -114,7 +115,7 @@ vi.mock('antd', () => {
       </div>
     ) : null,
     Popconfirm: ({ children }: { children?: ReactNode }) => <>{children}</>,
-    Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    Tooltip,
   }
 })
 
@@ -284,14 +285,27 @@ describe('端口转发临时启动意图', () => {
     const user = userEvent.setup()
     const props = workspaceProps()
     const savedProfile = { ...profile(), auto_start: true }
+    const failedAt = new Date(2026, 8, 22, 17, 30, 45).toISOString()
     render(<ForwardManagementWorkspace {...props} temporaryIntent={undefined} data={{
       ...props.data,
       forwardProfiles: [savedProfile],
-      forwards: [{ id: 'failed', profile_id: savedProfile.id, start_origin: 'startup', status: 'failed', last_error: 'Address already in use' } as ForwardInstance],
+      forwards: [{ id: 'failed', profile_id: savedProfile.id, start_origin: 'startup', status: 'failed', stopped_at: failedAt, last_error: 'Address already in use' } as ForwardInstance],
     }} />)
     expect(screen.getByText('forwards.autoStartBadge')).toBeInTheDocument()
-    expect(screen.getByText('forwards.autoStartFailed')).toBeInTheDocument()
-    expect(screen.getByText('Address already in use')).toBeInTheDocument()
+    expect(screen.queryByText('Address already in use')).not.toBeInTheDocument()
+    const failureButton = screen.getByRole('button', { name: 'forwards.autoStartFailureDetails' })
+    await user.click(failureButton)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Address already in use')
+    expect(screen.getByText('2026-09-22 17:30:45')).toHaveAttribute('datetime', failedAt)
+    expect(failureButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(failureButton).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument(), { timeout: 2000 })
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('forwards.autoStartFailed')
+    await user.click(document.body)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument(), { timeout: 2000 })
     const startButton = screen.getByRole('button', { name: 'forwards.start' })
     expect(startButton).toBeEnabled()
     await user.click(startButton)

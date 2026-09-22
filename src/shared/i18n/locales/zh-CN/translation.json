@@ -3915,6 +3915,8 @@
     "autoStartHint": "下次启动 Termous 时自动连接此转发。连接失败后可手动重试。",
     "autoStartBadge": "自动连接",
     "autoStartFailed": "自动连接失败",
+    "autoStartFailureDetails": "自动连接失败，查看原因",
+    "autoStartFailedAt": "失败时间",
     "title": "端口转发",
     "subtitle": "管理当前会话和后台 SSH 端口转发任务",
     "profiles": "后台配置",
