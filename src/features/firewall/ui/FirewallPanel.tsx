@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
-import { App as AntdApp, Button, Modal, Popconfirm, Select, Switch, Tooltip } from 'antd'
+import { App as AntdApp, Button, Popconfirm, Select, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
@@ -47,7 +47,7 @@ interface LoadRequest {
 
 export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProps) {
   const { t } = useTranslation()
-  const { notification } = AntdApp.useApp()
+  const { notification, modal } = AntdApp.useApp()
   const [snapshot, setSnapshot] = useState<FirewallSnapshot | null>(null)
   const [providers, setProviders] = useState<FirewallProviderOption[]>([])
   const [selectedProvider, setSelectedProvider] = useState<FirewallProvider>('nftables')
@@ -65,7 +65,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const sessionStateRef = useRef({ id: session?.id, connectedLinux: false })
   const selectedProviderRef = useRef(selectedProvider)
   const enabledRef = useRef(enabled)
-  const riskConfirmRef = useRef<ReturnType<typeof Modal.confirm> | null>(null)
+  const riskConfirmRef = useRef<ReturnType<typeof modal.confirm> | null>(null)
 
   const connectedLinux = Boolean(session?.kind === 'ssh' && session.status === 'connected' && host?.platform === 'linux')
   const linuxSessionUnavailable = Boolean(
@@ -271,7 +271,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       setDeleteConfirmKey(null)
       if (!confirmRisk && hasPotentialSSHBlock(nextRules)) {
         destroyRiskConfirm()
-        const confirmation = Modal.confirm({
+        const confirmation = modal.confirm({
           centered: true,
           className: 'termous-modal',
           title: t('workbench.firewall.confirmRiskRequired'),
@@ -325,7 +325,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         }
       }
     },
-    [abortApply, api, desired, destroyRiskConfirm, notification, selectedProvider, session?.id, t],
+    [abortApply, api, desired, destroyRiskConfirm, modal, notification, selectedProvider, session?.id, t],
   )
 
   const saveEditing = async () => {

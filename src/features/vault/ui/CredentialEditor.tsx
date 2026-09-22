@@ -117,7 +117,6 @@ export function CredentialEditor({
                   okText={t('app.delete')}
                   cancelText={t('app.cancel')}
                   disabled={deleteBlocked || actionBusy || importBusy}
-                  rootClassName={styles['credential-popconfirm']}
                   onConfirm={onDelete}
                 >
                   <Button danger icon={<Trash2 size={15} />} disabled={deleteBlocked || actionBusy || importBusy}>{t('app.delete')}</Button>

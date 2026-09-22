@@ -623,32 +623,7 @@
 }
 
 .popconfirm-root:global(.files-bookmarks-delete-popconfirm):global(.ant-popover) {
-  --ant-popover-bg: var(--app-bg-elevated);
-  --antd-arrow-background-color: var(--app-bg-elevated);
-}
-
-.popconfirm-root:global(.files-bookmarks-delete-popconfirm):global(.ant-popover),
-.popconfirm-surface:global(.files-bookmarks-delete-popconfirm-surface):global(.ant-popover-container),
-.popconfirm-surface:global(.files-bookmarks-delete-popconfirm-surface):global(.ant-popover-unique-container) {
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-}
-
-.popconfirm-surface:global(.files-bookmarks-delete-popconfirm-surface):global(.ant-popover-container),
-.popconfirm-surface:global(.files-bookmarks-delete-popconfirm-surface):global(.ant-popover-unique-container) {
-  max-width: 272px;
-  border: 1px solid var(--border);
-  background: var(--app-bg-elevated) !important;
-  color: var(--text-primary);
-}
-
-.popconfirm-root:global(.files-bookmarks-delete-popconfirm) :global(.ant-popover-arrow)::before {
-  background: var(--app-bg-elevated) !important;
-}
-
-.popconfirm-root:global(.files-bookmarks-delete-popconfirm) :global(.ant-popconfirm-description) {
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
+  max-width: min(272px, calc(100vw - 24px));
 }
 
 .menu-portal:global(.files-bookmarks-sidebar-menu):global(.ant-dropdown) :global(.ant-dropdown-menu) {
