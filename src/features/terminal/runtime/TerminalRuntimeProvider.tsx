@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { TerminalGateway } from '../api/terminalGateway'
 import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
+import { normalizeTerminalClipboardKeyEvent } from '../model/terminalClipboardKeyEvent'
 import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
 import { clearTerminalBuffer } from './terminalBuffer'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
@@ -187,6 +188,7 @@ export function TerminalRuntimeProvider({
   const completionStatusReconciler = completionStatusReconcilerRef.current
   const {
     runtime: shortcutRuntime,
+    platform: shortcutPlatform,
     bindingSignatures: shortcutBindingSignatures,
   } = useShortcutRuntime()
   const completionShortcutSignature = completionShortcutActionIds
@@ -1013,13 +1015,17 @@ export function TerminalRuntimeProvider({
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        if (!canAcceptTerminalInput(entry)) {
+        if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) {
           return
         }
-        const text = event.clipboardData?.getData('text/plain')
-        if (text) {
-          pasteEntryText(entry, text)
-          terminal.focus()
+        if (event.clipboardData) {
+          // 原生事件携带的是本次选择的快照；没有文本时不能回读可能已变化的系统剪贴板。
+          try {
+            const text = event.clipboardData.getData('text/plain')
+            if (text && pasteEntryText(entry, text)) terminal.focus()
+          } catch {
+            notifyClipboardError('terminal.pasteFailed')
+          }
           return
         }
         void pasteEntryClipboard(entry)
@@ -1191,7 +1197,7 @@ export function TerminalRuntimeProvider({
             return true
           }
         }
-        const result = shortcutRuntime.dispatch(event, {
+        const result = shortcutRuntime.dispatch(normalizeTerminalClipboardKeyEvent(event, shortcutPlatform), {
           adapterId: `xterm:${sessionId}`,
           editable: false,
         })
@@ -1283,9 +1289,11 @@ export function TerminalRuntimeProvider({
       getViewportForSession,
       isCompletionInteractionActive,
       message,
+      notifyClipboardError,
       pasteEntryClipboard,
       pasteEntryText,
       shortcutRuntime,
+      shortcutPlatform,
       startCompletionStatusReconciliation,
       stopCompletionStatusReconciliation,
     ],

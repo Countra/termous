@@ -51,7 +51,7 @@ test('终端补全通过稳定外部存储订阅且不在渲染期发布设置�
 
 test('候选按键通过统一运行时解析并保持原生 Tab 与 Escape 语义', () => {
   assert.match(providerSource, /terminal\.attachCustomKeyEventHandler/)
-  assert.match(providerSource, /shortcutRuntime\.dispatch\(event/)
+  assert.match(providerSource, /shortcutRuntime\.dispatch\(normalizeTerminalClipboardKeyEvent\(event, shortcutPlatform\)/)
   assert.match(providerSource, /'terminal\.completion\.previous'/)
   assert.match(providerSource, /'terminal\.completion\.next'/)
   assert.match(providerSource, /'terminal\.completion\.accept'/)
