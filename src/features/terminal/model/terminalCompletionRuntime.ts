@@ -425,6 +425,21 @@ export class TerminalCompletionRuntime {
     this.publish(state)
   }
 
+  requestSuggestions(sessionId: string): boolean {
+    const state = this.sessions.get(sessionId)
+    if (!state || !this.canQuery(state, 'manual')) return false
+    // 手动触发解除同一输入的关闭抑制；正在查询时复用请求，避免连按造成取消与重发。
+    if (state.queryAbort) return true
+    this.cancelQuery(state)
+    // 同一输入的候选在刷新期间仍有效，保留选择，避免 Enter 意外落回终端执行。
+    const preserveCurrentResult = state.items.length > 0
+    if (!preserveCurrentResult) this.clearQueryResult(state)
+    state.suppressedInputRevision = undefined
+    state.incompleteRetries = 0
+    void this.executeQuery(state, ++state.querySequence, 'manual', preserveCurrentResult)
+    return true
+  }
+
   isSuggestionsPaused(sessionId: string) {
     return this.pausedSessions.has(sessionId)
   }
@@ -663,9 +678,12 @@ export class TerminalCompletionRuntime {
     this.publish(state)
   }
 
-  private scheduleIncompleteRetry(state: TerminalCompletionSessionState) {
+  private scheduleIncompleteRetry(
+    state: TerminalCompletionSessionState,
+    trigger: CompletionQuery['trigger'],
+  ) {
     if (
-      !this.canQuery(state)
+      !this.canQuery(state, trigger)
       || state.incompleteRetries >= this.maximumIncompleteRetries
     ) {
       return
@@ -675,18 +693,19 @@ export class TerminalCompletionRuntime {
     const sequence = ++state.querySequence
     state.cancelScheduledQuery = this.schedule(() => {
       state.cancelScheduledQuery = undefined
-      void this.executeQuery(state, sequence, true)
+      void this.executeQuery(state, sequence, trigger, true)
     }, incompleteRetryDelay(this.incompleteRetryMs, retryIndex))
   }
 
   private async executeQuery(
     state: TerminalCompletionSessionState,
     sequence: number,
+    trigger: CompletionQuery['trigger'] = 'typing',
     preserveCurrentResult = false,
   ) {
     const executor = this.queryExecutor
     const boundary = state.boundary
-    if (!executor || !boundary || !this.canQuery(state) || sequence !== state.querySequence) {
+    if (!executor || !boundary || !this.canQuery(state, trigger) || sequence !== state.querySequence) {
       return
     }
     const inputRevision = state.input.revision
@@ -704,7 +723,7 @@ export class TerminalCompletionRuntime {
         prompt_generation: boundary.prompt_generation,
         line: state.input.line,
         cursor_utf16: state.input.cursorUtf16,
-        trigger: 'typing',
+        trigger,
         max_items: maximumCompletionItems,
       }, controller.signal)
       if (!this.isCurrentQuery(
@@ -720,7 +739,7 @@ export class TerminalCompletionRuntime {
         || result.source_generation !== boundary.source_generation
       ) {
         state.queryAbort = undefined
-        state.queryState = preserveCurrentResult ? 'ready' : 'error'
+        state.queryState = preserveCurrentResult && state.items.length > 0 ? 'ready' : 'error'
         if (!preserveCurrentResult) {
           state.items = []
           state.selectedIndex = -1
@@ -754,14 +773,14 @@ export class TerminalCompletionRuntime {
       state.errorCode = undefined
       this.publish(state)
       if (completionResultNeedsRetry(result)) {
-        this.scheduleIncompleteRetry(state)
+        this.scheduleIncompleteRetry(state, trigger)
       }
     } catch (error) {
       if (controller.signal.aborted || sequence !== state.querySequence) {
         return
       }
       state.queryAbort = undefined
-      state.queryState = preserveCurrentResult ? 'ready' : 'error'
+      state.queryState = preserveCurrentResult && state.items.length > 0 ? 'ready' : 'error'
       if (!preserveCurrentResult) {
         state.items = []
         state.selectedIndex = -1
@@ -788,7 +807,7 @@ export class TerminalCompletionRuntime {
     )
   }
 
-  private canQuery(state: TerminalCompletionSessionState) {
+  private canQuery(state: TerminalCompletionSessionState, trigger: CompletionQuery['trigger'] = 'typing') {
     return (
       this.enabled
       && !this.pausedSessions.has(state.sessionId)
@@ -798,7 +817,7 @@ export class TerminalCompletionRuntime {
       && state.input.trust === 'trusted'
       && !state.input.composing
       && !state.alternateScreen
-      && state.input.line.length >= 1
+      && (trigger === 'manual' || state.input.line.length >= 1)
       && completionLineWithinByteLimit(state.input.line)
       && state.input.cursorUtf16 === state.input.line.length
     )

@@ -256,6 +256,168 @@ async function flushPromises() {
   await Promise.resolve()
 }
 
+test('手动补全立即查询并在关闭或失败后复用同一输入重试', async () => {
+  const scheduler = new ManualScheduler()
+  const requests: CompletionQuery[] = []
+  let fail = false
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: async (_id, request) => {
+      requests.push(request)
+      if (fail) throw new Error('offline')
+      return completionResult(request, [commandCandidate(request)])
+    },
+  })
+  runtime.applyPromptBoundary('s1', boundary)
+  runtime.applyUserData('s1', 'g')
+  assert.equal(runtime.requestSuggestions('s1'), true)
+  assert.equal(scheduler.pending(), 0)
+  assert.equal(requests[0]?.trigger, 'manual')
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('s1').items.length, 1)
+
+  runtime.closeSuggestions('s1')
+  fail = true
+  runtime.requestSuggestions('s1')
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('s1').queryState, 'error')
+  fail = false
+  runtime.requestSuggestions('s1')
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('s1').items.length, 1)
+  assert.equal(runtime.getSnapshot('s1').errorCode, undefined)
+  assert.deepEqual(requests.map((request) => request.line), ['g', 'g', 'g'])
+})
+
+test('空提示符仅手动查询且重新触发会重置有界增量重试预算', async () => {
+  const scheduler = new ManualScheduler()
+  const triggers: string[] = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    maximumIncompleteRetries: 1,
+    query: async (_id, request) => {
+      triggers.push(request.trigger)
+      return completionResult(request, [], true)
+    },
+  })
+  runtime.applyPromptBoundary('s1', boundary)
+  assert.equal(scheduler.pending(), 0)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    assert.equal(runtime.requestSuggestions('s1'), true)
+    await flushPromises()
+    assert.equal(scheduler.runNext(), true)
+    await flushPromises()
+    assert.equal(scheduler.pending(), 0)
+  }
+  assert.deepEqual(triggers, ['manual', 'manual', 'manual', 'manual'])
+})
+
+test('手动补全复用在途请求，关闭后迟到结果不能覆盖新查询', async () => {
+  const pending: Array<{ request: CompletionQuery; signal: AbortSignal; resolve: (result: CompletionResult) => void }> = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    query: async (_id, request, signal) => new Promise<CompletionResult>((resolve) => {
+      pending.push({ request, signal, resolve })
+    }),
+  })
+  runtime.applyPromptBoundary('s1', boundary)
+  runtime.requestSuggestions('s1')
+  runtime.requestSuggestions('s1')
+  assert.equal(pending.length, 1)
+  runtime.closeSuggestions('s1')
+  assert.equal(pending[0].signal.aborted, true)
+  runtime.requestSuggestions('s1')
+  pending[1].resolve(completionResult(pending[1].request, [commandCandidate(pending[1].request, 'git log')]))
+  await flushPromises()
+  pending[0].resolve(completionResult(pending[0].request, [commandCandidate(pending[0].request)]))
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('s1').items[0]?.insert_text, 'git log')
+})
+
+test('刷新已有候选时保留列表与选中项，失败仍可接受旧候选', async () => {
+  const pending: Array<{ request: CompletionQuery; resolve: (result: CompletionResult) => void; reject: (error: Error) => void }> = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    query: async (_id, request) => new Promise<CompletionResult>((resolve, reject) => {
+      pending.push({ request, resolve, reject })
+    }),
+  })
+  runtime.applyPromptBoundary('s1', boundary)
+  runtime.requestSuggestions('s1')
+  const request = pending[0].request
+  const status = commandCandidate(request)
+  const log = { ...commandCandidate(request, 'git log'), id: 'history:log' }
+  pending[0].resolve(completionResult(request, [status, log]))
+  await flushPromises()
+  runtime.moveSelection('s1', 1)
+  runtime.requestSuggestions('s1')
+  assert.equal(runtime.getSnapshot('s1').queryState, 'loading')
+  assert.equal(runtime.getSnapshot('s1').items.length, 2)
+  assert.equal(runtime.getSnapshot('s1').selectedIndex, 1)
+  pending[1].reject(new Error('offline'))
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('s1').queryState, 'ready')
+  assert.equal(runtime.getSnapshot('s1').items.length, 2)
+  assert.equal(runtime.acceptSelection('s1')?.text, 'git log')
+})
+
+test('空候选增量查询失败会暴露错误状态，允许快捷键继续重试', async () => {
+  for (const failure of ['rejected', 'mismatched'] as const) {
+    const scheduler = new ManualScheduler()
+    let queries = 0
+    const runtime = new TerminalCompletionRuntime(true, {
+      schedule: scheduler.schedule,
+      query: async (_id, request) => {
+        queries += 1
+        if (queries === 1) return completionResult(request, [], true)
+        if (queries === 2) {
+          if (failure === 'rejected') throw new Error('offline')
+          return { ...completionResult(request, []), request_id: 'stale-request' }
+        }
+        return completionResult(request, [commandCandidate(request)])
+      },
+    })
+    runtime.applyPromptBoundary('s1', boundary)
+    runtime.requestSuggestions('s1')
+    await flushPromises()
+    assert.equal(scheduler.runNext(), true)
+    await flushPromises()
+    assert.equal(runtime.getSnapshot('s1').queryState, 'error')
+    assert.equal(scheduler.pending(), 0)
+    runtime.requestSuggestions('s1')
+    await flushPromises()
+    assert.equal(runtime.getSnapshot('s1').items.length, 1)
+    runtime.clear()
+  }
+})
+
+test('手动触发不绕过关闭、暂停、输入法、未知输入和会话代次限制', () => {
+  const mutations: Array<(runtime: TerminalCompletionRuntime) => void> = [
+    (runtime) => runtime.setEnabled(false),
+    (runtime) => runtime.setSuggestionsPaused('s1', true),
+    (runtime) => runtime.startComposition('s1'),
+    (runtime) => runtime.markUncertain('s1'),
+    (runtime) => runtime.setAlternateScreen('s1', true),
+    (runtime) => runtime.invalidateSession('s1'),
+    (runtime) => runtime.setQueryExecutor(undefined),
+    (runtime) => { runtime.applyUserData('s1', 'g'); runtime.applyUserData('s1', '\x1b[D') },
+  ]
+  for (const mutate of mutations) {
+    let queried = false
+    const runtime = new TerminalCompletionRuntime(true, {
+      schedule: new ManualScheduler().schedule,
+      query: async (_id, request) => {
+        queried = true
+        return completionResult(request, [])
+      },
+    })
+    assert.equal(runtime.requestSuggestions('missing'), false)
+    runtime.applyPromptBoundary('s1', boundary)
+    mutate(runtime)
+    assert.equal(runtime.requestSuggestions('s1'), false)
+    assert.equal(queried, false)
+    runtime.clear()
+  }
+})
+
 test('无变化时返回稳定快照且订阅只在状态变化后通知', () => {
   const runtime = new TerminalCompletionRuntime()
   const first = runtime.getSnapshot('session-1')

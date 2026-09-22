@@ -9,6 +9,7 @@ export const SHORTCUT_ACTION_IDS = [
   'app.host_launcher.open',
   'terminal.copy_selection',
   'terminal.paste',
+  'terminal.completion.trigger',
   'terminal.completion.previous',
   'terminal.completion.next',
   'terminal.completion.accept',

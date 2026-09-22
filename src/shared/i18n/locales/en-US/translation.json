@@ -2316,6 +2316,10 @@
       "reconnect": "Reconnect",
       "retry": "Retry",
       "retryFailed": "Unable to retry smart completion",
+      "queryFailed": "Suggestions are temporarily unavailable. Keep typing to try again.",
+      "queryFailedWithShortcut": "Unable to fetch suggestions. Press {{shortcut}} to retry.",
+      "suggestionsUnavailable": "Command suggestions are unavailable. Make sure a completion source is enabled and move the cursor to the end of the command to try again.",
+      "inputUncertain": "The current command line cannot be tracked reliably. Press Ctrl+C to return to a new prompt, then retype the command.",
       "shortcuts": {
         "navigate": "Navigate",
         "select": "Select"
@@ -4141,6 +4145,10 @@
         "terminal_paste": {
           "name": "Paste",
           "description": "Pastes clipboard content into the active writable terminal."
+        },
+        "terminal_completion_trigger": {
+          "name": "Show command suggestions",
+          "description": "Show or refresh suggestions for the current input, then select one to insert into the terminal."
         },
         "terminal_completion_previous": {
           "name": "Select previous suggestion",

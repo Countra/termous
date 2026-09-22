@@ -54,6 +54,31 @@ function installContext(
   }
 }
 
+test('手动补全按平台和用户设置解析，长按与输入法不重复触发', () => {
+  for (const platform of ['win32', 'darwin', 'linux'] as const) {
+    const runtime = new ShortcutRuntime({ index: compileShortcutIndex({}, platform) })
+    let calls = 0
+    installContext(runtime, {
+      id: 'terminal', scopes: ['terminal.writable'],
+      handlers: { 'terminal.completion.trigger': () => { calls += 1; return 'handled' } },
+    })
+    const event = keyboardEvent('KeyJ', 'j', { ctrlKey: true })
+    assert.equal(runtime.dispatch(event).actionId, 'terminal.completion.trigger')
+    runtime.dispatch({ ...event, repeat: true })
+    assert.equal(calls, 1)
+    runtime.dispatch({ ...event, type: 'keyup' })
+    runtime.dispatch({ ...event, isComposing: true })
+    assert.equal(calls, 1)
+    assert.equal(runtime.dispatch(keyboardEvent('Tab', 'Tab')).result, 'fallthrough')
+    const override = setShortcutBindingOverride({}, 'terminal.completion.trigger', [createShortcutChord('F8', 'F8')])
+    runtime.updateIndex(compileShortcutIndex(override, platform))
+    assert.equal(runtime.dispatch(event).result, 'fallthrough')
+    assert.equal(runtime.dispatch(keyboardEvent('F8', 'F8')).actionId, 'terminal.completion.trigger')
+    runtime.updateIndex(compileShortcutIndex(setShortcutBindingOverride({}, 'terminal.completion.trigger', []), platform))
+    assert.equal(runtime.dispatch(event).result, 'fallthrough')
+  }
+})
+
 test('上下文按瞬态、焦点、页面和全局优先级依次执行', () => {
   const runtime = new ShortcutRuntime({
     index: compileShortcutIndex({}, 'win32'),

@@ -23,13 +23,13 @@ const defaultSettings: ShortcutSettings = {
 
 test('快捷键设置行稳定按目录分组并区分默认未绑定与主动取消', () => {
   const defaultRows = buildShortcutSettingsRows(defaultSettings, 'win32')
-  assert.equal(defaultRows.length, 15)
+  assert.equal(defaultRows.length, 16)
   assert.deepEqual(
     groupShortcutSettingsRows(defaultRows).map(({ group, rows }) => [group, rows.length]),
     [
       ['global', 1],
       ['terminal', 5],
-      ['completion', 4],
+      ['completion', 5],
       ['files', 4],
       ['editor', 1],
     ],

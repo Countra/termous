@@ -2313,6 +2313,10 @@
       "reconnect": "重新连接",
       "retry": "重试",
       "retryFailed": "智能补全重试失败",
+      "queryFailed": "暂时无法获取命令建议，请继续输入后重试。",
+      "queryFailedWithShortcut": "命令建议获取失败，按 {{shortcut}} 重试。",
+      "suggestionsUnavailable": "当前无法显示命令建议。请确认已启用补全来源，并将光标移至命令输入末尾后重试。",
+      "inputUncertain": "当前命令行状态无法确认。请按 Ctrl+C 返回新的提示符，再重新输入命令。",
       "shortcuts": {
         "navigate": "切换",
         "select": "选择"
@@ -4116,6 +4120,10 @@
         "terminal_paste": {
           "name": "粘贴",
           "description": "将剪贴板内容粘贴到当前可写终端。"
+        },
+        "terminal_completion_trigger": {
+          "name": "显示命令建议",
+          "description": "根据当前输入显示或刷新补全候选，选择后填入终端。"
         },
         "terminal_completion_previous": {
           "name": "选择上一个候选",

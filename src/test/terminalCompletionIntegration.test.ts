@@ -55,6 +55,7 @@ test('候选按键通过统一运行时解析并保持原生 Tab 与 Escape 语�
   assert.match(providerSource, /'terminal\.completion\.previous'/)
   assert.match(providerSource, /'terminal\.completion\.next'/)
   assert.match(providerSource, /'terminal\.completion\.accept'/)
+  assert.match(providerSource, /completionShortcutContextId[\s\S]*?viewport\.completionActive[\s\S]*?canAcceptTerminalInput\(entry\)[\s\S]*?'terminal\.completion\.trigger'[\s\S]*?completionRuntime\.requestSuggestions\(sessionId\)/)
   assert.match(providerSource, /viewport\.completionVisible/)
   assert.match(
     providerSource,
