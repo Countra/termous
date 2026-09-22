@@ -4078,6 +4078,22 @@
     "closeBehaviorHint": "Tray quit always disconnects safely and exits the app.",
     "closeBehaviorExit": "Exit Termous",
     "closeBehaviorMinimizeToTray": "Minimize to tray",
+    "loginItem": {
+      "title": "Launch at startup",
+      "hint": "Start Termous when you sign in. Off by default.",
+      "developmentLabel": "Development",
+      "development": "Available in packaged releases only. Disabled in development mode.",
+      "desktop_only": "This setting is available only in the desktop app.",
+      "unsupported_platform": "Launch at startup is not supported on this platform yet.",
+      "requiresApproval": "Awaiting approval. Allow Termous in your system's login item settings.",
+      "errors": {
+        "unavailable": "This environment cannot change the startup setting.",
+        "invalid_request": "Invalid startup setting. Reload the status and try again.",
+        "read_failed": "Unable to read the system startup status. Please retry.",
+        "write_failed": "Unable to change the startup setting. Reload the status before trying again.",
+        "not_applied": "The system did not apply the setting. Check startup item permissions and try again."
+      }
+    },
     "chinese": "Simplified Chinese",
     "english": "English",
     "terminalSection": "Terminal style",

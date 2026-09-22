@@ -4053,6 +4053,22 @@
     "closeBehaviorHint": "托盘退出始终会安全断开连接并退出软件。",
     "closeBehaviorExit": "退出 Termous",
     "closeBehaviorMinimizeToTray": "最小化到托盘",
+    "loginItem": {
+      "title": "开机启动",
+      "hint": "登录系统后自动启动 Termous，默认关闭。",
+      "developmentLabel": "开发模式",
+      "development": "仅正式版支持，开发模式不可用。",
+      "desktop_only": "仅桌面应用支持此设置。",
+      "unsupported_platform": "当前平台暂不支持开机启动。",
+      "requiresApproval": "等待系统批准，请在系统登录项设置中允许 Termous 自动启动。",
+      "errors": {
+        "unavailable": "当前环境无法修改开机启动设置。",
+        "invalid_request": "开机启动设置无效，请重新读取后再试。",
+        "read_failed": "无法读取系统启动状态，请重试。",
+        "write_failed": "无法修改开机启动设置，请重新读取状态后再试。",
+        "not_applied": "系统未应用此设置，请检查系统启动项权限后重试。"
+      }
+    },
     "chinese": "简体中文",
     "english": "英语",
     "terminalSection": "终端样式",

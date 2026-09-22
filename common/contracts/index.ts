@@ -10,6 +10,8 @@ export type {
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
 export { skillInstallIPCChannels } from './skill-install.ts'
+export { loginItemIPCChannels } from './login-item.ts'
+export type { LoginItemBridge, LoginItemState, LoginItemResponse, LoginItemError } from './login-item.ts'
 export type { SkillInstallBridge, SkillInstallClient, SkillInstallPolicy, SkillInstallError, SkillInstallPlan, SkillInstallResult, SkillInstallResponse } from './skill-install.ts'
 export { canonicalizeMcpFileToolName } from './mcp-file-tools.ts'
 export { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from './agent-attachment.ts'

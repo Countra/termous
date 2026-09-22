@@ -139,6 +139,25 @@
 !endif
 
 !macro customUnInstall
+  ; 升级保留用户选择；正式卸载只清理当前安装目录的无参数启动项。
+  ${IfNot} ${isUpdated}
+    Push $0
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
+    ${If} $0 == '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\"'
+    ${OrIf} $0 == "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      ClearErrors
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
+      ${If} ${Errors}
+        DetailPrint "未能移除 Termous 开机启动项，请在系统启动应用设置中检查。"
+      ${Else}
+        ; 可选的系统禁用标记可能不存在；启动命令已移除，不影响卸载继续。
+        ClearErrors
+        DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${APP_ID}"
+        ClearErrors
+      ${EndIf}
+    ${EndIf}
+    Pop $0
+  ${EndIf}
   !insertmacro termousRemoveShortcut "$newDesktopLink"
   !insertmacro termousRemoveShortcut "$oldDesktopLink"
   !insertmacro termousRemoveShortcut "$newStartMenuLink"

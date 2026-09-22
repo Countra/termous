@@ -31,6 +31,7 @@ import { registerAgentRuntimeIPC } from './agent/ipc'
 import { AgentSkillBundleSource } from './agent/skillBundleSource'
 import { SkillInstaller } from './skills/installer'
 import { registerSkillInstallIPC } from './skills/ipc'
+import { registerLoginItemIPC } from './loginItemIPC'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
@@ -1687,6 +1688,15 @@ async function initializeApplication() {
   registerWindowControls()
   registerTrayControls()
   registerApplicationBuildControls()
+  registerLoginItemIPC({
+    ipcMain,
+    app,
+    platform: process.platform,
+    development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
+    executablePath: process.execPath,
+    entryName: APP_ID,
+    isTrustedSender: isTrustedMainIPCEvent,
+  })
   registerExternalNavigationControls()
   registerFilePickers()
   registerSSHKeyFileControls()

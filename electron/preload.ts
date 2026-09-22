@@ -24,7 +24,7 @@ import type {
   UpdateSnapshot,
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
-import { skillInstallIPCChannels } from '#common/contracts'
+import { loginItemIPCChannels, skillInstallIPCChannels } from '#common/contracts'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -140,6 +140,10 @@ const bridge = {
   skillInstall: {
     selectDirectory: (client) => ipcRenderer.invoke(skillInstallIPCChannels.selectDirectory, client),
     install: (request) => ipcRenderer.invoke(skillInstallIPCChannels.install, request),
+  },
+  loginItem: {
+    get: () => ipcRenderer.invoke(loginItemIPCChannels.get),
+    setEnabled: (enabled) => ipcRenderer.invoke(loginItemIPCChannels.setEnabled, enabled),
   },
   agentRuntime: {
     getStatus: () => ipcRenderer.invoke(agentRuntimeIPCChannels.getStatus) as Promise<AgentRuntimeStatus>,

@@ -11,3 +11,48 @@
   justify-content: center;
   gap: 7px;
 }
+
+.login-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+  padding-top: 14px;
+}
+
+.login-item-control {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+}
+
+.login-item-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-item-development:global(.ant-tag) {
+  margin-inline-end: 0;
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.login-item-description {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-item-hint {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.login-item-error {
+  color: var(--danger);
+}
