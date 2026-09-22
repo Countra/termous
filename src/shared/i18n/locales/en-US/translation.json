@@ -4648,6 +4648,53 @@
     },
     "tabMcp": "MCP",
     "mcp": {
+      "skills": {
+        "hint": "The built-in assistant already includes these skills. External clients still need an MCP connection and permissions.",
+        "desktopOnly": "Install skills from the Termous desktop application.",
+        "install": "Install skills",
+        "client": "Client type",
+        "custom": "Custom directory",
+        "customHint": "Install directly into the selected directory",
+        "directory": "Installation location",
+        "choose": "Choose directory",
+        "directoryHint": {
+          "codex": "Choose a project or home directory. Skills will be installed under .agents/skills.",
+          "claude-code": "Choose a project or home directory. Skills will be installed under .claude/skills.",
+          "custom": "Choose the directory that will contain the individual skill folders. No extra directories are appended."
+        },
+        "destination": "Final installation directory",
+        "contents": "Installation contents",
+        "exists": "Already exists",
+        "new": "To install",
+        "replace": "Replace {{count}} existing skills",
+        "replaceHint": "Replaces each matching skill folder, including local changes inside it. Other skills are unaffected.",
+        "skipHint": "Existing skills are kept by default. Only missing skills will be installed.",
+        "failed": "Could not install skills",
+        "partial": "Some items need attention",
+        "finished": "Installation complete",
+        "summary": "Installed {{installed}}, skipped {{skipped}}, failed {{failed}}.",
+        "recovery": "Retained files: ",
+        "afterInstall": "Reload skills in your client; restart the client if they do not appear. Configure MCP connectivity and permissions separately.",
+        "status": {
+          "installed": "Installed",
+          "skipped": "Skipped",
+          "failed": "Failed"
+        },
+        "errors": {
+          "invalid_request": "Invalid installation request. Choose the directory again.",
+          "invalid_directory": "The directory is missing or inaccessible. Choose another directory.",
+          "unsafe_path": "The target contains a link or a non-directory entry, or overlaps the bundled skills source. Choose another directory.",
+          "bundle_unavailable": "Bundled skills are missing or failed verification. Repair or reinstall Termous.",
+          "permission_denied": "The directory is not writable or a file is in use. Check it and choose the directory again.",
+          "disk_full": "The disk is full. Free up space and try again.",
+          "target_changed": "The target directory changed. Choose it again and review existing items.",
+          "plan_expired": "The directory selection expired. Choose it again.",
+          "busy": "Another installation operation is in progress. Try again shortly.",
+          "io_error": "The file operation could not be completed. Check the directory and disk, then choose the directory again.",
+          "cleanup_failed": "Temporary files could not be removed. Check the retained path below.",
+          "recovery_failed": "The original skill could not be restored automatically. Check the backup at the retained path below before deciding whether to retry."
+        }
+      },
       "title": "MCP access",
       "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, file management, port forwarding, code snippets, and remote operations.",
       "state": {

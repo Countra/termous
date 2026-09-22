@@ -29,6 +29,8 @@ import { termousReleasePageUrl } from '#common/release-page'
 import { AgentCoreRuntimeClient } from './agent/coreRuntimeClient'
 import { registerAgentRuntimeIPC } from './agent/ipc'
 import { AgentSkillBundleSource } from './agent/skillBundleSource'
+import { SkillInstaller } from './skills/installer'
+import { registerSkillInstallIPC } from './skills/ipc'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
@@ -89,6 +91,14 @@ const coreProcess = new CoreProcessManager({ logger: {
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
 } })
+const skillsDirectory = VITE_DEV_SERVER_URL
+  ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
+  : path.join(process.resourcesPath, 'agent', 'skills')
+const skillsSource = new AgentSkillBundleSource({
+  mode: VITE_DEV_SERVER_URL ? 'development' : 'production',
+  rootDirectory: skillsDirectory,
+})
+const skillInstaller = new SkillInstaller(skillsSource, skillsDirectory)
 const agentSupervisor = new AgentSupervisor({
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
@@ -97,12 +107,7 @@ const agentSupervisor = new AgentSupervisor({
     modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
     cwd: path.join(__dirname, '..'),
   }),
-  skills: new AgentSkillBundleSource({
-    mode: VITE_DEV_SERVER_URL ? 'development' : 'production',
-    rootDirectory: VITE_DEV_SERVER_URL
-      ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
-      : path.join(process.resourcesPath, 'agent', 'skills'),
-  }),
+  skills: skillsSource,
   logger: {
     info: (event, details = {}) => reportElectronProcessEvent(event, details),
     error: (event, details = {}) => reportElectronProcessEvent(event, details),
@@ -819,6 +824,7 @@ function prepareApplicationExit() {
 }
 
 async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
+  await skillInstaller.suspend()
   let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
     await agentSupervisor.shutdown()
@@ -841,6 +847,7 @@ async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
 
 async function recoverAgentRuntimeAfterFailedShutdown() {
   if (exitCoordinator.isApplicationExiting()) return
+  skillInstaller.resume()
   terminalCompletionRuntime.resume()
   const status = await agentSupervisor.initialize()
   if (status.state === 'offline') {
@@ -879,6 +886,7 @@ async function recoverApplicationAfterFailedUpdateInstall() {
   if (exitCoordinator.isApplicationExiting()) return false
   await agentSupervisor.initialize()
   if (exitCoordinator.isApplicationExiting()) return false
+  skillInstaller.resume()
   terminalCompletionRuntime.resume()
   trayController.initialize()
   if (win && !win.isDestroyed()) {
@@ -1126,6 +1134,20 @@ function registerCoreProcessControls() {
 }
 
 function registerAgentRuntimeControls() {
+  registerSkillInstallIPC({
+    ipcMain,
+    installer: skillInstaller,
+    isTrustedSender: isTrustedMainIPCEvent,
+    pickDirectory: async (event) => {
+      const target = BrowserWindow.fromWebContents(event.sender)
+      if (!target || target.isDestroyed()) return null
+      const result = await dialog.showOpenDialog(target, {
+        defaultPath: app.getPath('home'),
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      return result.canceled ? null : result.filePaths[0] ?? null
+    },
+  })
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerAgentRuntimeIPC({
     ipcMain,

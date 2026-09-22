@@ -134,7 +134,7 @@ Termous 将 SSH 终端、VNC 远程桌面、主机与凭据、远程文件、服
 - 文件删除使用独立的 `files:delete` 权限，先预览范围再按客户端审批策略执行，支持异步任务、逐项结果查询和取消；已有外部客户端不会因升级自动获得删除权限。
 - 可逐次审批操作，或为可信客户端开启无需逐次审批；主机指纹确认与已授予的权限仍然有效。
 - 连接外部工具时使用设置页提供的地址与客户端令牌，并保持 Termous 运行；应用重启后连接地址可能变化，需要以设置页为准。
-- [Termous Skills](https://github.com/Countra/termous-skills) 提供配套工作流，可按需安装到外部客户端；内置 AI 助手已随应用提供这些技能。
+- [Termous Skills](https://github.com/Countra/termous-skills) 提供配套工作流，内置 AI 助手已随应用提供这些技能。在“设置 → MCP → 授权客户端”点击“安装 Skills”，选择客户端类型和项目目录或用户主目录：Codex 安装至其下的 `.agents/skills`，Claude Code 安装至 `.claude/skills`；自定义类型直接安装至所选目录。安装前会显示最终路径和同名项，默认跳过已有 Skill，勾选替换后才覆盖整个同名文件夹。MCP 连接及权限仍需单独配置。
 
 ### 数据、安全与桌面体验
 

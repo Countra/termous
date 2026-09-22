@@ -24,6 +24,7 @@ import type {
   UpdateSnapshot,
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
+import { skillInstallIPCChannels } from '#common/contracts'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -135,6 +136,10 @@ const bridge = {
       ipcRenderer.on('core:fatal', listener)
       return () => ipcRenderer.removeListener('core:fatal', listener)
     },
+  },
+  skillInstall: {
+    selectDirectory: (client) => ipcRenderer.invoke(skillInstallIPCChannels.selectDirectory, client),
+    install: (request) => ipcRenderer.invoke(skillInstallIPCChannels.install, request),
   },
   agentRuntime: {
     getStatus: () => ipcRenderer.invoke(agentRuntimeIPCChannels.getStatus) as Promise<AgentRuntimeStatus>,

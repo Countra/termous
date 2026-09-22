@@ -9,6 +9,8 @@ export type {
   AgentSkillsBundleStatus,
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
+export { skillInstallIPCChannels } from './skill-install.ts'
+export type { SkillInstallBridge, SkillInstallClient, SkillInstallPolicy, SkillInstallError, SkillInstallPlan, SkillInstallResult, SkillInstallResponse } from './skill-install.ts'
 export { canonicalizeMcpFileToolName } from './mcp-file-tools.ts'
 export { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from './agent-attachment.ts'
 export type {

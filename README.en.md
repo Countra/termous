@@ -134,7 +134,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - File deletion requires the separate `files:delete` permission, previews the scope before execution under the client's approval policy, and supports asynchronous tasks, per-item results, and cancellation. Upgrading does not automatically grant deletion access to existing external clients.
 - Approve operations individually or allow a trusted client to run without per-operation approval. Granted permissions and host-key confirmation still apply.
 - Use the address and client token provided in Settings and keep Termous running. The address may change after an application restart; use the current address shown there.
-- [Termous Skills](https://github.com/Countra/termous-skills) provides workflows that can be installed in external clients as needed. These skills are already included with the built-in AI assistant.
+- [Termous Skills](https://github.com/Countra/termous-skills) provides workflows already included with the built-in AI assistant. Under Settings → MCP → Authorized clients, choose Install skills, select a client type, and pick a project or home directory. Codex uses `.agents/skills` beneath that directory; Claude Code uses `.claude/skills`. Custom directory installs directly into the selected directory. Review the final path and existing items before installing: existing skills are skipped by default, and explicit replacement overwrites each matching folder. Configure MCP connectivity and permissions separately.
 
 ### Data, security, and desktop experience
 

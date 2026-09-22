@@ -4623,6 +4623,53 @@
     },
     "tabMcp": "MCP",
     "mcp": {
+      "skills": {
+        "hint": "内置 AI 助手已包含这些 Skills。外部客户端安装后，仍需配置 MCP 连接和权限。",
+        "desktopOnly": "请在 Termous 桌面应用中安装 Skills。",
+        "install": "安装 Skills",
+        "client": "客户端类型",
+        "custom": "自定义目录",
+        "customHint": "直接安装到所选目录",
+        "directory": "安装位置",
+        "choose": "选择目录",
+        "directoryHint": {
+          "codex": "选择项目目录或用户主目录，将在其下创建 .agents/skills。",
+          "claude-code": "选择项目目录或用户主目录，将在其下创建 .claude/skills。",
+          "custom": "选择存放各个 Skill 文件夹的目录，不会再附加其他目录。"
+        },
+        "destination": "最终安装目录",
+        "contents": "安装内容",
+        "exists": "已存在",
+        "new": "待安装",
+        "replace": "替换 {{count}} 个同名 Skill",
+        "replaceHint": "将替换这些 Skill 的整个文件夹，其中的本地修改也会被替换。其他 Skill 不受影响。",
+        "skipHint": "默认保留同名 Skill，仅安装缺少的项。",
+        "failed": "无法安装 Skills",
+        "partial": "部分项目需要处理",
+        "finished": "安装处理完成",
+        "summary": "已安装 {{installed}} 个，已跳过 {{skipped}} 个，失败 {{failed}} 个。",
+        "recovery": "保留文件位于：",
+        "afterInstall": "在客户端中重新加载 Skills；若未显示，请重启客户端。MCP 连接和授权需单独配置。",
+        "status": {
+          "installed": "已安装",
+          "skipped": "已跳过",
+          "failed": "失败"
+        },
+        "errors": {
+          "invalid_request": "安装请求无效，请重新选择目录。",
+          "invalid_directory": "目录不存在或不可访问，请重新选择目录。",
+          "unsafe_path": "目标包含链接或非目录项，或与内置 Skills 源目录重叠。请选择其他目录。",
+          "bundle_unavailable": "内置 Skills 缺失或校验失败，请修复或重新安装 Termous。",
+          "permission_denied": "没有目录写入权限，或文件正被占用。请检查后重新选择目录。",
+          "disk_full": "磁盘空间不足，请释放空间后重试。",
+          "target_changed": "目标目录已变化。请重新选择目录并检查同名项目。",
+          "plan_expired": "目录选择已失效，请重新选择目录。",
+          "busy": "另一次安装操作正在进行，请稍后再试。",
+          "io_error": "无法完成文件操作，请检查目录和磁盘后重新选择目录。",
+          "cleanup_failed": "暂存文件清理失败，请检查下方保留路径。",
+          "recovery_failed": "原 Skill 未能自动恢复。请先检查下方保留路径中的备份，再决定是否重试。"
+        }
+      },
       "title": "MCP 访问",
       "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、文件管理、端口转发、代码片段和远程运维能力。",
       "state": {

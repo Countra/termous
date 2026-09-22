@@ -24,6 +24,7 @@ import type {
   DataPortabilityRestartResult,
 } from './data-portability'
 import type { ExternalUrlOpenResult } from './external'
+import type { SkillInstallBridge } from './skill-install'
 import type { CoreStartupSnapshot } from './startup'
 import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from './terminal-ai-completion'
 import type {
@@ -52,6 +53,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  skillInstall?: SkillInstallBridge
   getConfig: () => Promise<Partial<AppConfig>>
   getBuildInfo: () => Promise<AppBuildInfo>
   platform: string
