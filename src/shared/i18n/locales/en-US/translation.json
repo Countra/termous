@@ -3994,7 +3994,7 @@
     "volumeLimit": "Volume names allow up to 32 characters",
     "volumeDefault": "Use the configuration name",
     "caseSensitive": "Case sensitive",
-    "refreshInterval": "Metadata refresh interval",
+    "refreshInterval": "File attribute check interval",
     "seconds": "s",
     "nextStartOnly": "Changes apply on the next mount. The location must be empty and unused.",
     "unassigned": "Independent profiles",

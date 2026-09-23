@@ -3969,7 +3969,7 @@
     "volumeLimit": "卷名称最多 32 个字符",
     "volumeDefault": "默认使用配置名称",
     "caseSensitive": "区分大小写",
-    "refreshInterval": "元数据刷新间隔",
+    "refreshInterval": "文件属性校验间隔",
     "seconds": "秒",
     "nextStartOnly": "配置修改将在下次挂载时生效。挂载位置必须为空且未被占用。",
     "unassigned": "独立文件配置",
