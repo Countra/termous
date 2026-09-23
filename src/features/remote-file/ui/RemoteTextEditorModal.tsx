@@ -25,6 +25,7 @@ import sharedStyles from './RemoteFileModalShared.module.scss'
 import type { FileOperationGateway } from '../model/fileOperationGateway'
 import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from '../model/useFileOperationWatcher'
+import { textEditorSearch } from './text-editor/searchPanel'
 
 interface RemoteTextEditorModalProps {
   api: FileOperationGateway
@@ -44,9 +45,12 @@ interface RemoteTextEditorModalProps {
 const editorLanguage = new Compartment()
 const editorTheme = new Compartment()
 const editorEditable = new Compartment()
+const editorSearch = new Compartment()
 
 export function RemoteTextEditorModal({ api, open, disabled = false, readOnly = false, closing = false, fileSessionId, connectionGeneration, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
+  const translateRef = useRef(t)
+  translateRef.current = t
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const shortcutInstanceId = useId()
   const shortcutContextId = `files.editor:${shortcutInstanceId}`
@@ -374,7 +378,10 @@ export function RemoteTextEditorModal({ api, open, disabled = false, readOnly = 
   }, [editorThemeMode])
 
   useEffect(() => {
-    editorViewRef.current?.dispatch({ effects: editorEditable.reconfigure(EditorView.editable.of(!disabled && !readOnly)) })
+    editorViewRef.current?.dispatch({ effects: editorEditable.reconfigure([
+      EditorView.editable.of(!disabled && !readOnly),
+      EditorState.readOnly.of(disabled || readOnly),
+    ]) })
   }, [disabled, readOnly])
 
   const requestClose = useCallback(() => {
@@ -535,10 +542,16 @@ export function RemoteTextEditorModal({ api, open, disabled = false, readOnly = 
         extensions: [
           basicSetup,
           keymap.of([indentWithTab]),
+          // 只读编辑器仍可聚焦，保留查找等键盘操作。
+          EditorView.contentAttributes.of({ tabindex: '0' }),
           EditorView.lineWrapping,
           editorLanguage.of([]),
           editorTheme.of(codeMirrorTheme(editorThemeModeRef.current)),
-          editorEditable.of(EditorView.editable.of(!disabledRef.current && !readOnlyRef.current)),
+          editorSearch.of(textEditorSearch(translateRef.current)),
+          editorEditable.of([
+            EditorView.editable.of(!disabledRef.current && !readOnlyRef.current),
+            EditorState.readOnly.of(disabledRef.current || readOnlyRef.current),
+          ]),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) {
               return
@@ -551,9 +564,14 @@ export function RemoteTextEditorModal({ api, open, disabled = false, readOnly = 
       }),
     })
     editorViewRef.current = view
-    setTimeout(() => view.focus(), 0)
+    const focusTimer = setTimeout(() => view.focus(), 0)
+    return () => clearTimeout(focusTimer)
 
   }, [file, open])
+
+  useEffect(() => {
+    editorViewRef.current?.dispatch({ effects: editorSearch.reconfigure(textEditorSearch(t)) })
+  }, [t])
 
   useEffect(() => {
     let disposed = false
