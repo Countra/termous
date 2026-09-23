@@ -16,7 +16,6 @@ import {
   clearObservedChildProcess,
   hasChildProcessExited,
   stopOwnedChildProcess,
-  waitForChildProcessExit,
 } from './childProcessLifecycle'
 import {
   runManagedCorePortAttempts,
@@ -27,6 +26,7 @@ import {
 import { CoreStartupError, CoreStartupState } from './coreStartupState'
 import { sanitizeCoreStartupText } from './coreStartupProtocol'
 import { fetchCoreRuntimeProbe } from './coreRuntimeProbe'
+import { awaitCoreShutdown } from './coreShutdown'
 
 export type CoreShutdownReason = 'frontend_exit' | 'application_update'
 
@@ -73,6 +73,8 @@ export class CoreProcessManager {
   private lastHeartbeatAt = Date.now()
   private shuttingDown = false
   private exitRequested = false
+  private shutdownPreparing = false
+  private shutdownFailure = ''
   private readonly stoppingChildren = new WeakSet<ChildProcessWithoutNullStreams>()
   private runtimeReady = false
   private readonly shutdownSingleflight = new AsyncSingleflight<boolean>()
@@ -188,49 +190,63 @@ export class CoreProcessManager {
     }
   }
 
-  shutdownGracefully(reason: CoreShutdownReason = 'frontend_exit') {
+  getShutdownFailure() { return this.shutdownFailure }
+
+  shutdownGracefully(reason: CoreShutdownReason = 'frontend_exit', force = false) {
     if (reason === 'frontend_exit') {
       this.exitRequested = true
       this.shuttingDown = true
     }
-    return this.shutdownSingleflight.run(() => this.shutdownOnce(reason))
+    return this.shutdownSingleflight.run(() => this.shutdownOnce(reason, force))
   }
 
-  private async shutdownOnce(reason: CoreShutdownReason) {
+  private async shutdownOnce(reason: CoreShutdownReason | 'data_restore', force = false) {
     this.shuttingDown = true
-    this.stopHeartbeat()
+    this.shutdownFailure = ''
     if (!this.child) {
+      this.stopHeartbeat()
       return true
     }
     if (!this.config.managed || !this.runtimeReady) {
       try {
         await this.stopChildOnly()
         return true
-      } catch {
+      } catch (error) {
+        this.shutdownFailure = error instanceof Error ? error.message : 'Core process cleanup failed.'
+        if (reason === 'frontend_exit') this.exitRequested = false
+        this.shuttingDown = this.exitRequested
         return false
       }
     }
-    try {
-      await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
+    this.shutdownPreparing = true
+    const child = this.child
+    const result = await awaitCoreShutdown({
+      request: async () => (await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Termous-Token': this.config.apiToken,
         },
-        body: JSON.stringify({ reason }),
-      })
-    } catch {
-      // 退出阶段后端可能已经停止，后续等待进程退出即可。
+        body: JSON.stringify({ reason, force }),
+      })).ok,
+      probe: () => fetchCoreRuntimeProbe(this.config.apiBaseUrl, this.config.apiToken, requestTimeoutMs),
+      exited: () => hasChildProcessExited(child),
+      expectedPID: child.pid,
+      now: Date.now,
+      wait: delay,
+      committed: () => { this.shutdownPreparing = false; this.stopHeartbeat() },
+    })
+    this.shutdownPreparing = false
+    if (result.status === 'stopped') {
+      this.stopHeartbeat()
+      this.child = clearObservedChildProcess(this.child, child)
+      return true
     }
-    const exited = await this.waitForExit(8_000)
-    if (!exited && this.child && !hasChildProcessExited(this.child)) {
-      // 更新安装会在失败后保留应用，必须恢复 Core 的健康监测并允许再次关闭。
-      this.shuttingDown = this.exitRequested
-      if (!this.exitRequested && this.config.managed) {
-        this.startHeartbeat()
-      }
-    }
-    return exited
+    this.shutdownFailure = result.message
+    if (reason === 'frontend_exit') this.exitRequested = false
+    this.shuttingDown = this.exitRequested
+    this.startHeartbeat()
+    return false
   }
 
   restartAfterRestore(): Promise<CoreRestartResult> {
@@ -243,29 +259,8 @@ export class CoreProcessManager {
     if (!this.config.managed) {
       return { restarted: false, requires_manual_restart: true, config: this.config }
     }
-    this.shuttingDown = true
-    this.stopHeartbeat()
-    try {
-      const response = await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Termous-Token': this.config.apiToken,
-        },
-        body: JSON.stringify({ reason: 'data_restore' }),
-      })
-      if (!response.ok) {
-        throw new Error('核心服务拒绝恢复重启请求')
-      }
-      if (!await this.waitForExit(8_000)) {
-        throw new Error('核心服务未能安全退出')
-      }
-    } catch (error) {
-      this.shuttingDown = this.exitRequested
-      if (!this.exitRequested && this.child && !hasChildProcessExited(this.child)) {
-        this.startHeartbeat()
-      }
-      throw error
+    if (!await this.shutdownOnce('data_restore')) {
+      throw new Error(this.shutdownFailure || '核心服务未能安全退出')
     }
     this.assertNotExiting()
     this.child = null
@@ -500,14 +495,14 @@ export class CoreProcessManager {
   }
 
   private async sendHeartbeat() {
-    if (this.shuttingDown || !this.config.managed || !this.child || !this.runtimeReady) {
+    if ((this.shuttingDown && !this.shutdownPreparing) || !this.config.managed || !this.child || !this.runtimeReady) {
       return
     }
     const generation = this.heartbeatGeneration
     const child = this.child
     const config = this.config
     const stillCurrent = () => generation === this.heartbeatGeneration && this.child === child
-      && this.config === config && !this.shuttingDown
+      && this.config === config && (!this.shuttingDown || this.shutdownPreparing)
     try {
       const response = await this.fetchWithTimeout('/api/v1/runtime/heartbeat', {
         method: 'POST',
@@ -522,7 +517,7 @@ export class CoreProcessManager {
       // 下面按最近一次成功心跳判断是否超过 30 秒。
     }
     if (!stillCurrent()) return
-    if (Date.now() - this.lastHeartbeatAt > heartbeatTimeoutMs) {
+    if (!this.shuttingDown && Date.now() - this.lastHeartbeatAt > heartbeatTimeoutMs) {
       this.raiseFatal({
         title: '后端连接异常',
         message: 'Termous Core 超过 30 秒无响应。',
@@ -545,24 +540,6 @@ export class CoreProcessManager {
       // 关闭与心跳接口只读取状态码，不保留未消费的响应体连接。
       controller.abort()
     }
-  }
-
-  private async waitForExit(
-    timeoutMs: number,
-    child = this.child,
-  ) {
-    if (!child) {
-      return true
-    }
-    if (hasChildProcessExited(child)) {
-      this.child = clearObservedChildProcess(this.child, child)
-      return true
-    }
-    const exited = await waitForChildProcessExit(child, timeoutMs)
-    if (exited) {
-      this.child = clearObservedChildProcess(this.child, child)
-    }
-    return exited
   }
 
   private async stopChildOnly() {

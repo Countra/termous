@@ -42,7 +42,7 @@ function coordinatorHarness(overrides: Partial<AppExitCoordinatorDependencies> =
   }
 }
 
-test('普通退出关闭全部窗口并请求应用退出，Core 超时不阻塞退出', async () => {
+test('Core 未安全退出时保留全部窗口并允许重新请求', async () => {
   const { coordinator, events } = coordinatorHarness({
     shutdownCore: async (reason) => {
       events.push(`shutdown:${reason}`)
@@ -57,12 +57,11 @@ test('普通退出关闭全部窗口并请求应用退出，Core 超时不阻塞
     source: 'tray',
     coreStopped: false,
   })
-  assert.deepEqual(events, [
-    'shutdown:frontend_exit',
-    'prepare',
-    'close-windows',
-    'quit',
-  ])
+  assert.deepEqual(events, ['shutdown:frontend_exit'])
+  assert.equal(coordinator.isApplicationExiting(), false)
+  assert.equal(coordinator.canCloseWindow('main'), false)
+  await coordinator.requestApplicationExit('tray')
+  assert.deepEqual(events, ['shutdown:frontend_exit', 'shutdown:frontend_exit'])
 })
 
 test('并发普通退出复用同一事务且清理只执行一次', async () => {
@@ -81,6 +80,7 @@ test('并发普通退出复用同一事务且清理只执行一次', async () =>
   assert.equal(shutdownCalls, 1)
   assert.equal(coordinator.isApplicationExiting(), true)
   assert.equal(coordinator.isExitCommitted(), false)
+  assert.equal(coordinator.canCloseWindow('main'), false)
 
   shutdown.resolve(true)
   await Promise.all([first, second])

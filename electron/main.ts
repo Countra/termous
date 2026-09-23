@@ -825,6 +825,17 @@ function prepareApplicationExit() {
 }
 
 async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
+  let coreStopped = false
+  try {
+    coreStopped = await performAgentRuntimeAndCoreShutdown(reason)
+    return coreStopped
+  } finally {
+    // 对话框或退出请求自身异常时也必须恢复 Worker，不能只处理布尔失败结果。
+    if (!coreStopped) await recoverAgentRuntimeAfterFailedShutdown(true)
+  }
+}
+
+async function performAgentRuntimeAndCoreShutdown(reason: CoreShutdownReason) {
   await skillInstaller.suspend()
   let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
@@ -836,18 +847,31 @@ async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
     })
   }
   if (!agentRuntimeStopped && reason === 'application_update') {
-    await recoverAgentRuntimeAfterFailedShutdown()
     return false
   }
-  const coreStopped = await coreProcess.shutdownGracefully(reason)
-  if (!coreStopped && reason === 'application_update') {
-    await recoverAgentRuntimeAfterFailedShutdown()
+  let coreStopped = await coreProcess.shutdownGracefully(reason)
+  while (!coreStopped && reason === 'frontend_exit') {
+    const english = appLanguage === 'en-US'
+    const choice = await dialog.showMessageBox({
+      type: 'warning',
+      title: english ? 'Unable to exit safely' : '暂时无法安全退出',
+      message: english ? 'Some file changes may still be unsaved.' : '部分文件修改可能尚未保存。',
+      detail: coreProcess.getShutdownFailure(),
+      buttons: english
+        ? ['Retry', 'Return to app', 'Discard unsaved changes and exit']
+        : ['重试', '返回应用', '放弃未保存修改并退出'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    })
+    if (choice.response === 1) break
+    coreStopped = await coreProcess.shutdownGracefully(reason, choice.response === 2)
   }
   return coreStopped
 }
 
-async function recoverAgentRuntimeAfterFailedShutdown() {
-  if (exitCoordinator.isApplicationExiting()) return
+async function recoverAgentRuntimeAfterFailedShutdown(exitWasBlocked = false) {
+  if (!exitWasBlocked && exitCoordinator.isApplicationExiting()) return
   skillInstaller.resume()
   terminalCompletionRuntime.resume()
   const status = await agentSupervisor.initialize()
