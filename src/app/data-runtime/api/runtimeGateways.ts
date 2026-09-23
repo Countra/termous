@@ -26,6 +26,7 @@ import { FileRenameClient } from './gateways/fileRenameClient'
 import { FileSearchClient } from './gateways/fileSearchClient'
 import { FileSessionClient } from './gateways/fileSessionClient'
 import { FirewallClient } from './gateways/firewallClient'
+import { MountClient } from './gateways/mountsClient'
 import { ForwardClient } from './gateways/forwardsClient'
 import { HostKeyClient } from './gateways/hostKeysClient'
 import { McpAccessClient } from './gateways/mcpAccessClient'
@@ -51,6 +52,7 @@ export interface RuntimeGateways {
   readonly settings: DomainGateway<SettingsClient>
   readonly snippets: DomainGateway<SnippetClient>
   readonly fileCatalog: DomainGateway<FileCatalogClient>
+  readonly mounts: DomainGateway<MountClient>
   readonly forwards: DomainGateway<ForwardClient>
   readonly hosts: DomainGateway<HostClient>
   readonly credentials: DomainGateway<CredentialClient>
@@ -83,6 +85,7 @@ export function createRuntimeGatewaysFromConfig(
   const settings = new SettingsClient(config)
   const snippets = new SnippetClient(config)
   const fileCatalog = new FileCatalogClient(config)
+  const mounts = new MountClient(config)
   const forwards = new ForwardClient(config)
   const hosts = new HostClient(config)
   const credentials = new CredentialClient(config)
@@ -112,6 +115,7 @@ export function createRuntimeGatewaysFromConfig(
     settings,
     snippets,
     fileCatalog,
+    mounts,
     forwards,
     hosts,
     credentials,

@@ -25,6 +25,8 @@ const defaultWebDirectory = path.resolve(scriptDirectory, '..', '..')
 export const packagedThirdPartyFiles = Object.freeze([
   'THIRD_PARTY_NOTICES.txt',
   'licenses/pi-LICENSE.txt',
+  'licenses/cgofuse-LICENSE.txt',
+  'licenses/WinFsp-LICENSE.txt',
   'licenses/OpenAI-SDK-LICENSE.txt',
   'licenses/OpenAI-qs-LICENSE.txt',
   'licenses/diff-LICENSE.txt',

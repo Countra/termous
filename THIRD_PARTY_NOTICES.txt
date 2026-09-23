@@ -1,6 +1,19 @@
 Termous Third-Party Notices
 ===========================
 
+WinFsp Windows 构建头文件 2.1.25156
+----------------------------------
+
+WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos
+
+Termous 使用 WinFsp 的 FUSE2 兼容头文件编译 Windows 挂载适配。
+许可证：GPLv3，附带面向 FLOSS 的例外条款及商业许可选项。
+完整许可文本：licenses/WinFsp-LICENSE.txt
+项目：https://github.com/winfsp/winfsp
+头文件来源：WinFsp 安装包，运行库版本 2.1.25156.ddca7bd。
+构建使用的原始头文件保存在 Core 仓库 third_party/winfsp/windows。
+Termous 安装包不包含 WinFsp 驱动、DLL 或安装器。
+
 pi Agent Core and pi AI 0.84.3
 ------------------------------
 
@@ -236,3 +249,31 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+cgofuse v1.6.0
+https://github.com/winfsp/cgofuse
+
+完整许可文本：licenses/cgofuse-LICENSE.txt
+
+MIT License
+
+Copyright (c) 2017-2022 Bill Zissimopoulos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

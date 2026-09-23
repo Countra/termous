@@ -441,6 +441,7 @@ function renderDialogs(
   const deleteDescription = deleteTarget?.kind === 'ssh'
     ? t(blocking ? 'hosts.access.ssh.deleteBlocked' : 'hosts.access.ssh.deleteDescription', {
       files: deleteTarget.references.companion_files,
+      mounts: deleteTarget.references.mount_profiles ?? 0,
       companionAgents: deleteTarget.references.companion_agent_sessions,
       independentFiles: deleteTarget.references.independent_file_profiles,
       forwards: deleteTarget.references.forward_profiles,
@@ -453,6 +454,7 @@ function renderDialogs(
     })
     : deleteTarget?.kind === 'file'
       ? t(blocking ? 'hosts.access.file.deleteBlocked' : 'hosts.access.file.deleteDescription', {
+          mounts: deleteTarget.references.mount_profiles ?? 0,
           agents: deleteTarget.references.agent_sessions,
           sessions: deleteTarget.references.active_file_sessions,
         })

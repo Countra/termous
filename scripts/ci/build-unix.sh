@@ -234,8 +234,21 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
   export GOARCH="$goarch"
   export CC="$compiler"
 
-  run_step "Go tests" "$core_dir" go test ./...
+  # 发布包必须包含匹配平台的驱动适配，缺少头文件时明确失败。
+  mount_tags="mountfuse"
+  if [[ "$goos" == "linux" ]]; then
+    mount_tags="mountfuse,fuse3"
+    if [[ ! -f /usr/include/fuse3/fuse.h ]]; then
+      echo "缺少 FUSE3 SDK 头文件 /usr/include/fuse3/fuse.h；请准备构建依赖，不会自动安装。" >&2
+      exit 1
+    fi
+  elif [[ ! -f /usr/local/include/fuse/fuse.h && ! -f /usr/local/include/osxfuse/fuse/fuse.h ]]; then
+    echo "缺少 macFUSE SDK 头文件；请准备构建依赖，不会自动安装。" >&2
+    exit 1
+  fi
+  run_step "Go tests" "$core_dir" go test -tags "$mount_tags" ./...
   run_step "Build Termous Core" "$core_dir" go build \
+    -tags "$mount_tags" \
     -trimpath \
     -ldflags "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version" \
     -o "$core_binary" \

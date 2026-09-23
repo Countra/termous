@@ -25,6 +25,8 @@ import {
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ProductTourController, type ProductTourStep } from '#features/product-tour'
+import { MountsPage } from '#pages/mounts'
+import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
@@ -142,6 +144,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { gateways, runtimeConfigReady, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const mounts = useMountManagement(gateways.mounts, apiReady)
   const hostIconSHAByID = useMemo(
     () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
     [data.hostIcons],
@@ -1488,6 +1491,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
 
+                      {page === 'mounts' ? <MountsPage {...mounts} fileProfiles={data.fileAccessProfiles} hosts={data.hostAssets} /> : null}
                       {page === 'forwards' ? (
                         <ForwardsPage
                           data={forwardManagementData}

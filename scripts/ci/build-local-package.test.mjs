@@ -46,6 +46,8 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
   const expectedSources = new Map([
     ['THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'],
     ['licenses/pi-LICENSE.txt', 'third_party_licenses/pi-LICENSE.txt'],
+    ['licenses/cgofuse-LICENSE.txt', 'third_party_licenses/cgofuse-LICENSE.txt'],
+    ['licenses/WinFsp-LICENSE.txt', 'third_party_licenses/WinFsp-LICENSE.txt'],
     ['licenses/OpenAI-SDK-LICENSE.txt', 'third_party_licenses/OpenAI-SDK-LICENSE.txt'],
     ['licenses/OpenAI-qs-LICENSE.txt', 'third_party_licenses/OpenAI-qs-LICENSE.txt'],
     ['licenses/diff-LICENSE.txt', 'third_party_licenses/diff-LICENSE.txt'],

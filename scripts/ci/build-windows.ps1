@@ -229,10 +229,24 @@ if ($phase -in @("all", "prepare")) {
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir
   Enable-MingwIfAvailable
+  # 显式 SDK 配置优先，其次保留调用方 CPATH，仅未配置时使用仓库头文件。
+  if (-not [string]::IsNullOrWhiteSpace($env:TERMOUS_WINFSP_INCLUDE) -or [string]::IsNullOrWhiteSpace($env:CPATH)) {
+    $mountInclude = Resolve-ExistingDirectory `
+      -Value $env:TERMOUS_WINFSP_INCLUDE `
+      -Fallback (Join-Path $coreDir 'third_party\winfsp\windows\include\fuse') `
+      -Name 'WinFsp SDK 头文件目录'
+    foreach ($header in @('fuse.h', 'fuse_common.h', 'fuse_opt.h', 'winfsp_fuse.h')) {
+      if (-not (Test-Path -LiteralPath (Join-Path $mountInclude $header) -PathType Leaf)) {
+        throw "WinFsp SDK 缺少 $header，请检查后端第三方文件或 TERMOUS_WINFSP_INCLUDE。"
+      }
+    }
+    $env:CPATH = if ([string]::IsNullOrWhiteSpace($env:CPATH)) { $mountInclude } else { "$mountInclude;$env:CPATH" }
+  }
 
-  Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "./...") -WorkingDirectory $coreDir
+  Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "-tags", "mountfuse", "./...") -WorkingDirectory $coreDir
   Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
     "build",
+    "-tags", "mountfuse",
     "-trimpath",
     "-ldflags",
     "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version",

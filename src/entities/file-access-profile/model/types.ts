@@ -47,6 +47,7 @@ export interface FileAccessEngineDescriptor {
 }
 
 export interface FileAccessProfileReferences {
+  mount_profiles?: number
   agent_sessions: number
   active_file_sessions: number
   is_default: boolean

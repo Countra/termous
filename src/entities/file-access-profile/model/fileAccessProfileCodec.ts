@@ -93,6 +93,7 @@ export function decodeFileAccessEngineDescriptors(value: unknown): FileAccessEng
 export function decodeFileAccessProfileReferences(value: unknown): FileAccessProfileReferences {
   const source = objectValue(value, '文件 Profile 引用响应无效')
   const result: FileAccessProfileReferences = {
+    ...(source.mount_profiles !== undefined ? { mount_profiles: nonNegativeInteger(source.mount_profiles, '挂载配置引用数无效') } : {}),
     agent_sessions: nonNegativeInteger(source.agent_sessions, 'Agent 引用数无效'),
     active_file_sessions: nonNegativeInteger(source.active_file_sessions, '活动文件会话数无效'),
     is_default: booleanValue(source.is_default, '默认项状态无效'),
