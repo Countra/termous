@@ -9,7 +9,7 @@ export type {
   AgentSkillsBundleStatus,
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
-export type { MountSettings, MountSettingsState } from './mount-settings.ts'
+export type { MountSettings, MountSettingsState, MountCacheState, MountCacheClear } from './mount-settings.ts'
 export { skillInstallIPCChannels } from './skill-install.ts'
 export { loginItemIPCChannels } from './login-item.ts'
 export type { LoginItemBridge, LoginItemState, LoginItemResponse, LoginItemError } from './login-item.ts'

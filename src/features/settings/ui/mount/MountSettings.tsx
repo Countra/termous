@@ -7,6 +7,7 @@ import { getTermousBridge } from '#shared/bridge'
 import type { MountSettingsGateway } from '../../api/mountSettingsGateway'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './MountSettings.module.scss'
+import { MountCacheUsage } from './MountCacheUsage'
 
 export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGateway; disabled: boolean }) {
   const { t } = useTranslation()
@@ -131,6 +132,7 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
           </> : null}
           {state.startup_warning ? <Alert type="warning" title={state.startup_warning} /> : null}
         </div> : null}
+        {gateway?.mountCache ? <MountCacheUsage gateway={gateway} disabled={disabled} /> : null}
         <div className={styles.footer}>
           <p className={surfaceStyles.hint} role={saved ? 'status' : undefined}>{t(saved ? (state?.restart_required ? 'settings.mount.savedPending' : 'settings.mount.saved') : 'settings.mount.restartHint')}</p>
           <Button aria-label={t('app.save')} type="primary" loading={operation === 'save'} disabled={locked || !dirty || !valid} onClick={() => void request(draft)}>{t('app.save')}</Button>

@@ -1,4 +1,4 @@
-import type { AppConfig, AppLanguage, AppearanceSettings, CompletionSettings, ConnectionSettings, MountSettings, MountSettingsState, Settings, ShortcutSettingsPatch, TerminalFont, TerminalSettings, WindowSettings } from '#common/contracts';
+import type { AppConfig, AppLanguage, AppearanceSettings, CompletionSettings, ConnectionSettings, MountSettings, MountSettingsState, MountCacheState, MountCacheClear, Settings, ShortcutSettingsPatch, TerminalFont, TerminalSettings, WindowSettings } from '#common/contracts';
 import { TermousApiTransport } from '#shared/api';
 
 type Language = AppLanguage
@@ -25,6 +25,14 @@ settings() {
 
   mountSettings() {
     return this.request<MountSettingsState>('/api/v1/settings/mount')
+  }
+
+  mountCache() {
+    return this.request<MountCacheState>('/api/v1/settings/mount/cache')
+  }
+
+  clearMountCache() {
+    return this.request<MountCacheClear>('/api/v1/settings/mount/cache/clear', { method: 'POST' })
   }
 
   updateMountSettings(settings: MountSettings) {

@@ -13,3 +13,24 @@ export interface MountSettingsState extends MountSettings {
   restart_required: boolean
   startup_warning?: string
 }
+
+export interface MountCacheClear {
+  id: string
+  state: 'idle' | 'accepted' | 'running' | 'completed' | 'failed'
+  freed_bytes: number
+  error?: string
+  started_at?: string
+  finished_at?: string
+}
+
+export interface MountCacheState {
+  persistent: boolean
+  limit_bytes: number
+  used_bytes: number
+  clean_bytes: number
+  private_bytes: number
+  reclaimable_bytes: number
+  index_bytes: number
+  warning?: string
+  clear: MountCacheClear
+}
