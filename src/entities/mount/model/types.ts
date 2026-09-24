@@ -8,6 +8,8 @@ export interface MountConfig {
   read_only: boolean
   case_sensitive: boolean
   attribute_ttl_seconds: number
+  directory_ttl_seconds: number
+  metadata_concurrency: number
 }
 export interface MountProfile extends MountConfig {
   id: string

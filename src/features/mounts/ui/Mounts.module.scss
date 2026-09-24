@@ -169,6 +169,23 @@
   }
 }
 
+.performance-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  :global(.ant-input-number) {
+    width: 100%;
+  }
+}
+
+@media (width <= 540px) {
+  .performance-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
 .switches {
   display: grid;
   gap: 16px;

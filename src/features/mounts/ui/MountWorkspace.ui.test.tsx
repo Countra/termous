@@ -8,7 +8,7 @@ import { MountWorkspace } from './MountWorkspace'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, data?: { count?: number }) => `${key}${data?.count === undefined ? '' : ` ${data.count}`}`, i18n: { language: 'en-US' } }) }))
 
 function setup(overrides: Partial<MountWorkspaceProps> = {}) {
-  const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5 }
+  const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
   const props: MountWorkspaceProps = {
     profiles: [{ ...config, id: 'saved', auto_start: true, created_at: '', updated_at: '' }], instances: [],
     environment: { platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['T:'] },
@@ -51,7 +51,7 @@ describe('文件挂载交互', () => {
     expect(screen.queryByText('mounts.states.ready')).not.toBeInTheDocument()
   })
   it('自启失败附着在标识上，点击显示原因与时间', async () => {
-    const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5 }
+    const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
     setup({ instances: [{ ...config, id: 'run', profile_id: 'saved', start_origin: 'startup', state: 'failed', phase: 'failed', mounted: false, retained: false, dirty_nodes: 0, open_handles: 0, started_at: '', failure: { operation: 'start', message: 'Port occupied', at: '2026-09-23T04:05:06Z' } }] })
     expect(screen.queryByText('Port occupied')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'mounts.autoStartBadge' }))
@@ -59,7 +59,7 @@ describe('文件挂载交互', () => {
     expect(document.querySelector('time')?.dateTime).toBe('2026-09-23T04:05:06Z')
   })
   it.each([false, true])('关闭自启开关仍可查看已有失败，保留资源为 %s', async (retained) => {
-    const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5 }
+    const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
     setup({
       profiles: [{ ...config, id: 'saved', auto_start: false, created_at: '', updated_at: '' }],
       instances: [{ ...config, id: 'run', profile_id: 'saved', start_origin: 'startup', state: 'failed', phase: 'failed', mounted: false, retained, dirty_nodes: 0, open_handles: 0, started_at: '', failure: { operation: 'start', message: 'Driver failed', at: '2026-09-23T04:05:06Z' } }],
@@ -72,14 +72,14 @@ describe('文件挂载交互', () => {
 
  it('编辑未展开的高级选项时保留原值', async () => {
    const submit = vi.fn()
-   const profile = { id: 'saved', name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Custom volume', read_only: false, case_sensitive: true, attribute_ttl_seconds: 123, auto_start: false, created_at: '', updated_at: '2026-09-23T04:05:06Z' }
+   const profile = { id: 'saved', name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Custom volume', read_only: false, case_sensitive: true, attribute_ttl_seconds: 123, directory_ttl_seconds: 20, metadata_concurrency: 12, auto_start: false, created_at: '', updated_at: '2026-09-23T04:05:06Z' }
    render(<ConfigProvider theme={{ token: { motion: false } }}><MountEditor profile={profile} temporary={false} busy={false} environment={{ platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['T:'] }} hosts={[]} fileProfiles={[]} onClose={vi.fn()} onSubmit={submit} onError={vi.fn()} /></ConfigProvider>)
    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
-   await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ volume_name: 'Custom volume', case_sensitive: true, attribute_ttl_seconds: 123, expected_updated_at: profile.updated_at })))
+   await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ volume_name: 'Custom volume', case_sensitive: true, attribute_ttl_seconds: 123, directory_ttl_seconds: 20, metadata_concurrency: 12, expected_updated_at: profile.updated_at })))
  })
 
  it('编辑配置后继续展示当前实例实际使用的位置及访问模式', () => {
-   const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5 }
+   const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
    setup({ profiles: [{ ...config, mount_point: 'U:', read_only: true, id: 'saved', auto_start: false, created_at: '', updated_at: '' }], instances: [{ ...config, id: 'run', profile_id: 'saved', start_origin: 'manual', state: 'running', phase: 'ready', mounted: true, retained: false, dirty_nodes: 0, open_handles: 0, started_at: '' }] })
    expect(screen.getByText('T: · source')).toBeInTheDocument()
    expect(screen.queryByText('U: · source')).not.toBeInTheDocument()

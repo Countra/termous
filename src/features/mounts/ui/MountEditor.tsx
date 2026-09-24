@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Collapse, Form, Input, InputNumber, Modal, Select, Switch } from 'antd'
+import { Button, Collapse, Form, Input, Modal, Select, Switch } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { projectFileAccessProfile } from '#entities/file-access-profile'
@@ -7,6 +7,7 @@ import type { MountInput, MountProfile } from '#entities/mount'
 import { getTermousBridge } from '#shared/bridge'
 import type { MountWorkspaceProps } from '../model/types'
 import styles from './Mounts.module.scss'
+import { MountAdvancedOptions } from './MountAdvancedOptions'
 
 interface Props extends Pick<MountWorkspaceProps, 'environment' | 'fileProfiles' | 'hosts'> {
   profile?: MountProfile
@@ -29,6 +30,8 @@ export function MountEditor({ profile, temporary, environment, fileProfiles, hos
     volume_name: profile?.volume_name ?? '', read_only: profile?.read_only ?? false,
     case_sensitive: profile?.target_os === platform ? profile.case_sensitive : platform !== 'windows',
     attribute_ttl_seconds: profile?.attribute_ttl_seconds ?? 5,
+    directory_ttl_seconds: profile?.directory_ttl_seconds ?? 60,
+    metadata_concurrency: profile?.metadata_concurrency ?? 0,
     auto_start: profile?.auto_start ?? false,
   }
   const groups = [...hosts, { id: '', name: t('mounts.unassigned') }].map((host) => ({
@@ -72,11 +75,7 @@ export function MountEditor({ profile, temporary, environment, fileProfiles, hos
           <label><span>{t('mounts.readOnly')}</span><Form.Item name="read_only" valuePropName="checked" noStyle><Switch /></Form.Item></label>
           {!temporary ? <label><span>{t('mounts.autoStart')}<small>{t('mounts.autoStartHint')}</small></span><Form.Item name="auto_start" valuePropName="checked" noStyle><Switch /></Form.Item></label> : null}
         </div>
-        <Collapse ghost items={[{ key: 'advanced', label: t('mounts.advanced'), children: <>
-          <Form.Item name="volume_name" label={t('mounts.volume')} rules={[{ max: 32, message: t('mounts.volumeLimit') }]}><Input maxLength={32} placeholder={t('mounts.volumeDefault')} /></Form.Item>
-          <Form.Item name="case_sensitive" label={t('mounts.caseSensitive')} valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="attribute_ttl_seconds" label={t('mounts.refreshInterval')} rules={[{ required: true }]}><InputNumber min={1} max={300} precision={0} suffix={t('mounts.seconds')} /></Form.Item>
-        </> }]} />
+        <Collapse ghost items={[{ key: 'advanced', label: t('mounts.advanced'), children: <MountAdvancedOptions /> }]} />
         <p className={styles.hint}>{t('mounts.nextStartOnly')}</p>
       </Form>
     </Modal>
