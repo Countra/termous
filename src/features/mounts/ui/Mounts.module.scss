@@ -152,15 +152,238 @@
 }
 
 .editor {
+  --mount-editor-bg: #21252e;
+
+  max-width: calc(100vw - 24px);
+
+  :global(:root[data-theme="light"]) & {
+    --mount-editor-bg: #fff;
+  }
+
+  :global(.ant-modal-content),
+  :global(.ant-modal-container) {
+    display: flex;
+    min-height: 0;
+    max-height: min(760px, calc(100dvh - 32px));
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--mount-editor-bg);
+    box-shadow: var(--shadow);
+  }
+
+  :global(.ant-modal-header) {
+    margin: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--mount-editor-bg);
+    padding: 16px 54px 14px 20px;
+  }
+
+  :global(.ant-modal-title) {
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 740;
+  }
+
+  :global(.ant-modal-close) {
+    top: 17px;
+    inset-inline-end: 16px;
+  }
+
   :global(.ant-modal-body) {
-    max-height: min(640px, calc(100dvh - 190px));
+    min-height: 0;
+    flex: 1 1 auto;
     overflow: auto;
-    padding-inline: 2px 8px;
+    background: var(--mount-editor-bg);
+    padding: 4px 20px 8px;
+  }
+
+  :global(.ant-modal-footer) {
+    margin: 0;
+    border-top: 1px solid var(--border);
+    background: var(--mount-editor-bg);
+    padding: 12px 20px 14px;
+  }
+
+  :global(.ant-modal-footer) :global(.ant-btn) {
+    min-width: 84px;
+    height: 36px;
+    margin: 0;
+    border-radius: 8px;
+  }
+}
+
+.editor-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.editor-title-icon,
+.editor-section-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.editor-title-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.editor-profile-title {
+  display: block;
+  max-width: min(490px, calc(100vw - 115px));
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 740;
+  line-height: 21px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.editor-form {
+  display: grid;
+  min-width: 0;
+
+  :global(.ant-form-item) {
+    min-width: 0;
+    margin-bottom: 0;
+  }
+
+  :global(.ant-form-item-label > label) {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  :global(.ant-input),
+  :global(.ant-select-selector) {
+    min-height: 38px;
+  }
+
+  :global(.ant-form-item-extra) {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+
+.editor-section {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+
+  &:first-child {
+    border-top: 0;
+  }
+}
+
+.editor-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 720;
+  }
+}
+
+.editor-section-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.source-endpoint {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.location-hint {
+  margin: -5px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.editor-note {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.advanced-collapse {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--mount-editor-bg);
+
+  :global(.ant-collapse-item) {
+    border: 0;
+  }
+
+  :global(.ant-collapse-header) {
+    align-items: center !important;
+    min-height: 44px;
+    background: color-mix(in srgb, var(--text-primary) 4%, var(--mount-editor-bg));
+    padding: 10px 14px !important;
+    color: var(--text-primary) !important;
+    font-size: 12px;
+    font-weight: 650;
+    transition: background 0.16s ease;
+  }
+
+  :global(.ant-collapse-header:hover),
+  :global(.ant-collapse-header:focus-visible) {
+    background: color-mix(in srgb, var(--text-primary) 7%, var(--mount-editor-bg));
+  }
+
+  :global(.ant-collapse-expand-icon) {
+    color: var(--text-muted);
+  }
+
+  :global(.ant-collapse-panel) {
+    border-top: 1px solid var(--border);
+    background: var(--mount-editor-bg) !important;
+  }
+
+  :global(.ant-collapse-body) {
+    padding: 16px !important;
+  }
+}
+
+.advanced-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  svg {
+    color: var(--accent);
   }
 }
 
 .location {
   display: flex;
+  min-width: 0;
   gap: 8px;
 
   :global(.ant-select), :global(.ant-input) {
@@ -169,10 +392,44 @@
   }
 }
 
+.advanced-fields {
+  display: grid;
+  gap: 16px;
+
+  :global(.ant-form-item-extra) {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+}
+
+.advanced-identity {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px;
+}
+
+.advanced-toggle {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  padding: 0 11px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .performance-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
 
   :global(.ant-input-number) {
     width: 100%;
@@ -180,30 +437,42 @@
 }
 
 @media (width <= 540px) {
+  .advanced-identity,
   .performance-options {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    gap: 12px;
   }
 }
 
 .switches {
   display: grid;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 0;
+  border-top: 1px solid var(--border);
+}
 
-  label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-  }
+.switch-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 620;
 
   small {
     display: block;
     margin-top: 4px;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.45;
   }
+}
+
+.switch-row + .switch-row {
+  border-top: 1px solid var(--border);
 }
 
 @media (width <= 700px) {

@@ -9,7 +9,7 @@ export interface MountWorkspaceProps {
   connected: boolean
   fileProfiles: FileAccessProfile[]
   hosts: Array<{ id: string; name: string }>
-  reload: () => Promise<void>
+  reload: () => Promise<{ profiles: MountProfile[]; environment: MountEnvironment } | undefined>
   save: (id: string | undefined, input: MountInput) => Promise<void>
   remove: (profile: MountProfile) => Promise<void>
   start: (input: MountStartRequest) => Promise<void>

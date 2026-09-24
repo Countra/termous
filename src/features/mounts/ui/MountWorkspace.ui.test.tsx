@@ -9,16 +9,55 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, data
 
 function setup(overrides: Partial<MountWorkspaceProps> = {}) {
   const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
+  const environment = { platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['T:'] }
+  const profiles = [{ ...config, id: 'saved', auto_start: true, created_at: '', updated_at: '' }]
   const props: MountWorkspaceProps = {
-    profiles: [{ ...config, id: 'saved', auto_start: true, created_at: '', updated_at: '' }], instances: [],
-    environment: { platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['T:'] },
-    connected: true, error: '', hosts: [], fileProfiles: [], reload: vi.fn().mockResolvedValue(undefined), save: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined), start: vi.fn().mockResolvedValue(undefined), action: vi.fn().mockResolvedValue(undefined), ...overrides,
+    profiles, instances: [],
+    environment,
+    connected: true, error: '', hosts: [], fileProfiles: [], reload: vi.fn().mockResolvedValue({ profiles, environment }), save: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined), start: vi.fn().mockResolvedValue(undefined), action: vi.fn().mockResolvedValue(undefined), ...overrides,
   }
   render(<ConfigProvider theme={{ token: { motion: false } }}><App><MountWorkspace {...props} /></App></ConfigProvider>)
   return { props, config }
 }
 
 describe('文件挂载交互', () => {
+  it('打开编辑器前刷新可用盘符，刷新失败时不打开', async () => {
+    let complete: (value: Awaited<ReturnType<MountWorkspaceProps['reload']>>) => void = () => {}
+    const reload = vi.fn().mockImplementation(() => new Promise<Awaited<ReturnType<MountWorkspaceProps['reload']>>>((resolve) => { complete = resolve }))
+    setup({ reload })
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.create' }))
+    expect(reload).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    complete(undefined)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'mounts.create' })).toBeEnabled())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('环境刷新成功后打开编辑器', async () => {
+    const { props } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.create' }))
+    await screen.findByRole('dialog')
+    expect(props.reload).toHaveBeenCalledOnce()
+  })
+  it('编辑时使用刷新后的配置和空闲盘符', async () => {
+    const config = { name: 'Updated Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'G:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
+    const latest = { ...config, id: 'saved', auto_start: false, created_at: '', updated_at: '2026-09-24T12:00:00Z' }
+    const environment = { platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['H:'] }
+    const { props } = setup({ reload: vi.fn().mockResolvedValue({ profiles: [latest], environment }) })
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.edit' }))
+    expect(await screen.findByRole('textbox', { name: 'mounts.name' })).toHaveValue('Updated Archive')
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'mounts.drive' }))
+    await screen.findByRole('option', { name: 'H:' })
+    expect(screen.queryByRole('option', { name: 'T:' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(props.save).toHaveBeenCalledWith('saved', expect.objectContaining({ expected_updated_at: latest.updated_at, mount_point: 'G:' })))
+  })
+  it('配置刷新后已不存在时不打开编辑器', async () => {
+    const { props } = setup({ reload: vi.fn().mockResolvedValue({ profiles: [], environment: { platform: 'windows', architecture: 'amd64', available: true, build_supported: true, dependency: 'WinFsp', message: '', free_drives: ['H:'] } }) })
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.edit' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'mounts.create' })).toBeEnabled())
+    expect(props.reload).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
   it('环境不满足时禁用挂载并保留配置入口', () => {
     setup({ environment: { platform: 'windows', architecture: 'amd64', available: false, build_supported: false, dependency: 'WinFsp', message: 'missing SDK', free_drives: [], help_url: 'https://winfsp.dev/rel/' } })
     expect(screen.getByRole('button', { name: 'mounts.start' })).toBeDisabled()

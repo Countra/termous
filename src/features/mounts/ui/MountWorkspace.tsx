@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, App, Button, Empty, Popconfirm, Tag } from 'antd'
 import { Edit3, HardDrive, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { isMountActive, isMountBusy, type MountInput, type MountInstance, type MountProfile } from '#entities/mount'
+import { isMountActive, isMountBusy, type MountEnvironment, type MountInput, type MountInstance, type MountProfile } from '#entities/mount'
 import { ConfirmDialog, termousNotificationClassName, termousPopconfirmProps } from '#shared/ui'
 import type { MountWorkspaceProps } from '../model/types'
 import { MountEditor } from './MountEditor'
@@ -12,7 +12,7 @@ import styles from './Mounts.module.scss'
 export function MountWorkspace(props: MountWorkspaceProps) {
   const { t } = useTranslation()
   const { notification } = App.useApp()
-  const [editor, setEditor] = useState<{ profile?: MountProfile; temporary: boolean }>()
+  const [editor, setEditor] = useState<{ profile?: MountProfile; temporary: boolean; environment: MountEnvironment }>()
   const [busy, setBusy] = useState(false)
   const [discard, setDiscard] = useState<MountInstance>()
   const [checking, setChecking] = useState(false)
@@ -22,6 +22,17 @@ export function MountWorkspace(props: MountWorkspaceProps) {
     try { await operation() } catch (error) { report(error) } finally { setBusy(false) }
   }
   const check = async () => { setChecking(true); try { await props.reload() } catch (error) { report(error) } finally { setChecking(false) } }
+  const openEditor = async (next: { profile?: MountProfile; temporary: boolean }) => {
+    setChecking(true)
+    try {
+      const snapshot = await props.reload()
+      if (!snapshot) return
+      const profile = next.profile ? snapshot.profiles.find((item) => item.id === next.profile?.id) : undefined
+      if (next.profile && !profile) { report(new Error(t('mounts.profileUnavailable'))); return }
+      if (next.temporary && !snapshot.environment.available) { report(new Error(snapshot.environment.message || t('mounts.environmentUnavailable'))); return }
+      setEditor({ ...next, profile, environment: snapshot.environment })
+    } catch (error) { report(error) } finally { setChecking(false) }
+  }
   const submit = (input: MountInput) => void run(async () => {
     if (editor?.temporary) await props.start({ temporary: input })
     else await props.save(editor?.profile?.id, input)
@@ -56,8 +67,8 @@ export function MountWorkspace(props: MountWorkspaceProps) {
       <div><h2>{t('mounts.title')}</h2><p>{t('mounts.subtitle')}</p></div>
       <div className={styles.actions}>
         <Button icon={<RefreshCw size={16} />} loading={checking} onClick={() => void check()}>{t('mounts.recheck')}</Button>
-        <Button disabled={!environment?.available || disabled} onClick={() => setEditor({ temporary: true })}>{t('mounts.temporary')}</Button>
-        <Button type="primary" icon={<Plus size={16} />} disabled={busy || !environment} onClick={() => setEditor({ temporary: false })}>{t('mounts.create')}</Button>
+        <Button disabled={!environment?.available || disabled || checking} onClick={() => void openEditor({ temporary: true })}>{t('mounts.temporary')}</Button>
+        <Button type="primary" icon={<Plus size={16} />} disabled={busy || checking || !environment} onClick={() => void openEditor({ temporary: false })}>{t('mounts.create')}</Button>
       </div>
     </header>
     {props.error ? <Alert type="error" showIcon title={props.error} /> : null}
@@ -79,7 +90,7 @@ export function MountWorkspace(props: MountWorkspaceProps) {
             <div className={styles.identity}><HardDrive size={22} /><div><h4>{profile.name}</h4><span>{displayed.mount_point} · {sourceName(displayed.file_profile_id)}</span></div></div>
             <div className={styles.actions}>
               {!running ? <Button icon={<Play size={15} />} disabled={disabled || !environment?.available || Boolean(incompatible)} onClick={() => void run(() => props.start({ profile_id: profile.id }))}>{t('mounts.start')}</Button> : null}
-              <Button type="text" icon={<Edit3 size={16} />} aria-label={t('mounts.edit')} disabled={busy} onClick={() => setEditor({ profile, temporary: false })} />
+              <Button type="text" icon={<Edit3 size={16} />} aria-label={t('mounts.edit')} disabled={busy || checking} onClick={() => void openEditor({ profile, temporary: false })} />
               <Popconfirm {...termousPopconfirmProps} title={t('mounts.deleteTitle')} description={t('mounts.deleteHint')} onConfirm={() => run(() => props.remove(profile))} okText={t('app.delete')} cancelText={t('app.cancel')}>
                 <Button type="text" danger icon={<Trash2 size={16} />} aria-label={t('app.delete')} disabled={disabled || Boolean(running)} />
               </Popconfirm>
@@ -103,7 +114,7 @@ export function MountWorkspace(props: MountWorkspaceProps) {
         {isMountActive(value) ? runtime(value) : value.failure ? <MountFailure failure={value.failure} /> : null}
       </article>)}</div>
     </> : null}
-    {editor ? <MountEditor {...editor} environment={environment} fileProfiles={props.fileProfiles} hosts={props.hosts} busy={busy} onClose={() => setEditor(undefined)} onSubmit={submit} onError={report} /> : null}
+    {editor ? <MountEditor {...editor} fileProfiles={props.fileProfiles} hosts={props.hosts} busy={busy} onClose={() => setEditor(undefined)} onSubmit={submit} onError={report} /> : null}
     <ConfirmDialog open={Boolean(discard)} title={t('mounts.forceTitle')} description={t('mounts.forceHint', { count: props.instances.find((item) => item.id === discard?.id)?.dirty_nodes ?? discard?.dirty_nodes ?? 0 })} danger confirmLoading={busy}
       onCancel={() => setDiscard(undefined)} onConfirm={() => { if (discard) void run(async () => { await props.action(discard.id, 'stop', true); setDiscard(undefined) }) }} confirmLabel={t('mounts.force')} />
   </section>

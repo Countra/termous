@@ -16,6 +16,7 @@ export function useMountManagement(gateway: RuntimeGateways['mounts'], enabled: 
       const [nextProfiles, nextEnvironment] = await Promise.all([gateway.profiles(), gateway.environment()])
       if (current !== generation.current) return
       setProfiles(nextProfiles); setEnvironment(nextEnvironment); setError('')
+      return { profiles: nextProfiles, environment: nextEnvironment }
     } catch (error) {
       if (current === generation.current) setError(error instanceof Error ? error.message : String(error))
     }
