@@ -43,6 +43,7 @@ vi.mock('#features/agent-setup', () => ({
 }))
 
 vi.mock('#features/settings', () => ({
+  MountSettings: () => <div data-testid="mount-settings" />,
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
       data-testid="data-portability"
@@ -256,16 +257,17 @@ describe('设置页面装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('保持八个页签及通用设置默认页签和命令委托', async () => {
+  it('提供九个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(8)
+    expect(tabs).toHaveLength(9)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
       'settings.tabConnection',
+      'settings.tabMount',
       'settings.tabShortcuts',
       'settings.tabAgent',
       'settings.tabMcp',
