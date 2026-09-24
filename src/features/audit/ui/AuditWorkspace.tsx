@@ -96,7 +96,7 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
       {status?.last_error ? <p className={styles.warning}>{status.last_error}</p> : null}
       <AuditFilters onChange={changeFilters} />
       {failed ? <Alert type="error" showIcon title={t('audit.loadFailed')} /> : null}
-      <div ref={tableShell} className={styles.table}>
+      <div ref={tableShell} className={styles.table} data-empty={page.items.length === 0}>
         <ConfigProvider theme={{ components: { Table: { headerBorderRadius: 0 } } }}>
         <Table<AuditEvent> size="small" rowKey="id" tableLayout="fixed" loading={busy} dataSource={page.items} pagination={false} components={{ header: { cell: AuditResizableHeaderCell } }} onChange={changeSorting} sortDirections={['ascend', 'descend']} scroll={{ x: Object.values(columnWidths).reduce((total, width) => total + width, 0), y: tableHeight }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('audit.empty')} /> }} columns={[
           { ...sortColumn('received_at'), ...resizeColumn('received_at', t('audit.received')), title: t('audit.received'), render: (_, event) => <CellText value={new Date(event.received_at).toLocaleString(i18n.language)} /> },

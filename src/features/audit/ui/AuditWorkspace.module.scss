@@ -133,6 +133,33 @@
   border-block: 1px solid var(--border);
 }
 
+.table[data-empty='true'] :global(.ant-table-wrapper),
+.table[data-empty='true'] :global(.ant-spin) {
+  height: 100%;
+}
+
+.table[data-empty='true'] :global(.ant-spin-container),
+.table[data-empty='true'] :global(.ant-table),
+.table[data-empty='true'] :global(.ant-table-container) {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.table[data-empty='true'] :global(.ant-spin-container) {
+  height: 100%;
+}
+
+.table[data-empty='true'] :global(.ant-table-body) {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.table[data-empty='true'] :global(.ant-table-body table) {
+  height: 100%;
+}
+
 .column-resizer {
   position: absolute;
   z-index: 2;
