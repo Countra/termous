@@ -97,4 +97,11 @@ describe('挂载高级选项', () => {
     await screen.findByText('mounts.volumeInvalid')
     expect(submit).not.toHaveBeenCalled()
   })
+  it('中文说明超过后端的字节限制时阻止提交', async () => {
+    const submit = setup()
+    fireEvent.change(screen.getByRole('textbox', { name: 'mounts.description' }), { target: { value: '中'.repeat(342) } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    await screen.findByText('mounts.descriptionTooLong')
+    expect(submit).not.toHaveBeenCalled()
+  })
 })

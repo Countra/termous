@@ -112,7 +112,7 @@ export function MountEditor({ profile, temporary, environment, fileProfiles, hos
               {canPick ? <Tooltip title={t('mounts.chooseDirectory')}><Button icon={<FolderOpen size={16} />} onClick={() => void pick()} loading={picking} disabled={busy} aria-label={t('mounts.chooseDirectory')} /></Tooltip> : null}
             </div>
           </Form.Item>
-          <p className={styles['location-hint']}>{t('mounts.locationHint')}</p>
+          <p className={styles['location-hint']}>{t(platform === 'windows' ? 'mounts.locationHintDrive' : 'mounts.locationHint')}</p>
           <div className={styles.switches}>
             <div className={styles['switch-row']}><span>{t('mounts.readOnly')}</span><Form.Item name="read_only" valuePropName="checked" noStyle><Switch aria-label={t('mounts.readOnly')} disabled={busy} /></Form.Item></div>
             {!temporary ? <div className={styles['switch-row']}><span>{t('mounts.autoStart')}<small>{t('mounts.autoStartHint')}</small></span><Form.Item name="auto_start" valuePropName="checked" noStyle><Switch aria-label={t('mounts.autoStart')} disabled={busy} /></Form.Item></div> : null}
@@ -121,11 +121,17 @@ export function MountEditor({ profile, temporary, environment, fileProfiles, hos
 
         <section className={styles['editor-section']}>
           <div className={styles['editor-section-heading']}><span className={styles['editor-section-icon']}><Settings2 size={15} aria-hidden="true" /></span><h3>{t('mounts.detailsSection')}</h3></div>
-          <Form.Item name="description" label={t('mounts.description')}><Input.TextArea rows={2} maxLength={1024} disabled={busy} /></Form.Item>
+          <Form.Item name="description" label={t('mounts.description')} rules={[{
+            validator: async (_, value: string | undefined) => {
+              if (value && new TextEncoder().encode(value.trim()).byteLength > 1024) {
+                throw new Error(t('mounts.descriptionTooLong'))
+              }
+            },
+          }]}><Input.TextArea rows={2} maxLength={1024} disabled={busy} /></Form.Item>
           <Collapse bordered={false} expandIconPlacement="end" className={styles['advanced-collapse']}
             items={[{ key: 'advanced', label: <span className={styles['advanced-label']}><SlidersHorizontal size={15} aria-hidden="true" />{t('mounts.advanced')}</span>, children: <MountAdvancedOptions busy={busy} /> }]} />
         </section>
-        {profile ? <p className={styles['editor-note']}>{t('mounts.nextStartOnly')}</p> : null}
+        {profile ? <p className={styles['editor-note']}>{t(platform === 'windows' ? 'mounts.nextStartOnlyDrive' : 'mounts.nextStartOnly')}</p> : null}
       </Form>
     </Modal>
   )
