@@ -48,7 +48,21 @@ export interface FTPProfileDraft {
   root_path: string
 }
 
-export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft | WebDAVProfileDraft | FTPProfileDraft
+export interface SMBProfileDraft {
+  engine: 'smb'
+  host_id: string
+  name: string
+  host: string
+  port: number | null
+  share: string
+  username: string
+  domain: string
+  password: string
+  password_configured: boolean
+  root_path: string
+}
+
+export type FileAccessProfileEditorDraft = SFTPProfileDraft | S3ProfileDraft | WebDAVProfileDraft | FTPProfileDraft | SMBProfileDraft
 
 export interface FileAccessProfileEditorErrors {
   endpoint?: 'required' | 'invalid'
@@ -61,6 +75,8 @@ export interface FileAccessProfileEditorErrors {
   host?: 'required' | 'invalid'
   port?: 'invalid'
   root_path?: 'invalid'
+  share?: 'required' | 'invalid'
+  domain?: 'invalid'
   name?: 'required' | 'too_long'
   ssh_profile_id?: 'required' | 'unavailable'
 }

@@ -2999,6 +2999,28 @@
     }
   },
   "files": {
+    "smb": {
+      "name": "Profile name",
+      "host": "Server address",
+      "share": "Share name",
+      "username": "Username",
+      "password": "Password",
+      "port": "Port",
+      "domain": "Domain (optional)",
+      "root_path": "Workspace directory",
+      "advanced": "Advanced options",
+      "configured": "Configured; leave empty to keep",
+      "authHint": "Uses NTLMv2 credentials and requires message signing. Signing does not imply encryption. An empty domain uses the domain supplied by the server.",
+      "errors": {
+        "host": "Enter a hostname or IP without a scheme, port, or path.",
+        "share": "Enter one share name without a path, reserved characters, or trailing dots or spaces.",
+        "username": "Enter a valid username; specify the domain separately.",
+        "password": "Enter a password.",
+        "port": "Port must be an integer from 1 to 65535.",
+        "domain": "Domain must not contain path separators or control characters.",
+        "root_path": "Enter a canonical absolute path within the share, without dot segments, reserved characters, or trailing dots or spaces."
+      }
+    },
     "ftp": {
       "name": "Profile name",
       "host": "Server address",
