@@ -1047,6 +1047,28 @@
   gap: 16px;
 }
 
+.upload-status {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+
+  small {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
+
+.upload-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--text-primary);
+}
+
 .advanced-toggle {
   display: flex;
   min-height: 38px;

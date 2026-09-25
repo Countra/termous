@@ -4059,6 +4059,29 @@
     "noIssues": "No configurations with issues",
     "dirty": "{{count}} unsynced",
     "handles": "{{count}} open handles",
+    "upload": {
+      "label": "Upload status",
+      "active": "Transferring {{count}} files",
+      "finalizing": "Completing {{count}} uploads",
+      "failed": "{{count}} uploads failed; local changes retained",
+      "buffered": "{{count}} buffered uploads",
+      "bytes": "Transfer progress {{transferred}} · Pending {{pending}}",
+      "basis": {
+        "confirmed": "Progress reflects protocol acknowledgements; final publication is still required.",
+        "transport": "Progress reflects bounded transport; the server must still confirm completion.",
+        "mixed": "Progress uses different transfer measures; each upload still requires final publication."
+      },
+      "reasons": {
+        "unsupported": "This connection uses buffered writeback. Copy progress may run ahead of remote upload.",
+        "protocol_unsupported": "The server rejected streaming; safely switched to buffered writeback.",
+        "protocol_budget": "The protocol progress unit exceeds the streaming budget; using buffered writeback.",
+        "non_sequential": "Partial updates, append or nonsequential writes use buffered writeback.",
+        "multiple_writers": "Multiple writable handles use buffered writeback.",
+        "completed_generation": "The snapshot is published; subsequent changes use buffered writeback.",
+        "namespace_change": "Changes following a rename use buffered writeback.",
+        "mixed": "Some files use buffered writeback due to their write pattern or protocol limits."
+      }
+    },
     "failure": "View error",
     "failureDetails": "Error details",
     "failureMessage": "Error message",

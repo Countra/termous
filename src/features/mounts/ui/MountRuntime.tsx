@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { isMountActive, isMountBusy, type MountInstance } from '#entities/mount'
 import { StatusBadge } from '#shared/ui'
 import { MountFailure } from './MountFailure'
+import { MountUploadStatus } from './MountUploadStatus'
 import styles from './Mounts.module.scss'
 
 interface MountRuntimeProps {
@@ -38,6 +39,7 @@ export function MountRuntime({ instance, disabled, sourceName, onAction, onDisca
       <div><small>{t('mounts.locationSection')}</small><strong title={instance.mount_point}>{instance.mount_point}</strong></div>
     </div>
     {instance.retained && !instance.mounted ? <p className={styles.hint}>{t(instance.dirty_nodes > 0 ? 'mounts.detachedHint' : 'mounts.detachedCleanHint')}</p> : null}
+    <MountUploadStatus uploads={instance.uploads} />
     <div className={styles['runtime-footer']}>
       <div className={styles['runtime-meta']}>
         <span className={styles['runtime-mode']}>{t(instance.read_only ? 'mounts.readOnly' : 'mounts.readWrite')}</span>

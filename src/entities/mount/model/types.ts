@@ -23,6 +23,18 @@ export interface MountInput extends MountConfig {
 }
 export interface MountStartRequest { profile_id?: string; temporary?: MountInput }
 export interface MountFailure { operation: string; message: string; at: string }
+export interface MountUploadSummary {
+  active_files: number
+  finalizing_files: number
+  buffered_files: number
+  failed_files: number
+  accepted_bytes: number
+  transferred_bytes: number
+  pending_bytes: number
+  progress_kind?: 'confirmed' | 'transport' | 'mixed'
+  reason?: string
+  error?: string
+}
 export interface MountInstance extends MountConfig {
   id: string
   profile_id?: string
@@ -33,6 +45,7 @@ export interface MountInstance extends MountConfig {
   retained: boolean
   open_handles: number
   dirty_nodes: number
+  uploads?: MountUploadSummary
   started_at: string
   stopped_at?: string
   failure?: MountFailure

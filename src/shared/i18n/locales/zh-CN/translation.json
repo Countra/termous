@@ -4034,6 +4034,29 @@
     "noIssues": "当前没有异常配置",
     "dirty": "未同步 {{count}} 项",
     "handles": "打开句柄 {{count}} 个",
+    "upload": {
+      "label": "上传状态",
+      "active": "正在传输 {{count}} 项",
+      "finalizing": "正在完成上传 {{count}} 项",
+      "failed": "上传失败 {{count}} 项，保留本地修改",
+      "buffered": "兼容写回 {{count}} 项",
+      "bytes": "传输进展 {{transferred}} · 待传输 {{pending}}",
+      "basis": {
+        "confirmed": "进度依据：协议已确认正文；最终发布单独等待。",
+        "transport": "进度依据：有界传输进展，仍需等待服务器完成响应。",
+        "mixed": "包含不同进度依据，分别等待最终发布。"
+      },
+      "reasons": {
+        "unsupported": "此连接使用兼容写回，系统复制进度可能领先远端上传。",
+        "protocol_unsupported": "服务器不支持本次流式上传，已安全切换为兼容写回。",
+        "protocol_budget": "协议推进单位超出流式预算，使用兼容写回。",
+        "non_sequential": "局部修改、追加或不连续写入使用兼容写回。",
+        "multiple_writers": "多个写句柄使用兼容写回。",
+        "completed_generation": "当前快照已发布，后续修改使用兼容写回。",
+        "namespace_change": "名称变更后的修改使用兼容写回。",
+        "mixed": "部分文件因写入方式或协议限制采用兼容写回。"
+      }
+    },
     "failure": "查看错误",
     "failureDetails": "错误详情",
     "failureMessage": "错误信息",
