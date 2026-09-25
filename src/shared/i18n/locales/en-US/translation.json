@@ -4063,6 +4063,9 @@
       "label": "Upload status",
       "active": "Transferring {{count}} files",
       "finalizing": "Completing {{count}} uploads",
+      "stopping": "Stopping {{count}} uploads",
+      "cleaning": "Cleaning up {{count}} uploads",
+      "cleanupFailed": "Cleanup failed for {{count}} uploads",
       "failed": "{{count}} uploads failed; local changes retained",
       "buffered": "{{count}} buffered uploads",
       "bytes": "Transfer progress {{transferred}} · Pending {{pending}}",
@@ -4079,6 +4082,7 @@
         "multiple_writers": "Multiple writable handles use buffered writeback.",
         "completed_generation": "The snapshot is published; subsequent changes use buffered writeback.",
         "namespace_change": "Changes following a rename use buffered writeback.",
+        "idle_checkpoint": "Input paused and the staging session was released; subsequent changes use buffered writeback.",
         "mixed": "Some files use buffered writeback due to their write pattern or protocol limits."
       }
     },

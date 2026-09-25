@@ -26,6 +26,9 @@ export interface MountFailure { operation: string; message: string; at: string }
 export interface MountUploadSummary {
   active_files: number
   finalizing_files: number
+  stopping_files?: number
+  cleaning_files?: number
+  cleanup_failed_files?: number
   buffered_files: number
   failed_files: number
   accepted_bytes: number

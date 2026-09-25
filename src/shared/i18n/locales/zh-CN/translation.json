@@ -4038,6 +4038,9 @@
       "label": "上传状态",
       "active": "正在传输 {{count}} 项",
       "finalizing": "正在完成上传 {{count}} 项",
+      "stopping": "正在停止上传 {{count}} 项",
+      "cleaning": "正在清理 {{count}} 项",
+      "cleanupFailed": "清理失败 {{count}} 项",
       "failed": "上传失败 {{count}} 项，保留本地修改",
       "buffered": "兼容写回 {{count}} 项",
       "bytes": "传输进展 {{transferred}} · 待传输 {{pending}}",
@@ -4054,6 +4057,7 @@
         "multiple_writers": "多个写句柄使用兼容写回。",
         "completed_generation": "当前快照已发布，后续修改使用兼容写回。",
         "namespace_change": "名称变更后的修改使用兼容写回。",
+        "idle_checkpoint": "输入暂停，暂存会话已释放，后续采用兼容写回。",
         "mixed": "部分文件因写入方式或协议限制采用兼容写回。"
       }
     },

@@ -29,4 +29,23 @@ describe('挂载上传摘要', () => {
     expect(screen.getByText('mounts.upload.failed')).toBeInTheDocument()
     expect(screen.queryByText('mounts.upload.active')).not.toBeInTheDocument()
   })
+  it.each([
+    ['stopping_files', 'mounts.upload.stopping'],
+    ['cleaning_files', 'mounts.upload.cleaning'],
+    ['cleanup_failed_files', 'mounts.upload.cleanupFailed'],
+  ] as const)('单独的 %s 保留可见且不提示继续上传', (field, label) => {
+    render(<MountUploadStatus uploads={{ ...summary, [field]: 1, progress_kind: 'confirmed' }} />)
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText('mounts.upload.active')).not.toBeInTheDocument()
+    expect(screen.queryByText('mounts.upload.finalizing')).not.toBeInTheDocument()
+    expect(screen.queryByText('mounts.upload.bytes')).not.toBeInTheDocument()
+    expect(screen.queryByText('mounts.upload.basis.confirmed')).not.toBeInTheDocument()
+  })
+  it('清理失败展示具体原因，同时保留其他文件的上传状态', () => {
+    render(<MountUploadStatus uploads={{ ...summary, cleanup_failed_files: 1, active_files: 1, progress_kind: 'confirmed', error: '远端清理超时' }} />)
+    expect(screen.getByText('mounts.upload.cleanupFailed')).toBeInTheDocument()
+    expect(screen.getByText('远端清理超时')).toBeInTheDocument()
+    expect(screen.getByText('mounts.upload.active')).toBeInTheDocument()
+    expect(screen.getByText('mounts.upload.bytes')).toBeInTheDocument()
+  })
 })
