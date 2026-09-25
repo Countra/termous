@@ -4043,7 +4043,9 @@
       "cleanupFailed": "清理失败 {{count}} 项",
       "failed": "上传失败 {{count}} 项，保留本地修改",
       "buffered": "兼容写回 {{count}} 项",
-      "bytes": "传输进展 {{transferred}} · 待传输 {{pending}}",
+      "transferred": "传输进展",
+      "pending": "待传输",
+      "details": "进度说明",
       "basis": {
         "confirmed": "进度依据：协议已确认正文；最终发布单独等待。",
         "transport": "进度依据：有界传输进展，仍需等待服务器完成响应。",

@@ -789,6 +789,18 @@
   }
 }
 
+.failure-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
 .editor {
   --mount-editor-bg: #21252e;
 
@@ -1048,25 +1060,118 @@
 }
 
 .upload-status {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding: 10px 12px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-
-  small {
-    font-size: 11px;
-    line-height: 1.5;
-  }
 }
 
 .upload-phases {
   display: flex;
+  min-width: 0;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  color: var(--text-primary);
+  gap: 6px;
+}
+
+.upload-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  padding: 3px 7px;
+  color: var(--text-secondary);
+  font-weight: 550;
+  line-height: 18px;
+
+  svg {
+    flex: none;
+  }
+
+  &[data-phase='active'],
+  &[data-phase='finalizing'] {
+    border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    color: var(--accent);
+  }
+}
+
+.upload-info {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--surface);
+    color: var(--accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.upload-details {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  p {
+    margin: 0;
+  }
+}
+
+.upload-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.upload-metrics {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+
+  > div {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  dt {
+    color: var(--text-muted);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 }
 
 .advanced-toggle {

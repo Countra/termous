@@ -4068,7 +4068,9 @@
       "cleanupFailed": "Cleanup failed for {{count}} uploads",
       "failed": "{{count}} uploads failed; local changes retained",
       "buffered": "{{count}} buffered uploads",
-      "bytes": "Transfer progress {{transferred}} · Pending {{pending}}",
+      "transferred": "Transferred",
+      "pending": "Pending",
+      "details": "Progress details",
       "basis": {
         "confirmed": "Progress reflects protocol acknowledgements; final publication is still required.",
         "transport": "Progress reflects bounded transport; the server must still confirm completion.",

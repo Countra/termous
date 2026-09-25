@@ -45,7 +45,7 @@ export function MountRuntime({ instance, disabled, sourceName, onAction, onDisca
         <span className={styles['runtime-mode']}>{t(instance.read_only ? 'mounts.readOnly' : 'mounts.readWrite')}</span>
         <span className={styles['runtime-stat']}>{t('mounts.dirty', { count: instance.dirty_nodes })}</span>
         <span className={styles['runtime-stat']}>{t('mounts.handles', { count: instance.open_handles })}</span>
-        {instance.failure ? <MountFailure failure={instance.failure} /> : null}
+        <MountFailure failure={instance.failure} uploads={instance.uploads} />
       </div>
       {isMountActive(instance) ? <div className={styles['runtime-actions']}>
         <Tooltip title={t('mounts.sync')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
