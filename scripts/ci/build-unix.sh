@@ -242,9 +242,27 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
       echo "缺少 FUSE3 SDK 头文件 /usr/include/fuse3/fuse.h；请准备构建依赖，不会自动安装。" >&2
       exit 1
     fi
-  elif [[ ! -f /usr/local/include/fuse/fuse.h && ! -f /usr/local/include/osxfuse/fuse/fuse.h ]]; then
-    echo "缺少 macFUSE SDK 头文件；请准备构建依赖，不会自动安装。" >&2
-    exit 1
+  else
+    mac_fuse_include=""
+    mac_fuse_includes=()
+    if [[ -n "${CPATH:-}" ]]; then
+      IFS=: read -r -a mac_fuse_includes <<< "$CPATH"
+    fi
+    for include in "${mac_fuse_includes[@]}" \
+      /usr/local/include/fuse \
+      /usr/local/include/osxfuse/fuse \
+      /Library/Frameworks/macFUSE.framework/Headers \
+      /opt/homebrew/include/fuse; do
+      if [[ -n "$include" && -f "$include/fuse.h" ]]; then
+        mac_fuse_include="$include"
+        break
+      fi
+    done
+    if [[ -z "$mac_fuse_include" ]]; then
+      echo "缺少 macFUSE SDK 头文件；请准备构建依赖，不会自动安装。" >&2
+      exit 1
+    fi
+    export CPATH="$mac_fuse_include${CPATH:+:$CPATH}"
   fi
   run_step "Go tests" "$core_dir" go test -tags "$mount_tags" ./...
   run_step "Build Termous Core" "$core_dir" go build \
