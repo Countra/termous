@@ -66,17 +66,37 @@ test('传输目标保留同主机的其他连接会话并校验 generation', () 
 
   const result = filterRemoteCopyTargetSessions(hosts, sessions, 'source-session')
 
-  assert.deepEqual(result.map((item) => item.session.id), [
+  // 此处验证筛选结果，不将中文名称在不同系统语言环境下的排序作为合同。
+  assert.deepEqual(result.map((item) => item.session.id).sort(), [
+    'source-independent',
     'target-a-12345678',
     'target-b-87654321',
-    'source-independent',
   ])
-  assert.equal(result[0]?.duplicateHostSession, true)
-  assert.equal(result[0]?.shortSessionId, '12345678')
+  const firstTarget = result.find((item) => item.session.id === 'target-a-12345678')
+  assert.equal(firstTarget?.duplicateHostSession, true)
+  assert.equal(firstTarget?.shortSessionId, '12345678')
+  assert.equal(result.find((item) => item.session.id === 'source-independent')?.duplicateHostSession, false)
   assert.deepEqual(
     filterRemoteCopyTargetSessions(hosts, sessions, 'source-session', '8765').map((item) => item.session.id),
     ['target-b-87654321'],
   )
+})
+
+test('传输目标按名称排序，同名时依次按连接时间和会话 ID 排序', () => {
+  const hosts = [host('early-name', 'Alpha'), host('late-name', 'Zulu')]
+  const sessions = [
+    session('a-last-name', 'late-name'),
+    session('z-newer', 'early-name', { started_at: '2026-08-15T00:00:02Z' }),
+    session('b-older', 'early-name', { started_at: '2026-08-15T00:00:01Z' }),
+    session('a-older', 'early-name', { started_at: '2026-08-15T00:00:01Z' }),
+  ]
+
+  assert.deepEqual(filterRemoteCopyTargetSessions(hosts, sessions, 'source-session').map((item) => item.session.id), [
+    'a-older',
+    'b-older',
+    'z-newer',
+    'a-last-name',
+  ])
 })
 
 test('路径模型严格使用远端绝对 POSIX 路径', () => {
