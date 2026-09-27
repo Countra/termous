@@ -49,3 +49,39 @@ describe('运行项统一错误展示', () => {
     expect(screen.queryByRole('button', { name: 'mounts.failure' })).not.toBeInTheDocument()
   })
 })
+
+describe('失败运行项操作', () => {
+  const failed: MountInstance = { ...instance, state: 'failed', phase: 'failed', mounted: false, retained: false,
+    dirty_nodes: 0, open_handles: 0, uploads: undefined, failure: { operation: 'start', message: '连接失败', at: '' } }
+
+  it('无资源的失败项只提供重启与关闭，不触发强制丢弃', () => {
+    const onAction = vi.fn()
+    const onDiscard = vi.fn()
+    render(<MountRuntime instance={failed} sourceName="SMB" disabled={false} onAction={onAction} onDiscard={onDiscard} />)
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.restart' }))
+    fireEvent.click(screen.getByRole('button', { name: 'mounts.close' }))
+    expect(onAction.mock.calls).toEqual([['restart'], ['stop']])
+    expect(onDiscard).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'mounts.sync' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'mounts.force' })).not.toBeInTheDocument()
+  })
+
+  it.each(['restarting', 'unmounting'])('等待 %s 完成时禁止重复操作', (phase) => {
+    renderRuntime({ ...failed, phase })
+    expect(screen.getByRole('button', { name: 'mounts.restart' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'mounts.close' })).toBeDisabled()
+  })
+
+  it('保留资源时仍提供同步、重连和显式强制卸载', () => {
+    renderRuntime({ ...failed, retained: true, dirty_nodes: 1 })
+    for (const name of ['mounts.sync', 'mounts.reconnect', 'mounts.restart', 'mounts.close', 'mounts.force']) {
+      expect(screen.getByRole('button', { name })).toBeEnabled()
+    }
+  })
+
+  it('页面断开或提交请求期间禁用重启与关闭', () => {
+    render(<MountRuntime instance={failed} sourceName="SMB" disabled onAction={vi.fn()} onDiscard={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'mounts.restart' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'mounts.close' })).toBeDisabled()
+  })
+})

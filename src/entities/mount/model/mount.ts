@@ -1,7 +1,8 @@
 import type { MountInstance } from './types.ts'
 
 export const isMountActive = (value: MountInstance) => value.mounted || value.retained || value.state === 'starting'
-export const isMountBusy = (value: MountInstance) => value.state === 'starting' || ['syncing', 'connecting', 'unmounting', 'cancelling'].includes(value.phase)
+  || value.phase === 'restarting' || value.phase === 'unmounting'
+export const isMountBusy = (value: MountInstance) => value.state === 'starting' || ['syncing', 'connecting', 'restarting', 'unmounting', 'cancelling'].includes(value.phase)
 
 export function decodeMountEvent(value: unknown): MountInstance[] {
   if (!value || typeof value !== 'object' || !('type' in value) || value.type !== 'snapshot'

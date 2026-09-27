@@ -1,7 +1,7 @@
 import { Button, Tooltip } from 'antd'
 import { ArrowRight, HardDrive, PowerOff, RefreshCw, RotateCw, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { isMountActive, isMountBusy, type MountInstance } from '#entities/mount'
+import { isMountActive, isMountBusy, type MountAction, type MountInstance } from '#entities/mount'
 import { StatusBadge } from '#shared/ui'
 import { MountFailure } from './MountFailure'
 import { MountUploadStatus } from './MountUploadStatus'
@@ -11,15 +11,18 @@ interface MountRuntimeProps {
   instance: MountInstance
   disabled: boolean
   sourceName: string
-  onAction: (action: 'sync' | 'reconnect' | 'stop') => void
+  onAction: (action: MountAction) => void
   onDiscard: () => void
 }
 
 export function MountRuntime({ instance, disabled, sourceName, onAction, onDiscard }: MountRuntimeProps) {
   const { t } = useTranslation()
   const busy = isMountBusy(instance)
-  const status = instance.mounted ? 'connected' : instance.retained || instance.failure ? 'failed' : 'connecting'
-  const stopLabel = t(instance.state === 'starting' ? 'mounts.cancelStart' : 'mounts.stop')
+  const failed = instance.state === 'failed'
+  const active = isMountActive(instance)
+  const hasResources = instance.mounted || instance.retained
+  const status = instance.mounted ? 'connected' : busy ? 'connecting' : failed || instance.retained || instance.failure ? 'failed' : 'connecting'
+  const stopLabel = t(instance.state === 'starting' ? 'mounts.cancelStart' : failed ? 'mounts.close' : 'mounts.stop')
   const stopDisabled = disabled || instance.phase === 'cancelling' || (busy && instance.state !== 'starting')
 
   return <article className={styles['runtime-row']}>
@@ -47,17 +50,20 @@ export function MountRuntime({ instance, disabled, sourceName, onAction, onDisca
         <span className={styles['runtime-stat']}>{t('mounts.handles', { count: instance.open_handles })}</span>
         <MountFailure failure={instance.failure} uploads={instance.uploads} />
       </div>
-      {isMountActive(instance) ? <div className={styles['runtime-actions']}>
-        <Tooltip title={t('mounts.sync')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
+      {active || failed ? <div className={styles['runtime-actions']}>
+        {hasResources ? <Tooltip title={t('mounts.sync')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
           <Button type="text" icon={<RefreshCw size={14} />} aria-label={t('mounts.sync')} disabled={disabled || busy} onClick={() => onAction('sync')} />
-        </span></Tooltip>
-        <Tooltip title={t('mounts.reconnect')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
+        </span></Tooltip> : null}
+        {hasResources ? <Tooltip title={t('mounts.reconnect')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
           <Button type="text" icon={<RotateCw size={14} />} aria-label={t('mounts.reconnect')} disabled={disabled || busy} onClick={() => onAction('reconnect')} />
-        </span></Tooltip>
+        </span></Tooltip> : null}
+        {failed ? <Tooltip title={t('mounts.restart')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
+          <Button type="text" icon={<RotateCw size={14} />} aria-label={t('mounts.restart')} disabled={disabled || busy} onClick={() => onAction('restart')} />
+        </span></Tooltip> : null}
         <Tooltip title={stopLabel} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
-          <Button type="text" className={styles['runtime-action-stop']} icon={<Square size={13} />} aria-label={stopLabel} disabled={stopDisabled} onClick={() => onAction('stop')} />
+          <Button type="text" className={styles['runtime-action-stop']} icon={<Square size={14} />} aria-label={stopLabel} disabled={stopDisabled} onClick={() => onAction('stop')} />
         </span></Tooltip>
-        {instance.failure || instance.retained ? <Tooltip title={t('mounts.force')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
+        {hasResources && (instance.failure || instance.retained) ? <Tooltip title={t('mounts.force')} mouseEnterDelay={0.25}><span className={styles['runtime-action-slot']}>
           <Button type="text" danger icon={<PowerOff size={14} />} aria-label={t('mounts.force')} disabled={disabled || busy} onClick={onDiscard} />
         </span></Tooltip> : null}
       </div> : null}

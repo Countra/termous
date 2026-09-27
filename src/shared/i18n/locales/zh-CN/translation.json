@@ -3968,6 +3968,8 @@
     "start": "挂载",
     "stop": "卸载",
     "cancelStart": "取消启动",
+    "restart": "重启",
+    "close": "关闭",
     "sync": "同步",
     "reconnect": "重连",
     "force": "强制卸载",
@@ -4106,6 +4108,7 @@
       "ready": "已挂载",
       "syncing": "正在同步",
       "unmounting": "正在卸载",
+      "restarting": "正在重启",
       "cancelling": "正在取消",
       "detached": "已卸载 · 保留缓存"
     }

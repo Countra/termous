@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, App, Button, Input, Popconfirm, Tag, Tooltip } from 'antd'
 import { Activity, ArrowRight, Edit3, FolderOpen, FolderTree, HardDrive, Play, Plus, RefreshCw, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { isMountActive, type MountEnvironment, type MountInput, type MountInstance, type MountProfile } from '#entities/mount'
+import { isMountActive, isMountBusy, type MountEnvironment, type MountInput, type MountInstance, type MountProfile } from '#entities/mount'
 import { ConfirmDialog, ConnectionActionButton, ManagementFilterTabs, StatusBadge, uiStyles, termousNotificationClassName, termousPopconfirmProps } from '#shared/ui'
 import type { MountWorkspaceProps } from '../model/types'
 import { MountEditor } from './MountEditor'
@@ -120,7 +120,7 @@ export function MountWorkspace(props: MountWorkspaceProps) {
           const displayedSource = sourceName(displayed.file_profile_id)
           const incompatible = environment && profile.target_os !== environment.platform
           const startupFailure = profile.auto_start && instance?.start_origin === 'startup' && instance.failure?.operation === 'start' ? instance.failure : undefined
-          const status = running ? instance.mounted ? 'connected' : instance.retained || instance.failure ? 'failed' : 'connecting' : instance?.failure ? 'failed' : 'disconnected'
+          const status = running ? instance.mounted ? 'connected' : isMountBusy(instance) ? 'connecting' : instance.retained || instance.failure ? 'failed' : 'connecting' : instance?.failure ? 'failed' : 'disconnected'
           return <article className={styles['profile-row']} key={profile.id}>
             <div className={styles['profile-details']}>
               <span className={styles['profile-heading']}>

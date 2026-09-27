@@ -3993,6 +3993,8 @@
     "start": "Mount",
     "stop": "Unmount",
     "cancelStart": "Cancel startup",
+    "restart": "Restart",
+    "close": "Close",
     "sync": "Sync",
     "reconnect": "Reconnect",
     "force": "Force unmount",
@@ -4131,6 +4133,7 @@
       "ready": "Mounted",
       "syncing": "Syncing",
       "unmounting": "Unmounting",
+      "restarting": "Restarting",
       "cancelling": "Cancelling",
       "detached": "Unmounted · cache retained"
     }

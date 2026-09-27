@@ -22,6 +22,7 @@ export interface MountInput extends MountConfig {
   expected_updated_at?: string
 }
 export interface MountStartRequest { profile_id?: string; temporary?: MountInput }
+export type MountAction = 'sync' | 'reconnect' | 'restart' | 'stop'
 export interface MountFailure { operation: string; message: string; at: string }
 export interface MountUploadSummary {
   active_files: number

@@ -1,5 +1,5 @@
 import type { AppConfig } from '#common/contracts'
-import type { MountEnvironment, MountInput, MountInstance, MountProfile, MountStartRequest } from '#entities/mount'
+import type { MountAction, MountEnvironment, MountInput, MountInstance, MountProfile, MountStartRequest } from '#entities/mount'
 import { TermousApiTransport } from '#shared/api'
 
 export class MountClient extends TermousApiTransport {
@@ -13,7 +13,7 @@ export class MountClient extends TermousApiTransport {
     return this.request<void>(`/api/v1/mounts/profiles/${encodeURIComponent(profile.id)}`, { method: 'DELETE', body: { expected_updated_at: profile.updated_at } })
   }
   start(input: MountStartRequest) { return this.request<MountInstance>('/api/v1/mounts/instances', { method: 'POST', body: input }) }
-  action(id: string, action: 'sync' | 'reconnect' | 'stop', force = false) {
+  action(id: string, action: MountAction, force = false) {
     return this.request<MountInstance>(`/api/v1/mounts/instances/${encodeURIComponent(id)}/${action}`, { method: 'POST', body: { force } })
   }
   eventsUrl() { return this.websocketUrl('/api/v1/mounts/events') }

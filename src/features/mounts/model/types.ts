@@ -1,5 +1,5 @@
 import type { FileAccessProfile } from '#entities/file-access-profile'
-import type { MountEnvironment, MountInput, MountInstance, MountProfile, MountStartRequest } from '#entities/mount'
+import type { MountAction, MountEnvironment, MountInput, MountInstance, MountProfile, MountStartRequest } from '#entities/mount'
 
 export interface MountWorkspaceProps {
   profiles: MountProfile[]
@@ -13,5 +13,5 @@ export interface MountWorkspaceProps {
   save: (id: string | undefined, input: MountInput) => Promise<void>
   remove: (profile: MountProfile) => Promise<void>
   start: (input: MountStartRequest) => Promise<void>
-  action: (id: string, action: 'sync' | 'reconnect' | 'stop', force?: boolean) => Promise<void>
+  action: (id: string, action: MountAction, force?: boolean) => Promise<void>
 }

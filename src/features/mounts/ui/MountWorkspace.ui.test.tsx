@@ -22,6 +22,36 @@ function setup(overrides: Partial<MountWorkspaceProps> = {}) {
 }
 
 describe('文件挂载交互', () => {
+  it.each(['restarting', 'unmounting'])('资源已释放但仍在 %s 时保留运行项并禁止重新启动或删除配置', (phase) => {
+    const config = { name: 'Archive', description: '', file_profile_id: 'source', target_os: 'windows', mount_point: 'T:', volume_name: 'Archive', read_only: false, case_sensitive: false, attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0 }
+    setup({ instances: [{ ...config, id: 'run', profile_id: 'saved', start_origin: 'manual', state: 'failed', phase,
+      mounted: false, retained: false, dirty_nodes: 0, open_handles: 0, started_at: '' }] })
+    const saved = within(screen.getByRole('region', { name: 'mounts.saved' }))
+    expect(saved.queryByRole('button', { name: 'mounts.start' })).not.toBeInTheDocument()
+    expect(saved.getByRole('button', { name: 'app.delete' })).toBeDisabled()
+    expect(saved.getByText(`mounts.states.${phase}`).closest('.status-badge')).toHaveClass('status-connecting')
+    const runtime = within(screen.getByRole('region', { name: 'mounts.runtime' }))
+    expect(runtime.getByText(`mounts.states.${phase}`).closest('.status-badge')).toHaveClass('status-connecting')
+    expect(runtime.getByRole('button', { name: 'mounts.restart' })).toBeDisabled()
+    expect(runtime.getByRole('button', { name: 'mounts.close' })).toBeDisabled()
+    expect(runtime.queryByRole('button', { name: 'mounts.sync' })).not.toBeInTheDocument()
+    expect(runtime.queryByRole('button', { name: 'mounts.force' })).not.toBeInTheDocument()
+  })
+  it.each(['restart', 'stop'] as const)('临时失败项将 %s 交给实例接口，等待受理期间禁止重复点击', async (action) => {
+    let complete: () => void = () => {}
+    const perform = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { complete = resolve }))
+    setup({ action: perform, instances: [{ id: 'failed-temp', name: 'Temporary', description: '', file_profile_id: 'source',
+      target_os: 'windows', mount_point: 'T:', volume_name: '', read_only: false, case_sensitive: false,
+      attribute_ttl_seconds: 5, directory_ttl_seconds: 60, metadata_concurrency: 0, start_origin: 'manual',
+      state: 'failed', phase: 'failed', mounted: false, retained: false, dirty_nodes: 0, open_handles: 0, started_at: '' }] })
+    const runtime = within(screen.getByRole('region', { name: 'mounts.runtime' }))
+    fireEvent.click(runtime.getByRole('button', { name: action === 'restart' ? 'mounts.restart' : 'mounts.close' }))
+    expect(perform).toHaveBeenCalledExactlyOnceWith('failed-temp', action)
+    expect(runtime.getByRole('button', { name: 'mounts.restart' })).toBeDisabled()
+    expect(runtime.getByRole('button', { name: 'mounts.close' })).toBeDisabled()
+    complete()
+    await waitFor(() => expect(runtime.getByRole('button', { name: 'mounts.close' })).toBeEnabled())
+  })
   it('打开编辑器前刷新可用盘符，刷新失败时不打开', async () => {
     let complete: (value: Awaited<ReturnType<MountWorkspaceProps['reload']>>) => void = () => {}
     const reload = vi.fn().mockImplementation(() => new Promise<Awaited<ReturnType<MountWorkspaceProps['reload']>>>((resolve) => { complete = resolve }))

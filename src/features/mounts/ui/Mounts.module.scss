@@ -610,17 +610,34 @@
 
   > .runtime-action-slot {
     display: grid;
+    box-sizing: content-box;
     width: 28px;
     height: 28px;
+    flex: none;
     place-items: center;
   }
 
   .runtime-action-slot > :global(.ant-btn) {
+    display: grid;
     width: 28px;
     min-width: 28px;
     height: 28px;
+    place-items: center;
+    gap: 0;
+    border: 0;
     border-radius: 0;
     padding: 0;
+    line-height: 1;
+  }
+
+  :global(.ant-btn-icon) {
+    display: grid;
+    place-items: center;
+    line-height: 1;
+
+    svg {
+      display: block;
+    }
   }
 
   > .runtime-action-slot + .runtime-action-slot {
