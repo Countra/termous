@@ -3802,7 +3802,7 @@ function FilesWorkspaceContent({
                   }}
                   size="small"
                   tableLayout="fixed"
-                  className={styles['files-table']}
+                  className={`${styles['files-table']} ${entries.length === 0 ? styles['is-empty'] : ''}`}
                   onChange={handleTableChange}
                   rowSelection={{
                     columnWidth: 38,
