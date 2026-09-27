@@ -526,7 +526,7 @@ vi.mock('#pages/forwards', () => ({
 vi.mock('#pages/settings', () => ({
   SettingsPage: ({ initialTab = 'general' }: { initialTab?: string }) => {
     const [activeTab, setActiveTab] = useState(initialTab)
-    const tabs = ['general', 'terminal', 'mcp', 'agent', 'data']
+    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'data']
     return (
       <div
         data-testid="settings-page"
@@ -555,7 +555,9 @@ vi.mock('#pages/settings', () => ({
                 aria-hidden={activeTab !== tab}
                 style={{ display: activeTab === tab ? 'block' : 'none' }}
               >
-                <div data-tour={`settings-${tab}`} />
+                <div data-tour={`settings-${tab}`}>
+                  {tab === 'mcp' ? <button data-tour="settings-skills-install" onClick={() => void testState.action()}>install-skills</button> : null}
+                </div>
               </div>
             ))}
           </>
@@ -563,6 +565,17 @@ vi.mock('#pages/settings', () => ({
       </div>
     )
   },
+}))
+vi.mock('#pages/mounts', () => ({
+  MountsPage: () => <section>
+    <header data-tour={testState.productTourPageHarness ? 'mounts-overview' : undefined}>
+      <button onClick={() => void testState.action()}>start-mount</button>
+    </header>
+    <div data-tour={testState.productTourPageHarness ? 'mounts-runtime' : undefined} />
+  </section>,
+}))
+vi.mock('#pages/audit', () => ({
+  AuditPage: () => <header data-tour={testState.productTourPageHarness ? 'audit-workspace' : undefined}>audit</header>,
 }))
 vi.mock('#pages/snippets', () => ({
   SnippetsPage: ({
@@ -1127,7 +1140,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成二十二步页面准备且不触发写操作或连接动作', async () => {
+  it('组合级完成全部向导页面准备且不触发写操作、安装或连接动作', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
@@ -1177,6 +1190,7 @@ describe('应用运行时组合合同', () => {
         'hostsNav',
         'hostEditor',
         'hostConnections',
+        'fileProfiles',
         'topbarConnect',
         'workbench',
         'workbenchTools',
@@ -1184,11 +1198,16 @@ describe('应用运行时组合合同', () => {
         'filesBookmarks',
         'filesLocalDirectory',
         'filesTransfers',
+        'mounts',
+        'mountsRuntime',
         'forwards',
         'snippets',
+        'audit',
         'settings',
         'settingsTerminal',
+        'settingsMount',
         'settingsMcp',
+        'settingsSkills',
         'settingsAgent',
         'settingsData',
         'finish',

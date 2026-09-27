@@ -14,7 +14,7 @@ export function McpSkillInstallButton() {
   return (
     <>
       <Tooltip title={gateway ? undefined : t('settings.mcp.skills.desktopOnly')}>
-        <span>
+        <span data-tour="settings-skills-install">
           <Button icon={<Download size={15} />} disabled={!gateway} onClick={() => setOpen(true)}>
             {t('settings.mcp.skills.install')}
           </Button>

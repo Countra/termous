@@ -88,7 +88,7 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
 
   return (
     <section className={styles.page} aria-label={t('nav.audit')}>
-      <header className={styles.header}>
+      <header className={styles.header} data-tour="audit-workspace">
         <div className={styles.heading}><span className={styles['heading-icon']}><ClipboardList size={18} aria-hidden="true" /></span><div><h1>{t('nav.audit')}</h1><p>{t('audit.description')}</p></div></div>
         <Button icon={<RefreshCw size={15} />} loading={busy} onClick={() => { setBusy(true); setRevision((value) => value + 1) }}>{t('app.reload')}</Button>
       </header>

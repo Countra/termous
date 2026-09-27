@@ -3,6 +3,7 @@ import type { ProductTourStep } from './productTourSteps.ts'
 const PREPARATION_TIMEOUT_MS = 1200
 const settingsTabActions = {
   settingsTerminal: '[data-tour="settings-terminal-tab"]',
+  settingsMount: '[data-tour="settings-mount-tab"]',
   settingsMcp: '[data-tour="settings-mcp-tab"]',
   settingsAgent: '[data-tour="settings-agent-tab"]',
   settingsData: '[data-tour="settings-data-tab"]',
@@ -43,6 +44,7 @@ export async function prepareProductTourDom(
       await prepareHostEditor(step, signal)
       return
     case 'settingsTerminal':
+    case 'settingsMount':
     case 'settingsMcp':
     case 'settingsAgent':
     case 'settingsData':
@@ -50,7 +52,11 @@ export async function prepareProductTourDom(
       await ensureTarget(step.element, settingsTabActions[step.preparation], signal)
       if (!signal.aborted && step.element) {
         const content = document.querySelector<HTMLElement>(step.element)
-        if (content) content.scrollTop = 0
+        if (content) {
+          content.scrollTop = 0
+          // 子元素锚点可能被页签内的滚动容器裁切，不能只依赖 Driver 对浏览器视口的判断。
+          content.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+        }
       }
       return
     default:

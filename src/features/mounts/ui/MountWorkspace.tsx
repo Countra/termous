@@ -76,7 +76,7 @@ export function MountWorkspace(props: MountWorkspaceProps) {
     <div><strong>{environmentTitle}</strong><p>{environment.message} {showEnvironmentHelp ? <a href={environment.help_url} target="_blank" rel="noreferrer">{t(environmentHelpLabel, { name: environment.dependency })}</a> : null}</p></div>
   </div> : null
   return <section className={styles.workspace}>
-    <header className={styles.header}>
+    <header className={styles.header} data-tour="mounts-overview">
       <div className={styles['header-main']}>
         <div className={styles['environment-status']} role="status" aria-label={`${t('mounts.environmentStatus')}: ${environmentStateLabel}`} data-state={environmentState}>
           <span className={styles['environment-status-icon']}><HardDrive size={17} aria-hidden="true" /></span>
@@ -162,7 +162,7 @@ export function MountWorkspace(props: MountWorkspaceProps) {
           })}</div>}
         </div>
       </section>
-      <section className={styles['runtime-pane']} aria-label={t('mounts.runtime')}>
+      <section className={styles['runtime-pane']} aria-label={t('mounts.runtime')} data-tour="mounts-runtime">
         <div className={styles['pane-heading']}>
           <span className={styles['pane-icon']}><Activity size={17} aria-hidden="true" /></span>
           <div className={styles['pane-title']}><h2>{t('mounts.runtime')}</h2><small>{t('mounts.running', { count: mountedCount })}</small></div>

@@ -195,8 +195,8 @@ export function SettingsPage({
           },
           {
             key: 'mount',
-            label: <span className={styles['tab-label']}><HardDrive size={15} aria-hidden="true" />{t('settings.tabMount')}</span>,
-            children: <div className={styles['tab-scroll']}><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
+            label: <span className={styles['tab-label']} data-tour="settings-mount-tab"><HardDrive size={15} aria-hidden="true" />{t('settings.tabMount')}</span>,
+            children: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
           },
           {
             key: 'shortcuts',

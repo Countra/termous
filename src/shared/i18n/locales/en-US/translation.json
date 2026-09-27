@@ -5477,7 +5477,7 @@
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Termous brings credentials, hosts, and remote operations into one workbench. Follow this tour through connection setup, file management, and key settings to get started."
+        "description": "Termous brings terminals, file management, and AI operations into one workbench. Explore connection setup, file profiles, filesystem mounts, and where to configure MCP and install Skills."
       },
       "vaultNav": {
         "title": "Start with credentials",
@@ -5503,6 +5503,10 @@
         "title": "Configure an SSH connection",
         "description": "On the Connections tab, enter the SSH endpoint, choose a credential and optional proxy, and set the default connection. Saving an SSH profile automatically creates its matching SFTP profile."
       },
+      "fileProfiles": {
+        "title": "Set up file access for a host",
+        "description": "After saving a host, add SFTP, S3, WebDAV, FTP, or SMB profiles under file access on its Connections tab. SFTP uses an existing SSH connection; other engines provide their own connection options. Reuse saved profiles in Files, AI resource references, and mounts."
+      },
       "topbarConnect": {
         "title": "Connect quickly",
         "description": "Open the host launcher in the workbench top bar to choose a configured host connection, or start a local terminal from the same menu."
@@ -5513,11 +5517,11 @@
       },
       "workbenchTools": {
         "title": "Explore the right-side toolbox",
-        "description": "The right-side area keeps session-related information and supporting tools beside the terminal. Switch between them as needed, or collapse the area for more terminal space."
+        "description": "The toolbox provides files, system monitoring, snippets, and alias management for the current session. You can also reference selected terminal text in the AI assistant together with its SSH connection for follow-up questions."
       },
       "files": {
         "title": "Manage remote files",
-        "description": "The Files page hosts file sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
+        "description": "Open independent sessions from file profiles to browse folders, edit text, and preview files. Storage engines share this workspace for uploads, downloads, and copying between sessions. Available operations depend on the connection's capabilities."
       },
       "filesBookmarks": {
         "title": "Bookmark remote paths",
@@ -5529,31 +5533,51 @@
       },
       "filesTransfers": {
         "title": "Track transfers in one place",
-        "description": "View uploads, downloads, and transfers between hosts across all sessions, or filter to the current session. Cancel or retry eligible tasks and clear history without staying in the original folder."
+        "description": "Track uploads, downloads, and copies between file sessions, or filter to the current session. Cancel or retry eligible tasks and clear history here. Uploads through a system mount are tracked on the Mounts page."
+      },
+      "mounts": {
+        "title": "Mount remote folders on your system",
+        "description": "Check that mounting is available, then choose a file profile, drive letter or mount directory, and read-only or writable access. Save the setup or start a temporary mount. A file profile allows multiple read-only instances and at most one writable instance."
+      },
+      "mountsRuntime": {
+        "title": "Track mounts and upload progress",
+        "description": "Running instances show transferred and pending bytes, distinguishing transfer from finalization. The server may still need to confirm completion after transfer. Upload details explain the progress basis and any compatibility writeback. Sync, restart, or close instances here, and open error details when needed."
       },
       "forwards": {
         "title": "Manage port forwarding",
-        "description": "The Port Forwarding page lets you create and reuse local, remote, and dynamic forwarding profiles while tracking temporary tunnels, runtime status, and traffic."
+        "description": "Create local, remote, or dynamic forwarding, save reusable profiles, or open temporary tunnels. Enable automatic connection at startup when needed, and check runtime status, traffic, and connection failures here."
       },
       "snippets": {
         "title": "Reuse common commands",
         "description": "The Snippets page organizes commands by group and tag, supports variables and risk detection, and makes them ready to insert or run from the workbench."
       },
+      "audit": {
+        "title": "Review AI and MCP operations",
+        "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
+      },
       "settings": {
         "title": "Tune key preferences",
-        "description": "Explore terminal options, MCP access, the AI assistant, and data backup. Close the tour whenever you're ready to change settings."
+        "description": "Explore terminal options, mount caching, MCP access, Skills installation, and the AI assistant. Close the tour whenever you're ready to change settings."
       },
       "settingsTerminal": {
         "title": "Make the terminal your own",
-        "description": "Adjust fonts, text size, cursor, theme, and scrollback, or import your own font. Below, choose which command, alias, snippet, history, and directory suggestions appear in completion."
+        "description": "Adjust fonts, cursor, theme, and scrollback. Completion supports commands, aliases, snippets, history, and directories. To enable AI command suggestions, first configure a default model in AI Assistant settings."
+      },
+      "settingsMount": {
+        "title": "Manage the local mount cache",
+        "description": "Set the cache directory, capacity limit, and reserved free space, and inspect clean, private reserved, and reclaimable usage. Clear unused cache skips content in use. Directory changes apply after Core restarts; the old directory is not moved or deleted automatically."
       },
       "settingsMcp": {
         "title": "Control tool access through MCP",
         "description": "Use the Termous endpoint and separate access tokens to connect external AI clients. Assign tool permissions and approval policies to control access to hosts, files, and remote operations."
       },
+      "settingsSkills": {
+        "title": "Install Skills for external AI clients",
+        "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
+      },
       "settingsAgent": {
         "title": "Set up the built-in AI assistant",
-        "description": "Configure providers, sync their model catalogs, and choose the default model and run options for new conversations. Adjust automatic context compaction and Token usage display, and check MCP and Skills readiness."
+        "description": "Configure providers and a default model, then adjust context compaction and Token usage display. In the AI assistant, type / for quick commands and SSH or file connection references, or continue working with content referenced from the terminal."
       },
       "settingsData": {
         "title": "Back up your workspace",
@@ -5561,7 +5585,7 @@
       },
       "finish": {
         "title": "You're ready",
-        "description": "You now know the connection flow, file tools, and key settings. Replay this tour anytime from the Help menu and keep exploring at your own pace."
+        "description": "You have explored connections, file engines, mounts, auditing, and AI access. Close the tour to start configuring and using them. You can replay it anytime from the Help menu."
       }
     }
   },
