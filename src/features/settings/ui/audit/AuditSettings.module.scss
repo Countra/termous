@@ -1,0 +1,73 @@
+.body {
+  display: grid;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.toggle,
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.toggle > div {
+  min-width: 0;
+}
+
+.toggle > button,
+.footer > button {
+  flex-shrink: 0;
+}
+
+.toggle label,
+.row label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.retention {
+  display: grid;
+  gap: 16px;
+  border-block: 1px solid var(--border);
+  padding-block: 16px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  align-items: center;
+  gap: 18px;
+}
+
+.row > :last-child {
+  width: 100%;
+}
+
+.retention > p,
+.footer > p {
+  margin: 0;
+}
+
+.footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.footer > p {
+  flex: 1;
+}
+
+.loading {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+}
+
+@media (width <= 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}

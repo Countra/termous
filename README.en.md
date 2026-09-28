@@ -153,7 +153,8 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, multi-
 ### Audit center
 
 - Review tool calls, approvals, and background task results from the built-in AI assistant and external MCP clients, with combined filters, keyword search, details, and related events.
-- Records are stored separately on the local device and pruned under a 90-day retention policy. Ordinary manual operations are not recorded, and configuration backups do not include audit records.
+- Records are stored separately on the local device, with a default retention of 90 days. Settings → Audit provides a recording switch, maximum retention days, and an optional record limit. Older records beyond either limit are pruned in background batches; history stays available when recording is disabled.
+- Ordinary manual operations are not recorded. Audit records and local audit settings are excluded from configuration backups.
 - Command-execution auditing retains the original command, including authentication arguments embedded in it. File bodies, conversation bodies, and full command output are excluded from audit details.
 
 ### Data, security, and desktop experience

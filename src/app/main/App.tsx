@@ -1585,6 +1585,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           appVersion={appVersion}
                           dataPortabilityGateway={gateways.dataPortability}
                           mountSettingsGateway={gateways.settings}
+                          auditSettingsGateway={gateways.settings}
                           agentSetupGateway={gateways.agentSetup}
                           defaultModelStatusGateway={gateways.terminal}
                           updatePreferencesRuntime={updatePreferencesRuntime}

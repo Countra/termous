@@ -1,6 +1,6 @@
 {
   "audit": {
-    "description": "AI 助手与外部 MCP 操作记录 · 本机保留 90 天",
+    "paused": "已暂停记录",
     "detail": "审计详情",
     "loadFailed": "无法读取审计记录，请刷新重试",
     "relatedFailed": "关联事件读取失败，已加载的记录仍保留",
@@ -35,7 +35,7 @@
     "json": "查看审计 JSON",
     "search": "关键词搜索",
     "searchField": "搜索范围",
-    "searchHint": "在选定范围内按字面包含匹配；输入停顿后自动搜索，可结合更多筛选缩小范围。",
+    "searchHint": "输入关键词自动搜索，可结合筛选条件缩小范围。",
     "searchFields": {
       "all": "全部关键信息",
       "command": "执行命令",
@@ -76,7 +76,7 @@
     "from": "开始时间",
     "until": "结束时间",
     "lastSevenDays": "默认最近 7 天",
-    "scope": "作用域",
+    "scope": "功能模块",
     "level": "级别",
     "moreFilters": "更多筛选",
     "reset": "重置",
@@ -111,7 +111,7 @@
       "unknown": "结果不确定"
     },
     "producers": {
-      "agent_runtime": "AI Worker",
+      "agent_runtime": "AI 助手运行时",
       "mcp_server": "MCP 服务端",
       "application_service": "应用服务"
     },
@@ -4246,6 +4246,20 @@
     "tabTerminal": "终端",
     "tabConnection": "连接",
     "tabMount": "挂载",
+    "tabAudit": "审计",
+    "audit": {
+      "title": "审计记录",
+      "enabled": "启用审计记录",
+      "enabledHint": "记录 AI 助手和 MCP 操作，关闭后仍可查看历史。",
+      "days": "最长保留天数",
+      "dayUnit": "天",
+      "records": "最多保留条数",
+      "recordsHint": "0 为不限；上限范围为 1,000–1,000,000 条。",
+      "retentionHint": "超期或超量记录会永久清理，关闭审计后仍生效。",
+      "saved": "已保存",
+      "loadFailed": "无法读取审计设置，请重试",
+      "saveFailed": "保存失败，修改尚未确认，请重试"
+    },
     "mount": {
       "title": "挂载缓存",
       "directory": "缓存位置",

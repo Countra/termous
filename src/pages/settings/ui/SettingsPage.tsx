@@ -1,5 +1,5 @@
 import { NotificationSettings } from '#features/notifications'
-import { Bot, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, ClipboardList, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -25,6 +25,8 @@ import {
   GeneralSettings,
   MountSettings,
   type MountSettingsGateway,
+  AuditSettings,
+  type AuditSettingsGateway,
   ShortcutSettingsPanel,
   TerminalCompletionSettings,
   TerminalStyleSettings,
@@ -42,6 +44,7 @@ export type SettingsPageTabKey =
   | 'shortcuts'
   | 'agent'
   | 'mcp'
+  | 'audit'
   | 'data'
   | 'updates'
 
@@ -59,6 +62,7 @@ export interface SettingsPageProps {
   appVersion: string
   dataPortabilityGateway: DataPortabilityGateway
   mountSettingsGateway?: MountSettingsGateway
+  auditSettingsGateway: AuditSettingsGateway
   agentSetupGateway: AgentSetupGateway
   defaultModelStatusGateway?: AgentDefaultModelStatusGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
@@ -89,6 +93,7 @@ export function SettingsPage({
   appVersion,
   dataPortabilityGateway,
   mountSettingsGateway,
+  auditSettingsGateway,
   agentSetupGateway,
   defaultModelStatusGateway,
   updatePreferencesRuntime = null,
@@ -245,6 +250,11 @@ export function SettingsPage({
                 <McpSettingsPanel />
               </div>
             ),
+          },
+          {
+            key: 'audit',
+            label: <span className={styles['tab-label']}><ClipboardList size={15} aria-hidden="true" />{t('settings.tabAudit')}</span>,
+            children: <div className={styles['tab-scroll']}><AuditSettings gateway={auditSettingsGateway} disabled={actionBusy} /></div>,
           },
           {
             key: 'data',

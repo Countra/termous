@@ -1,6 +1,6 @@
 {
   "audit": {
-    "description": "AI assistant and external MCP operations · Stored locally for 90 days",
+    "paused": "Recording paused",
     "detail": "Audit details",
     "loadFailed": "Could not load audit records. Refresh to retry.",
     "relatedFailed": "Could not load related events. Loaded records are preserved.",
@@ -76,7 +76,7 @@
     "from": "From",
     "until": "Until",
     "lastSevenDays": "Last 7 days by default",
-    "scope": "Scope",
+    "scope": "Module",
     "level": "Level",
     "moreFilters": "More filters",
     "reset": "Reset",
@@ -111,7 +111,7 @@
       "unknown": "Uncertain"
     },
     "producers": {
-      "agent_runtime": "AI Worker",
+      "agent_runtime": "AI assistant runtime",
       "mcp_server": "MCP server",
       "application_service": "Application service"
     },
@@ -4271,6 +4271,20 @@
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
     "tabMount": "Mounts",
+    "tabAudit": "Audit",
+    "audit": {
+      "title": "Audit recording",
+      "enabled": "Enable audit recording",
+      "enabledHint": "Record AI assistant and MCP operations. History remains available when disabled.",
+      "days": "Maximum retention days",
+      "dayUnit": "days",
+      "records": "Maximum retained records",
+      "recordsHint": "0 for no limit; otherwise 1,000–1,000,000 records.",
+      "retentionHint": "Records beyond either limit are permanently deleted, even when recording is disabled.",
+      "saved": "Saved",
+      "loadFailed": "Unable to load audit settings. Try again.",
+      "saveFailed": "Unable to confirm the saved changes. Try again."
+    },
     "mount": {
       "title": "Mount cache",
       "directory": "Cache location",

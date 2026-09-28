@@ -49,12 +49,6 @@
   font-weight: 760;
 }
 
-.header p {
-  margin: 5px 0 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
 .filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(130px, 1fr)) auto;

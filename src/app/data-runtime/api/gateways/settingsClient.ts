@@ -1,9 +1,11 @@
 import type { AppConfig, AppLanguage, AppearanceSettings, CompletionSettings, ConnectionSettings, MountSettings, MountSettingsState, MountCacheState, MountCacheClear, Settings, ShortcutSettingsPatch, TerminalFont, TerminalSettings, WindowSettings } from '#common/contracts';
 import { TermousApiTransport } from '#shared/api';
+import { decodeAuditSettings, type AuditSettings } from '#entities/audit'
+import type { AuditSettingsGateway } from '#features/settings'
 
 type Language = AppLanguage
 
-export class SettingsClient extends TermousApiTransport {
+export class SettingsClient extends TermousApiTransport implements AuditSettingsGateway {
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
   }
@@ -25,6 +27,14 @@ settings() {
 
   mountSettings() {
     return this.request<MountSettingsState>('/api/v1/settings/mount')
+  }
+
+  auditSettings(signal?: AbortSignal) {
+    return this.request<unknown>('/api/v1/audit/settings', { signal }).then(decodeAuditSettings)
+  }
+
+  updateAuditSettings(patch: Partial<AuditSettings>, signal?: AbortSignal) {
+    return this.request<unknown>('/api/v1/audit/settings', { method: 'PATCH', body: patch, signal }).then(decodeAuditSettings)
   }
 
   mountCache() {

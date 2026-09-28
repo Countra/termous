@@ -34,3 +34,11 @@ test('接受排序查询的长游标，仍拒绝超过接口上限的游标', ()
   assert.equal(decodeAuditPage({ items: [event], next_cursor: 'a'.repeat(4096) }).next_cursor?.length, 4096)
   assert.throws(() => decodeAuditPage({ items: [], next_cursor: 'a'.repeat(4097) }))
 })
+
+test('审计状态兼容旧响应并校验当前采集策略', () => {
+  const settings = { enabled: false, retention_days: 1, max_records: 0 }
+  const status = { state: 'ready', queued: 0, queued_bytes: 0, dropped: 0, write_failures: 0, written: 1, retention_days: 90 }
+  assert.equal(decodeAuditStatus(status).enabled, true)
+  assert.equal(decodeAuditStatus({ ...status, ...settings }).enabled, false)
+  assert.throws(() => decodeAuditStatus({ ...status, enabled: null }))
+})

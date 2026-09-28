@@ -14,6 +14,7 @@ import type { AgentSetupGateway } from '#features/agent-setup'
 const childState = vi.hoisted(() => ({
   agentSetupGateway: null as unknown,
   dataPortabilityGateway: null as unknown,
+  auditSettingsGateway: null as unknown,
   platform: 'darwin' as const,
 }))
 
@@ -43,6 +44,12 @@ vi.mock('#features/agent-setup', () => ({
 }))
 
 vi.mock('#features/settings', () => ({
+  AuditSettings: function AuditSettings({ gateway, disabled }: { gateway: unknown; disabled: boolean }) {
+    const [draft, setDraft] = useState('')
+    return <div data-testid="audit-settings" ref={() => { childState.auditSettingsGateway = gateway }}>
+      <input aria-label="audit-draft" disabled={disabled} value={draft} onChange={(event) => setDraft(event.target.value)} />
+    </div>
+  },
   MountSettings: () => <div data-testid="mount-settings" />,
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
@@ -182,6 +189,10 @@ const completionSettings: CompletionSettings = {
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   const handlers = {
+    auditSettingsGateway: {
+      auditSettings: vi.fn(async () => ({ enabled: true, retention_days: 90, max_records: 0 })),
+      updateAuditSettings: vi.fn(async () => ({ enabled: false, retention_days: 90, max_records: 0 })),
+    },
     agentSetupGateway: { readiness: vi.fn(async () => { throw new Error('unused') }) } as unknown as AgentSetupGateway,
     dataPortabilityGateway: {
       applyDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
@@ -241,6 +252,22 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
+  it('审计使用独立标签和专用接口，切换标签保留草稿', async () => {
+    const user = userEvent.setup()
+    const handlers = renderSettingsPage({ initialTab: 'audit' })
+    expect(screen.getByRole('tab', { name: 'settings.tabAudit' })).toHaveAttribute('aria-selected', 'true')
+    expect(childState.auditSettingsGateway).toBe(handlers.auditSettingsGateway)
+    await user.type(screen.getByRole('textbox', { name: 'audit-draft' }), '30')
+    await user.click(screen.getByRole('tab', { name: 'settings.tabGeneral' }))
+    await user.click(screen.getByRole('tab', { name: 'settings.tabAudit' }))
+    expect(screen.getByRole('textbox', { name: 'audit-draft' })).toHaveValue('30')
+  })
+
+  it('审计设置遵守全局忙碌状态', () => {
+    renderSettingsPage({ initialTab: 'audit', actionBusy: true })
+    expect(screen.getByRole('textbox', { name: 'audit-draft' })).toBeDisabled()
+  })
+
   it('终端页读取默认模型，前往 AI 设置后再返回会刷新且保留设置草稿', async () => {
     const user = userEvent.setup()
     const getDefaultModelStatus = vi.fn().mockResolvedValue({ available: true, model_id: 'm1', model_name: 'Model one', provider_name: 'Provider' })
@@ -257,12 +284,12 @@ describe('设置页面装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('提供九个页签并保持通用设置默认页签和命令委托', async () => {
+  it('提供十个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(9)
+    expect(tabs).toHaveLength(10)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
@@ -271,6 +298,7 @@ describe('设置页面装配合同', () => {
       'settings.tabShortcuts',
       'settings.tabAgent',
       'settings.tabMcp',
+      'settings.tabAudit',
       'settings.tabData',
       'settings.tabUpdates',
     ])

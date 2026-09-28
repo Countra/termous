@@ -14,11 +14,24 @@ function gateway(): AuditGateway {
   return {
     events: vi.fn(async () => ({ items: [event], next_cursor: 'next' })),
     event: vi.fn(async () => ({ ...event, details: { result: { status: 'completed' } } })),
-    status: vi.fn(async () => ({ state: 'ready', queued: 0, queued_bytes: 0, dropped: 0, write_failures: 0, written: 1, retention_days: 90 })),
+    status: vi.fn(async () => ({ enabled: true, max_records: 0, state: 'ready', queued: 0, queued_bytes: 0, dropped: 0, write_failures: 0, written: 1, retention_days: 90 })),
   }
 }
 
 describe('审计中心', () => {
+  it('暂停记录后仍展示历史，审计中心不再承载设置入口和标题说明', async () => {
+    const api = gateway()
+    api.status = vi.fn(async () => ({ enabled: false, max_records: 0, state: 'ready', queued: 0, queued_bytes: 0, dropped: 0, write_failures: 0, written: 1, retention_days: 90 }))
+    render(<AuditWorkspace api={api} />)
+    await screen.findByText('列出主机')
+    expect(screen.getByRole('heading', { name: '审计中心' }).parentElement?.querySelector('p')).toBeNull()
+    expect(screen.queryByRole('button', { name: '审计设置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    await screen.findByText('已暂停记录')
+    expect(screen.getByText('列出主机')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('指定搜索范围与高级条件组合，范围切换清空分页并取消旧请求', async () => {
     const api = gateway()
     render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
@@ -155,7 +168,7 @@ describe('审计中心', () => {
   it('持久化降级与查询失败不会伪装为空的正常列表', async () => {
     const api = gateway()
     api.events = vi.fn(async () => { throw new Error('unavailable') })
-    api.status = vi.fn(async () => ({ state: 'degraded', queued: 2, queued_bytes: 512, dropped: 3, write_failures: 1, written: 0, retention_days: 90 }))
+    api.status = vi.fn(async () => ({ enabled: true, max_records: 0, state: 'degraded', queued: 2, queued_bytes: 512, dropped: 3, write_failures: 1, written: 0, retention_days: 90 }))
     render(<ConfigProvider><AuditWorkspace api={api} /></ConfigProvider>)
     await screen.findByText('无法读取审计记录，请刷新重试')
     expect(screen.getByText('审计记录可能不完整')).toBeInTheDocument()
