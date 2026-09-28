@@ -248,11 +248,14 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
     if [[ -n "${CPATH:-}" ]]; then
       IFS=: read -r -a mac_fuse_includes <<< "$CPATH"
     fi
-    for include in "${mac_fuse_includes[@]}" \
-      /usr/local/include/fuse \
-      /usr/local/include/osxfuse/fuse \
-      /Library/Frameworks/macFUSE.framework/Headers \
-      /opt/homebrew/include/fuse; do
+    # Bash 3.2 在 nounset 下不能展开空数组；先加入默认目录并保留 CPATH 优先级。
+    mac_fuse_includes+=(
+      /usr/local/include/fuse
+      /usr/local/include/osxfuse/fuse
+      /Library/Frameworks/macFUSE.framework/Headers
+      /opt/homebrew/include/fuse
+    )
+    for include in "${mac_fuse_includes[@]}"; do
       if [[ -n "$include" && -f "$include/fuse.h" ]]; then
         mac_fuse_include="$include"
         break

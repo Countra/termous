@@ -87,9 +87,13 @@ test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签"
     const macIndex = steps.findIndex(({ name }) => name === "Install macFUSE SDK");
     const windowsIndex = steps.findIndex(({ name }) => name === "Prepare Windows build");
     const unixIndex = steps.findIndex(({ name }) => name === "Prepare Unix build");
+    const unixTestIndex = steps.findIndex(({ name }) => name === "Test Unix build prerequisites");
     assert.ok(linuxIndex >= 0 && linuxIndex < unixIndex);
     assert.ok(macIndex >= 0 && macIndex < unixIndex);
     assert.ok(windowsIndex >= 0);
+    assert.ok(unixTestIndex >= 0 && unixTestIndex < unixIndex);
+    assert.equal(steps[unixTestIndex].if, "matrix.platform != 'windows'");
+    assert.equal(steps[unixTestIndex].run, "node --test web/scripts/ci/build-unix.test.mjs");
     assert.equal(steps[windowsIndex].env?.TERMOUS_BUILD_PHASE, "prepare");
     assert.equal(steps[windowsIndex].run, "./web/scripts/ci/build-windows.ps1");
     assert.equal(steps[unixIndex].env?.TERMOUS_BUILD_PHASE, "prepare");

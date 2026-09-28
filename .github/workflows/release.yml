@@ -335,6 +335,11 @@ jobs:
           TERMOUS_BUILD_PHASE: prepare
         run: ./web/scripts/ci/build-windows.ps1
 
+      - name: Test Unix build prerequisites
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: node --test web/scripts/ci/build-unix.test.mjs
+
       - name: Prepare Unix build
         if: matrix.platform != 'windows'
         shell: bash
