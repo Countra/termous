@@ -51,6 +51,7 @@ vi.mock('#features/settings', () => ({
     </div>
   },
   MountSettings: () => <div data-testid="mount-settings" />,
+  NotificationSettings: () => <div data-testid="notification-settings" />,
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
       data-testid="data-portability"

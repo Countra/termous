@@ -1,4 +1,3 @@
-import { NotificationSettings } from '#features/notifications'
 import { Bot, ClipboardList, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +22,7 @@ import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
   GeneralSettings,
+  NotificationSettings,
   MountSettings,
   type MountSettingsGateway,
   AuditSettings,
@@ -137,15 +137,18 @@ export function SettingsPage({
             ),
             children: (
               <div className={styles['tab-scroll']}>
-                <GeneralSettings notificationSettings={<NotificationSettings disabled={actionBusy} />}
-                  language={language}
-                  appearanceSettings={appearanceSettings}
-                  windowSettings={windowSettings}
-                  disabled={actionBusy}
-                  onLanguageChange={onLanguageChange}
-                  onAppearanceSettingsChange={onAppearanceSettingsChange}
-                  onWindowSettingsChange={onWindowSettingsChange}
-                />
+                <div className={styles['settings-stack']}>
+                  <GeneralSettings
+                    language={language}
+                    appearanceSettings={appearanceSettings}
+                    windowSettings={windowSettings}
+                    disabled={actionBusy}
+                    onLanguageChange={onLanguageChange}
+                    onAppearanceSettingsChange={onAppearanceSettingsChange}
+                    onWindowSettingsChange={onWindowSettingsChange}
+                  />
+                  <NotificationSettings disabled={actionBusy} />
+                </div>
               </div>
             ),
           },
@@ -159,7 +162,7 @@ export function SettingsPage({
             ),
             children: (
               <div className={styles['tab-scroll']} data-tour="settings-terminal">
-                <div className={styles['terminal-stack']}>
+                <div className={styles['settings-stack']}>
                   <TerminalStyleSettings
                     value={terminalSettings}
                     sshSmoothScrollEnabled={sshSmoothScrollEnabled}

@@ -1,0 +1,30 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding-top: 14px;
+}
+
+.row > div,
+.row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin-top: 14px;
+}
+
+.categories {
+  display: grid;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.categories[data-disabled='true'] {
+  color: var(--text-muted);
+}
