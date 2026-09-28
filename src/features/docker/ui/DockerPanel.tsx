@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Search,
   Square,
+  SquareTerminal,
   Undo2,
   X,
 } from 'lucide-react'
@@ -23,18 +24,20 @@ import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerCo
 import { customSelectStyles, FilterPopover, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
+import { buildDockerShellCommand } from '../model/dockerShellCommand'
 import styles from './DockerPanel.module.scss'
 
 export interface DockerPanelProps {
   api: DockerGateway
   session: DockerSessionContext | null
   enabled: boolean
+  onOpenShell: (sessionId: string, command: string) => void
 }
 
 const stateOptions = ['', 'running', 'exited', 'paused', 'restarting', 'created', 'dead']
 const healthOptions = ['', 'healthy', 'unhealthy', 'starting', 'none']
 
-export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
+export function DockerPanel({ api, session, enabled, onOpenShell }: DockerPanelProps) {
   const { t } = useTranslation()
   const { notification } = App.useApp()
   const docker = useSessionDocker({ api, session, enabled })
@@ -97,6 +100,14 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
         className: termousNotificationClassName,
       })
     }
+  }
+
+  const openShell = (container: DockerContainerSummary) => {
+    const scope = interactionScopeRef.current
+    if (!scope.enabled || !scope.supported || !session?.id || scope.sessionId !== session.id
+      || docker.detailLoading || docker.actionRef || detail?.summary.id !== container.id) return
+    const command = buildDockerShellCommand(container)
+    if (command) onOpenShell(session.id, command)
   }
 
   if (!docker.supported) {
@@ -269,6 +280,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                   void docker.refreshLogs(undefined, nextTail)
                 }}
                 onAction={runAction}
+                onOpenShell={openShell}
               />
             ) : (
               <div className={styles['docker-list']} aria-label={t('workbench.docker.containerList')}>
@@ -400,6 +412,7 @@ interface DockerDetailViewProps {
   onBack: () => void
   onRefreshLogs: (tail?: number) => void
   onAction: (ref: string, action: DockerAction) => void
+  onOpenShell: (container: DockerContainerSummary) => void
 }
 
 function DockerDetailView({
@@ -418,6 +431,7 @@ function DockerDetailView({
   onBack,
   onRefreshLogs,
   onAction,
+  onOpenShell,
 }: DockerDetailViewProps) {
   const { t } = useTranslation()
   const [logsOpen, setLogsOpen] = useState(false)
@@ -563,6 +577,19 @@ function DockerDetailView({
               {t('workbench.docker.unpause')}
             </Button>
           ) : null}
+        </div>
+        <div className={styles['docker-terminal-entry']}>
+          <Tooltip title={running ? undefined : t('workbench.docker.shellRunningOnly')}>
+            <Button
+              block
+              className={`${uiStyles['secondary-button']} secondary-button ${styles['docker-terminal-button']}`}
+              icon={<SquareTerminal size={15} aria-hidden="true" />}
+              disabled={!enabled || loading || Boolean(actionRef) || !buildDockerShellCommand(summary)}
+              onClick={() => onOpenShell(summary)}
+            >
+              {t('workbench.docker.openShell')}
+            </Button>
+          </Tooltip>
         </div>
         <div className={styles['docker-detail-kpis']}>
           <DockerKpi label="CPU" value={detail.stats?.cpu_percent || '-'} />

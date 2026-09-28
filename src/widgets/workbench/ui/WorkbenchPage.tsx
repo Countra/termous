@@ -1492,7 +1492,24 @@ export function WorkbenchPage({
           processes: <ProcessPanel api={observabilityGateway} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
           services: <ServicePanel api={serviceGateway} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
           crontab: <CrontabPanel api={crontabGateway} session={activeSession} enabled={active && detailsActiveTab === 'crontab' && !detailsCollapsed} theme={theme} />,
-          docker: <DockerPanel api={dockerGateway} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          docker: <DockerPanel
+            api={dockerGateway}
+            session={activeSession}
+            enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed}
+            onOpenShell={(sessionId, command) => {
+              if (!active || detailsActiveTab !== 'docker' || detailsCollapsed
+                || activeSession?.id !== sessionId || activeSession.kind !== 'ssh' || activeSession.status !== 'connected') return
+              if (sendTextToSession(sessionId, command, { execute: true }) !== 'sent') {
+                notification.error({
+                  title: t('workbench.docker.shellSendFailed'),
+                  description: t('workbench.docker.shellTerminalUnavailable'),
+                  duration: 4,
+                  role: 'alert',
+                  className: termousNotificationClassName,
+                })
+              }
+            }}
+          />,
           firewall: (
               <FirewallPanel
                 api={firewallGateway}

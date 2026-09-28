@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeSnippet } from '#entities/snippet'
 import type { Session } from '#entities/session'
 import type { WorkbenchPageProps } from '#widgets/workbench'
+import type { DockerPanelProps } from '#features/docker'
 
 const workbenchMocks = vi.hoisted(() => ({
   modalConfirm: vi.fn(),
@@ -16,6 +17,8 @@ const workbenchMocks = vi.hoisted(() => ({
   sendTextToSession: vi.fn(),
   terminalSplitMounts: 0,
   terminalSplitUnmounts: 0,
+  detailsTab: 'snippets',
+  dockerProps: null as DockerPanelProps | null,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -65,7 +68,7 @@ vi.mock('#features/hosts', () => ({ SessionQuickConnect: () => null }))
 vi.mock('#shared/hooks', () => ({
   usePersistentBooleanState: () => [false, vi.fn()],
   usePersistentJsonState: (key: string, fallback: unknown) => [
-    key.includes('detailsActiveTab') ? 'snippets' : fallback,
+    key.includes('detailsActiveTab') ? workbenchMocks.detailsTab : fallback,
     vi.fn(),
   ],
   useRafResizablePanelWidth: () => ({ width: 300, resizing: false, beginResize: vi.fn() }),
@@ -86,7 +89,7 @@ vi.mock('#shared/ui', () => ({
     tabs,
   }: {
     tabs: Array<{ key: string; children: ReactNode }>
-  }) => <>{tabs.find((tab) => tab.key === 'snippets')?.children}</>,
+  }) => <>{tabs.find((tab) => tab.key === workbenchMocks.detailsTab)?.children}</>,
   SessionTabButton: () => null,
   SessionTabStrip: () => null,
   StatusBadge: () => null,
@@ -158,7 +161,10 @@ vi.mock('#features/observability', () => ({
 vi.mock('#features/alias', () => ({ AliasPanel: () => null }))
 vi.mock('#features/firewall', () => ({ FirewallPanel: () => null }))
 vi.mock('../widgets/workbench/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
-vi.mock('#features/docker', () => ({ DockerPanel: () => null }))
+vi.mock('#features/docker', () => ({ DockerPanel: (props: DockerPanelProps) => {
+  workbenchMocks.dockerProps = props
+  return null
+} }))
 vi.mock('#features/service', () => ({ ServicePanel: () => null }))
 vi.mock('#features/crontab', () => ({ CrontabPanel: () => null }))
 vi.mock('#features/workbench-files', () => ({ WorkbenchFilesPanel: () => null }))
@@ -299,6 +305,7 @@ describe('工作台命令片段发送门禁', () => {
     workbenchMocks.terminalSplitMounts = 0
     workbenchMocks.terminalSplitUnmounts = 0
     workbenchMocks.sendTextToSession.mockReturnValue('sent')
+    workbenchMocks.detailsTab = 'snippets'
   })
 
   it('复制和重连严格复用会话的 SSH Profile', async () => {
@@ -394,6 +401,7 @@ describe('工作台终端常驻合同', () => {
     vi.clearAllMocks()
     workbenchMocks.terminalSplitMounts = 0
     workbenchMocks.terminalSplitUnmounts = 0
+    workbenchMocks.detailsTab = 'snippets'
   })
 
   it('切换工作台激活状态时只更新 workspaceActive，不卸载终端工作区', () => {
@@ -418,5 +426,40 @@ describe('工作台终端常驻合同', () => {
 
     view.unmount()
     expect(workbenchMocks.terminalSplitUnmounts).toBe(1)
+  })
+})
+
+describe('工作台容器 Shell 发送', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    workbenchMocks.detailsTab = 'docker'
+    workbenchMocks.dockerProps = null
+    workbenchMocks.sendTextToSession.mockReturnValue('sent')
+  })
+
+  it('复用终端发送与自动执行，不进入后台任务或误报 Shell 已启动', () => {
+    renderWorkbench([])
+    act(() => workbenchMocks.dockerProps!.onOpenShell(activeSession.id, 'docker exec -it fixture sh'))
+    expect(workbenchMocks.sendTextToSession).toHaveBeenCalledExactlyOnceWith(activeSession.id, 'docker exec -it fixture sh', { execute: true })
+    expect(workbenchMocks.modalConfirm).not.toHaveBeenCalled()
+    expect(workbenchMocks.notification.success).not.toHaveBeenCalled()
+  })
+
+  it.each(['missing_session', 'not_ready', 'failed'])('发送结果为 %s 时展示错误且不重发', (result) => {
+    workbenchMocks.sendTextToSession.mockReturnValue(result)
+    renderWorkbench([])
+    act(() => workbenchMocks.dockerProps!.onOpenShell(activeSession.id, 'docker exec -it fixture sh'))
+    expect(workbenchMocks.notification.error).toHaveBeenCalledWith(expect.objectContaining({ title: 'workbench.docker.shellSendFailed' }))
+    expect(workbenchMocks.sendTextToSession).toHaveBeenCalledOnce()
+  })
+
+  it('拒绝其他会话、已断开会话及隐藏工作台的发送请求', () => {
+    const view = renderWorkbench([])
+    act(() => workbenchMocks.dockerProps!.onOpenShell('session-b', 'ignored'))
+    view.rerender(<WorkbenchPage {...view.props} active={false} />)
+    act(() => workbenchMocks.dockerProps!.onOpenShell(activeSession.id, 'ignored'))
+    view.rerender(<WorkbenchPage {...view.props} activeSession={{ ...activeSession, status: 'disconnected' }} />)
+    act(() => workbenchMocks.dockerProps!.onOpenShell(activeSession.id, 'ignored'))
+    expect(workbenchMocks.sendTextToSession).not.toHaveBeenCalled()
   })
 })

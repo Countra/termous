@@ -601,6 +601,22 @@
   min-width: 0;
 }
 
+.docker-terminal-entry {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.docker-terminal-button:global(.ant-btn) {
+  height: 38px;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-subtle));
+  font-size: 12px;
+}
+
+.docker-terminal-button :global(.ant-btn-icon) {
+  color: var(--accent);
+}
+
 .docker-detail-kpis {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

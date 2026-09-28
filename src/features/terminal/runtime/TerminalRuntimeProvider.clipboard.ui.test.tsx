@@ -14,6 +14,7 @@ const terminalMock = vi.hoisted(() => ({
   keyHandler: null as ((event: KeyboardEvent) => boolean) | null,
   onData: null as ((data: string) => void) | null,
   paste: vi.fn<(text: string) => void>(),
+  focus: vi.fn(),
 }))
 const clipboardMock = vi.hoisted(() => ({ readText: vi.fn<() => Promise<string>>() }))
 const transportMock = vi.hoisted(() => ({
@@ -32,7 +33,7 @@ vi.mock('@xterm/xterm', () => {
     cols = 80
     rows = 24
     buffer = { active: { type: 'normal', cursorX: 0, cursorY: 0 }, onBufferChange: subscription }
-    focus() {}
+    focus = terminalMock.focus
     loadAddon() {}
     open() {}
     dispose() {}
@@ -199,5 +200,51 @@ describe('终端剪贴板事件与生命周期', () => {
     await act(async () => { resolve('late text') })
     expect(terminalMock.paste).not.toHaveBeenCalled()
     expect(transportMock.sendInput).not.toHaveBeenCalled()
+  })
+})
+
+describe('终端程序化命令发送', () => {
+  it('自动执行只发送一次命令和回车，并聚焦当前终端', () => {
+    const { runtimeRef } = setup()
+    const command = "docker exec -it 'fixture-container' sh"
+    terminalMock.focus.mockClear()
+    act(() => {
+      expect(runtimeRef.current!.sendTextToSession('s1', command, { execute: true })).toBe('sent')
+    })
+    expect(transportMock.sendInput).toHaveBeenCalledExactlyOnceWith(new TextEncoder().encode(`${command}\r`))
+    expect(terminalMock.focus).toHaveBeenCalledOnce()
+    expect(terminalMock.paste).not.toHaveBeenCalled()
+  })
+
+  it.each(['locked', 'disconnected', 'disposed', 'missing'])('目标为 %s 时不发送命令或抢占焦点', (state) => {
+    const view = setup()
+    const runtime = view.runtimeRef.current!
+    act(() => {
+      if (state === 'locked') transportMock.onEvent!({ type: 'input_lock', message: { type: 'input_lock', input_lock: { locked: true } } })
+      if (state === 'disconnected') transportMock.live = false
+      if (state === 'disposed') view.unmount()
+    })
+    terminalMock.focus.mockClear()
+    act(() => {
+      const result = runtime.sendTextToSession(state === 'missing' ? 's2' : 's1', 'command', { execute: true })
+      expect(result).toBe(state === 'disposed' || state === 'missing' ? 'missing_session' : 'not_ready')
+    })
+    expect(transportMock.sendInput).not.toHaveBeenCalled()
+    expect(terminalMock.focus).not.toHaveBeenCalled()
+  })
+
+  it.each(['rejected', 'throws'])('传输 %s 时返回失败，不聚焦或自动重发', (failure) => {
+    const { runtimeRef } = setup()
+    terminalMock.focus.mockClear()
+    transportMock.sendInput.mockImplementationOnce(() => {
+      if (failure === 'throws') throw new Error('transport failed')
+      return false
+    })
+    act(() => {
+      expect(runtimeRef.current!.sendTextToSession('s1', 'command', { execute: true }))
+        .toBe(failure === 'throws' ? 'failed' : 'not_ready')
+    })
+    expect(transportMock.sendInput).toHaveBeenCalledOnce()
+    expect(terminalMock.focus).not.toHaveBeenCalled()
   })
 })
