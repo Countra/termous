@@ -312,6 +312,28 @@ test('bootstrap 兼容旧 Checkpoint 并严格校验版本化快照', async () =
   }
 })
 
+test('bootstrap 的新旧 Checkpoint 工具参数拒绝 JSON 解析后溢出的数值', async () => {
+  for (const version of [undefined, 1, 2]) {
+    const body = JSON.stringify({
+      ...bootstrapResponse(),
+      context: { estimated_tokens: 7000, warning: true, checkpoint: {
+        ...checkpointResponse().checkpoint, version, boundary_message_sequence: 4,
+        retained_tail: [{
+          role: 'assistant', timestamp: 1, api: 'openai-completions', provider: 'test', model: 'test',
+          stopReason: 'toolUse',
+          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+          content: [{ type: 'toolCall', id: 'call-json', name: 'test_tool', arguments: { nested: ['NUMBER'] } }],
+        }],
+      } },
+    })
+    await new WorkerCoreClient({ fetch: async () => new Response(body.replace('"NUMBER"', '1.5')) }).bootstrap(start)
+    await assert.rejects(
+      new WorkerCoreClient({ fetch: async () => new Response(body.replace('"NUMBER"', '1e400')) }).bootstrap(start),
+      /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+    )
+  }
+})
+
 test('Checkpoint 提交绑定 Run、generation、Bearer 并透传取消信号', async () => {
   let request: Request | undefined
   let requestSignal: AbortSignal | null | undefined

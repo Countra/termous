@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test, { type TestContext } from 'node:test'
 import type { StreamFn } from '@earendil-works/pi-agent-core'
-import { createAssistantMessageEventStream, type AssistantMessage, type AssistantMessageEvent } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, normalizeContext, type AssistantMessage, type AssistantMessageEvent } from '@earendil-works/pi-ai'
 import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './runtimeProviderRetry.ts'
 import { compactionTestAssistant, compactionTestModel } from './runtimeCompactionTestFixture.ts'
 import type { RuntimeUsage } from './runtimeUsage.ts'
@@ -49,6 +49,7 @@ for (const detail of [
   '403 permission denied: service unavailable; please retry your request',
   '403 Forbidden: permission denied by rate limit policy; please retry your request',
   'maximum context length is 50000 tokens', 'unsupported schema',
+  'Prompt too long', '400 (no body)', '413 status code (no body)',
 ]) {
   test(`确定性错误直接失败：${detail}`, async () => {
     const message = failed(10, detail)
@@ -58,6 +59,19 @@ for (const detail of [
     assert.equal(fixture.requests(), 1)
     assert.equal(fixture.activities.length, 0)
     assert.equal(fixture.usages.length, 0)
+  })
+}
+
+for (const detail of ['520 Cloudflare upstream error', 'We are currently experiencing high demand.']) {
+  test(`新版 pi 暂态错误保持有界退避：${detail}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const completed = compactionTestAssistant('恢复完成', 20)
+    const fixture = createFixture([failed(10, detail), completed])
+    const task = fixture.run()
+    await advance(t, fixture, [3000])
+    assert.equal((await task).message, completed)
+    assert.equal(fixture.requests(), 2)
+    assert.deepEqual(fixture.activities.map(({ status }) => status), ['waiting', 'requesting', 'completed'])
   })
 }
 
@@ -242,7 +256,7 @@ test('重试适配器故障经拒绝通道传递，活动仍保留最后 Provide
     stream.end(failed(11, '503 last provider error'))
     return stream
   }, { onActivity: (activity) => { activities.push(activity) } })
-  const stream = await wrapped(compactionTestModel, { messages: [] })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }))
   const rejected = assert.rejects(stream.result(), (error) => error === original)
   await setImmediate()
   t.mock.timers.tick(3000)
@@ -256,7 +270,7 @@ test('重试适配器故障经拒绝通道传递，活动仍保留最后 Provide
 test('适配器或活动回调抛错会拒绝迭代与 result，且不伪造模型失败或悬挂', async () => {
   const original = new Error('fixture adapter rejected')
   const wrapped = createRuntimeRetryStreamFunction(() => { throw original })
-  const stream = await wrapped(compactionTestModel, { messages: [] })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }))
   await assert.rejects(stream.result(), (error) => error === original)
   await assert.rejects(async () => { for await (const event of stream) assert.fail(`不应产生 ${event.type} 事件`) }, (error) => error === original)
 
@@ -298,7 +312,7 @@ function createFixture(messages: AssistantMessage[], options: {
   return {
     activities, usages, failures, requests: () => requests,
     run: async () => {
-      const stream = await wrapped(compactionTestModel, { messages: [] }, { signal: options.signal })
+      const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }), { signal: options.signal })
       const events: AssistantMessageEvent[] = []
       for await (const event of stream) events.push(event)
       return { events, message: await stream.result() }

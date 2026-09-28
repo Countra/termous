@@ -1,5 +1,6 @@
 import type { StreamFn } from '@earendil-works/pi-agent-core'
 import { createModels, type AssistantMessage } from '@earendil-works/pi-ai'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
 import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './runtimeProviderRetry.ts'
 import {
@@ -56,11 +57,11 @@ export function createRuntimeCompactionModels(
     throwIfRuntimeCompactionAborted(options?.signal)
     let response: AssistantMessage
     try {
-      const stream = await retryStreamFn(model, {
+      const stream = await retryStreamFn(model, normalizeContext({
         ...context,
         systemPrompt: `${context.systemPrompt ?? ''}\n\n${instructions}`,
         tools: [],
-      }, options)
+      }), options)
       response = await stream.result()
     } catch (error) {
       throwIfRuntimeCompactionAborted(options?.signal)

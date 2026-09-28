@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
+import { getCurrentTools } from '@earendil-works/pi-ai'
 import { createRuntimeCompactionModels } from './runtimeCompactionSummary.ts'
 import { runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { compactionTestAssistant, compactionTestModel, compactionTestStream } from './runtimeCompactionTestFixture.ts'
@@ -15,7 +16,7 @@ test('摘要重试分别累计失败和完成用量，最终原生 usage 只属�
   const completed = compactionTestAssistant('## Goal\n保留任务。', 29)
   const summary = createRuntimeCompactionModels(compactionTestStream(async (context, options) => {
     assert.equal(options?.signal, abort.signal)
-    assert.equal(context.tools?.length, 0)
+    assert.equal(getCurrentTools(context.messages).length, 0)
     return requests++ === 0
       ? { ...compactionTestAssistant('', 11), stopReason: 'error', errorMessage: '503 summary upstream unavailable' }
       : completed

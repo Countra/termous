@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Agent } from '@earendil-works/pi-agent-core'
-import { createAssistantMessageEventStream, type Context } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, getCurrentTools, normalizeContext, toToolDeclaration, type TranscriptContext } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
+import { standardMessages } from './piAgentAdapter.ts'
 import {
   compactionTestAssistant,
   compactionTestModel,
@@ -12,11 +13,11 @@ import {
 
 test('真实 Pi loop 在工具结果和 steering 注入后压缩，随后继续同一 run', async () => {
   const harness = createCompactionTestHarness()
-  const requests: Context[] = []
+  const requests: TranscriptContext[] = []
   const events: string[] = []
   const toolOutput = 'logs '.repeat(800)
   const steering = '新要求：保持 SSH Session 不变。' + 's'.repeat(800)
-  const agent = new Agent({
+  const agent: Agent = new Agent({
     initialState: {
       model: compactionTestModel,
       systemPrompt: '',
@@ -39,7 +40,11 @@ test('真实 Pi loop 在工具结果和 steering 注入后压缩，随后继续�
         },
       }],
     },
-    transformContext: harness.controller.transformContext,
+    convertToLlm: (messages) => normalizeContext({
+      systemPrompt: agent.state.systemPrompt, tools: agent.state.tools.map(toToolDeclaration),
+      messages: standardMessages(messages),
+    }).messages,
+    transformContext: (messages, signal) => harness.controller.transformContext(standardMessages(messages), signal),
     streamFn: (_model, context) => {
       harness.controller.beforeProviderRequest()
       requests.push(context)
@@ -60,9 +65,11 @@ test('真实 Pi loop 在工具结果和 steering 注入后压缩，随后继续�
   await agent.waitForIdle()
   assert.equal(requests.length, 2)
   assert.equal(harness.commits.length, 1)
+  assert.ok(harness.commits[0]!.checkpoint.retainedTail.every((message) => message.role !== 'system'))
+  assert.deepEqual(getCurrentTools(requests[1]!.messages).map((tool) => tool.name), ['remote_read'])
   assert.equal(events.filter((type) => type === 'agent_start').length, 1)
   assert.equal(events.filter((type) => type === 'agent_end').length, 1)
-  assert.match(JSON.stringify(requests[1]!.messages[0]), /compacted/u)
+  assert.match(JSON.stringify(standardMessages(requests[1]!.messages)[0]), /compacted/u)
   const recentMessages = requests[1]!.messages
   assert.ok(recentMessages.some((message) => message.role === 'toolResult'
     && message.toolCallId === 'read-1' && JSON.stringify(message.content).includes(toolOutput)))
@@ -76,7 +83,7 @@ test('门禁失败经主 streamFn 进入 Pi 标准失败终态，不调用实际
   let providerCalls = 0
   const agent = new Agent({
     initialState: { model: compactionTestModel, messages: [compactionTestUser('x'.repeat(40000))] },
-    transformContext: harness.controller.transformContext,
+    transformContext: (messages, signal) => harness.controller.transformContext(standardMessages(messages), signal),
     streamFn: () => {
       harness.controller.beforeProviderRequest()
       providerCalls += 1

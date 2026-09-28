@@ -70,6 +70,7 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 - `TermousApiError` 保持单一实现，避免破坏 `instanceof` 判断。
 - 托管 Core 的启动状态由主进程保存，启动窗口只负责展示；数据库状态不得通过解析日志文字或提前调用业务 HTTP 接口推断。
 - AI 模型请求重试由 Worker 统一执行，Renderer 仅展示 Core 保存的活动。
+- pi 的 `TranscriptContext` 只在 Worker 模型请求边界组装：系统提示和工具声明取自当前 Run 的可信配置，压缩、用量估算与 Core 快照只处理业务历史，避免重复计量或恢复旧系统约束。
 - 在建立等价性测试前，不调整 Props、状态更新顺序、revision、恢复和取消语义。
 
 ## SCSS 所有权

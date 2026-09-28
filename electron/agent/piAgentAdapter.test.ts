@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { RuntimeBootstrap, RuntimeEventInput } from './workerCoreClient.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
@@ -8,6 +9,7 @@ import {
   createPiAgent,
   createRestrictedProviderFetch,
   createRuntimeModel,
+  createRuntimeStreamFunction,
   createRuntimeStreamOptions,
   createRuntimeSystemPrompt,
   handlePiEvent,
@@ -229,6 +231,44 @@ test('旧文件工具历史只投影新名，完整结果保留且未完成调�
   [argumentsValue, argumentsValue])
 })
 
+test('历史工具参数保留嵌套 JSON，拒绝无法无损传给模型的值', () => {
+  const bootstrap = runtimeBootstrap()
+  const shared = { names: ['a', 'b'] }
+  const valid = { path: '/data', options: [null, true, 1.5, shared, shared], nested: Object.create(null) }
+  const part = runtimePart('tool_call', 1, { tool_call: {
+    tool_call_id: 'call-json', tool_name: 'termous.hosts.list', arguments: valid,
+  } })
+  bootstrap.messages.unshift({
+    id: 'agm_json', role: 'assistant', status: 'interrupted', sequence: 0,
+    created_at: '2026-08-28T00:00:00Z', attachments: [], parts: [part],
+  })
+  const restored = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap))[0]
+  assert.ok(restored?.role === 'assistant' && restored.content[0]?.type === 'toolCall')
+  assert.deepEqual(restored.content[0].arguments, valid)
+  const cyclic: Record<string, unknown> = {}
+  cyclic.self = cyclic
+  for (const invalid of [[], null, { nested: [undefined] }, { nested: Array(1) }, { value: Infinity }, { value: NaN }, { value: 1n },
+    { value: () => {} }, { value: new Date() }, cyclic]) {
+    part.content.tool_call = { tool_call_id: 'call-json', tool_name: 'termous.hosts.list', arguments: invalid }
+    assert.throws(() => hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap)), /AGENT_RUNTIME_MESSAGE_INVALID/u)
+  }
+})
+
+test('深层历史工具参数恢复不依赖调用栈且保持原值', () => {
+  const bootstrap = runtimeBootstrap()
+  const argumentsValue = JSON.parse('{"nested":'.repeat(4096) + '0' + '}'.repeat(4096))
+  bootstrap.messages.unshift({
+    id: 'agm_deep_json', role: 'assistant', status: 'interrupted', sequence: 0,
+    created_at: '2026-08-28T00:00:00Z', attachments: [],
+    parts: [runtimePart('tool_call', 1, { tool_call: {
+      tool_call_id: 'call-deep-json', tool_name: 'termous.hosts.list', arguments: argumentsValue,
+    } })],
+  })
+  const restored = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap))[0]
+  assert.ok(restored?.role === 'assistant' && restored.content[0]?.type === 'toolCall')
+  assert.equal(restored.content[0].arguments, argumentsValue)
+})
+
 test('双资源提示按类型分别路由，文件仅投影 profile 且不包含用户展示字段', () => {
   const bootstrap = runtimeBootstrap()
   bootstrap.session.resource_bindings = [
@@ -343,6 +383,8 @@ for (const [history, apiMode] of [
         const body = JSON.parse(String(init?.body))
         const requestMessages = body.messages ?? body.input
         const system = requestMessages.filter((message: { role: string }) => message.role === 'system' || message.role === 'developer')
+        assert.equal(system.length, 1)
+        assert.match(JSON.stringify(system), /远程操作只能通过当前提供的 MCP 工具/u)
         assert.match(JSON.stringify(system), /ses_new/u)
         assert.doesNotMatch(JSON.stringify(system), /ses_old/u)
         assert.match(JSON.stringify(body.tools), /ses_new/u)
@@ -400,6 +442,38 @@ for (const [history, apiMode] of [
       agent.close()
       await writer.close()
     }
+  })
+}
+
+for (const apiMode of ['chat_completions', 'responses'] as const) {
+  test(`${apiMode} 纯图片消息不附加空文本，保留受控请求边界`, async () => {
+    const bootstrap = runtimeBootstrap()
+    bootstrap.model.snapshot.api_mode = apiMode
+    bootstrap.model.snapshot.supports_images = true
+    const model = createRuntimeModel(bootstrap)
+    let requests = 0
+    const fetcher = createRestrictedProviderFetch(model.baseUrl, true, async (_input, init) => {
+      requests += 1
+      assert.equal(init?.redirect, 'manual')
+      assert.equal(new Headers(init?.headers).get('authorization'), null)
+      const body = JSON.parse(String(init?.body))
+      const user = (body.messages ?? body.input).find((message: { role: string }) => message.role === 'user')
+      assert.equal(user.content.length, 1)
+      const imageURL = 'data:image/png;base64,aW1hZ2U='
+      assert.deepEqual(user.content[0], apiMode === 'chat_completions'
+        ? { type: 'image_url', image_url: { url: imageURL } }
+        : { type: 'input_image', detail: 'auto', image_url: imageURL })
+      const chunk = apiMode === 'chat_completions'
+        ? { id: 'chat_image', choices: [{ index: 0, delta: { content: '图片已收到' }, finish_reason: 'stop' }] }
+        : { type: 'response.completed', response: { id: 'resp_image', status: 'completed', output: [] } }
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    })
+    const stream = await createRuntimeStreamFunction(undefined, fetcher)(model, normalizeContext({
+      systemPrompt: '描述用户图片',
+      messages: [{ role: 'user', timestamp: 1, content: [{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }] }],
+    }))
+    assert.equal((await stream.result()).stopReason, 'stop')
+    assert.equal(requests, 1)
   })
 }
 

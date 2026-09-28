@@ -6,6 +6,7 @@ import {
   type AgentEvent,
   type AgentMessage,
 } from '@earendil-works/pi-agent-core'
+import { normalizeContext, toToolDeclaration } from '@earendil-works/pi-ai/utils/transcript'
 import {
   type AssistantMessage,
   type Message,
@@ -21,6 +22,7 @@ import {
 } from './skillResourceTool.ts'
 import { readSkillResourceToolName } from './skillBundle.ts'
 import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory.ts'
+import { isRuntimeToolArguments } from './runtimeToolArguments.ts'
 import type {
   RuntimeBootstrap,
   RuntimeMessagePart,
@@ -116,6 +118,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const images = new RuntimeContextImages(options.bootstrap)
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills)
   const tools = [...bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings), createSkillResourceTool(options.skills)]
+  const toolDeclarations = tools.map(toToolDeclaration)
   const contextFingerprint = runtimeContextFingerprint(
     model, systemPrompt, tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
     options.bootstrap.run.provider_id, options.bootstrap.run.model_id,
@@ -167,8 +170,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       tools,
       messages: hydrateRuntimeMessages(options.bootstrap, model, contextFingerprint),
     },
-    convertToLlm: standardMessages,
-    transformContext: compaction.transformContext,
+    // 系统提示和工具只来自本轮可信配置；压缩与 Core 快照仍只处理业务历史。
+    convertToLlm: (messages) => normalizeContext({
+      systemPrompt, tools: toolDeclarations, messages: standardMessages(messages),
+    }).messages,
+    transformContext: (messages, signal) => compaction.transformContext(standardMessages(messages), signal),
     streamFn: (requestModel, context, streamOptions) => {
       compaction.beforeProviderRequest()
       // HTTP 失败可能没有 start，必须先隔离上一工具轮已完成的消息片段。
@@ -207,7 +213,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
           const contextMessages = value.message.stopReason === 'error' || value.message.stopReason === 'aborted'
             ? agent.state.messages.slice(0, -1)
             : agent.state.messages
-          await compaction.observeContext(contextMessages, providerUsage)
+          await compaction.observeContext(standardMessages(contextMessages), providerUsage)
         }
       },
     }, options.onFailure, () => agent.abort())
@@ -397,7 +403,7 @@ function hydrateAssistantParts(
           type: 'toolCall',
           id: toolCallID,
           name: toolName,
-          arguments: requiredRecord(tool.arguments),
+          arguments: requiredToolArguments(tool.arguments),
         })
         break
       }
@@ -479,6 +485,13 @@ function requiredNestedRecord(part: RuntimeMessagePart, branch: string) {
 
 function requiredRecord(value: unknown) {
   if (!isRecord(value)) {
+    throw new Error('AGENT_RUNTIME_MESSAGE_INVALID')
+  }
+  return value
+}
+
+function requiredToolArguments(value: unknown) {
+  if (!isRuntimeToolArguments(value)) {
     throw new Error('AGENT_RUNTIME_MESSAGE_INVALID')
   }
   return value

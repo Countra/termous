@@ -3,7 +3,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
-export const maximumAgentWorkerBundleBytes = 1280 * 1024
+// pi 0.87.1 的完整依赖闭包约 1301 KiB，按 64 KiB 档位留出余量；Provider 白名单仍独立检查。
+export const maximumAgentWorkerBundleBytes = 1344 * 1024
 
 const requiredProviderAdapters = Object.freeze([
   'openai-completions.js',

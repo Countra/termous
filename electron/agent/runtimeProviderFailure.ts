@@ -1,7 +1,7 @@
 import { redactSensitiveText } from './toolTimelineProjection.ts'
 
 const failureRules = [
-  ['AGENT_MODEL_CONTEXT_LIMIT', /context[_ -]?(?:length|window)|maximum context|too many (?:input )?tokens|input.{0,24}(?:too long|exceeds)/iu, '模型上下文超出服务端限制'],
+  ['AGENT_MODEL_CONTEXT_LIMIT', /context[_ -]?(?:length|window)|maximum context|too many (?:input )?tokens|input.{0,24}(?:too long|exceeds)|prompt (?:is )?too long/iu, '模型上下文超出服务端限制'],
   ['AGENT_MODEL_AUTH_FAILED', /\b40[13]\b|authentication|unauthorized|invalid[_ -]?api[_ -]?key|permission denied/iu, '模型服务鉴权失败'],
   ['AGENT_MODEL_RATE_LIMITED', /\b429\b|rate[_ -]?limit|too many requests|insufficient[_ -]?quota|quota.{0,20}exceed/iu, '模型服务限流或额度不足'],
   ['AGENT_MODEL_TIMEOUT', /timed?\s*out|timeout|ETIMEDOUT|\b(?:408|504)\b/iu, '模型请求超时'],

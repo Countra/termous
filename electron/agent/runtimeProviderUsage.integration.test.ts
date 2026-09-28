@@ -4,7 +4,7 @@ import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
-import { createPiAgent, type CreatePiAgentOptions } from './piAgentAdapter.ts'
+import { createPiAgent, createRuntimeSystemPrompt, type CreatePiAgentOptions } from './piAgentAdapter.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import type { RuntimeCompactionContextUsage } from './runtimeCompaction.ts'
 import type { RuntimeProviderUsage } from './runtimeProviderUsage.ts'
@@ -127,9 +127,17 @@ test('用量观察不打断未执行工具，工具结果越过阈值后在下�
       const body = JSON.parse(String(init?.body)) as { tools?: unknown[]; messages: Array<{ role: string; content: unknown }> }
       if (!body.tools?.length) {
         assert.equal(order[order.length - 1], 'tool')
+        const system = body.messages.filter((message) => message.role === 'system')
+        assert.equal(system.length, 1)
+        assert.match(JSON.stringify(system), /不得执行，也不得调用任何工具/u)
+        assert.doesNotMatch(JSON.stringify(body), /你是 Termous 内置 AI 助手/u)
         order.push('summary')
         return providerResponse('chat_completions', 2000)
       }
+      const system = body.messages.filter((message) => message.role === 'system')
+      assert.equal(system.length, 1)
+      assert.equal(system[0]!.content, createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle()))
+      assert.match(JSON.stringify(body.tools), new RegExp(toolName, 'u'))
       mainRequests += 1
       order.push(`provider-${mainRequests}`)
       if (mainRequests > 1) {
@@ -147,6 +155,8 @@ test('用量观察不打断未执行工具，工具结果越过阈值后在下�
       return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
     },
     commitCheckpoint: async (input) => {
+      assert.ok(input.retained_tail.every((message) => (message as AgentMessage).role !== 'system'))
+      assert.doesNotMatch(JSON.stringify(input.retained_tail), /你是 Termous 内置 AI 助手/u)
       order.push('checkpoint')
       return { last_sequence: input.sequence, checkpoint: {
         id: input.compaction_id, version: 2, boundary_message_sequence: 1, summary: input.summary,

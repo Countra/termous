@@ -7,9 +7,5 @@ allowBuilds:
   protobufjs: false
 minimumReleaseAgeExclude:
   - electron@43.1.1
-  - '@earendil-works/chord@0.85.0'
-  - '@earendil-works/pi-agent-core@0.85.0'
-  - '@earendil-works/pi-ai@0.85.0'
-  - '@earendil-works/pi-telemetry@0.85.0'
 overrides:
   '@codemirror/state': 6.7.1

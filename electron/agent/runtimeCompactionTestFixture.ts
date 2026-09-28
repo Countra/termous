@@ -2,7 +2,7 @@ import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core'
 import {
   createAssistantMessageEventStream,
   type AssistantMessage,
-  type Context,
+  type TranscriptContext,
   type Model,
   type SimpleStreamOptions,
 } from '@earendil-works/pi-ai'
@@ -81,7 +81,7 @@ export function compactionTestToolHistory(): AgentMessage[] {
 }
 
 export function compactionTestStream(
-  response: AssistantMessage | ((context: Context, options?: SimpleStreamOptions) => Promise<AssistantMessage>),
+  response: AssistantMessage | ((context: TranscriptContext, options?: SimpleStreamOptions) => Promise<AssistantMessage>),
 ): StreamFn {
   return async (_model, context, options) => {
     const stream = createAssistantMessageEventStream()
@@ -96,7 +96,7 @@ export function createCompactionTestHarness(overrides: Partial<RuntimeCompaction
   const commits: RuntimeCompactionCommit<string>[] = []
   const usages: RuntimeUsage[] = []
   const contexts: RuntimeCompactionContextUsage[] = []
-  const requests: Array<{ context: Context; options?: SimpleStreamOptions }> = []
+  const requests: Array<{ context: TranscriptContext; options?: SimpleStreamOptions }> = []
   const order: string[] = []
   const controller = createRuntimeCompactionController({
     model: compactionTestModel,

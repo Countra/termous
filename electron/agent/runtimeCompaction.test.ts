@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { getCurrentSystemPrompt, getCurrentTools } from '@earendil-works/pi-ai'
 import {
   compactionTestAssistant,
   compactionTestHistory,
@@ -202,9 +203,9 @@ test('连续 split turn 不丢旧摘要，历史和轮次前缀请求都有 Term
   assert.equal(harness.requests.length, 2)
   assert.match(JSON.stringify(harness.requests[0]!.context), /session-exact/u)
   for (const request of harness.requests) {
-    assert.match(request.context.systemPrompt!, /不得执行，也不得调用任何工具/u)
-    assert.match(request.context.systemPrompt!, /结果未知/u)
-    assert.deepEqual(request.context.tools, [])
+    assert.match(getCurrentSystemPrompt(request.context.messages), /不得执行，也不得调用任何工具/u)
+    assert.match(getCurrentSystemPrompt(request.context.messages), /结果未知/u)
+    assert.deepEqual(getCurrentTools(request.context.messages), [])
     assert.equal(request.options!.cacheRetention, 'none')
   }
   assert.equal(harness.commits[0]!.usage.input_tokens, 200)

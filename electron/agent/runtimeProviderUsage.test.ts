@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { estimateContextTokens } from '@earendil-works/pi-agent-core'
-import type { AssistantMessage, Tool } from '@earendil-works/pi-ai'
+import { normalizeContext, type AssistantMessage, type Tool } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import { createRestrictedProviderFetch, createRuntimeModel, createRuntimeStreamFunction, hydrateRuntimeMessages } from './piAgentAdapter.ts'
@@ -109,7 +109,7 @@ for (const apiMode of ['chat_completions', 'responses'] as const) {
     const raw = hydrateRuntimeMessages(bootstrap, model, fingerprint)
     const providerFetch = createRestrictedProviderFetch(model.baseUrl, true, async () => fractionalUsageResponse(apiMode))
     const stream = await createRuntimeStreamFunction(undefined, providerFetch)(model,
-      { systemPrompt: '', tools: [], messages: [{ role: 'user', content: '新的输入', timestamp: 1 }] }, {})
+      normalizeContext({ messages: [{ role: 'user', content: '新的输入', timestamp: 1 }] }), {})
     const message = await stream.result()
     assert.equal(message.stopReason, 'stop')
     assert.equal(message.usage.totalTokens, 70010.5)

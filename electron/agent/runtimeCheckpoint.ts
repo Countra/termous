@@ -1,5 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { isRecord } from './protocol.ts'
+import { isRuntimeToolArguments } from './runtimeToolArguments.ts'
 
 export interface RuntimeContextImageReference {
   type: 'image_ref'
@@ -47,7 +48,9 @@ export function isRuntimeContextCheckpoint(value: unknown): value is RuntimeCont
   if (!isRecord(value)
     || !nonnegativeInteger(value.boundary_message_sequence)
     || !validSummary(value.summary)
-    || !nonnegativeInteger(value.estimated_tokens)) return false
+    || !nonnegativeInteger(value.estimated_tokens)
+    || (value.retained_tail !== undefined && (!Array.isArray(value.retained_tail)
+      || !value.retained_tail.every(isHydratedContextMessage)))) return false
   if (value.version === undefined || value.version === 1) {
     return Number(value.boundary_message_sequence) > 0
       && (value.id === undefined || identifier(value.id))
@@ -60,7 +63,6 @@ export function isRuntimeContextCheckpoint(value: unknown): value is RuntimeCont
     && Array.isArray(value.retained_tail)
     && (value.details === undefined || (isRecord(value.details)
       && Buffer.byteLength(JSON.stringify(value.details), 'utf8') <= 64 * 1024))
-    && value.retained_tail.every(isHydratedContextMessage)
     && Array.isArray(value.image_sources)
     && value.image_sources.every(isRuntimeImageReference)
 }
@@ -123,7 +125,7 @@ function assistantContent(value: unknown) {
     (value.type === 'text' && typeof value.text === 'string')
     || (value.type === 'thinking' && typeof value.thinking === 'string')
     || (value.type === 'toolCall' && typeof value.id === 'string'
-      && typeof value.name === 'string' && isRecord(value.arguments))
+      && typeof value.name === 'string' && isRuntimeToolArguments(value.arguments))
   )
 }
 

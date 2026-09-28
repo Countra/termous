@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import { createAssistantMessageEventStream, type AssistantMessage, type AssistantMessageEvent } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, normalizeContext, type AssistantMessage, type AssistantMessageEvent } from '@earendil-works/pi-ai'
 import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './runtimeProviderRetry.ts'
 import { compactionTestAssistant, compactionTestModel } from './runtimeCompactionTestFixture.ts'
 
@@ -15,7 +15,7 @@ test('失败边界等待最后增量消费，退避取消不重复提交已归�
     onFailedAttempt: () => { archived += 1 },
     onActivity: (activity) => { activities.push(activity) },
   })
-  const stream = await wrapped(compactionTestModel, { messages: [] }, { signal: abort.signal })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }), { signal: abort.signal })
   const task = (async () => {
     for await (const event of stream) if (event.type === 'text_delta') await consumed.promise
   })()
@@ -46,7 +46,7 @@ test('消费屏障期间取消仍记录此前真实失败，未归档正文和�
     onFailedAttempt: () => { archived += 1 },
     onActivity: (activity) => { activities.push(activity) },
   })
-  const stream = await wrapped(compactionTestModel, { messages: [] }, { signal: abort.signal })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }), { signal: abort.signal })
   const task = (async () => {
     for await (const event of stream) if (event.type === 'text_delta') await consumed.promise
   })()
@@ -72,7 +72,7 @@ test('消费者提前 return 会释放失败屏障并拒绝 result，不悬挂�
   const wrapped = createRuntimeRetryStreamFunction(fixture.source, {
     onFailedAttempt: () => { archived += 1 },
   })
-  const stream = await wrapped(compactionTestModel, { messages: [] })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }))
   const iterator = stream[Symbol.asyncIterator]()
   assert.equal((await iterator.next()).value?.type, 'start')
   assert.equal((await iterator.next()).value?.type, 'text_delta')
@@ -89,7 +89,7 @@ test('失败片段持久化异常属于运行时故障，不能纳入模型重�
   const wrapped = createRuntimeRetryStreamFunction(fixture.source, {
     onFailedAttempt: () => { throw original },
   })
-  const stream = await wrapped(compactionTestModel, { messages: [] })
+  const stream = await wrapped(compactionTestModel, normalizeContext({ messages: [] }))
   const result = assert.rejects(stream.result(), (error) => error === original)
   await assert.rejects(async () => { for await (const event of stream) assert.notEqual(event.type, 'done') },
     (error) => error === original)
