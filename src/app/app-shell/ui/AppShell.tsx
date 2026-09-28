@@ -33,6 +33,7 @@ import { WindowControls } from './WindowControls'
 import styles from './AppShell.module.scss'
 
 export interface AppShellProps {
+  notificationControl?: ReactNode
   page: PageKey
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
@@ -71,6 +72,7 @@ const helpDropdownClassName = [
 ].join(' ')
 
 export function AppShell({
+  notificationControl,
   page,
   appVersion,
   windowCloseBehavior,
@@ -314,7 +316,10 @@ export function AppShell({
                 </Dropdown>
               </Space.Compact>
             </div>
-            <span className={styles['topbar-action-divider']} aria-hidden="true" />
+            {notificationControl ? <>
+              <span className={styles['topbar-action-divider']} aria-hidden="true" />
+              <span className={styles['topbar-notifications']}>{notificationControl}</span>
+            </> : null}
             {showWindowControls ? (
               <WindowControls
                 closeBehavior={windowCloseBehavior}

@@ -85,6 +85,32 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('系统通知选择指定审批，审批消失后恢复既有队列顺序', () => {
+    const first = approvalFixture('2026-08-13T00:00:30Z')
+    const second = { ...first, id: 'second', command: 'pwd' }
+    testState.approvals = [first, second]
+    const view = render(<McpApprovalCoordinator preferredApprovalId="second" />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenLastCalledWith('second', 'approve')
+    testState.approvals = [first]
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="second" />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenLastCalledWith(first.id, 'approve')
+  })
+
+  it('系统消息先于审批订阅到达时对账一次，不自动决定审批', () => {
+    testState.approvals = []
+    const view = render(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+    testState.approvals = []
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+    testState.approvals = [{ ...approvalFixture('2026-08-13T00:00:30Z'), id: 'requested' }]
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(testState.decideApproval).not.toHaveBeenCalled()
+  })
+
   it('审批先于客户端目录到达时先对账并隐藏持久化技术名称', () => {
     testState.clients = []
     testState.approvals = [{

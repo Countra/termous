@@ -56,6 +56,26 @@ function remoteCopyTask(): TransferTask {
 }
 
 describe('跨主机传输队列展示合同', () => {
+  it('消息定位清除隐藏目标任务的筛选，后续手动筛选仍可使用', async () => {
+    const user = userEvent.setup()
+    const tasks = [remoteCopyTask()]
+    const handled = vi.fn()
+    const input = { transfers: tasks, onFocusedTransferHandled: handled, onCancel: vi.fn(), onDelete: vi.fn().mockResolvedValue(true), onRetry: vi.fn() }
+    const rendered = render(<AntdApp><TransferQueuePanel {...input} /></AntdApp>)
+    await user.click(screen.getByRole('button', { name: /^files.transferActive/ }))
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+    rendered.rerender(<AntdApp><TransferQueuePanel {...input} focusedTransferId={tasks[0].id} /></AntdApp>)
+    expect(await screen.findByRole('listitem')).toHaveFocus()
+    expect(handled).toHaveBeenCalledTimes(1)
+    rendered.rerender(<AntdApp><TransferQueuePanel {...input} /></AntdApp>)
+    expect(screen.getByRole('button', { name: /^files.transferAll/ })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: /^files.transferActive/ }))
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+    rendered.rerender(<AntdApp><TransferQueuePanel {...input} focusedTransferId={tasks[0].id} /></AntdApp>)
+    expect(await screen.findByRole('listitem')).toHaveFocus()
+    expect(handled).toHaveBeenCalledTimes(2)
+  })
+
   it('即使未开启普通主机上下文也展示双端路由和任务补充状态', () => {
     render(
       <AntdApp>

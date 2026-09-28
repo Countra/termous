@@ -1,3 +1,5 @@
+import { NotificationControl } from '#app/notification-runtime'
+import type { NotificationTarget } from '#entities/notification'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -285,6 +287,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [forwardTemporaryIntent, setForwardTemporaryIntent] =
     useState<ForwardTemporaryIntent | null>(null)
   const nextForwardTemporaryIntentKeyRef = useRef(0)
+  const [notificationSessionId, setNotificationSessionId] = useState<string>()
+  const [notificationTransferId, setNotificationTransferId] = useState<string>()
+  const [notificationApprovalId, setNotificationApprovalId] = useState<string>()
   const [agentLaunchIntent, setAgentLaunchIntent] = useState<AgentLaunchIntent | null>(null)
   const nextAgentLaunchIntentKeyRef = useRef(0)
   const agentLaunchPendingRef = useRef(false)
@@ -312,6 +317,38 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     filesBookmarkManagementRequestRef.current = null
     setFilesBookmarkManagementIntent(null)
   }, [])
+
+  const notificationNavigationBlocked = useRef(false)
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
+  const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
+    if (target.kind === 'approval') {
+      if (hostKeyApprovalBlocking) return false
+      try {
+        const snapshot = await gateways.mcpAccess.approvals()
+        if (!snapshot.items.some((item) => item.id === target.approval_id && item.state === 'pending' && Date.parse(item.expires_at) > Date.now())) return false
+        setNotificationApprovalId(target.approval_id)
+        return true
+      } catch { return false }
+    }
+    if (hostSavingRef.current || notificationNavigationBlocked.current) return false
+    try {
+      if (target.kind === 'agent') {
+        const session = await gateways.agentWorkspace.session(target.session_id)
+        if (session.archived_at || hostSavingRef.current || notificationNavigationBlocked.current) return false
+        setNotificationSessionId(target.session_id)
+        setPage('agent')
+        return true
+      }
+      if (target.kind === 'transfer') {
+        const tasks = await gateways.transfers.transfers()
+        if (hostSavingRef.current || notificationNavigationBlocked.current || !tasks.some((task) => task.id === target.transfer_id)) return false
+        setNotificationTransferId(target.transfer_id)
+        setPage('files')
+        return true
+      }
+      return false
+    } catch { return false }
+  }, [gateways, hostSavingRef, setPage, hostKeyApprovalBlocking])
 
   const clearAgentLaunchIntent = useCallback(() => {
     agentLaunchPendingRef.current = false
@@ -1289,6 +1326,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     onSessionsChange={setRemoteDesktopRuntimeSessions}
                   >
                     <AppShell
+                      notificationControl={<NotificationControl api={gateways.notifications} enabled={runtimeConfigReady && !coreFatal} navigate={navigateNotification} />}
                       page={page}
                       appVersion={appVersion}
                       windowCloseBehavior={data.settings.window.close_behavior}
@@ -1366,6 +1404,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         inert={page !== 'agent'}
                       >
                         <AgentPage
+                          notificationSessionId={notificationSessionId}
+                          onNotificationSessionHandled={() => setNotificationSessionId(undefined)}
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
@@ -1448,6 +1488,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'files' ? (
                         <FilesPage
+                          notificationTransferId={notificationTransferId}
+                          onNotificationTransferHandled={() => setNotificationTransferId(undefined)}
                           fileGateway={gateways.files}
                           automaticRemoteRequestsEnabled={!productTourActive}
                           getHostIconUrl={getHostIconUrl}
@@ -1606,7 +1648,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onRemoteDesktopConnectionError={showActionError}
                     />
                   </RemoteDesktopRuntimeProvider>
-                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
+                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} preferredApprovalId={notificationApprovalId} />
                 </GlobalFileSearchRuntimeProvider>
               </McpAccessRuntimeProvider>
             </CommandDispatchRuntimeProvider>

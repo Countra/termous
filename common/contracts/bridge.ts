@@ -54,6 +54,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  notifications?: import('./notification').NotificationBridge
   loginItem?: LoginItemBridge
   skillInstall?: SkillInstallBridge
   getConfig: () => Promise<Partial<AppConfig>>

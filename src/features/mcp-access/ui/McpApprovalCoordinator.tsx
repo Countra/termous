@@ -10,13 +10,14 @@ import styles from './McpApprovalCoordinator.module.scss'
 
 interface McpApprovalCoordinatorProps {
   blocked?: boolean
+  preferredApprovalId?: string
 }
 
-export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinatorProps) {
+export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }: McpApprovalCoordinatorProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { clients, approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
-  const approval = blocked ? null : approvals[0] ?? null
+  const approval = blocked ? null : approvals.find((item) => item.id === preferredApprovalId) ?? approvals[0] ?? null
   const approvalId = approval?.id ?? ''
   const approvalClient = clients.find((client) => client.id === approval?.client_id)
   const approvalClientName = approvalClient?.source === 'builtin_agent'
@@ -38,6 +39,14 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
   const expired = Boolean(approval) && remainingSeconds === 0
   const clientReconciledApprovalRef = useRef('')
   const expiryReconciledRef = useRef('')
+  const preferredReconciledRef = useRef('')
+
+  useEffect(() => {
+    if (!preferredApprovalId || preferredReconciledRef.current === preferredApprovalId || approvals.some((item) => item.id === preferredApprovalId)) return
+    // 系统消息可能先于审批订阅恢复；只对账一次，避免点击后暂时没有对应审批窗口。
+    preferredReconciledRef.current = preferredApprovalId
+    void reload().catch(() => undefined)
+  }, [approvals, preferredApprovalId, reload])
 
   useEffect(() => {
     if (!approvalId || !approvalClientMissing || clientReconciledApprovalRef.current === approvalId) return

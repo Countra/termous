@@ -11,6 +11,7 @@ import styles from './GeneralSettings.module.scss'
 import { LoginItemSetting } from './LoginItemSetting'
 
 interface GeneralSettingsProps {
+  notificationSettings?: import('react').ReactNode
   language: AppLanguage
   appearanceSettings: AppearanceSettings
   windowSettings: WindowSettings
@@ -21,6 +22,7 @@ interface GeneralSettingsProps {
 }
 
 export function GeneralSettings({
+  notificationSettings,
   language,
   appearanceSettings,
   windowSettings,
@@ -107,6 +109,7 @@ export function GeneralSettings({
         />
       </div>
       <LoginItemSetting disabled={disabled} />
+      {notificationSettings}
     </div>
   )
 }

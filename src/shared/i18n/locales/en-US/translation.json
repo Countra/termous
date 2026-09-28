@@ -291,7 +291,7 @@
   "nav": {
     "audit": "Audit center",
     "workbench": "Workbench",
-    "agent": "Agent",
+    "agent": "AI assistant",
     "remote-desktop": "Remote Desktop",
     "hosts": "Hosts",
     "vault": "Credential Vault",
@@ -382,10 +382,10 @@
       },
       "modelUnavailableHint": {
         "removed": "This model was removed from the Termous model catalog. Select another available model for the session.",
-        "provider_disabled": "Enable this provider in Agent settings, or select another available model for the session.",
-        "catalog_stale": "Sync this provider's model catalog in Agent settings, or select another available model for the session.",
+        "provider_disabled": "Enable this provider in AI assistant settings, or select another available model for the session.",
+        "catalog_stale": "Sync this provider's model catalog in AI assistant settings, or select another available model for the session.",
         "missing": "The remote provider does not currently return this model. Sync the catalog or select another available model.",
-        "unknown": "Check the provider and model catalog in Agent settings, or select another available model."
+        "unknown": "Check the provider and model catalog in AI assistant settings, or select another available model."
       },
       "returnToActiveRun": "Return to running session",
       "returnToQueuedSession": "Return to queued session"
@@ -404,7 +404,7 @@
     },
     "empty": {
       "title": "What would you like to work on?",
-      "description": "Describe the outcome you need. The Agent uses Termous capabilities through MCP within the scopes you have granted."
+      "description": "Describe the outcome you need. The AI assistant uses Termous capabilities through MCP within the scopes you have granted."
     },
     "conversation": {
       "jumpToLatest": "Jump to latest message"
@@ -440,7 +440,7 @@
       }
     },
     "launch": {
-      "action": "Ask Agent"
+      "action": "Ask AI assistant"
     },
     "message": {
       "copied": "Copied",
@@ -448,7 +448,7 @@
       "duration": "Took {{duration}}",
       "durationHint": "Total time from the start of this run to its end, including tool execution and waiting",
       "you": "You",
-      "agent": "Agent",
+      "agent": "AI assistant",
       "failed": "This response failed",
       "failure": {
         "mcpProtocolMismatch": "The AI assistant and MCP tool service use incompatible protocol versions.",
@@ -524,7 +524,7 @@
       }
     },
     "composer": {
-      "placeholder": "Message Agent",
+      "placeholder": "Message AI assistant",
       "queuePlaceholder": "Type the next message",
       "queue": "Add to queue",
       "send": "Send",
@@ -582,7 +582,7 @@
       "confirmReplaceImmediate": "Connect and replace",
       "remove": "Remove link",
       "removeTitle": "Remove SSH profile link?",
-      "removeDescription": "This Agent session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
+      "removeDescription": "This AI assistant session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
       "status": {
         "checking": "Checking profile",
         "ready": "On demand",
@@ -638,7 +638,7 @@
       "noCandidates": "No other connections are available",
       "remove": "Detach connection",
       "removeTitle": "Detach SSH connection?",
-      "removeDescription": "This Agent session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
+      "removeDescription": "This AI assistant session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
       "activeRunLocked": "Connections cannot be replaced or detached while a task is running",
       "recovery": {
         "details": "Recover the referenced SSH connection",
@@ -672,7 +672,7 @@
       "error": {
         "unavailableTitle": "Referenced SSH connection unavailable",
         "conflictTitle": "Connection reference changed",
-        "conflictDescription": "This Agent session was updated. Wait for it to synchronize, then select the connection again.",
+        "conflictDescription": "This AI assistant session was updated. Wait for it to synchronize, then select the connection again.",
         "activeRunTitle": "A task is running",
         "activeRunDescription": "Stop or wait for the current task to finish before replacing or detaching the connection.",
         "reason": {
@@ -815,7 +815,7 @@
       },
       "binding": {
         "completed": "Resource linked",
-        "completedDescription": "The resource link for this Agent session has been updated."
+        "completedDescription": "The resource link for this AI assistant session has been updated."
       },
       "connection": {
         "title": "SSH profile connection",
@@ -826,7 +826,7 @@
         "retry": "Retry",
         "dismiss": "Dismiss connection status",
         "completed": "SSH profile connected",
-        "completedDescription": "The SSH connection for this Agent session has been updated.",
+        "completedDescription": "The SSH connection for this AI assistant session has been updated.",
         "status": {
           "connecting": "Establishing the SSH connection…",
           "waiting_host_trust": "Waiting for host key confirmation…",
@@ -862,14 +862,14 @@
     },
     "approvalMode": {
       "label": "Approval mode",
-      "title": "How should Agent actions be approved?",
+      "title": "How should AI assistant actions be approved?",
       "review": "Ask for approval",
       "reviewHint": "Request approval before sensitive operations",
       "bypass": "No confirmation",
       "bypassHint": "Run tools directly within the granted scopes",
       "unavailable": "Approval mode unavailable",
-      "confirmBypassTitle": "Allow the Agent to run without confirmation?",
-      "confirmBypassDescription": "The Agent will be able to execute MCP tools within the managed client's granted scopes. This setting cannot be changed while a task is running.",
+      "confirmBypassTitle": "Allow the AI assistant to run without confirmation?",
+      "confirmBypassDescription": "The AI assistant will be able to execute MCP tools within the managed client's granted scopes. This setting cannot be changed while a task is running.",
       "confirmBypass": "Enable no confirmation"
     },
     "inspector": {
@@ -925,17 +925,17 @@
       "remoteImageBlocked": "Remote image blocked"
     },
     "readiness": {
-      "title": "Prepare the Agent runtime",
-      "description": "The Agent uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > Agent.",
+      "title": "Prepare the AI assistant runtime",
+      "description": "The AI assistant uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > AI assistant.",
       "prepare": "Set up or repair",
-      "loadFailed": "Agent runtime status is temporarily unavailable"
+      "loadFailed": "AI assistant runtime status is temporarily unavailable"
     },
     "error": {
-      "reconnecting": "Reconnecting Agent live status",
+      "reconnecting": "Reconnecting AI assistant live status",
       "reconnectingDescription": "Session content is preserved and will reconcile with Core after reconnecting.",
-      "degraded": "Some Agent state is temporarily unavailable",
+      "degraded": "Some AI assistant state is temporarily unavailable",
       "degradedDescription": "Session content is preserved. Retry to load Core's authoritative state.",
-      "operation": "The Agent operation did not complete",
+      "operation": "The AI assistant operation did not complete",
       "operationDescription": "Check Core, the model profile, and runtime status, then try again."
     }
   },
@@ -2721,7 +2721,7 @@
         "addressPlaceholder": "Hostname or IP address",
         "usernamePlaceholder": "Remote login username",
         "deleteBlockedTitle": "This SSH profile is still in use",
-        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{independentFiles}} independent file profiles, {{companionAgents}} Agent references to companion file profiles, {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile. Also remove {{mounts}} saved mount references.",
+        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{independentFiles}} independent file profiles, {{companionAgents}} AI assistant references to companion file profiles, {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the SSH profile and its {{files}} companion SFTP profile(s). Termous rechecks persistent dependencies and active connections before deletion."
       },
       "file": {
@@ -2738,7 +2738,7 @@
         "sshRequired": "Select an available SSH profile",
         "unsupportedEditor": "This version cannot edit the configuration for this file engine",
         "deleteBlockedTitle": "This file profile is still in use",
-        "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} Agent session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
+        "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} AI assistant session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the file access profile. Existing sessions are not closed automatically, and references are checked again before deletion.",
         "missingSSH": "SSH profile unavailable",
         "missingSSHDescription": "The binding is no longer valid. Refresh and inspect this host."
@@ -4570,13 +4570,13 @@
       "unavailableHint": "Saved update preferences could not be loaded. Try again in a moment.",
       "retryLoading": "Try again"
     },
-    "tabAgent": "Agent",
+    "tabAgent": "AI assistant",
     "agent": {
-      "loadFailed": "Agent settings could not be loaded",
-      "operationFailed": "The Agent setting operation failed",
+      "loadFailed": "AI assistant settings could not be loaded",
+      "operationFailed": "The AI assistant setting operation failed",
       "readiness": {
         "title": "Runtime readiness",
-      "description": "Check MCP, Skills, and the default model to prepare or repair the Agent runtime.",
+      "description": "Check MCP, Skills, and the default model to prepare or repair the AI assistant runtime.",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
@@ -4604,26 +4604,26 @@
       },
       "profileBinding": {
         "title": "SSH Profile association",
-        "description": "When off, only associate the Profile so the Agent can create an SSH session on demand. When on, connect immediately during association.",
+        "description": "When off, only associate the Profile so the AI assistant can create an SSH session on demand. When on, connect immediately during association.",
         "toggle": "Connect when associating an SSH Profile",
         "immediate": "Connect now",
         "onDemand": "On demand"
       },
       "turnUsage": {
         "title": "Per-turn token usage",
-        "description": "Show total, input, output, and cache usage below each Agent response.",
+        "description": "Show total, input, output, and cache usage below each AI assistant response.",
         "toggle": "Show per-turn token usage",
         "visible": "Shown",
         "hidden": "Hidden"
       },
       "policy": {
         "title": "MCP approval policy",
-        "description": "The built-in Agent always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
+        "description": "The built-in AI assistant always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
         "approval": "Tool execution approval",
         "review": "Ask every time",
         "bypass": "No confirmation",
         "reviewHint": "Sensitive operations continue to use the global MCP approval interface.",
-        "bypassHint": "The Agent can execute tools within its granted scopes without confirmation. Use with care.",
+        "bypassHint": "The AI assistant can execute tools within its granted scopes without confirmation. Use with care.",
         "unavailable": "Complete initial setup to manage the approval policy."
       },
       "models": {
@@ -4847,7 +4847,7 @@
       },
       "confirmBypass": {
         "title": "Allow execution without confirmation?",
-        "description": "The Agent will be able to execute MCP tools within every granted scope without showing per-operation approvals.",
+        "description": "The AI assistant will be able to execute MCP tools within every granted scope without showing per-operation approvals.",
         "confirm": "Enable no confirmation"
       },
       "confirmTest": {
@@ -4971,8 +4971,8 @@
       "clientsHint": "Each client has an independent token and least-privilege scopes.",
       "addClient": "Add client",
       "noClients": "No MCP clients have been added",
-      "builtinAgentName": "Termous Agent",
-      "managedByAgent": "Agent-managed",
+      "builtinAgentName": "Termous AI assistant",
+      "managedByAgent": "Managed by AI assistant",
       "deleteClient": "Delete client",
       "deleteClientLabel": "Delete client {{name}}",
       "deleteTitle": "Delete this client?",
@@ -5593,5 +5593,43 @@
     "required": "Required",
     "optional": "Optional",
     "none": "None"
+  },
+  "notifications": {
+    "title": "Message centre",
+    "resultCount_one": "{{count}} message",
+    "resultCount_other": "{{count}} messages",
+    "all": "All",
+    "unread": "Unread",
+    "source": "Source",
+    "sources": {
+      "all": "All sources",
+      "agent": "AI assistant",
+      "file": "File transfers",
+      "approval": "Approvals"
+    },
+    "readAll": "Mark all read",
+    "clearRead": "Clear read",
+    "dismiss": "Dismiss message",
+    "empty": "No messages yet",
+    "emptyHint": "AI assistant results, file transfers and pending approvals will appear here.",
+    "emptyUnread": "No unread messages",
+    "emptyFiltered": "No messages from this source",
+    "emptyFilteredHint": "Switch the source or view all messages to see other task results.",
+    "viewAll": "View all messages",
+    "operationFailed": "Operation failed. Please try again.",
+    "reconnecting": "Connection interrupted. Reconnecting…",
+    "targetMissing": "The original session or transfer is unavailable. This is the saved result summary.",
+    "approvalMissing": "This request may be resolved or expired, or a higher-priority approval is open. Check the current approval dialog.",
+    "settings": {
+      "title": "System notifications",
+      "hint": "Notify only when minimized or hidden to tray. Results remain in the message centre.",
+      "desktopOnly": "System notifications are available in the desktop app. The message centre is still available.",
+      "unsupported": "Native notifications are unavailable on this system. The message centre is still available.",
+      "error": "Unable to read or save notification settings",
+      "enabled": "Allow system notifications",
+      "agent": "AI assistant results",
+      "file": "File transfer results",
+      "approval": "Pending approvals"
+    }
   }
 }

@@ -91,6 +91,8 @@ const noSlashCandidates: AgentSlashCandidateCatalog = {
 }
 
 export function AgentPage({
+  notificationSessionId,
+  onNotificationSessionHandled,
   gateway,
   setupGateway,
   sshResources = noSSHResources,
@@ -117,6 +119,8 @@ export function AgentPage({
   slashCandidates?: AgentSlashCandidateCatalog
   enabled: boolean
   active: boolean
+  notificationSessionId?: string
+  onNotificationSessionHandled?: () => void
   launchIntent?: AgentLaunchIntent | null
   onLaunchIntentHandled?: (key: number) => void
   onRuntimeSummaryChange?: (snapshot: {
@@ -133,6 +137,11 @@ export function AgentPage({
   const getQueuedEditOwner = useAgentQueuedTurnEditOwners(controller)
   const [composerFocusKey, setComposerFocusKey] = useState(0)
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  useEffect(() => {
+    if (!active || !state.snapshot_complete || !notificationSessionId) return
+    if (state.sessions.some((session) => session.id === notificationSessionId)) controller.selectSession(notificationSessionId)
+    onNotificationSessionHandled?.()
+  }, [active, controller, notificationSessionId, onNotificationSessionHandled, state.snapshot_complete, state.sessions])
   const management = useAgentSessionManagement(controller, gateway, state.sessions, enabled && active)
   const [archivesOpen, setArchivesOpen] = useState(false)
   const archives = useAgentArchives(gateway, archivesOpen && enabled && active, state.sessions)

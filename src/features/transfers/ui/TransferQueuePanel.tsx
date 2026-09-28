@@ -21,7 +21,7 @@ import {
   Trash2,
   UploadCloud,
 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
@@ -48,6 +48,8 @@ import {
 } from '#entities/file'
 
 interface TransferQueuePanelProps {
+  focusedTransferId?: string
+  onFocusedTransferHandled?: () => void
   transfers: TransferTask[]
   pendingOperations?: PendingFileOperation[]
   pendingActionIds?: ReadonlySet<string>
@@ -62,6 +64,8 @@ interface TransferQueuePanelProps {
 }
 
 export function TransferQueuePanel({
+  focusedTransferId,
+  onFocusedTransferHandled,
   transfers,
   pendingOperations = [],
   pendingActionIds = new Set(),
@@ -77,6 +81,9 @@ export function TransferQueuePanel({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const [filter, setFilter] = useState<TransferQueueFilter>('all')
+  useEffect(() => {
+    if (focusedTransferId) setFilter('all')
+  }, [focusedTransferId])
   const [clearing, setClearing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const summary = useMemo(
@@ -275,6 +282,8 @@ export function TransferQueuePanel({
               <TransferTaskRow
                 key={item.task.id}
                 task={item.task}
+                focused={focusedTransferId === item.task.id}
+                onFocused={onFocusedTransferHandled}
                 hostNames={hostNames}
                 showHostContext={showHostContext}
                 actionBusy={pendingActionIds.has(item.task.id)}
@@ -292,11 +301,14 @@ export function TransferQueuePanel({
 
 function TransferTaskRow({
   task,
+  focused,
   hostNames,
   showHostContext,
   ...actions
 }: {
   task: TransferTask
+  focused?: boolean
+  onFocused?: () => void
   hostNames: Readonly<Record<string, string>>
   showHostContext: boolean
   actionBusy: boolean
@@ -314,6 +326,7 @@ function TransferTaskRow({
 
   return (
     <TransferRow
+      focused={focused}
       task={task}
       hostLabel={route
         ? undefined
@@ -435,6 +448,8 @@ function TransferPreparationRow({
 }
 
 function TransferRow({
+  focused,
+  onFocused,
   task,
   hostLabel,
   remoteRoute,
@@ -443,6 +458,8 @@ function TransferRow({
   onDelete,
   onRetry,
 }: {
+  focused?: boolean
+  onFocused?: () => void
   task: TransferTask
   hostLabel?: string
   remoteRoute?: {
@@ -454,6 +471,13 @@ function TransferRow({
   onDelete: (id: string, options?: { silent?: boolean }) => Promise<boolean>
   onRetry: (id: string) => Promise<void>
 }) {
+  const row = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!focused) return
+    row.current?.scrollIntoView?.({ block: 'nearest' })
+    row.current?.focus({ preventScroll: true })
+    onFocused?.()
+  }, [focused, onFocused])
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const isUpload = task.type.startsWith('upload')
@@ -554,6 +578,8 @@ function TransferRow({
       disabled={actionBusy || contextMenuItems.length === 0}
     >
       <article
+        ref={row}
+        tabIndex={-1}
         className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
         aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}

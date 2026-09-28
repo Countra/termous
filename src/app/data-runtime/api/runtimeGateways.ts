@@ -1,3 +1,5 @@
+import { NotificationClient } from './gateways/notificationClient'
+import type { NotificationGateway } from '#entities/notification'
 import type { AuditGateway } from '#features/audit'
 import { AuditClient } from './gateways/auditClient'
 import type { AppConfig } from '#common/contracts'
@@ -45,6 +47,7 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly notifications: NotificationGateway
   readonly audit: AuditGateway
   readonly agentSetup: AgentSetupGateway
   readonly agentWorkspace: AgentWorkspaceGateway
@@ -78,6 +81,7 @@ export interface RuntimeGateways {
 export function createRuntimeGatewaysFromConfig(
   config: Partial<AppConfig> = {},
 ): RuntimeGateways {
+  const notifications = new NotificationClient(config)
   const audit = new AuditClient(config)
   const runtime = new RuntimeClient(config)
   const agentSetup = new AgentSetupClient(config)
@@ -108,6 +112,7 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    notifications,
     audit,
     agentSetup,
     agentWorkspace,

@@ -205,6 +205,8 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 }
 
 export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
+  notificationTransferId?: string
+  onNotificationTransferHandled?: () => void
   fileGateway: FileGateway
   automaticRemoteRequestsEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
@@ -357,6 +359,8 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 }
 
 function FilesWorkspaceContent({
+  notificationTransferId,
+  onNotificationTransferHandled,
   fileGateway,
   automaticRemoteRequestsEnabled = true,
   getHostIconUrl,
@@ -516,6 +520,11 @@ function FilesWorkspaceContent({
   const inspectorOpen = sidePanelMode === 'details'
   const localConsoleOpen = auxiliarySurface === 'local'
   const transfersOpen = auxiliarySurface === 'transfers'
+  useEffect(() => {
+    if (!notificationTransferId) return
+    setTransferScope('all')
+    setAuxiliarySurface('transfers')
+  }, [notificationTransferId])
   const updateSidePanelMode = useCallback((mode: FilesSidePanelState) => {
     sidePanelModeRef.current = mode
     setSidePanelMode(mode)
@@ -4065,6 +4074,8 @@ function FilesWorkspaceContent({
                 />
               </header>
               <TransferQueuePanel
+                focusedTransferId={notificationTransferId}
+                onFocusedTransferHandled={onNotificationTransferHandled}
                 transfers={scopedTransfers}
                 pendingOperations={scopedPendingOperations}
                 pendingActionIds={pendingTransferActionIds}

@@ -1,3 +1,4 @@
+import { notificationIPCChannels as notificationChannels } from '#common/contracts'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
@@ -119,6 +120,17 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  notifications: {
+    status: () => ipcRenderer.invoke(notificationChannels.status),
+    setPreferences: (value: import('#common/contracts').NotificationPreferences) => ipcRenderer.invoke(notificationChannels.preferences, value),
+    pending: () => ipcRenderer.invoke(notificationChannels.pending),
+    acknowledge: (id: string) => ipcRenderer.invoke(notificationChannels.acknowledge, id),
+    onActivation: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on(notificationChannels.activation, listener)
+      return () => { ipcRenderer.removeListener(notificationChannels.activation, listener) }
+    },
+  },
   getConfig: () => ipcRenderer.invoke('core:get-config'),
   getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
   platform: process.platform,

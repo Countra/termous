@@ -1,3 +1,4 @@
+import { NotificationSettings } from '#features/notifications'
 import { Bot, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -131,7 +132,7 @@ export function SettingsPage({
             ),
             children: (
               <div className={styles['tab-scroll']}>
-                <GeneralSettings
+                <GeneralSettings notificationSettings={<NotificationSettings disabled={actionBusy} />}
                   language={language}
                   appearanceSettings={appearanceSettings}
                   windowSettings={windowSettings}

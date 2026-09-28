@@ -1,6 +1,13 @@
+import { notificationIPCChannels } from '#common/contracts'
+import { NotificationRuntime } from './notifications/runtime'
+import { NotificationPreferencesStore } from './notifications/preferences'
+import { NotificationSubscription } from './notifications/subscription'
+import { registerNotificationIPC } from './notifications/ipc'
+
 import {
   app,
   BrowserWindow,
+  Notification,
   crashReporter,
   dialog,
   ipcMain,
@@ -92,6 +99,37 @@ const coreProcess = new CoreProcessManager({ logger: {
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
 } })
+let notificationDisposeIPC: (() => void) | null = null
+let notificationRuntime: NotificationRuntime | null = null
+let notificationSubscription: NotificationSubscription | null = null
+let notificationWarningAt = 0
+function warnNotification() {
+  if (Date.now() - notificationWarningAt < 60_000) return
+  notificationWarningAt = Date.now()
+  reportElectronProcessEvent('notification-unavailable', { component: 'notifications' })
+}
+
+async function initializeNotifications() {
+  if (notificationRuntime) return
+  const preferences = new NotificationPreferencesStore(path.join(app.getPath('userData'), 'notification-preferences.json'), warnNotification)
+  await preferences.load()
+  notificationRuntime = new NotificationRuntime({
+    background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && (win.isMinimized() || !win.isVisible())),
+    supported: () => Notification.isSupported(),
+    preferences: () => preferences.get(), language: () => appLanguage,
+    create: (title, body) => new Notification({ title, body, icon: APP_ICON }),
+    activate: () => {
+      revealMainWindow()
+      if (win && !win.isDestroyed()) win.webContents.send(notificationIPCChannels.activation)
+    },
+    warn: warnNotification,
+  })
+  notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, preferences, supported: () => Notification.isSupported(), trusted: isTrustedMainIPCEvent })
+  const runtime = notificationRuntime
+  notificationSubscription = new NotificationSubscription({ config: () => coreProcess.initialize(), receive: (event) => runtime.accept(event), warn: warnNotification })
+  void notificationSubscription.start()
+}
+
 const skillsDirectory = VITE_DEV_SERVER_URL
   ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
   : path.join(process.resourcesPath, 'agent', 'skills')
@@ -820,6 +858,12 @@ function showSplashWindow(focus = false) {
 }
 
 function prepareApplicationExit() {
+  notificationSubscription?.close()
+  notificationRuntime?.close()
+  notificationDisposeIPC?.()
+  notificationDisposeIPC = null
+  notificationRuntime = null
+  notificationSubscription = null
   closeSplashWindow()
   trayController.destroy()
 }
@@ -914,6 +958,7 @@ async function recoverApplicationAfterFailedUpdateInstall() {
   skillInstaller.resume()
   terminalCompletionRuntime.resume()
   trayController.initialize()
+  await initializeNotifications()
   if (win && !win.isDestroyed()) {
     win.webContents.reload()
   }
@@ -1762,6 +1807,7 @@ async function initializeApplication() {
     })
   }
   createSplashWindow()
+  await initializeNotifications()
   createWindow()
   trayController.initialize()
   void coreProcess.initialize().then(() => {

@@ -1,15 +1,26 @@
-/* 窗口控制按钮与窗口控制组件共置，保持 Electron 桌面窗口行为样式。 */
+/* 窗口控制按钮与组件共置，分隔色沿用顶栏主题变量。 */
 
 .window-controls {
+  position: relative;
   display: flex;
-  height: 32px;
+  height: 36px;
   align-self: center;
   align-items: center;
   gap: 4px;
-  border-left: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  margin-left: 4px;
-  padding: 0 8px 0 10px;
+  padding: 0 12px 0 11px;
   -webkit-app-region: no-drag;
+}
+
+.window-controls::before {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  width: 1px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--topbar-divider-color, var(--border));
+  content: "";
+  transform: translateY(-50%);
 }
 
 .window-control:global(.ant-btn) {

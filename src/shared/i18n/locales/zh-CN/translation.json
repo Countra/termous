@@ -2711,7 +2711,7 @@
         "addressPlaceholder": "主机名或 IP 地址",
         "usernamePlaceholder": "远程登录用户名",
         "deleteBlockedTitle": "当前 SSH 配置仍在使用",
-        "deleteBlocked": "请先解除持久依赖并停止活动连接：独立文件配置 {{independentFiles}} 项、伴生文件配置的 Agent 引用 {{companionAgents}} 个、挂载配置 {{mounts}} 项、端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
+        "deleteBlocked": "请先解除持久依赖并停止活动连接：独立文件配置 {{independentFiles}} 项、伴生文件配置的 AI 助手 引用 {{companionAgents}} 个、挂载配置 {{mounts}} 项、端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
         "deleteDescription": "将删除此 SSH 配置及 {{files}} 项伴生 SFTP。执行前系统会再次校验持久依赖和活动连接。"
       },
       "file": {
@@ -2728,7 +2728,7 @@
         "sshRequired": "请选择可用的 SSH 配置",
         "unsupportedEditor": "当前版本无法编辑此文件 Engine 的配置",
         "deleteBlockedTitle": "当前文件配置仍在使用",
-        "deleteBlocked": "请先关闭 {{sessions}} 个活动文件会话，并解除 {{agents}} 个 Agent 会话引用和 {{mounts}} 个挂载配置引用后再删除。",
+        "deleteBlocked": "请先关闭 {{sessions}} 个活动文件会话，并解除 {{agents}} 个 AI 助手 会话引用和 {{mounts}} 个挂载配置引用后再删除。",
         "deleteDescription": "将删除此文件访问配置。已有会话不会被自动关闭，执行前系统会再次校验引用。",
         "missingSSH": "SSH 配置不可用",
         "missingSSHDescription": "绑定关系已失效，请刷新后检查主机配置。"
@@ -5567,5 +5567,42 @@
     "required": "必填",
     "optional": "可选",
     "none": "无"
+  },
+  "notifications": {
+    "title": "消息中心",
+    "resultCount": "{{count}} 条消息",
+    "all": "全部",
+    "unread": "未读",
+    "source": "来源",
+    "sources": {
+      "all": "全部来源",
+      "agent": "AI 助手",
+      "file": "文件传输",
+      "approval": "操作审批"
+    },
+    "readAll": "全部已读",
+    "clearRead": "清理已读",
+    "dismiss": "移除消息",
+    "empty": "暂无消息",
+    "emptyHint": "AI 助手、文件传输结果和待审批操作会显示在这里。",
+    "emptyUnread": "暂无未读消息",
+    "emptyFiltered": "此来源暂无消息",
+    "emptyFilteredHint": "切换来源或查看全部消息，了解其他任务的运行结果。",
+    "viewAll": "查看全部消息",
+    "operationFailed": "操作未完成，请重试",
+    "reconnecting": "消息连接暂时中断，正在重新连接",
+    "targetMissing": "原会话或传输记录已不可用，以上为保留的结果摘要。",
+    "approvalMissing": "该审批可能已处理或过期，或当前正在处理优先审批。请查看现有审批窗口。",
+    "settings": {
+      "title": "系统通知",
+      "hint": "仅在窗口最小化或隐藏到托盘时提醒；消息中心始终保留任务结果。",
+      "desktopOnly": "系统通知仅在桌面版可用，消息中心仍可正常使用。",
+      "unsupported": "当前系统不支持原生通知，消息中心仍可正常使用。",
+      "error": "无法读取或保存通知设置",
+      "enabled": "允许系统通知",
+      "agent": "AI 助手运行结果",
+      "file": "文件传输结果",
+      "approval": "待审批操作"
+    }
   }
 }
