@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessManagementGateway } from '#features/host-access'
@@ -121,12 +122,14 @@ function ControllerHarness({
   openAccessIntentKey = 0,
   initialView,
   initialConnectionSetupConsidered,
+  onCatalogCommit,
 }: {
   host: HostAsset
   api: HostAccessManagementGateway
   openAccessIntentKey?: number
   initialView?: HostDetailView
   initialConnectionSetupConsidered?: boolean
+  onCatalogCommit?: (controller: ReturnType<typeof useHostAccessWorkspaceController>) => void
 }) {
   const controller = useHostAccessWorkspaceController({
     hostId: host.id,
@@ -137,6 +140,9 @@ function ControllerHarness({
     initialView,
     initialConnectionSetupConsidered,
   })
+  useLayoutEffect(() => {
+    if (controller.catalog) onCatalogCommit?.(controller)
+  }, [controller, onCatalogCommit])
   return (
     <div>
       <output data-testid="catalog-host">{controller.catalog?.host.id ?? 'loading'}</output>
@@ -381,6 +387,31 @@ describe('主机访问方式 Controller', () => {
     expect(screen.getByTestId('pending')).toHaveTextContent('false')
     fireEvent.click(screen.getByRole('button', { name: 'open-asset' }))
     expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
+    expect(screen.getByTestId('dirty')).toHaveTextContent('true')
+    expect(api.updateHostAsset).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('Catalog 提交与编辑同帧时保留新草稿：刷新=%s', async (refresh) => {
+    const source = catalog('host-a')
+    source.host.name = 'Server name'
+    const latest = refresh
+      ? { ...source, host: { ...source.host, name: 'Updated server name', updated_at: '2026-08-25T00:00:01Z' } }
+      : source
+    const api = gateway(source)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockResolvedValue(latest)
+    let edited = false
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} onCatalogCommit={(controller) => {
+      if (edited || controller.catalog?.host.updated_at !== latest.host.updated_at) return
+      edited = true
+      // 在目录已经提交、草稿同步 effect 尚未执行的窗口内模拟编辑。
+      controller.setAssetDraft({ ...controller.assetDraft, name: 'Local draft' })
+    }} />)
+
+    if (refresh) {
+      await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Server name'))
+      fireEvent.click(screen.getByRole('button', { name: 'reload' }))
+    }
+    await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft'))
     expect(screen.getByTestId('dirty')).toHaveTextContent('true')
     expect(api.updateHostAsset).not.toHaveBeenCalled()
   })

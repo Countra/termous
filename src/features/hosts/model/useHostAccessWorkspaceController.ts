@@ -173,9 +173,10 @@ export function useHostAccessWorkspaceController({
     if (isStaleOrAppliedAssetRevision(host.updated_at, appliedAssetRevisionRef.current)) return
     const next = hostAssetToInput(host)
     appliedAssetRevisionRef.current = host.updated_at
-    setAssetDraft(next)
+    // 目录提交后、effect 执行前可能已有编辑入队，按最新草稿复核，避免覆盖用户输入。
+    setAssetDraft((current) => hostAssetInputsEqual(current, assetBaseline) ? next : current)
     setAssetBaseline(next)
-  }, [assetDirty, catalogState.catalog?.host, operationBusy])
+  }, [assetBaseline, assetDirty, catalogState.catalog?.host, operationBusy])
 
   useEffect(() => {
     onDirtyChange?.(dirty)

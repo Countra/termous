@@ -1,5 +1,5 @@
 import { App as AntdApp, ConfigProvider } from 'antd'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileSession, LocalPathMapping, RemoteFileEntry } from '#entities/file'
 import { defaultTerminalSettings } from '#entities/settings'
@@ -373,21 +373,32 @@ describe('主机下不同存储引擎的能力边界', () => {
     })
     await waitFor(() => expect(api.listFileSessionFiles).toHaveBeenCalledOnce())
     expect(screen.getByRole('tab', { name: /对象存储主机/ })).toBeVisible()
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
-    expect(screen.getByRole('button', { name: 'files.rename' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'files.copy' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'files.advancedRename.action' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'files.globalSearch.action' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'files.actions' }))
-    expect(screen.queryByRole('menuitem', { name: /files.editPermissions/ })).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: /files.advancedRename.action/ })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'files.details' }))
-    expect(screen.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
-    expect(screen.queryByText('files.noHost')).toBeNull()
-    expect(screen.queryByText('files.ownerUid')).toBeNull()
-    expect(screen.queryByText('files.groupGid')).toBeNull()
-    expect(screen.queryByText('files.mode')).toBeNull()
+    const row = within(await screen.findByRole('row', { name: /notes\.txt/ }))
+    fireEvent.click(row.getByRole('checkbox', { name: 'Select row 1' }))
+    const rename = screen.getByRole('button', { name: 'files.rename' })
+    const commands = within(rename.parentElement!)
+    expect(rename).toBeEnabled()
+    expect(commands.getByRole('button', { name: 'files.copy' })).toBeEnabled()
+    expect(commands.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
+    expect(commands.queryByRole('button', { name: 'files.advancedRename.action' })).toBeNull()
+    const navigation = within(screen.getByRole('toolbar', { name: 'files.pathNavigation' }))
+    expect(navigation.queryByRole('button', { name: 'files.globalSearch.action' })).toBeNull()
+
+    fireEvent.click(row.getByRole('button', { name: 'files.actions' }))
+    const menu = within(await screen.findByRole('menu'))
+    await waitFor(() => expect(menu.getByRole('menuitem', { name: /files.rename/ })).toBeVisible())
+    expect(menu.queryByRole('menuitem', { name: /files.editPermissions/ })).toBeNull()
+    expect(menu.queryByRole('menuitem', { name: /files.advancedRename.action/ })).toBeNull()
+
+    const panels = within(screen.getByRole('group', { name: 'files.workspacePanels' }))
+    fireEvent.click(panels.getByRole('button', { name: 'files.details' }))
+    const details = within(await screen.findByRole('complementary', { name: 'files.details' }))
+    expect(details.getByText('对象存储主机')).toBeVisible()
+    expect(details.queryByRole('button', { name: 'files.editPermissions' })).toBeNull()
+    expect(details.queryByText('files.noHost')).toBeNull()
+    expect(details.queryByText('files.ownerUid')).toBeNull()
+    expect(details.queryByText('files.groupGid')).toBeNull()
+    expect(details.queryByText('files.mode')).toBeNull()
   })
 
   it('只浏览能力拒绝双击读取和上传、移动', async () => {
