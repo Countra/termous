@@ -526,7 +526,7 @@ vi.mock('#pages/forwards', () => ({
 vi.mock('#pages/settings', () => ({
   SettingsPage: ({ initialTab = 'general' }: { initialTab?: string }) => {
     const [activeTab, setActiveTab] = useState(initialTab)
-    const tabs = ['general', 'terminal', 'mcp', 'agent', 'data']
+    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'data']
     return (
       <div
         data-testid="settings-page"
@@ -555,7 +555,9 @@ vi.mock('#pages/settings', () => ({
                 aria-hidden={activeTab !== tab}
                 style={{ display: activeTab === tab ? 'block' : 'none' }}
               >
-                <div data-tour={`settings-${tab}`} />
+                <div data-tour={`settings-${tab}`}>
+                  {tab === 'mcp' ? <button data-tour="settings-skills-install" onClick={() => void testState.action()}>install-skills</button> : null}
+                </div>
               </div>
             ))}
           </>
@@ -563,6 +565,17 @@ vi.mock('#pages/settings', () => ({
       </div>
     )
   },
+}))
+vi.mock('#pages/mounts', () => ({
+  MountsPage: () => <section>
+    <header data-tour={testState.productTourPageHarness ? 'mounts-overview' : undefined}>
+      <button onClick={() => void testState.action()}>start-mount</button>
+    </header>
+    <div data-tour={testState.productTourPageHarness ? 'mounts-runtime' : undefined} />
+  </section>,
+}))
+vi.mock('#pages/audit', () => ({
+  AuditPage: () => <header data-tour={testState.productTourPageHarness ? 'audit-workspace' : undefined}>audit</header>,
 }))
 vi.mock('#pages/snippets', () => ({
   SnippetsPage: ({
@@ -890,9 +903,11 @@ describe('应用运行时组合合同', () => {
 
     await user.click(screen.getByRole('button', { name: 'files' }))
     expect(testState.projectionKeys.files).toEqual([
+      'fileAccessProfiles',
       'fileBookmarkGroups',
       'fileBookmarks',
       'fileSessions',
+      'hostAssets',
       'hosts',
       'localPathMappings',
       'settings',
@@ -1125,7 +1140,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成二十二步页面准备且不触发写操作或连接动作', async () => {
+  it('组合级完成全部向导页面准备且不触发写操作、安装或连接动作', async () => {
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
@@ -1175,6 +1190,7 @@ describe('应用运行时组合合同', () => {
         'hostsNav',
         'hostEditor',
         'hostConnections',
+        'fileProfiles',
         'topbarConnect',
         'workbench',
         'workbenchTools',
@@ -1182,11 +1198,16 @@ describe('应用运行时组合合同', () => {
         'filesBookmarks',
         'filesLocalDirectory',
         'filesTransfers',
+        'mounts',
+        'mountsRuntime',
         'forwards',
         'snippets',
+        'audit',
         'settings',
         'settingsTerminal',
+        'settingsMount',
         'settingsMcp',
+        'settingsSkills',
         'settingsAgent',
         'settingsData',
         'finish',
@@ -1351,6 +1372,7 @@ describe('应用运行时组合合同', () => {
       name: 'Primary files',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh-a' },
       sftp: { ssh_profile_id: 'ssh-a' },
       is_default: true,
       sort_order: 0,
@@ -1528,8 +1550,19 @@ describe('应用运行时组合合同', () => {
     }
     testState.data.hostAssets.push({ id: file.host_id, name: file.host_name })
     testState.data.sshAccessProfiles.push({ id: file.ssh_profile_id, host_id: file.host_id })
-    testState.data.fileAccessProfiles.push({ id: file.file_access_profile_id, name: file.file_access_profile_name,
-      host_id: file.host_id, engine: 'sftp', engine_config_version: 1, sftp: { ssh_profile_id: file.ssh_profile_id } })
+    testState.data.fileAccessProfiles.push({
+      id: file.file_access_profile_id,
+      name: file.file_access_profile_name,
+      host_id: file.host_id,
+      engine: 'sftp',
+      engine_config_version: 1,
+      config: { ssh_profile_id: file.ssh_profile_id },
+      sftp: { ssh_profile_id: file.ssh_profile_id },
+      is_default: true,
+      sort_order: 0,
+      created_at: '2026-09-16T00:00:00Z',
+      updated_at: '2026-09-16T00:00:00Z',
+    })
     const user = userEvent.setup()
     render(<App />)
 

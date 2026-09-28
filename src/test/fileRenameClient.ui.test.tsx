@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
+import { InvalidRemotePosixPathError } from '#shared/path'
 
 const API_BASE_URL = 'http://127.0.0.1:8122'
 
@@ -52,9 +53,84 @@ const compactPreset = {
   ],
 }
 
+const renamePreview = {
+  plan_hash: 'plan-hash',
+  items: [{
+    source_path: '/srv/example.txt',
+    original_name: 'example.txt',
+    final_name: 'renamed.txt',
+    kind: 'file',
+    size: 12,
+    version_token: 'version-token',
+    status: 'ready',
+  }],
+  summary: { total: 1, changed: 1, unchanged: 0, excluded: 0, blocked: 0 },
+}
+
+const renameOperation = {
+  id: 'fop-rename',
+  revision: 1,
+  file_session_id: 'file-session-test',
+  engine: 'sftp',
+  type: 'batch_rename',
+  status: 'queued',
+  phase: 'queued',
+  path: '/srv',
+  total_bytes: 0,
+  transferred_bytes: 0,
+  remaining_bytes: 0,
+  phase_total_bytes: 0,
+  phase_transferred_bytes: 0,
+  phase_progress_percent: 0,
+  progress_percent: 0,
+  speed_bytes_per_sec: 0,
+  average_speed_bytes_per_sec: 0,
+  elapsed_seconds: 0,
+  cancellable: true,
+  created_at: '2026-09-14T00:00:00Z',
+}
+
 describe('文件重命名预设 API 兼容归一化', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('校验重命名预览和异步任务中的规范虚拟路径', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(renamePreview), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ...renamePreview,
+        items: [{ ...renamePreview.items[0], source_path: '/srv/../etc/passwd' }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(renameOperation), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ...renameOperation,
+        path: '/srv//example',
+      }), { status: 201 })))
+    const files = createFilesGateway()
+    const input = {
+      expected_connection_generation: 1,
+      directory: '/srv',
+      source_paths: ['/srv/example.txt'],
+      excluded_paths: [],
+      rules: [],
+      variables: {},
+      order: { by: 'selection' as const, direction: 'asc' as const },
+      manual_overrides: {},
+    }
+
+    await expect(files.previewFileSessionBatchRename('file-session-test', input))
+      .resolves.toMatchObject({ items: [{ source_path: '/srv/example.txt' }] })
+    await expect(files.previewFileSessionBatchRename('file-session-test', input))
+      .rejects.toBeInstanceOf(InvalidRemotePosixPathError)
+    await expect(files.createFileSessionBatchRename('file-session-test', {
+      ...input,
+      expected_plan_hash: 'plan-hash',
+    })).resolves.toMatchObject({ path: '/srv' })
+    await expect(files.createFileSessionBatchRename('file-session-test', {
+      ...input,
+      expected_plan_hash: 'plan-hash',
+    })).rejects.toBeInstanceOf(InvalidRemotePosixPathError)
   })
 
   it('将旧 Core 返回的空说明和 null 变量定义归一化为前端合同', async () => {

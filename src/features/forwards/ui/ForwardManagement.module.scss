@@ -967,10 +967,6 @@
   padding: 10px;
 }
 
-.forward-session-row.is-running {
-  border-color: color-mix(in srgb, #43cb98 28%, var(--border));
-}
-
 .forward-session-row.is-failed {
   border-color: color-mix(in srgb, #ff656d 34%, var(--border));
 }
@@ -1357,14 +1353,23 @@
   transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 
+/* 运行态通过中性容器层次承载，状态色仅保留在徽标文字与图标中。 */
+.forward-session-row.is-running,
+.forwarding-runtime-row.is-running {
+  border-color: color-mix(in srgb, var(--border-strong) 44%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 36%, var(--surface-subtle));
+}
+
+.forward-session-row.is-running :global(.status-badge),
+.forwarding-runtime-row.is-running :global(.status-badge) {
+  border-color: color-mix(in srgb, var(--border-strong) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+
 .forwarding-profile-row:hover,
 .forwarding-runtime-row:hover {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
   background: color-mix(in srgb, var(--accent) 4%, var(--surface-subtle));
-}
-
-.forwarding-runtime-row.is-running {
-  border-color: color-mix(in srgb, #43cb98 27%, var(--border));
 }
 
 .forwarding-row-heading {
@@ -1429,6 +1434,107 @@
 .forwarding-row-mode {
   display: flex;
   min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.forwarding-auto-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  :global(.ant-switch) {
+    flex-shrink: 0;
+  }
+}
+
+.forwarding-auto-start-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  padding: 3px 7px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.forwarding-auto-start-badge.is-failed {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--danger);
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+
+  &:hover,
+  &[aria-expanded="true"] {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--danger);
+    outline-offset: 2px;
+  }
+}
+
+.forwarding-startup-tooltip:global(.ant-tooltip) {
+  max-width: min(360px, calc(100vw - 24px));
+}
+
+.forwarding-startup-error {
+  display: grid;
+  gap: 6px;
+  padding: 3px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  strong {
+    color: var(--danger);
+  }
+
+  p {
+    max-height: min(240px, 50vh);
+    overflow: auto;
+    margin: 0;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    user-select: text;
+  }
+}
+
+.forwarding-startup-error-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+
+  time {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 }
 
 .forwarding-profile-row .forward-route-diagram,
@@ -1441,9 +1547,25 @@
   min-height: 180px;
   flex: 1 1 auto;
   place-items: center;
-  border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-subtle) 62%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+
+.forwarding-empty :global(.ant-empty) {
+  margin: 0;
+}
+
+.forwarding-empty :global(.ant-empty-image) {
+  height: 44px;
+  margin-bottom: 7px;
+  opacity: 0.68;
+}
+
+.forwarding-empty :global(.ant-empty-description) {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .forwarding-editor-form {

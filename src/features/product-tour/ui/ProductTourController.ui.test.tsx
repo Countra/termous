@@ -460,7 +460,12 @@ describe('核心使用向导控制器', () => {
     await waitFor(() => expect(records[0].activeIndex()).toBe(6))
 
     act(() => invokeConfigHook(records[0], 'next'))
-    expect(records[0].activeIndex()).toBe(6)
+    const fileProfilesIndex = productTourSteps.findIndex((step) => step.id === 'fileProfiles')
+    await waitFor(() => expect(records[0].activeIndex()).toBe(fileProfilesIndex))
+    expect(onBlocked).toHaveBeenCalledTimes(3)
+
+    act(() => invokeConfigHook(records[0], 'next'))
+    expect(records[0].activeIndex()).toBe(fileProfilesIndex)
     expect(onBlocked).toHaveBeenCalledTimes(4)
     vaultWorkspace.remove()
     hostWorkspace.remove()
@@ -1186,7 +1191,7 @@ function installPreparedTourTargets() {
   const settingsPanel = document.createElement('section')
   settingsPanel.setAttribute('role', 'tabpanel')
   settingsPanel.setAttribute('aria-hidden', 'false')
-  for (const tab of ['terminal', 'mcp', 'agent', 'data']) {
+  for (const tab of ['terminal', 'mount', 'mcp', 'skills-install', 'agent', 'data']) {
     const content = document.createElement('div')
     content.dataset.tour = `settings-${tab}`
     settingsPanel.appendChild(content)

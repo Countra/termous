@@ -58,7 +58,14 @@ export class AppExitCoordinator {
     }
     // 退出请求必须同步生效，避免等待 Core 收口期间又创建或显示窗口。
     this.exitRequested = true
-    const pending = this.performApplicationExit(source)
+    const pending = this.performApplicationExit(source).then((result) => {
+      if (!result.coreStopped) {
+        this.exitRequested = false
+        this.appExitPromise = null
+        this.applicationExitCoreStopPromise = null
+      }
+      return result
+    })
     this.appExitPromise = pending
     return pending
   }
@@ -93,7 +100,7 @@ export class AppExitCoordinator {
   canCloseWindow(role: AppWindowRole) {
     return (
       role === 'update'
-      || this.exitRequested
+      || (this.exitRequested && this.nativeQuitAllowed)
       || this.windowTeardownStarted
     )
   }
@@ -172,7 +179,7 @@ export class AppExitCoordinator {
   }
 
   private async finishFailedUpdateRecovery() {
-    await this.stopCoreForApplicationExit()
+    if (!await this.stopCoreForApplicationExit()) return
     this.nativeQuitAllowed = true
     this.windowTeardownStarted = true
     this.prepareForExitOnce()
@@ -196,6 +203,7 @@ export class AppExitCoordinator {
     if (!coreStopped) {
       coreStopped = await this.stopCoreForApplicationExit()
     }
+    if (!coreStopped) return { mode: 'application_exit', source, coreStopped: false }
     this.nativeQuitAllowed = true
     this.windowTeardownStarted = true
     this.prepareForExitOnce()

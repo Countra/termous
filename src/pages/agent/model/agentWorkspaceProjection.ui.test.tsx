@@ -58,6 +58,7 @@ describe('Agent 工作区页面投影', () => {
         default_model_id: 'model-missing', default_reasoning_level: 'off',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
         context_compaction_threshold_percent: 80,
+        connect_ssh_profile_on_bind: false,
         show_turn_token_usage: true, revision: 1,
         created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },

@@ -150,6 +150,7 @@ function fileProfile(host: Host): FileAccessProfile {
     name: 'Primary files',
     engine: 'sftp',
     engine_config_version: 1,
+    config: { ssh_profile_id: `${host.id}-ssh` },
     sftp: { ssh_profile_id: `${host.id}-ssh` },
     is_default: true,
     sort_order: 0,
@@ -197,6 +198,24 @@ function deferred<T>() {
 describe('HostLauncherModal 行为合同', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('无 SSH 的主机通过文件快捷操作打开默认 S3 配置', async () => {
+    const current = host('s3-host', 'Object storage')
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+    render(<HostLauncherModal open instanceKey={1}
+      data={{ ...data([]), hostAssets: [toHostAsset(current)], fileAccessProfiles: [{
+        ...fileProfile(current), engine: 's3', sftp: undefined,
+        config: { endpoint: 'https://minio.example', bucket: 'test-bucket' },
+      }] }} selectedHostId={current.id} actionBusy={false}
+      onClose={vi.fn()} onSelectHost={vi.fn()} onConnectSSHProfile={vi.fn()}
+      onCreateHost={vi.fn()} onEditHost={vi.fn()} onManageHostAccess={vi.fn()}
+      onOpenFileProfile={onOpenFileProfile} onOpenRemoteDesktopProfile={vi.fn()}
+      onOpenForward={vi.fn()} onToggleFavorite={vi.fn()} onRefreshReachability={vi.fn()}
+      getHostIconUrl={() => ''} />)
+    expect(screen.getByRole('button', { name: 'app.connect' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'workbench.hostLauncher.openFiles' }))
+    await waitFor(() => expect(onOpenFileProfile).toHaveBeenCalledWith('s3-host-file', 's3-host'))
   })
 
   it('无 SSH 的主机资产仍可管理且不会伪造连接信息', async () => {
@@ -751,6 +770,7 @@ describe('HostLauncherModal 行为合同', () => {
       name: 'Secondary files',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: 'host-a-ssh-secondary' },
       sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
       is_default: false,
       sort_order: 1,
@@ -1168,6 +1188,7 @@ describe('HostLauncherModal 行为合同', () => {
       ...fileProfile(current),
       id: 'host-a-file-secondary',
       name: 'Secondary files',
+      config: { ssh_profile_id: 'host-a-ssh-secondary' },
       sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
       is_default: false,
       sort_order: 1,
@@ -1230,6 +1251,7 @@ describe('HostLauncherModal 行为合同', () => {
         ...fileProfile(current),
         id: 'host-a-file-secondary',
         name: 'Secondary files',
+        config: { ssh_profile_id: 'host-a-ssh-secondary' },
         sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
         is_default: true,
         sort_order: 1,
@@ -1287,6 +1309,7 @@ describe('HostLauncherModal 行为合同', () => {
       ...fileProfile(current),
       id: 'host-a-file-secondary',
       name: 'Secondary files',
+      config: { ssh_profile_id: 'host-a-ssh-secondary' },
       sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
     }]
     const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)

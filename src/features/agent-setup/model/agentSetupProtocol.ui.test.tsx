@@ -23,6 +23,17 @@ describe('Agent setup protocol', () => {
         .toThrow(AgentSetupProtocolError)
     }
   })
+  it('SSH Profile 自动连接设置缺失时默认关闭，并拒绝非布尔值', () => {
+    expect(decodeAgentSettings(settingsFixture()).connect_ssh_profile_on_bind).toBe(false)
+    expect(decodeAgentSettings({
+      ...settingsFixture(), connect_ssh_profile_on_bind: true,
+    }).connect_ssh_profile_on_bind).toBe(true)
+    for (const value of ['true', 1, 0, null, {}]) {
+      expect(() => decodeAgentSettings({
+        ...settingsFixture(), connect_ssh_profile_on_bind: value,
+      })).toThrow(AgentSetupProtocolError)
+    }
+  })
   it('严格解析缺省默认模型、准备状态和 MCP 策略', () => {
     const readiness = decodeAgentReadiness(readinessFixture())
     expect(readiness.settings.default_model_id).toBeUndefined()

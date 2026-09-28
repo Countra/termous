@@ -1,5 +1,5 @@
 import type { AppConfig } from '#common/contracts';
-import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, RemoteCopyTransferInput, TransferTask } from '#entities/file';
+import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, RemoteCopyTransferInput, TransferTask, UploadOverwriteConfirmation } from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 
 export class TransferClient extends TermousApiTransport {
@@ -28,6 +28,7 @@ createUploadTransfer(
   remoteDir: string,
   overwritePolicy: OverwritePolicy = 'rename',
   overwriteItemIds: string[] = [],
+  overwriteConfirmations: UploadOverwriteConfirmation[] = [],
 ) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
@@ -37,6 +38,7 @@ createUploadTransfer(
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
         ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
+        ...(overwriteConfirmations.length > 0 ? { overwrite_confirmations: overwriteConfirmations } : {}),
       },
     })
   }
@@ -47,6 +49,7 @@ createFileSessionUploadTransfer(
   remoteDir: string,
   overwritePolicy: OverwritePolicy = 'rename',
   overwriteItemIds: string[] = [],
+  overwriteConfirmations: UploadOverwriteConfirmation[] = [],
 ) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
@@ -56,6 +59,7 @@ createFileSessionUploadTransfer(
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
         ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
+        ...(overwriteConfirmations.length > 0 ? { overwrite_confirmations: overwriteConfirmations } : {}),
       },
     })
   }

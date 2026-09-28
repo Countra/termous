@@ -12,6 +12,7 @@ import { ConnectionActionButton, customSelectStyles, EditorModeContext, Manageme
 import type { CredentialValidationErrors } from '../model/credentialCatalog.ts'
 import { sshKeyAlgorithmSummary } from '../model/sshKeyUi.ts'
 import styles from './CredentialManagement.module.scss'
+import { PrivateKeyDropTarget } from './PrivateKeyDropTarget.tsx'
 
 interface CredentialEditorProps {
   credentials: CredentialView[]
@@ -30,6 +31,7 @@ interface CredentialEditorProps {
   onDelete: () => void
   onDiscard: () => void
   onImportKey: () => void
+  onImportKeyFiles: (files: File[]) => void
 }
 
 export function CredentialEditor({
@@ -49,6 +51,7 @@ export function CredentialEditor({
   onDelete,
   onDiscard,
   onImportKey,
+  onImportKeyFiles,
 }: CredentialEditorProps) {
   const { t } = useTranslation()
   const Icon = credentialTypeIcon(draft.type)
@@ -113,19 +116,18 @@ export function CredentialEditor({
                   description={t('vault.deleteConfirmHint')}
                   okText={t('app.delete')}
                   cancelText={t('app.cancel')}
-                  disabled={deleteBlocked || actionBusy}
-                  rootClassName={styles['credential-popconfirm']}
+                  disabled={deleteBlocked || actionBusy || importBusy}
                   onConfirm={onDelete}
                 >
-                  <Button danger icon={<Trash2 size={15} />} disabled={deleteBlocked || actionBusy}>{t('app.delete')}</Button>
+                  <Button danger icon={<Trash2 size={15} />} disabled={deleteBlocked || actionBusy || importBusy}>{t('app.delete')}</Button>
                 </Popconfirm>
               </span>
             </Tooltip>
           ) : null}
           <span className={styles['credential-editor-footer-spacer']} />
-          <Button disabled={!dirty || actionBusy} onClick={onDiscard}>{t('vault.discard')}</Button>
+          <Button disabled={!dirty || actionBusy || importBusy} onClick={onDiscard}>{t('vault.discard')}</Button>
           <ConnectionActionButton
-            disabled={!dirty || hasErrors || actionBusy}
+            disabled={!dirty || hasErrors || actionBusy || importBusy}
             loading={actionBusy}
             icon={editingCredential ? <Save size={15} /> : <Plus size={15} />}
             onClick={onSave}
@@ -192,18 +194,25 @@ export function CredentialEditor({
               ) : null}
             </span>
             {draft.type === 'private_key' ? (
-              <Input.TextArea
-                name="credential-private-key"
-                value={draft.secret}
-                autoSize={{ minRows: 7, maxRows: 12 }}
-                status={visibleErrors.secret ? 'error' : undefined}
-                placeholder={requireSecret ? t('vault.secretRequiredPlaceholder') : t('vault.secretKeepPlaceholder')}
-                onChange={(event) => onChange({
-                  secret: event.target.value,
-                  ssh_key_info: undefined,
-                  pending_passphrase: undefined,
-                })}
-              />
+              <PrivateKeyDropTarget
+                disabled={actionBusy || importBusy}
+                activeLabel={t('vault.sshKey.dropActive')}
+                onFiles={onImportKeyFiles}
+              >
+                <Input.TextArea
+                  name="credential-private-key"
+                  value={draft.secret}
+                  autoSize={{ minRows: 7, maxRows: 12 }}
+                  disabled={importBusy}
+                  status={visibleErrors.secret ? 'error' : undefined}
+                  placeholder={requireSecret ? t('vault.secretRequiredPlaceholder') : t('vault.secretKeepPlaceholder')}
+                  onChange={(event) => onChange({
+                    secret: event.target.value,
+                    ssh_key_info: undefined,
+                    pending_passphrase: undefined,
+                  })}
+                />
+              </PrivateKeyDropTarget>
             ) : (
               <Input.Password
                 name="credential-secret"

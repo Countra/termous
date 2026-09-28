@@ -1,6 +1,6 @@
 import type { Alignment, Side } from 'driver.js'
 
-export const PRODUCT_TOUR_VERSION = 3
+export const PRODUCT_TOUR_VERSION = 4
 
 export type ProductTourStepId =
   | 'welcome'
@@ -10,6 +10,7 @@ export type ProductTourStepId =
   | 'hostsNav'
   | 'hostEditor'
   | 'hostConnections'
+  | 'fileProfiles'
   | 'topbarConnect'
   | 'workbench'
   | 'workbenchTools'
@@ -17,11 +18,16 @@ export type ProductTourStepId =
   | 'filesBookmarks'
   | 'filesLocalDirectory'
   | 'filesTransfers'
+  | 'mounts'
+  | 'mountsRuntime'
   | 'forwards'
   | 'snippets'
+  | 'audit'
   | 'settings'
   | 'settingsTerminal'
+  | 'settingsMount'
   | 'settingsMcp'
+  | 'settingsSkills'
   | 'settingsAgent'
   | 'settingsData'
   | 'finish'
@@ -31,8 +37,10 @@ type ProductTourRoute =
   | 'hosts'
   | 'workbench'
   | 'files'
+  | 'mounts'
   | 'forwards'
   | 'snippets'
+  | 'audit'
   | 'settings'
 
 type ProductTourPreparation =
@@ -42,6 +50,7 @@ type ProductTourPreparation =
   | 'hostEditor'
   | 'hostConnections'
   | 'settingsTerminal'
+  | 'settingsMount'
   | 'settingsMcp'
   | 'settingsAgent'
   | 'settingsData'
@@ -132,6 +141,15 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     align: 'start',
   },
   {
+    id: 'fileProfiles',
+    element: '[data-active-view="editor"] [data-tour="host-editor"] [data-tour="host-connection-catalog"]',
+    route: 'hosts',
+    preparation: 'hostConnections',
+    disableActiveInteraction: true,
+    side: 'left',
+    align: 'start',
+  },
+  {
     id: 'topbarConnect',
     element: '[data-tour="topbar-connect"]',
     route: 'workbench',
@@ -181,6 +199,22 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     align: 'end',
   },
   {
+    id: 'mounts',
+    element: '[data-tour="mounts-overview"]',
+    route: 'mounts',
+    disableActiveInteraction: true,
+    side: 'bottom',
+    align: 'end',
+  },
+  {
+    id: 'mountsRuntime',
+    element: '[data-tour="mounts-runtime"]',
+    route: 'mounts',
+    disableActiveInteraction: true,
+    side: 'left',
+    align: 'start',
+  },
+  {
     id: 'forwards',
     element: '[data-tour="forwards-overview"]',
     route: 'forwards',
@@ -193,6 +227,14 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     route: 'snippets',
     side: 'right',
     align: 'center',
+  },
+  {
+    id: 'audit',
+    element: '[data-tour="audit-workspace"]',
+    route: 'audit',
+    disableActiveInteraction: true,
+    side: 'bottom',
+    align: 'start',
   },
   {
     id: 'settings',
@@ -212,6 +254,15 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     align: 'start',
   },
   {
+    id: 'settingsMount',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-mount"]',
+    route: 'settings',
+    preparation: 'settingsMount',
+    disableActiveInteraction: true,
+    side: 'top',
+    align: 'start',
+  },
+  {
     id: 'settingsMcp',
     element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-mcp"]',
     route: 'settings',
@@ -219,6 +270,15 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
     disableActiveInteraction: true,
     side: 'top',
     align: 'start',
+  },
+  {
+    id: 'settingsSkills',
+    element: '[role="tabpanel"][aria-hidden="false"] [data-tour="settings-skills-install"]',
+    route: 'settings',
+    preparation: 'settingsMcp',
+    disableActiveInteraction: true,
+    side: 'left',
+    align: 'center',
   },
   {
     id: 'settingsAgent',

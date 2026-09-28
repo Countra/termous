@@ -6,6 +6,7 @@ import {
   isAgentResourceRecoveryBlocking,
   agentResourceBindingKey,
   getAgentResourceBinding,
+  getAgentResourceBindingBySlot,
   resourceBindingMatchesSource,
   resourceReference,
   type AgentResourceBinding,
@@ -20,11 +21,15 @@ import {
   type AgentReferenceTargetsSnapshot,
   type AgentResourceReferenceLaunch,
   type AgentSession,
+  type AgentSlashCandidate,
+  type AgentSlashCandidateCatalog,
+  type AgentSSHProfileResourceState,
   type AgentSSHResourceState,
 } from '#entities/agent'
 import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
 import {
   AgentRuntimeStartError,
+  AgentDraftSessionCoordinator,
   AgentWorkspaceController,
   useAgentDraftAttachments,
   useAgentArchives,
@@ -33,6 +38,8 @@ import {
   useAgentTerminalReferenceImport,
   useAgentQueuedTurnEditOwners,
   useAgentResourceRecovery,
+  useAgentResourceBindingConnection,
+  isAgentResourceBindingConnectionBlocking,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import {
@@ -46,6 +53,8 @@ import {
   AgentArchiveManager,
   type AgentWorkspaceInspectorState,
   type AgentWorkspaceResourceContext,
+  type AgentWorkspaceSlashAvailability,
+  type AgentWorkspaceSlashExecution,
 } from '#widgets/agent-workspace'
 import {
   agentRunInteractionBlocked,
@@ -58,11 +67,28 @@ import {
 } from '../model/agentWorkspaceProjection.ts'
 import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
 import { resolveAgentResourceError } from '../model/agentResourceError.ts'
+import {
+  compactDraftHasPayload,
+  compactSlashDisabledReason,
+  consumeSlashCaptureText,
+  latestSlashCandidate,
+  latestSlashMutationCandidate,
+  sameSlashCandidateIdentity,
+  slashCandidateMatchesBinding,
+  slashCaptureMatches,
+  slashCommandAvailability,
+  slashDisabledReason,
+} from '../model/agentSlashExecution.ts'
+import { projectCurrentAgentSlashCandidates } from '../model/agentSlashProjection.ts'
 import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
 import { AgentTerminalReferenceImportNotice } from './AgentTerminalReferenceImportNotice.tsx'
 import styles from './AgentPage.module.scss'
 
 const noSSHResources: AgentSSHResourceState[] = []
+const noSlashCandidates: AgentSlashCandidateCatalog = {
+  session: { ssh: [], file: [] },
+  profile: { ssh: [], file: [] },
+}
 
 export function AgentPage({
   gateway,
@@ -71,6 +97,8 @@ export function AgentPage({
   sshResourcesReady = false,
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
+  sshProfileResourcesReady = fileResourcesReady,
+  slashCandidates = noSlashCandidates,
   enabled,
   active,
   launchIntent,
@@ -83,8 +111,10 @@ export function AgentPage({
   setupGateway: AgentSetupGateway
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
+  sshProfileResourcesReady?: boolean
   fileResources?: AgentFileResourceState[]
   fileResourcesReady?: boolean
+  slashCandidates?: AgentSlashCandidateCatalog
   enabled: boolean
   active: boolean
   launchIntent?: AgentLaunchIntent | null
@@ -97,8 +127,9 @@ export function AgentPage({
   onOpenSettings?: () => void
 }) {
   const { t } = useTranslation()
-  const { notification } = AntdApp.useApp()
+  const { notification, modal } = AntdApp.useApp()
   const controller = useMemo(() => new AgentWorkspaceController({ gateway }), [gateway])
+  const draftSessionCoordinator = useMemo(() => new AgentDraftSessionCoordinator(), [])
   const getQueuedEditOwner = useAgentQueuedTurnEditOwners(controller)
   const [composerFocusKey, setComposerFocusKey] = useState(0)
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
@@ -113,10 +144,11 @@ export function AgentPage({
   const [operationBusy, setOperationBusy] = useState<AgentOperationBusy>(() => createOperationBusy())
   const [draftModelId, setDraftModelId] = useState<string>()
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
+  const [dismissedProfileConnectionKey, setDismissedProfileConnectionKey] = useState<string>()
+  const [slashExecutionSessionIds, setSlashExecutionSessionIds] = useState<ReadonlySet<string>>(() => new Set())
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
   const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
-  const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
   const setupLoadRequestRef = useRef(0)
   const activeSetupEpochRef = useRef(0)
   const activeSetupReadyEpochRef = useRef(0)
@@ -126,6 +158,9 @@ export function AgentPage({
   const previousQueuedTurnEditSessionIdsRef = useRef(new Map<string, string>())
   const previousReferenceTargetsRef = useRef('')
   const committedQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
+  const slashCandidatesRef = useRef<AgentSlashCandidateCatalog>(noSlashCandidates)
+  const sshResourcesRef = useRef<readonly AgentSSHResourceState[]>(noSSHResources)
+  const slashExecutionSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
   const providerById = useMemo(
@@ -358,6 +393,7 @@ export function AgentPage({
   const createDraftSession = useCallback(async (
     resourceReference?: AgentResourceReference,
     selectionRevision = controller.getSnapshot().selection_intent_revision,
+    select = true,
   ) => {
     const modelId = newSessionModelId
     if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
@@ -372,37 +408,43 @@ export function AgentPage({
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
       resource_reference: resourceReference,
-    }, selectionRevision)
+    }, selectionRevision, select)
     const current = controller.getSnapshot()
     if (current.selected_session_id === session.id && current.selection_intent_revision === selectionRevision + 1
       && !resourceReference) setDraftGroupId(undefined)
     return session
   }, [controller, draftGroupId, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
 
-  const ensureAttachmentDraftSession = useCallback(() => {
-    if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
-    const promise = createDraftSession().finally(() => {
-      if (attachmentDraftSessionPromiseRef.current === promise) {
-        attachmentDraftSessionPromiseRef.current = null
-      }
-    })
-    attachmentDraftSessionPromiseRef.current = promise
-    return promise
-  }, [createDraftSession])
+  const ensureDraftSession = useCallback((selectionRevision: number) => {
+    return draftSessionCoordinator.ensure(
+      selectionRevision,
+      () => createDraftSession(undefined, selectionRevision, false),
+    )
+  }, [createDraftSession, draftSessionCoordinator])
 
   const ensureAttachmentSession = useCallback(async () => {
     const selection = controller.getSnapshot()
     if (selection.selected_session_id) return selection.selected_session_id
-    const session = await ensureAttachmentDraftSession()
+    const pendingSession = ensureDraftSession(selection.selection_intent_revision)
+    let session: AgentSession
+    try {
+      session = await pendingSession
+    } finally {
+      draftSessionCoordinator.release(pendingSession)
+    }
     const current = controller.getSnapshot()
-    const ownsDraft = current.selected_session_id === session.id
-      && current.selection_intent_revision === selection.selection_intent_revision + 1
+    const ownsDraft = !current.selected_session_id
+      && current.selection_intent_revision === selection.selection_intent_revision
     const newDraft = (ownsDraft ? current : selection).drafts.new?.text ?? ''
-    // 创建期间继续输入的内容跟随原草稿；用户另开草稿后，迟到回执只保存发起时的内容。
-    if (newDraft && !current.drafts[session.id]) controller.updateDraft(session.id, newDraft)
-    if (ownsDraft) controller.updateDraft('new', '')
+    // 同代草稿始终采用完成时内容；用户另开草稿后，迟到回执只保留原代快照。
+    if (ownsDraft || newDraft && !current.drafts[session.id]) controller.updateDraft(session.id, newDraft)
+    if (ownsDraft) {
+      controller.updateDraft('new', '')
+      controller.selectSession(session.id)
+      setDraftGroupId(undefined)
+    }
     return session.id
-  }, [controller, ensureAttachmentDraftSession])
+  }, [controller, draftSessionCoordinator, ensureDraftSession])
 
   const reportAttachmentError = useCallback((code: string) => {
     notificationRef.current.error({
@@ -494,6 +536,68 @@ export function AgentPage({
   }, [controller])
   const recovery = useAgentResourceRecovery(gateway, controller, selected,
     enabled && active && state.snapshot_complete, selectedQueueState?.revision, sshResources, readiness, notifyRecoveryCompleted)
+  const notifyConnectionCompleted = useCallback((connected: AgentSession) => {
+    const current = controller.getSnapshot().sessions.find((session) => session.id === connected.id)
+    if (!current || current.archived_at || agentResourceBindingKey(getAgentResourceBindingBySlot(current.resource_bindings, 'ssh'))
+      !== agentResourceBindingKey(getAgentResourceBindingBySlot(connected.resource_bindings, 'ssh'))) return
+    notificationRef.current.success({
+      key: `agent-resource-connection-${connected.id}`,
+      placement: 'topRight',
+      title: tRef.current('agent.slash.connection.completed'),
+      description: tRef.current('agent.slash.connection.completedDescription'),
+      duration: 2,
+      showProgress: false,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [controller])
+  const notifyResourceBindingCompleted = useCallback((sessionId: string, candidate: AgentSlashCandidate) => {
+    const current = controller.getSnapshot().sessions.find((session) => session.id === sessionId)
+    const binding = current && getAgentResourceBindingBySlot(
+      current.resource_bindings,
+      candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+    )
+    if (!current || current.archived_at || !slashCandidateMatchesExpectedBinding(candidate, binding)) return
+    notificationRef.current.success({
+      key: `agent-resource-binding-${sessionId}-${candidate.resource_kind}`,
+      placement: 'topRight',
+      title: tRef.current('agent.slash.binding.completed'),
+      description: tRef.current('agent.slash.binding.completedDescription'),
+      duration: 2,
+      showProgress: false,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [controller])
+  const connectionObservationRevision = `${selectedQueueState?.revision ?? 0}:${state.active_run_id ?? ''}:${sshResources
+    .map((resource) => `${resource.session_id}:${resource.status}:${resource.started_at}`).join('|')}`
+  const profileConnection = useAgentResourceBindingConnection(
+    gateway,
+    controller,
+    selected,
+    enabled && active && state.snapshot_complete,
+    connectionObservationRevision,
+    notifyConnectionCompleted,
+  )
+  const connectSSHProfileBinding = async (sessionId: string, sshProfileId: string) => {
+    const latestSession = controller.getSnapshot().sessions.find((session) => session.id === sessionId)
+    if (!latestSession || latestSession.archived_at) return false
+    setDismissedProfileConnectionKey(undefined)
+    const accepted = await profileConnection.coordinator.connect(latestSession, sshProfileId)
+    if (!accepted) {
+      notifyError(notificationRef.current, tRef.current,
+        new Error(profileConnection.coordinator.getSnapshot()[latestSession.id]?.error_code
+          ?? 'AGENT_RESOURCE_CONNECTION_FAILED'), 'resource')
+    }
+    return accepted
+  }
+  const profileConnectionPresentationKey = profileConnection.state?.view?.operation
+    ? `${profileConnection.state.view.instance_id}:${profileConnection.state.view.operation.id}`
+    : profileConnection.state?.error_code
+      ? `${selected?.id ?? 'new'}:${profileConnection.state.uncertain ? 'uncertain' : 'failed'}:${profileConnection.state.error_code}`
+      : profileConnection.state?.uncertain
+        ? `${selected?.id ?? 'new'}:uncertain`
+        : undefined
   const selectedDraftAttachmentRecords = selected && selectedQueuedTurnEdit
     ? queuedTurnEditAttachments.records[selected.id]?.filter((record) => !record.owner_id || record.owner_id === getQueuedEditOwner(selected.id))
     : draftAttachments.records[selected?.id ?? 'new']
@@ -511,19 +615,51 @@ export function AgentPage({
     })),
     [selectedDraftAttachmentRecords],
   )
-  const resources = useMemo(() => [...sshResources, ...fileResources], [sshResources, fileResources])
+  const sshProfileResources = useMemo<AgentSSHProfileResourceState[]>(() => slashCandidates.profile.ssh.map((candidate) => ({
+    host_id: candidate.host_id,
+    ssh_profile_id: candidate.ssh_profile_id,
+    host_name: candidate.host_name,
+    ssh_profile_name: candidate.profile_name,
+    platform: 'linux',
+    status: candidate.disabled_reason ? 'unavailable' : 'ready',
+  })), [slashCandidates.profile.ssh])
+  const resources = useMemo(
+    () => [...sshResources, ...sshProfileResources, ...fileResources],
+    [sshResources, sshProfileResources, fileResources],
+  )
+  const currentSlashCandidates = useMemo(
+    () => projectCurrentAgentSlashCandidates(
+      slashCandidates,
+      selected?.resource_bindings,
+      readiness?.settings.connect_ssh_profile_on_bind,
+    ),
+    [readiness?.settings.connect_ssh_profile_on_bind, selected?.resource_bindings, slashCandidates],
+  )
+  slashCandidatesRef.current = currentSlashCandidates
+  sshResourcesRef.current = sshResources
   const resourceContexts = useMemo(
     () => (selected?.resource_bindings ?? []).map((binding) => projectResourceContext(
-      binding, resources, (binding.kind === 'ssh_session' ? sshResourcesReady : fileResourcesReady) && state.snapshot_complete,
+      binding,
+      resources,
+      (binding.kind === 'file_profile'
+        ? fileResourcesReady
+        : binding.kind === 'ssh_profile' ? sshProfileResourcesReady : sshResourcesReady)
+        && state.snapshot_complete,
     )).map((context) => context.binding.kind === 'ssh_session' ? { ...context, recovery: recovery.state } : context),
-    [selected?.resource_bindings, resources, sshResourcesReady, fileResourcesReady, state.snapshot_complete, recovery.state],
+    [selected?.resource_bindings, resources, sshResourcesReady, sshProfileResourcesReady,
+      fileResourcesReady, state.snapshot_complete, recovery.state],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
   const createReferenceSession = useCallback(async (request: AgentResourceReferenceLaunch) => {
     let selectionRevision = controller.getSnapshot().selection_intent_revision
-    const pendingAttachment = attachmentDraftSessionPromiseRef.current
-    if (pendingAttachment) {
-      const attachmentSession = await pendingAttachment.catch(() => undefined)
+    const pendingDraftSession = draftSessionCoordinator.acquire(selectionRevision)
+    if (pendingDraftSession) {
+      let attachmentSession: AgentSession | undefined
+      try {
+        attachmentSession = await pendingDraftSession.catch(() => undefined)
+      } finally {
+        draftSessionCoordinator.release(pendingDraftSession)
+      }
       const current = controller.getSnapshot()
       // 附件会话自动选中仍属于原发起动作；等待期间的用户选择不得被后续创建覆盖。
       if (attachmentSession && current.selected_session_id === attachmentSession.id
@@ -532,7 +668,7 @@ export function AgentPage({
       }
     }
     return createDraftSession(request.resource_reference, selectionRevision)
-  }, [controller, createDraftSession])
+  }, [controller, createDraftSession, draftSessionCoordinator])
   const referenceImport = useAgentTerminalReferenceImport({
     intent: launchIntent ?? undefined,
     controller,
@@ -600,6 +736,7 @@ export function AgentPage({
 
   const resourceRunBlocked = resourceContexts.some(({ status }) => status !== 'ready')
   const resourceRecoveryBlocked = isAgentResourceRecoveryBlocking(recovery.state)
+  const resourceConnectionBlocked = isAgentResourceBindingConnectionBlocking(profileConnection.state)
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
@@ -618,6 +755,73 @@ export function AgentPage({
     turns.filter(({ state: turnState }) => turnState === 'queued').length,
   ]))
   const usageSnapshot = selectedUsage?.value
+  const selectedHasQueuedTurns = selectedQueuedTurns.some(({ state: turnState }) => turnState === 'queued')
+  const selectedArchived = Boolean(selected?.archived_at)
+  const slashExecutionCurrent = slashExecutionSessionIds.has(selected?.id ?? 'new')
+  const resourceSlashEnabled = activeSetupReady
+    && workspaceInfrastructureReady
+    && state.snapshot_complete
+    && !selectedArchived
+    && !activeRun
+    && !selectedQueuedTurnEdit
+    && !selectedHasQueuedTurns
+    && !operationBusy.workspace
+    && !slashExecutionCurrent
+  const sshSlashEnabled = resourceSlashEnabled
+    && !resourceRecoveryBlocked
+    && !resourceConnectionBlocked
+  const resourceSlashDisabledReason = slashDisabledReason({
+    archived: selectedArchived,
+    activeRun: Boolean(activeRun),
+    editing: Boolean(selectedQueuedTurnEdit),
+    busy: operationBusy.workspace || slashExecutionCurrent,
+    queued: selectedHasQueuedTurns,
+    connection: false,
+  })
+  const sshSlashDisabledReason = slashDisabledReason({
+    archived: selectedArchived,
+    activeRun: Boolean(activeRun),
+    editing: Boolean(selectedQueuedTurnEdit),
+    busy: operationBusy.workspace || slashExecutionCurrent,
+    queued: selectedHasQueuedTurns,
+    connection: resourceConnectionBlocked || resourceRecoveryBlocked,
+  })
+  const compactSlashEnabled = activeSetupReady
+    && workspaceInfrastructureReady
+    && state.snapshot_complete
+    && !selectedArchived
+    && !activeRun
+    && !selectedQueuedTurnEdit
+    && !operationBusy.workspace
+    && !slashExecutionCurrent
+    && contextSnapshot?.compression_status !== 'unavailable'
+    && (Boolean(selected) || compactDraftHasPayload(state.drafts.new?.text ?? ''))
+  const slashAvailability: AgentWorkspaceSlashAvailability = {
+    session: {
+      ...slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+      resource_kinds: {
+        ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
+        file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+      },
+    },
+    profile: {
+      ...slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+      resource_kinds: {
+        ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
+        file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+      },
+    },
+    compact: slashCommandAvailability(compactSlashEnabled,
+      compactSlashDisabledReason({
+        archived: selectedArchived,
+        selected: Boolean(selected),
+        draft: state.drafts.new?.text ?? '',
+        activeRun: Boolean(activeRun),
+        editing: Boolean(selectedQueuedTurnEdit),
+        busy: operationBusy.workspace || slashExecutionCurrent,
+        unavailable: contextSnapshot?.compression_status === 'unavailable',
+      })),
+  }
   const inspector: AgentWorkspaceInspectorState = {
     context: {
       phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
@@ -660,6 +864,208 @@ export function AgentPage({
       connection: projectMcpConnection(Boolean(state.active_run_id), state.runtime_status?.state),
       scope_count: readiness.mcp_policy?.scope_count ?? 0,
     },
+  }
+
+  const updateSlashExecutionSessions = (sessionIds: readonly string[], executing: boolean) => {
+    for (const sessionId of sessionIds) {
+      if (executing) slashExecutionSessionIdsRef.current.add(sessionId)
+      else slashExecutionSessionIdsRef.current.delete(sessionId)
+    }
+    setSlashExecutionSessionIds(new Set(slashExecutionSessionIdsRef.current))
+  }
+
+  const confirmSlashReplacement = (currentHost: string, nextHost: string) => new Promise<boolean>((resolve) => {
+    let settled = false
+    const settle = (accepted: boolean) => {
+      if (settled) return
+      settled = true
+      resolve(accepted)
+    }
+    modal.confirm({
+      className: 'termous-modal',
+      centered: true,
+      title: t('agent.slash.replace.title'),
+      content: t('agent.slash.replace.description', { current: currentHost, next: nextHost }),
+      okText: t('agent.slash.replace.confirm'),
+      cancelText: t('app.cancel'),
+      onOk: () => settle(true),
+      onCancel: () => settle(false),
+      afterClose: () => settle(false),
+    })
+  })
+
+  const executeSlashCommand = async (execution: AgentWorkspaceSlashExecution): Promise<boolean> => {
+    const invocation = controller.getSnapshot()
+    const originalDraft = invocation.drafts[execution.capture.owner]?.text ?? ''
+    if (!slashCaptureMatches(originalDraft, execution.capture)) return false
+    const commandAvailability = slashAvailability[execution.command_id]
+    if (!commandAvailability.enabled
+      || execution.resource_kind && commandAvailability.resource_kinds?.[execution.resource_kind]?.enabled === false) return false
+    if (execution.command_id === 'compact' && execution.capture.owner === 'new'
+      && !consumeSlashCaptureText(originalDraft, execution.capture).trim()) return false
+
+    let targetSession = execution.capture.owner === 'new'
+      ? undefined
+      : invocation.sessions.find(({ id }) => id === execution.capture.owner)
+    let pendingDraftSession: Promise<AgentSession> | undefined
+    const selectionRevision = invocation.selection_intent_revision
+    if (execution.capture.owner === 'new' && invocation.selected_session_id) return false
+    if (execution.capture.owner !== 'new'
+      && (!targetSession || invocation.selected_session_id !== targetSession.id || targetSession.archived_at)) return false
+    if (slashExecutionSessionIdsRef.current.has(execution.capture.owner)) return false
+    const trackedExecutionSessionIds = [execution.capture.owner]
+    updateSlashExecutionSessions(trackedExecutionSessionIds, true)
+    if (execution.capture.owner === 'new') {
+      pendingDraftSession = ensureDraftSession(selectionRevision)
+      try {
+        targetSession = await pendingDraftSession
+      } catch (error) {
+        updateSlashExecutionSessions(trackedExecutionSessionIds, false)
+        notifyError(notificationRef.current, tRef.current, error)
+        return false
+      }
+      trackedExecutionSessionIds.push(targetSession.id)
+      updateSlashExecutionSessions([targetSession.id], true)
+      const latest = controller.getSnapshot()
+      if (latest.selected_session_id !== targetSession.id && latest.drafts[targetSession.id] === undefined) {
+        controller.updateDraft(targetSession.id, originalDraft)
+      }
+    }
+    if (!targetSession) {
+      updateSlashExecutionSessions(trackedExecutionSessionIds, false)
+      return false
+    }
+
+    let accepted = false
+    try {
+      if (execution.command_id === 'compact') {
+        const latest = requireSession(controller.getSnapshot().sessions, targetSession.id)
+        controller.setContextCompressionPending(latest.id, true)
+        notificationRef.current.success({
+          key: `agent-compact-pending-${latest.id}`,
+          placement: 'topRight',
+          title: tRef.current('agent.slash.compact.accepted'),
+          description: tRef.current('agent.slash.compact.acceptedDescription'),
+          duration: 2,
+          showProgress: false,
+          role: 'status',
+          className: termousNotificationClassName,
+        })
+        accepted = true
+      } else {
+        const candidate = latestSlashCandidate(slashCandidatesRef.current, execution)
+        if (!candidate || candidate.disabled_reason) return false
+        const beforeConfirmation = requireSession(controller.getSnapshot().sessions, targetSession.id)
+        const currentBinding = getAgentResourceBindingBySlot(
+          beforeConfirmation.resource_bindings,
+          candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+        )
+        const sourceBindingKey = agentResourceBindingKey(currentBinding)
+        const replacing = currentBinding && !slashCandidateMatchesBinding(candidate, currentBinding)
+        if (replacing && !await confirmSlashReplacement(
+          slashBindingLabel(currentBinding, slashCandidatesRef.current),
+          slashCandidateLabel(candidate),
+        )) return false
+
+        const beforeMutation = controller.getSnapshot()
+        const currentCandidate = latestSlashMutationCandidate(slashCandidatesRef.current, execution)
+        if (!currentCandidate || currentCandidate.disabled_reason
+          || candidate.kind !== 'file_session'
+            && !sameSlashCandidateIdentity(candidate, currentCandidate)) return false
+        const latestSession = requireSession(beforeMutation.sessions, targetSession.id)
+        const latestBinding = getAgentResourceBindingBySlot(
+          latestSession.resource_bindings,
+          candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+        )
+        if (agentResourceBindingKey(latestBinding) !== sourceBindingKey) return false
+        if (currentCandidate.resource_kind === 'ssh'
+          && (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[latestSession.id])
+            || isAgentResourceBindingConnectionBlocking(
+              profileConnection.coordinator.getSnapshot()[latestSession.id],
+            ))) return false
+
+        if (currentCandidate.kind === 'ssh_profile') {
+          if (readiness.settings.connect_ssh_profile_on_bind) {
+            accepted = await connectSSHProfileBinding(latestSession.id, currentCandidate.ssh_profile_id)
+          } else {
+            const reference: AgentResourceReference = {
+              kind: 'ssh_profile',
+              ssh_profile_id: currentCandidate.ssh_profile_id,
+            }
+            accepted = slashCandidateMatchesExpectedBinding(currentCandidate, latestBinding)
+              || await performResourceMutation(latestSession.id, () => controller.replaceResourceBinding(latestSession.id, {
+                ...reference,
+                expected_revision: latestSession.revision,
+              }))
+            if (accepted) notifyResourceBindingCompleted(latestSession.id, currentCandidate)
+          }
+        } else {
+          const reference: AgentResourceReference = currentCandidate.kind === 'ssh_session'
+            ? { kind: 'ssh_session', session_id: currentCandidate.session_id }
+            : { kind: 'file_profile', file_access_profile_id: currentCandidate.file_access_profile_id }
+          if (currentCandidate.kind === 'ssh_session' && !sshResourcesRef.current.some((resource) => (
+            resource.session_id === currentCandidate.session_id
+            && resource.host_id === currentCandidate.host_id
+            && resource.ssh_profile_id === currentCandidate.ssh_profile_id
+            && resource.started_at === currentCandidate.started_at
+            && resource.status === 'ready'
+          ))) return false
+          accepted = slashCandidateMatchesExpectedBinding(currentCandidate,
+            getAgentResourceBindingBySlot(
+              latestSession.resource_bindings,
+              currentCandidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+            ))
+            || await performResourceMutation(latestSession.id, () => controller.replaceResourceBinding(latestSession.id, {
+              ...reference,
+              expected_revision: latestSession.revision,
+            }))
+          if (accepted) notifyResourceBindingCompleted(latestSession.id, currentCandidate)
+        }
+      }
+    } catch (error) {
+      notifyError(
+        notificationRef.current,
+        tRef.current,
+        error,
+        execution.command_id === 'compact' ? 'generic' : 'resource',
+      )
+    } finally {
+      if (pendingDraftSession) draftSessionCoordinator.release(pendingDraftSession)
+      if (pendingDraftSession) {
+        const latest = controller.getSnapshot()
+        const latestNewDraft = latest.drafts.new?.text ?? ''
+        if (!latest.selected_session_id && latest.selection_intent_revision === selectionRevision
+          && slashCaptureMatches(latestNewDraft, execution.capture)) {
+          controller.updateDraft(targetSession.id, latestNewDraft)
+          controller.updateDraft('new', '')
+          controller.selectSession(targetSession.id)
+          setDraftGroupId(undefined)
+          setComposerFocusKey((current) => current + 1)
+        }
+      }
+      updateSlashExecutionSessions(trackedExecutionSessionIds, false)
+    }
+
+    if (!accepted) return false
+    if (execution.capture.owner !== 'new') {
+      // 已有会话保留原 owner，由 Widget 使用捕获片段做最终 CAS 消费。
+      return true
+    }
+
+    const latest = controller.getSnapshot()
+    const targetDraft = latest.drafts[targetSession.id]?.text ?? ''
+    if (slashCaptureMatches(targetDraft, execution.capture)) {
+      controller.updateDraft(targetSession.id, consumeSlashCaptureText(targetDraft, execution.capture))
+    }
+    if (!latest.selected_session_id && latest.selection_intent_revision === selectionRevision
+      && slashCaptureMatches(latest.drafts.new?.text ?? '', execution.capture)) {
+      controller.updateDraft('new', '')
+      controller.selectSession(targetSession.id)
+      setDraftGroupId(undefined)
+      setComposerFocusKey((current) => current + 1)
+    }
+    // 新草稿的 owner 迁移由页面完成；Widget 会因 owner 变化主动丢弃旧执行回执。
+    return false
   }
   return (
     <div className={styles.page}>
@@ -757,9 +1163,23 @@ export function AgentPage({
         resource_run_blocked={resourceRunBlocked}
         resource_contexts={resourceContexts}
         execution_blocked={!workspaceInfrastructureReady}
-        resource_recovery_blocked={resourceRecoveryBlocked}
+        resource_recovery_blocked={resourceRecoveryBlocked || resourceConnectionBlocked || slashExecutionCurrent}
         resource_recovery_disabled={!enabled || !state.snapshot_complete || Boolean(selected?.archived_at)
           || Boolean(activeRun && activeRun.session_id === selected?.id)}
+        slashCandidates={currentSlashCandidates}
+        slashAvailability={slashAvailability}
+        sshProfileAssociationMode={readiness?.settings.connect_ssh_profile_on_bind ? 'immediate' : 'on_demand'}
+        profileConnection={profileConnectionPresentationKey
+          && profileConnectionPresentationKey === dismissedProfileConnectionKey
+          ? undefined
+          : profileConnection.state ? {
+              operation: profileConnection.state.view?.operation,
+              checking: profileConnection.state.checking,
+              submitting: profileConnection.state.submitting,
+              uncertain: profileConnection.state.uncertain,
+              reconciling: profileConnection.state.reconciling,
+              error_code: profileConnection.state.error_code,
+            } : undefined}
         onCreateSession={(groupId) => {
           if (!workspaceInfrastructureReady) return
           controller.selectSession(undefined)
@@ -869,29 +1289,69 @@ export function AgentPage({
           ? queuedTurnEditAttachments.retry
           : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
+        onExecuteSlashCommand={executeSlashCommand}
+        onCancelProfileConnection={async () => selected
+          ? profileConnection.coordinator.cancel(selected.id)
+          : false}
+        onRetryProfileConnection={async () => {
+          const latest = controller.getSnapshot().sessions.find(({ id }) => id === selected?.id)
+          if (!latest) return false
+          setDismissedProfileConnectionKey(undefined)
+          return profileConnection.coordinator.retry(latest)
+        }}
+        onDismissProfileConnection={() => {
+          if (profileConnectionPresentationKey) {
+            setDismissedProfileConnectionKey(profileConnectionPresentationKey)
+          }
+        }}
         onSend={async (message, attachmentIds) => {
           if (!activeSetupReady || !workspaceInfrastructureReady) return
           await perform(async () => {
-            if (resourceRunBlocked || isAgentResourceRecoveryBlocking(selected ? recovery.coordinator.getSnapshot()[selected.id] : undefined)) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            const submissionOwner = controller.getSnapshot().selected_session_id ?? 'new'
+            if (slashExecutionSessionIdsRef.current.has(submissionOwner)) {
+              throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            }
+            if (resourceRunBlocked
+              || isAgentResourceRecoveryBlocking(selected ? recovery.coordinator.getSnapshot()[selected.id] : undefined)
+              || isAgentResourceBindingConnectionBlocking(selected
+                ? profileConnection.coordinator.getSnapshot()[selected.id]
+                : undefined)) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             let targetSession = selected
             if (!targetSession) {
-              const modelId = newSessionModelId
-              if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
-              const model = modelById.get(modelId)
-              if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
-                throw new Error('AGENT_MODEL_UNAVAILABLE')
-              }
               const selectionRevision = controller.getSnapshot().selection_intent_revision
-              targetSession = await controller.createSession({
-                title: createSessionTitle(message, t('agent.sessions.untitled')),
-                group_id: draftGroupId,
-                model_id: modelId,
-                reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
-              })
+              const pendingSession = draftSessionCoordinator.acquire(selectionRevision)
+              if (pendingSession) {
+                try {
+                  targetSession = await pendingSession
+                } finally {
+                  draftSessionCoordinator.release(pendingSession)
+                }
+              } else {
+                const modelId = newSessionModelId
+                if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
+                const model = modelById.get(modelId)
+                if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+                  throw new Error('AGENT_MODEL_UNAVAILABLE')
+                }
+                targetSession = await controller.createSession({
+                  title: createSessionTitle(message, t('agent.sessions.untitled')),
+                  group_id: draftGroupId,
+                  model_id: modelId,
+                  reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
+                })
+              }
               controller.updateDraft(targetSession.id, message)
               const current = controller.getSnapshot()
-              if (current.selected_session_id === targetSession.id && current.selection_intent_revision === selectionRevision + 1) {
+              if (current.selected_session_id === targetSession.id
+                && current.selection_intent_revision === selectionRevision + 1) {
                 controller.updateDraft('new', '')
+                setDraftModelId(readiness.settings.default_model_id
+                  || firstRunnableModelId)
+                setDraftReasoningLevel(undefined)
+                setDraftGroupId(undefined)
+              } else if (!current.selected_session_id && current.selection_intent_revision === selectionRevision) {
+                controller.updateDraft('new', '')
+                controller.selectSession(targetSession.id)
                 setDraftModelId(readiness.settings.default_model_id
                   || firstRunnableModelId)
                 setDraftReasoningLevel(undefined)
@@ -931,7 +1391,13 @@ export function AgentPage({
         onQueueTurn={async (message, attachmentIds) => {
           if (!selected || !workspaceInfrastructureReady) return
           await perform(async () => {
-            if (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            if (slashExecutionSessionIdsRef.current.has(selected.id)) {
+              throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            }
+            if (isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])
+              || isAgentResourceBindingConnectionBlocking(profileConnection.coordinator.getSnapshot()[selected.id])) {
+              throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
+            }
             const submittedDraft = controller.getSnapshot().drafts[selected.id]
             await controller.enqueueTurn(selected.id, message, attachmentIds)
             if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
@@ -993,7 +1459,10 @@ export function AgentPage({
           )
         }}
         onResumeQueue={async () => {
-          if (selected && workspaceInfrastructureReady && !isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])) {
+          if (selected && workspaceInfrastructureReady
+            && !slashExecutionSessionIdsRef.current.has(selected.id)
+            && !isAgentResourceRecoveryBlocking(recovery.coordinator.getSnapshot()[selected.id])
+            && !isAgentResourceBindingConnectionBlocking(profileConnection.coordinator.getSnapshot()[selected.id])) {
             await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
           }
         }}
@@ -1003,10 +1472,15 @@ export function AgentPage({
         onApprovalModeChange={changeApprovalMode}
         onReplaceResourceBinding={async (reference) => {
           if (!selected) return false
-          return await performResourceMutation(selected.id, async () => {
-            await controller.replaceResourceBinding(selected.id, {
+          const latestSession = controller.getSnapshot().sessions.find((session) => session.id === selected.id)
+          if (!latestSession || latestSession.archived_at) return false
+          if (reference.kind === 'ssh_profile' && readiness.settings.connect_ssh_profile_on_bind) {
+            return connectSSHProfileBinding(latestSession.id, reference.ssh_profile_id)
+          }
+          return await performResourceMutation(latestSession.id, async () => {
+            await controller.replaceResourceBinding(latestSession.id, {
               ...reference,
-              expected_revision: selected.revision,
+              expected_revision: latestSession.revision,
             })
           })
         }}
@@ -1110,8 +1584,37 @@ function projectResourceContext(
     candidates: resources
       .filter((source) => source.status === 'ready' && resourceReference(source).kind === binding.kind)
       .sort((left, right) => 'started_at' in left && 'started_at' in right
-        ? Date.parse(right.started_at) - Date.parse(left.started_at) : left.host_name.localeCompare(right.host_name)),
+        ? Date.parse(right.started_at) - Date.parse(left.started_at) : (left.host_name ?? '').localeCompare(right.host_name ?? '')),
   }
+}
+
+function slashCandidateMatchesExpectedBinding(
+  candidate: AgentSlashCandidate,
+  binding: AgentResourceBinding | undefined,
+) {
+  return candidate.kind === 'ssh_profile'
+    ? binding?.kind === 'ssh_profile' && slashCandidateMatchesBinding(candidate, binding)
+    : slashCandidateMatchesBinding(candidate, binding)
+}
+
+function slashBindingLabel(binding: AgentResourceBinding, catalog: AgentSlashCandidateCatalog) {
+  const profileName = binding.kind === 'file_profile'
+    ? binding.file_access_profile_name
+    : binding.kind === 'ssh_profile'
+      ? binding.ssh_profile_name
+      : catalog.profile.ssh.find((candidate) => (
+          candidate.host_id === binding.host_id
+          && candidate.ssh_profile_id === binding.ssh_profile_id
+        ))?.profile_name ?? shortResourceID(binding.ssh_profile_id)
+  return `${binding.host_name} / ${profileName}`
+}
+
+function slashCandidateLabel(candidate: AgentSlashCandidate) {
+  return `${candidate.host_name} / ${candidate.profile_name}`
+}
+
+function shortResourceID(value: string) {
+  return value.length <= 14 ? value : `${value.slice(0, 7)}…${value.slice(-5)}`
 }
 
 function requireSession(sessions: AgentSession[], id: string) {

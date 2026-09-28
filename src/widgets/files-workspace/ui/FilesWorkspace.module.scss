@@ -602,6 +602,41 @@
   height: 100%;
 }
 
+.files-workspace-page .files-table.is-empty :global(.ant-spin),
+.files-workspace-page .files-table.is-empty :global(.ant-spin-container) {
+  height: 100%;
+}
+
+.files-workspace-page .files-table.is-empty :global(.ant-spin-container),
+.files-workspace-page .files-table.is-empty :global(.ant-table),
+.files-workspace-page .files-table.is-empty :global(.ant-table-container) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.files-workspace-page .files-table.is-empty :global(.ant-table),
+.files-workspace-page .files-table.is-empty :global(.ant-table-container),
+.files-workspace-page .files-table.is-empty :global(.ant-table-body) {
+  flex: 1 1 auto;
+}
+
+.files-workspace-page .files-table.is-empty :global(.ant-table-body) {
+  min-height: 0;
+}
+
+.files-workspace-page .files-table.is-empty :global(.ant-table-body table),
+.files-workspace-page .files-table.is-empty :global(.ant-table-placeholder),
+.files-workspace-page .files-table.is-empty :global(.ant-table-expanded-row-fixed),
+.files-workspace-page .files-table.is-empty :global(.ant-table-placeholder .empty-state) {
+  height: 100%;
+}
+
+.files-workspace-page .files-table.is-empty :global(.ant-table-placeholder .empty-state) {
+  align-content: center;
+  gap: 12px;
+}
+
 .files-workspace-page .files-table :global(.ant-table-container),
 .files-workspace-page .files-table :global(.ant-table),
 .files-workspace-page .files-table :global(.ant-table-header),

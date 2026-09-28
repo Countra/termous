@@ -26,6 +26,8 @@ export type {
   LocalTreeEntryKind,
   OverwritePolicy,
   RemoteDirectoryListing,
+  RemoteDirectorySize,
+  RemoteDirectorySizeRequest,
   RemoteFileEntry,
   RemoteFileKind,
   RemoteImageFile,
@@ -43,6 +45,7 @@ export type {
   TransferOrigin,
   TransferTask,
   TransferType,
+  UploadOverwriteConfirmation,
 } from './model/types.ts'
 export type {
   AdvancedRenameCaseConfig,
@@ -172,3 +175,6 @@ export {
   transferProgress,
   transferStatusClass,
 } from './model/filePresentation.ts'
+export { fileOperationCapabilities } from './model/fileCapabilities.ts'
+
+export type { FileMoveResult } from './model/moveTypes.ts'

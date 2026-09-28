@@ -8,11 +8,17 @@ export type {
   AgentWorkspaceModelOption,
   AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
+  AgentWorkspaceProfileConnectionState,
   AgentWorkspaceResourceContext,
   AgentWorkspaceResourceStatus,
   AgentWorkspaceRunStatus,
   AgentWorkspaceSession,
   AgentWorkspaceSkillItem,
+  AgentWorkspaceSlashAvailability,
+  AgentWorkspaceSlashCommandAvailability,
+  AgentWorkspaceSlashExecution,
+  AgentWorkspaceSSHProfileAssociationMode,
   AgentWorkspaceToolPart,
   AgentWorkspaceUsageState,
 } from './model/types.ts'
+export type { AgentSlashCapture } from './model/agentSlashCommands.ts'

@@ -1,0 +1,63 @@
+.form {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px 16px;
+  padding: 20px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+
+  > small {
+    color: var(--danger);
+    font-size: 10px;
+    line-height: 16px;
+  }
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.wide,
+.clear-token {
+  grid-column: 1 / -1;
+}
+
+.field > :global(.ant-input),
+.field > :global(.ant-input-affix-wrapper),
+.field > :global(.ant-select) {
+  min-height: 36px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  box-shadow: none;
+}
+
+.field :global(.ant-input-affix-wrapper .ant-input) {
+  background: transparent;
+}
+
+.clear-token {
+  margin-top: -8px;
+  font-size: 11px;
+}
+
+.hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+@media (width <= 600px) {
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -33,6 +33,19 @@
   white-space: nowrap;
 }
 
+.chip[data-resource-kind='ssh_profile'][data-resource-status='ready'] {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.chip[data-resource-kind='ssh_profile'][data-resource-status='ready']:hover,
+.chip[data-resource-kind='ssh_profile'][data-resource-status='ready']:focus-visible {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface-subtle) 72%, var(--row-hover-bg));
+  color: var(--text-primary);
+}
+
 .chip i {
   width: 6px;
   height: 6px;

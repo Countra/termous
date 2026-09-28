@@ -111,6 +111,8 @@
     }
 
     .remote-text-editor-frame {
+      // 将 CodeMirror 的搜索面板和浮层限制在编辑器内，避免盖住保存状态提示。
+      isolation: isolate;
       overflow: hidden;
       display: grid;
       grid-template-rows: 34px minmax(0, 1fr);
@@ -248,6 +250,6 @@
   }
 }
 
-.root.light {
+.root.light :global(.remote-text-editor-modal.ant-modal) {
   --ant-modal-content-bg: #f7f9fc;
 }

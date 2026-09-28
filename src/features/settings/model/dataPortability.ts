@@ -23,6 +23,7 @@ export const portabilityDatasets: DataPortabilityDatasetKey[] = [
   'local_path_mappings',
   'file_rename_presets',
   'forward_profiles',
+  'mount_profiles',
   'firewall_disabled_rules',
 ]
 

@@ -100,6 +100,22 @@ describe('useAgentTerminalReferenceImport', () => {
     expect(fixture.state.sessions[0]?.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.session_id).toBe('ssh-old')
   })
 
+  it('SSH Profile 槽位替换为 SSH Session 前仍要求确认', async () => {
+    const fixture = setup({ sessions: [session({ resource_bindings: [profileBinding()] })] })
+    const options = fixture.options()
+    const view = renderHook(() => useAgentTerminalReferenceImport(options))
+
+    await waitFor(() => expect(view.result.current.current?.stage).toBe('confirm'))
+    expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
+
+    act(() => view.result.current.confirm())
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledWith(targetId, {
+      kind: 'ssh_session', session_id: source.session_id, expected_revision: 1,
+    })
+    expect(fixture.state.sessions[0]?.resource_bindings?.map(({ kind }) => kind)).toEqual(['ssh_session'])
+  })
+
   it('确认期间其他窗口再次换绑必须重新确认，使用最新 revision 提交', async () => {
     const fixture = setup({ sessions: [session({ resource_bindings: [binding('ssh-old')] })] })
     const options = fixture.options()
@@ -327,6 +343,13 @@ function binding(id = source.session_id): AgentResourceBinding {
     host_name: source.host_name, platform: 'linux', bound_at: agentFixtureTime }
 }
 
+function profileBinding(): Extract<AgentResourceBinding, { kind: 'ssh_profile' }> {
+  return {
+    kind: 'ssh_profile', ssh_profile_id: source.ssh_profile_id, ssh_profile_name: source.ssh_profile_name,
+    host_id: source.host_id, host_name: source.host_name, platform: 'linux', bound_at: agentFixtureTime,
+  }
+}
+
 const fileSource: AgentFileResourceState = { file_access_profile_id: 'file_source', file_access_profile_name: '文件配置',
   host_id: 'host_files', host_name: '文件主机', ssh_profile_id: 'ssh_files', engine: 'sftp', status: 'ready' }
 
@@ -365,7 +388,10 @@ function setup(initial: Partial<AgentWorkspaceState> = {}) {
     reloadSession: vi.fn(async (id: string) => state.sessions.find((value) => value.id === id)),
     replaceResourceBinding: vi.fn(async (id: string, input: AgentResourceBindingUpdateInput): Promise<AgentSession> => {
       const current = state.sessions.find((value) => value.id === id)!
-      const next = { ...current, resource_bindings: [...(current.resource_bindings ?? []).filter(({ kind }) => kind !== input.kind),
+      const slot = input.kind === 'file_profile' ? 'file' : 'ssh'
+      const next = { ...current, resource_bindings: [...(current.resource_bindings ?? []).filter(({ kind }) => (
+        (kind === 'file_profile' ? 'file' : 'ssh') !== slot
+      )),
         input.kind === 'ssh_session' ? binding(input.session_id) : fileBinding()], revision: current.revision + 1 }
       state = { ...state, sessions: state.sessions.map((value) => value.id === id ? next : value) }
       return next

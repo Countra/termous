@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessManagementGateway } from '#features/host-access'
+import { getFileAccessProfileEditor } from '#features/manage-file-access'
 import { TermousApiError } from '#shared/api'
 import { useHostAccessWorkspaceController, type HostDetailView } from './useHostAccessWorkspaceController.ts'
 
@@ -52,6 +53,7 @@ function catalog(id: string, overrides: Partial<HostAccessCatalog> = {}): HostAc
       name: 'SFTP',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: ssh.id },
       sftp: { ssh_profile_id: ssh.id },
       is_default: true,
       sort_order: 0,
@@ -99,7 +101,10 @@ function gateway(initial: HostAccessCatalog): HostAccessManagementGateway {
     deleteSSHProfile: vi.fn(),
     setDefaultSSHProfile: vi.fn(),
     inspectSSHProfileReferences: vi.fn(),
+    createFileProfile: vi.fn(),
     updateFileProfile: vi.fn(),
+    inspectFileProfileReferences: vi.fn(),
+    deleteFileProfile: vi.fn(),
     setDefaultFileProfile: vi.fn(),
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
@@ -147,6 +152,9 @@ function ControllerHarness({
       <output data-testid="error">{controller.mutationError}</output>
       <output data-testid="catalog-error">{controller.error?.message ?? ''}</output>
       <output data-testid="file-count">{controller.catalog?.files.length ?? 0}</output>
+      <output data-testid="file-name">{controller.fileDraft.name}</output>
+      <output data-testid="file-ssh-profile">{controller.fileDraft.engine === 'sftp' ? controller.fileDraft.ssh_profile_id : ''}</output>
+      <output data-testid="delete-target">{controller.deleteTarget?.kind ?? ''}</output>
       <output data-testid="default-ssh">{controller.catalog?.ssh.find((profile) => profile.is_default)?.id ?? ''}</output>
       <output data-testid="vnc-name">{controller.vncDraft.name}</output>
       <output data-testid="vnc-ssh-profile">{controller.vncDraft.ssh_profile_id}</output>
@@ -187,6 +195,33 @@ function ControllerHarness({
       </button>
       <button type="button" onClick={() => void controller.saveProfile()}>save-profile</button>
       <button type="button" onClick={() => void controller.setDefaultProfile('ssh', 'ssh-secondary')}>default-secondary</button>
+      <button type="button" onClick={() => controller.requestEditor({ kind: 'file', mode: 'create' })}>create-file</button>
+      <button type="button" onClick={() => {
+        const value = getFileAccessProfileEditor('s3')?.createDraft(host.id, [])
+        if (value?.engine === 's3') controller.setFileDraft({ ...value, name: 'MinIO', endpoint: 'https://minio.example', bucket: 'test-bucket', access_key: 'ak', secret_key: 'sk' })
+      }}>fill-s3</button>
+      <button
+        type="button"
+        onClick={() => controller.requestEditor({
+          kind: 'file',
+          mode: 'edit',
+          profileId: `file-${host.id}`,
+        })}
+      >
+        edit-file
+      </button>
+      <button
+        type="button"
+        onClick={() => controller.fileDraft.engine === 'sftp' && controller.setFileDraft({
+          ...controller.fileDraft,
+          name: 'Rebound files',
+          ssh_profile_id: 'ssh-secondary',
+        })}
+      >
+        rebind-file
+      </button>
+      <button type="button" onClick={() => void controller.requestDeleteFile(`file-${host.id}`)}>delete-file</button>
+      <button type="button" onClick={() => void controller.confirmDeleteProfile()}>confirm-delete</button>
       <button type="button" onClick={() => controller.requestEditor({ kind: 'remote_desktop', mode: 'create' })}>create-vnc</button>
       <button
         type="button"
@@ -418,6 +453,148 @@ describe('主机访问方式 Controller', () => {
 
     await waitFor(() => expect(api.createSSHProfile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByTestId('file-count')).toHaveTextContent('1'))
+  })
+
+  it('创建文件 Profile 时提交 canonical Engine 配置并重载目录', async () => {
+    const initial = catalog('host-a')
+    const created = {
+      ...initial.files[0],
+      id: 'file-secondary',
+      name: 'SFTP',
+      is_default: false,
+      sort_order: 1,
+    }
+    const api = gateway(initial)
+    vi.mocked(api.createFileProfile).mockResolvedValue(created)
+    vi.mocked(api.loadCatalog)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce({ ...initial, files: [...initial.files, created] })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-file' }))
+    expect(screen.getByTestId('file-ssh-profile')).toHaveTextContent('ssh-host-a')
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+
+    await waitFor(() => expect(api.createFileProfile).toHaveBeenCalledWith({
+      host_id: 'host-a',
+      name: 'SFTP',
+      engine: 'sftp',
+      engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh-host-a' },
+    }))
+    await waitFor(() => expect(screen.getByTestId('file-count')).toHaveTextContent('2'))
+  })
+
+  it('无 SSH 的主机通过统一 Controller 创建 S3 并重载文件目录', async () => {
+    const initial = catalog('host-a', { ssh: [], files: [] })
+    const created = { id: 's3-a', host_id: 'host-a', name: 'MinIO', engine: 's3', engine_config_version: 1,
+      config: { endpoint: 'https://minio.example', bucket: 'test-bucket' }, is_default: true, sort_order: 0, created_at: '', updated_at: '' }
+    const api = gateway(initial)
+    vi.mocked(api.createFileProfile).mockResolvedValue(created)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(initial).mockResolvedValueOnce({ ...initial, files: [created] })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'create-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'fill-s3' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+    await waitFor(() => expect(api.createFileProfile).toHaveBeenCalledWith({
+      host_id: 'host-a', name: 'MinIO', engine: 's3', engine_config_version: 1,
+      config: { endpoint: 'https://minio.example', bucket: 'test-bucket', prefix: '', region: '', addressing_style: 'path' },
+      secret_values: { access_key: 'ak', secret_key: 'sk' }, clear_secret_slots: [],
+    }))
+    await waitFor(() => expect(screen.getByTestId('file-count')).toHaveTextContent('1'))
+  })
+
+  it('编辑文件 Profile 可改绑同 Host SSH 并使用当前 CAS 版本', async () => {
+    const initial = catalog('host-a')
+    const secondary = { ...initial.ssh[0], id: 'ssh-secondary', name: 'Secondary', is_default: false, sort_order: 1 }
+    const rebound = {
+      ...initial.files[0],
+      name: 'Rebound files',
+      config: { ssh_profile_id: secondary.id },
+      sftp: { ssh_profile_id: secondary.id },
+      updated_at: '2026-08-25T00:00:01Z',
+    }
+    const source = { ...initial, ssh: [...initial.ssh, secondary] }
+    const api = gateway(source)
+    vi.mocked(api.updateFileProfile).mockResolvedValue(rebound)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockResolvedValueOnce({ ...source, files: [rebound] })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'rebind-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+
+    await waitFor(() => expect(api.updateFileProfile).toHaveBeenCalledWith(
+      initial.files[0].id,
+      initial.files[0].updated_at,
+      {
+        name: 'Rebound files',
+        engine_config_version: 1,
+        config: { ssh_profile_id: secondary.id },
+      },
+    ))
+  })
+
+  it('文件 Profile CAS 冲突刷新版本但保留改绑草稿', async () => {
+    const initial = catalog('host-a')
+    const secondary = { ...initial.ssh[0], id: 'ssh-secondary', name: 'Secondary', is_default: false, sort_order: 1 }
+    const source = { ...initial, ssh: [...initial.ssh, secondary] }
+    const concurrent = {
+      ...source,
+      files: [{ ...source.files[0], name: 'Server name', updated_at: '2026-08-25T00:00:01Z' }],
+    }
+    const api = gateway(source)
+    vi.mocked(api.loadCatalog).mockResolvedValueOnce(source).mockResolvedValue(concurrent)
+    vi.mocked(api.updateFileProfile)
+      .mockRejectedValueOnce(new TermousApiError('conflict', 'FILE_ACCESS_PROFILE_CONFLICT', 409))
+      .mockResolvedValueOnce({
+        ...concurrent.files[0],
+        name: 'Rebound files',
+        config: { ssh_profile_id: secondary.id },
+        sftp: { ssh_profile_id: secondary.id },
+      })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'rebind-file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+
+    await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent('hosts.access.conflict'))
+    expect(screen.getByTestId('file-name')).toHaveTextContent('Rebound files')
+    expect(screen.getByTestId('file-ssh-profile')).toHaveTextContent(secondary.id)
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+
+    await waitFor(() => expect(api.updateFileProfile).toHaveBeenCalledTimes(2))
+    expect(api.updateFileProfile).toHaveBeenLastCalledWith(
+      initial.files[0].id,
+      concurrent.files[0].updated_at,
+      expect.objectContaining({ config: { ssh_profile_id: secondary.id } }),
+    )
+  })
+
+  it('文件 Profile 删除引用阻塞时不发送删除请求', async () => {
+    const source = catalog('host-a')
+    const api = gateway(source)
+    vi.mocked(api.inspectFileProfileReferences).mockResolvedValue({
+      agent_sessions: 1,
+      active_file_sessions: 0,
+      is_default: true,
+      peer_profiles: 0,
+      blocking_total: 1,
+    })
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'delete-file' }))
+    await waitFor(() => expect(screen.getByTestId('delete-target')).toHaveTextContent('file'))
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-delete' }))
+
+    await waitFor(() => expect(screen.getByTestId('delete-target')).toBeEmptyDOMElement())
+    expect(api.deleteFileProfile).not.toHaveBeenCalled()
   })
 
   it('切换默认项后使用完整 Catalog 对账所有默认状态', async () => {

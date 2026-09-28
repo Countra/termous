@@ -131,6 +131,7 @@ function runtimeFixture() {
       default_reasoning_level: 'off', show_turn_token_usage: true, revision: 1,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       created_at: '2026-09-05T00:00:00Z', updated_at: '2026-09-05T00:00:00Z',
     },
   }

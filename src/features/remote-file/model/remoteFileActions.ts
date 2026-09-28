@@ -1,4 +1,4 @@
-import type { RemoteFileEntry } from '#entities/file'
+import { fileOperationCapabilities, type FileAccessCapability, type RemoteFileEntry } from '#entities/file'
 
 export type RemoteFileActionKey =
   | 'openFile'
@@ -19,6 +19,7 @@ export interface RemoteFileActionDescriptor {
 }
 
 export interface RemoteFileActionOptions {
+  capabilities?: FileAccessCapability[]
   includeAdvancedRename?: boolean
 }
 
@@ -88,7 +89,13 @@ export function remoteFileActionDescriptors(
   }
   actions.push({ key: 'permissions' })
   actions.push({ key: 'delete', danger: true, dividerBefore: true })
-  return actions
+  const can = fileOperationCapabilities({ capabilities: options.capabilities })
+  const available: Record<RemoteFileActionKey, boolean> = {
+    openFile: can.read, download: can.transfer, sendToHost: can.transfer, copy: can.transfer,
+    cut: can.rename, rename: can.rename, advancedRename: can.batchRename,
+    permissions: can.permissions, delete: can.remove, copyAbsolutePath: true,
+  }
+  return actions.filter((action) => available[action.key])
 }
 
 export function runRemoteFileAction(

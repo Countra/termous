@@ -122,6 +122,7 @@
     .transfer-live-summary {
       display: flex;
       min-width: 0;
+      flex: 0 0 auto;
       align-items: center;
       gap: 7px;
       overflow: hidden;
@@ -144,11 +145,6 @@
     .transfer-live-summary > span {
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .transfer-live-summary b {
-      color: var(--text-secondary);
-      font-weight: 670;
     }
 
     .transfer-clear-button.ant-btn,

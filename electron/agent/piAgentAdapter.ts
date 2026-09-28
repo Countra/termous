@@ -61,6 +61,17 @@ const verifiedResourceSystemRules = [
   '用户需要另一条连接时，应先在 Termous 界面重新绑定。',
 ] as const
 
+const verifiedSSHProfileSystemRules = [
+  '以上资源由 Termous Core 在本轮启动前校验；kind=ssh_profile 表示绑定的是精确 SSH Profile，而不是已连接的 Session。',
+  '仅当用户请求确实需要 SSH 操作时，先调用 termous.sessions.list；只复用 host_id 与 ssh_profile_id 均匹配的会话。无论清单是否显示已就绪，都先调用 termous.sessions.get 复验同一会话的 connected + ready；仍在连接时继续查询同一会话，不得重复创建或使用同主机的默认及其他 Profile。',
+  '没有匹配会话时，调用一次 termous.sessions.connect，仅传入该 ssh_profile_id 和稳定的 client_request_id；随后使用 termous.sessions.get 等待 connected + ready。',
+  '新的主机密钥仍必须由用户在 Termous 中确认。连接失败、结果身份不匹配或 Profile 不可用时停止，不得切换目标或自动循环重试。',
+  '连接成功后仅使用本轮工具门禁认可的 session_id；AGENT_RESOURCE_BINDING_MISMATCH 且 dispatched=false 表示调用尚未发送到 MCP，可按本轮绑定修正当前调用。',
+  '端口转发只能复用本轮工具门禁已确认就绪的 session_id，或直接使用该精确 ssh_profile_id；不得改用 profile_id、host_id 或其他 SSH Profile。',
+  '读取或中断已有命令任务、查询已有服务操作时，保留任务返回的 task_id、operation_id 和目标 ID，不得重定向或重放历史操作。',
+  '该绑定不增加 Scope、不绕过审批，也不允许获取凭据、替代主机密钥决定或使用 Termous 之外的连接能力。',
+] as const
+
 const verifiedFileResourceSystemRules = [
   '以上文件配置由 Termous Core 校验；文件工具必须使用给定的精确 file_access_profile_id，与终端 SSH 引用独立选路。',
   '先调用 termous.files.sessions.list，只复用当前 MCP 客户端拥有、file_access_profile_id、host_id、ssh_profile_id 和 engine 全部匹配且就绪的文件会话。',
@@ -79,6 +90,7 @@ export interface PiAgentController {
 }
 
 export interface CreatePiAgentOptions {
+  audit?: { capture(event: AgentEvent): void }
   bootstrap: RuntimeBootstrap
   mcp: AgentMCPConnection
   events: RuntimeEventWriter
@@ -177,6 +189,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const unsubscribe = agent.subscribe((event) =>
     handlePiEvent(event, {
       handle: async (value) => {
+        options.audit?.capture(value)
         if (value.type === 'message_end' && value.message.role === 'user') {
           const source = steerSources.get(value.message)
           if (source) {
@@ -242,7 +255,11 @@ export function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding) {
     '[TERMOUS_VERIFIED_RESOURCE]',
     JSON.stringify(resource),
     '[/TERMOUS_VERIFIED_RESOURCE]',
-    ...(binding.kind === 'ssh_session' ? verifiedResourceSystemRules : verifiedFileResourceSystemRules),
+    ...(binding.kind === 'ssh_session'
+      ? verifiedResourceSystemRules
+      : binding.kind === 'ssh_profile'
+        ? verifiedSSHProfileSystemRules
+        : verifiedFileResourceSystemRules),
   ].join('\n')
 }
 

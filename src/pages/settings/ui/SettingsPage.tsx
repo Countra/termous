@@ -1,4 +1,4 @@
-import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -22,6 +22,8 @@ import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
   GeneralSettings,
+  MountSettings,
+  type MountSettingsGateway,
   ShortcutSettingsPanel,
   TerminalCompletionSettings,
   TerminalStyleSettings,
@@ -35,6 +37,7 @@ export type SettingsPageTabKey =
   | 'general'
   | 'terminal'
   | 'connection'
+  | 'mount'
   | 'shortcuts'
   | 'agent'
   | 'mcp'
@@ -54,6 +57,7 @@ export interface SettingsPageProps {
   terminalFonts: TerminalFont[]
   appVersion: string
   dataPortabilityGateway: DataPortabilityGateway
+  mountSettingsGateway?: MountSettingsGateway
   agentSetupGateway: AgentSetupGateway
   defaultModelStatusGateway?: AgentDefaultModelStatusGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
@@ -83,6 +87,7 @@ export function SettingsPage({
   terminalFonts,
   appVersion,
   dataPortabilityGateway,
+  mountSettingsGateway,
   agentSetupGateway,
   defaultModelStatusGateway,
   updatePreferencesRuntime = null,
@@ -187,6 +192,11 @@ export function SettingsPage({
                 />
               </div>
             ),
+          },
+          {
+            key: 'mount',
+            label: <span className={styles['tab-label']} data-tour="settings-mount-tab"><HardDrive size={15} aria-hidden="true" />{t('settings.tabMount')}</span>,
+            children: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
           },
           {
             key: 'shortcuts',

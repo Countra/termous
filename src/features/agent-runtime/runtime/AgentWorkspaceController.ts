@@ -58,7 +58,7 @@ const usageRefreshDelay = 750
 const streamRenderDelay = 64
 const maximumPageCount = 100
 
-type AgentMutationLane = 'workspace' | 'queue' | 'control' | `session:${string}` | `group:${string}` | 'group-create' | 'group-order' | 'pin-order' | 'session-order'
+type AgentMutationLane = 'workspace' | 'queue' | 'control' | `session:${string}` | `session-create:${number}` | `group:${string}` | 'group-create' | 'group-order' | 'pin-order' | 'session-order'
 
 interface AgentStreamNotification {
   run_id: string
@@ -248,13 +248,18 @@ export class AgentWorkspaceController {
     return session
   }
 
-  async createSession(input: AgentSessionInput, selectionIntent = this.state.selection_intent_revision) {
+  async createSession(
+    input: AgentSessionInput,
+    selectionIntent = this.state.selection_intent_revision,
+    select = true,
+  ) {
+    // 同一草稿代次保持防重，不同代次可独立完成且仍沿用各自的选择守卫。
     return await this.runMutation(async () => {
       const session = await this.gateway.createSession(input)
       // 创建期间侧栏仍可操作，迟到回执只能合并实体，不能抢回用户的新选择。
-      this.acceptSession(session, selectionIntent === this.state.selection_intent_revision)
+      this.acceptSession(session, select && selectionIntent === this.state.selection_intent_revision)
       return session
-    })
+    }, `session-create:${selectionIntent}`)
   }
 
   async updateSession(id: string, input: AgentSessionUpdateInput) {
@@ -946,6 +951,11 @@ export class AgentWorkspaceController {
       || !this.state.sessions.some((current) => current.id === session.id && !current.archived_at)) return
     this.acceptSession(session)
     void this.hydrateQueuedTurns(session.id).catch((error) => this.captureError(error))
+  }
+
+  acceptResourceConnectionSession(session: AgentSession) {
+    // Profile 建连与恢复共用相同的迟到会话保护，但保持公开入口表达各自用途。
+    this.acceptRecoveredResourceSession(session)
   }
 
   async removeResourceBinding(id: string, expectedRevision: number, kind: AgentResourceKind = 'ssh_session') {

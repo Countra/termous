@@ -16,6 +16,11 @@ import type {
   AgentSessionGroup,
   AgentResourceState,
   AgentResourceRecoveryState,
+  AgentResourceConnectionOperation,
+  AgentSlashCandidate,
+  AgentSlashCandidateCatalog,
+  AgentSlashCommandId,
+  AgentSlashResourceKind,
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
@@ -23,6 +28,36 @@ import type {
   AgentApprovalMode,
   AgentApprovalPolicyState,
 } from '#features/agent-approval-policy'
+import type { AgentSlashCapture } from './agentSlashCommands.ts'
+
+export interface AgentWorkspaceSlashCommandAvailability {
+  enabled: boolean
+  disabled_reason?: string
+  resource_kinds?: Partial<Record<AgentSlashResourceKind, AgentWorkspaceSlashCommandAvailability>>
+}
+
+export type AgentWorkspaceSlashAvailability = Record<
+  AgentSlashCommandId,
+  AgentWorkspaceSlashCommandAvailability
+>
+
+export type AgentWorkspaceSSHProfileAssociationMode = 'on_demand' | 'immediate'
+
+export interface AgentWorkspaceSlashExecution {
+  command_id: AgentSlashCommandId
+  resource_kind?: AgentSlashResourceKind
+  candidate?: AgentSlashCandidate
+  capture: AgentSlashCapture
+}
+
+export interface AgentWorkspaceProfileConnectionState {
+  operation?: AgentResourceConnectionOperation | null
+  checking: boolean
+  submitting: boolean
+  uncertain: boolean
+  reconciling: boolean
+  error_code?: string
+}
 
 export type AgentWorkspaceRunStatus =
   | 'idle'
@@ -255,6 +290,10 @@ export interface AgentWorkspaceProps {
   resource_recovery_blocked?: boolean
   resource_recovery_disabled?: boolean
   execution_blocked?: boolean
+  slashCandidates?: AgentSlashCandidateCatalog
+  slashAvailability?: AgentWorkspaceSlashAvailability
+  sshProfileAssociationMode?: AgentWorkspaceSSHProfileAssociationMode
+  profileConnection?: AgentWorkspaceProfileConnectionState
   onCreateSession: (groupId?: string) => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
@@ -293,6 +332,10 @@ export interface AgentWorkspaceProps {
   onRemoveResourceBinding: (kind: AgentResourceKind) => Promise<boolean>
   onRecoverResourceBinding?: () => Promise<boolean>
   onCancelResourceRecovery?: () => Promise<boolean>
+  onExecuteSlashCommand?: (execution: AgentWorkspaceSlashExecution) => Promise<boolean>
+  onRetryProfileConnection?: () => Promise<boolean>
+  onCancelProfileConnection?: () => Promise<boolean>
+  onDismissProfileConnection?: () => void
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

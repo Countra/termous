@@ -3,7 +3,32 @@ import type { ForwardEvent, ForwardInstance } from '#entities/forward'
 import {
   reconcileForwardReloadSnapshot,
   shouldEmitForwardError,
+  upsertForward,
+  visibleForwards,
 } from './forwardRuntimeState.ts'
+
+test('自动启动失败可重载回显，重试清除旧失败且迟到失败不能覆盖新实例', () => {
+  const failed = forward({ id: 'failed-startup', profile_id: 'profile', status: 'failed', start_origin: 'startup' })
+  const running = forward({ id: 'manual-retry', profile_id: 'profile' })
+  expect(visibleForwards([failed, forward({ id: 'manual-failed', status: 'failed' })])).toEqual([failed])
+  expect(reconcileForwardReloadSnapshot([], [failed], new Set())).toEqual([failed])
+  expect(upsertForward([failed], running)).toEqual([running])
+  expect(upsertForward([running], failed)).toEqual([running])
+  expect(upsertForward([{ ...failed, status: 'starting' }], failed)).toEqual([failed])
+  expect(shouldEmitForwardError({ type: 'deleted', forward: failed })).toBe(false)
+})
+
+test('列表重载与重试事件交错时不会恢复同配置的旧自动启动失败', () => {
+  const failed = forward({ id: 'failed-startup', profile_id: 'profile', status: 'failed', start_origin: 'startup' })
+  const retry = forward({ id: 'manual-retry', profile_id: 'profile' })
+  const otherFailure = forward({ ...failed, id: 'other-failure', profile_id: 'other-profile' })
+  expect(reconcileForwardReloadSnapshot(
+    [retry, otherFailure],
+    [failed, otherFailure],
+    new Set([retry.id]),
+  )).toEqual([retry, otherFailure])
+  expect(visibleForwards([failed, retry, otherFailure])).toEqual([retry, otherFailure])
+})
 
 function forward(overrides: Partial<ForwardInstance> = {}): ForwardInstance {
   return {

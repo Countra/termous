@@ -1,10 +1,13 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react'
+import type { FileSession } from '#entities/file'
+import { DirectorySizeResultCache } from '#features/remote-file'
 import {
   getFilesWorkspaceSessionState,
   removeFilesWorkspaceSessionState,
@@ -25,10 +28,15 @@ import {
 
 export function FilesWorkspaceRuntimeProvider({
   children,
+  fileSessions,
+  closingFileSessionIds,
 }: {
   children: ReactNode
+  fileSessions?: readonly FileSession[]
+  closingFileSessionIds?: readonly string[]
 }) {
   const [states, setStates] = useState<FilesWorkspaceRuntimeState>({})
+  const [directorySizeCache] = useState(() => new DirectorySizeResultCache())
   const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [pendingTransferActionIds, setPendingTransferActionIds] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -38,6 +46,18 @@ export function FilesWorkspaceRuntimeProvider({
   const uploadRefreshTargetsRef = useRef(new Map<string, FilesWorkspaceUploadRefreshTarget>())
   const consumedUploadRefreshTaskIdsRef = useRef(new Set<string>())
   const dirtyDirectoryPathsRef = useRef(new Map<string, Set<string>>())
+
+  useEffect(() => {
+    if (!fileSessions) {
+      return
+    }
+    const closingSessionIds = new Set(closingFileSessionIds ?? [])
+    directorySizeCache.retainSessions(fileSessions.map((session) => ({
+      id: session.id,
+      connectionGeneration: session.connection_generation ?? 0,
+      closing: closingSessionIds.has(session.id),
+    })))
+  }, [closingFileSessionIds, directorySizeCache, fileSessions])
 
   const updateSession = useCallback((
     fileSessionId: string,
@@ -78,7 +98,8 @@ export function FilesWorkspaceRuntimeProvider({
   const removeSession = useCallback((fileSessionId: string) => {
     setStates((current) => removeFilesWorkspaceSessionState(current, fileSessionId))
     dirtyDirectoryPathsRef.current.delete(fileSessionId)
-  }, [])
+    directorySizeCache.clearSession(fileSessionId)
+  }, [directorySizeCache])
 
   const adoptSession = useCallback((
     sourceFileSessionId: string,
@@ -88,6 +109,8 @@ export function FilesWorkspaceRuntimeProvider({
     if (!sourceFileSessionId || !targetFileSessionId || sourceFileSessionId === targetFileSessionId) {
       return
     }
+    directorySizeCache.clearSession(sourceFileSessionId)
+    directorySizeCache.clearSession(targetFileSessionId)
     setStates((current) => {
       const source = current[sourceFileSessionId]
       if (!source) {
@@ -124,7 +147,7 @@ export function FilesWorkspaceRuntimeProvider({
         })
       }
     })
-  }, [])
+  }, [directorySizeCache])
 
   const retainSessions = useCallback((fileSessionIds: ReadonlySet<string>) => {
     setStates((current) => retainFilesWorkspaceSessionStates(current, fileSessionIds))
@@ -233,6 +256,7 @@ export function FilesWorkspaceRuntimeProvider({
 
   const value = useMemo<FilesWorkspaceRuntimeValue>(() => ({
     states,
+    directorySizeCache,
     pendingTransferOperations,
     pendingTransferActionIds,
     updateSession,
@@ -257,6 +281,7 @@ export function FilesWorkspaceRuntimeProvider({
     beginPendingTransferAction,
     clearDirectoryDirty,
     consumeUploadRefreshTask,
+    directorySizeCache,
     endPendingTransferAction,
     hasUploadRefreshTask,
     isDirectoryDirty,

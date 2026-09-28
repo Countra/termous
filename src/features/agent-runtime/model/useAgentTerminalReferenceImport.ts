@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAgentResourceBinding, resourceReference, resourceReferenceId, sameAgentResourceSource, type AgentLaunchIntent, type AgentSession, type AgentResourceKind, type AgentResourceState, type AgentResourceReferenceLaunch, type AgentTerminalReferenceLaunch } from '#entities/agent'
+import { agentResourceSlot, getAgentResourceBindingBySlot, resourceReference, resourceReferenceId, sameAgentResourceSource, type AgentLaunchIntent, type AgentSession, type AgentResourceState, type AgentResourceReferenceLaunch, type AgentTerminalReferenceLaunch } from '#entities/agent'
 import type { AgentWorkspaceController } from '../runtime/AgentWorkspaceController.ts'
 import { projectAgentReferenceTargets, terminalReferenceBindingKey, terminalReferenceChangesBinding, validateTerminalReferenceText } from './agentTerminalReference.ts'
 
@@ -20,7 +20,7 @@ interface Options {
   active: boolean
   ready: boolean
   modelReady: boolean
-  resourcesReady: Record<AgentResourceKind, boolean>
+  resourcesReady: Record<ReferenceIntent['resource_reference']['kind'], boolean>
   resources: AgentResourceState[]
   createSession: (request: AgentResourceReferenceLaunch) => Promise<AgentSession>
   getOwnerId: (sessionId: string) => string
@@ -106,7 +106,10 @@ export function useAgentTerminalReferenceImport(options: Options) {
       const target = projectAgentReferenceTargets(controller.getSnapshot(), true).targets.find(({ session_id }) => session_id === targetId)
       if (!target) throw new Error('AGENT_TERMINAL_REFERENCE_TARGET_UNAVAILABLE')
       if (changesBinding && target.binding_locked) throw new Error('AGENT_TERMINAL_REFERENCE_BINDING_LOCKED')
-      if (changesBinding && getAgentResourceBinding(session.resource_bindings, job.request.resource_reference.kind)
+      if (changesBinding && getAgentResourceBindingBySlot(
+        session.resource_bindings,
+        agentResourceSlot(job.request.resource_reference.kind),
+      )
         && job.approvedBindingKey !== terminalReferenceBindingKey(session, job.request.resource_reference.kind)) {
         update(key, { stage: 'confirm', targetId, confirmation: session })
         return

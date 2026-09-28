@@ -62,17 +62,27 @@ test('Agent 双资源集合在 HTTP 和 Workspace 事件中采用同一合同', 
   assert.deepEqual(decodeAgentSession({ ...response, resource_bindings: [] }).resource_bindings, [])
 })
 
-test('Agent 资源集合拒绝重复类型、超过容量和混合身份字段', () => {
+test('Agent 资源集合拒绝重复槽位、超过容量和混合身份字段', () => {
   const file = {
     kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '应用文件',
     host_id: 'host-one', ssh_profile_id: 'ssh-one', host_name: 'Production', engine: 'sftp', bound_at: agentFixtureTime,
   }
   const decode = (bindings: unknown) => decodeAgentSession({ ...agentSessionFixture(), resource_bindings: bindings })
-  assert.throws(() => decode([file, { ...file, file_access_profile_id: 'file-two' }]), /绑定类型重复/)
+  assert.throws(() => decode([file, { ...file, file_access_profile_id: 'file-two' }]), /绑定槽位重复/)
+  assert.throws(() => decode([{
+    kind: 'ssh_session', session_id: 'session-one', host_id: 'host-one', ssh_profile_id: 'ssh-one',
+    host_name: 'Production', platform: 'linux', bound_at: agentFixtureTime,
+  }, {
+    kind: 'ssh_profile', ssh_profile_id: 'ssh-two', ssh_profile_name: '备用配置', host_id: 'host-two',
+    host_name: 'Staging', platform: 'linux', bound_at: agentFixtureTime,
+  }]), /绑定槽位重复/)
   assert.throws(() => decode([file, file, file]), /绑定集合无效/)
   assert.throws(() => decode(null), /绑定集合无效/)
-  assert.throws(() => decode([{ ...file, session_id: 'original-file-tab' }]), /文件引用包含终端身份/)
-  assert.throws(() => decode([{ ...file, engine: 'unknown' }]), /文件引擎无效/)
+  assert.throws(() => decode([{ ...file, session_id: 'original-file-tab' }]), /文件引用包含 SSH 身份/)
+  const unknownEngineBinding = decode([{ ...file, engine: 'object-store' }]).resource_bindings?.[0]
+  assert.equal(unknownEngineBinding?.kind, 'file_profile')
+  assert.equal(unknownEngineBinding?.kind === 'file_profile' ? unknownEngineBinding.engine : '', 'object-store')
+  assert.throws(() => decode([{ ...file, engine: '' }]), /文件引擎无效/)
   assert.throws(() => decode([{ ...file, file_access_profile_id: '' }]), /文件 Profile ID 无效/)
 })
 

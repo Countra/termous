@@ -33,6 +33,14 @@
       "to": "licenses/pi-LICENSE.txt"
     },
     {
+      "from": "third_party_licenses/cgofuse-LICENSE.txt",
+      "to": "licenses/cgofuse-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/WinFsp-LICENSE.txt",
+      "to": "licenses/WinFsp-LICENSE.txt"
+    },
+    {
       "from": "third_party_licenses/OpenAI-SDK-LICENSE.txt",
       "to": "licenses/OpenAI-SDK-LICENSE.txt"
     },

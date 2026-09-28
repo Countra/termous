@@ -1,3 +1,5 @@
+import type { AuditGateway } from '#features/audit'
+import { AuditClient } from './gateways/auditClient'
 import type { AppConfig } from '#common/contracts'
 import type { AliasGateway } from '#features/alias'
 import type { AgentSetupGateway } from '#features/agent-setup'
@@ -24,6 +26,7 @@ import { FileRenameClient } from './gateways/fileRenameClient'
 import { FileSearchClient } from './gateways/fileSearchClient'
 import { FileSessionClient } from './gateways/fileSessionClient'
 import { FirewallClient } from './gateways/firewallClient'
+import { MountClient } from './gateways/mountsClient'
 import { ForwardClient } from './gateways/forwardsClient'
 import { HostKeyClient } from './gateways/hostKeysClient'
 import { McpAccessClient } from './gateways/mcpAccessClient'
@@ -42,12 +45,14 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly audit: AuditGateway
   readonly agentSetup: AgentSetupGateway
   readonly agentWorkspace: AgentWorkspaceGateway
   readonly runtime: DomainGateway<RuntimeClient>
   readonly settings: DomainGateway<SettingsClient>
   readonly snippets: DomainGateway<SnippetClient>
   readonly fileCatalog: DomainGateway<FileCatalogClient>
+  readonly mounts: DomainGateway<MountClient>
   readonly forwards: DomainGateway<ForwardClient>
   readonly hosts: DomainGateway<HostClient>
   readonly credentials: DomainGateway<CredentialClient>
@@ -73,12 +78,14 @@ export interface RuntimeGateways {
 export function createRuntimeGatewaysFromConfig(
   config: Partial<AppConfig> = {},
 ): RuntimeGateways {
+  const audit = new AuditClient(config)
   const runtime = new RuntimeClient(config)
   const agentSetup = new AgentSetupClient(config)
   const agentWorkspace = new AgentWorkspaceClient(config)
   const settings = new SettingsClient(config)
   const snippets = new SnippetClient(config)
   const fileCatalog = new FileCatalogClient(config)
+  const mounts = new MountClient(config)
   const forwards = new ForwardClient(config)
   const hosts = new HostClient(config)
   const credentials = new CredentialClient(config)
@@ -101,12 +108,14 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    audit,
     agentSetup,
     agentWorkspace,
     runtime,
     settings,
     snippets,
     fileCatalog,
+    mounts,
     forwards,
     hosts,
     credentials,
@@ -203,6 +212,9 @@ function createFileGateway(
     statFileSessionFile: (fileSessionId, path, signal) => (
       sessions.statFileSessionFile(fileSessionId, path, signal)
     ),
+    calculateFileSessionDirectorySize: (fileSessionId, input, signal) => (
+      sessions.calculateFileSessionDirectorySize(fileSessionId, input, signal)
+    ),
     mkdirFileSessionFile: (fileSessionId, path) => (
       sessions.mkdirFileSessionFile(fileSessionId, path)
     ),
@@ -221,6 +233,8 @@ function createFileGateway(
     moveFileSessionFiles: (fileSessionId, sourcePaths, targetDir, overwritePolicy) => (
       sessions.moveFileSessionFiles(fileSessionId, sourcePaths, targetDir, overwritePolicy)
     ),
+    createFileSessionRenameOperation: (id, generation, source, target) => operations.createFileSessionRenameOperation(id, generation, source, target),
+    createFileSessionMoveOperation: (id, generation, sources, target, policy) => operations.createFileSessionMoveOperation(id, generation, sources, target, policy),
     createFileSessionTextReadOperation: (fileSessionId, path, signal) => (
       operations.createFileSessionTextReadOperation(fileSessionId, path, signal)
     ),
@@ -231,8 +245,8 @@ function createFileGateway(
       operations.createFileSessionImageReadOperation(fileSessionId, path)
     ),
     fileOperation: (id) => operations.fileOperation(id),
-    fileOperationResult: <Result>(id: string) => operations.fileOperationResult<Result>(id),
-    fileOperationBlobResult: (id) => operations.fileOperationBlobResult(id),
+    fileOperationResult: <Result>(id: string, signal?: AbortSignal) => operations.fileOperationResult<Result>(id, signal),
+    fileOperationBlobResult: (id, signal) => operations.fileOperationBlobResult(id, signal),
     cancelFileOperation: (id) => operations.cancelFileOperation(id),
     fileOperationEventsUrl: (fileSessionId) => operations.fileOperationEventsUrl(fileSessionId),
     createLocalFileGrant: (source, paths) => transfers.createLocalFileGrant(source, paths),
@@ -243,12 +257,14 @@ function createFileGateway(
       remoteDir,
       overwritePolicy,
       overwriteItemIds,
+      overwriteConfirmations,
     ) => transfers.createFileSessionUploadTransfer(
       fileSessionId,
       localGrantId,
       remoteDir,
       overwritePolicy,
       overwriteItemIds,
+      overwriteConfirmations,
     ),
     createFileSessionDownloadTransfer: (
       fileSessionId,

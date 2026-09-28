@@ -29,6 +29,9 @@ import { termousReleasePageUrl } from '#common/release-page'
 import { AgentCoreRuntimeClient } from './agent/coreRuntimeClient'
 import { registerAgentRuntimeIPC } from './agent/ipc'
 import { AgentSkillBundleSource } from './agent/skillBundleSource'
+import { SkillInstaller } from './skills/installer'
+import { registerSkillInstallIPC } from './skills/ipc'
+import { registerLoginItemIPC } from './loginItemIPC'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
@@ -89,6 +92,14 @@ const coreProcess = new CoreProcessManager({ logger: {
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
 } })
+const skillsDirectory = VITE_DEV_SERVER_URL
+  ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
+  : path.join(process.resourcesPath, 'agent', 'skills')
+const skillsSource = new AgentSkillBundleSource({
+  mode: VITE_DEV_SERVER_URL ? 'development' : 'production',
+  rootDirectory: skillsDirectory,
+})
+const skillInstaller = new SkillInstaller(skillsSource, skillsDirectory)
 const agentSupervisor = new AgentSupervisor({
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
@@ -97,12 +108,7 @@ const agentSupervisor = new AgentSupervisor({
     modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
     cwd: path.join(__dirname, '..'),
   }),
-  skills: new AgentSkillBundleSource({
-    mode: VITE_DEV_SERVER_URL ? 'development' : 'production',
-    rootDirectory: VITE_DEV_SERVER_URL
-      ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
-      : path.join(process.resourcesPath, 'agent', 'skills'),
-  }),
+  skills: skillsSource,
   logger: {
     info: (event, details = {}) => reportElectronProcessEvent(event, details),
     error: (event, details = {}) => reportElectronProcessEvent(event, details),
@@ -819,6 +825,18 @@ function prepareApplicationExit() {
 }
 
 async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
+  let coreStopped = false
+  try {
+    coreStopped = await performAgentRuntimeAndCoreShutdown(reason)
+    return coreStopped
+  } finally {
+    // 对话框或退出请求自身异常时也必须恢复 Worker，不能只处理布尔失败结果。
+    if (!coreStopped) await recoverAgentRuntimeAfterFailedShutdown(true)
+  }
+}
+
+async function performAgentRuntimeAndCoreShutdown(reason: CoreShutdownReason) {
+  await skillInstaller.suspend()
   let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
     await agentSupervisor.shutdown()
@@ -829,18 +847,32 @@ async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
     })
   }
   if (!agentRuntimeStopped && reason === 'application_update') {
-    await recoverAgentRuntimeAfterFailedShutdown()
     return false
   }
-  const coreStopped = await coreProcess.shutdownGracefully(reason)
-  if (!coreStopped && reason === 'application_update') {
-    await recoverAgentRuntimeAfterFailedShutdown()
+  let coreStopped = await coreProcess.shutdownGracefully(reason)
+  while (!coreStopped && reason === 'frontend_exit') {
+    const english = appLanguage === 'en-US'
+    const choice = await dialog.showMessageBox({
+      type: 'warning',
+      title: english ? 'Unable to exit safely' : '暂时无法安全退出',
+      message: english ? 'Some file changes may still be unsaved.' : '部分文件修改可能尚未保存。',
+      detail: coreProcess.getShutdownFailure(),
+      buttons: english
+        ? ['Retry', 'Return to app', 'Discard unsaved changes and exit']
+        : ['重试', '返回应用', '放弃未保存修改并退出'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    })
+    if (choice.response === 1) break
+    coreStopped = await coreProcess.shutdownGracefully(reason, choice.response === 2)
   }
   return coreStopped
 }
 
-async function recoverAgentRuntimeAfterFailedShutdown() {
-  if (exitCoordinator.isApplicationExiting()) return
+async function recoverAgentRuntimeAfterFailedShutdown(exitWasBlocked = false) {
+  if (!exitWasBlocked && exitCoordinator.isApplicationExiting()) return
+  skillInstaller.resume()
   terminalCompletionRuntime.resume()
   const status = await agentSupervisor.initialize()
   if (status.state === 'offline') {
@@ -879,6 +911,7 @@ async function recoverApplicationAfterFailedUpdateInstall() {
   if (exitCoordinator.isApplicationExiting()) return false
   await agentSupervisor.initialize()
   if (exitCoordinator.isApplicationExiting()) return false
+  skillInstaller.resume()
   terminalCompletionRuntime.resume()
   trayController.initialize()
   if (win && !win.isDestroyed()) {
@@ -1126,6 +1159,20 @@ function registerCoreProcessControls() {
 }
 
 function registerAgentRuntimeControls() {
+  registerSkillInstallIPC({
+    ipcMain,
+    installer: skillInstaller,
+    isTrustedSender: isTrustedMainIPCEvent,
+    pickDirectory: async (event) => {
+      const target = BrowserWindow.fromWebContents(event.sender)
+      if (!target || target.isDestroyed()) return null
+      const result = await dialog.showOpenDialog(target, {
+        defaultPath: app.getPath('home'),
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      return result.canceled ? null : result.filePaths[0] ?? null
+    },
+  })
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerAgentRuntimeIPC({
     ipcMain,
@@ -1665,6 +1712,15 @@ async function initializeApplication() {
   registerWindowControls()
   registerTrayControls()
   registerApplicationBuildControls()
+  registerLoginItemIPC({
+    ipcMain,
+    app,
+    platform: process.platform,
+    development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
+    executablePath: process.execPath,
+    entryName: APP_ID,
+    isTrustedSender: isTrustedMainIPCEvent,
+  })
   registerExternalNavigationControls()
   registerFilePickers()
   registerSSHKeyFileControls()

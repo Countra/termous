@@ -72,4 +72,20 @@ describe('DateTimePicker', () => {
       'ant-picker-status-error',
     )
   })
+
+  it('即时模式选择日期后立即通知，默认模式仍等待确认', async () => {
+    const onChange = vi.fn()
+    const props = { value: new Date(2026, 7, 22, 14, 35), ariaLabel: '筛选时间', onChange }
+    const view = render(<ConfigProvider><DateTimePicker {...props} /></ConfigProvider>)
+    fireEvent.click(screen.getByRole('textbox', { name: '筛选时间' }))
+    const day = await screen.findByTitle('2026-08-23')
+    fireEvent.click(day)
+    expect(onChange).not.toHaveBeenCalled()
+    view.unmount()
+
+    render(<ConfigProvider><DateTimePicker {...props} needConfirm={false} /></ConfigProvider>)
+    fireEvent.click(screen.getByRole('textbox', { name: '筛选时间' }))
+    fireEvent.click(await screen.findByTitle('2026-08-23'))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(new Date(2026, 7, 23, 14, 35)))
+  })
 })

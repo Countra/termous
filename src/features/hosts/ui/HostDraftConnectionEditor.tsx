@@ -59,8 +59,10 @@ export function HostDraftConnectionEditor({ draft, selection, data, validation, 
         onChange={(next) => onChange(updateHostCreationSSH(draft, ssh.id, { draft: next }))}
       /> : null}
       {selection.kind === 'file' && ssh ? <SFTPProfileEditor
-        draft={{ name: ssh.fileName }} sshProfile={localSSH.find((item) => item.id === ssh.id)}
-        error={issueMessage('name')} disabled={busy}
+        draft={{ engine: 'sftp', host_id: hostCreationTemporaryHostId, name: ssh.fileName, ssh_profile_id: ssh.id }}
+        sshProfiles={localSSH}
+        errors={issueMessage('name') ? { name: 'required' } : undefined}
+        disabled={busy}
         onChange={(next) => onChange(updateHostCreationSSH(draft, ssh.id, { fileName: next.name }))}
       /> : null}
       {selection.kind === 'remote_desktop' && desktop ? <VNCProfileEditor

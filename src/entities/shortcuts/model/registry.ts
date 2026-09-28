@@ -46,6 +46,9 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = Object.free
     chord('KeyV', 'v', ['primary']),
     chord('KeyV', 'V', ['primary', 'shift']),
   ]),
+  action('terminal.completion.trigger', 'completion', 'terminal.writable', [
+    chord('KeyJ', 'j', ['control']),
+  ]),
   action('terminal.completion.previous', 'completion', 'terminal.completion.visible', [
     chord('ArrowUp', 'ArrowUp'),
   ], { allowRepeat: true }),

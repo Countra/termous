@@ -171,7 +171,7 @@
   display: grid;
   min-width: 0;
   min-height: 58px;
-  grid-template-columns: 42px minmax(0, 1fr) minmax(184px, 206px);
+  grid-template-columns: 48px minmax(0, 1fr) minmax(184px, 206px);
   align-items: center;
   gap: 10px;
   background: transparent;
@@ -282,17 +282,21 @@
 }
 
 .row-kind {
-  display: inline-grid;
-  width: 42px;
-  height: 22px;
-  place-items: center;
+  display: block;
+  width: 48px;
+  height: 28px;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 6px;
   background: var(--surface-subtle);
   color: var(--text-secondary);
-  font-family: var(--terminal-font-family);
-  font-size: 9px;
+  padding-inline: 4px;
+  font-size: 10px;
   font-weight: 700;
+  line-height: 26px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .row-copy {
@@ -386,11 +390,7 @@
   }
 
   .row {
-    grid-template-columns: 38px minmax(0, 1fr);
-  }
-
-  .row-kind {
-    width: 38px;
+    grid-template-columns: 48px minmax(0, 1fr);
   }
 
   .row-controls {

@@ -116,7 +116,6 @@ export function AliasRow({
           okText={t('app.delete')}
           cancelText={t('app.cancel')}
           okButtonProps={{ danger: true, loading: deletePending }}
-          rootClassName={styles['alias-delete-popconfirm']}
           disabled={deleteDisabled}
           onOpenChange={onDeleteConfirmOpenChange}
           onConfirm={onDelete}

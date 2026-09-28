@@ -307,16 +307,13 @@ export function HostLauncherModal({
       return selectedProfile
     }
     if (actionId === 'openFiles' && intent === 'terminal') {
-      if (
-        !selectedProfile
-        || selectedProfile.intent !== 'terminal'
-        || selectedProfile.hostId !== hostId
-      ) return null
-      return selectCompanionHostLauncherFileProfile(
-        data,
-        hostId,
-        selectedProfile.profileId,
-      )
+      const companion = selectedProfile?.intent === 'terminal' && selectedProfile.hostId === hostId
+        ? selectCompanionHostLauncherFileProfile(data, hostId, selectedProfile.profileId)
+        : null
+      if (companion) return companion
+      // 独立文件配置无需 SSH；保留 SFTP 必须匹配当前终端路由的约束。
+      const fallback = resolveDefaultProfile(actionId, hostId)
+      return fallback?.intent === 'files' && !fallback.route ? fallback : null
     }
     return resolveDefaultProfile(actionId, hostId)
   }

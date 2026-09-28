@@ -1,4 +1,5 @@
 import type { AgentWorkerStartMessage } from './protocol.ts'
+import type { RuntimeAuditEvent } from './runtimeAuditWriter.ts'
 import { isRecord, validGeneration } from './protocol.ts'
 import { isRuntimeProviderUsage, type RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import {
@@ -78,6 +79,16 @@ export interface RuntimeSSHResourceBinding {
   bound_at: string
 }
 
+export interface RuntimeSSHProfileBinding {
+  kind: 'ssh_profile'
+  ssh_profile_id: string
+  ssh_profile_name: string
+  host_id: string
+  host_name: string
+  platform: 'linux'
+  bound_at: string
+}
+
 export interface RuntimeFileResourceBinding {
   kind: 'file_profile'
   file_access_profile_id: string
@@ -89,7 +100,7 @@ export interface RuntimeFileResourceBinding {
   bound_at: string
 }
 
-export type RuntimeResourceBinding = RuntimeSSHResourceBinding | RuntimeFileResourceBinding
+export type RuntimeResourceBinding = RuntimeSSHResourceBinding | RuntimeSSHProfileBinding | RuntimeFileResourceBinding
 
 export interface RuntimeBootstrap {
   core_instance_id: string
@@ -178,6 +189,7 @@ export interface RuntimeSteerResult {
 }
 
 export interface WorkerCoreClientPort {
+  appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal): Promise<void>
   bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal): Promise<RuntimeBootstrap>
   appendEvents(
     start: AgentWorkerStartMessage,
@@ -236,6 +248,13 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     Object.freeze(value.session.resource_bindings)
     Object.freeze(value.session)
     return value
+  }
+
+  async appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-audit-events`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, events }),
+    }, runtimeBearer, signal, 2_000)
+    if (!isRecord(result) || result.accepted !== events.length) throw new WorkerCoreError('AGENT_AUDIT_RESPONSE_INVALID')
   }
 
   async appendEvents(
@@ -486,6 +505,31 @@ function isRuntimeSSHResourceBinding(value: unknown): value is RuntimeSSHResourc
     && validRuntimeTimestamp(value.bound_at)
 }
 
+function isRuntimeSSHProfileBinding(value: unknown): value is RuntimeSSHProfileBinding {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    'kind',
+    'ssh_profile_id',
+    'ssh_profile_name',
+    'host_id',
+    'host_name',
+    'platform',
+    'bound_at',
+  ])) {
+    return false
+  }
+  return value.kind === 'ssh_profile'
+    && validOpaqueIdentifier(value.ssh_profile_id)
+    && typeof value.ssh_profile_name === 'string'
+    && value.ssh_profile_name.trim().length > 0
+    && Buffer.byteLength(value.ssh_profile_name, 'utf8') <= 1024
+    && validOpaqueIdentifier(value.host_id)
+    && typeof value.host_name === 'string'
+    && value.host_name.trim().length > 0
+    && Buffer.byteLength(value.host_name, 'utf8') <= 1024
+    && value.platform === 'linux'
+    && validRuntimeTimestamp(value.bound_at)
+}
+
 function isRuntimeFileResourceBinding(value: unknown): value is RuntimeFileResourceBinding {
   return isRecord(value) && hasExactKeys(value, [
     'kind', 'file_access_profile_id', 'file_access_profile_name', 'host_id', 'ssh_profile_id', 'host_name', 'engine', 'bound_at',
@@ -500,8 +544,11 @@ function isRuntimeFileResourceBinding(value: unknown): value is RuntimeFileResou
 
 function isRuntimeResourceBindings(value: unknown): value is RuntimeResourceBinding[] {
   return Array.isArray(value) && value.length <= 2
-    && value.every((binding) => isRuntimeSSHResourceBinding(binding) || isRuntimeFileResourceBinding(binding))
+    && value.every((binding) => isRuntimeSSHResourceBinding(binding)
+      || isRuntimeSSHProfileBinding(binding)
+      || isRuntimeFileResourceBinding(binding))
     && new Set(value.map((binding: RuntimeResourceBinding) => binding.kind)).size === value.length
+    && value.filter((binding: RuntimeResourceBinding) => binding.kind !== 'file_profile').length <= 1
 }
 
 function normalizeRuntimeResourceBindings(value: unknown): boolean {
@@ -516,7 +563,7 @@ function normalizeRuntimeResourceBindings(value: unknown): boolean {
     if (!ssh || Object.keys(legacy).some((key) => Reflect.get(ssh, key) !== Reflect.get(legacy, key))) return false
   }
   // 兼容字段只在入口对账，冻结后的 Worker 会话只有一份规范状态。
-  session.resource_bindings = [...bindings].sort((left, right) => Number(right.kind === 'ssh_session') - Number(left.kind === 'ssh_session'))
+  session.resource_bindings = [...bindings].sort((left, right) => Number(right.kind !== 'file_profile') - Number(left.kind !== 'file_profile'))
   delete session.resource_binding
   return true
 }

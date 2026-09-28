@@ -26,7 +26,6 @@ import {
   type ConnectionProxyType,
 } from '#entities/connection-proxy'
 import { customSelectStyles, EditorModeContext, uiStyles } from '#shared/ui'
-import hostManagementStyles from './HostManagement.module.scss'
 import styles from './ProxyManagerModal.module.scss'
 
 interface ProxyManagerModalProps {
@@ -381,7 +380,6 @@ export function ProxyManagerModal({
                     cancelText={t('app.cancel')}
                     okButtonProps={{ danger: true }}
                     disabled={editingProxy.bound_host_count > 0 || busy}
-                    rootClassName={`host-popconfirm ${hostManagementStyles.popconfirm}`}
                     onConfirm={() => void remove()}
                   >
                     <Button

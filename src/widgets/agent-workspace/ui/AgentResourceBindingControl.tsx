@@ -1,11 +1,11 @@
 import { Button, Select, Tooltip } from 'antd'
-import { Check, FolderOpen, Link2Off, RefreshCw, TerminalSquare } from 'lucide-react'
+import { Check, FolderOpen, Link2Off, RefreshCw, ServerCog, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConfirmDialog, ConnectionActionButton, FilterPopover, uiStyles } from '#shared/ui'
+import { ConfirmDialog, ConnectionActionButton, FilterPopover, customSelectStyles, uiStyles } from '#shared/ui'
 import { resourceReference, resourceReferenceId, resourceProfileName, resourceBindingMatchesSource, sameAgentResourceSource,
   type AgentResourceReference, type AgentResourceState } from '#entities/agent'
-import type { AgentWorkspaceResourceContext } from '../model/types.ts'
+import type { AgentWorkspaceResourceContext, AgentWorkspaceSSHProfileAssociationMode } from '../model/types.ts'
 import styles from './AgentResourceBindingControl.module.scss'
 import { AgentResourceRecoveryActions } from './AgentResourceRecoveryActions.tsx'
 
@@ -16,6 +16,7 @@ export function AgentResourceBindingControl({
   disabled,
   onReplace,
   onRemove,
+  sshProfileAssociationMode = 'on_demand',
   recoveryDisabled = false,
   onRecover,
   onCancelRecovery,
@@ -24,6 +25,7 @@ export function AgentResourceBindingControl({
   disabled: boolean
   onReplace: (reference: AgentResourceReference) => Promise<boolean>
   onRemove: () => Promise<boolean>
+  sshProfileAssociationMode?: AgentWorkspaceSSHProfileAssociationMode
   recoveryDisabled?: boolean
   onRecover?: () => Promise<boolean>
   onCancelRecovery?: () => Promise<boolean>
@@ -38,9 +40,10 @@ export function AgentResourceBindingControl({
   const [candidateSource, setCandidateSource] = useState<AgentResourceState>()
   const bindingId = resourceReferenceId(resourceReference(context.binding))
   const file = context.binding.kind === 'file_profile'
-  const hasRecovery = !file && Boolean(onRecover && onCancelRecovery)
-  const ResourceIcon = file ? FolderOpen : TerminalSquare
-  const copy = file ? 'agent.fileResource' : 'agent.resource'
+  const profile = context.binding.kind === 'ssh_profile'
+  const hasRecovery = context.binding.kind === 'ssh_session' && Boolean(onRecover && onCancelRecovery)
+  const ResourceIcon = profile ? ServerCog : file ? FolderOpen : TerminalSquare
+  const copy = file ? 'agent.fileResource' : profile ? 'agent.sshProfileResource' : 'agent.resource'
   const candidates = useMemo(
     () => context.candidates.filter((candidate) => resourceReference(candidate).kind === context.binding.kind
       && !resourceBindingMatchesSource(context.binding, candidate)),
@@ -85,7 +88,7 @@ export function AgentResourceBindingControl({
   }
   const live = context.live_resource
   const candidateReady = Boolean(candidate)
-  const statusLabel = t(`agent.resource.status.${context.status}`)
+  const statusLabel = t(profile ? `${copy}.status.${context.status}` : `agent.resource.status.${context.status}`)
   const sessionLabel = shortID(bindingId)
   const handlePopoverOpenChange = (nextOpen: boolean) => {
     suppressTooltip()
@@ -99,8 +102,12 @@ export function AgentResourceBindingControl({
       </div>
       <dl className={styles.details}>
         <div><dt>{t('agent.resource.host')}</dt><dd>{live?.host_name ?? context.binding.host_name}</dd></div>
-        <div><dt>{t(`${copy}.profile`)}</dt><dd>{live ? resourceProfileName(live) : context.binding.kind === 'file_profile' ? context.binding.file_access_profile_name : context.binding.ssh_profile_id}</dd></div>
-        <div><dt>{t(`${copy}.session`)}</dt><dd title={bindingId}>{sessionLabel}</dd></div>
+        <div><dt>{t(`${copy}.profile`)}</dt><dd>{live ? resourceProfileName(live) : context.binding.kind === 'file_profile'
+          ? context.binding.file_access_profile_name
+          : context.binding.kind === 'ssh_profile' ? context.binding.ssh_profile_name : context.binding.ssh_profile_id}</dd></div>
+        {!profile ? (
+          <div><dt>{t(`${copy}.session`)}</dt><dd title={bindingId}>{sessionLabel}</dd></div>
+        ) : null}
         <div><dt>{t('agent.resource.boundAt')}</dt><dd>{formatDate(context.binding.bound_at, i18n.language)}</dd></div>
       </dl>
       {context.status !== 'ready' && !hasRecovery ? (
@@ -115,7 +122,12 @@ export function AgentResourceBindingControl({
         <div className={styles.rebind}>
           <Select
             value={candidateId}
-            className={styles.select}
+            className={`${customSelectStyles.select} ${styles.select} termous-select`}
+            classNames={{
+              popup: {
+                root: `${customSelectStyles['select-popup']} termous-select-popup`,
+              },
+            }}
             disabled={pending || disabled}
             placeholder={t(`${copy}.selectPlaceholder`)}
             aria-label={t(`${copy}.selectLabel`)}
@@ -140,7 +152,9 @@ export function AgentResourceBindingControl({
                 () => onReplace(resourceReference(candidate)),
                 () => { setOpen(false); setEditing(false); setCandidateSource(undefined) },
               )}
-            >{t('agent.resource.confirmReplace')}</ConnectionActionButton>
+            >{t(profile
+              ? `${copy}.${sshProfileAssociationMode === 'immediate' ? 'confirmReplaceImmediate' : 'confirmReplaceOnDemand'}`
+              : 'agent.resource.confirmReplace')}</ConnectionActionButton>
           </div>
         </div>
       ) : (
@@ -151,7 +165,7 @@ export function AgentResourceBindingControl({
             icon={<RefreshCw size={13} />}
             disabled={disabled || pending || candidates.length === 0}
             onClick={() => setEditing(true)}
-          >{t('agent.resource.replace')}</Button>
+          >{t(profile ? `${copy}.replace` : 'agent.resource.replace')}</Button>
           <Button
             size="small"
             className={`${uiStyles['danger-button']} ${styles['action-button']}`}
@@ -163,7 +177,7 @@ export function AgentResourceBindingControl({
               setOpen(false)
               setDetachOpen(true)
             }}
-          >{t('agent.resource.remove')}</Button>
+          >{t(profile ? `${copy}.remove` : 'agent.resource.remove')}</Button>
         </div>
       )}
       {disabled ? <small className={styles.disabled}>{t('agent.resource.activeRunLocked')}</small> : null}
@@ -198,6 +212,7 @@ export function AgentResourceBindingControl({
           <button
             type="button"
             className={styles.chip}
+            data-resource-kind={context.binding.kind}
             data-resource-status={context.status}
             aria-label={t(`${copy}.aria`, {
               host: context.binding.host_name,
@@ -213,7 +228,7 @@ export function AgentResourceBindingControl({
           >
             <ResourceIcon size={14} aria-hidden="true" />
             <span>{context.binding.host_name}</span>
-            <i aria-hidden="true" />
+            {!profile || context.status !== 'ready' ? <i aria-hidden="true" /> : null}
           </button>
         </FilterPopover>
       </Tooltip>
@@ -221,7 +236,7 @@ export function AgentResourceBindingControl({
         open={detachOpen && !disabled}
         title={t(`${copy}.removeTitle`)}
         description={t(`${copy}.removeDescription`, { host: context.binding.host_name })}
-        confirmLabel={t('agent.resource.remove')}
+        confirmLabel={t(profile ? `${copy}.remove` : 'agent.resource.remove')}
         confirmLoading={pending}
         onCancel={() => setDetachOpen(false)}
         onConfirm={() => void run(onRemove, () => setDetachOpen(false))}

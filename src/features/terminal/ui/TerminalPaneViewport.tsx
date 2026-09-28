@@ -199,6 +199,10 @@ export function TerminalPaneViewport({
   )
     ? completion.promptObservation.status
     : null
+  const completionQueryFailed = !completionNotice && active && workspaceActive
+    && session?.kind === 'ssh' && session.status === 'connected'
+    && !inputLock.locked && !searchPanel && !contextMenu && !aiState.open
+    && completion.readiness === 'ready' && completion.queryState === 'error'
   const shortcutStateRef = useRef({
     session,
     active,
@@ -970,6 +974,14 @@ export function TerminalPaneViewport({
                 {t('terminal.completion.retry')}
               </Button>
             ) : null}
+          </div>
+        ) : null}
+        {completionQueryFailed ? (
+          <div className={`${noticeStyles['terminal-completion-notice']} ${noticeStyles['is-degraded']}`} role="status">
+            <CircleAlert size={14} aria-hidden="true" />
+            <span>{shortcutLabels.get('terminal.completion.trigger')?.[0]
+              ? t('terminal.completion.queryFailedWithShortcut', { shortcut: shortcutLabels.get('terminal.completion.trigger')?.[0] })
+              : t('terminal.completion.queryFailed')}</span>
           </div>
         ) : null}
         {active ? searchPanel : null}

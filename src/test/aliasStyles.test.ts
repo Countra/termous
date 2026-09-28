@@ -32,10 +32,8 @@ const editorView = readFileSync(
 test('Alias 面板使用私有 Module 类并只局部开放 Portal 第三方节点', () => {
   assert.doesNotMatch(panel.source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
   assert.doesNotMatch(panel.source, /:global\s*\{/)
-  assert.match(panel.source, /\.alias-delete-popconfirm:global\(\.ant-popover\)/)
   assert.match(panel.source, /\.alias-detail-tooltip :global\(\.ant-tooltip-inner\)/)
   assert.match(panelView, /styles\['alias-panel'\]/)
-  assert.match(panelParts, /rootClassName=\{styles\['alias-delete-popconfirm'\]\}/)
   assert.match(panelParts, /styles\['alias-detail-tooltip'\]/)
   assert.match(editorView, /styles\['alias-editor-page'\]/)
 })

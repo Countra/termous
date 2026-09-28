@@ -248,6 +248,7 @@ async function executeFixture(
     onFailure: (error) => { throw error },
     core: {
       bootstrap: async () => bootstrap,
+      appendAuditEvents: async () => {},
       appendEvents: async (_start, _bearer, batch) => { events.push(...batch); return batch[batch.length - 1]!.sequence },
       appendSteer: async () => { throw new Error('不应追加指令') },
       commitCheckpoint: async () => { throw new Error('未到阈值不应压缩') },

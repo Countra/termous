@@ -2,6 +2,7 @@ import type {
   FileAccessProfile,
   FileAccessProfileMetadataInput,
   FileAccessProfileValidationErrors,
+  SFTPAccessConfig,
 } from './types.ts'
 
 const MAX_PROFILE_NAME_LENGTH = 80
@@ -40,7 +41,7 @@ export function validateFileAccessProfileMetadataInput(
 
 export function sortFileAccessProfiles(profiles: FileAccessProfile[]) {
   return [...profiles].sort((left, right) => (
-    left.host_id.localeCompare(right.host_id)
+    (left.host_id ?? '').localeCompare(right.host_id ?? '')
     || left.sort_order - right.sort_order
     || left.name.localeCompare(right.name)
     || left.id.localeCompare(right.id)
@@ -55,6 +56,18 @@ export function selectDefaultFileAccessProfile(
   return defaults.length === 1 ? defaults[0] : undefined
 }
 
+export function getSFTPAccessConfig(profile: FileAccessProfile): SFTPAccessConfig | undefined {
+  if (profile.engine !== 'sftp' || profile.engine_config_version !== 1) return undefined
+  if (!profile.config || typeof profile.config !== 'object' || Array.isArray(profile.config)) return undefined
+  const keys = Object.keys(profile.config)
+  const sshProfileId = profile.config.ssh_profile_id
+  if (keys.length !== 1 || keys[0] !== 'ssh_profile_id' || typeof sshProfileId !== 'string' || !sshProfileId) {
+    return undefined
+  }
+  if (profile.sftp && profile.sftp.ssh_profile_id !== sshProfileId) return undefined
+  return { ssh_profile_id: sshProfileId }
+}
+
 export function selectCompanionSFTPFileAccessProfile(
   profiles: FileAccessProfile[],
   hostId: string,
@@ -65,8 +78,7 @@ export function selectCompanionSFTPFileAccessProfile(
   }
   const matches = profiles.filter((profile) => (
     profile.host_id === hostId
-    && profile.engine === 'sftp'
-    && profile.sftp.ssh_profile_id === sshProfileId
+    && getSFTPAccessConfig(profile)?.ssh_profile_id === sshProfileId
   ))
   return matches.length === 1 ? matches[0] : undefined
 }

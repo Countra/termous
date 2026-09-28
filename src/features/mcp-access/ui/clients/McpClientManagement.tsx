@@ -9,6 +9,7 @@ import type { McpAccessRuntimeValue } from '../../runtime/mcpAccessContext'
 import { McpClientEditor, type McpClientEditorValue } from '../McpClientEditor'
 import styles from '../McpSettingsPanel.module.scss'
 import { McpTokenDialog } from '../McpTokenDialog'
+import { McpSkillInstallButton } from '../settings/McpSkillInstallButton'
 
 interface ClientEditorIntent {
   client: McpClient | null
@@ -84,14 +85,17 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
             <h2>{t('settings.mcp.clients')}</h2>
             <p>{t('settings.mcp.clientsHint')}</p>
           </div>
-          <Button
-            type="primary"
-            icon={<Plus size={15} />}
-            disabled={!runtime.status || Boolean(runtime.mutationKey)}
-            onClick={openCreate}
-          >
-            {t('settings.mcp.addClient')}
-          </Button>
+          <div className={styles['section-actions']}>
+            <McpSkillInstallButton />
+            <Button
+              type="primary"
+              icon={<Plus size={15} />}
+              disabled={!runtime.status || Boolean(runtime.mutationKey)}
+              onClick={openCreate}
+            >
+              {t('settings.mcp.addClient')}
+            </Button>
+          </div>
         </header>
 
         <div className={styles['client-list']}>

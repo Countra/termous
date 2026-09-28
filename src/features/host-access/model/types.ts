@@ -1,4 +1,9 @@
-import type { FileAccessProfile, FileAccessProfileMetadataInput } from '#entities/file-access-profile'
+import type {
+  FileAccessProfile,
+  FileAccessProfileCreateInput,
+  FileAccessProfilePatchInput,
+  FileAccessProfileReferences,
+} from '#entities/file-access-profile'
 import type { HostAccessCatalog, HostAsset, HostAssetInput, HostProvisionInput } from '#entities/host-asset'
 import type { HostReachability } from '#entities/host'
 import type {
@@ -39,11 +44,14 @@ export interface HostAccessManagementGateway {
     expectedUpdatedAt: string,
   ) => Promise<SSHAccessProfile>
   inspectSSHProfileReferences: (id: string) => Promise<SSHAccessProfileReferences>
+  createFileProfile: (input: FileAccessProfileCreateInput) => Promise<FileAccessProfile>
   updateFileProfile: (
     id: string,
     expectedUpdatedAt: string,
-    input: FileAccessProfileMetadataInput,
+    input: FileAccessProfilePatchInput,
   ) => Promise<FileAccessProfile>
+  inspectFileProfileReferences: (id: string) => Promise<FileAccessProfileReferences>
+  deleteFileProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
   setDefaultFileProfile: (
     id: string,
     expectedUpdatedAt: string,
@@ -88,6 +96,7 @@ export type HostAccessProfileKind = 'ssh' | 'file' | 'remote_desktop'
 export type HostAccessProfileEditorIntent =
   | { kind: 'ssh'; mode: 'create' }
   | { kind: 'ssh'; mode: 'edit'; profileId: string }
+  | { kind: 'file'; mode: 'create' }
   | { kind: 'file'; mode: 'edit'; profileId: string }
   | { kind: 'remote_desktop'; mode: 'create' }
   | { kind: 'remote_desktop'; mode: 'edit'; profileId: string }

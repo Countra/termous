@@ -1,0 +1,43 @@
+.form {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  padding: 20px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+
+  > small {
+    color: var(--danger);
+    font-size: 10px;
+    line-height: 16px;
+  }
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.field > :global(.ant-input),
+.field > :global(.ant-input-affix-wrapper) {
+  min-height: 36px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  box-shadow: none;
+}
+
+.field :global(.ant-input-affix-wrapper .ant-input) {
+  background: transparent;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 16px;
+}

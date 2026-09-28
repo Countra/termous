@@ -10,8 +10,8 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
-import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Switch, Tooltip } from 'antd'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton, CustomSelect, EditorModeContext, ManagementFilterTabs, StatusBadge, uiStyles, termousNotificationClassName } from '#shared/ui'
 import type {
@@ -37,6 +37,7 @@ import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
+import { ForwardAutoStartFailure } from './ForwardAutoStartFailure'
 import styles from './ForwardManagement.module.scss'
 
 const scopedClassName = (...classNames: string[]) => classNames
@@ -61,6 +62,7 @@ export interface ForwardManagementWorkspaceProps {
 }
 
 interface ForwardFormState {
+  auto_start: boolean
   name: string
   description: string
   mode: ForwardMode
@@ -73,6 +75,7 @@ interface ForwardFormState {
 }
 
 const defaultForm: ForwardFormState = {
+  auto_start: false,
   name: '',
   description: '',
   mode: 'local',
@@ -184,6 +187,7 @@ export function ForwardManagementWorkspace({
     setEditorMode('profile')
     setEditingProfile(profile)
     setForm({
+      auto_start: profile.auto_start ?? false,
       name: profile.name,
       description: profile.description ?? '',
       mode: profile.mode,
@@ -204,7 +208,7 @@ export function ForwardManagementWorkspace({
       return
     }
     try {
-      const input = formToInput(form)
+      const input = formToInput(form, editorMode === 'profile')
       if (editorMode === 'temporary') {
         await onStartForward({ ...input, scope: 'background_once' })
         setEditorOpen(false)
@@ -310,6 +314,7 @@ export function ForwardManagementWorkspace({
                   profile={profile}
                   host={hostById(profile.host_id)}
                   running={runningForwards.find((forward) => forward.profile_id === profile.id)}
+                  startupFailure={data.forwards.find((forward) => forward.profile_id === profile.id && forward.start_origin === 'startup' && forward.status === 'failed')}
                   actionBusy={actionBusy}
                   onStart={() => void startForwardProfile(profile)}
                   onEdit={() => openEditProfile(profile)}
@@ -397,6 +402,7 @@ export function ForwardManagementWorkspace({
         onCancel={() => setEditorOpen(false)}
       >
         <ForwardEditorForm
+          showAutoStart={editorMode === 'profile'}
           form={form}
           hostOptions={hostOptions}
           sshProfileOptions={sshProfileOptions}
@@ -413,12 +419,14 @@ export function ForwardManagementWorkspace({
 }
 
 function ForwardEditorForm({
+  showAutoStart,
   form,
   hostOptions,
   sshProfileOptions,
   onHostChange,
   onChange,
 }: {
+  showAutoStart: boolean
   form: ForwardFormState
   hostOptions: Array<{ value: string; label: string; description?: string }>
   sshProfileOptions: Array<{ value: string; label: string; description?: string }>
@@ -426,6 +434,7 @@ function ForwardEditorForm({
   onChange: (patch: Partial<ForwardFormState>) => void
 }) {
   const { t } = useTranslation()
+  const autoStartHintId = useId()
   return (
     <div className={scopedClassName('forwarding-editor-form')}>
       <section className={scopedClassName('forwarding-editor-section', 'is-basic')}>
@@ -469,6 +478,20 @@ function ForwardEditorForm({
           <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.mode')}</span>
           <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
         </label>
+        {showAutoStart ? (
+          <div className={scopedClassName('forwarding-auto-start')}>
+            <div>
+              <strong>{t('forwards.autoStart')}</strong>
+              <p id={autoStartHintId}>{t('forwards.autoStartHint')}</p>
+            </div>
+            <Switch
+              aria-label={t('forwards.autoStart')}
+              aria-describedby={autoStartHintId}
+              checked={form.auto_start}
+              onChange={(checked) => onChange({ auto_start: checked })}
+            />
+          </div>
+        ) : null}
       </section>
 
       <section className={scopedClassName('forwarding-editor-section', 'is-endpoints')}>
@@ -513,6 +536,7 @@ function ForwardProfileRow({
   profile,
   host,
   running,
+  startupFailure,
   actionBusy,
   onStart,
   onEdit,
@@ -521,6 +545,7 @@ function ForwardProfileRow({
   profile: ForwardProfile
   host?: Host
   running?: ForwardInstance
+  startupFailure?: ForwardInstance
   actionBusy: boolean
   onStart: () => void
   onEdit: () => void
@@ -602,7 +627,18 @@ function ForwardProfileRow({
           </Popconfirm>
         </div>
       </div>
-      <div className={scopedClassName('forwarding-row-mode')}><ForwardModeBadge compact mode={profile.mode} /></div>
+      <div className={scopedClassName('forwarding-row-mode')}>
+        <ForwardModeBadge compact mode={profile.mode} />
+        {!running && startupFailure ? (
+          <ForwardAutoStartFailure
+            key={startupFailure.id}
+            reason={startupFailure.last_error || startupFailure.status_message}
+            failedAt={startupFailure.stopped_at}
+          />
+        ) : profile.auto_start ? (
+          <span className={scopedClassName('forwarding-auto-start-badge')}>{t('forwards.autoStartBadge')}</span>
+        ) : null}
+      </div>
       <ForwardRouteDiagram
         compact
         mode={profile.mode}
@@ -766,8 +802,9 @@ function includesForwardSearch(values: Array<string | number | undefined>, searc
   return values.some((value) => String(value ?? '').toLocaleLowerCase().includes(search))
 }
 
-function formToInput(form: ForwardFormState): ForwardProfileInput {
+function formToInput(form: ForwardFormState, includeAutoStart: boolean): ForwardProfileInput {
   return {
+    ...(includeAutoStart ? { auto_start: form.auto_start } : {}),
     name: form.name.trim(),
     description: form.description.trim(),
     mode: form.mode,

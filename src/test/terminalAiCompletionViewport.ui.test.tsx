@@ -63,6 +63,21 @@ describe('AI 命令面板与终端视口集成', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) })
   })
 
+  it('普通补全查询失败显示提示，重试成功后移除且不影响终端输入', async () => {
+    const f = fixture()
+    act(() => f.completion.setQueryExecutor(async () => { throw new Error('offline') }))
+    await act(async () => { f.completion.requestSuggestions('s1') })
+    expect(screen.getByText('terminal.completion.queryFailed')).toBeVisible()
+    act(() => f.completion.setQueryExecutor(async (_id, query) => ({
+      request_id: query.request_id, source_generation: query.source_generation,
+      status: 'ready', index_generation: 1, is_incomplete: false,
+      prompt_observation: { status: 'ready' }, provider_states: [], items: [],
+    })))
+    await act(async () => { f.completion.requestSuggestions('s1') })
+    expect(screen.queryByText('terminal.completion.queryFailed')).not.toBeInTheDocument()
+    expect(f.runtime.focusSession).not.toHaveBeenCalled()
+  })
+
   it('快捷键打开，面板点击和输入不回到终端，填入只调用专用追加入口', async () => {
     const f = fixture()
     const input = await f.open()

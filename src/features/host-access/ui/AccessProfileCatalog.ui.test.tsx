@@ -46,6 +46,7 @@ function accessCatalog(): HostAccessCatalog {
       name: 'Bound SFTP',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh-a' },
       sftp: { ssh_profile_id: 'ssh-a' },
       is_default: true,
       sort_order: 0,
@@ -70,7 +71,9 @@ describe('访问方式目录', () => {
         onEditSSH={onEditSSH}
         onDeleteSSH={vi.fn()}
         onSetDefaultSSH={vi.fn()}
+        onCreateFile={vi.fn()}
         onEditFile={vi.fn()}
+        onDeleteFile={vi.fn()}
         onSetDefaultFile={vi.fn()}
         onCreateRemoteDesktop={vi.fn()}
         onEditRemoteDesktop={vi.fn()}
@@ -86,8 +89,10 @@ describe('访问方式目录', () => {
     expect(screen.queryByRole('button', { name: /agent.launch.action/ })).not.toBeInTheDocument()
   })
 
-  it('SFTP 只提供编辑与默认项操作，不提供删除或改绑入口', () => {
+  it('文件 Profile 提供新增、编辑和删除入口', () => {
+    const onCreateFile = vi.fn()
     const onEditFile = vi.fn()
+    const onDeleteFile = vi.fn()
     const view = render(
       <AccessProfileCatalog
         catalog={accessCatalog()}
@@ -99,7 +104,9 @@ describe('访问方式目录', () => {
         onEditSSH={vi.fn()}
         onDeleteSSH={vi.fn()}
         onSetDefaultSSH={vi.fn()}
+        onCreateFile={onCreateFile}
         onEditFile={onEditFile}
+        onDeleteFile={onDeleteFile}
         onSetDefaultFile={vi.fn()}
         onCreateRemoteDesktop={vi.fn()}
         onEditRemoteDesktop={vi.fn()}
@@ -111,10 +118,12 @@ describe('访问方式目录', () => {
     expect(screen.getByText('Bound SFTP')).toBeInTheDocument()
     expect(view.container.querySelectorAll('.lucide-circle-check')).toHaveLength(2)
     expect(view.container.querySelector('.lucide-star')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'app.delete Bound SFTP' })).not.toBeInTheDocument()
-    expect(screen.queryByText(/rebind|改绑/i)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'hosts.access.file.add' }))
+    expect(onCreateFile).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'app.edit Bound SFTP' }))
     expect(onEditFile).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.delete Bound SFTP' }))
+    expect(onDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-a' }))
   })
 
   it('写操作进行中禁用新增入口', () => {
@@ -129,7 +138,9 @@ describe('访问方式目录', () => {
         onEditSSH={vi.fn()}
         onDeleteSSH={vi.fn()}
         onSetDefaultSSH={vi.fn()}
+        onCreateFile={vi.fn()}
         onEditFile={vi.fn()}
+        onDeleteFile={vi.fn()}
         onSetDefaultFile={vi.fn()}
         onCreateRemoteDesktop={vi.fn()}
         onEditRemoteDesktop={vi.fn()}
@@ -146,6 +157,73 @@ describe('访问方式目录', () => {
     expect(refreshAll).toBeDisabled()
     expect(sshAdd.className).toContain('section-add')
     expect(desktopAdd.className).toContain('section-add')
+  })
+
+  it('文件访问新增入口不依赖具体 Engine 的 SSH 前置条件', () => {
+    const source = accessCatalog()
+    source.ssh = []
+    render(
+      <AccessProfileCatalog
+        catalog={source}
+        busy={false}
+        sshReachability={{}}
+        sshReachabilityRefreshing={false}
+        onRefreshSSHReachability={vi.fn()}
+        onCreateSSH={vi.fn()}
+        onEditSSH={vi.fn()}
+        onDeleteSSH={vi.fn()}
+        onSetDefaultSSH={vi.fn()}
+        onCreateFile={vi.fn()}
+        onEditFile={vi.fn()}
+        onDeleteFile={vi.fn()}
+        onSetDefaultFile={vi.fn()}
+        onCreateRemoteDesktop={vi.fn()}
+        onEditRemoteDesktop={vi.fn()}
+        onDeleteRemoteDesktop={vi.fn()}
+        onSetDefaultRemoteDesktop={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'hosts.access.file.add' })).toBeEnabled()
+  })
+
+  it('未知文件 Engine 保持只读且不会误报 SSH 配置缺失', () => {
+    const source = accessCatalog()
+    source.files = [{
+      ...source.files[0],
+      id: 'file-object-store',
+      name: 'Archive',
+      engine: 'object-store',
+      engine_config_version: 3,
+      config: { bucket_id: 'bucket-a' },
+      sftp: undefined,
+    }]
+    render(
+      <AccessProfileCatalog
+        catalog={source}
+        busy={false}
+        sshReachability={{}}
+        sshReachabilityRefreshing={false}
+        onRefreshSSHReachability={vi.fn()}
+        onCreateSSH={vi.fn()}
+        onEditSSH={vi.fn()}
+        onDeleteSSH={vi.fn()}
+        onSetDefaultSSH={vi.fn()}
+        onCreateFile={vi.fn()}
+        onEditFile={vi.fn()}
+        onDeleteFile={vi.fn()}
+        onSetDefaultFile={vi.fn()}
+        onCreateRemoteDesktop={vi.fn()}
+        onEditRemoteDesktop={vi.fn()}
+        onDeleteRemoteDesktop={vi.fn()}
+        onSetDefaultRemoteDesktop={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('hosts.access.file.unsupportedEditor')).toBeInTheDocument()
+    expect(screen.queryByText('hosts.access.file.missingSSH')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.edit Archive' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.delete Archive' })).toBeEnabled()
   })
 
   it('按 SSH Profile 展示独立在线状态并通过标题栏统一检测', () => {
@@ -186,7 +264,9 @@ describe('访问方式目录', () => {
         onEditSSH={vi.fn()}
         onDeleteSSH={vi.fn()}
         onSetDefaultSSH={vi.fn()}
+        onCreateFile={vi.fn()}
         onEditFile={vi.fn()}
+        onDeleteFile={vi.fn()}
         onSetDefaultFile={vi.fn()}
         onCreateRemoteDesktop={vi.fn()}
         onEditRemoteDesktop={vi.fn()}
@@ -248,7 +328,9 @@ describe('访问方式目录', () => {
       onEditSSH: vi.fn(),
       onDeleteSSH: vi.fn(),
       onSetDefaultSSH: vi.fn(),
+      onCreateFile: vi.fn(),
       onEditFile: vi.fn(),
+      onDeleteFile: vi.fn(),
       onSetDefaultFile: vi.fn(),
       onCreateRemoteDesktop: vi.fn(),
       onEditRemoteDesktop: vi.fn(),

@@ -1,4 +1,238 @@
 {
+  "audit": {
+    "description": "AI assistant and external MCP operations · Stored locally for 90 days",
+    "detail": "Audit details",
+    "loadFailed": "Could not load audit records. Refresh to retry.",
+    "relatedFailed": "Could not load related events. Loaded records are preserved.",
+    "relatedCount": "{{count}} loaded",
+    "relatedOrder": "Same call · Earliest received first",
+    "refreshRelated": "Refresh related events",
+    "loadingRelated": "Loading related events…",
+    "loadingDetail": "Loading audit details…",
+    "switchingEvent": "Switching…",
+    "currentEvent": "Current event",
+    "viewEvent": "View details",
+    "retry": "Retry",
+    "eventId": "Event ID",
+    "requestId": "Request ID",
+    "action": "Action",
+    "type": "Event type",
+    "outcome": "Stage / outcome",
+    "source": "Source",
+    "producer": "Collector",
+    "actor": "Actor",
+    "target": "Target",
+    "occurred": "Occurred at",
+    "received": "Received at",
+    "duration": "Duration",
+    "correlation": "Correlation ID",
+    "correlation_id": "Correlation ID",
+    "unknownVersion": "Details version {{version}} is shown as read-only JSON",
+    "truncated": "Some details were truncated to fit size limits",
+    "context": "Call context",
+    "parameters": "Operation parameters",
+    "result": "Result summary",
+    "json": "View audit JSON",
+    "search": "Keyword search",
+    "searchField": "Search in",
+    "searchHint": "Matches literal text within the selected fields. Search runs after you stop typing; combine with more filters to narrow results.",
+    "searchFields": {
+      "all": "All key information",
+      "command": "Executed command",
+      "path": "File paths",
+      "actor": "Actor",
+      "target": "Operation target",
+      "identifier": "Task / call identifiers",
+      "summary": "Summary and errors",
+      "action": "Action identifier"
+    },
+    "searchFieldDescriptions": {
+      "all": "Public fields and stored detail text",
+      "command": "Only the original command parameter",
+      "path": "File paths in parameters and task results",
+      "actor": "AI / MCP actor name or ID",
+      "target": "Host, session, profile, and resource identifiers",
+      "identifier": "Event, request, correlation, task, and approval IDs",
+      "summary": "Operation summaries, error codes, and result messages",
+      "action": "Raw action identifier, such as termous.commands.dispatch"
+    },
+    "searchPlaceholders": {
+      "all": "Search commands, paths, actors, targets, or error summaries",
+      "command": "Command fragment, such as systemctl restart",
+      "path": "File or directory path, such as /var/log",
+      "actor": "Actor name or client ID",
+      "target": "Host, session, profile, or resource identifier",
+      "identifier": "Task, request, correlation, or approval ID",
+      "summary": "Error code, error message, or result summary",
+      "action": "Action identifier, such as termous.files"
+    },
+    "related": "Related events",
+    "noRelated": "No related events",
+    "loadMore": "Load more",
+    "degraded": "Audit records may be incomplete",
+    "statusFailed": "Audit status is unavailable. Business operations are unaffected.",
+    "health": "Queued: {{queued}} · Dropped: {{dropped}} · Write failures: {{failures}}",
+    "all": "All",
+    "from": "From",
+    "until": "Until",
+    "lastSevenDays": "Last 7 days by default",
+    "scope": "Scope",
+    "level": "Level",
+    "moreFilters": "More filters",
+    "reset": "Reset",
+    "empty": "No audit records match these filters",
+    "pageInfo": "Page {{page}} · {{count}} records",
+    "previous": "Previous",
+    "next": "Next",
+    "sources": {
+      "ai_assistant": "AI assistant",
+      "mcp": "External MCP",
+      "user": "User"
+    },
+    "types": {
+      "tool": "Tool call",
+      "approval": "Approval",
+      "operation": "Async operation"
+    },
+    "levels": {
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error"
+    },
+    "outcomes": {
+      "started": "Started",
+      "accepted": "Accepted",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "partial": "Partial",
+      "cancelled": "Cancelled",
+      "denied": "Denied",
+      "expired": "Expired",
+      "unknown": "Uncertain"
+    },
+    "producers": {
+      "agent_runtime": "AI Worker",
+      "mcp_server": "MCP server",
+      "application_service": "Application service"
+    },
+    "detailsColumn": "Details",
+    "resizeColumn": "Resize {{column}} column",
+    "actionPlaceholder": "Action ID, e.g. termous.files.list",
+    "scopes": {
+      "hosts": "Hosts",
+      "sessions": "SSH sessions",
+      "files": "Files",
+      "commands": "Commands",
+      "forwarding": "Port forwarding",
+      "snippets": "Snippets",
+      "remoteops": "Remote operations",
+      "skills": "Skills",
+      "agent": "AI assistant",
+      "access": "Access control",
+      "unknown": "Unclassified"
+    },
+    "actions": {
+      "termous_commands_dispatch": "Dispatch commands",
+      "termous_commands_get": "Inspect command task",
+      "termous_commands_interrupt": "Interrupt commands",
+      "termous_commands_read_output": "Read command output",
+      "termous_files_batch_rename_cancel": "Cancel batch rename",
+      "termous_files_batch_rename_get": "Inspect rename task",
+      "termous_files_batch_rename_presets_get": "Inspect rename preset",
+      "termous_files_batch_rename_presets_list": "List rename presets",
+      "termous_files_batch_rename_preview": "Preview batch rename",
+      "termous_files_batch_rename_result": "Read rename result",
+      "termous_files_batch_rename_start": "Start batch rename",
+      "termous_files_chmod": "Change file permissions",
+      "termous_files_delete_cancel": "Cancel file deletion",
+      "termous_files_delete_get": "Inspect deletion task",
+      "termous_files_delete_preview": "Preview file deletion",
+      "termous_files_delete_result": "Read deletion result",
+      "termous_files_delete_start": "Start file deletion",
+      "termous_files_list": "Browse directory",
+      "termous_files_mkdir": "Create directory",
+      "termous_files_name_search_capability": "Check file search support",
+      "termous_files_name_search_run": "Search file names",
+      "termous_files_read_text": "Read text file",
+      "termous_files_rename": "Rename file",
+      "termous_files_save_text": "Save text file",
+      "termous_files_sessions_close": "Close file session",
+      "termous_files_sessions_connect": "Connect file session",
+      "termous_files_sessions_get": "Inspect file session",
+      "termous_files_sessions_list": "List file sessions",
+      "termous_files_sessions_reconnect": "Reconnect file session",
+      "termous_files_stat": "Inspect file properties",
+      "termous_files_transfers_cancel": "Cancel file transfer",
+      "termous_files_transfers_download": "Download files",
+      "termous_files_transfers_get": "Inspect transfer task",
+      "termous_files_transfers_remote_copy": "Copy files between sessions",
+      "termous_files_transfers_upload": "Upload files",
+      "termous_forwarding_instances_get": "Inspect forwarding instance",
+      "termous_forwarding_instances_list": "List forwarding instances",
+      "termous_forwarding_instances_start": "Start port forwarding",
+      "termous_forwarding_instances_stop": "Stop port forwarding",
+      "termous_forwarding_profiles_get": "Inspect forwarding profile",
+      "termous_forwarding_profiles_list": "List forwarding profiles",
+      "termous_hosts_access_profiles_list": "List host access profiles",
+      "termous_hosts_list": "List hosts",
+      "termous_hosts_refresh_reachability": "Refresh host reachability",
+      "termous_remoteops_crontab_capability": "Check scheduled task support",
+      "termous_remoteops_crontab_get": "Inspect scheduled tasks",
+      "termous_remoteops_crontab_jobs_create": "Create scheduled task",
+      "termous_remoteops_crontab_jobs_delete": "Delete scheduled task",
+      "termous_remoteops_crontab_jobs_update": "Update scheduled task",
+      "termous_remoteops_docker_capability": "Check Docker support",
+      "termous_remoteops_docker_containers_action": "Run container action",
+      "termous_remoteops_docker_containers_get": "Inspect container",
+      "termous_remoteops_docker_containers_list": "List containers",
+      "termous_remoteops_docker_containers_logs": "Read container logs",
+      "termous_remoteops_docker_containers_stats": "Inspect container metrics",
+      "termous_remoteops_inventory_get": "Inspect system information",
+      "termous_remoteops_inventory_refresh": "Refresh system information",
+      "termous_remoteops_processes_get": "Inspect process",
+      "termous_remoteops_processes_list": "List processes",
+      "termous_remoteops_processes_terminate": "Terminate process",
+      "termous_remoteops_services_action": "Run service action",
+      "termous_remoteops_services_capability": "Check service support",
+      "termous_remoteops_services_get": "Inspect service",
+      "termous_remoteops_services_list": "List services",
+      "termous_remoteops_services_logs": "Read service logs",
+      "termous_remoteops_services_operations_get": "Inspect service operation",
+      "termous_sessions_close": "Close SSH session",
+      "termous_sessions_connect": "Connect SSH session",
+      "termous_sessions_get": "Inspect SSH session",
+      "termous_sessions_list": "List SSH sessions",
+      "termous_snippets_create": "Create snippet",
+      "termous_snippets_delete": "Delete snippet",
+      "termous_snippets_get": "Inspect snippet",
+      "termous_snippets_groups_create": "Create snippet group",
+      "termous_snippets_groups_delete": "Delete snippet group",
+      "termous_snippets_groups_get": "Inspect snippet group",
+      "termous_snippets_groups_list": "List snippet groups",
+      "termous_snippets_groups_reorder": "Reorder snippet groups",
+      "termous_snippets_groups_update": "Update snippet group",
+      "termous_snippets_list": "List snippets",
+      "termous_snippets_update": "Update snippet",
+      "commands_approval": "Command approval",
+      "files_approval": "File operation approval",
+      "remoteops_approval": "Remote operation approval",
+      "forwarding_approval": "Port forwarding approval",
+      "snippets_approval": "Snippet approval",
+      "snippet_approval": "Snippet approval",
+      "commands_dispatch_finished": "Command task finished",
+      "files_connect": "File connection result",
+      "sessions_connect_finished": "SSH connection result",
+      "files_read_text_finished": "Text read finished",
+      "files_save_text_finished": "Text save finished",
+      "files_read_image_finished": "Image read finished",
+      "files_batch_rename_finished": "Batch rename finished",
+      "files_delete_finished": "File deletion finished",
+      "files_move_finished": "File move finished",
+      "files_transfer_finished": "File transfer finished",
+      "remoteops_services_finished": "Service operation finished",
+      "read_skill_resource": "Read Skill resource"
+    }
+  },
   "app": {
     "name": "Termous",
     "search": "Search hosts, credentials, tags",
@@ -19,6 +253,7 @@
     "confirmDelete": "Confirm delete",
     "collapse": "Collapse",
     "expand": "Expand",
+    "back": "Back",
     "reorder": "Drag to reorder",
     "moveUp": "Move up",
     "moveDown": "Move down",
@@ -54,6 +289,7 @@
     "mcp": "Created by MCP"
   },
   "nav": {
+    "audit": "Audit center",
     "workbench": "Workbench",
     "agent": "Agent",
     "remote-desktop": "Remote Desktop",
@@ -61,6 +297,7 @@
     "vault": "Credential Vault",
     "files": "Files",
     "forwards": "Port Forwarding",
+    "mounts": "File mounts",
     "snippets": "Snippets",
     "settings": "Settings"
   },
@@ -292,6 +529,9 @@
       "queue": "Add to queue",
       "send": "Send",
       "stop": "Stop task",
+      "compressionPending": "Try compacting context on next send",
+      "compressionPendingHint": "Applies only to your next new message",
+      "cancelCompression": "Cancel scheduled compaction",
       "responseOptions": "Model and reasoning settings",
       "reasoning": "Reasoning effort",
       "resetResponseOptions": "Reset to defaults",
@@ -327,6 +567,32 @@
         "checking": "Checking the file profile before starting a task.",
         "unavailable": "The file profile is unavailable. Replace or remove its reference. Closing or disconnecting the original tab does not invalidate the reference.",
         "stale": "The file profile was deleted or its host or SSH association changed. Replace or remove its reference."
+      }
+    },
+    "sshProfileResource": {
+      "details": "Linked SSH profile",
+      "profile": "SSH profile",
+      "aria": "Linked SSH profile for {{host}}, {{status}}",
+      "tooltip": "SSH profile · {{host}} · {{status}}",
+      "selectLabel": "Choose another SSH profile",
+      "selectPlaceholder": "Choose an available SSH profile",
+      "noCandidates": "No other SSH profiles available",
+      "replace": "Replace profile",
+      "confirmReplaceOnDemand": "Link Profile only",
+      "confirmReplaceImmediate": "Connect and replace",
+      "remove": "Remove link",
+      "removeTitle": "Remove SSH profile link?",
+      "removeDescription": "This Agent session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
+      "status": {
+        "checking": "Checking profile",
+        "ready": "On demand",
+        "unavailable": "Profile unavailable",
+        "stale": "Profile expired"
+      },
+      "hint": {
+        "checking": "Checking the SSH profile before starting a task.",
+        "unavailable": "The SSH profile is unavailable. Replace the profile or remove its link.",
+        "stale": "The SSH profile was deleted or moved to another host. Replace the profile or remove its link."
       }
     },
     "connectionReference": {
@@ -466,6 +732,132 @@
         "NETWORK_ERROR": "Could not reach the local Core. Try again.",
         "REQUEST_TIMEOUT": "The attachment operation timed out. Try again.",
         "unknown": "The attachment operation failed. Try again."
+      }
+    },
+    "slash": {
+      "title": "Slash commands",
+      "commands": {
+        "title": "Commands",
+        "session": {
+          "title": "Choose session type",
+          "description": "Link an existing SSH or file session"
+        },
+        "profile": {
+          "title": "Choose profile type",
+          "description": "Link through an SSH or file profile"
+        },
+        "compact": {
+          "title": "Compact context",
+          "description": "Compact context before the next message"
+        }
+      },
+      "groups": {
+        "resources": "Resources",
+        "context": "Context"
+      },
+      "resourceKind": {
+        "title": "Choose resource type",
+        "ssh": {
+          "title": "SSH connection",
+          "description": "Use an SSH session or profile"
+        },
+        "file": {
+          "title": "File access",
+          "description": "Use a file session or profile"
+        }
+      },
+      "search": "Search hosts, profiles, or IDs",
+      "processing": "Processing the selected resource…",
+      "searchEmpty": "No matching resources",
+      "resources": {
+        "title": "Choose resource",
+        "empty": "No resources available"
+      },
+      "results": "{{count}} results",
+      "sessionCount": "{{count}} sessions",
+      "current": "Currently linked",
+      "status": {
+        "ready": "Ready",
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "waiting_host_trust": "Waiting for host trust",
+        "disconnected": "Disconnected",
+        "failed": "Connection failed",
+        "unavailable": "Unavailable"
+      },
+      "disabled": {
+        "archived": "Archived conversations cannot run this command",
+        "session_not_ready": "The session is not connected and ready",
+        "host_missing": "The host no longer exists",
+        "profile_missing": "The linked file profile no longer exists",
+        "profile_invalid": "The profile is incomplete",
+        "ssh_profile_missing": "The linked SSH profile no longer exists",
+        "profile_host_mismatch": "The profile belongs to a different host",
+        "unsupported_engine": "Only SFTP file profiles are supported",
+        "unsupported_platform": "The first release supports Linux hosts only",
+        "active_run": "Resources cannot be changed while a task is running",
+        "queued_edit": "Finish editing the pending message first",
+        "queued_messages": "Handle pending messages first",
+        "resource_busy": "An SSH connection operation is in progress",
+        "mutation_busy": "This session is processing an operation",
+        "compression_unavailable": "This context cannot be compacted",
+        "empty_draft": "Enter a message to send first",
+        "workspace_unavailable": "The workspace is not ready"
+      },
+      "replace": {
+        "title": "Replace the current resource?",
+        "description": "This conversation is linked to \"{{current}}\". Replace it with \"{{next}}\"?",
+        "confirm": "Replace"
+      },
+      "compact": {
+        "accepted": "Context compaction scheduled",
+        "acceptedDescription": "Context will be compacted before the next new message."
+      },
+      "binding": {
+        "completed": "Resource linked",
+        "completedDescription": "The resource link for this Agent session has been updated."
+      },
+      "connection": {
+        "title": "SSH profile connection",
+        "target": "SSH profile · {{host}} / {{profile}}",
+        "uncertain": "The connection status is uncertain. Reconciling with Core.",
+        "failed": "The SSH profile connection failed. Try again.",
+        "cancel": "Cancel",
+        "retry": "Retry",
+        "dismiss": "Dismiss connection status",
+        "completed": "SSH profile connected",
+        "completedDescription": "The SSH connection for this Agent session has been updated.",
+        "status": {
+          "connecting": "Establishing the SSH connection…",
+          "waiting_host_trust": "Waiting for host key confirmation…",
+          "cancelling": "Cancelling and cleaning up the temporary connection…",
+          "succeeded": "Connected. Synchronizing the session…",
+          "failed": "SSH connection failed",
+          "cancelled": "SSH connection cancelled"
+        },
+        "error": {
+          "AGENT_RESOURCE_CONNECTION_QUERY_FAILED": "Could not read the connection status. Retrying.",
+          "AGENT_RESOURCE_CONNECTION_FAILED": "Could not start the SSH connection. Try again.",
+          "AGENT_RESOURCE_CONNECTION_CANCEL_FAILED": "Could not cancel the SSH connection. Try again.",
+          "AGENT_RESOURCE_CONNECTION_CONFLICT": "This session already has a connection operation or pending messages.",
+          "AGENT_RESOURCE_CONNECTION_TIMEOUT": "The SSH connection timed out. Try again.",
+          "AGENT_REVISION_CONFLICT": "The session resources changed. Select the profile again.",
+          "AGENT_RUN_CONFLICT": "The SSH connection cannot be changed while a task is running.",
+          "AGENT_NOT_READY": "The SSH connection service is not ready. Check MCP settings and permissions.",
+          "AGENT_RESOURCE_BINDING_UNAVAILABLE": "The selected profile or connection is unavailable. Refresh and try again.",
+          "SSH_CONNECT_FAILED": "Could not establish the SSH connection. Check the host and network.",
+          "SSH_AUTH_FAILED": "SSH authentication failed. Check the credential.",
+          "HOST_KEY_UNKNOWN": "The host key is not trusted yet. Confirm it and try again.",
+          "HOST_KEY_CHANGED": "The host key changed. Verify the host identity.",
+          "JUMP_HOST_FAILED": "Could not connect to the jump host. Check its profile.",
+          "NETWORK_ERROR": "Could not reach the local Core. Retrying.",
+          "REQUEST_TIMEOUT": "The request timed out. Try again.",
+          "REQUEST_ABORTED": "The request was cancelled.",
+          "VALIDATION_ERROR": "The connection request is invalid. Select the profile again.",
+          "NOT_FOUND": "The connection operation no longer exists. Refresh and try again.",
+          "INTERNAL_ERROR": "The connection did not complete. Check its status and try again.",
+          "unknown": "The SSH profile connection failed. Try again."
+        }
       }
     },
     "approvalMode": {
@@ -1286,6 +1678,8 @@
       }
     },
     "files": {
+
+
       "emptyDirectory": "This directory is empty",
       "emptyDirectoryHint": "Drop files here to upload.",
       "remoteFiles": "Remote files",
@@ -1923,6 +2317,10 @@
       "reconnect": "Reconnect",
       "retry": "Retry",
       "retryFailed": "Unable to retry smart completion",
+      "queryFailed": "Suggestions are temporarily unavailable. Keep typing to try again.",
+      "queryFailedWithShortcut": "Unable to fetch suggestions. Press {{shortcut}} to retry.",
+      "suggestionsUnavailable": "Command suggestions are unavailable. Make sure a completion source is enabled and move the cursor to the end of the command to try again.",
+      "inputUncertain": "The current command line cannot be tracked reliably. Press Ctrl+C to return to a new prompt, then retype the command.",
       "shortcuts": {
         "navigate": "Navigate",
         "select": "Select"
@@ -2305,7 +2703,7 @@
       },
       "ssh": {
         "title": "SSH terminal",
-        "add": "Add SSH",
+        "add": "Add",
         "edit": "Edit SSH",
         "empty": "No SSH access configured",
         "connection": "Connection",
@@ -2323,23 +2721,31 @@
         "addressPlaceholder": "Hostname or IP address",
         "usernamePlaceholder": "Remote login username",
         "deleteBlockedTitle": "This SSH profile is still in use",
-        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile.",
+        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{independentFiles}} independent file profiles, {{companionAgents}} Agent references to companion file profiles, {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the SSH profile and its {{files}} companion SFTP profile(s). Termous rechecks persistent dependencies and active connections before deletion."
       },
       "file": {
         "title": "File access",
+        "add": "Add",
+        "createTitle": "Add file access",
         "edit": "Edit file access",
+        "type": "Access type",
         "empty": "No file access available",
         "binding": "Bound SSH profile",
         "boundTo": "Bound to {{name}}",
-        "fixedBinding": "Fixed binding",
-        "bindingHint": "SFTP does not duplicate SSH connection settings and cannot be rebound or deleted independently. Deleting its SSH profile handles both in one operation.",
+        "bindingHint": "SFTP references an SSH profile without copying connection settings. Rebinding affects newly opened file sessions only.",
+        "selectSSH": "Select an SSH profile on this host",
+        "sshRequired": "Select an available SSH profile",
+        "unsupportedEditor": "This version cannot edit the configuration for this file engine",
+        "deleteBlockedTitle": "This file profile is still in use",
+        "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} Agent session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
+        "deleteDescription": "This deletes the file access profile. Existing sessions are not closed automatically, and references are checked again before deletion.",
         "missingSSH": "SSH profile unavailable",
         "missingSSHDescription": "The binding is no longer valid. Refresh and inspect this host."
       },
       "desktop": {
         "title": "Remote desktop",
-        "add": "Add VNC",
+        "add": "Add",
         "edit": "Edit VNC",
         "empty": "No remote desktop access configured",
         "subtitle": "Connect to a VNC service through an SSH tunnel or target IP",
@@ -2511,6 +2917,7 @@
       "verified": "Verified",
       "pendingPassphrase": "Create on save: {{name}}",
       "generatedPassphraseName": "{{name}} passphrase",
+      "dropActive": "Drop to import private key",
       "importPassphraseTitle": "Unlock encrypted private key",
         "encryptedKeyHint": "This key is encrypted. Select a saved passphrase or enter a new one.",
         "unlockMethod": "Unlock method",
@@ -2539,6 +2946,7 @@
         "ssh_private_key_empty": "The private-key file is empty",
         "ssh_private_key_too_large": "The private-key file exceeds the 1 MiB limit",
         "ssh_private_key_read_failed": "Failed to read the private-key file",
+        "single_file_required": "Import one private-key file at a time",
         "private_key_read_failed": "The selected private-key file could not be read",
         "ssh_key_file_conflict": "A key file with the same name already exists in the destination",
         "ssh_key_file_write_failed": "Failed to save the key file",
@@ -2581,6 +2989,7 @@
       "session": "Terminal",
       "sftp": "File manager",
       "forward": "Port forwarding",
+      "mount": "File mount",
       "alias_sync": "Alias sync",
       "remote_desktop": "Remote desktop"
     },
@@ -2590,18 +2999,152 @@
     }
   },
   "files": {
+    "smb": {
+      "name": "Profile name",
+      "host": "Server address",
+      "share": "Share name",
+      "username": "Username",
+      "password": "Password",
+      "port": "Port",
+      "domain": "Domain (optional)",
+      "root_path": "Workspace directory",
+      "advanced": "Advanced options",
+      "configured": "Configured; leave empty to keep",
+      "authHint": "Uses NTLMv2 credentials and requires message signing. Signing does not imply encryption. An empty domain uses the domain supplied by the server.",
+      "errors": {
+        "host": "Enter a hostname or IP without a scheme, port, or path.",
+        "share": "Enter one share name without a path, reserved characters, or trailing dots or spaces.",
+        "username": "Enter a valid username; specify the domain separately.",
+        "password": "Enter a password.",
+        "port": "Port must be an integer from 1 to 65535.",
+        "domain": "Domain must not contain path separators or control characters.",
+        "root_path": "Enter a canonical absolute path within the share, without dot segments, reserved characters, or trailing dots or spaces."
+      }
+    },
+    "ftp": {
+      "name": "Profile name",
+      "host": "Server address",
+      "port": "Port",
+      "security": "Connection encryption",
+      "username": "Username",
+      "password": "Password",
+      "root_path": "Workspace root directory",
+      "configured": "Configured; leave blank to keep",
+      "securityOptions": { "none": "FTP · Unencrypted", "explicit_tls": "FTPS · Explicit TLS", "implicit_tls": "FTPS · Implicit TLS" },
+      "plainHint": "Plain FTP sends credentials and file contents without encryption. FTPS is recommended.",
+      "tlsHint": "TLS protects both control and data connections using system-trusted server certificates. Passwords are stored encrypted; leave blank when editing to keep the current value.",
+      "writeHint": "Writes and renames recheck the destination but cannot fully prevent concurrent changes by other clients. Choose auto-rename or skip when copying to an existing file. Transactional batch rename is unavailable.",
+      "errors": {
+        "host": "Enter a domain or IP address without a scheme, port or path.",
+        "port": "Enter an integer between 1 and 65535.",
+        "username": "Enter a username without control characters.",
+        "password": "Enter a password without CR, LF or NUL.",
+        "root_path": "Enter a canonical absolute path without dot segments, repeated separators or control characters."
+      }
+    },
+    "webdav": {
+      "name": "Profile name",
+      "endpoint": "Endpoint (HTTP / HTTPS)",
+      "username": "Username",
+      "password": "Password / app password",
+      "configured": "Configured; leave blank to keep",
+      "authHint": "The endpoint may include the WebDAV root path. Uses username and password authentication. Passwords are encrypted locally; leave blank when editing to keep the saved value.",
+      "httpHint": "HTTP sends your username, password and file contents without encryption. HTTPS is recommended.",
+      "errors": {
+        "endpoint": "Enter a full HTTP / HTTPS URL, optionally with a root path, without credentials, query parameters, fragments or non-canonical path segments.",
+        "username": "Enter a username without colons or control characters.",
+        "password": "Enter a password or app password."
+      }
+    },
+    "s3": {
+      "name": "Profile name",
+      "endpoint": "Endpoint (HTTP / HTTPS)",
+      "bucket": "Bucket",
+      "prefix": "Prefix (optional)",
+      "region": "Region (optional)",
+      "addressing": "Addressing style",
+      "access_key": "Access Key",
+      "secret_key": "Secret Key",
+      "session_token": "Session Token (optional)",
+      "configured": "Configured; leave blank to keep",
+      "clearToken": "Clear saved Session Token",
+      "requiredSecret": "Enter authentication material",
+      "errors": {
+        "endpoint": "Enter a full HTTP / HTTPS endpoint without credentials, a path, query parameters or fragment.",
+        "bucket": "Enter a valid 3–63 character bucket name using lowercase letters, digits, hyphens and dots.",
+        "prefix": "Use a prefix without a leading /, empty segments, . or .., up to 1023 bytes."
+      },
+      "addressingOptions": {
+        "path": "Path style (recommended for MinIO)",
+        "virtual": "Virtual-hosted style",
+        "auto": "Automatic"
+      },
+      "authHint": "Authentication material is encrypted locally. Leave blank when editing to keep the saved value.",
+      "httpHint": "HTTP is selected; this connection will not use TLS. Authentication material remains encrypted locally."
+    },
+    "move": {
+      "title": "Move files",
+      "renameTitle": "Rename",
+      "action": "Move",
+      "started": "Move operation started",
+      "feedback": {
+        "running": "{{action}} in progress…",
+        "done": "{{action}} completed",
+        "failed": "{{action}} failed",
+        "partial": "{{action}} partially completed",
+        "cancelled": "{{action}} cancelled",
+        "uncertain": "{{action}} outcome unconfirmed",
+        "observing": "Progress temporarily unavailable",
+        "cancelling": "Cancelling {{action}}…",
+        "loading": "Loading operation results…",
+        "unavailable": "Full results are temporarily unavailable"
+      },
+      "observationFailed": "Trying to reconnect. The operation may still be running; closing this window does not cancel it.",
+      "cancelling": "Cancelling…",
+      "resultFailed": "Result details could not be loaded. Refresh the directory to check the actual outcome.",
+      "uncertainHint": "The server could not confirm the final outcome. Refresh the directory and check the original and destination locations before retrying.",
+      "partialHint": "Some changes have taken effect and were not rolled back. Check the original and destination locations before handling the remaining items.",
+      "cancelledHint": "The operation has stopped. Any changes already completed are not rolled back.",
+      "originalName": "Original name",
+      "newName": "New name",
+      "location": "Directory",
+      "nonAtomic": "This operation cannot guarantee atomicity against changes by other clients. After failure or cancellation, check the source, destination and results; completed changes are not automatically rolled back.",
+      "source": "Source",
+      "target": "Target",
+      "status": "Result",
+      "close": "Close",
+      "statuses": {
+        "pending": "Pending",
+        "copied": "Copied; source retained",
+        "moved": "Moved",
+        "skipped": "Skipped",
+        "failed": "Failed",
+        "uncertain": "Unconfirmed"
+      }
+    },
     "hostSearch": "Search hosts",
     "openFileSession": "Open file session",
     "connect": "Connect",
     "reconnect": "Reconnect",
     "reconnectFailed": "Failed to reconnect the file session",
-    "sessions": "SFTP sessions",
-    "noFileSession": "No SFTP session",
-    "noFileSessionHint": "Use the plus button to choose a host and create or reuse an independent SFTP file session.",
-    "fileSessionCreated": "SFTP file session created",
+    "sessions": "File sessions",
+    "noFileSession": "No file session",
+    "noFileSessionHint": "Use the plus button to choose a host and its file access profile.",
+    "fileSessionCreated": "File session created",
     "noHost": "Select a host",
-    "noHostHint": "Choose a configured SSH host to browse remote directories.",
+    "noHostHint": "Choose a host's file access profile to browse remote directories.",
     "directoryReadFailed": "Failed to read remote directory",
+    "directorySize": {
+      "label": "Total size",
+      "calculate": "Calculate",
+      "calculating": "Calculating",
+      "cancel": "Cancel calculation",
+      "retry": "Retry",
+      "recalculate": "Recalculate total size",
+      "failed": "Calculation failed",
+      "estimatedValue": "About {{value}}",
+      "calculatedAt": "Calculated at {{time}}"
+    },
     "pathNavigation": "Remote path navigation",
     "back": "Back",
     "forward": "Forward",
@@ -2626,6 +3169,8 @@
     "newFolder": "New folder",
     "folderName": "Folder name",
     "nameRequired": "Name is required",
+    "nameUnchanged": "The name has not changed. Enter a new name.",
+    "renameNameInvalid": "Enter a single file or folder name, without / or control characters. The name cannot be . or ..",
     "uploadFiles": "Upload files",
     "uploadFolder": "Upload folder",
     "download": "Download",
@@ -3012,6 +3557,32 @@
     "openFile": "Open",
     "openFileOnlyFiles": "Only files can be opened",
     "openTextEditor": "Open editor",
+    "textSearch": {
+      "find": "Find text",
+      "replace": "Replace with",
+      "matchCase": "Match case",
+      "wholeWord": "Whole word",
+      "regexp": "Regular expression",
+      "previous": "Previous match (Shift+Enter)",
+      "next": "Next match (Enter)",
+      "selectAll": "Select all",
+      "selectLimit": "Too many matches to select at once. Narrow your search and try again.",
+      "replaceNext": "Replace",
+      "replaceAll": "Replace all",
+      "toggleReplace": "Expand or collapse replace",
+      "close": "Close search (Esc)",
+      "invalidRegexp": "Invalid regular expression. Check the pattern and try again.",
+      "matches": "Search matches",
+      "counting": "Counting matches…",
+      "noMatches": "No matches found",
+      "matchPosition": "Match $1 of $2",
+      "matchTotal": "$ matches; no current match",
+      "countLimit": "More than $ matches. Only the first $ are counted; find and replace still use the full text.",
+      "currentMatch": "Current match",
+      "onLine": "on line",
+      "replacedOnLine": "Replaced match on line $",
+      "replacedMatches": "Replaced $ matches"
+    },
     "textEditorTitle": "Remote text editor",
     "textEditorSave": "Save",
     "textEditorSaved": "File saved",
@@ -3057,6 +3628,7 @@
     "imageViewerFit": "Fit to window",
     "imageViewerActualSize": "Actual size",
     "imageViewerZoomOut": "Zoom out",
+    "imageViewerZoom": "Zoom level",
     "imageViewerZoomIn": "Zoom in",
     "imageViewerRotateLeft": "Rotate left",
     "imageViewerRotateRight": "Rotate right",
@@ -3149,8 +3721,8 @@
       "sourceItems_other": "{{count}} items",
       "targetSession": "Target session",
       "targetHosts": "Target hosts",
-      "availableSessions_one": "{{count}} available SFTP session",
-      "availableSessions_other": "{{count}} available SFTP sessions",
+      "availableSessions_one": "{{count}} available file session",
+      "availableSessions_other": "{{count}} available file sessions",
       "searchSessions": "Search hosts or sessions",
       "noTargets": "No other connected host sessions",
       "sessionSuffix": "Session {{id}}",
@@ -3217,7 +3789,7 @@
     "deleteTitle": "Delete remote files?",
     "deleteDescription": "{{count}} remote item(s) will be deleted. This cannot be undone.",
     "closingFileSession": "Closing file session",
-    "closingFileSessionHint": "Finishing the current SFTP session. Cached files remain read-only until the tab closes.",
+    "closingFileSessionHint": "Finishing the current file session. Cached files remain read-only until the tab closes.",
     "sessionStatus": {
       "connecting": "Connecting",
       "connected": "Connected",
@@ -3401,9 +3973,9 @@
     "bookmarkGroupName": "Group name",
     "bookmarkGroupNamePlaceholder": "For example Production",
     "noBookmarks": "No bookmarks",
-    "noBookmarksHint": "Save common remote directories as bookmarks and jump to them from any SFTP session.",
+    "noBookmarksHint": "Save common remote directories as bookmarks and jump to them from file sessions.",
     "emptyBookmarkGroup": "No bookmarks",
-    "bookmarkNoSession": "No available SFTP session",
+    "bookmarkNoSession": "No available file session",
     "bookmarkActionFailed": "Bookmark operation failed",
     "bookmarkMutationBusy": "Another bookmark operation is in progress. Try again shortly.",
     "bookmarkNameRequired": "Enter a bookmark name",
@@ -3413,11 +3985,170 @@
     "deleteBookmarkGroupTitle": "Delete this group?",
     "deleteBookmarkGroupHint": "Bookmarks in this group will move to Ungrouped."
   },
+  "mounts": {
+    "configuration": "Mount configuration",
+    "create": "New configuration",
+    "edit": "Edit mount configuration",
+    "temporary": "Temporary mount",
+    "start": "Mount",
+    "stop": "Unmount",
+    "cancelStart": "Cancel startup",
+    "restart": "Restart",
+    "close": "Close",
+    "sync": "Sync",
+    "reconnect": "Reconnect",
+    "force": "Force unmount",
+    "name": "Configuration name",
+    "namePlaceholder": "For example: Termous - Project files",
+    "nameRequired": "Enter a name of 1–80 characters",
+    "profileUnavailable": "This mount configuration no longer exists. Choose another one.",
+    "sourceSection": "File source",
+    "locationSection": "Local mount",
+    "detailsSection": "Configuration details",
+    "source": "File connection",
+    "sourceRequired": "Choose a file connection",
+    "drive": "Drive letter",
+    "directory": "Mount directory",
+    "locationRequired": "Choose a mount location",
+    "locationHint": "The mount location must be empty and unused.",
+    "locationHintDrive": "Choose an available drive letter from D: through Z:.",
+    "chooseDirectory": "Choose an empty directory",
+    "description": "Description",
+    "descriptionTooLong": "Description cannot exceed 1024 bytes",
+    "readOnly": "Read only",
+    "readWrite": "Read and write",
+    "autoStart": "Mount at startup",
+    "autoStartBadge": "Auto mount",
+    "autoStartHint": "Mount on the next Termous startup. Retry manually if the first attempt fails.",
+    "advanced": "Advanced settings",
+    "volume": "Volume name",
+    "volumeLimit": "Volume names allow up to 32 characters",
+    "volumeInvalid": "Volume names cannot contain commas, equals signs, path separators, or control characters",
+    "volumeDefault": "Use the configuration name",
+    "caseSensitive": "Case sensitive",
+    "refreshInterval": "File attribute check interval",
+    "directoryCache": "Directory cache duration",
+    "directoryCacheHint": "Refresh on the next access after expiry. Shorter values reveal external changes sooner; longer values reduce requests.",
+    "directoryCacheRange": "Enter 1–3600 seconds",
+    "attributeCheckHint": "Recheck file content versions at this interval, independently of directory refresh. Default: 5 seconds.",
+    "attributeCheckRange": "Enter 1–300 seconds",
+    "metadataConcurrency": "Metadata query concurrency",
+    "metadataConcurrencyHint": "Auto uses 8 requests. Higher values add server load and remain subject to the shared budget.",
+    "concurrencyAuto": "Auto (recommended)",
+    "concurrentRequests": "{{count}} concurrent",
+    "seconds": "s",
+    "nextStartOnly": "Changes apply on the next mount. The location must be empty and unused.",
+    "nextStartOnlyDrive": "Changes apply on the next mount. Choose an available drive letter when changing the target.",
+    "unassigned": "Independent profiles",
+    "saved": "Saved configurations",
+    "runtime": "Running instances",
+    "profileCount": "{{count}} configurations",
+    "noRuntime": "No running instances",
+    "environmentStatus": "Mount status",
+    "environmentStates": {
+      "pending": "Pending check",
+      "ready": "Ready",
+      "unavailable": "Unavailable"
+    },
+    "filterLabel": "Filter configurations by mount status",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterIssues": "Issues",
+    "running": "{{count}} mounted",
+    "searchPlaceholder": "Search configurations, locations or file connections",
+    "noResults": "No matching mount configurations",
+    "noActiveProfiles": "No active configurations",
+    "noIssues": "No configurations with issues",
+    "dirty": "{{count}} unsynced",
+    "handles": "{{count}} open handles",
+    "upload": {
+      "label": "Upload status",
+      "active": "Transferring {{count}} files",
+      "finalizing": "Completing {{count}} uploads",
+      "stopping": "Stopping {{count}} uploads",
+      "cleaning": "Cleaning up {{count}} uploads",
+      "cleanupFailed": "Cleanup failed for {{count}} uploads",
+      "failed": "{{count}} uploads failed; local changes retained",
+      "buffered": "{{count}} buffered uploads",
+      "transferred": "Transferred",
+      "pending": "Pending",
+      "details": "Progress details",
+      "basis": {
+        "confirmed": "Progress reflects protocol acknowledgements; final publication is still required.",
+        "transport": "Progress reflects bounded transport; the server must still confirm completion.",
+        "mixed": "Progress uses different transfer measures; each upload still requires final publication."
+      },
+      "reasons": {
+        "unsupported": "This connection uses buffered writeback. Copy progress may run ahead of remote upload.",
+        "protocol_unsupported": "The server rejected streaming; safely switched to buffered writeback.",
+        "protocol_budget": "The protocol progress unit exceeds the streaming budget; using buffered writeback.",
+        "non_sequential": "Partial updates, append or nonsequential writes use buffered writeback.",
+        "multiple_writers": "Multiple writable handles use buffered writeback.",
+        "completed_generation": "The snapshot is published; subsequent changes use buffered writeback.",
+        "namespace_change": "Changes following a rename use buffered writeback.",
+        "idle_checkpoint": "Input paused and the staging session was released; subsequent changes use buffered writeback.",
+        "mixed": "Some files use buffered writeback due to their write pattern or protocol limits."
+      }
+    },
+    "failure": "View error",
+    "failureDetails": "Error details",
+    "failureMessage": "Error message",
+    "failureAt": "Occurred at",
+    "autoStartFailed": "Automatic mount failed",
+    "operationFailed": "Mount operation failed",
+    "recheck": "Check again",
+    "awaitingState": "Retrieving mount status. Controls will be available when connected.",
+    "environmentUnavailable": "Mount environment is not ready",
+    "environmentReasons": {
+      "build_unsupported": "Mount support is not enabled in this Core build",
+      "platform_unsupported": "Mounting is not supported on this platform",
+      "dependency_missing": "Mount dependencies are not installed",
+      "dependency_incompatible": "Mount dependencies are incompatible",
+      "dependency_error": "Mount dependency check failed",
+      "detection_canceled": "Mount environment check was canceled"
+    },
+    "upgradeDependency": "Update {{name}} from the official website",
+    "dependencyHelp": "View official {{name}} documentation",
+    "download": "Visit the official {{name}} download page",
+    "cacheNotice": "Disk capacity represents the local write cache budget shared by Core, not remote capacity. For file management and ordinary editing; databases, VM disks and writable memory mapping are not supported.",
+    "empty": "No saved mount configurations",
+    "platformMismatch": "Location belongs to another platform; edit to continue",
+    "deleteTitle": "Delete this mount configuration?",
+    "deleteHint": "Only the configuration is removed. Remote files are preserved.",
+    "forceTitle": "Discard unsynced changes and unmount?",
+    "forceHint": "There are {{count}} unsynced items. Force unmount discards unpublished data in this run’s cache. This cannot be undone.",
+    "forceCleanTitle": "Force unmount and release the cache?",
+    "forceCleanHint": "No unsynced changes are currently reported. Force unmount skips normal sync and may still discard unpublished data.",
+    "detachedHint": "The system mount has ended, but unsynced data is retained. Reconnect and sync, or explicitly discard it to release the cache.",
+    "detachedCleanHint": "The system mount has ended, but its cache is still retained. Try unmounting normally; if that fails, force unmount to release the cache.",
+    "states": {
+      "starting": "Mounting",
+      "running": "Mounted",
+      "failed": "Mount failed",
+      "stopped": "Unmounted",
+      "checking": "Checking environment",
+      "connecting": "Connecting source",
+      "waiting_host_trust": "Awaiting host key confirmation",
+      "mounting": "Starting driver",
+      "ready": "Mounted",
+      "syncing": "Syncing",
+      "unmounting": "Unmounting",
+      "restarting": "Restarting",
+      "cancelling": "Cancelling",
+      "detached": "Unmounted · cache retained"
+    }
+  },
   "forwards": {
+    "autoStart": "Connect on startup",
+    "autoStartHint": "Connect this forward automatically the next time Termous starts. If it fails, you can retry manually.",
+    "autoStartBadge": "Auto-connect",
+    "autoStartFailed": "Automatic connection failed",
+    "autoStartFailureDetails": "Automatic connection failed, view details",
+    "autoStartFailedAt": "Failed at",
     "title": "Port Forwarding",
     "subtitle": "Manage current-session and background SSH forwarding tasks",
     "profiles": "Background profiles",
-    "profilesHint": "Save common forwarding rules and start them manually.",
+    "profilesHint": "Save forwarding rules to connect on demand or when Termous starts.",
     "runtime": "Runtime instances",
     "runtimeHint": "{{count}} background forward(s) are running",
     "overview": "Forwarding overview",
@@ -3539,6 +4270,40 @@
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
+    "tabMount": "Mounts",
+    "mount": {
+      "title": "Mount cache",
+      "directory": "Cache location",
+      "default": "Core data directory",
+      "custom": "Custom directory",
+      "placeholder": "Enter an absolute path to a local folder",
+      "choose": "Browse",
+      "capacity": "Cache capacity limit",
+      "capacityHint": "Shared by all mounts. Unsynced changes are retained.",
+      "reserve": "Minimum free disk space",
+      "reserveHint": "Free disk space kept available when allocating cache.",
+      "activeBudget": "Current limit {{capacity}} GiB · Disk reserve {{reserve}} MiB",
+      "active": "Current cache directory",
+      "next": "Cache directory after restart",
+      "pending": "Restart required",
+      "restartHint": "Restart Core to apply changes. Changing location does not delete the old directory.",
+      "usage": "Current cache",
+      "clean": "Clean content",
+      "private": "Private writes and reservations",
+      "reclaimable": "Reclaimable",
+      "clearUnused": "Clear unused cache",
+      "persistenceHint": "Downloaded content survives unmounts and restarts. Cleanup skips content in use and unsynced changes.",
+      "clearState": {
+        "accepted": "Cleanup accepted, waiting to start.",
+        "running": "Clearing unused cache…",
+        "completed": "Cleanup completed. Freed {{size}}.",
+        "failed": "Cleanup did not finish. Review the error before retrying."
+      },
+      "saved": "Saved.",
+      "savedPending": "Saved. Restart Core to apply.",
+      "failed": "Could not read or save mount settings. Please retry.",
+      "unavailable": "Mount settings are unavailable in this environment."
+    },
     "tabShortcuts": "Shortcuts",
     "tabUpdates": "Updates",
     "generalSection": "General",
@@ -3550,6 +4315,22 @@
     "closeBehaviorHint": "Tray quit always disconnects safely and exits the app.",
     "closeBehaviorExit": "Exit Termous",
     "closeBehaviorMinimizeToTray": "Minimize to tray",
+    "loginItem": {
+      "title": "Launch at startup",
+      "hint": "Start Termous when you sign in. Off by default.",
+      "developmentLabel": "Development",
+      "development": "Available in packaged releases only. Disabled in development mode.",
+      "desktop_only": "This setting is available only in the desktop app.",
+      "unsupported_platform": "Launch at startup is not supported on this platform yet.",
+      "requiresApproval": "Awaiting approval. Allow Termous in your system's login item settings.",
+      "errors": {
+        "unavailable": "This environment cannot change the startup setting.",
+        "invalid_request": "Invalid startup setting. Reload the status and try again.",
+        "read_failed": "Unable to read the system startup status. Please retry.",
+        "write_failed": "Unable to change the startup setting. Reload the status before trying again.",
+        "not_applied": "The system did not apply the setting. Check startup item permissions and try again."
+      }
+    },
     "chinese": "Simplified Chinese",
     "english": "English",
     "terminalSection": "Terminal style",
@@ -3623,6 +4404,10 @@
         "terminal_paste": {
           "name": "Paste",
           "description": "Pastes clipboard content into the active writable terminal."
+        },
+        "terminal_completion_trigger": {
+          "name": "Show command suggestions",
+          "description": "Show or refresh suggestions for the current input, then select one to insert into the terminal."
         },
         "terminal_completion_previous": {
           "name": "Select previous suggestion",
@@ -3816,6 +4601,13 @@
         "description": "Check context usage before each model request. At the threshold, compact history before continuing. Running tools are not interrupted.",
         "hint": "50–95%, default 80%. Recent conversation is retained. Changes apply to new runs.",
         "validation": "Enter a whole percentage from 50 to 95."
+      },
+      "profileBinding": {
+        "title": "SSH Profile association",
+        "description": "When off, only associate the Profile so the Agent can create an SSH session on demand. When on, connect immediately during association.",
+        "toggle": "Connect when associating an SSH Profile",
+        "immediate": "Connect now",
+        "onDemand": "On demand"
       },
       "turnUsage": {
         "title": "Per-turn token usage",
@@ -4115,6 +4907,53 @@
     },
     "tabMcp": "MCP",
     "mcp": {
+      "skills": {
+        "hint": "The built-in assistant already includes these skills. External clients still need an MCP connection and permissions.",
+        "desktopOnly": "Install skills from the Termous desktop application.",
+        "install": "Install skills",
+        "client": "Client type",
+        "custom": "Custom directory",
+        "customHint": "Install directly into the selected directory",
+        "directory": "Installation location",
+        "choose": "Choose directory",
+        "directoryHint": {
+          "codex": "Choose a project or home directory. Skills will be installed under .agents/skills.",
+          "claude-code": "Choose a project or home directory. Skills will be installed under .claude/skills.",
+          "custom": "Choose the directory that will contain the individual skill folders. No extra directories are appended."
+        },
+        "destination": "Final installation directory",
+        "contents": "Installation contents",
+        "exists": "Already exists",
+        "new": "To install",
+        "replace": "Replace {{count}} existing skills",
+        "replaceHint": "Replaces each matching skill folder, including local changes inside it. Other skills are unaffected.",
+        "skipHint": "Existing skills are kept by default. Only missing skills will be installed.",
+        "failed": "Could not install skills",
+        "partial": "Some items need attention",
+        "finished": "Installation complete",
+        "summary": "Installed {{installed}}, skipped {{skipped}}, failed {{failed}}.",
+        "recovery": "Retained files: ",
+        "afterInstall": "Reload skills in your client; restart the client if they do not appear. Configure MCP connectivity and permissions separately.",
+        "status": {
+          "installed": "Installed",
+          "skipped": "Skipped",
+          "failed": "Failed"
+        },
+        "errors": {
+          "invalid_request": "Invalid installation request. Choose the directory again.",
+          "invalid_directory": "The directory is missing or inaccessible. Choose another directory.",
+          "unsafe_path": "The target contains a link or a non-directory entry, or overlaps the bundled skills source. Choose another directory.",
+          "bundle_unavailable": "Bundled skills are missing or failed verification. Repair or reinstall Termous.",
+          "permission_denied": "The directory is not writable or a file is in use. Check it and choose the directory again.",
+          "disk_full": "The disk is full. Free up space and try again.",
+          "target_changed": "The target directory changed. Choose it again and review existing items.",
+          "plan_expired": "The directory selection expired. Choose it again.",
+          "busy": "Another installation operation is in progress. Try again shortly.",
+          "io_error": "The file operation could not be completed. Check the directory and disk, then choose the directory again.",
+          "cleanup_failed": "Temporary files could not be removed. Check the retained path below.",
+          "recovery_failed": "The original skill could not be restored automatically. Check the backup at the retained path below before deciding whether to retry."
+        }
+      },
       "title": "MCP access",
       "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, file management, port forwarding, code snippets, and remote operations.",
       "state": {
@@ -4565,6 +5404,7 @@
         "file_bookmarks": "File bookmarks",
         "local_path_mappings": "Local folder mappings",
         "file_rename_presets": "File rename presets",
+        "mount_profiles": "File mount configurations",
         "forward_profiles": "Port forwarding profiles",
         "firewall_disabled_rules": "Disabled firewall rules"
       }
@@ -4637,7 +5477,7 @@
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Termous brings credentials, hosts, and remote operations into one workbench. Follow this tour through connection setup, file management, and key settings to get started."
+        "description": "Termous brings terminals, file management, and AI operations into one workbench. Explore connection setup, file profiles, filesystem mounts, and where to configure MCP and install Skills."
       },
       "vaultNav": {
         "title": "Start with credentials",
@@ -4663,6 +5503,10 @@
         "title": "Configure an SSH connection",
         "description": "On the Connections tab, enter the SSH endpoint, choose a credential and optional proxy, and set the default connection. Saving an SSH profile automatically creates its matching SFTP profile."
       },
+      "fileProfiles": {
+        "title": "Set up file access for a host",
+        "description": "After saving a host, add SFTP, S3, WebDAV, FTP, or SMB profiles under file access on its Connections tab. SFTP uses an existing SSH connection; other engines provide their own connection options. Reuse saved profiles in Files, AI resource references, and mounts."
+      },
       "topbarConnect": {
         "title": "Connect quickly",
         "description": "Open the host launcher in the workbench top bar to choose a configured host connection, or start a local terminal from the same menu."
@@ -4673,11 +5517,11 @@
       },
       "workbenchTools": {
         "title": "Explore the right-side toolbox",
-        "description": "The right-side area keeps session-related information and supporting tools beside the terminal. Switch between them as needed, or collapse the area for more terminal space."
+        "description": "The toolbox provides files, system monitoring, snippets, and alias management for the current session. You can also reference selected terminal text in the AI assistant together with its SSH connection for follow-up questions."
       },
       "files": {
         "title": "Manage remote files",
-        "description": "The Files page hosts standalone SFTP sessions for browsing remote folders, transferring files, tracking tasks, and reusing bookmarks and local path mappings."
+        "description": "Open independent sessions from file profiles to browse folders, edit text, and preview files. Storage engines share this workspace for uploads, downloads, and copying between sessions. Available operations depend on the connection's capabilities."
       },
       "filesBookmarks": {
         "title": "Bookmark remote paths",
@@ -4689,31 +5533,51 @@
       },
       "filesTransfers": {
         "title": "Track transfers in one place",
-        "description": "View uploads, downloads, and transfers between hosts across all sessions, or filter to the current session. Cancel or retry eligible tasks and clear history without staying in the original folder."
+        "description": "Track uploads, downloads, and copies between file sessions, or filter to the current session. Cancel or retry eligible tasks and clear history here. Uploads through a system mount are tracked on the Mounts page."
+      },
+      "mounts": {
+        "title": "Mount remote folders on your system",
+        "description": "Check that mounting is available, then choose a file profile, drive letter or mount directory, and read-only or writable access. Save the setup or start a temporary mount. A file profile allows multiple read-only instances and at most one writable instance."
+      },
+      "mountsRuntime": {
+        "title": "Track mounts and upload progress",
+        "description": "Running instances show transferred and pending bytes, distinguishing transfer from finalization. The server may still need to confirm completion after transfer. Upload details explain the progress basis and any compatibility writeback. Sync, restart, or close instances here, and open error details when needed."
       },
       "forwards": {
         "title": "Manage port forwarding",
-        "description": "The Port Forwarding page lets you create and reuse local, remote, and dynamic forwarding profiles while tracking temporary tunnels, runtime status, and traffic."
+        "description": "Create local, remote, or dynamic forwarding, save reusable profiles, or open temporary tunnels. Enable automatic connection at startup when needed, and check runtime status, traffic, and connection failures here."
       },
       "snippets": {
         "title": "Reuse common commands",
         "description": "The Snippets page organizes commands by group and tag, supports variables and risk detection, and makes them ready to insert or run from the workbench."
       },
+      "audit": {
+        "title": "Review AI and MCP operations",
+        "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
+      },
       "settings": {
         "title": "Tune key preferences",
-        "description": "Explore terminal options, MCP access, the AI assistant, and data backup. Close the tour whenever you're ready to change settings."
+        "description": "Explore terminal options, mount caching, MCP access, Skills installation, and the AI assistant. Close the tour whenever you're ready to change settings."
       },
       "settingsTerminal": {
         "title": "Make the terminal your own",
-        "description": "Adjust fonts, text size, cursor, theme, and scrollback, or import your own font. Below, choose which command, alias, snippet, history, and directory suggestions appear in completion."
+        "description": "Adjust fonts, cursor, theme, and scrollback. Completion supports commands, aliases, snippets, history, and directories. To enable AI command suggestions, first configure a default model in AI Assistant settings."
+      },
+      "settingsMount": {
+        "title": "Manage the local mount cache",
+        "description": "Set the cache directory, capacity limit, and reserved free space, and inspect clean, private reserved, and reclaimable usage. Clear unused cache skips content in use. Directory changes apply after Core restarts; the old directory is not moved or deleted automatically."
       },
       "settingsMcp": {
         "title": "Control tool access through MCP",
         "description": "Use the Termous endpoint and separate access tokens to connect external AI clients. Assign tool permissions and approval policies to control access to hosts, files, and remote operations."
       },
+      "settingsSkills": {
+        "title": "Install Skills for external AI clients",
+        "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
+      },
       "settingsAgent": {
         "title": "Set up the built-in AI assistant",
-        "description": "Configure providers, sync their model catalogs, and choose the default model and run options for new conversations. Adjust automatic context compaction and Token usage display, and check MCP and Skills readiness."
+        "description": "Configure providers and a default model, then adjust context compaction and Token usage display. In the AI assistant, type / for quick commands and SSH or file connection references, or continue working with content referenced from the terminal."
       },
       "settingsData": {
         "title": "Back up your workspace",
@@ -4721,7 +5585,7 @@
       },
       "finish": {
         "title": "You're ready",
-        "description": "You now know the connection flow, file tools, and key settings. Replay this tour anytime from the Help menu and keep exploring at your own pace."
+        "description": "You have explored connections, file engines, mounts, auditing, and AI access. Close the tour to start configuring and using them. You can replay it anytime from the Help menu."
       }
     }
   },

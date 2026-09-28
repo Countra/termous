@@ -41,11 +41,17 @@ vi.mock('antd', () => ({
       </div>
     )
   },
-  Select: ({ options, disabled, onChange }: {
+  Select: ({ options, disabled, className, classNames, onChange }: {
     options: Array<{ value: string; label: string }>
     disabled?: boolean
+    className?: string
+    classNames?: { popup?: { root?: string } }
     onChange: (value: string) => void
-  }) => <div>{options.map((option) => (
+  }) => <div
+    data-testid="resource-rebind-select"
+    data-select-class={className}
+    data-popup-class={classNames?.popup?.root}
+  >{options.map((option) => (
     <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)}>{option.label}</button>
   ))}</div>,
 }))
@@ -72,6 +78,7 @@ vi.mock('#shared/ui', () => ({
   ConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) => (
     open ? <button type="button" onClick={onConfirm}>confirm-detach</button> : null
   ),
+  customSelectStyles: { select: 'shared-select', 'select-popup': 'shared-select-popup' },
   uiStyles: { tooltip: 'shared-tooltip' },
 }))
 
@@ -186,6 +193,14 @@ describe('Agent SSH 资源绑定控件', () => {
       .toHaveAttribute('data-resource-status', 'ready')
     fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
+    expect(screen.getByTestId('resource-rebind-select')).toHaveAttribute(
+      'data-select-class',
+      expect.stringContaining('shared-select'),
+    )
+    expect(screen.getByTestId('resource-rebind-select')).toHaveAttribute(
+      'data-popup-class',
+      'shared-select-popup termous-select-popup',
+    )
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
     await waitFor(() => expect(replace).toHaveBeenCalledWith({ kind: 'ssh_session', session_id: 'ses-two' }))
@@ -226,7 +241,60 @@ describe('Agent SSH 资源绑定控件', () => {
     await waitFor(() => expect(remove).toHaveBeenCalledOnce())
   })
 
-  it('相同文件 Profile 的关联身份变化后仍可显式重新绑定，确认前身份再变则清除选择', async () => {
+  it.each([
+    ['on_demand', 'agent.sshProfileResource.confirmReplaceOnDemand'],
+    ['immediate', 'agent.sshProfileResource.confirmReplaceImmediate'],
+  ] as const)('SSH Profile 标签保持简洁并使用 %s 更换行为', async (
+    associationMode,
+    confirmCopy,
+  ) => {
+    const replace = vi.fn().mockResolvedValue(true)
+    const binding = {
+      kind: 'ssh_profile' as const,
+      ssh_profile_id: 'ssh-one',
+      ssh_profile_name: '默认配置',
+      host_id: 'host-one',
+      host_name: 'Production',
+      platform: 'linux' as const,
+      bound_at: '2026-08-31T08:00:00Z',
+    }
+    render(<AgentResourceBindingControl disabled={false} onReplace={replace} onRemove={vi.fn()}
+      sshProfileAssociationMode={associationMode}
+      onRecover={vi.fn()} onCancelRecovery={vi.fn()} context={{
+        binding,
+        status: 'ready',
+        live_resource: { ...binding, status: 'ready' },
+        candidates: [{
+          host_id: 'host-two', host_name: 'Fallback', ssh_profile_id: 'ssh-two',
+          ssh_profile_name: '备用配置', platform: 'linux', status: 'ready',
+        }],
+      }} />)
+
+    const chip = screen.getByRole('button', { name: /agent.sshProfileResource.aria/ })
+    expect(chip).toHaveAttribute('data-resource-kind', 'ssh_profile')
+    expect(chip).toHaveTextContent('Production')
+    expect(chip).not.toHaveTextContent('agent.sshProfileResource.onDemand')
+    expect(chip.querySelector('small')).not.toBeInTheDocument()
+    expect(chip.querySelector('i')).not.toBeInTheDocument()
+    expect(chip.querySelector('.lucide-server-cog')).toBeInTheDocument()
+    fireEvent.click(chip)
+    expect(screen.getByRole('group', { name: 'agent.sshProfileResource.details' })).toBeInTheDocument()
+    expect(screen.getByText('默认配置')).toBeInTheDocument()
+    expect(screen.queryByText('agent.sshProfileResource.connectionMode')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.sshProfileResource.onDemand')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.resource.session')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.resource.recovery.title')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.sshProfileResource.replace' }))
+    expect(screen.getByRole('button', { name: confirmCopy })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /Fallback.*备用配置/ }))
+    fireEvent.click(screen.getByRole('button', { name: confirmCopy }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({
+      kind: 'ssh_profile', ssh_profile_id: 'ssh-two',
+    }))
+  })
+
+  it('文件 Profile 按稳定身份去重，候选稳定身份变化时清除选择', async () => {
     const replace = vi.fn().mockResolvedValue(true)
     const remove = vi.fn().mockResolvedValue(true)
     const binding = {
@@ -234,22 +302,34 @@ describe('Agent SSH 资源绑定控件', () => {
       host_id: 'host-one', ssh_profile_id: 'ssh-old', host_name: 'Production', engine: 'sftp' as const,
       bound_at: '2026-08-31T08:00:00Z',
     }
-    const candidate = { ...binding, ssh_profile_id: 'ssh-new', status: 'ready' as const }
+    const sameProfile = { ...binding, ssh_profile_id: 'ssh-new', status: 'ready' as const }
+    const candidate = {
+      ...binding,
+      file_access_profile_id: 'file-two',
+      file_access_profile_name: '归档文件',
+      ssh_profile_id: 'ssh-new',
+      status: 'ready' as const,
+    }
     const props = { disabled: false, onReplace: replace, onRemove: remove }
     const view = render(<AgentResourceBindingControl {...props}
-      context={{ binding, status: 'stale', candidates: [candidate] }} />)
+      context={{ binding, status: 'stale', candidates: [sameProfile, candidate] }} />)
     fireEvent.click(screen.getByRole('button', { name: /agent.fileResource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
-    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    expect(screen.queryByRole('button', { name: /Production.*应用文件/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Production.*归档文件/ }))
     expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
 
     view.rerender(<AgentResourceBindingControl {...props}
       context={{ binding, status: 'stale', candidates: [{ ...candidate, ssh_profile_id: 'ssh-third' }] }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
+
+    view.rerender(<AgentResourceBindingControl {...props}
+      context={{ binding, status: 'stale', candidates: [{ ...candidate, file_access_profile_id: 'file-three' }] }} />)
     expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeDisabled()
     expect(replace).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: /Production.*应用文件/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Production.*归档文件/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
-    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'file_profile', file_access_profile_id: 'file-one' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'file_profile', file_access_profile_id: 'file-three' }))
   })
 
   it('失效状态仍展示引用且活动任务期间禁止修改', () => {

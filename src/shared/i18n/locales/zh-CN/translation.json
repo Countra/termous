@@ -1,4 +1,238 @@
 {
+  "audit": {
+    "description": "AI 助手与外部 MCP 操作记录 · 本机保留 90 天",
+    "detail": "审计详情",
+    "loadFailed": "无法读取审计记录，请刷新重试",
+    "relatedFailed": "关联事件读取失败，已加载的记录仍保留",
+    "relatedCount": "已加载 {{count}} 条",
+    "relatedOrder": "同一调用 · 按接收时间从早到晚",
+    "refreshRelated": "刷新关联事件",
+    "loadingRelated": "正在加载关联事件…",
+    "loadingDetail": "正在加载审计详情…",
+    "switchingEvent": "切换中…",
+    "currentEvent": "当前事件",
+    "viewEvent": "查看详情",
+    "retry": "重试",
+    "eventId": "事件 ID",
+    "requestId": "请求 ID",
+    "action": "操作",
+    "type": "事件类型",
+    "outcome": "阶段／结果",
+    "source": "来源",
+    "producer": "采集端",
+    "actor": "发起者",
+    "target": "目标",
+    "occurred": "发生时间",
+    "received": "接收时间",
+    "duration": "耗时",
+    "correlation": "关联 ID",
+    "correlation_id": "关联 ID",
+    "unknownVersion": "详情版本 {{version}} 暂不支持结构化展示，以下提供只读 JSON",
+    "truncated": "部分详情已按大小限制截断",
+    "context": "调用上下文",
+    "parameters": "操作参数",
+    "result": "结果摘要",
+    "json": "查看审计 JSON",
+    "search": "关键词搜索",
+    "searchField": "搜索范围",
+    "searchHint": "在选定范围内按字面包含匹配；输入停顿后自动搜索，可结合更多筛选缩小范围。",
+    "searchFields": {
+      "all": "全部关键信息",
+      "command": "执行命令",
+      "path": "文件路径",
+      "actor": "发起者",
+      "target": "操作目标",
+      "identifier": "任务／调用标识",
+      "summary": "摘要与错误",
+      "action": "操作标识"
+    },
+    "searchFieldDescriptions": {
+      "all": "公共字段及已保存的详情文本",
+      "command": "只匹配命令参数中的命令原文",
+      "path": "参数及任务结果中的源、目标和本地路径",
+      "actor": "AI／MCP 发起者名称或 ID",
+      "target": "主机、会话、Profile 及目标资源标识",
+      "identifier": "事件、请求、关联、任务及审批 ID",
+      "summary": "操作摘要、错误码及结果消息",
+      "action": "原始操作标识，如 termous.commands.dispatch"
+    },
+    "searchPlaceholders": {
+      "all": "搜索命令、路径、发起者、目标或错误摘要",
+      "command": "输入命令片段，如 systemctl restart",
+      "path": "输入文件或目录路径，如 /var/log",
+      "actor": "输入发起者名称或客户端 ID",
+      "target": "输入主机、会话、Profile 或资源标识",
+      "identifier": "输入任务、请求、关联或审批 ID",
+      "summary": "输入错误码、错误消息或结果摘要",
+      "action": "输入操作标识，如 termous.files"
+    },
+    "related": "关联事件",
+    "noRelated": "暂无关联事件",
+    "loadMore": "加载更多",
+    "degraded": "审计记录可能不完整",
+    "statusFailed": "无法读取审计中心状态，业务操作不受影响",
+    "health": "积压 {{queued}} 条 · 丢弃 {{dropped}} 条 · 写入失败 {{failures}} 次",
+    "all": "全部",
+    "from": "开始时间",
+    "until": "结束时间",
+    "lastSevenDays": "默认最近 7 天",
+    "scope": "作用域",
+    "level": "级别",
+    "moreFilters": "更多筛选",
+    "reset": "重置",
+    "empty": "当前筛选范围内没有审计记录",
+    "pageInfo": "第 {{page}} 页 · {{count}} 条",
+    "previous": "上一页",
+    "next": "下一页",
+    "sources": {
+      "ai_assistant": "AI 助手",
+      "mcp": "外部 MCP",
+      "user": "用户"
+    },
+    "types": {
+      "tool": "工具调用",
+      "approval": "审批",
+      "operation": "异步操作"
+    },
+    "levels": {
+      "info": "信息",
+      "warn": "警告",
+      "error": "错误"
+    },
+    "outcomes": {
+      "started": "开始",
+      "accepted": "已接受",
+      "succeeded": "成功",
+      "failed": "失败",
+      "partial": "部分完成",
+      "cancelled": "已取消",
+      "denied": "已拒绝",
+      "expired": "已过期",
+      "unknown": "结果不确定"
+    },
+    "producers": {
+      "agent_runtime": "AI Worker",
+      "mcp_server": "MCP 服务端",
+      "application_service": "应用服务"
+    },
+    "detailsColumn": "详情",
+    "resizeColumn": "调整{{column}}列宽",
+    "actionPlaceholder": "操作标识，如 termous.files.list",
+    "scopes": {
+      "hosts": "主机",
+      "sessions": "SSH 会话",
+      "files": "文件管理",
+      "commands": "命令执行",
+      "forwarding": "端口转发",
+      "snippets": "代码片段",
+      "remoteops": "远程运维",
+      "skills": "Skills",
+      "agent": "AI 助手",
+      "access": "访问控制",
+      "unknown": "未分类"
+    },
+    "actions": {
+      "termous_commands_dispatch": "派发命令",
+      "termous_commands_get": "查看命令任务",
+      "termous_commands_interrupt": "中断命令",
+      "termous_commands_read_output": "读取命令输出",
+      "termous_files_batch_rename_cancel": "取消批量重命名",
+      "termous_files_batch_rename_get": "查看重命名任务",
+      "termous_files_batch_rename_presets_get": "查看重命名预设",
+      "termous_files_batch_rename_presets_list": "列出重命名预设",
+      "termous_files_batch_rename_preview": "预览批量重命名",
+      "termous_files_batch_rename_result": "查看重命名结果",
+      "termous_files_batch_rename_start": "启动批量重命名",
+      "termous_files_chmod": "修改文件权限",
+      "termous_files_delete_cancel": "取消文件删除",
+      "termous_files_delete_get": "查看删除任务",
+      "termous_files_delete_preview": "预览文件删除",
+      "termous_files_delete_result": "查看删除结果",
+      "termous_files_delete_start": "启动文件删除",
+      "termous_files_list": "浏览文件目录",
+      "termous_files_mkdir": "创建目录",
+      "termous_files_name_search_capability": "检查文件搜索能力",
+      "termous_files_name_search_run": "搜索文件名",
+      "termous_files_read_text": "读取文本文件",
+      "termous_files_rename": "重命名文件",
+      "termous_files_save_text": "保存文本文件",
+      "termous_files_sessions_close": "关闭文件会话",
+      "termous_files_sessions_connect": "连接文件会话",
+      "termous_files_sessions_get": "查看文件会话",
+      "termous_files_sessions_list": "列出文件会话",
+      "termous_files_sessions_reconnect": "重连文件会话",
+      "termous_files_stat": "查看文件属性",
+      "termous_files_transfers_cancel": "取消文件传输",
+      "termous_files_transfers_download": "下载文件",
+      "termous_files_transfers_get": "查看传输任务",
+      "termous_files_transfers_remote_copy": "跨会话复制文件",
+      "termous_files_transfers_upload": "上传文件",
+      "termous_forwarding_instances_get": "查看转发实例",
+      "termous_forwarding_instances_list": "列出转发实例",
+      "termous_forwarding_instances_start": "启动端口转发",
+      "termous_forwarding_instances_stop": "停止端口转发",
+      "termous_forwarding_profiles_get": "查看转发配置",
+      "termous_forwarding_profiles_list": "列出转发配置",
+      "termous_hosts_access_profiles_list": "列出主机访问配置",
+      "termous_hosts_list": "列出主机",
+      "termous_hosts_refresh_reachability": "刷新主机可达性",
+      "termous_remoteops_crontab_capability": "检查定时任务能力",
+      "termous_remoteops_crontab_get": "查看定时任务",
+      "termous_remoteops_crontab_jobs_create": "创建定时任务",
+      "termous_remoteops_crontab_jobs_delete": "删除定时任务",
+      "termous_remoteops_crontab_jobs_update": "更新定时任务",
+      "termous_remoteops_docker_capability": "检查 Docker 能力",
+      "termous_remoteops_docker_containers_action": "操作容器",
+      "termous_remoteops_docker_containers_get": "查看容器详情",
+      "termous_remoteops_docker_containers_list": "列出容器",
+      "termous_remoteops_docker_containers_logs": "读取容器日志",
+      "termous_remoteops_docker_containers_stats": "查看容器指标",
+      "termous_remoteops_inventory_get": "查看系统信息",
+      "termous_remoteops_inventory_refresh": "刷新系统信息",
+      "termous_remoteops_processes_get": "查看进程详情",
+      "termous_remoteops_processes_list": "列出进程",
+      "termous_remoteops_processes_terminate": "终止进程",
+      "termous_remoteops_services_action": "操作系统服务",
+      "termous_remoteops_services_capability": "检查系统服务能力",
+      "termous_remoteops_services_get": "查看系统服务",
+      "termous_remoteops_services_list": "列出系统服务",
+      "termous_remoteops_services_logs": "读取服务日志",
+      "termous_remoteops_services_operations_get": "查看服务操作任务",
+      "termous_sessions_close": "关闭 SSH 会话",
+      "termous_sessions_connect": "连接 SSH 会话",
+      "termous_sessions_get": "查看 SSH 会话",
+      "termous_sessions_list": "列出 SSH 会话",
+      "termous_snippets_create": "创建代码片段",
+      "termous_snippets_delete": "删除代码片段",
+      "termous_snippets_get": "查看代码片段",
+      "termous_snippets_groups_create": "创建片段分组",
+      "termous_snippets_groups_delete": "删除片段分组",
+      "termous_snippets_groups_get": "查看片段分组",
+      "termous_snippets_groups_list": "列出片段分组",
+      "termous_snippets_groups_reorder": "调整片段分组顺序",
+      "termous_snippets_groups_update": "更新片段分组",
+      "termous_snippets_list": "列出代码片段",
+      "termous_snippets_update": "更新代码片段",
+      "commands_approval": "命令执行审批",
+      "files_approval": "文件操作审批",
+      "remoteops_approval": "远程运维审批",
+      "forwarding_approval": "端口转发审批",
+      "snippets_approval": "代码片段审批",
+      "snippet_approval": "代码片段审批",
+      "commands_dispatch_finished": "命令任务结束",
+      "files_connect": "文件连接结果",
+      "sessions_connect_finished": "SSH 连接结果",
+      "files_read_text_finished": "文本读取结束",
+      "files_save_text_finished": "文本保存结束",
+      "files_read_image_finished": "图片读取结束",
+      "files_batch_rename_finished": "批量重命名结束",
+      "files_delete_finished": "文件删除结束",
+      "files_move_finished": "文件移动结束",
+      "files_transfer_finished": "文件传输结束",
+      "remoteops_services_finished": "系统服务操作结束",
+      "read_skill_resource": "读取 Skill 资源"
+    }
+  },
   "app": {
     "name": "Termous",
     "search": "搜索主机、凭据、标签",
@@ -19,6 +253,7 @@
     "confirmDelete": "确认删除",
     "collapse": "折叠",
     "expand": "展开",
+    "back": "返回",
     "reorder": "拖动调整顺序",
     "moveUp": "上移",
     "moveDown": "下移",
@@ -54,6 +289,7 @@
     "mcp": "MCP 创建的会话"
   },
   "nav": {
+    "audit": "审计中心",
     "workbench": "工作站",
     "agent": "AI 助手",
     "remote-desktop": "远程桌面",
@@ -61,6 +297,7 @@
     "vault": "凭据库",
     "files": "文件",
     "forwards": "端口转发",
+    "mounts": "文件挂载",
     "snippets": "代码片段",
     "settings": "设置"
   },
@@ -238,12 +475,12 @@
         "compactionContentFiltered": "模型服务的内容策略阻止了上下文摘要生成，本次回复已停止。",
         "compactionTruncated": "上下文摘要被模型输出上限截断，本次回复已停止。请检查模型输出预算。",
         "compactionCheckpointFailed": "上下文摘要未能确认保存，本次回复已停止，原有历史仍保留。",
-        "compactionUnavailable": "上下文已达到容量门限，但当前没有可压缩的历史。请检查容量设置或新建会话。",
-        "compactionInsufficient": "压缩后仍没有足够的上下文空间，本次回复已停止。请检查容量设置或新建会话。",
-        "compactionAborted": "上下文压缩已取消，本次回复未继续。",
-        "compactionSettingsInvalid": "上下文压缩的容量配置无效，请检查模型窗口与输出预算。",
-        "compactionInvalid": "上下文压缩结果或恢复状态无效，本次回复已停止，原有历史仍保留。",
-        "compactionFailed": "上下文压缩未能完成，本次回复已停止，原有历史仍保留。"
+        "compactionUnavailable": "上下文已达到容量门限，但当前没有可整理的历史。请检查容量设置或新建会话。",
+        "compactionInsufficient": "整理后仍没有足够的上下文空间，本次回复已停止。请检查容量设置或新建会话。",
+        "compactionAborted": "整理上下文已取消，本次回复未继续。",
+        "compactionSettingsInvalid": "整理上下文的容量配置无效，请检查模型窗口与输出预算。",
+        "compactionInvalid": "整理上下文结果或恢复状态无效，本次回复已停止，原有历史仍保留。",
+        "compactionFailed": "整理上下文未能完成，本次回复已停止，原有历史仍保留。"
       },
       "interrupted": "本次回复已中断",
       "interrupted_by_steer": "已由新消息中断",
@@ -251,13 +488,13 @@
       "turnTotal": "总量"
     },
     "compaction": {
-      "started": "正在压缩上下文…",
-      "completed": "上下文已自动压缩",
-      "manualCompleted": "上下文已压缩",
-      "failed": "上下文压缩失败",
-      "cancelled": "上下文压缩已取消",
-      "tokensBefore": "估算占用：压缩前 {{before}} token。",
-      "tokensBeforeAfter": "估算占用：压缩前 {{before}} token，压缩后 {{after}} token。",
+      "started": "正在整理上下文…",
+      "completed": "已自动整理上下文",
+      "manualCompleted": "已整理上下文",
+      "failed": "整理上下文失败",
+      "cancelled": "整理上下文已取消",
+      "tokensBefore": "估算占用：整理前 {{before}} token。",
+      "tokensBeforeAfter": "估算占用：整理前 {{before}} token，整理后 {{after}} token。",
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
     },
@@ -291,6 +528,9 @@
       "queue": "加入队列",
       "send": "发送",
       "stop": "停止任务",
+      "compressionPending": "下次发送前整理上下文",
+      "compressionPendingHint": "仅作用于下一条新消息",
+      "cancelCompression": "取消下次整理",
       "responseOptions": "模型与推理设置",
       "reasoning": "推理强度",
       "resetResponseOptions": "恢复默认配置",
@@ -326,6 +566,32 @@
         "checking": "正在确认文件配置，确认完成前不会提交任务。",
         "unavailable": "文件配置当前不可用，请更换配置或解除引用。原文件标签关闭或断开不会使引用失效。",
         "stale": "文件配置已删除或配置归属已变化，请更换配置或解除引用。"
+      }
+    },
+    "sshProfileResource": {
+      "details": "已关联的 SSH 配置",
+      "profile": "SSH 配置",
+      "aria": "已关联 {{host}} 的 SSH 配置，{{status}}",
+      "tooltip": "SSH 配置 · {{host}} · {{status}}",
+      "selectLabel": "选择新的 SSH 配置",
+      "selectPlaceholder": "选择可用的 SSH 配置",
+      "noCandidates": "暂无其他可用 SSH 配置",
+      "replace": "更换配置",
+      "confirmReplaceOnDemand": "仅关联 Profile",
+      "confirmReplaceImmediate": "连接并更换",
+      "remove": "解除关联",
+      "removeTitle": "解除 SSH 配置关联？",
+      "removeDescription": "解除后，当前 AI 助手会话将不再按需使用“{{host}}”的 SSH 配置，草稿和历史消息不会改变。",
+      "status": {
+        "checking": "正在确认配置",
+        "ready": "按需连接",
+        "unavailable": "配置暂不可用",
+        "stale": "原配置已失效"
+      },
+      "hint": {
+        "checking": "正在确认 SSH 配置，确认完成前不会提交任务。",
+        "unavailable": "SSH 配置当前不可用，请更换配置或解除关联。",
+        "stale": "SSH 配置已删除或主机归属已变化，请更换配置或解除关联。"
       }
     },
     "connectionReference": {
@@ -467,6 +733,132 @@
         "unknown": "附件操作失败，请稍后重试。"
       }
     },
+    "slash": {
+      "title": "斜杠命令",
+      "commands": {
+        "title": "命令",
+        "session": {
+          "title": "选择会话类型",
+          "description": "关联现有的 SSH 或文件会话"
+        },
+        "profile": {
+          "title": "选择配置类型",
+          "description": "通过 SSH 或文件配置建立关联"
+        },
+        "compact": {
+          "title": "整理上下文",
+          "description": "下一条消息发送前整理上下文"
+        }
+      },
+      "groups": {
+        "resources": "资源关联",
+        "context": "上下文"
+      },
+      "resourceKind": {
+        "title": "选择资源类型",
+        "ssh": {
+          "title": "SSH 连接",
+          "description": "使用 SSH 会话或配置"
+        },
+        "file": {
+          "title": "文件访问",
+          "description": "使用文件会话或配置"
+        }
+      },
+      "search": "搜索主机、配置或 ID",
+      "processing": "正在处理所选资源…",
+      "searchEmpty": "未找到匹配的资源",
+      "resources": {
+        "title": "选择资源",
+        "empty": "暂无可选资源"
+      },
+      "results": "{{count}} 项结果",
+      "sessionCount": "{{count}} 个会话",
+      "current": "当前关联",
+      "status": {
+        "ready": "已就绪",
+        "connected": "已连接",
+        "connecting": "正在连接",
+        "waiting_host_trust": "等待主机信任",
+        "disconnected": "已断开",
+        "failed": "连接失败",
+        "unavailable": "不可用"
+      },
+      "disabled": {
+        "archived": "归档会话不可执行此命令",
+        "session_not_ready": "会话尚未连接并就绪",
+        "host_missing": "所属主机已不存在",
+        "profile_missing": "关联的文件配置已不存在",
+        "profile_invalid": "配置不完整",
+        "ssh_profile_missing": "关联的 SSH 配置已不存在",
+        "profile_host_mismatch": "配置的主机归属不一致",
+        "unsupported_engine": "仅支持 SFTP 文件配置",
+        "unsupported_platform": "首版仅支持 Linux 主机",
+        "active_run": "任务运行期间不可更换资源",
+        "queued_edit": "请先完成待处理消息编辑",
+        "queued_messages": "请先处理待发送消息",
+        "resource_busy": "SSH 连接操作正在进行",
+        "mutation_busy": "当前会话正在处理操作",
+        "compression_unavailable": "当前上下文不支持整理",
+        "empty_draft": "请先输入要发送的消息",
+        "workspace_unavailable": "工作区尚未就绪"
+      },
+      "replace": {
+        "title": "替换当前资源？",
+        "description": "当前已关联“{{current}}”。是否替换为“{{next}}”？",
+        "confirm": "替换"
+      },
+      "compact": {
+        "accepted": "已安排上下文整理",
+        "acceptedDescription": "将在下一条新消息发送前整理上下文。"
+      },
+      "binding": {
+        "completed": "资源已关联",
+        "completedDescription": "已更新当前 AI 助手会话的资源关联。"
+      },
+      "connection": {
+        "title": "SSH 配置连接",
+        "target": "SSH 配置 · {{host}} / {{profile}}",
+        "uncertain": "暂时无法确认连接状态，正在与 Core 对账。",
+        "failed": "SSH 配置连接失败，请重试。",
+        "cancel": "取消",
+        "retry": "重试",
+        "dismiss": "关闭连接状态",
+        "completed": "SSH 配置已连接",
+        "completedDescription": "已更新当前 AI 助手会话的 SSH 连接。",
+        "status": {
+          "connecting": "正在建立 SSH 连接…",
+          "waiting_host_trust": "等待确认主机密钥…",
+          "cancelling": "正在取消并清理临时连接…",
+          "succeeded": "连接已建立，正在同步会话…",
+          "failed": "SSH 连接失败",
+          "cancelled": "SSH 连接已取消"
+        },
+        "error": {
+          "AGENT_RESOURCE_CONNECTION_QUERY_FAILED": "无法读取连接状态，正在重试。",
+          "AGENT_RESOURCE_CONNECTION_FAILED": "未能发起 SSH 连接，请重试。",
+          "AGENT_RESOURCE_CONNECTION_CANCEL_FAILED": "未能取消 SSH 连接，请重试。",
+          "AGENT_RESOURCE_CONNECTION_CONFLICT": "当前会话已有连接操作或待处理消息。",
+          "AGENT_RESOURCE_CONNECTION_TIMEOUT": "SSH 连接超时，请重试。",
+          "AGENT_REVISION_CONFLICT": "会话资源已变化，请重新选择配置。",
+          "AGENT_RUN_CONFLICT": "任务运行期间不能更换 SSH 连接。",
+          "AGENT_NOT_READY": "SSH 连接服务尚未就绪，请检查 MCP 设置与权限。",
+          "AGENT_RESOURCE_BINDING_UNAVAILABLE": "所选配置或连接已不可用，请刷新后重试。",
+          "SSH_CONNECT_FAILED": "无法建立 SSH 连接，请检查主机与网络。",
+          "SSH_AUTH_FAILED": "SSH 身份验证失败，请检查凭据。",
+          "HOST_KEY_UNKNOWN": "主机密钥尚未信任，请确认后重试。",
+          "HOST_KEY_CHANGED": "主机密钥已更改，请确认主机身份。",
+          "JUMP_HOST_FAILED": "无法连接跳板主机，请检查配置。",
+          "NETWORK_ERROR": "无法连接本地 Core，正在重试。",
+          "REQUEST_TIMEOUT": "请求超时，请重试。",
+          "REQUEST_ABORTED": "请求已取消。",
+          "VALIDATION_ERROR": "连接请求无效，请重新选择配置。",
+          "NOT_FOUND": "连接操作已不存在，请刷新后重试。",
+          "INTERNAL_ERROR": "连接未完成，请检查状态后重试。",
+          "unknown": "SSH 配置连接失败，请重试。"
+        }
+      }
+    },
     "approvalMode": {
       "label": "审核方式",
       "title": "如何审批 AI 助手的操作？",
@@ -492,7 +884,7 @@
       "contextPendingHint": "下次发送时更新；上次占用仅供参考。",
       "lastContextReference": "上次 {{model}}：{{percent}} · {{tokens}} / {{window}} token",
       "contextUnavailable": "选择一个会话后查看上下文容量",
-      "contextWarning": "上下文占用较高；达到压缩阈值时，将在下一次请求前尝试自动压缩。",
+      "contextWarning": "上下文占用较高；达到整理阈值时，将在下一次请求前自动整理上下文。",
       "contextLoadFailed": "暂时无法读取上下文状态",
       "checkpoint": "最近整理",
       "checkpointMeta": "约 {{tokens}} token · {{time}}",
@@ -1283,6 +1675,8 @@
       }
     },
     "files": {
+
+
       "emptyDirectory": "目录为空",
       "emptyDirectoryHint": "可以将文件拖到这里上传。",
       "remoteFiles": "远程文件",
@@ -1920,6 +2314,10 @@
       "reconnect": "重新连接",
       "retry": "重试",
       "retryFailed": "智能补全重试失败",
+      "queryFailed": "暂时无法获取命令建议，请继续输入后重试。",
+      "queryFailedWithShortcut": "命令建议获取失败，按 {{shortcut}} 重试。",
+      "suggestionsUnavailable": "当前无法显示命令建议。请确认已启用补全来源，并将光标移至命令输入末尾后重试。",
+      "inputUncertain": "当前命令行状态无法确认。请按 Ctrl+C 返回新的提示符，再重新输入命令。",
       "shortcuts": {
         "navigate": "切换",
         "select": "选择"
@@ -2295,7 +2693,7 @@
       },
       "ssh": {
         "title": "SSH 终端",
-        "add": "新增 SSH",
+        "add": "新增",
         "edit": "编辑 SSH",
         "empty": "尚未配置 SSH 访问",
         "connection": "连接信息",
@@ -2313,23 +2711,31 @@
         "addressPlaceholder": "主机名或 IP 地址",
         "usernamePlaceholder": "远程登录用户名",
         "deleteBlockedTitle": "当前 SSH 配置仍在使用",
-        "deleteBlocked": "请先解除持久依赖并停止活动连接：端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
+        "deleteBlocked": "请先解除持久依赖并停止活动连接：独立文件配置 {{independentFiles}} 项、伴生文件配置的 Agent 引用 {{companionAgents}} 个、挂载配置 {{mounts}} 项、端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
         "deleteDescription": "将删除此 SSH 配置及 {{files}} 项伴生 SFTP。执行前系统会再次校验持久依赖和活动连接。"
       },
       "file": {
         "title": "文件访问",
+        "add": "新增",
+        "createTitle": "新增文件访问",
         "edit": "编辑文件访问",
+        "type": "访问类型",
         "empty": "尚未提供文件访问",
         "binding": "绑定的 SSH 配置",
         "boundTo": "绑定到 {{name}}",
-        "fixedBinding": "固定绑定",
-        "bindingHint": "SFTP 不保存或复制 SSH 连接参数，不能单独改绑或删除。删除对应 SSH 时会在同一操作中处理。",
+        "bindingHint": "SFTP 仅引用 SSH 配置，不保存或复制 SSH 连接参数。改绑只影响后续新建的文件会话。",
+        "selectSSH": "选择同一主机的 SSH 配置",
+        "sshRequired": "请选择可用的 SSH 配置",
+        "unsupportedEditor": "当前版本无法编辑此文件 Engine 的配置",
+        "deleteBlockedTitle": "当前文件配置仍在使用",
+        "deleteBlocked": "请先关闭 {{sessions}} 个活动文件会话，并解除 {{agents}} 个 Agent 会话引用和 {{mounts}} 个挂载配置引用后再删除。",
+        "deleteDescription": "将删除此文件访问配置。已有会话不会被自动关闭，执行前系统会再次校验引用。",
         "missingSSH": "SSH 配置不可用",
         "missingSSHDescription": "绑定关系已失效，请刷新后检查主机配置。"
       },
       "desktop": {
         "title": "远程桌面",
-        "add": "新增 VNC",
+        "add": "新增",
         "edit": "编辑 VNC",
         "empty": "尚未配置远程桌面访问",
         "subtitle": "通过 SSH 隧道或目标 IP 连接 VNC 服务",
@@ -2499,6 +2905,7 @@
       "verified": "已校验",
       "pendingPassphrase": "保存时创建：{{name}}",
       "generatedPassphraseName": "{{name}} 口令",
+      "dropActive": "松开以导入私钥",
       "importPassphraseTitle": "解锁加密私钥",
         "encryptedKeyHint": "此私钥已加密，请选择已保存的口令或输入新口令。",
         "unlockMethod": "解锁方式",
@@ -2527,6 +2934,7 @@
         "ssh_private_key_empty": "私钥文件为空",
         "ssh_private_key_too_large": "私钥文件超过 1 MiB 限制",
         "ssh_private_key_read_failed": "读取私钥文件失败",
+        "single_file_required": "每次只能导入一个私钥文件",
         "private_key_read_failed": "未能读取所选私钥文件",
         "ssh_key_file_conflict": "目标目录中已存在同名密钥文件",
         "ssh_key_file_write_failed": "保存密钥文件失败",
@@ -2569,6 +2977,7 @@
       "session": "终端",
       "sftp": "文件管理",
       "forward": "端口转发",
+      "mount": "文件挂载",
       "alias_sync": "别名同步",
       "remote_desktop": "远程桌面"
     },
@@ -2578,18 +2987,152 @@
     }
   },
   "files": {
+    "smb": {
+      "name": "配置名称",
+      "host": "服务器地址",
+      "share": "共享名称",
+      "username": "用户名",
+      "password": "密码",
+      "port": "端口",
+      "domain": "域（可选）",
+      "root_path": "工作区目录",
+      "advanced": "高级选项",
+      "configured": "已配置，留空保留",
+      "authHint": "使用 NTLMv2 账号密码认证并要求消息签名。签名不等于传输加密；域留空时使用服务器提供的域。",
+      "errors": {
+        "host": "请输入域名或 IP，不包含协议、端口或路径。",
+        "share": "请输入单个共享名称，不包含路径、特殊字符或末尾点和空格。",
+        "username": "请输入有效用户名，域请单独填写。",
+        "password": "请输入密码。",
+        "port": "端口必须为 1 到 65535 的整数。",
+        "domain": "域不能包含路径分隔符或控制字符。",
+        "root_path": "请输入共享内的规范绝对路径，不包含点路径段、特殊字符或末尾点和空格。"
+      }
+    },
+    "ftp": {
+      "name": "配置名称",
+      "host": "服务器地址",
+      "port": "端口",
+      "security": "连接加密",
+      "username": "用户名",
+      "password": "密码",
+      "root_path": "工作区根目录",
+      "configured": "已配置，留空保留",
+      "securityOptions": { "none": "FTP · 不加密", "explicit_tls": "FTPS · 显式 TLS", "implicit_tls": "FTPS · 隐式 TLS" },
+      "plainHint": "已选择明文 FTP，账号、密码及文件内容不会加密。建议使用 FTPS。",
+      "tlsHint": "控制连接和文件传输均使用 TLS，验证系统信任的服务器证书。密码加密保存，编辑时留空保留。",
+      "writeHint": "写入及改名前会复核目标，但无法完全避免其他客户端的并发修改。复制到已有文件请使用自动改名或跳过；不支持事务式批量改名。",
+      "errors": {
+        "host": "请输入域名或 IP 地址，不包含协议、端口和路径。",
+        "port": "端口必须为 1 到 65535 的整数。",
+        "username": "请输入用户名，不能包含控制字符。",
+        "password": "请输入密码，不能包含回车、换行或 NUL。",
+        "root_path": "请输入规范绝对路径，不包含点路径段、重复分隔符或控制字符。"
+      }
+    },
+    "webdav": {
+      "name": "配置名称",
+      "endpoint": "服务地址（HTTP / HTTPS）",
+      "username": "用户名",
+      "password": "密码 / 应用密码",
+      "configured": "已配置，留空保留",
+      "authHint": "地址可包含 WebDAV 根目录路径。使用账号密码认证，密码加密保存；编辑时留空保留原值。",
+      "httpHint": "已选择 HTTP，账号、密码及文件内容将以明文传输。建议使用 HTTPS。",
+      "errors": {
+        "endpoint": "请输入完整 HTTP / HTTPS 地址，可包含根目录路径，不能包含认证信息、查询参数、片段或非规范路径段。",
+        "username": "请输入用户名，不能包含冒号或控制字符。",
+        "password": "请输入密码或应用密码。"
+      }
+    },
+    "s3": {
+      "name": "配置名称",
+      "endpoint": "服务地址（HTTP / HTTPS）",
+      "bucket": "Bucket",
+      "prefix": "前缀（可选）",
+      "region": "Region（可选）",
+      "addressing": "寻址方式",
+      "access_key": "Access Key",
+      "secret_key": "Secret Key",
+      "session_token": "Session Token（可选）",
+      "configured": "已配置，留空保留",
+      "clearToken": "清除已保存的 Session Token",
+      "requiredSecret": "请输入认证材料",
+      "errors": {
+        "endpoint": "请输入完整的 HTTP / HTTPS 地址，不包含账号、路径、查询参数或片段。",
+        "bucket": "请输入 3–63 位有效 Bucket 名称，仅使用小写字母、数字、连字符和点。",
+        "prefix": "前缀不能以 / 开头，或包含空路径段、.、..，长度不能超过 1023 字节。"
+      },
+      "addressingOptions": {
+        "path": "路径寻址（MinIO 推荐）",
+        "virtual": "虚拟主机寻址",
+        "auto": "自动选择"
+      },
+      "authHint": "认证材料加密保存；编辑时留空保留原值。",
+      "httpHint": "已选择 HTTP，连接不会使用 TLS 加密。认证材料仍在本机加密保存。"
+    },
+    "move": {
+      "title": "移动文件",
+      "renameTitle": "重命名",
+      "action": "移动",
+      "started": "移动任务已创建",
+      "feedback": {
+        "running": "正在{{action}}…",
+        "done": "{{action}}完成",
+        "failed": "{{action}}失败",
+        "partial": "{{action}}部分完成",
+        "cancelled": "已取消{{action}}",
+        "uncertain": "{{action}}结果待确认",
+        "observing": "暂时无法获取进度",
+        "cancelling": "正在取消{{action}}…",
+        "loading": "正在读取操作结果…",
+        "unavailable": "暂时无法确认完整结果"
+      },
+      "observationFailed": "正在尝试恢复连接。操作可能仍在进行，关闭此窗口不会取消操作。",
+      "cancelling": "正在取消…",
+      "resultFailed": "结果明细暂时无法读取，请刷新目录核对实际结果。",
+      "uncertainHint": "服务端未能确认最终结果。请先刷新目录，核对原位置与目标位置，再决定是否重试。",
+      "partialHint": "部分修改已经生效，未自动撤销。请核对原位置与目标位置，再处理未完成的项目。",
+      "cancelledHint": "操作已停止；如有已完成的修改，不会自动撤销。",
+      "originalName": "原名称",
+      "newName": "新名称",
+      "location": "所在目录",
+      "nonAtomic": "无法保证与其他客户端并发修改之间的原子性。失败或取消后请检查来源、目标及操作结果；已经完成的修改不会自动回滚。",
+      "source": "来源",
+      "target": "目标",
+      "status": "结果",
+      "close": "关闭",
+      "statuses": {
+        "pending": "未执行",
+        "copied": "已复制，来源保留",
+        "moved": "已移动",
+        "skipped": "已跳过",
+        "failed": "失败",
+        "uncertain": "待确认"
+      }
+    },
     "hostSearch": "搜索主机",
     "openFileSession": "打开文件会话",
     "connect": "连接",
     "reconnect": "重新连接",
     "reconnectFailed": "重新连接文件会话失败",
-    "sessions": "SFTP 会话",
-    "noFileSession": "暂无 SFTP 会话",
-    "noFileSessionHint": "点击加号选择主机，创建或复用独立的 SFTP 文件会话。",
-    "fileSessionCreated": "SFTP 文件会话已创建",
+    "sessions": "文件会话",
+    "noFileSession": "暂无文件会话",
+    "noFileSessionHint": "点击加号选择主机及其文件访问配置，打开文件会话。",
+    "fileSessionCreated": "文件会话已创建",
     "noHost": "请选择主机",
-    "noHostHint": "选择一台已配置的 SSH 主机后浏览远程目录。",
+    "noHostHint": "选择主机的文件访问配置后浏览远程目录。",
     "directoryReadFailed": "读取远程目录失败",
+    "directorySize": {
+      "label": "总大小",
+      "calculate": "计算",
+      "calculating": "正在计算",
+      "cancel": "取消计算",
+      "retry": "重试",
+      "recalculate": "重新计算目录总大小",
+      "failed": "计算失败",
+      "estimatedValue": "约 {{value}}",
+      "calculatedAt": "计算于 {{time}}"
+    },
     "pathNavigation": "远程路径导航",
     "back": "后退",
     "forward": "前进",
@@ -2614,6 +3157,8 @@
     "newFolder": "新建文件夹",
     "folderName": "文件夹名称",
     "nameRequired": "名称不能为空",
+    "nameUnchanged": "名称未改变，请输入新的名称",
+    "renameNameInvalid": "请输入单个文件或文件夹名称，不能是 .、..，也不能包含 / 或控制字符",
     "uploadFiles": "上传文件",
     "uploadFolder": "上传文件夹",
     "download": "下载",
@@ -3000,6 +3545,32 @@
     "openFile": "打开",
     "openFileOnlyFiles": "只能打开文件",
     "openTextEditor": "打开编辑器",
+    "textSearch": {
+      "find": "查找文本",
+      "replace": "替换为",
+      "matchCase": "区分大小写",
+      "wholeWord": "全词匹配",
+      "regexp": "正则表达式",
+      "previous": "上一个匹配（Shift+Enter）",
+      "next": "下一个匹配（Enter）",
+      "selectAll": "选择全部",
+      "selectLimit": "匹配项过多，无法一次选择全部，请缩小搜索范围。",
+      "replaceNext": "替换",
+      "replaceAll": "全部替换",
+      "toggleReplace": "展开或收起替换",
+      "close": "关闭搜索（Esc）",
+      "invalidRegexp": "正则表达式无效，请检查后重试。",
+      "matches": "搜索匹配结果",
+      "counting": "正在统计匹配项…",
+      "noMatches": "未找到匹配项",
+      "matchPosition": "第 $1 项，共 $2 项",
+      "matchTotal": "共 $ 项，尚未定位到匹配项",
+      "countLimit": "匹配项超过 $ 个，仅统计前 $ 个；查找与替换仍使用完整文本。",
+      "currentMatch": "当前匹配",
+      "onLine": "所在行",
+      "replacedOnLine": "已替换第 $ 行的匹配项",
+      "replacedMatches": "已替换 $ 个匹配项"
+    },
     "textEditorTitle": "远程文本编辑",
     "textEditorSave": "保存",
     "textEditorSaved": "文件已保存",
@@ -3045,6 +3616,7 @@
     "imageViewerFit": "适应窗口",
     "imageViewerActualSize": "原始大小",
     "imageViewerZoomOut": "缩小",
+    "imageViewerZoom": "缩放比例",
     "imageViewerZoomIn": "放大",
     "imageViewerRotateLeft": "向左旋转",
     "imageViewerRotateRight": "向右旋转",
@@ -3131,7 +3703,7 @@
       "sourceItems": "{{count}} 个项目",
       "targetSession": "目标会话",
       "targetHosts": "目标主机",
-      "availableSessions": "{{count}} 个可用 SFTP 会话",
+      "availableSessions": "{{count}} 个可用文件会话",
       "searchSessions": "搜索主机或会话",
       "noTargets": "暂无可用的其他主机会话",
       "sessionSuffix": "会话 {{id}}",
@@ -3192,7 +3764,7 @@
     "deleteTitle": "删除远程文件？",
     "deleteDescription": "将删除 {{count}} 个远程项目，此操作不可撤销。",
     "closingFileSession": "正在关闭文件会话",
-    "closingFileSessionHint": "正在结束当前 SFTP 会话，标签关闭前缓存文件保持只读。",
+    "closingFileSessionHint": "正在结束当前文件会话，标签关闭前缓存文件保持只读。",
     "sessionStatus": {
       "connecting": "连接中",
       "connected": "已连接",
@@ -3376,9 +3948,9 @@
     "bookmarkGroupName": "分组名称",
     "bookmarkGroupNamePlaceholder": "例如 生产环境",
     "noBookmarks": "暂无书签",
-    "noBookmarksHint": "将常用远程目录保存为书签，后续可在任意 SFTP 会话中快速跳转。",
+    "noBookmarksHint": "将常用远程目录保存为书签，后续可在文件会话中快速跳转。",
     "emptyBookmarkGroup": "暂无书签",
-    "bookmarkNoSession": "当前没有可用的 SFTP 会话",
+    "bookmarkNoSession": "当前没有可用的文件会话",
     "bookmarkActionFailed": "书签操作失败",
     "bookmarkMutationBusy": "另一项书签操作正在进行，请稍后重试",
     "bookmarkNameRequired": "请输入书签名称",
@@ -3388,11 +3960,170 @@
     "deleteBookmarkGroupTitle": "删除这个分组？",
     "deleteBookmarkGroupHint": "分组内书签会移动到未分组。"
   },
+  "mounts": {
+    "configuration": "挂载配置",
+    "create": "新建配置",
+    "edit": "编辑挂载配置",
+    "temporary": "临时挂载",
+    "start": "挂载",
+    "stop": "卸载",
+    "cancelStart": "取消启动",
+    "restart": "重启",
+    "close": "关闭",
+    "sync": "同步",
+    "reconnect": "重连",
+    "force": "强制卸载",
+    "name": "配置名称",
+    "namePlaceholder": "例如：Termous - 项目文件",
+    "nameRequired": "请输入 1～80 个字符的名称",
+    "profileUnavailable": "挂载配置已不存在，请重新选择。",
+    "sourceSection": "文件来源",
+    "locationSection": "本机挂载",
+    "detailsSection": "配置详情",
+    "source": "文件连接",
+    "sourceRequired": "选择文件连接",
+    "drive": "盘符",
+    "directory": "挂载目录",
+    "locationRequired": "选择挂载位置",
+    "locationHint": "挂载位置必须为空且未被占用。",
+    "locationHintDrive": "仅可选择 D: 至 Z: 的空闲盘符。",
+    "chooseDirectory": "选择空目录",
+    "description": "说明",
+    "descriptionTooLong": "说明不能超过 1024 字节",
+    "readOnly": "只读",
+    "readWrite": "读写",
+    "autoStart": "启动时自动挂载",
+    "autoStartBadge": "自动挂载",
+    "autoStartHint": "下次启动 Termous 时挂载。首次失败后可手动重试。",
+    "advanced": "高级设置",
+    "volume": "卷名称",
+    "volumeLimit": "卷名称最多 32 个字符",
+    "volumeInvalid": "卷名称不能包含逗号、等号、路径分隔符或控制字符",
+    "volumeDefault": "默认使用配置名称",
+    "caseSensitive": "区分大小写",
+    "refreshInterval": "文件属性校验间隔",
+    "directoryCache": "目录缓存时间",
+    "directoryCacheHint": "到期后再次访问才刷新；较短更快发现外部更改，较长减少查询。",
+    "directoryCacheRange": "请输入 1～3600 秒",
+    "attributeCheckHint": "每隔指定秒数复核文件内容版本，不影响目录刷新。默认 5 秒。",
+    "attributeCheckRange": "请输入 1～300 秒",
+    "metadataConcurrency": "元数据查询并发",
+    "metadataConcurrencyHint": "自动为 8 路；调高会增加服务端负载，仍受共享预算限制。",
+    "concurrencyAuto": "自动（推荐）",
+    "concurrentRequests": "{{count}} 路",
+    "seconds": "秒",
+    "nextStartOnly": "配置修改将在下次挂载时生效。挂载位置必须为空且未被占用。",
+    "nextStartOnlyDrive": "配置修改将在下次挂载时生效。更换盘符时请选择空闲盘符。",
+    "unassigned": "独立文件配置",
+    "saved": "保存的配置",
+    "runtime": "运行实例",
+    "profileCount": "共 {{count}} 项配置",
+    "noRuntime": "暂无运行实例",
+    "environmentStatus": "挂载状态",
+    "environmentStates": {
+      "pending": "待检测",
+      "ready": "已就绪",
+      "unavailable": "不可用"
+    },
+    "filterLabel": "按挂载状态筛选配置",
+    "filterAll": "全部",
+    "filterActive": "活动中",
+    "filterIssues": "异常",
+    "running": "已挂载 {{count}} 项",
+    "searchPlaceholder": "搜索配置、盘符或文件连接",
+    "noResults": "没有匹配的挂载配置",
+    "noActiveProfiles": "当前没有活动中的配置",
+    "noIssues": "当前没有异常配置",
+    "dirty": "未同步 {{count}} 项",
+    "handles": "打开句柄 {{count}} 个",
+    "upload": {
+      "label": "上传状态",
+      "active": "正在传输 {{count}} 项",
+      "finalizing": "正在完成上传 {{count}} 项",
+      "stopping": "正在停止上传 {{count}} 项",
+      "cleaning": "正在清理 {{count}} 项",
+      "cleanupFailed": "清理失败 {{count}} 项",
+      "failed": "上传失败 {{count}} 项，保留本地修改",
+      "buffered": "兼容写回 {{count}} 项",
+      "transferred": "传输进展",
+      "pending": "待传输",
+      "details": "进度说明",
+      "basis": {
+        "confirmed": "进度依据：协议已确认正文；最终发布单独等待。",
+        "transport": "进度依据：有界传输进展，仍需等待服务器完成响应。",
+        "mixed": "包含不同进度依据，分别等待最终发布。"
+      },
+      "reasons": {
+        "unsupported": "此连接使用兼容写回，系统复制进度可能领先远端上传。",
+        "protocol_unsupported": "服务器不支持本次流式上传，已安全切换为兼容写回。",
+        "protocol_budget": "协议推进单位超出流式预算，使用兼容写回。",
+        "non_sequential": "局部修改、追加或不连续写入使用兼容写回。",
+        "multiple_writers": "多个写句柄使用兼容写回。",
+        "completed_generation": "当前快照已发布，后续修改使用兼容写回。",
+        "namespace_change": "名称变更后的修改使用兼容写回。",
+        "idle_checkpoint": "输入暂停，暂存会话已释放，后续采用兼容写回。",
+        "mixed": "部分文件因写入方式或协议限制采用兼容写回。"
+      }
+    },
+    "failure": "查看错误",
+    "failureDetails": "错误详情",
+    "failureMessage": "错误信息",
+    "failureAt": "发生时间",
+    "autoStartFailed": "自动挂载失败",
+    "operationFailed": "挂载操作失败",
+    "recheck": "重新检测",
+    "awaitingState": "正在获取挂载状态，操作将在连接恢复后可用。",
+    "environmentUnavailable": "挂载环境尚未就绪",
+    "environmentReasons": {
+      "build_unsupported": "当前 Core 未启用挂载支持",
+      "platform_unsupported": "当前平台不支持挂载",
+      "dependency_missing": "尚未安装挂载依赖",
+      "dependency_incompatible": "挂载依赖不兼容",
+      "dependency_error": "挂载依赖检测异常",
+      "detection_canceled": "挂载环境检测已取消"
+    },
+    "upgradeDependency": "前往 {{name}} 官网更新",
+    "dependencyHelp": "查看 {{name}} 官方说明",
+    "download": "前往 {{name}} 官方下载",
+    "cacheNotice": "磁盘容量显示的是 Core 共享的本地写缓存预算，并非远端容量。适用于文件管理和普通编辑，不支持数据库、虚拟机磁盘或可写内存映射。",
+    "empty": "尚未保存挂载配置",
+    "platformMismatch": "位置属于其他平台，请编辑配置",
+    "deleteTitle": "删除此挂载配置？",
+    "deleteHint": "仅删除配置，不会删除远端文件。",
+    "forceTitle": "放弃未同步修改并卸载？",
+    "forceHint": "当前有 {{count}} 项未同步修改。强制卸载将丢弃本次缓存中的未发布内容，无法恢复。",
+    "forceCleanTitle": "强制卸载并释放缓存？",
+    "forceCleanHint": "当前未报告未同步修改。强制卸载将跳过正常同步，仍可能丢失尚未发布的数据。",
+    "detachedHint": "系统挂载已结束，未同步数据仍保留。可重连并同步，或明确放弃后释放缓存。",
+    "detachedCleanHint": "系统挂载已结束，缓存仍保留。可尝试正常卸载；若失败，再强制卸载释放缓存。",
+    "states": {
+      "starting": "正在挂载",
+      "running": "已挂载",
+      "failed": "挂载失败",
+      "stopped": "已卸载",
+      "checking": "检查环境",
+      "connecting": "连接来源",
+      "waiting_host_trust": "等待主机指纹确认",
+      "mounting": "启动驱动",
+      "ready": "已挂载",
+      "syncing": "正在同步",
+      "unmounting": "正在卸载",
+      "restarting": "正在重启",
+      "cancelling": "正在取消",
+      "detached": "已卸载 · 保留缓存"
+    }
+  },
   "forwards": {
+    "autoStart": "启动时自动连接",
+    "autoStartHint": "下次启动 Termous 时自动连接此转发。连接失败后可手动重试。",
+    "autoStartBadge": "自动连接",
+    "autoStartFailed": "自动连接失败",
+    "autoStartFailureDetails": "自动连接失败，查看原因",
+    "autoStartFailedAt": "失败时间",
     "title": "端口转发",
     "subtitle": "管理当前会话和后台 SSH 端口转发任务",
     "profiles": "后台配置",
-    "profilesHint": "保存常用转发规则，手动启动或停止。",
+    "profilesHint": "保存常用转发规则，按需连接或随软件启动自动连接。",
     "runtime": "运行实例",
     "runtimeHint": "{{count}} 个后台转发正在运行",
     "overview": "转发概览",
@@ -3514,6 +4245,40 @@
     "tabLanguage": "语言",
     "tabTerminal": "终端",
     "tabConnection": "连接",
+    "tabMount": "挂载",
+    "mount": {
+      "title": "挂载缓存",
+      "directory": "缓存位置",
+      "default": "Core 数据目录",
+      "custom": "自定义目录",
+      "placeholder": "输入本机文件夹的绝对路径",
+      "choose": "浏览",
+      "capacity": "缓存容量上限",
+      "capacityHint": "所有挂载共享，不会自动清理未同步修改。",
+      "reserve": "磁盘剩余空间预留",
+      "reserveHint": "缓存分配后仍需保留的磁盘空间。",
+      "activeBudget": "当前上限 {{capacity}} GiB · 磁盘预留 {{reserve}} MiB",
+      "active": "当前缓存目录",
+      "next": "重启后缓存目录",
+      "pending": "重启后生效",
+      "restartHint": "保存后重启 Core 生效，切换位置不会删除旧目录。",
+      "usage": "当前缓存",
+      "clean": "清洁内容",
+      "private": "私有写入及预留",
+      "reclaimable": "可清理",
+      "clearUnused": "清理未使用缓存",
+      "persistenceHint": "已下载内容在卸载和重启后保留。清理跳过正在使用的内容和未同步修改。",
+      "clearState": {
+        "accepted": "清理已受理，等待执行。",
+        "running": "正在清理未使用缓存…",
+        "completed": "清理完成，释放 {{size}}。",
+        "failed": "清理未完成，请查看错误后重试。"
+      },
+      "saved": "已保存。",
+      "savedPending": "已保存，重启 Core 后生效。",
+      "failed": "无法读取或保存挂载设置，请重试。",
+      "unavailable": "当前环境无法读取挂载设置。"
+    },
     "tabShortcuts": "快捷键",
     "tabUpdates": "软件更新",
     "generalSection": "通用",
@@ -3525,6 +4290,22 @@
     "closeBehaviorHint": "托盘退出始终会安全断开连接并退出软件。",
     "closeBehaviorExit": "退出 Termous",
     "closeBehaviorMinimizeToTray": "最小化到托盘",
+    "loginItem": {
+      "title": "开机启动",
+      "hint": "登录系统后自动启动 Termous，默认关闭。",
+      "developmentLabel": "开发模式",
+      "development": "仅正式版支持，开发模式不可用。",
+      "desktop_only": "仅桌面应用支持此设置。",
+      "unsupported_platform": "当前平台暂不支持开机启动。",
+      "requiresApproval": "等待系统批准，请在系统登录项设置中允许 Termous 自动启动。",
+      "errors": {
+        "unavailable": "当前环境无法修改开机启动设置。",
+        "invalid_request": "开机启动设置无效，请重新读取后再试。",
+        "read_failed": "无法读取系统启动状态，请重试。",
+        "write_failed": "无法修改开机启动设置，请重新读取状态后再试。",
+        "not_applied": "系统未应用此设置，请检查系统启动项权限后重试。"
+      }
+    },
     "chinese": "简体中文",
     "english": "英语",
     "terminalSection": "终端样式",
@@ -3598,6 +4379,10 @@
         "terminal_paste": {
           "name": "粘贴",
           "description": "将剪贴板内容粘贴到当前可写终端。"
+        },
+        "terminal_completion_trigger": {
+          "name": "显示命令建议",
+          "description": "根据当前输入显示或刷新补全候选，选择后填入终端。"
         },
         "terminal_completion_previous": {
           "name": "选择上一个候选",
@@ -3787,10 +4572,17 @@
         "unavailable": "当前无法使用"
       },
       "compaction": {
-        "threshold": "自动压缩阈值",
-        "description": "每次模型请求前检查上下文占用；达到阈值后先压缩历史，再继续执行。不会中断正在执行的工具。",
+        "threshold": "自动整理阈值",
+        "description": "每次模型请求前检查上下文占用；达到阈值后先整理历史，再继续执行。不会中断正在执行的工具。",
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
+      },
+      "profileBinding": {
+        "title": "SSH Profile 关联方式",
+        "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
+        "toggle": "关联 SSH Profile 时自动连接",
+        "immediate": "立即连接",
+        "onDemand": "按需连接"
       },
       "turnUsage": {
         "title": "每轮 Token 用量",
@@ -4090,6 +4882,53 @@
     },
     "tabMcp": "MCP",
     "mcp": {
+      "skills": {
+        "hint": "内置 AI 助手已包含这些 Skills。外部客户端安装后，仍需配置 MCP 连接和权限。",
+        "desktopOnly": "请在 Termous 桌面应用中安装 Skills。",
+        "install": "安装 Skills",
+        "client": "客户端类型",
+        "custom": "自定义目录",
+        "customHint": "直接安装到所选目录",
+        "directory": "安装位置",
+        "choose": "选择目录",
+        "directoryHint": {
+          "codex": "选择项目目录或用户主目录，将在其下创建 .agents/skills。",
+          "claude-code": "选择项目目录或用户主目录，将在其下创建 .claude/skills。",
+          "custom": "选择存放各个 Skill 文件夹的目录，不会再附加其他目录。"
+        },
+        "destination": "最终安装目录",
+        "contents": "安装内容",
+        "exists": "已存在",
+        "new": "待安装",
+        "replace": "替换 {{count}} 个同名 Skill",
+        "replaceHint": "将替换这些 Skill 的整个文件夹，其中的本地修改也会被替换。其他 Skill 不受影响。",
+        "skipHint": "默认保留同名 Skill，仅安装缺少的项。",
+        "failed": "无法安装 Skills",
+        "partial": "部分项目需要处理",
+        "finished": "安装处理完成",
+        "summary": "已安装 {{installed}} 个，已跳过 {{skipped}} 个，失败 {{failed}} 个。",
+        "recovery": "保留文件位于：",
+        "afterInstall": "在客户端中重新加载 Skills；若未显示，请重启客户端。MCP 连接和授权需单独配置。",
+        "status": {
+          "installed": "已安装",
+          "skipped": "已跳过",
+          "failed": "失败"
+        },
+        "errors": {
+          "invalid_request": "安装请求无效，请重新选择目录。",
+          "invalid_directory": "目录不存在或不可访问，请重新选择目录。",
+          "unsafe_path": "目标包含链接或非目录项，或与内置 Skills 源目录重叠。请选择其他目录。",
+          "bundle_unavailable": "内置 Skills 缺失或校验失败，请修复或重新安装 Termous。",
+          "permission_denied": "没有目录写入权限，或文件正被占用。请检查后重新选择目录。",
+          "disk_full": "磁盘空间不足，请释放空间后重试。",
+          "target_changed": "目标目录已变化。请重新选择目录并检查同名项目。",
+          "plan_expired": "目录选择已失效，请重新选择目录。",
+          "busy": "另一次安装操作正在进行，请稍后再试。",
+          "io_error": "无法完成文件操作，请检查目录和磁盘后重新选择目录。",
+          "cleanup_failed": "暂存文件清理失败，请检查下方保留路径。",
+          "recovery_failed": "原 Skill 未能自动恢复。请先检查下方保留路径中的备份，再决定是否重试。"
+        }
+      },
       "title": "MCP 访问",
       "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、文件管理、端口转发、代码片段和远程运维能力。",
       "state": {
@@ -4539,6 +5378,7 @@
         "file_bookmarks": "文件书签",
         "local_path_mappings": "本地目录映射",
         "file_rename_presets": "文件重命名预设",
+        "mount_profiles": "文件挂载配置",
         "forward_profiles": "端口转发配置",
         "firewall_disabled_rules": "防火墙禁用规则"
       }
@@ -4611,7 +5451,7 @@
     "steps": {
       "welcome": {
         "title": "欢迎使用 Termous",
-        "description": "Termous 将凭据、主机和远程操作集中到一个工作台。跟随向导了解连接准备、文件管理和常用设置，开始日常工作。"
+        "description": "Termous 将终端、文件管理和 AI 运维集中到一个工作台。跟随向导了解连接准备、多协议文件配置、文件挂载，以及 MCP 与 Skills 的使用入口。"
       },
       "vaultNav": {
         "title": "从凭据开始",
@@ -4637,6 +5477,10 @@
         "title": "配置 SSH 连接",
         "description": "在连接页签填写 SSH 端点，选择凭据和可选代理，并设定默认连接。保存 SSH 配置时会自动配套生成 SFTP 配置。"
       },
+      "fileProfiles": {
+        "title": "为主机配置多种文件访问方式",
+        "description": "保存主机后，可在连接配置的文件访问区域新增 SFTP、S3、WebDAV、FTP 或 SMB 配置。SFTP 绑定已有 SSH 连接，其他引擎按各自选项填写连接信息。保存后供文件管理、AI 资源关联及文件挂载复用。"
+      },
       "topbarConnect": {
         "title": "快速发起连接",
         "description": "在工作台顶栏打开主机启动器，可选择已配置的主机连接；也可以从这里新建本地终端。"
@@ -4647,11 +5491,11 @@
       },
       "workbenchTools": {
         "title": "认识右侧工具区",
-        "description": "右侧功能区承载当前会话相关的辅助信息与工具，可在终端旁按需切换，也可折叠以释放更多终端空间。"
+        "description": "右侧工具区提供当前会话的文件、系统监控、命令片段和别名管理。终端中选中的文本也可引用到 AI 助手，连同当前 SSH 连接一起用于后续提问。"
       },
       "files": {
         "title": "管理远程文件",
-        "description": "文件管理页集中承载独立 SFTP 会话，可浏览远程目录、上传下载文件、跟踪传输任务，并复用书签和本地目录映射。"
+        "description": "通过文件配置打开独立会话，浏览目录、编辑文本和预览文件。不同存储引擎共用这套工作区，支持上传、下载及跨会话复制；可用操作以当前连接能力为准。"
       },
       "filesBookmarks": {
         "title": "收藏常用远程路径",
@@ -4663,31 +5507,51 @@
       },
       "filesTransfers": {
         "title": "统一查看传输任务",
-        "description": "从这里查看所有会话的上传、下载和跨主机传输进度，也可切换到当前会话。对支持的任务取消、重试，或清理历史记录，无需停留在原目录等待。"
+        "description": "从这里查看文件管理中的上传、下载和跨会话复制进度，也可筛选当前会话。可对支持的任务取消或重试，并清理历史记录；操作系统挂载盘的上传状态在文件挂载页查看。"
+      },
+      "mounts": {
+        "title": "把远程目录挂载到系统中",
+        "description": "先查看挂载环境是否可用，再选择已有文件配置、盘符或挂载目录，以及只读或可写模式。可保存配置供以后启动，也可临时挂载；同一文件配置可有多个只读实例，最多一个可写实例。"
+      },
+      "mountsRuntime": {
+        "title": "跟踪挂载运行与上传状态",
+        "description": "运行列表展示已传输和待传输量，并区分传输中与正在完成上传。正文传完后仍可能等待远端确认；上传详情会说明进度依据及兼容写回的原因。可在此同步、重启或关闭实例，失败详情从错误入口查看。"
       },
       "forwards": {
         "title": "集中管理端口转发",
-        "description": "端口转发页支持创建和复用本地、远程与动态转发配置，并统一查看临时隧道、运行状态和流量信息。"
+        "description": "创建本地、远程或动态转发，保存常用配置或建立临时隧道。需要时可启用启动自动连接，并在页面查看运行状态、流量和连接失败原因。"
       },
       "snippets": {
         "title": "复用常用命令",
         "description": "命令片段页可按分组和标签整理命令、定义变量并识别风险，随后可从工作台快速插入或执行。"
       },
+      "audit": {
+        "title": "回溯 AI 与 MCP 操作",
+        "description": "审计中心记录内置 AI 助手和外部 MCP 的操作。按时间、来源、结果或关键词筛选，再打开详情查看审批、执行结果与关联事件，帮助定位一次操作的经过。"
+      },
       "settings": {
         "title": "调整关键偏好",
-        "description": "设置页集中管理界面与连接偏好。接下来了解终端、MCP、AI 助手和数据备份；如需调整，关闭向导后即可操作。"
+        "description": "设置页集中管理界面与连接偏好。接下来了解终端、挂载缓存、MCP、Skills 安装和 AI 助手；如需调整，关闭向导后即可操作。"
       },
       "settingsTerminal": {
         "title": "让终端更顺手",
-        "description": "调整终端字体、字号、光标、主题和回滚行数，也可导入自己的字体。下方的智能补全可按需启用命令、别名、代码片段、历史记录和目录建议。"
+        "description": "调整字体、光标、主题和回滚行数。智能补全支持命令、别名、片段、历史和目录建议；启用 AI 命令建议前，先在 AI 助手设置中配置默认模型。"
+      },
+      "settingsMount": {
+        "title": "管理挂载的本地缓存",
+        "description": "设置缓存目录、容量上限和磁盘预留空间，查看清洁缓存、私有预留及可回收容量。“清理未使用缓存”会跳过正在使用的内容。目录变更在 Core 重启后生效，旧目录不会自动搬迁或删除。"
       },
       "settingsMcp": {
         "title": "通过 MCP 受控访问工具",
         "description": "为外部 AI 客户端配置 Termous 连接地址和独立访问令牌，按需授予工具权限。配合审批策略，控制客户端对主机、文件和远程运维功能的访问。"
       },
+      "settingsSkills": {
+        "title": "为外部 AI 客户端安装 Skills",
+        "description": "在桌面端点“安装 Skills”，选择 Codex、Claude Code 或自定义目录，确认安装位置和内容；同名项默认跳过。安装后在客户端重新加载 Skills，并单独配置 MCP 连接与权限。内置 AI 助手已包含这些 Skills。"
+      },
       "settingsAgent": {
         "title": "配置内置 AI 助手",
-        "description": "配置模型提供商并同步模型目录，选择新会话的默认模型和运行参数。还可调整自动上下文压缩阈值、Token 用量显示，并检查助手所需的 MCP 与 Skills 是否就绪。"
+        "description": "配置提供商和默认模型，调整上下文整理与 Token 用量显示。就绪后进入 AI 助手，在输入框键入 / 使用快捷命令、关联 SSH 或文件连接，也可继续处理从终端引用的内容。"
       },
       "settingsData": {
         "title": "备份与恢复工作配置",
@@ -4695,7 +5559,7 @@
       },
       "finish": {
         "title": "准备就绪",
-        "description": "你已了解连接、文件管理和关键设置。以后可从帮助菜单再次打开使用向导，按自己的工作习惯继续探索。"
+        "description": "你已了解连接、多协议文件管理、挂载、审计和 AI 接入。关闭向导后即可配置和使用；以后可从帮助菜单再次打开使用向导。"
       }
     }
   },

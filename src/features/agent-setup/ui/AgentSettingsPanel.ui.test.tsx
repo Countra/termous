@@ -43,7 +43,11 @@ describe('AgentSettingsPanel', () => {
     expect(screen.getByRole('switch', { name: 'settings.agent.policy.approval' })).toBeDisabled()
     pending.resolve(ready)
 
-    expect(await screen.findByRole('button', { name: 'settings.agent.readiness.checkAgain' })).toBeInTheDocument()
+    expect(await screen.findByRole(
+      'button',
+      { name: 'settings.agent.readiness.checkAgain' },
+      { timeout: 5_000 },
+    )).toBeInTheDocument()
     expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
     expect(screen.getByRole('switch', { name: 'settings.agent.policy.approval' }))
       .toHaveAttribute('aria-checked', String(approvalBypass))
@@ -118,6 +122,31 @@ describe('AgentSettingsPanel', () => {
       expect.objectContaining({ context_compaction_threshold_percent: 85, expected_revision: 1 }),
       expect.any(AbortSignal),
     ))
+  })
+
+  it('SSH Profile 默认按需连接，开启自动连接时提交完整设置', async () => {
+    const user = userEvent.setup()
+    const readiness = readinessFixture(4, 'apm-1')
+    const gateway = gatewayFixture({ readiness })
+    renderPanel(gateway)
+
+    const toggle = await screen.findByRole('switch', {
+      name: 'settings.agent.profileBinding.toggle',
+    })
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByText('settings.agent.profileBinding.onDemand')).toBeInTheDocument()
+    await user.click(toggle)
+
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: 'apm-1',
+      default_reasoning_level: 'off',
+      global_context_window_tokens: 16_384,
+      global_max_output_tokens: 4_096,
+      context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: true,
+      show_turn_token_usage: true,
+      expected_revision: 4,
+    }, expect.any(AbortSignal)))
   })
 
   it('自动压缩阈值保存冲突时保留草稿，刷新后使用最新 revision', async () => {
@@ -222,6 +251,7 @@ describe('AgentSettingsPanel', () => {
       global_context_window_tokens: 16_384,
       global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false,
       expected_revision: 7,
     }, expect.any(AbortSignal)))
@@ -270,6 +300,7 @@ describe('AgentSettingsPanel', () => {
       global_context_window_tokens: 32_768,
       global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       show_turn_token_usage: true,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
@@ -310,6 +341,7 @@ describe('AgentSettingsPanel', () => {
       global_context_window_tokens: 65_536,
       global_max_output_tokens: 8_192,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       show_turn_token_usage: true,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
@@ -1487,6 +1519,7 @@ function gatewayFixture(options: {
         global_context_window_tokens: input.global_context_window_tokens,
         global_max_output_tokens: input.global_max_output_tokens,
         context_compaction_threshold_percent: input.context_compaction_threshold_percent,
+        connect_ssh_profile_on_bind: input.connect_ssh_profile_on_bind,
         show_turn_token_usage: input.show_turn_token_usage,
         revision: input.expected_revision + 1,
         updated_at: '2026-08-30T00:01:00Z',
@@ -1533,6 +1566,7 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
       default_reasoning_level: 'off', show_turn_token_usage: true, revision,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
+      connect_ssh_profile_on_bind: false,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }

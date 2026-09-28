@@ -205,6 +205,7 @@ function settingsFixture(): AgentSettings {
     global_context_window_tokens: 16_384,
     global_max_output_tokens: 4_096,
     context_compaction_threshold_percent: 80,
+    connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true,
     revision: 1,
     created_at: '2026-08-30T00:00:00Z',

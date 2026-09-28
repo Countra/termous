@@ -27,6 +27,7 @@ import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
 import { confirmDialogStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
 import rowStyles from './TransferQueueRows.module.scss'
+import { TransferSummary } from './TransferSummary'
 import type { TransferTask } from '#entities/file'
 import {
   buildTransferQueueItems,
@@ -212,13 +213,9 @@ export function TransferQueuePanel({
           {summary.active > 0 ? (
             <span className="transfer-live-summary">
               <i aria-hidden="true" />
-              <span>{t('files.activeTransferCount', { count: summary.active })}</span>
-              {activeTasks.length > 0 ? (
-                <>
-                  {!activeProgressIndeterminate ? <b>{aggregateProgress}%</b> : null}
-                  <b>{t('files.transferSpeed', { value: formatBytes(activeSpeed) })}</b>
-                </>
-              ) : null}
+              <TransferSummary count={summary.active} scopeKey={activeTasks.map((task) => task.id).join(',')}
+                progress={activeTasks.length > 0 && !activeProgressIndeterminate ? aggregateProgress : undefined}
+                speed={activeTasks.length > 0 ? activeSpeed : undefined} />
             </span>
           ) : null}
           {!liveConnected ? (
@@ -320,7 +317,7 @@ function TransferTaskRow({
       task={task}
       hostLabel={route
         ? undefined
-        : showHostContext
+        : showHostContext && task.host_id
           ? hostNames[task.host_id]
           : undefined}
       remoteRoute={route ? {

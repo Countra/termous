@@ -16,6 +16,7 @@ export interface DateTimePickerProps {
   disabled?: boolean
   id?: string
   minuteStep?: AntdTimePickerProps['minuteStep']
+  needConfirm?: boolean
   onOpenChange?: (open: boolean) => void
   placeholder?: string
   placement?: AntdDatePickerProps['placement']
@@ -33,6 +34,7 @@ export function DateTimePicker({
   disabled = false,
   id,
   minuteStep = 1,
+  needConfirm = true,
   onOpenChange,
   placeholder,
   placement = 'bottomRight',
@@ -53,7 +55,7 @@ export function DateTimePicker({
       placement={placement}
       format="YYYY-MM-DD HH:mm"
       showTime={{ format: 'HH:mm', minuteStep }}
-      needConfirm
+      needConfirm={needConfirm}
       showNow
       allowClear={{
         clearIcon: <X size={11} strokeWidth={2} aria-hidden="true" />,
@@ -73,6 +75,11 @@ export function DateTimePicker({
       aria-label={ariaLabel}
       placeholder={placeholder}
       onOpenChange={onOpenChange}
+      // 带时间的面板在关闭时才提交；即时筛选需在选择日期或时间后同步受控值。
+      onCalendarChange={needConfirm ? undefined : (nextValue) => {
+        const selectedValue = Array.isArray(nextValue) ? nextValue[0] : nextValue
+        if (selectedValue?.valueOf() !== pickerValue?.valueOf()) onChange(selectedValue?.toDate() ?? null)
+      }}
       onChange={(nextValue) => onChange(nextValue?.toDate() ?? null)}
     />
   )

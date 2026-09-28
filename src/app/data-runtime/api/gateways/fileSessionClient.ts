@@ -6,12 +6,15 @@ import {
   type FileSessionCreateInput,
   type OverwritePolicy,
   type RemoteDirectoryListing,
+  type RemoteDirectorySize,
+  type RemoteDirectorySizeRequest,
   type RemoteFileEntry,
   type RemoteTextFile,
   type RemoteTextSaveRequest,
   type RemoteTextSaveResult,
 } from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
+import { requireCanonicalRemotePath } from '#shared/path';
 
 interface RequestOptions {
   method?: string
@@ -99,7 +102,7 @@ listFileSessionFiles(
     }
     return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`, {
       signal: options.signal,
-    })
+    }).then(validateDirectoryListing)
   }
 
 statFileSessionFile(fileSessionId: string, path: string, signal?: AbortSignal) {
@@ -107,14 +110,33 @@ statFileSessionFile(fileSessionId: string, path: string, signal?: AbortSignal) {
     return this.request<RemoteFileEntry>(
       `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`,
       { signal },
-    )
+    ).then(validateRemoteFileEntry)
+  }
+
+  calculateFileSessionDirectorySize(
+    fileSessionId: string,
+    body: RemoteDirectorySizeRequest,
+    signal?: AbortSignal,
+  ) {
+    return this.request<RemoteDirectorySize>(
+      `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/directory-size`,
+      {
+        method: 'POST',
+        body,
+        signal,
+        timeoutMs: 910_000,
+      },
+    ).then((value) => {
+      requireCanonicalRemotePath(value.path)
+      return value
+    })
   }
 
 openFileSessionTextFile(fileSessionId: string, path: string) {
     const query = new URLSearchParams({ path })
     return this.request<RemoteTextFile>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text?${query.toString()}`, {
       timeoutMs: 90_000,
-    })
+    }).then(validateRemoteTextFile)
   }
 
 saveFileSessionTextFile(fileSessionId: string, body: RemoteTextSaveRequest) {
@@ -122,6 +144,10 @@ saveFileSessionTextFile(fileSessionId: string, body: RemoteTextSaveRequest) {
       method: 'PUT',
       body,
       timeoutMs: 90_000,
+    }).then((value) => {
+      validateRemoteTextFile(value.file)
+      validateRemoteFileEntry(value.entry)
+      return value
     })
   }
 
@@ -143,7 +169,7 @@ chmodFileSessionFile(fileSessionId: string, path: string, mode: string) {
     return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/permissions`, {
       method: 'PATCH',
       body: { path, mode },
-    })
+    }).then(validateRemoteFileEntry)
   }
 
 deleteFileSessionFiles(fileSessionId: string, paths: string[], recursive = true) {
@@ -167,6 +193,23 @@ moveFileSessionFiles(fileSessionId: string, sourcePaths: string[], targetDir: st
     })
   }
 
+}
+
+function validateRemoteFileEntry(entry: RemoteFileEntry) {
+  requireCanonicalRemotePath(entry.path)
+  return entry
+}
+
+function validateRemoteTextFile(file: RemoteTextFile) {
+  requireCanonicalRemotePath(file.path)
+  return file
+}
+
+function validateDirectoryListing(listing: RemoteDirectoryListing) {
+  requireCanonicalRemotePath(listing.path)
+  requireCanonicalRemotePath(listing.parent_path)
+  listing.entries.forEach(validateRemoteFileEntry)
+  return listing
 }
 
 function requireConnectionTargetID(value: string, message: string) {

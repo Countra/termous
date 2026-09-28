@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { TerminalGateway } from '../api/terminalGateway'
 import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
+import { normalizeTerminalClipboardKeyEvent } from '../model/terminalClipboardKeyEvent'
 import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
 import { clearTerminalBuffer } from './terminalBuffer'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
@@ -98,6 +99,7 @@ import {
 const terminalTextEncoder = new TextEncoder()
 const unlockedTerminalInputLock: TerminalInputLock = { locked: false }
 const completionShortcutActionIds = [
+  'terminal.completion.trigger',
   'terminal.completion.previous',
   'terminal.completion.next',
   'terminal.completion.accept',
@@ -186,6 +188,7 @@ export function TerminalRuntimeProvider({
   const completionStatusReconciler = completionStatusReconcilerRef.current
   const {
     runtime: shortcutRuntime,
+    platform: shortcutPlatform,
     bindingSignatures: shortcutBindingSignatures,
   } = useShortcutRuntime()
   const completionShortcutSignature = completionShortcutActionIds
@@ -1012,13 +1015,17 @@ export function TerminalRuntimeProvider({
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        if (!canAcceptTerminalInput(entry)) {
+        if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) {
           return
         }
-        const text = event.clipboardData?.getData('text/plain')
-        if (text) {
-          pasteEntryText(entry, text)
-          terminal.focus()
+        if (event.clipboardData) {
+          // 原生事件携带的是本次选择的快照；没有文本时不能回读可能已变化的系统剪贴板。
+          try {
+            const text = event.clipboardData.getData('text/plain')
+            if (text && pasteEntryText(entry, text)) terminal.focus()
+          } catch {
+            notifyClipboardError('terminal.pasteFailed')
+          }
           return
         }
         void pasteEntryClipboard(entry)
@@ -1070,6 +1077,21 @@ export function TerminalRuntimeProvider({
           return scopes
         },
       })
+      // 独立限制补全入口，避免在备用屏幕或关闭补全时调用处理器并锁住原生长按。
+      const completionShortcutContextId = `${shortcutContextId}:completion`
+      const canUseCompletionShortcuts = () => {
+        const viewport = getViewportForSession(sessionId)
+        return Boolean(viewport?.active && viewport.completionActive && viewport.host?.isConnected
+          && activeSessionIdRef.current === sessionId
+          && entry.terminal.buffer.active.type === 'normal'
+          && completionRuntime.getSnapshot(sessionId).readiness !== 'disabled'
+          && canAcceptTerminalInput(entry) && entry.transport.isLive())
+      }
+      const disposeCompletionShortcutContext = shortcutRuntime.pushContext({
+        id: completionShortcutContextId,
+        layer: 'focus',
+        scopes: () => canUseCompletionShortcuts() ? ['terminal.writable'] : [],
+      })
       const disposeShortcutHandlers = [
         shortcutRuntime.registerHandler(
           shortcutContextId,
@@ -1086,6 +1108,24 @@ export function TerminalRuntimeProvider({
           () => {
             if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) return 'fallthrough'
             void pasteEntryClipboard(entry)
+            return 'handled'
+          },
+        ),
+        shortcutRuntime.registerHandler(
+          completionShortcutContextId,
+          'terminal.completion.trigger',
+          () => {
+            if (!completionRuntime.requestSuggestions(sessionId)) {
+              const inputUncertain = completionRuntime.getSnapshot(sessionId).input.trust === 'uncertain'
+              void message.info({
+                key: 'terminal-completion-unavailable',
+                content: tRef.current(inputUncertain
+                  ? 'terminal.completion.inputUncertain'
+                  : 'terminal.completion.suggestionsUnavailable'),
+                duration: 2,
+                className: 'termous-message',
+              })
+            }
             return 'handled'
           },
         ),
@@ -1121,24 +1161,43 @@ export function TerminalRuntimeProvider({
       entry.disposables.push({
         dispose: () => {
           disposeShortcutHandlers.reverse().forEach((dispose) => dispose())
+          disposeCompletionShortcutContext()
           disposeShortcutContext()
         },
       })
 
+      let completionEscapeHeld = false
       terminal.attachCustomKeyEventHandler((event) => {
-        if (event.type === 'keydown' && isCompletionInteractionActive(sessionId)) {
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            completionRuntime.closeSuggestions(sessionId)
-            return false
+        if (event.key === 'Escape') {
+          if (event.type === 'keyup') {
+            const handled = completionEscapeHeld
+            completionEscapeHeld = false
+            if (handled) return false
+          } else if (event.type === 'keydown') {
+            if (!event.repeat) completionEscapeHeld = false
+            const completion = completionRuntime.getSnapshot(sessionId)
+            // 等待、空结果及失败提示也可关闭，不能只依赖弹层可见状态。
+            const dismissible = canUseCompletionShortcuts() && !completion.input.composing
+              && completion.queryState !== 'idle'
+            const plainEscape = !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey
+              && !event.isComposing && event.keyCode !== 229
+            if (plainEscape && (completionEscapeHeld || dismissible)) {
+              // 一次按住期间始终由补全接管，避免弹层关闭后的 repeat 泄漏到远端 Shell。
+              completionEscapeHeld = true
+              event.preventDefault()
+              event.stopPropagation()
+              completionRuntime.closeSuggestions(sessionId)
+              return false
+            }
           }
+        }
+        if (event.type === 'keydown' && isCompletionInteractionActive(sessionId)) {
           if (event.key === 'Tab') {
             completionRuntime.closeSuggestions(sessionId)
             return true
           }
         }
-        const result = shortcutRuntime.dispatch(event, {
+        const result = shortcutRuntime.dispatch(normalizeTerminalClipboardKeyEvent(event, shortcutPlatform), {
           adapterId: `xterm:${sessionId}`,
           editable: false,
         })
@@ -1229,9 +1288,12 @@ export function TerminalRuntimeProvider({
       fitAndResize,
       getViewportForSession,
       isCompletionInteractionActive,
+      message,
+      notifyClipboardError,
       pasteEntryClipboard,
       pasteEntryText,
       shortcutRuntime,
+      shortcutPlatform,
       startCompletionStatusReconciliation,
       stopCompletionStatusReconciliation,
     ],

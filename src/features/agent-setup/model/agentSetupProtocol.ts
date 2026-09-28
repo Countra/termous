@@ -114,6 +114,9 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
     global_context_window_tokens: globalContextWindowTokens,
     global_max_output_tokens: globalMaxOutputTokens,
     context_compaction_threshold_percent: Number(compactionThreshold),
+    connect_ssh_profile_on_bind: source.connect_ssh_profile_on_bind === undefined
+      ? false
+      : boolean(source.connect_ssh_profile_on_bind, 'Agent SSH Profile 关联方式设置无效'),
     show_turn_token_usage: boolean(source.show_turn_token_usage, 'Agent 每轮 Token 用量展示设置无效'),
     revision: positiveInteger(source.revision, 'Agent 设置 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 设置创建时间缺失'),

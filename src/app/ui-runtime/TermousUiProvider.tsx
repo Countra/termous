@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN'
 import 'antd/dist/reset.css'
 import { i18n, type Language } from '#shared/i18n'
 import { createAntdTheme, type ThemeMode } from '#shared/theme'
+import { termousPopconfirmProps } from '#shared/ui'
 
 interface TermousUiProviderProps {
   children: ReactNode
@@ -25,7 +26,7 @@ export function TermousUiProvider({ children, language, theme }: TermousUiProvid
   }, [language])
 
   return (
-    <ConfigProvider locale={antdLocale} theme={antdTheme} button={{ autoInsertSpace: false }}>
+    <ConfigProvider locale={antdLocale} theme={antdTheme} button={{ autoInsertSpace: false }} popconfirm={termousPopconfirmProps}>
       <AntdApp
         className="termous-antd-root"
         notification={{

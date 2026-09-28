@@ -5,11 +5,12 @@ import test from "node:test";
 import { parseDocument } from "yaml";
 
 const workflowUrl = new URL("../../.github/workflows/release.yml", import.meta.url);
+const ciWorkflowUrl = new URL("../../.github/workflows/ci.yml", import.meta.url);
 const windowsBuildScriptUrl = new URL("./build-windows.ps1", import.meta.url);
 const unixBuildScriptUrl = new URL("./build-unix.sh", import.meta.url);
 
-async function loadWorkflow() {
-  const source = await readFile(workflowUrl, "utf8");
+async function loadWorkflow(url = workflowUrl) {
+  const source = await readFile(url, "utf8");
   const document = parseDocument(source, {
     maxAliasCount: 0,
     strict: true,
@@ -18,7 +19,7 @@ async function loadWorkflow() {
   assert.deepEqual(
     document.errors.map(({ message }) => message),
     [],
-    "Release workflow 必须是合法且无重复键的 YAML",
+    "CI/Release workflow 必须是合法且无重复键的 YAML",
   );
   return { source, workflow: document.toJS({ maxAliasCount: 0 }) };
 }
@@ -69,6 +70,46 @@ test("平台构建包装器把安装目录清理交给安全打包入口", async
   assert.match(unixSource, /disable_code_signing/u);
   assert.match(windowsSource, /CSC_IDENTITY_AUTO_DISCOVERY = "false"/u);
   assert.match(unixSource, /CSC_IDENTITY_AUTO_DISCOVERY=false/u);
+});
+
+test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签", async () => {
+  const [{ workflow: ci }, { workflow: release }, windowsSource, unixSource] =
+    await Promise.all([
+      loadWorkflow(ciWorkflowUrl),
+      loadWorkflow(),
+      readFile(windowsBuildScriptUrl, "utf8"),
+      readFile(unixBuildScriptUrl, "utf8"),
+    ]);
+
+  for (const workflow of [ci, release]) {
+    const steps = stepsFor(workflow, "build");
+    const linuxIndex = steps.findIndex(({ name }) => name === "Install Linux build and packaging dependencies");
+    const macIndex = steps.findIndex(({ name }) => name === "Install macFUSE SDK");
+    const windowsIndex = steps.findIndex(({ name }) => name === "Prepare Windows build");
+    const unixIndex = steps.findIndex(({ name }) => name === "Prepare Unix build");
+    assert.ok(linuxIndex >= 0 && linuxIndex < unixIndex);
+    assert.ok(macIndex >= 0 && macIndex < unixIndex);
+    assert.ok(windowsIndex >= 0);
+    assert.equal(steps[windowsIndex].env?.TERMOUS_BUILD_PHASE, "prepare");
+    assert.equal(steps[windowsIndex].run, "./web/scripts/ci/build-windows.ps1");
+    assert.equal(steps[unixIndex].env?.TERMOUS_BUILD_PHASE, "prepare");
+    assert.equal(steps[unixIndex].run, "bash ./web/scripts/ci/build-unix.sh");
+    const linuxSdk = steps[linuxIndex];
+    const macSdk = steps[macIndex];
+    assert.equal(linuxSdk?.if, "matrix.platform == 'linux'");
+    assert.match(linuxSdk.run, /libfuse3-dev/u);
+    assert.equal(macSdk?.if, "matrix.platform == 'macos'");
+    assert.match(macSdk.run, /brew install --cask macfuse/u);
+  }
+
+  assert.match(windowsSource, /CGO_ENABLED = "1"/u);
+  assert.match(windowsSource, /-Name "Go tests"[^\r\n]*@\("test", "-tags", "mountfuse"/u);
+  assert.match(windowsSource, /-Name "Build Termous Core"[\s\S]*?"build",\s*"-tags", "mountfuse"/u);
+  assert.match(unixSource, /CGO_ENABLED=1/u);
+  assert.match(unixSource, /mount_tags="mountfuse"/u);
+  assert.match(unixSource, /mount_tags="mountfuse,fuse3"/u);
+  assert.match(unixSource, /go test -tags "\$mount_tags"/u);
+  assert.match(unixSource, /go build \\[\s\S]*-tags "\$mount_tags"/u);
 });
 
 test("全部 Actions 固定完整 SHA 并标注版本", async () => {

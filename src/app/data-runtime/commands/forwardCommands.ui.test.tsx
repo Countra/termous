@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest'
 import type { ForwardInstance } from '#entities/forward'
 import type { AppData } from '../model/appData'
 import { initialData } from '../model/appDataState'
-import type { ForwardStartCompletionWaiter } from '../model/forwardRuntimeState'
+import { reconcileForwardReloadSnapshot, type ForwardStartCompletionWaiter } from '../model/forwardRuntimeState'
 import type { SetAppData } from '../model/runtimeTypes'
 import { createForwardCommands } from './forwardCommands'
 
@@ -28,6 +28,28 @@ function forward(overrides: Partial<ForwardInstance> = {}): ForwardInstance {
     ...overrides,
   }
 }
+
+test('重试和停止的 HTTP 回执在 WebSocket 迟到时也能抵御旧列表覆盖', async () => {
+  const failed = forward({ id: 'old-failure', profile_id: 'profile', start_origin: 'startup', status: 'failed' })
+  const running = forward({ id: 'retry', profile_id: 'profile' })
+  let data = { ...structuredClone(initialData), forwards: [failed] }
+  const changed = new Set<string>()
+  const commands = createForwardCommands({
+    api: { getForward: vi.fn(), forwards: vi.fn(), startForward: vi.fn(async () => running), stopForward: vi.fn(async () => undefined) },
+    forwards: data.forwards,
+    setData: (update) => { data = typeof update === 'function' ? update(data) : update },
+    setForwardErrorEvent: vi.fn(),
+    forwardReloadChangeTrackers: new Set([changed]),
+    forwardStartCompletionWaiters: new Map(),
+    forwardEventRevisions: new Map(),
+    forwardEventSnapshots: new Map(),
+  })
+  await commands.startForward({ profile_id: 'profile' })
+  expect(reconcileForwardReloadSnapshot(data.forwards, [failed], changed)).toEqual([running])
+  await commands.stopForward(running.id)
+  expect(reconcileForwardReloadSnapshot(data.forwards, [failed], changed)).toEqual([])
+  expect(reconcileForwardReloadSnapshot(data.forwards, [running], changed)).toEqual([])
+})
 
 test('端口转发重启在停止成功但启动失败后先完成权威对账再抛出原错误', async () => {
   const currentForward = forward()

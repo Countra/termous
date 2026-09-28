@@ -443,23 +443,6 @@
   box-shadow: none;
 }
 
-.alias-delete-popconfirm:global(.ant-popover) {
-  --ant-popover-bg: var(--surface-elevated, var(--surface));
-  --antd-arrow-background-color: var(--surface-elevated, var(--surface));
-}
-
-.alias-delete-popconfirm:global(.ant-popover) :global(.ant-popover-container),
-.alias-delete-popconfirm:global(.ant-popover) :global(.ant-popover-content),
-.alias-delete-popconfirm:global(.ant-popover) :global(.ant-popover-inner),
-.alias-delete-popconfirm:global(.ant-popover) :global(.ant-popover-inner-content) {
-  background: var(--surface-elevated, var(--surface)) !important;
-}
-
-.alias-delete-popconfirm:global(.ant-popover) :global(.ant-popover-inner) {
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
-}
-
 .alias-editor-page {
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;

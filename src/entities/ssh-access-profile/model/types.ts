@@ -53,7 +53,10 @@ export interface ProvisionedSSHAccessProfile {
 }
 
 export interface SSHAccessProfileReferences {
+  mount_profiles?: number
   companion_files: number
+  companion_agent_sessions: number
+  independent_file_profiles: number
   forward_profiles: number
   remote_desktop_routes: number
   jump_profile_consumers: number

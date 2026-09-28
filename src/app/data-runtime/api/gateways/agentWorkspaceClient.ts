@@ -29,11 +29,13 @@ import {
   decodeAgentSessionPage,
   decodeAgentSessionUsage,
   decodeAgentResourceRecoveryView,
+  decodeAgentResourceConnectionView,
 } from '#features/agent-runtime'
 import type {
   AgentRun,
   AgentQueuedTurnMovePlacement,
   AgentResourceBindingUpdateInput,
+  AgentResourceConnectionInput,
   AgentResourceKind,
   AgentResourceRecoveryInput,
   AgentSessionInput,
@@ -146,6 +148,26 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/recovery/${encodeURIComponent(operationId)}/cancel`, {
       method: 'POST', signal,
     }).then((value) => decodeAgentResourceRecoveryView(value, id))
+  }
+
+  connectResourceBinding(id: string, input: AgentResourceConnectionInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/connect`, {
+      method: 'POST', body: input, signal,
+    }).then((value) => decodeAgentResourceConnectionView(value, id))
+  }
+
+  resourceBindingConnection(id: string, clientRequestId?: string, signal?: AbortSignal) {
+    const query = new URLSearchParams()
+    if (clientRequestId) query.set('client_request_id', clientRequestId)
+    const suffix = query.size ? `?${query.toString()}` : ''
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/connection${suffix}`, { signal })
+      .then((value) => decodeAgentResourceConnectionView(value, id))
+  }
+
+  cancelResourceBindingConnection(id: string, operationId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding/connection/${encodeURIComponent(operationId)}/cancel`, {
+      method: 'POST', signal,
+    }).then((value) => decodeAgentResourceConnectionView(value, id))
   }
 
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: import('#entities/agent').AgentAttachment['origin']) {

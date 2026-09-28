@@ -6,6 +6,11 @@
   padding: 0 0 16px;
 }
 
+.composer-input-wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .composer-input {
   display: grid;
   border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
@@ -48,6 +53,93 @@
   color: var(--text-secondary);
   font-size: 11px;
   padding-inline: 6px;
+}
+
+.compression-pending {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-subtle));
+  color: var(--text-secondary);
+  gap: 8px;
+  padding: 4px 5px 4px 7px;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.compression-pending-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.compression-pending-copy > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.compression-pending-copy strong,
+.compression-pending-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compression-pending-copy strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 630;
+  line-height: 16px;
+}
+
+.compression-pending-copy small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.compression-pending-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.compression-pending-dismiss:global(.ant-btn) {
+  display: inline-flex;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.compression-pending-dismiss:global(.ant-btn):not(:disabled):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.compression-pending-dismiss:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.compression-pending-dismiss:global(.ant-btn):disabled {
+  color: var(--text-muted);
+  opacity: 0.58;
 }
 
 .composer-tray {
@@ -296,9 +388,15 @@
   outline-offset: 1px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .compression-pending {
+    transition: none;
+  }
+}
+
 @container agent-workspace (width <= 720px) {
   .composer {
-    width: calc(100% - 20px);
+    width: calc(100% - 24px);
     padding-bottom: 10px;
   }
 

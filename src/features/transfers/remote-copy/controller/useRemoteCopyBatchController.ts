@@ -27,6 +27,7 @@ export function useRemoteCopyBatchController({
   open,
   source,
   hosts,
+  profiles,
   fileSessions,
   createRemoteCopy,
   confirmOverwrite,
@@ -38,8 +39,8 @@ export function useRemoteCopyBatchController({
     [source.entries],
   )
   const allTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.hostId),
-    [fileSessions, hosts, source.hostId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId, '', profiles),
+    [fileSessions, hosts, profiles, source.fileSessionId],
   )
   const [search, setSearch] = useState('')
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
@@ -77,8 +78,8 @@ export function useRemoteCopyBatchController({
   sourceIdentityRef.current = sourceIdentity
 
   const visibleTargets = useMemo(
-    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.hostId, search),
-    [fileSessions, hosts, search, source.hostId],
+    () => filterRemoteCopyTargetSessions(hosts, fileSessions, source.fileSessionId, search, profiles),
+    [fileSessions, hosts, profiles, search, source.fileSessionId],
   )
   const selectedSessionIdSet = useMemo(
     () => new Set(selectedSessionIds),
@@ -126,7 +127,7 @@ export function useRemoteCopyBatchController({
     setSelectedSessionIds((current) => reconcileRemoteCopyBatchSelection([
       ...current,
       ...resolvedFailures
-        .filter((failure) => failure.retryable && !completedHostIds.has(failure.hostId))
+        .filter((failure) => failure.retryable && !completedHostIds.has(failure.targetId))
         .map((failure) => failure.sessionId),
     ], allTargets))
   }, [active, allTargets, completedHostIds, open, resolvedFailures])
@@ -136,7 +137,7 @@ export function useRemoteCopyBatchController({
       return
     }
     const target = allTargetsRef.current.find((candidate) => candidate.session.id === sessionId)
-    if (!target || completedHostIds.has(target.host.id)) {
+    if (!target || completedHostIds.has(target.identity)) {
       return
     }
     const result = toggleRemoteCopyBatchTarget(
@@ -283,7 +284,7 @@ export function useRemoteCopyBatchController({
       const succeededHostIds = new Set(
         validTargets
           .filter((_, index) => results[index]?.status === 'fulfilled')
-          .map((target) => target.host.id),
+          .map((target) => target.identity),
       )
       const cumulativeCompletedHostIds = new Set([...completedHostIds, ...succeededHostIds])
       setCompletedSessionIds((current) => new Set([...current, ...succeededSessionIds]))
@@ -377,8 +378,8 @@ function toBatchFailure(
 ): RemoteCopyBatchFailure {
   return {
     sessionId: target.session.id,
-    hostId: target.host.id,
-    hostName: target.host.name,
+    targetId: target.identity,
+    targetName: target.name,
     message,
     retryable,
   }

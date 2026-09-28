@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 import { mcpScopes } from '#entities/mcp-access'
+import {
+  agentResourceConnectionStatuses,
+  agentSlashCandidateDisabledReasons,
+  agentSlashCommandIds,
+  agentSlashResourceKinds,
+} from '#entities/agent'
 import { mcpScopeGroups } from '../features/mcp-access/model/mcpScopeCatalog.ts'
 import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
 import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
@@ -40,7 +46,7 @@ test('使用向导动态步骤键拥有完整双语翻译', () => {
       assert.equal(typeof value, 'string', `${locale}: ${key}`)
       return value as string
     })
-    assert.equal(steps.length, 22, locale)
+    assert.equal(steps.length, 28, locale)
   }
 })
 
@@ -54,6 +60,62 @@ test('公共布尔值详情文案拥有完整双语翻译', () => {
   assert.equal(translationValue(zhCN, 'app.no'), '否')
   assert.equal(translationValue(enUS, 'app.yes'), 'Yes')
   assert.equal(translationValue(enUS, 'app.no'), 'No')
+})
+
+test('斜杠命令、候选状态与 Profile 连接文案拥有完整双语翻译', () => {
+  assertBilingualString('agent.slash.processing')
+  for (const command of agentSlashCommandIds) {
+    assertBilingualString(`agent.slash.commands.${command}.title`)
+    assertBilingualString(`agent.slash.commands.${command}.description`)
+  }
+  for (const kind of agentSlashResourceKinds) {
+    assertBilingualString(`agent.slash.resourceKind.${kind}.title`)
+    assertBilingualString(`agent.slash.resourceKind.${kind}.description`)
+  }
+  for (const status of ['ready', 'connected', 'connecting', 'waiting_host_trust', 'disconnected', 'failed', 'unavailable']) {
+    assertBilingualString(`agent.slash.status.${status}`)
+  }
+  for (const status of agentResourceConnectionStatuses) {
+    assertBilingualString(`agent.slash.connection.status.${status}`)
+  }
+  for (const reason of [
+    ...agentSlashCandidateDisabledReasons,
+    'active_run',
+    'queued_edit',
+    'queued_messages',
+    'resource_busy',
+    'mutation_busy',
+    'compression_unavailable',
+    'empty_draft',
+    'workspace_unavailable',
+  ]) {
+    assertBilingualString(`agent.slash.disabled.${reason}`)
+  }
+  for (const code of [
+    'AGENT_RESOURCE_CONNECTION_QUERY_FAILED',
+    'AGENT_RESOURCE_CONNECTION_FAILED',
+    'AGENT_RESOURCE_CONNECTION_CANCEL_FAILED',
+    'AGENT_RESOURCE_CONNECTION_CONFLICT',
+    'AGENT_RESOURCE_CONNECTION_TIMEOUT',
+    'AGENT_REVISION_CONFLICT',
+    'AGENT_RUN_CONFLICT',
+    'AGENT_NOT_READY',
+    'AGENT_RESOURCE_BINDING_UNAVAILABLE',
+    'SSH_CONNECT_FAILED',
+    'SSH_AUTH_FAILED',
+    'HOST_KEY_UNKNOWN',
+    'HOST_KEY_CHANGED',
+    'JUMP_HOST_FAILED',
+    'NETWORK_ERROR',
+    'REQUEST_TIMEOUT',
+    'REQUEST_ABORTED',
+    'VALIDATION_ERROR',
+    'NOT_FOUND',
+    'INTERNAL_ERROR',
+    'unknown',
+  ]) {
+    assertBilingualString(`agent.slash.connection.error.${code}`)
+  }
 })
 
 test('中文界面统一使用 AI 助手产品名称', () => {

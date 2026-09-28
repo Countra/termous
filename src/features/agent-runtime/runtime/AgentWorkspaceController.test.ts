@@ -117,6 +117,38 @@ test('创建会话在途时的新选择优先于迟到回执，实体仍合入�
   })
 })
 
+test('会话创建按选择代次互斥，不同代次可并发且都不抢占选择', async () => {
+  const gateway = new FakeGateway()
+  const first = deferred<AgentSession>()
+  const second = deferred<AgentSession>()
+  let calls = 0
+  gateway.createSession = async () => {
+    calls += 1
+    return calls === 1 ? first.promise : second.promise
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  controller.selectSession(undefined)
+
+  const firstCreation = controller.createSession({ ...sessionInput(), title: '旧代会话' }, 10, false)
+  const secondCreation = controller.createSession({ ...sessionInput(), title: '新代会话' }, 11, false)
+  assert.equal(calls, 2)
+  await assert.rejects(
+    controller.createSession({ ...sessionInput(), title: '同代重复会话' }, 11, false),
+    (error: unknown) => error instanceof AgentWorkspaceControllerError
+      && error.code === 'AGENT_MUTATION_IN_PROGRESS',
+  )
+
+  const firstSession = agentSessionFixture({ id: 'ags-created-old', title: '旧代会话' })
+  const secondSession = agentSessionFixture({ id: 'ags-created-new', title: '新代会话' })
+  second.resolve(secondSession)
+  first.resolve(firstSession)
+  assert.deepEqual(await Promise.all([firstCreation, secondCreation]), [firstSession, secondSession])
+  assert.equal(controller.getSnapshot().selected_session_id, undefined)
+  assert.ok(controller.getSnapshot().sessions.some(({ id }) => id === firstSession.id))
+  assert.ok(controller.getSnapshot().sessions.some(({ id }) => id === secondSession.id))
+  controller.close()
+})
+
 test('等待前捕获的选择版本阻止后续创建覆盖用户的新选择', async () => {
   const gateway = new FakeGateway()
   const controller = new AgentWorkspaceController({ gateway })
@@ -2452,6 +2484,9 @@ class FakeGateway implements AgentWorkspaceGateway {
   async removeResourceBinding() { return agentSessionFixture() }
   async recoverResourceBinding(): Promise<never> { throw new Error('测试未配置连接恢复') }
   async resourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复查询') }
+  async connectResourceBinding(): Promise<never> { throw new Error('测试未配置 Profile 连接受理') }
+  async resourceBindingConnection(): Promise<never> { throw new Error('测试未配置 Profile 连接查询') }
+  async cancelResourceBindingConnection(): Promise<never> { throw new Error('测试未配置 Profile 连接取消') }
   async cancelResourceBindingRecovery(): Promise<never> { throw new Error('测试未配置连接恢复取消') }
   usage(sessionId: string, signal?: AbortSignal) {
     if (signal) this.usageSignals.push(signal)

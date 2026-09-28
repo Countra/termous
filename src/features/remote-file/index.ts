@@ -1,5 +1,13 @@
 export { buildRemoteFileActionMenu } from './ui/RemoteFileActionMenu.tsx'
 export { RemotePermissionModal } from './ui/RemotePermissionModal.tsx'
+export { RemoteRenameModal } from './ui/RemoteRenameModal.tsx'
+export { DirectorySizeField } from './directory-size/ui/DirectorySizeField.tsx'
+export {
+  DirectorySizeResultCache,
+  directorySizeResultCacheLimit,
+} from './directory-size/model/DirectorySizeResultCache.ts'
+export type { DirectorySizeCacheSession } from './directory-size/model/DirectorySizeResultCache.ts'
+export type { DirectorySizeSource } from './directory-size/model/types.ts'
 export {
   formatRemoteFilePathsForClipboard,
   runRemoteFileAction,
@@ -40,3 +48,5 @@ export const loadRemoteImageViewerModal = () => import('./ui/RemoteImageViewerMo
 
 export const loadAdvancedRenameModal = () => import('./advanced-rename/ui/AdvancedRenameModal.tsx')
   .then((module) => ({ default: module.AdvancedRenameModal }))
+
+export { FileMoveOperationModal } from './move/FileMoveOperationModal.tsx'

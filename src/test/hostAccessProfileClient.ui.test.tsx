@@ -150,12 +150,28 @@ describe('主机访问 Profile HTTP 合同', () => {
       if (init?.method === 'DELETE') {
         return new Response(null, { status: 204 })
       }
+      if (url.pathname === '/api/v1/file-access-engines') {
+        return new Response(JSON.stringify([{
+          id: 'sftp', config_versions: [1], current_config_version: 1,
+          host_scope: 'required', capabilities: ['list'],
+        }]), { status: 200 })
+      }
+      if (url.pathname.endsWith('/references')) {
+        return new Response(JSON.stringify({
+          agent_sessions: 0, active_file_sessions: 0, is_default: false,
+          peer_profiles: 1, blocking_total: 0,
+        }), { status: 200 })
+      }
       const isList = init?.method === 'GET' && [
         '/api/v1/ssh-access-profiles',
         '/api/v1/file-access-profiles',
         '/api/v1/remote-desktop-profiles',
       ].includes(url.pathname)
-      return new Response(JSON.stringify(isList ? [] : {}), { status: 200 })
+      if (isList) return new Response(JSON.stringify([]), { status: 200 })
+      if (url.pathname.startsWith('/api/v1/file-access-profiles')) {
+        return new Response(JSON.stringify(fileProfile('file_returned', 0)), { status: 200 })
+      }
+      return new Response(JSON.stringify({}), { status: 200 })
     })
     vi.stubGlobal('fetch', fetchMock)
     const hosts = createGateways().hosts
@@ -209,7 +225,21 @@ describe('主机访问 Profile HTTP 合同', () => {
     await hosts.updateSSHAccessProfile('ssh/id', UPDATED_AT, sshInput)
     await hosts.deleteSSHAccessProfile('ssh/id', UPDATED_AT)
     await hosts.setDefaultSSHAccessProfile('ssh/id', UPDATED_AT)
-    await hosts.updateFileAccessProfile('file/id', UPDATED_AT, { name: 'Files' })
+    await hosts.fileAccessEngines()
+    await hosts.createFileAccessProfile({
+      host_id: 'host/id',
+      name: 'Files',
+      engine: 'sftp',
+      engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh/id' },
+    })
+    await hosts.updateFileAccessProfile('file/id', UPDATED_AT, {
+      name: 'Files',
+      engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh/new' },
+    })
+    await hosts.inspectFileAccessProfileReferences('file/id')
+    await hosts.deleteFileAccessProfile('file/id', UPDATED_AT)
     await hosts.setDefaultFileAccessProfile('file/id', UPDATED_AT)
     await hosts.createRemoteDesktopAccessProfile(remoteInput)
     await hosts.updateRemoteDesktopAccessProfile('rdp/id', UPDATED_AT, remoteInput)
@@ -267,36 +297,65 @@ describe('主机访问 Profile HTTP 合同', () => {
       body: { expected_updated_at: UPDATED_AT },
     })
     expect(requestAt(fetchMock, 8)).toMatchObject({
-      pathname: '/api/v1/file-access-profiles/file%2Fid',
-      method: 'PATCH',
-      body: { expected_updated_at: UPDATED_AT, name: 'Files' },
+      pathname: '/api/v1/file-access-engines',
+      method: 'GET',
     })
     expect(requestAt(fetchMock, 9)).toMatchObject({
-      pathname: '/api/v1/file-access-profiles/file%2Fid/default',
+      pathname: '/api/v1/file-access-profiles',
       method: 'POST',
-      body: { expected_updated_at: UPDATED_AT },
+      body: {
+        host_id: 'host/id',
+        name: 'Files',
+        engine: 'sftp',
+        engine_config_version: 1,
+        config: { ssh_profile_id: 'ssh/id' },
+      },
     })
     expect(requestAt(fetchMock, 10)).toMatchObject({
-      pathname: '/api/v1/remote-desktop-profiles',
-      method: 'POST',
-      body: remoteInput,
+      pathname: '/api/v1/file-access-profiles/file%2Fid',
+      method: 'PATCH',
+      body: {
+        expected_updated_at: UPDATED_AT,
+        name: 'Files',
+        engine_config_version: 1,
+        config: { ssh_profile_id: 'ssh/new' },
+      },
     })
     expect(requestAt(fetchMock, 11)).toMatchObject({
-      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid',
-      method: 'PATCH',
-      body: { expected_updated_at: UPDATED_AT, ...remoteInput },
+      pathname: '/api/v1/file-access-profiles/file%2Fid/references',
+      method: 'GET',
     })
     expect(requestAt(fetchMock, 12)).toMatchObject({
-      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid',
+      pathname: '/api/v1/file-access-profiles/file%2Fid',
       method: 'DELETE',
       body: { expected_updated_at: UPDATED_AT },
     })
     expect(requestAt(fetchMock, 13)).toMatchObject({
-      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid/default',
+      pathname: '/api/v1/file-access-profiles/file%2Fid/default',
       method: 'POST',
       body: { expected_updated_at: UPDATED_AT },
     })
     expect(requestAt(fetchMock, 14)).toMatchObject({
+      pathname: '/api/v1/remote-desktop-profiles',
+      method: 'POST',
+      body: remoteInput,
+    })
+    expect(requestAt(fetchMock, 15)).toMatchObject({
+      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid',
+      method: 'PATCH',
+      body: { expected_updated_at: UPDATED_AT, ...remoteInput },
+    })
+    expect(requestAt(fetchMock, 16)).toMatchObject({
+      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid',
+      method: 'DELETE',
+      body: { expected_updated_at: UPDATED_AT },
+    })
+    expect(requestAt(fetchMock, 17)).toMatchObject({
+      pathname: '/api/v1/remote-desktop-profiles/rdp%2Fid/default',
+      method: 'POST',
+      body: { expected_updated_at: UPDATED_AT },
+    })
+    expect(requestAt(fetchMock, 18)).toMatchObject({
       pathname: '/api/v1/file-access-profiles',
       search: '',
       method: 'GET',
@@ -429,6 +488,7 @@ function fileProfile(id: string, sortOrder: number): FileAccessProfile {
     name: id,
     engine: 'sftp',
     engine_config_version: 1,
+    config: { ssh_profile_id: `ssh_${sortOrder}` },
     sftp: { ssh_profile_id: `ssh_${sortOrder}` },
     is_default: sortOrder === 0,
     sort_order: sortOrder,

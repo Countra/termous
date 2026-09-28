@@ -173,23 +173,21 @@ function toFileMenuItem(
   profile: FileAccessProfileProjection,
   sshProfiles: SSHAccessProfile[],
 ): HostLauncherFileProfileMenuItem {
-  const route = resolveRouteInfo(
-    sshProfiles,
-    profile.hostId,
-    profile.routeDependency.profileId,
-  )
+  const route = profile.hostId && profile.routeDependency
+    ? resolveRouteInfo(sshProfiles, profile.hostId, profile.routeDependency.profileId)
+    : null
   return {
     profileId: profile.profileId,
-    hostId: profile.hostId,
+    hostId: profile.hostId ?? '',
     intent: 'files',
     actionId: 'openFiles',
     technology: profile.technology.id,
     name: displayName(profile.name, route?.endpoint ?? profile.technology.label),
-    endpoint: route?.endpoint ?? '',
+    endpoint: route?.endpoint ?? profile.endpoint ?? '',
     route,
     isDefault: profile.isDefault,
     sortOrder: profile.sortOrder,
-    availability: route ? 'ready' : 'route_missing',
+    availability: profile.technology.id !== 'sftp' || route ? 'ready' : 'route_missing',
   }
 }
 

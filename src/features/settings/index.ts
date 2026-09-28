@@ -30,6 +30,8 @@ export { DataPortabilitySettings } from './ui/data-portability/DataPortabilitySe
 export type { DataPortabilityGateway } from './api/dataPortabilityGateway.ts'
 export { GeneralSettings } from './ui/general/GeneralSettings.tsx'
 export { ConnectionSettings } from './ui/connection/ConnectionSettings.tsx'
+export { MountSettings } from './ui/mount/MountSettings.tsx'
+export type { MountSettingsGateway } from './api/mountSettingsGateway.ts'
 export { ShortcutSettingsPanel } from './ui/shortcuts/ShortcutSettingsPanel.tsx'
 export { TerminalCompletionSettings } from './ui/terminal/TerminalCompletionSettings.tsx'
 export { TerminalStyleSettings } from './ui/terminal/TerminalStyleSettings.tsx'

@@ -585,3 +585,17 @@ function approvalFixture(state: string) {
     expires_at: '2026-08-13T00:03:00Z',
   }
 }
+
+
+test('MCP 对象存储改名沿用原审批动作并展示非原子语义', () => {
+  const operation = {
+    action: 'rename', file_session_id: 'object-session', host_name: 'MinIO 服务器',
+    non_atomic: true, item_count: 1, remote_paths: ['/a.txt'], remote_target: '/b.txt',
+  }
+  const decode = (details: Record<string, unknown>) => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1,
+    items: [{ ...approvalFixture('pending'), kind: 'files', operation: details }],
+  }).items[0]
+  assert.equal(decode(operation)?.operation?.non_atomic, true)
+  assert.throws(() => decode({ ...operation, non_atomic: 'yes' }), McpAccessProtocolError)
+})

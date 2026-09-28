@@ -265,9 +265,10 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
 
 .files-transfer-summary {
   display: inline-flex;
-  min-width: 164px;
+  width: 289px;
+  min-width: 289px;
   height: 100%;
-  flex: 0 1 auto;
+  flex: 0 0 289px;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -442,6 +443,7 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
   .files-transfer-summary {
     width: 36px;
     min-width: 36px;
+    flex-basis: 36px;
     justify-content: center;
     padding: 0;
   }

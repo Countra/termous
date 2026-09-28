@@ -65,7 +65,7 @@ test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页�
           : { tools: firstPage, nextCursor: 'next-page' }
       } else {
         assert.equal(rpc.method, 'tools/call')
-        assert.deepEqual(rpc.params, { name: secondPage[0]!.name, arguments: { paths: ['/fixture.txt'] } })
+        assert.deepEqual(rpc.params, { name: secondPage[0]!.name, arguments: { paths: ['/fixture.txt'] }, _meta: { 'termous/tool-call-id': 'fixture-call' } })
         result = { content: [{ type: 'text', text: '预览完成' }] }
       }
       return Response.json({ jsonrpc: '2.0', id: rpc.id, result })

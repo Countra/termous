@@ -53,28 +53,50 @@ function session(
   }
 }
 
-test('跨主机目标只保留其他主机上可冻结 generation 的连接会话', () => {
+test('传输目标保留同主机的其他连接会话并校验 generation', () => {
   const hosts = [host('source', '源主机'), host('target', '目标主机')]
   const sessions = [
     session('source-session', 'source'),
+    session('source-independent', 'source'),
     session('target-a-12345678', 'target'),
     session('target-b-87654321', 'target'),
     session('disconnected', 'target', { status: 'disconnected' }),
     session('missing-generation', 'target', { connection_generation: undefined }),
   ]
 
-  const result = filterRemoteCopyTargetSessions(hosts, sessions, 'source')
+  const result = filterRemoteCopyTargetSessions(hosts, sessions, 'source-session')
 
-  assert.deepEqual(result.map((item) => item.session.id), [
+  // 此处验证筛选结果，不将中文名称在不同系统语言环境下的排序作为合同。
+  assert.deepEqual(result.map((item) => item.session.id).sort(), [
+    'source-independent',
     'target-a-12345678',
     'target-b-87654321',
   ])
-  assert.equal(result[0]?.duplicateHostSession, true)
-  assert.equal(result[0]?.shortSessionId, '12345678')
+  const firstTarget = result.find((item) => item.session.id === 'target-a-12345678')
+  assert.equal(firstTarget?.duplicateHostSession, true)
+  assert.equal(firstTarget?.shortSessionId, '12345678')
+  assert.equal(result.find((item) => item.session.id === 'source-independent')?.duplicateHostSession, false)
   assert.deepEqual(
-    filterRemoteCopyTargetSessions(hosts, sessions, 'source', '8765').map((item) => item.session.id),
+    filterRemoteCopyTargetSessions(hosts, sessions, 'source-session', '8765').map((item) => item.session.id),
     ['target-b-87654321'],
   )
+})
+
+test('传输目标按名称排序，同名时依次按连接时间和会话 ID 排序', () => {
+  const hosts = [host('early-name', 'Alpha'), host('late-name', 'Zulu')]
+  const sessions = [
+    session('a-last-name', 'late-name'),
+    session('z-newer', 'early-name', { started_at: '2026-08-15T00:00:02Z' }),
+    session('b-older', 'early-name', { started_at: '2026-08-15T00:00:01Z' }),
+    session('a-older', 'early-name', { started_at: '2026-08-15T00:00:01Z' }),
+  ]
+
+  assert.deepEqual(filterRemoteCopyTargetSessions(hosts, sessions, 'source-session').map((item) => item.session.id), [
+    'a-older',
+    'b-older',
+    'z-newer',
+    'a-last-name',
+  ])
 })
 
 test('路径模型严格使用远端绝对 POSIX 路径', () => {
@@ -105,7 +127,7 @@ test('批量目标选择按主机互斥、清理失效会话并限制为十六�
     sessions.push(session(`session-${index}`, hostId))
   }
   sessions.push(session('session-0-new', 'target-0', { connection_generation: 2 }))
-  const targets = filterRemoteCopyTargetSessions(hosts, sessions, 'source')
+  const targets = filterRemoteCopyTargetSessions(hosts, sessions, 'source-session')
 
   const replaced = toggleRemoteCopyBatchTarget(['session-0'], 'session-0-new', targets)
   assert.deepEqual(replaced, { sessionIds: ['session-0-new'], limitReached: false })
@@ -133,12 +155,13 @@ test('批量失败状态按主机绑定到重连后的最新会话', () => {
   const hosts = [host('source', '源主机'), host('target', '目标主机')]
   const targets = filterRemoteCopyTargetSessions(hosts, [
     session('source-session', 'source'),
+    session('source-independent', 'source'),
     session('target-session-new', 'target', { connection_generation: 2 }),
-  ], 'source')
+  ], 'source-session')
   const failure: RemoteCopyBatchFailure = {
     sessionId: 'target-session-old',
-    hostId: 'target',
-    hostName: '旧名称',
+    targetId: 'target',
+    targetName: '旧名称',
     message: 'files.remoteCopy.batchUncertain',
     retryable: false,
   }
@@ -146,7 +169,7 @@ test('批量失败状态按主机绑定到重连后的最新会话', () => {
   assert.deepEqual(rebindRemoteCopyBatchFailures([failure], targets), [{
     ...failure,
     sessionId: 'target-session-new',
-    hostName: '目标主机',
+    targetName: '目标主机',
   }])
   assert.deepEqual(rebindRemoteCopyBatchFailures([failure], []), [failure])
 })

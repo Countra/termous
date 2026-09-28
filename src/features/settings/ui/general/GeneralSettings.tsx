@@ -8,6 +8,7 @@ import type {
 } from '#common/contracts'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './GeneralSettings.module.scss'
+import { LoginItemSetting } from './LoginItemSetting'
 
 interface GeneralSettingsProps {
   language: AppLanguage
@@ -105,6 +106,7 @@ export function GeneralSettings({
           }
         />
       </div>
+      <LoginItemSetting disabled={disabled} />
     </div>
   )
 }

@@ -101,7 +101,7 @@ test('补全绑定变化使用结构化 chord 签名而不是展示文本', () =
 test('断开的终端仍可通过选区上下文复制已有输出', () => {
   const contextStart = terminalRuntimeSource.indexOf('const shortcutContextId =')
   const contextEnd = terminalRuntimeSource.indexOf(
-    'terminal.attachCustomKeyEventHandler',
+    'const completionShortcutContextId',
     contextStart,
   )
   assert.notEqual(contextStart, -1)

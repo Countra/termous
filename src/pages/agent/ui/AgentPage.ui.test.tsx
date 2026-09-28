@@ -1,11 +1,11 @@
 import { App as AntdApp, ConfigProvider } from 'antd'
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentFileResourceState, AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentResourceRecoveryView, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSSHResourceState } from '#entities/agent'
+import type { AgentFileResourceState, AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentResourceConnectionInput, AgentResourceConnectionView, AgentResourceRecoveryView, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSlashCandidate, AgentSlashCandidateCatalog, AgentSlashFileProfileCandidate, AgentSlashFileSessionCandidate, AgentSlashSSHProfileCandidate, AgentSlashSSHSessionCandidate, AgentSSHResourceState, AgentSSHSlotResourceBinding } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
 import { TermousApiError } from '#shared/api'
-import type { AgentWorkspaceProps } from '#widgets/agent-workspace'
+import type { AgentWorkspaceProps, AgentWorkspaceSlashExecution } from '#widgets/agent-workspace'
 
 const harness = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
@@ -21,6 +21,11 @@ const harness = vi.hoisted(() => ({
   resourceBindingRecovery: vi.fn(),
   cancelResourceBindingRecovery: vi.fn(),
   acceptRecoveredResourceSession: vi.fn(),
+  connectResourceBinding: vi.fn(),
+  resourceBindingConnection: vi.fn(),
+  cancelResourceBindingConnection: vi.fn(),
+  acceptResourceConnectionSession: vi.fn(),
+  setContextCompressionPending: vi.fn(),
   startRun: vi.fn(),
   enqueueTurn: vi.fn(),
   saveQueuedTurnEdit: vi.fn(),
@@ -56,7 +61,11 @@ const harness = vi.hoisted(() => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => key === 'agent.slash.replace.description'
+      ? `${key} ${String(options?.current)} ${String(options?.next)}`
+      : key,
+  }),
 }))
 
 vi.mock('#features/agent-runtime', async () => ({
@@ -75,18 +84,24 @@ vi.mock('#features/agent-runtime', async () => ({
       getSnapshot: () => harness.state,
       start: vi.fn(),
       close: vi.fn(),
-      createSession: async (input: AgentSessionInput, selectionRevision = harness.state.selection_intent_revision) => {
+      createSession: async (
+        input: AgentSessionInput,
+        selectionRevision = harness.state.selection_intent_revision,
+        select = true,
+      ) => {
         const created = await harness.createSession(input)
         if (!(harness.state.sessions as AgentSession[]).some(({ id }) => id === created.id)) {
           harness.state = { ...harness.state, sessions: [created, ...(harness.state.sessions as AgentSession[])] }
           publishState()
         }
-        if (harness.state.selection_intent_revision === selectionRevision) harness.selectSession(created.id)
+        if (select && harness.state.selection_intent_revision === selectionRevision) harness.selectSession(created.id)
         return created
       },
       replaceResourceBinding: harness.replaceResourceBinding,
       removeResourceBinding: harness.removeResourceBinding,
       acceptRecoveredResourceSession: harness.acceptRecoveredResourceSession,
+      acceptResourceConnectionSession: harness.acceptResourceConnectionSession,
+      setContextCompressionPending: harness.setContextCompressionPending,
       startRun: harness.startRun,
       enqueueTurn: harness.enqueueTurn,
       saveQueuedTurnEdit: harness.saveQueuedTurnEdit,
@@ -326,6 +341,11 @@ describe('AgentPage', () => {
     harness.resourceBindingRecovery.mockReset().mockResolvedValue({ instance_id: 'core-one', kind: 'ssh_session', can_recover: true, operation: null })
     harness.cancelResourceBindingRecovery.mockReset()
     harness.acceptRecoveredResourceSession.mockReset()
+    harness.connectResourceBinding.mockReset()
+    harness.resourceBindingConnection.mockReset().mockResolvedValue({ instance_id: 'core-one', operation: null })
+    harness.cancelResourceBindingConnection.mockReset()
+    harness.acceptResourceConnectionSession.mockReset()
+    harness.setContextCompressionPending.mockReset()
     harness.replaceResourceBinding.mockResolvedValue(undefined)
     harness.removeResourceBinding.mockResolvedValue(undefined)
     harness.startRun.mockReset()
@@ -401,6 +421,929 @@ describe('AgentPage', () => {
       return created
     })
     harness.startRun.mockResolvedValue(undefined)
+  })
+
+  it('已有会话预约 compact 始终写入 true，并由 Widget 接管命令消费', async () => {
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/compact\n保留正文', updated_at: 1 } },
+      session_contexts: {
+        'session-one': { phase: 'ready', compression_pending: true },
+      },
+    }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: true },
+    }))
+
+    let accepted = false
+    await act(async () => {
+      accepted = await executeSlashCommand(compactSlashExecution('session-one', '/compact\n'))
+    })
+
+    expect(accepted).toBe(true)
+    expect(harness.setContextCompressionPending).toHaveBeenCalledExactlyOnceWith('session-one', true)
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+  })
+
+  it('空白新草稿禁用 compact，直接调用回调也不会创建会话', async () => {
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/compact', updated_at: 1 } },
+    }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: false, disabled_reason: 'empty_draft' },
+    }))
+
+    let accepted = true
+    await act(async () => {
+      accepted = await executeSlashCommand(compactSlashExecution('new', '/compact'))
+    })
+
+    expect(accepted).toBe(false)
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(harness.setContextCompressionPending).not.toHaveBeenCalled()
+  })
+
+  it('归档会话统一禁用 Slash 命令并返回明确原因', async () => {
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{ ...sessions[0]!, archived_at: '2026-09-01T00:00:00Z' }, sessions[1]!],
+      drafts: { 'session-one': { text: '/compact 保留正文', updated_at: 1 } },
+    }
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: {
+        enabled: false,
+        disabled_reason: 'archived',
+        resource_kinds: {
+          ssh: { enabled: false, disabled_reason: 'archived' },
+          file: { enabled: false, disabled_reason: 'archived' },
+        },
+      },
+      profile: { enabled: false, disabled_reason: 'archived' },
+      compact: { enabled: false, disabled_reason: 'archived' },
+    }))
+  })
+
+  it('非空新草稿的 Slash 与附件共享一次会话创建，并保留分组和模型', async () => {
+    const pending = deferred<AgentSession>()
+    harness.models.mockResolvedValue({ items: [modelFixture(), modelFixture('model-two')] })
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    harness.state = {
+      ...workspaceState(),
+      sessions: [...sessions],
+      session_groups: [sessionGroupFixture()],
+      selected_session_id: undefined,
+      new_session_selected: true,
+    }
+    renderPage()
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: false, disabled_reason: 'empty_draft' },
+    }))
+    act(() => {
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onCreateSession('group-ops')
+      props.onModelChange('model-two')
+      props.onDraftChange('/compact\n保留正文')
+    })
+    await waitFor(() => expect(harness.workspaceProps).toMatchObject({
+      selected_model_id: 'model-two',
+      draft: '/compact\n保留正文',
+      slashAvailability: { compact: { enabled: true } },
+    }))
+
+    let attachmentCreation!: Promise<string>
+    let slashExecution!: Promise<boolean>
+    act(() => {
+      attachmentCreation = harness.attachmentOptions!.ensureSession()
+      slashExecution = executeSlashCommand(compactSlashExecution('new', '/compact\n'))
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      group_id: 'group-ops',
+      model_id: 'model-two',
+      auto_title_allowed: true,
+      resource_reference: undefined,
+    }))
+
+    const created = {
+      ...sessions[0]!,
+      id: 'session-shared',
+      group_id: 'group-ops',
+      model_id: 'model-two',
+    }
+    let accepted = true
+    await act(async () => {
+      pending.resolve(created)
+      expect(await attachmentCreation).toBe('session-shared')
+      accepted = await slashExecution
+    })
+
+    expect(accepted).toBe(false)
+    expect(harness.createSession).toHaveBeenCalledTimes(1)
+    expect(harness.setContextCompressionPending).toHaveBeenCalledExactlyOnceWith('session-shared', true)
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: 'session-shared',
+      draft: '保留正文',
+    })
+  })
+
+  it('新聊天默认按需关联 SSH Profile，与附件共享无绑定会话并保留草稿归属', async () => {
+    const candidate = sshProfileSlashCandidate()
+    const pending = deferred<AgentSession>()
+    harness.models.mockResolvedValue({ items: [modelFixture(), modelFixture('model-two')] })
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    harness.state = {
+      ...workspaceState(),
+      sessions: [...sessions],
+      session_groups: [sessionGroupFixture()],
+      selected_session_id: undefined,
+      new_session_selected: true,
+    }
+    renderPage({ slashCandidates: slashCandidateCatalog({ sshProfile: candidate }) })
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      profile: { enabled: true },
+    }))
+    act(() => {
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onCreateSession('group-ops')
+      props.onModelChange('model-two')
+      props.onDraftChange('/profile\n保留正文')
+    })
+    await waitFor(() => expect(harness.workspaceProps).toMatchObject({
+      selected_model_id: 'model-two',
+      draft: '/profile\n保留正文',
+    }))
+
+    let attachmentCreation!: Promise<string>
+    let slashExecution!: Promise<boolean>
+    act(() => {
+      attachmentCreation = harness.attachmentOptions!.ensureSession()
+      slashExecution = executeSlashCommand(resourceSlashExecution(
+        'profile', candidate, 'new', '/profile\n',
+      ))
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      group_id: 'group-ops',
+      model_id: 'model-two',
+      auto_title_allowed: true,
+      resource_reference: undefined,
+    }))
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+
+    const created = {
+      ...sessions[0]!,
+      id: 'session-profile-shared',
+      group_id: 'group-ops',
+      model_id: 'model-two',
+      resource_bindings: [],
+    }
+    let accepted = true
+    await act(async () => {
+      pending.resolve(created)
+      expect(await attachmentCreation).toBe(created.id)
+      accepted = await slashExecution
+    })
+
+    expect(accepted).toBe(false)
+    expect(harness.createSession).toHaveBeenCalledTimes(1)
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith(created.id, {
+      kind: 'ssh_profile',
+      ssh_profile_id: candidate.ssh_profile_id,
+      expected_revision: created.revision,
+    })
+    expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+    expect((harness.state.sessions as AgentSession[]).find(({ id }) => id === created.id)).toMatchObject({
+      group_id: 'group-ops',
+      model_id: 'model-two',
+    })
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: created.id,
+      selected_model_id: 'model-two',
+      draft: '保留正文',
+    })
+  })
+
+  it('新聊天开启立即连接后先创建无绑定会话，再通过连接控制面关联 SSH Profile', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/profile\n保留正文', updated_at: 1 } },
+    }
+    harness.createSession.mockImplementationOnce(async (input: AgentSessionInput) => ({
+      ...sessions[0]!,
+      id: 'session-profile-connect',
+      title: input.title,
+      group_id: input.group_id,
+      model_id: input.model_id,
+      reasoning_level: input.reasoning_level,
+      resource_bindings: [],
+    }))
+    harness.connectResourceBinding.mockImplementationOnce(async (
+      sessionId: string,
+      input: AgentResourceConnectionInput,
+    ) => resourceConnectionView(sessionId, candidate, input.client_request_id))
+    renderPage({
+      readiness: autoConnectReadinessFixture(),
+      slashCandidates: slashCandidateCatalog({ sshProfile: candidate }),
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      profile: { enabled: true },
+    }))
+    const initialFocusKey = Number(harness.workspaceProps?.composerFocusKey ?? 0)
+
+    let accepted = true
+    await act(async () => {
+      accepted = await executeSlashCommand(resourceSlashExecution(
+        'profile', candidate, 'new', '/profile\n',
+      ))
+    })
+
+    expect(accepted).toBe(false)
+    expect(harness.createSession).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      auto_title_allowed: true,
+      model_id: 'model-one',
+      resource_reference: undefined,
+    }))
+    expect(harness.connectResourceBinding).toHaveBeenCalledExactlyOnceWith('session-profile-connect', {
+      kind: 'ssh_session',
+      ssh_profile_id: candidate.ssh_profile_id,
+      expected_revision: sessions[0]!.revision,
+      expected_instance_id: 'core-one',
+      client_request_id: expect.any(String),
+    })
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: 'session-profile-connect',
+      draft: '保留正文',
+    })
+    expect(Number(harness.workspaceProps?.composerFocusKey)).toBeGreaterThan(initialFocusKey)
+  })
+
+  it.each([
+    ['保留完成时的最新内容', '修改后的正文'],
+    ['保留完成时的清空操作', ''],
+  ])('Slash 先创建会话且命令 CAS 失效时，附件迁移%s', async (_case, latestDraft) => {
+    const pending = deferred<AgentSession>()
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/compact\n原始正文', updated_at: 1 } },
+    }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: true },
+    }))
+
+    let slashExecution!: Promise<boolean>
+    act(() => {
+      slashExecution = executeSlashCommand(compactSlashExecution('new', '/compact\n'))
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+
+    let attachmentCreation!: Promise<string>
+    act(() => {
+      attachmentCreation = harness.attachmentOptions!.ensureSession()
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onDraftChange(latestDraft)
+    })
+
+    const created = { ...sessions[0]!, id: 'session-shared-latest' }
+    let accepted = true
+    await act(async () => {
+      pending.resolve(created)
+      expect(await attachmentCreation).toBe(created.id)
+      accepted = await slashExecution
+    })
+
+    expect(accepted).toBe(false)
+    expect(harness.createSession).toHaveBeenCalledOnce()
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: created.id,
+      draft: latestDraft,
+    })
+  })
+
+  it('附件先接管新会话且草稿清空时，迟到 Slash 不会恢复旧命令正文', async () => {
+    const pending = deferred<AgentSession>()
+    harness.createSession.mockImplementationOnce(() => pending.promise)
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/compact\n原始正文', updated_at: 1 } },
+    }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: true },
+    }))
+
+    let attachmentCreation!: Promise<string>
+    let slashExecution!: Promise<boolean>
+    act(() => {
+      attachmentCreation = harness.attachmentOptions!.ensureSession()
+      slashExecution = executeSlashCommand(compactSlashExecution('new', '/compact\n'))
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+    act(() => {
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onDraftChange('')
+    })
+
+    const created = { ...sessions[0]!, id: 'session-shared-empty' }
+    await act(async () => {
+      pending.resolve(created)
+      expect(await attachmentCreation).toBe(created.id)
+      await slashExecution
+    })
+
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: created.id,
+      draft: '',
+    })
+  })
+
+  it('旧草稿的 Slash 建会话在途时，新草稿附件使用独立代次且不抢回旧会话', async () => {
+    const oldPending = deferred<AgentSession>()
+    const newPending = deferred<AgentSession>()
+    harness.createSession
+      .mockImplementationOnce(() => oldPending.promise)
+      .mockImplementationOnce(() => newPending.promise)
+    harness.state = {
+      ...workspaceState(),
+      session_groups: [sessionGroupFixture()],
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/compact\n旧代正文', updated_at: 1 } },
+    }
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      compact: { enabled: true },
+    }))
+
+    let oldSlashExecution!: Promise<boolean>
+    act(() => {
+      oldSlashExecution = executeSlashCommand(compactSlashExecution('new', '/compact\n'))
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledOnce())
+
+    act(() => { harness.selectSession('session-two') })
+    await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBe('session-two'))
+    act(() => {
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onCreateSession('group-ops')
+    })
+    await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBeUndefined())
+    act(() => {
+      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
+      props.onDraftChange('新代正文')
+    })
+
+    let attachmentCreation!: Promise<string>
+    act(() => { attachmentCreation = harness.attachmentOptions!.ensureSession() })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(2))
+    expect(harness.createSession.mock.calls[1]?.[0]).toMatchObject({ group_id: 'group-ops' })
+
+    const newSession = { ...sessions[0]!, id: 'session-new-generation', group_id: 'group-ops' }
+    await act(async () => {
+      newPending.resolve(newSession)
+      expect(await attachmentCreation).toBe(newSession.id)
+    })
+    const oldSession = { ...sessions[0]!, id: 'session-old-generation' }
+    await act(async () => {
+      oldPending.resolve(oldSession)
+      await oldSlashExecution
+    })
+
+    expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: newSession.id,
+      draft: '新代正文',
+    })
+  })
+
+  it('新草稿资源命令迁移 owner 后请求 Composer 恢复焦点', async () => {
+    const candidate = sshSessionSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      new_session_selected: true,
+      drafts: { new: { text: '/session 保留正文', updated_at: 1 } },
+    }
+    harness.createSession.mockImplementationOnce(async (input: AgentSessionInput) => ({
+      ...sessions[0]!,
+      id: 'session-slash-created',
+      title: input.title,
+      group_id: input.group_id,
+    }))
+    renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate }),
+      sshResources: [sshResource(candidate.session_id)],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true },
+    }))
+    const initialFocusKey = Number(harness.workspaceProps?.composerFocusKey ?? 0)
+
+    await act(async () => {
+      await executeSlashCommand(resourceSlashExecution('session', candidate, 'new', '/session '))
+    })
+
+    await waitFor(() => expect(harness.workspaceProps).toMatchObject({
+      selected_session_id: 'session-slash-created',
+      draft: '保留正文',
+    }))
+    expect(Number(harness.workspaceProps?.composerFocusKey)).toBeGreaterThan(initialFocusKey)
+  })
+
+  it('/session SSH 提交前读取最新会话 revision，成功后向 Widget 返回 true', async () => {
+    const candidate = sshSessionSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate }),
+      sshResources: [sshResource(candidate.session_id)],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true },
+    }))
+    act(() => {
+      harness.state = {
+        ...harness.state,
+        sessions: (harness.state.sessions as AgentSession[]).map((session) => session.id === 'session-one'
+          ? { ...session, revision: 8 }
+          : session),
+      }
+      publishState()
+    })
+
+    let accepted = false
+    await act(async () => {
+      accepted = await executeSlashCommand(resourceSlashExecution('session', candidate, 'session-one', '/session '))
+    })
+
+    expect(accepted).toBe(true)
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_session',
+      session_id: candidate.session_id,
+      expected_revision: 8,
+    })
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+  })
+
+  it('普通资源已关联成功时显示右上角短通知', async () => {
+    const candidate = sshSessionSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{
+        ...sessions[0]!,
+        resource_bindings: [{
+          kind: 'ssh_session',
+          session_id: candidate.session_id,
+          host_id: candidate.host_id,
+          host_name: candidate.host_name,
+          ssh_profile_id: candidate.ssh_profile_id,
+          platform: 'linux',
+          bound_at: candidate.started_at,
+        }],
+      }, sessions[1]!],
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    const page = renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate }),
+      sshResources: [sshResource(candidate.session_id)],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true },
+    }))
+
+    await act(async () => {
+      expect(await executeSlashCommand(resourceSlashExecution(
+        'session', candidate, 'session-one', '/session ',
+      ))).toBe(true)
+    })
+
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+    expect(await page.findByText('agent.slash.binding.completed')).toBeInTheDocument()
+    expect(page.getByText('agent.slash.binding.completed').closest('.ant-notification-topRight')).not.toBeNull()
+  })
+
+  it.each(['切换聊天', '修改命令片段'] as const)('%s 后迟到的 /session 回执不消费草稿或抢回焦点', async (action) => {
+    const candidate = sshSessionSlashCandidate()
+    const pending = deferred<void>()
+    harness.replaceResourceBinding.mockReturnValueOnce(pending.promise)
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate }),
+      sshResources: [sshResource(candidate.session_id)],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true },
+    }))
+    const initialFocusKey = harness.workspaceProps?.composerFocusKey
+    let execution!: Promise<boolean>
+    act(() => {
+      execution = executeSlashCommand(resourceSlashExecution('session', candidate, 'session-one', '/session '))
+    })
+    await waitFor(() => expect(harness.replaceResourceBinding).toHaveBeenCalledOnce())
+
+    act(() => {
+      if (action === '切换聊天') harness.selectSession('session-two')
+      else harness.updateDraft('session-one', '/profile 保留正文')
+    })
+    let accepted = true
+    await act(async () => {
+      pending.resolve()
+      accepted = await execution
+    })
+
+    expect(accepted).toBe(true)
+    expect(harness.workspaceProps?.composerFocusKey).toBe(initialFocusKey)
+    if (action === '切换聊天') {
+      expect(harness.workspaceProps?.selected_session_id).toBe('session-two')
+      expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
+        .toBe('/session 保留正文')
+    } else {
+      expect(harness.workspaceProps?.selected_session_id).toBe('session-one')
+      expect(harness.workspaceProps?.draft).toBe('/profile 保留正文')
+    }
+    expect(harness.updateDraft).not.toHaveBeenCalledWith('session-one', '保留正文')
+  })
+
+  it('默认只关联 SSH Profile，同一 Profile 从会话模式转换时不弹替换确认', async () => {
+    const candidate = {
+      ...sshProfileSlashCandidate(),
+      id: 'ssh-profile:ssh-one',
+      host_id: 'host-one',
+      host_name: 'Production',
+      profile_id: 'ssh-one',
+      profile_name: 'Default',
+      ssh_profile_id: 'ssh-one',
+    }
+    harness.state = {
+      ...workspaceState(),
+      sessions: [boundSession(), sessions[1]!],
+      drafts: { 'session-one': { text: '/profile 保留正文', updated_at: 1 } },
+    }
+    const page = renderPage({ slashCandidates: slashCandidateCatalog({ sshProfile: candidate }) })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      profile: { enabled: true },
+    }))
+
+    await act(async () => {
+      expect(await executeSlashCommand(
+        resourceSlashExecution('profile', candidate, 'session-one', '/profile '),
+      )).toBe(true)
+    })
+
+    expect(page.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_profile',
+      ssh_profile_id: 'ssh-one',
+      expected_revision: 1,
+    })
+    expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+  })
+
+  it('仅关联的 SSH Profile 投影为按需就绪资源且不启用连接恢复', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{
+        ...sessions[0]!,
+        resource_bindings: [{
+          kind: 'ssh_profile',
+          ssh_profile_id: candidate.ssh_profile_id,
+          ssh_profile_name: candidate.profile_name,
+          host_id: candidate.host_id,
+          host_name: candidate.host_name,
+          platform: 'linux',
+          bound_at: sessions[0]!.created_at,
+        }],
+      }, sessions[1]!],
+    }
+    renderPage({
+      slashCandidates: slashCandidateCatalog({ sshProfile: candidate }),
+      sshResourcesReady: false,
+      sshProfileResourcesReady: true,
+    })
+
+    await waitFor(() => expect(harness.workspaceProps?.resource_contexts).toEqual([
+      expect.objectContaining({
+        status: 'ready',
+        live_resource: expect.objectContaining({
+          ssh_profile_id: candidate.ssh_profile_id,
+          ssh_profile_name: candidate.profile_name,
+          status: 'ready',
+        }),
+      }),
+    ]))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(false)
+    expect((harness.workspaceProps?.resource_contexts as Array<{ recovery?: unknown }>)[0]?.recovery).toBeUndefined()
+    expect(harness.resourceBindingRecovery).not.toHaveBeenCalled()
+  })
+
+  it('SSH Profile POST 回执不确定时按 request ID 查询，确认受理后返回 true', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/profile 保留正文', updated_at: 1 } },
+    }
+    renderPage({ readiness: autoConnectReadinessFixture(), slashCandidates: slashCandidateCatalog({ sshProfile: candidate }) })
+    await waitFor(() => expect(harness.resourceBindingConnection).toHaveBeenCalled())
+    await waitFor(() => {
+      expect(harness.workspaceProps?.onExecuteSlashCommand).toEqual(expect.any(Function))
+      expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+        profile: { enabled: true },
+      })
+    })
+    harness.resourceBindingConnection.mockReset()
+      .mockResolvedValueOnce({ instance_id: 'core-one', operation: null })
+      .mockImplementationOnce(async (
+        sessionId: string,
+        clientRequestId?: string,
+      ) => resourceConnectionView(sessionId, candidate, clientRequestId!))
+    harness.connectResourceBinding.mockRejectedValueOnce(new Error('POST_RESPONSE_LOST'))
+
+    let accepted = false
+    await act(async () => {
+      accepted = await executeSlashCommand(resourceSlashExecution('profile', candidate, 'session-one', '/profile '))
+    })
+
+    expect(accepted).toBe(true)
+    expect(harness.connectResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_session',
+      ssh_profile_id: candidate.ssh_profile_id,
+      expected_revision: 1,
+      expected_instance_id: 'core-one',
+      client_request_id: expect.any(String),
+    })
+    const clientRequestId = (harness.connectResourceBinding.mock.calls[0]?.[1] as AgentResourceConnectionInput)
+      .client_request_id
+    expect(harness.resourceBindingConnection).toHaveBeenNthCalledWith(
+      1, 'session-one', undefined, expect.any(AbortSignal),
+    )
+    expect(harness.resourceBindingConnection).toHaveBeenNthCalledWith(
+      2, 'session-one', clientRequestId, expect.any(AbortSignal),
+    )
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+  })
+
+  it('SSH Profile 精确查询为空时重试复用 pending 请求身份', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/profile 保留正文', updated_at: 1 } },
+    }
+    renderPage({ readiness: autoConnectReadinessFixture(), slashCandidates: slashCandidateCatalog({ sshProfile: candidate }) })
+    await waitFor(() => expect(harness.resourceBindingConnection).toHaveBeenCalled())
+    await waitFor(() => {
+      expect(harness.workspaceProps?.onExecuteSlashCommand).toEqual(expect.any(Function))
+      expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+        profile: { enabled: true },
+      })
+    })
+    harness.resourceBindingConnection.mockReset()
+      .mockResolvedValue({ instance_id: 'core-one', operation: null })
+    harness.connectResourceBinding
+      .mockRejectedValueOnce(new Error('POST_RESPONSE_LOST'))
+      .mockImplementationOnce(async (
+        sessionId: string,
+        input: AgentResourceConnectionInput,
+      ) => resourceConnectionView(sessionId, candidate, input.client_request_id))
+
+    let accepted = true
+    await act(async () => {
+      accepted = await executeSlashCommand(
+        resourceSlashExecution('profile', candidate, 'session-one', '/profile '),
+      )
+    })
+    expect(accepted).toBe(false)
+    await waitFor(() => expect(harness.workspaceProps?.profileConnection).toMatchObject({
+      operation: null,
+      uncertain: true,
+    }))
+    const firstInput = harness.connectResourceBinding.mock.calls[0]?.[1] as AgentResourceConnectionInput
+
+    let retried = false
+    await act(async () => {
+      retried = await (harness.workspaceProps as unknown as AgentWorkspaceProps).onRetryProfileConnection!()
+    })
+
+    expect(retried).toBe(true)
+    expect(harness.connectResourceBinding).toHaveBeenCalledTimes(2)
+    expect(harness.connectResourceBinding.mock.calls[1]?.[1]).toEqual(firstInput)
+  })
+
+  it('无 operation 的确定连接错误可展示并关闭', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      drafts: { 'session-one': { text: '/profile 保留正文', updated_at: 1 } },
+    }
+    renderPage({ readiness: autoConnectReadinessFixture(), slashCandidates: slashCandidateCatalog({ sshProfile: candidate }) })
+    await waitFor(() => expect(harness.resourceBindingConnection).toHaveBeenCalled())
+    await waitFor(() => {
+      expect(harness.workspaceProps?.onExecuteSlashCommand).toEqual(expect.any(Function))
+      expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+        profile: { enabled: true },
+      })
+    })
+    harness.connectResourceBinding.mockRejectedValueOnce(new TermousApiError(
+      '已有连接操作',
+      'AGENT_RESOURCE_CONNECTION_CONFLICT',
+      409,
+    ))
+
+    await act(async () => {
+      await executeSlashCommand(
+        resourceSlashExecution('profile', candidate, 'session-one', '/profile '),
+      )
+    })
+    await waitFor(() => expect(harness.workspaceProps?.profileConnection).toMatchObject({
+      operation: undefined,
+      uncertain: false,
+      error_code: 'AGENT_RESOURCE_CONNECTION_CONFLICT',
+    }))
+
+    act(() => {
+      (harness.workspaceProps as unknown as AgentWorkspaceProps).onDismissProfileConnection?.()
+    })
+    await waitFor(() => expect(harness.workspaceProps?.profileConnection).toBeUndefined())
+  })
+
+  it('SSH Profile 连接期间仅禁用 SSH Slash 类型，文件类型保持可用', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.resourceBindingConnection.mockResolvedValue(
+      resourceConnectionView('session-one', candidate, 'request-connecting'),
+    )
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: {
+        enabled: true,
+        resource_kinds: {
+          ssh: { enabled: false, disabled_reason: 'resource_busy' },
+          file: { enabled: true },
+        },
+      },
+      profile: {
+        enabled: true,
+        resource_kinds: {
+          ssh: { enabled: false, disabled_reason: 'resource_busy' },
+          file: { enabled: true },
+        },
+      },
+    }))
+  })
+
+  it('替换当前 SSH 引用必须确认，取消时不提交也不消费命令', async () => {
+    const candidate = sshSessionSlashCandidate()
+    const currentProfile = {
+      ...sshProfileSlashCandidate(),
+      id: 'ssh-profile:ssh-one',
+      host_id: 'host-one',
+      host_name: 'Production',
+      profile_id: 'ssh-one',
+      profile_name: 'Default',
+      ssh_profile_id: 'ssh-one',
+    }
+    harness.state = {
+      ...workspaceState(),
+      sessions: [boundSession(), sessions[1]!],
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    const page = renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate, sshProfile: currentProfile }),
+      sshResources: [sshResource(candidate.session_id)],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true },
+    }))
+    let execution!: Promise<boolean>
+    act(() => {
+      execution = executeSlashCommand(resourceSlashExecution('session', candidate, 'session-one', '/session '))
+    })
+    const dialog = await page.findByRole('dialog')
+    expect(dialog.closest('.ant-modal-confirm-centered')).not.toBeNull()
+    expect(dialog).toHaveTextContent('agent.slash.replace.title')
+    expect(dialog).toHaveTextContent('Production / Default')
+    expect(dialog).toHaveTextContent('Fallback / Primary')
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+
+    fireEvent.click(page.getByRole('button', { name: 'app.cancel' }))
+    let accepted = true
+    await act(async () => { accepted = await execution })
+
+    expect(accepted).toBe(false)
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
+    expect(harness.updateDraft).not.toHaveBeenCalled()
+    expect(harness.workspaceProps?.draft).toBe('/session 保留正文')
+  })
+
+  it('替换确认期间 SSH 资源变为就绪时使用最新运行快照提交', async () => {
+    const candidate = sshSessionSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      sessions: [boundSession(), sessions[1]!],
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    const page = renderPage({
+      slashCandidates: slashCandidateCatalog({ sshSession: candidate }),
+      sshResources: [],
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true, resource_kinds: { ssh: { enabled: true } } },
+    }))
+
+    let execution!: Promise<boolean>
+    act(() => {
+      execution = executeSlashCommand(resourceSlashExecution(
+        'session', candidate, 'session-one', '/session ',
+      ))
+    })
+    await page.findByRole('dialog')
+    page.rerenderPage({ sshResources: [sshResource(candidate.session_id)] })
+    fireEvent.click(page.getByRole('button', { name: 'agent.slash.replace.confirm' }))
+
+    await act(async () => { expect(await execution).toBe(true) })
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_session',
+      session_id: candidate.session_id,
+      expected_revision: sessions[0]!.revision,
+    })
+  })
+
+  it('文件会话标签在替换确认期间关闭时，仍按最新 File Profile 完成绑定', async () => {
+    const fileSession = fileSessionSlashCandidate()
+    const fileProfile = fileProfileSlashCandidate()
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{
+        ...sessions[0]!,
+        resource_bindings: [{
+          kind: 'file_profile',
+          file_access_profile_id: 'file-current',
+          file_access_profile_name: 'Current files',
+          host_id: 'host-one',
+          host_name: 'Production',
+          ssh_profile_id: 'ssh-one',
+          engine: 'sftp',
+          bound_at: '2026-08-31T08:00:00Z',
+        }],
+      }, sessions[1]!],
+      drafts: { 'session-one': { text: '/session 保留正文', updated_at: 1 } },
+    }
+    const page = renderPage({
+      slashCandidates: slashCandidateCatalog({ fileSession, fileProfile }),
+      fileResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.slashAvailability).toMatchObject({
+      session: { enabled: true, resource_kinds: { file: { enabled: true } } },
+    }))
+
+    let execution!: Promise<boolean>
+    act(() => {
+      execution = executeSlashCommand(resourceSlashExecution(
+        'session', fileSession, 'session-one', '/session ',
+      ))
+    })
+    await page.findByRole('dialog')
+    page.rerenderPage({
+      slashCandidates: slashCandidateCatalog({ fileProfile }),
+    })
+    fireEvent.click(page.getByRole('button', { name: 'agent.slash.replace.confirm' }))
+
+    let accepted = false
+    await act(async () => { accepted = await execution })
+    expect(accepted).toBe(true)
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'file_profile',
+      file_access_profile_id: fileProfile.file_access_profile_id,
+      expected_revision: sessions[0]!.revision,
+    })
   })
 
   it('归档当前会话后切换到相邻的未归档会话', async () => {
@@ -1066,6 +2009,79 @@ describe('AgentPage', () => {
       await remove('ssh_session')
     })
     expect(harness.removeResourceBinding).toHaveBeenCalledWith('session-one', 1, 'ssh_session')
+  })
+
+  it('资源卡更换 SSH Profile 时默认只更新 Profile 关联', async () => {
+    const candidate = sshProfileSlashCandidate()
+    harness.state = { ...workspaceState(), sessions: [profileBoundSession(), sessions[1]!] }
+    renderPage({
+      slashCandidates: slashCandidateCatalog({ sshProfile: candidate }),
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.resource_contexts).toBeDefined())
+
+    await act(async () => {
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as (
+        reference: { kind: 'ssh_profile'; ssh_profile_id: string },
+      ) => Promise<boolean>
+      expect(await replace({ kind: 'ssh_profile', ssh_profile_id: candidate.ssh_profile_id })).toBe(true)
+    })
+
+    expect(harness.replaceResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_profile',
+      ssh_profile_id: candidate.ssh_profile_id,
+      expected_revision: 1,
+    })
+    expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('开启自动连接后资源卡更换 SSH Profile 使用连接协调器：模型目录延迟=%s', async (delayModels) => {
+    const candidate = sshProfileSlashCandidate()
+    const sourceSession = profileBoundSession()
+    const pendingModels = deferred<{ items: AgentModel[] }>()
+    if (delayModels) harness.models.mockReturnValueOnce(pendingModels.promise)
+    harness.state = { ...workspaceState(), sessions: [sourceSession, sessions[1]!] }
+    harness.connectResourceBinding.mockImplementationOnce(async (
+      sessionId: string,
+      input: AgentResourceConnectionInput,
+    ) => resourceConnectionView(
+      sessionId,
+      candidate,
+      input.client_request_id,
+      sourceSession.resource_bindings?.[0] as AgentSSHSlotResourceBinding,
+    ))
+    renderPage({
+      readiness: autoConnectReadinessFixture(),
+      slashCandidates: slashCandidateCatalog({ sshProfile: candidate }),
+      sshResourcesReady: true,
+    })
+    await waitFor(() => expect(harness.resourceBindingConnection).toHaveBeenCalled())
+
+    if (delayModels) {
+      // 连接状态查询早于工作区就绪，不能据此调用尚未挂载的资源卡回调。
+      expect(harness.workspaceProps).toBeNull()
+      expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+      await act(async () => {
+        pendingModels.resolve({ items: [modelFixture()] })
+        await pendingModels.promise
+      })
+    }
+    await waitFor(() => expect(harness.workspaceProps?.onReplaceResourceBinding).toBeTypeOf('function'))
+    expect(harness.workspaceProps?.sshProfileAssociationMode).toBe('immediate')
+
+    await act(async () => {
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as NonNullable<AgentWorkspaceProps['onReplaceResourceBinding']>
+      expect(await replace({ kind: 'ssh_profile', ssh_profile_id: candidate.ssh_profile_id })).toBe(true)
+    })
+
+    expect(harness.connectResourceBinding).toHaveBeenCalledExactlyOnceWith('session-one', {
+      kind: 'ssh_session',
+      ssh_profile_id: candidate.ssh_profile_id,
+      expected_revision: 1,
+      expected_instance_id: 'core-one',
+      client_request_id: expect.any(String),
+    })
+    expect(harness.replaceResourceBinding).not.toHaveBeenCalled()
   })
 
   it('恢复完成在右上角提示 2 秒，状态刷新不重置计时或再次弹出', async () => {
@@ -1812,6 +2828,165 @@ function deferred<Value>() {
   return { promise, resolve }
 }
 
+function executeSlashCommand(execution: AgentWorkspaceSlashExecution) {
+  const execute = harness.workspaceProps?.onExecuteSlashCommand as AgentWorkspaceProps['onExecuteSlashCommand']
+  if (!execute) throw new Error('SLASH_EXECUTION_HANDLER_MISSING')
+  return execute(execution)
+}
+
+function compactSlashExecution(owner: string, rawFragment: string): AgentWorkspaceSlashExecution {
+  return {
+    command_id: 'compact',
+    capture: {
+      owner,
+      start: 0,
+      end: rawFragment.length,
+      raw_fragment: rawFragment,
+    },
+  }
+}
+
+function resourceSlashExecution(
+  commandId: 'session' | 'profile',
+  candidate: AgentSlashCandidate,
+  owner: string,
+  rawFragment: string,
+): AgentWorkspaceSlashExecution {
+  return {
+    command_id: commandId,
+    resource_kind: candidate.resource_kind,
+    candidate,
+    capture: {
+      owner,
+      start: 0,
+      end: rawFragment.length,
+      raw_fragment: rawFragment,
+    },
+  }
+}
+
+function emptySlashCandidates(): AgentSlashCandidateCatalog {
+  return {
+    session: { ssh: [], file: [] },
+    profile: { ssh: [], file: [] },
+  }
+}
+
+function slashCandidateCatalog({
+  sshSession,
+  sshProfile,
+  fileSession,
+  fileProfile,
+}: {
+  sshSession?: AgentSlashSSHSessionCandidate
+  sshProfile?: AgentSlashSSHProfileCandidate
+  fileSession?: AgentSlashFileSessionCandidate
+  fileProfile?: AgentSlashFileProfileCandidate
+}): AgentSlashCandidateCatalog {
+  return {
+    session: { ssh: sshSession ? [sshSession] : [], file: fileSession ? [fileSession] : [] },
+    profile: { ssh: sshProfile ? [sshProfile] : [], file: fileProfile ? [fileProfile] : [] },
+  }
+}
+
+function sshSessionSlashCandidate(): AgentSlashSSHSessionCandidate {
+  return {
+    id: 'ssh-session:ssh-target',
+    kind: 'ssh_session',
+    resource_kind: 'ssh',
+    host_id: 'host-two',
+    host_name: 'Fallback',
+    profile_id: 'ssh-two',
+    profile_name: 'Primary',
+    current: false,
+    session_id: 'ssh-target',
+    ssh_profile_id: 'ssh-two',
+    started_at: '2026-08-31T09:00:00Z',
+    status: 'ready',
+  }
+}
+
+function sshProfileSlashCandidate(): AgentSlashSSHProfileCandidate {
+  return {
+    id: 'ssh-profile:ssh-two',
+    kind: 'ssh_profile',
+    resource_kind: 'ssh',
+    host_id: 'host-two',
+    host_name: 'Fallback',
+    profile_id: 'ssh-two',
+    profile_name: 'Primary',
+    current: false,
+    ssh_profile_id: 'ssh-two',
+    sort_order: 0,
+    status: 'ready',
+  }
+}
+
+function fileSessionSlashCandidate(): AgentSlashFileSessionCandidate {
+  return {
+    id: 'file-session:file-target',
+    kind: 'file_session',
+    resource_kind: 'file',
+    host_id: 'host-two',
+    host_name: 'Fallback',
+    profile_id: 'file-target',
+    profile_name: 'Files',
+    current: false,
+    file_access_profile_id: 'file-target',
+    representative_session_id: 'file-session-target',
+    session_count: 1,
+    status: 'connected',
+  }
+}
+
+function fileProfileSlashCandidate(): AgentSlashFileProfileCandidate {
+  return {
+    id: 'file-profile:file-target',
+    kind: 'file_profile',
+    resource_kind: 'file',
+    host_id: 'host-two',
+    host_name: 'Fallback',
+    profile_id: 'file-target',
+    profile_name: 'Files',
+    current: false,
+    file_access_profile_id: 'file-target',
+    sort_order: 0,
+    status: 'ready',
+  }
+}
+
+function resourceConnectionView(
+  sessionId: string,
+  candidate: AgentSlashSSHProfileCandidate,
+  clientRequestId: string,
+  sourceBinding: AgentSSHSlotResourceBinding | undefined = undefined,
+): AgentResourceConnectionView {
+  return {
+    instance_id: 'core-one',
+    operation: {
+      id: 'connection-one',
+      instance_id: 'core-one',
+      session_id: sessionId,
+      kind: 'ssh_session',
+      client_request_id: clientRequestId,
+      revision: 1,
+      status: 'connecting',
+      target: {
+        host_id: candidate.host_id,
+        host_name: candidate.host_name,
+        ssh_profile_id: candidate.ssh_profile_id,
+        profile_name: candidate.profile_name,
+        platform: 'linux',
+      },
+      source_binding: sourceBinding ?? null,
+      phase: 'connecting',
+      retryable: false,
+      created_at: '2026-09-12T08:00:00Z',
+      updated_at: '2026-09-12T08:00:00Z',
+    },
+  }
+}
+
 function renderPage({
   launchIntent,
   onLaunchIntentHandled,
@@ -1822,6 +2997,8 @@ function renderPage({
   sshResourcesReady = false,
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
+  sshProfileResourcesReady = fileResourcesReady,
+  slashCandidates = emptySlashCandidates(),
 }: {
   launchIntent?: AgentLaunchIntent
   onLaunchIntentHandled?: (key: number) => void
@@ -1833,8 +3010,10 @@ function renderPage({
   active?: boolean
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
+  sshProfileResourcesReady?: boolean
   fileResources?: AgentFileResourceState[]
   fileResourcesReady?: boolean
+  slashCandidates?: AgentSlashCandidateCatalog
 } = {}) {
   harness.readiness.mockResolvedValue(readiness)
   const setupGateway = {
@@ -1848,6 +3027,9 @@ function renderPage({
     recoverResourceBinding: harness.recoverResourceBinding,
     resourceBindingRecovery: harness.resourceBindingRecovery,
     cancelResourceBindingRecovery: harness.cancelResourceBindingRecovery,
+    connectResourceBinding: harness.connectResourceBinding,
+    resourceBindingConnection: harness.resourceBindingConnection,
+    cancelResourceBindingConnection: harness.cancelResourceBindingConnection,
     updateMcpPolicy: harness.updateMcpPolicy,
     sessions: vi.fn().mockResolvedValue({ items: [] }),
     messages: vi.fn().mockResolvedValue({ items: [] }),
@@ -1857,6 +3039,8 @@ function renderPage({
     launchIntent?: AgentLaunchIntent | null
     onLaunchIntentHandled?: (key: number) => void
     active?: boolean
+    slashCandidates?: AgentSlashCandidateCatalog
+    sshResources?: AgentSSHResourceState[]
   } = {}) => (
     <AntdApp>
       <AgentPage
@@ -1864,10 +3048,12 @@ function renderPage({
         setupGateway={setupGateway}
         enabled
         active={next.active ?? active}
-        sshResources={sshResources}
+        sshResources={next.sshResources ?? sshResources}
         sshResourcesReady={sshResourcesReady}
+        sshProfileResourcesReady={sshProfileResourcesReady}
         fileResources={fileResources}
         fileResourcesReady={fileResourcesReady}
+        slashCandidates={next.slashCandidates ?? slashCandidates}
         launchIntent={next.launchIntent === undefined ? launchIntent : next.launchIntent}
         onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}
         onRuntimeSummaryChange={onRuntimeSummaryChange}
@@ -1883,6 +3069,8 @@ function renderPage({
       launchIntent?: AgentLaunchIntent | null
       onLaunchIntentHandled?: (key: number) => void
       active?: boolean
+      slashCandidates?: AgentSlashCandidateCatalog
+      sshResources?: AgentSSHResourceState[]
     }) => view.rerender(element(next)),
   }
 }
@@ -1910,6 +3098,21 @@ function boundSession(): AgentSession {
       session_id: 'ssh-session-one',
       host_id: 'host-one',
       ssh_profile_id: 'ssh-one',
+      host_name: 'Production',
+      platform: 'linux',
+      bound_at: '2026-08-31T08:00:00Z',
+    }],
+  }
+}
+
+function profileBoundSession(): AgentSession {
+  return {
+    ...sessions[0]!,
+    resource_bindings: [{
+      kind: 'ssh_profile',
+      ssh_profile_id: 'ssh-one',
+      ssh_profile_name: 'Default',
+      host_id: 'host-one',
       host_name: 'Production',
       platform: 'linux',
       bound_at: '2026-08-31T08:00:00Z',
@@ -1954,9 +3157,21 @@ function readinessFixture(
       global_max_output_tokens: 4_096,
       context_compaction_threshold_percent: 80,
       show_turn_token_usage: true,
+      connect_ssh_profile_on_bind: false,
       revision: 1,
       created_at: '2026-08-29T00:00:00Z',
       updated_at: '2026-08-29T00:00:00Z',
+    },
+  }
+}
+
+function autoConnectReadinessFixture(): AgentReadiness {
+  const readiness = readinessFixture()
+  return {
+    ...readiness,
+    settings: {
+      ...readiness.settings,
+      connect_ssh_profile_on_bind: true,
     },
   }
 }

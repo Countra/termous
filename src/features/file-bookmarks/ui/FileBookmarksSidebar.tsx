@@ -1505,9 +1505,6 @@ function SidebarDeletePopconfirm({
       okButtonProps={{ danger: true, disabled: confirmBlocked, loading: deleting }}
       cancelButtonProps={{ disabled: deleting }}
       rootClassName={`files-bookmarks-delete-popconfirm ${styles['popconfirm-root']}`}
-      classNames={{
-        container: `files-bookmarks-delete-popconfirm-surface ${styles['popconfirm-surface']}`,
-      }}
       onOpenChange={(nextOpen) => {
         if (nextOpen) {
           if (buttonRef.current) {

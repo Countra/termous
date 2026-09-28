@@ -1,5 +1,8 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
-import type { FileAccessProfileMetadataInput } from '#entities/file-access-profile'
+import type {
+  FileAccessProfileCreateInput,
+  FileAccessProfilePatchInput,
+} from '#entities/file-access-profile'
 import {
   hostAssetToInput,
   type HostAssetInput,
@@ -136,6 +139,10 @@ export function createHostCommands({ api, hostAssets, load, setData }: HostComma
     inspectSSHAccessProfileReferences: (id: string) => (
       api.inspectSSHAccessProfileReferences(id)
     ),
+    fileAccessEngines: () => api.fileAccessEngines(),
+    inspectFileAccessProfileReferences: (id: string) => (
+      api.inspectFileAccessProfileReferences(id)
+    ),
     fileAccessProfiles: (hostId?: string) => api.fileAccessProfiles(hostId),
     fileAccessProfile: (id: string) => api.fileAccessProfile(id),
     remoteDesktopAccessProfiles: (hostId?: string) => api.remoteDesktopAccessProfiles(hostId),
@@ -182,11 +189,20 @@ export function createHostCommands({ api, hostAssets, load, setData }: HostComma
     async updateFileAccessProfile(
       id: string,
       expectedUpdatedAt: string,
-      input: FileAccessProfileMetadataInput,
+      input: FileAccessProfilePatchInput,
     ) {
       const profile = await api.updateFileAccessProfile(id, expectedUpdatedAt, input)
       await load('silent')
       return profile
+    },
+    async createFileAccessProfile(input: FileAccessProfileCreateInput) {
+      const profile = await api.createFileAccessProfile(input)
+      await load('silent')
+      return profile
+    },
+    async deleteFileAccessProfile(id: string, expectedUpdatedAt: string) {
+      await api.deleteFileAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
     },
     async setDefaultFileAccessProfile(id: string, expectedUpdatedAt: string) {
       const profile = await api.setDefaultFileAccessProfile(id, expectedUpdatedAt)

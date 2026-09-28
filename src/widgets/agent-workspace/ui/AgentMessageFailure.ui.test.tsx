@@ -24,12 +24,12 @@ const failureCases = [
   ['AGENT_RUNTIME_CONTEXT_COMPRESSION_CONTENT_FILTERED', '内容策略阻止了上下文摘要生成', 'blocked context summary generation under its content policy'],
   ['AGENT_RUNTIME_CONTEXT_COMPRESSION_TRUNCATED', '上下文摘要被模型输出上限截断', 'context summary was truncated by the model output limit'],
   ['AGENT_RUNTIME_CONTEXT_COMPRESSION_CHECKPOINT_FAILED', '上下文摘要未能确认保存', 'Saving the context summary could not be confirmed'],
-  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE', '当前没有可压缩的历史', 'no earlier history can be compacted'],
-  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_INSUFFICIENT', '压缩后仍没有足够的上下文空间', 'did not free enough context space'],
-  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED', '上下文压缩已取消', 'Context compaction was cancelled'],
+  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE', '当前没有可整理的历史', 'no earlier history can be compacted'],
+  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_INSUFFICIENT', '整理后仍没有足够的上下文空间', 'did not free enough context space'],
+  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED', '整理上下文已取消', 'Context compaction was cancelled'],
   ['AGENT_RUNTIME_CONTEXT_COMPRESSION_SETTINGS_INVALID', '容量配置无效', 'compaction budget is invalid'],
-  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID', '压缩结果或恢复状态无效', 'context or recovery state was invalid'],
-  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_FAILED', '上下文压缩未能完成', 'Context compaction could not finish'],
+  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID', '整理上下文结果或恢复状态无效', 'context or recovery state was invalid'],
+  ['AGENT_RUNTIME_CONTEXT_COMPRESSION_FAILED', '整理上下文未能完成', 'Context compaction could not finish'],
 ] as const
 
 describe('AgentMessageFailure', () => {

@@ -16,9 +16,12 @@ import type {
   OverwritePolicy,
   RemoteCopyTransferInput,
   RemoteDirectoryListing,
+  RemoteDirectorySize,
+  RemoteDirectorySizeRequest,
   RemoteFileEntry,
   RemoteTextSaveRequest,
   TransferTask,
+  UploadOverwriteConfirmation,
 } from '#entities/file'
 
 export interface AdvancedRenameGateway {
@@ -72,6 +75,11 @@ export interface FileSessionGateway {
     path: string,
     signal?: AbortSignal,
   ) => Promise<RemoteFileEntry>
+  calculateFileSessionDirectorySize: (
+    fileSessionId: string,
+    input: RemoteDirectorySizeRequest,
+    signal?: AbortSignal,
+  ) => Promise<RemoteDirectorySize>
   mkdirFileSessionFile: (fileSessionId: string, path: string) => Promise<void>
   renameFileSessionFile: (
     fileSessionId: string,
@@ -103,6 +111,8 @@ export interface FileSessionGateway {
 }
 
 export interface FileOperationGateway {
+  createFileSessionRenameOperation: (id: string, generation: number, source: string, target: string) => Promise<FileOperationTask>
+  createFileSessionMoveOperation: (id: string, generation: number, sources: string[], targetDir: string, policy?: OverwritePolicy) => Promise<FileOperationTask>
   createFileSessionTextReadOperation: (
     fileSessionId: string,
     path: string,
@@ -118,8 +128,8 @@ export interface FileOperationGateway {
     path: string,
   ) => Promise<FileOperationTask>
   fileOperation: (id: string) => Promise<FileOperationTask>
-  fileOperationResult: <Result>(id: string) => Promise<Result>
-  fileOperationBlobResult: (id: string) => Promise<Blob>
+  fileOperationResult: <Result>(id: string, signal?: AbortSignal) => Promise<Result>
+  fileOperationBlobResult: (id: string, signal?: AbortSignal) => Promise<Blob>
   cancelFileOperation: (id: string) => Promise<void>
   fileOperationEventsUrl: (fileSessionId: string) => string
 }
@@ -136,6 +146,7 @@ export interface FileTransferGateway {
     remoteDir: string,
     overwritePolicy?: OverwritePolicy,
     overwriteItemIds?: string[],
+    overwriteConfirmations?: UploadOverwriteConfirmation[],
   ) => Promise<TransferTask>
   createFileSessionDownloadTransfer: (
     fileSessionId: string,

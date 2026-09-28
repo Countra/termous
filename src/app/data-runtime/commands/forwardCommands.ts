@@ -41,6 +41,28 @@ export function createForwardCommands({
   forwardEventRevisions,
   forwardEventSnapshots,
 }: ForwardCommandDependencies) {
+  function applyForwardSnapshot(forward: ForwardInstance, replacedForwardId = '', deleted = false) {
+    // 捕获本次变更影响的在途重载；即使 React 延后执行更新，也能保留其请求检查点。
+    const trackers = [...forwardReloadChangeTrackers]
+    for (const changedIds of trackers) {
+      changedIds.add(forward.id)
+      if (replacedForwardId) changedIds.add(replacedForwardId)
+    }
+    setData((current) => {
+      const retained = current.forwards.filter((item) => item.id !== replacedForwardId)
+      const next = deleted || shouldRemoveForward(forward)
+        ? retained.filter((item) => item.id !== forward.id)
+        : upsertForward(retained, forward)
+      const retainedIds = new Set(next.map((item) => item.id))
+      for (const item of current.forwards) {
+        if (!retainedIds.has(item.id)) {
+          for (const changedIds of trackers) changedIds.add(item.id)
+        }
+      }
+      return { ...current, forwards: next }
+    })
+  }
+
   function resolveForwardStartCompletion(
     forwardId: string,
     forward: ForwardInstance | null,
@@ -62,17 +84,7 @@ export function createForwardCommands({
       forward,
       forwardEventSnapshots.get(forward.id) ?? null,
     )
-    setData((current) => ({
-      ...current,
-      forwards: shouldRemoveForward(latestForward)
-        ? current.forwards.filter((item) => (
-            item.id !== replacedForwardId && item.id !== latestForward.id
-          ))
-        : upsertForward(
-            current.forwards.filter((item) => item.id !== replacedForwardId),
-            latestForward,
-          ),
-    }))
+    applyForwardSnapshot(latestForward, replacedForwardId)
     const previousWaiter = forwardStartCompletionWaiters.get(forward.id)
     forwardStartCompletionWaiters.delete(forward.id)
     if (previousWaiter) {
@@ -109,15 +121,7 @@ export function createForwardCommands({
             message: nextForward.last_error || nextForward.status_message,
           })
         }
-        setData((current) => {
-          if (shouldRemove) {
-            return {
-              ...current,
-              forwards: current.forwards.filter((item) => item.id !== nextForward.id),
-            }
-          }
-          return { ...current, forwards: upsertForward(current.forwards, nextForward) }
-        })
+        applyForwardSnapshot(nextForward)
       },
       () => forwardEventRevisions.get(forward.id) ?? 0,
       () => forwardStartCompletionWaiters.has(forward.id),
@@ -191,15 +195,13 @@ export function createForwardCommands({
     async stopForward(id: string) {
       await api.stopForward(id)
       resolveForwardStartCompletion(id, null)
+      for (const changedIds of forwardReloadChangeTrackers) changedIds.add(id)
       setData((current) => ({
         ...current,
         forwards: current.forwards.filter((forward) => forward.id !== id),
       }))
     },
     updateForward(event: ForwardEvent) {
-      for (const changedForwardIds of forwardReloadChangeTrackers) {
-        changedForwardIds.add(event.forward.id)
-      }
       if (forwardStartCompletionWaiters.has(event.forward.id)) {
         bumpSessionRevision(forwardEventRevisions, event.forward.id)
       }
@@ -208,15 +210,7 @@ export function createForwardCommands({
       if (shouldEmitForwardError(event)) {
         setForwardErrorEvent(event)
       }
-      setData((current) => {
-        if (event.type === 'deleted' || shouldRemoveForward(event.forward)) {
-          return {
-            ...current,
-            forwards: current.forwards.filter((forward) => forward.id !== event.forward.id),
-          }
-        }
-        return { ...current, forwards: upsertForward(current.forwards, event.forward) }
-      })
+      applyForwardSnapshot(event.forward, '', event.type === 'deleted')
     },
   }
 }

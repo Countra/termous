@@ -1,4 +1,4 @@
-import { getAgentResourceBinding, agentResourceBindingKey, resourceBindingMatchesSource, isAgentRunActive, type AgentReferenceTargetsSnapshot, type AgentResourceKind, type AgentResourceReferenceLaunch, type AgentSession, type AgentTerminalReferenceLaunch } from '#entities/agent'
+import { agentResourceBindingKey, agentResourceSlot, getAgentResourceBindingBySlot, resourceBindingMatchesSource, isAgentRunActive, type AgentReferenceTargetsSnapshot, type AgentResourceKind, type AgentResourceReferenceLaunch, type AgentSession, type AgentTerminalReferenceLaunch } from '#entities/agent'
 import type { AgentWorkspaceState } from './agentWorkspaceStateTypes.ts'
 
 export function projectAgentReferenceTargets(state: AgentWorkspaceState, enabled: boolean): AgentReferenceTargetsSnapshot {
@@ -20,11 +20,14 @@ export function projectAgentReferenceTargets(state: AgentWorkspaceState, enabled
 }
 
 export function terminalReferenceChangesBinding(session: AgentSession, request: AgentResourceReferenceLaunch): boolean {
-  return !resourceBindingMatchesSource(getAgentResourceBinding(session.resource_bindings, request.resource_reference.kind), request.source_resource)
+  return !resourceBindingMatchesSource(
+    getAgentResourceBindingBySlot(session.resource_bindings, agentResourceSlot(request.resource_reference.kind)),
+    request.source_resource,
+  )
 }
 
 export function terminalReferenceBindingKey(session: AgentSession, kind: AgentResourceKind = 'ssh_session'): string {
-  const binding = getAgentResourceBinding(session.resource_bindings, kind)
+  const binding = getAgentResourceBindingBySlot(session.resource_bindings, agentResourceSlot(kind))
   // 确认仅授权替换当时看到的关联；其他窗口更换关联后必须重新确认。
   return agentResourceBindingKey(binding)
 }

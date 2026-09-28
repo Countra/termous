@@ -141,6 +141,7 @@ function launcherData(): HostLauncherData {
       name: 'Production files',
       engine: 'sftp',
       engine_config_version: 1,
+      config: { ssh_profile_id: 'ssh-main' },
       sftp: { ssh_profile_id: 'ssh-main' },
       is_default: true,
       sort_order: 0,

@@ -211,6 +211,7 @@
   }
 
   .files-row-menu :global(.ant-dropdown-menu) {
+    min-width: 160px;
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 12px;

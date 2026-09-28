@@ -6,6 +6,7 @@ import { AppShell } from '#app/app-shell'
 import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
+import { AuditPage } from '#pages/audit'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -24,6 +25,8 @@ import {
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ProductTourController, type ProductTourStep } from '#features/product-tour'
+import { MountsPage } from '#pages/mounts'
+import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
@@ -69,8 +72,8 @@ import {
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentReferenceTargetsSnapshot,
-  type AgentResourceReference,
-  type AgentResourceState,
+  type AgentConnectionResourceReference,
+  type AgentConnectionResourceState,
   type AgentReferenceTarget,
 } from '#entities/agent'
 import { buildTerminalReferenceLaunch, projectTerminalAIReferenceSnapshot } from './model/agentTerminalReference.ts'
@@ -95,6 +98,7 @@ import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
 import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
 import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
+import { projectAgentSlashCandidates } from './model/projectAgentSlashCandidates.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 import { CoreFatalDialog } from './CoreFatalDialog'
@@ -140,6 +144,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { gateways, runtimeConfigReady, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const mounts = useMountManagement(gateways.mounts, apiReady)
   const hostIconSHAByID = useMemo(
     () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
     [data.hostIcons],
@@ -480,8 +485,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [agentSSHResources, launchAgent, notification, t])
   const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
     [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
+  const agentSlashCandidates = useMemo(() => projectAgentSlashCandidates({
+    sessions: data.sessions,
+    displayedFileSessions,
+    hosts: data.hosts,
+    hostAssets: data.hostAssets,
+    sshAccessProfiles: data.sshAccessProfiles,
+    fileAccessProfiles: data.fileAccessProfiles,
+    closingFileSessionIds,
+  }), [
+    closingFileSessionIds,
+    data.fileAccessProfiles,
+    data.hostAssets,
+    data.hosts,
+    data.sessions,
+    data.sshAccessProfiles,
+    displayedFileSessions,
+  ])
   const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
-  const referenceAgentConnection = useCallback((source: AgentResourceState, target: AgentReferenceTarget) => {
+  const referenceAgentConnection = useCallback((source: AgentConnectionResourceState, target: AgentReferenceTarget) => {
     try {
       launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
     } catch (error) {
@@ -503,7 +525,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     deleteSSHProfile: (...input) => hostAccessActionsRef.current.deleteSSHAccessProfile(...input),
     setDefaultSSHProfile: (...input) => hostAccessActionsRef.current.setDefaultSSHAccessProfile(...input),
     inspectSSHProfileReferences: (id) => hostAccessActionsRef.current.inspectSSHAccessProfileReferences(id),
+    createFileProfile: (...input) => hostAccessActionsRef.current.createFileAccessProfile(...input),
     updateFileProfile: (...input) => hostAccessActionsRef.current.updateFileAccessProfile(...input),
+    inspectFileProfileReferences: (id) => hostAccessActionsRef.current.inspectFileAccessProfileReferences(id),
+    deleteFileProfile: (...input) => hostAccessActionsRef.current.deleteFileAccessProfile(...input),
     setDefaultFileProfile: (...input) => hostAccessActionsRef.current.setDefaultFileAccessProfile(...input),
     createRemoteDesktopProfile: (input) => hostAccessActionsRef.current.createRemoteDesktopAccessProfile(input),
     updateRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.updateRemoteDesktopAccessProfile(...input),
@@ -577,7 +602,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   ])
 
   const filesPageData = useMemo<FilesPageProps['data']>(() => ({
+    fileAccessProfiles: data.fileAccessProfiles,
     hosts: data.hosts,
+    hostAssets: data.hostAssets,
     fileSessions: displayedFileSessions,
     fileBookmarkGroups: data.fileBookmarkGroups,
     fileBookmarks: data.fileBookmarks,
@@ -589,7 +616,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.fileBookmarkGroups,
     data.fileBookmarks,
     data.hosts,
+    data.hostAssets,
     data.localPathMappings,
+    data.fileAccessProfiles,
     data.settings.terminal,
     displayedFileSessions,
   ])
@@ -1148,7 +1177,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const getAgentReferenceSnapshot = useCallback((sourceSessionId: string) => projectTerminalAIReferenceSnapshot(
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
-  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentResourceReference) => projectConnectionReferenceSnapshot(
+  const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentConnectionResourceReference) => projectConnectionReferenceSnapshot(
     reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
@@ -1218,7 +1247,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           return 'handled'
         },
       }} />
-      <FilesWorkspaceRuntimeProvider>
+      <FilesWorkspaceRuntimeProvider
+        fileSessions={data.fileSessions}
+        closingFileSessionIds={closingFileSessionIds}
+      >
         <TransferRuntimeProvider api={gateways.transfers} enabled={runtimeConfigReady}>
           <UpdateRuntimeSummaryReporter
             apiReady={apiReady}
@@ -1337,8 +1369,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
+                          sshProfileResourcesReady={agentFileResourcesReady}
                           fileResources={agentFileResources}
                           fileResourcesReady={agentFileResourcesReady}
+                          slashCandidates={agentSlashCandidates}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
@@ -1457,6 +1491,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
 
+                      {page === 'mounts' ? <MountsPage {...mounts} fileProfiles={data.fileAccessProfiles} hosts={data.hostAssets} /> : null}
                       {page === 'forwards' ? (
                         <ForwardsPage
                           data={forwardManagementData}
@@ -1492,6 +1527,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
 
+                      {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           initialTab={settingsInitialTab}
@@ -1506,6 +1542,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           terminalFonts={data.terminalFonts}
                           appVersion={appVersion}
                           dataPortabilityGateway={gateways.dataPortability}
+                          mountSettingsGateway={gateways.settings}
                           agentSetupGateway={gateways.agentSetup}
                           defaultModelStatusGateway={gateways.terminal}
                           updatePreferencesRuntime={updatePreferencesRuntime}

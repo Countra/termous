@@ -162,6 +162,7 @@ describe('使用向导页面准备', () => {
 
   it.each([
     ['settingsTerminal', 'terminal'],
+    ['settingsMount', 'mount'],
     ['settingsMcp', 'mcp'],
     ['settingsAgent', 'agent'],
     ['settingsData', 'data'],
@@ -209,6 +210,57 @@ describe('使用向导页面准备', () => {
       await prepareProductTourDom(step, new AbortController().signal)
     }
     expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('Skills 入口禁用状态为 %s 时激活页签并滚入视野，不打开安装窗口', async (disabled) => {
+    const panel = document.createElement('div')
+    panel.setAttribute('role', 'tabpanel')
+    panel.setAttribute('aria-hidden', 'true')
+    const entry = document.createElement('span')
+    entry.dataset.tour = 'settings-skills-install'
+    entry.scrollIntoView = vi.fn()
+    const install = document.createElement('button')
+    install.disabled = disabled
+    const onInstall = vi.fn()
+    install.addEventListener('click', onInstall)
+    entry.appendChild(install)
+    const content = document.createElement('div')
+    content.dataset.tour = 'settings-mcp'
+    content.style.overflowY = 'auto'
+    content.scrollTop = 180
+    content.appendChild(entry)
+    panel.appendChild(content)
+    const tab = document.createElement('button')
+    tab.dataset.tour = 'settings-mcp-tab'
+    const onSelect = vi.fn(() => panel.setAttribute('aria-hidden', 'false'))
+    tab.addEventListener('click', onSelect)
+    document.body.append(tab, panel)
+    const step = steps.find((item) => item.id === 'settingsSkills')!
+
+    await prepareProductTourDom(step, new AbortController().signal)
+    await prepareProductTourDom(step, new AbortController().signal)
+
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(document.querySelector(step.element!)).toBe(entry)
+    expect(entry.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+    expect(onInstall).not.toHaveBeenCalled()
+  })
+
+  it('已取消的 Skills 步骤不滚动已存在的入口', async () => {
+    const panel = document.createElement('div')
+    panel.setAttribute('role', 'tabpanel')
+    panel.setAttribute('aria-hidden', 'false')
+    const entry = document.createElement('span')
+    entry.dataset.tour = 'settings-skills-install'
+    entry.scrollIntoView = vi.fn()
+    panel.appendChild(entry)
+    document.body.appendChild(panel)
+    const controller = new AbortController()
+    controller.abort()
+
+    await prepareProductTourDom(steps.find((item) => item.id === 'settingsSkills')!, controller.signal)
+
+    expect(entry.scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('取消设置页准备后，不切换迟到的页签', async () => {

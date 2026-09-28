@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FileAccessProfileMetadataInput } from '#entities/file-access-profile'
-import {
-  fileAccessProfileMetadataInputsEqual,
-  fileAccessProfileToMetadataInput,
-  normalizeFileAccessProfileMetadataInput,
-  validateFileAccessProfileMetadataInput,
-} from '#entities/file-access-profile'
+import type { FileAccessProfileReferences } from '#entities/file-access-profile'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
+import {
+  fileAccessProfileEditorDraftsEqual,
+  getFileAccessProfileEditor,
+  listFileAccessProfileEditors,
+  type FileAccessProfileEditorDraft,
+  type FileAccessProfileEditorErrors,
+} from '#features/manage-file-access'
 import {
   hostAssetInputsEqual,
   hostAssetToInput,
@@ -55,6 +56,7 @@ type PendingNavigation =
 
 export type ProfileDeleteTarget =
   | { kind: 'ssh'; profileId: string; references: SSHAccessProfileReferences }
+  | { kind: 'file'; profileId: string; references: FileAccessProfileReferences }
   | { kind: 'remote_desktop'; profileId: string }
 
 interface ControllerOptions {
@@ -91,8 +93,9 @@ export function useHostAccessWorkspaceController({
   const [editor, setEditor] = useState<HostAccessProfileEditorIntent | null>(null)
   const [sshDraft, setSSHDraft] = useState<SSHAccessProfileDraft>(createSSHAccessProfileDraft)
   const [sshBaseline, setSSHBaseline] = useState<SSHAccessProfileDraft>(createSSHAccessProfileDraft)
-  const [fileDraft, setFileDraft] = useState<FileAccessProfileMetadataInput>({ name: '' })
-  const [fileBaseline, setFileBaseline] = useState<FileAccessProfileMetadataInput>({ name: '' })
+  const initialFileDraft = useMemo(() => createFileDraft(hostId, []), [hostId])
+  const [fileDraft, setFileDraft] = useState<FileAccessProfileEditorDraft>(initialFileDraft)
+  const [fileBaseline, setFileBaseline] = useState<FileAccessProfileEditorDraft>(initialFileDraft)
   const [vncDraft, setVNCDraft] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
   const [vncBaseline, setVNCBaseline] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
   const [vncTargetAuthDraft, setVNCTargetAuthDraft] = useState<VNCTargetAuthDraft>(
@@ -136,7 +139,7 @@ export function useHostAccessWorkspaceController({
   const profileDirty = useMemo(() => {
     if (!editor) return false
     if (editor.kind === 'ssh') return !sshAccessProfileDraftsEqual(sshDraft, sshBaseline)
-    if (editor.kind === 'file') return !fileAccessProfileMetadataInputsEqual(fileDraft, fileBaseline)
+    if (editor.kind === 'file') return !fileAccessProfileEditorDraftsEqual(fileDraft, fileBaseline)
     return !vncAccessProfileDraftsEqual(vncDraft, vncBaseline)
       || isVNCTargetAuthDraftDirty(vncTargetAuthDraft)
   }, [editor, fileBaseline, fileDraft, sshBaseline, sshDraft, vncBaseline, vncDraft, vncTargetAuthDraft])
@@ -147,10 +150,13 @@ export function useHostAccessWorkspaceController({
     () => validateSSHAccessProfileDraft(sshDraft, editor?.kind === 'ssh' && editor.mode === 'edit' ? editor.profileId : ''),
     [editor, sshDraft],
   )
-  const fileErrors = useMemo(
-    () => validateFileAccessProfileMetadataInput(fileDraft),
-    [fileDraft],
+  const fileEditorDefinition = useMemo(
+    () => getFileAccessProfileEditor(fileDraft.engine),
+    [fileDraft.engine],
   )
+  const fileErrors = useMemo<FileAccessProfileEditorErrors>(() => (
+    fileEditorDefinition?.validate(fileDraft, catalogState.catalog?.ssh ?? []) ?? {}
+  ), [catalogState.catalog?.ssh, fileDraft, fileEditorDefinition])
   const vncErrors = useMemo(() => validateVNCAccessProfileDraft(
     vncDraft,
     new Set(catalogState.catalog?.ssh.map((profile) => profile.id) ?? []),
@@ -214,9 +220,23 @@ export function useHostAccessWorkspaceController({
       setSSHDraft(next)
       setSSHBaseline(next)
     } else if (intent.kind === 'file') {
-      const profile = catalog.files.find((item) => item.id === intent.profileId)
-      if (!profile) return
-      const next = fileAccessProfileToMetadataInput(profile)
+      const profile = intent.mode === 'edit'
+        ? catalog.files.find((item) => item.id === intent.profileId)
+        : undefined
+      if (intent.mode === 'edit' && !profile) {
+        setMutationError(t('hosts.access.errors.profileMissing'))
+        return
+      }
+      const definition = profile
+        ? getFileAccessProfileEditor(profile.engine, profile.engine_config_version)
+        : listFileAccessProfileEditors()[0]
+      const next = profile
+        ? definition?.editDraft(profile)
+        : definition?.createDraft(hostId, catalog.ssh)
+      if (!next) {
+        setMutationError(t('hosts.access.file.unsupportedEditor'))
+        return
+      }
       setFileDraft(next)
       setFileBaseline(next)
     } else {
@@ -367,13 +387,16 @@ export function useHostAccessWorkspaceController({
     if (editor.kind === 'file') {
       if (Object.values(fileErrors).some(Boolean)) return
       await execute(async () => {
-        const source = catalog.files.find((profile) => profile.id === editor.profileId)
-        if (!source) throw new Error(t('hosts.access.errors.profileMissing'))
-        await gateway.updateFileProfile(
-          source.id,
-          source.updated_at,
-          normalizeFileAccessProfileMetadataInput(fileDraft),
-        )
+        const definition = getFileAccessProfileEditor(fileDraft.engine)
+        if (!definition) throw new Error(t('hosts.access.file.unsupportedEditor'))
+        const normalized = definition.normalize(fileDraft)
+        if (editor.mode === 'create') {
+          await gateway.createFileProfile(definition.toCreateInput(normalized))
+        } else {
+          const source = catalog.files.find((profile) => profile.id === editor.profileId)
+          if (!source) throw new Error(t('hosts.access.errors.profileMissing'))
+          await gateway.updateFileProfile(source.id, source.updated_at, definition.toPatchInput(normalized))
+        }
         setEditor(null)
         await catalogState.reload()
       })
@@ -451,6 +474,13 @@ export function useHostAccessWorkspaceController({
     })
   }, [execute, gateway])
 
+  const requestDeleteFile = useCallback(async (profileId: string) => {
+    await execute(async () => {
+      const references = await gateway.inspectFileProfileReferences(profileId)
+      setDeleteTarget({ kind: 'file', profileId, references })
+    })
+  }, [execute, gateway])
+
   const confirmDeleteProfile = useCallback(async () => {
     const target = deleteTarget
     const catalog = catalogState.catalog
@@ -459,11 +489,19 @@ export function useHostAccessWorkspaceController({
       setDeleteTarget(null)
       return
     }
+    if (target.kind === 'file' && target.references.blocking_total > 0) {
+      setDeleteTarget(null)
+      return
+    }
     const deleted = await execute(async () => {
       if (target.kind === 'ssh') {
         const profile = catalog.ssh.find((item) => item.id === target.profileId)
         if (!profile) throw new Error(t('hosts.access.errors.profileMissing'))
         await gateway.deleteSSHProfile(profile.id, profile.updated_at)
+      } else if (target.kind === 'file') {
+        const profile = catalog.files.find((item) => item.id === target.profileId)
+        if (!profile) throw new Error(t('hosts.access.errors.profileMissing'))
+        await gateway.deleteFileProfile(profile.id, profile.updated_at)
       } else {
         const profile = catalog.remote_desktops.find((item) => item.id === target.profileId)
         if (!profile) throw new Error(t('hosts.access.errors.profileMissing'))
@@ -482,9 +520,9 @@ export function useHostAccessWorkspaceController({
         || Array.from(sshDraft.name.trim()).length > 80
         || Object.values(sshErrors).some(Boolean)
     }
-    if (editor.kind === 'file') return Object.values(fileErrors).some(Boolean)
+    if (editor.kind === 'file') return !fileEditorDefinition || Object.values(fileErrors).some(Boolean)
     return Object.values(vncErrors).some(Boolean) || Boolean(vncTargetAuthError)
-  }, [editor, fileErrors, profileDirty, sshDraft.name, sshErrors, vncErrors, vncTargetAuthError])
+  }, [editor, fileEditorDefinition, fileErrors, profileDirty, sshDraft.name, sshErrors, vncErrors, vncTargetAuthError])
 
   return {
     ...catalogState,
@@ -543,8 +581,15 @@ export function useHostAccessWorkspaceController({
     saveProfile,
     setDefaultProfile,
     requestDeleteSSH,
+    requestDeleteFile,
     confirmDeleteProfile,
   }
+}
+
+function createFileDraft(hostId: string, sshProfiles: Parameters<NonNullable<ReturnType<typeof getFileAccessProfileEditor>>['createDraft']>[1]) {
+  const definition = listFileAccessProfileEditors()[0]
+  if (!definition) throw new Error('文件访问 Profile 编辑器未注册')
+  return definition.createDraft(hostId, sshProfiles)
 }
 
 function isStaleOrAppliedAssetRevision(candidate: string, applied: string) {

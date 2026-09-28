@@ -37,6 +37,7 @@ export {
   type AgentResourceBinding,
   type AgentResourceBindingUpdateInput,
   type AgentResourceKind,
+  type AgentResourceSlot,
   type AgentResourceReference,
   type AgentSSHResourceState,
   type AgentSourceContext,
@@ -124,10 +125,19 @@ export {
 } from './model/agentDefaultModelStatus.ts'
 export { useAgentDefaultModelStatus } from './model/useAgentDefaultModelStatus.ts'
 export type { AgentTerminalReferenceOrigin } from '#common/contracts'
-export type { AgentResourceState, AgentFileResourceState, AgentSSHResourceBinding, AgentFileResourceBinding } from './model/types.ts'
+export type {
+  AgentResourceState,
+  AgentFileResourceState,
+  AgentSSHResourceBinding,
+  AgentSSHProfileResourceBinding,
+  AgentSSHSlotResourceBinding,
+  AgentSSHProfileResourceState,
+  AgentFileResourceBinding,
+} from './model/types.ts'
 export {
-  getAgentResourceBinding, agentResourceBindingKey, resourceReference, resourceReferenceId, resourceProfileName, sameAgentResourceSource, resourceBindingMatchesSource,
-  type AgentConnectionReferenceLaunch, type AgentResourceReferenceLaunch, type AgentReferenceTarget,
+  getAgentResourceBinding, getAgentResourceBindingBySlot, agentResourceSlot, agentResourceBindingKey, resourceReference, resourceReferenceId, resourceProfileName, sameAgentResourceSource, resourceBindingMatchesSource,
+  type AgentConnectionReferenceLaunch, type AgentConnectionResourceReference, type AgentConnectionResourceState,
+  type AgentResourceReferenceLaunch, type AgentReferenceTarget,
   type AgentConnectionReferenceSnapshot, type AgentConnectionReferenceProps,
 } from './model/resourceReference.ts'
 export { connectionReferenceMenuProps } from './model/resourceReference.ts'
@@ -137,3 +147,33 @@ export {
   type AgentResourceRecoveryInput, type AgentResourceRecoveryOperation, type AgentResourceRecoveryView,
   type AgentResourceRecoveryState, type AgentResourceRecoveryStatus, type AgentResourceRecoveryBlockedReason,
 } from './model/resourceRecovery.ts'
+export {
+  agentSlashCandidateDisabledReasons,
+  agentSlashCandidateKinds,
+  agentSlashCommandIds,
+  agentSlashResourceKinds,
+  type AgentSlashCandidate,
+  type AgentSlashCandidateCatalog,
+  type AgentSlashCandidateDisabledReason,
+  type AgentSlashCandidateKind,
+  type AgentSlashCommandId,
+  type AgentSlashFileProfileCandidate,
+  type AgentSlashFileSessionCandidate,
+  type AgentSlashFileSessionStatus,
+  type AgentSlashProfileCandidate,
+  type AgentSlashProfileStatus,
+  type AgentSlashResourceKind,
+  type AgentSlashSessionCandidate,
+  type AgentSlashSSHProfileCandidate,
+  type AgentSlashSSHSessionCandidate,
+  type AgentSlashSSHSessionStatus,
+} from './model/slashCommands.ts'
+export {
+  agentResourceConnectionStatuses,
+  isAgentResourceConnectionActive,
+  type AgentResourceConnectionInput,
+  type AgentResourceConnectionOperation,
+  type AgentResourceConnectionStatus,
+  type AgentResourceConnectionTarget,
+  type AgentResourceConnectionView,
+} from './model/resourceConnection.ts'

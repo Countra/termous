@@ -9,6 +9,7 @@ import type {
 } from './protocol.ts'
 import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
+import type { RuntimeAuditEvent } from './runtimeAuditWriter.ts'
 import type {
   RuntimeBootstrap,
   RuntimeCheckpointInput,
@@ -19,6 +20,12 @@ import type {
 } from './workerCoreClient.ts'
 
 class FakeCore implements WorkerCoreClientPort {
+  readonly auditEvents: RuntimeAuditEvent[] = []
+  auditFailure = false
+  async appendAuditEvents(_start: AgentWorkerStartMessage, _bearer: string, events: RuntimeAuditEvent[]) {
+    if (this.auditFailure) throw new Error('audit unavailable')
+    this.auditEvents.push(...events)
+  }
   readonly events: RuntimeEventInput[] = []
   readonly steers: RuntimeSteerInput[] = []
   readonly checkpoints: RuntimeCheckpointInput[] = []
@@ -463,6 +470,25 @@ test('Worker 先连接工具，再将完整上下文与冻结阈值交给请求�
   assert.equal(fixture.core.checkpoints.length, 0)
   assert.deepEqual(agentBootstrap, fixture.core.bootstrapValue)
   assert.deepEqual(statuses(fixture.core.events), ['running', 'completed'])
+})
+
+test('审计在撤销凭据的终态前排空，审计故障不改变 Worker 完成结果', async () => {
+  for (const fail of [false, true]) {
+    const fixture = workerFixture([], { onCreateAgent: ({ audit }) => {
+      audit?.capture({ type: 'tool_execution_start', toolCallId: 'call-audit', toolName: 'unknown', args: {} })
+      audit?.capture({ type: 'tool_execution_end', toolCallId: 'call-audit', toolName: 'unknown', result: { content: [], details: {} }, isError: false })
+    } })
+    fixture.core.auditFailure = fail
+    fixture.core.beforeAppendEvents = async (events) => {
+      if (!fail && statuses(events).includes('completed')) expectAudit()
+    }
+    const expectAudit = () => assert.equal(fixture.core.auditEvents.length, 2)
+    fixture.runtime.handleMessage(startMessage())
+    await fixture.finished
+    assert.deepEqual(statuses(fixture.core.events), ['running', 'completed'])
+    assert.equal(fixture.outbound.some((message) => message.type === 'fatal'), false)
+    if (!fail) expectAudit()
+  }
 })
 
 function workerFixture(order: string[] = [], options: {

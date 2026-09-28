@@ -8,11 +8,11 @@ import {
 
 const translate = (key: string) => key
 
-test('文件与设置扩展使用向导内容版本 3', () => {
-  assert.equal(PRODUCT_TOUR_VERSION, 3)
+test('挂载、审计与 Skills 扩展使用向导内容版本 4', () => {
+  assert.equal(PRODUCT_TOUR_VERSION, 4)
 })
 
-test('核心使用向导保持二十二步且按页面集中介绍功能', () => {
+test('核心使用向导按页面集中介绍功能', () => {
   const steps = buildProductTourSteps(translate)
 
   assert.deepEqual(steps.map((step) => step.id), [
@@ -23,6 +23,7 @@ test('核心使用向导保持二十二步且按页面集中介绍功能', () =>
     'hostsNav',
     'hostEditor',
     'hostConnections',
+    'fileProfiles',
     'topbarConnect',
     'workbench',
     'workbenchTools',
@@ -30,29 +31,34 @@ test('核心使用向导保持二十二步且按页面集中介绍功能', () =>
     'filesBookmarks',
     'filesLocalDirectory',
     'filesTransfers',
+    'mounts',
+    'mountsRuntime',
     'forwards',
     'snippets',
+    'audit',
     'settings',
     'settingsTerminal',
+    'settingsMount',
     'settingsMcp',
+    'settingsSkills',
     'settingsAgent',
     'settingsData',
     'finish',
   ])
-  assert.match(steps[1].element ?? '', /nav-vault/)
-  assert.match(steps[6].element ?? '', /host-connection-catalog/)
-  assert.match(steps[9].element ?? '', /workbench-tools/)
-  assert.match(steps[10].element ?? '', /files-workspace/)
-  assert.match(steps[14].element ?? '', /forwards-overview/)
-  assert.match(steps[15].element ?? '', /snippets-workspace/)
-  assert.match(steps[16].element ?? '', /settings-workspace/)
-  assert.match(steps[21].element ?? '', /product-tour-trigger/)
-  assert.equal(steps[21].route, 'settings')
+  assert.match(steps.find((step) => step.id === 'vaultNav')?.element ?? '', /nav-vault/)
+  assert.match(steps.find((step) => step.id === 'hostConnections')?.element ?? '', /host-connection-catalog/)
+  assert.match(steps.find((step) => step.id === 'workbenchTools')?.element ?? '', /workbench-tools/)
+  assert.match(steps.find((step) => step.id === 'files')?.element ?? '', /files-workspace/)
+  assert.match(steps.find((step) => step.id === 'forwards')?.element ?? '', /forwards-overview/)
+  assert.match(steps.find((step) => step.id === 'snippets')?.element ?? '', /snippets-workspace/)
+  assert.match(steps.find((step) => step.id === 'settings')?.element ?? '', /settings-workspace/)
+  assert.equal(steps[steps.length - 1].route, 'settings')
+  assert.match(steps[steps.length - 1].element ?? '', /product-tour-trigger/)
 })
 
 test('文件入口介绍不触发准备动作，设置仅定位激活面板', () => {
   const steps = buildProductTourSteps(translate)
-  for (const step of steps.filter((step) => step.route === 'files')) {
+  for (const step of steps.filter((step) => ['files', 'mounts', 'audit'].includes(step.route ?? ''))) {
     assert.equal(step.preparation, undefined, step.id)
   }
   for (const step of steps.filter((step) => step.preparation?.startsWith('settings'))) {
@@ -61,12 +67,18 @@ test('文件入口介绍不触发准备动作，设置仅定位激活面板', ()
   }
 })
 
-test('仅四个新增设置步骤限制表单交互，凭据与主机等步骤保持原行为', () => {
+test('新增功能与设置步骤仅作讲解，凭据与主机等步骤保持原行为', () => {
   const steps = buildProductTourSteps(translate)
 
   assert.deepEqual(steps.filter((step) => step.disableActiveInteraction).map((step) => step.id), [
+    'fileProfiles',
+    'mounts',
+    'mountsRuntime',
+    'audit',
     'settingsTerminal',
+    'settingsMount',
     'settingsMcp',
+    'settingsSkills',
     'settingsAgent',
     'settingsData',
   ])

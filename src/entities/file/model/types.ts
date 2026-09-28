@@ -35,6 +35,7 @@ export interface RemoteFileEntry {
   is_hidden: boolean
   target?: string
   extended?: SftpExtendedAttribute[]
+  version_token?: string
 }
 
 export interface SftpExtendedAttribute {
@@ -49,6 +50,21 @@ export interface RemoteDirectoryListing {
   parent_path: string
   entries: RemoteFileEntry[]
   read_at: string
+}
+
+export interface RemoteDirectorySizeRequest {
+  path: string
+  expected_connection_generation: number
+}
+
+export interface RemoteDirectorySize {
+  file_session_id: string
+  path: string
+  total_bytes: number
+  estimated: boolean
+  connection_generation: number
+  calculated_at: string
+  duration_ms: number
 }
 
 export type RemoteTextEncoding = 'utf-8'
@@ -70,6 +86,7 @@ export interface RemoteTextFile {
   mode?: string
   permission_octal?: string
   loaded_at: string
+  version_token?: string
 }
 
 export interface RemoteTextSaveRequest {
@@ -81,6 +98,7 @@ export interface RemoteTextSaveRequest {
   line_ending: RemoteTextLineEnding
   has_bom: boolean
   force: boolean
+  base_version_token?: string
 }
 
 export interface RemoteTextSaveResult {
@@ -97,9 +115,10 @@ export interface RemoteImageFile {
   sha256: string
   modified_at?: string
   loaded_at: string
+  version_token?: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete' | 'move'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -122,7 +141,8 @@ export interface FileOperationTask {
   id: string
   revision: number
   file_session_id: string
-  host_id: string
+  host_id?: string
+  engine?: string
   type: FileOperationType
   status: FileOperationStatus
   phase: FileOperationPhase
@@ -156,6 +176,8 @@ export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | '
 export type FileSessionOrigin = 'app' | 'mcp'
 
 export type FileAccessCapability =
+  | 'entry_create'
+  | 'transfer_receive'
   | 'browse'
   | 'content_read'
   | 'content_write'
@@ -165,6 +187,7 @@ export type FileAccessCapability =
   | 'batch_rename'
   | 'planned_delete'
   | 'name_search'
+  | 'directory_size'
 
 interface FileSessionCreateOptions {
   sourceSessionId?: string
@@ -219,7 +242,7 @@ export interface FileSession {
 export interface TransferTask {
   id: string
   origin?: TransferOrigin
-  host_id: string
+  host_id?: string
   file_session_id?: string
   source_host_id?: string
   source_file_session_id?: string
@@ -276,6 +299,11 @@ export interface LocalGrantItem {
   name: string
   kind: 'file' | 'directory'
   size?: number
+}
+
+export interface UploadOverwriteConfirmation {
+  item_id: string
+  version_token: string
 }
 
 export interface LocalFileGrant {
