@@ -18,14 +18,15 @@
   </p>
 </div>
 
-Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote files, server operations, and an AI assistant into one desktop workstation. It helps developers and operators keep connections, files, and tasks organized across servers, and can work with external AI tools through MCP.
+Termous brings SSH terminals, VNC remote desktops, hosts and credentials, multi-protocol file management and local mounts, server operations, and an AI assistant into one desktop workstation. It helps developers and operators keep connections, files, and tasks organized across servers, and can work with external AI tools through MCP.
 
 ## Why Termous
 
 | Problem | How Termous Helps |
 | --- | --- |
 | Hosts, credentials, terminals, and file tools are scattered | Manage connections, files, and remote operations in one workstation |
-| One host has several accounts or access methods | Save separate SSH, SFTP, and remote desktop configurations and choose the one you need |
+| One host has several accounts or access methods | Save separate SSH, file, and remote desktop configurations and choose the one you need |
+| Files are spread across servers, object storage, and shares | Manage SFTP, S3 / MinIO, WebDAV, FTP / FTPS, and SMB together, with optional local mounts |
 | Complex networks require several connection tools | Configure a jump connection or HTTP / SOCKS5 proxy for SSH and reuse the route for associated SFTP access and forwarding |
 | Multiple SSH sessions are hard to track | Keep context clear with tabs, colors, pinning, duplication, and split panes |
 | Terminals and remote files require constant switching | Use SFTP, directory following, bookmarks, and the workstation file panel in the same session |
@@ -36,11 +37,12 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 ## Quick start
 
 1. Download the installer or AppImage for your platform from [Releases](https://github.com/Countra/termous/releases).
-2. Enter the host details on the Hosts page and add SSH or remote desktop connections in the connection configuration tab. Select a credential for SSH. When creating a host, fill in the tabs before saving everything together, or save the host without a connection.
+2. Enter the host details on the Hosts page, optionally configure SSH or a remote desktop, and save. You can also save a host without a connection. Then add the required file engine in the connection configuration tab; SFTP uses an associated SSH profile, while other file engines have their own connection settings.
 3. Click "Connect" in the top bar, choose a host and a specific connection, and open a terminal, file session, or remote desktop.
 4. The SSH workstation provides files, monitoring, processes, services, Docker, firewall, and other tools on the right. Use the bottom session command console for several connected sessions, or the standalone Files page for directories, search, and transfers.
 5. To use the AI assistant, complete its initial setup, add a model provider under Settings → AI Assistant, and choose a model. Right-click a terminal or file session tab and choose "Ask Agent" to associate it with a new conversation or search for an existing one, then enter your question. To connect an external AI tool, create a client under Settings → MCP and copy its connection configuration.
-6. Reopen the feature tour at any time to learn about credentials, host connections, the workstation, file management, and key settings.
+6. To access remote files through Explorer or other local applications, select a file profile on the mounts page, check the driver environment, and choose a drive letter or empty directory. Manage local cache settings under Settings → Mounts.
+7. Reopen the feature tour at any time to learn about connections, file management, mounts, caching, auditing, and skill installation.
 
 ## Highlights
 
@@ -61,7 +63,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 ### Hosts and connection configurations
 
 - Host groups, tags, favorites, recent hosts, and SSH reachability and latency checks.
-- Multiple SSH, associated SFTP, and remote desktop configurations per host, with a separate default for each access method.
+- Multiple SSH, file, and remote desktop configurations per host, with a separate default for each access method. S3, WebDAV, FTP, and SMB file profiles do not require SSH.
 - Create a host without a connection or with only a remote desktop. Switching between host details and connection configuration during creation does not save early.
 - SSH password and private-key authentication, including encrypted private keys associated with passphrase credentials.
 - The host icon library supports batch import, preview, search, renaming, and drag reordering. Icons in use cannot be deleted.
@@ -77,18 +79,29 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - Save VNC passwords, use full screen, adjust image quality, and reconnect after a disconnect.
 - The currently supported protocol is VNC; RDP is not supported.
 
-### Remote files and directory following
+### Multi-protocol files and directory following
 
-- Multi-session SFTP file management.
-- Upload, download, move, delete, rename, and permission management.
+- SFTP, S3 / MinIO, WebDAV, FTP / FTPS, and SMB share multi-session file management, text editing, image preview, and transfers.
+- FTP supports plain connections, explicit TLS, and implicit TLS. SMB uses NTLMv2 username/password authentication with an optional domain and a workspace directory inside a share; no system SMB client is required.
+- Upload, download, move, delete, and rename files. Permission management, batch rename, search, and other actions depend on the current engine's capabilities.
 - Drag uploads into the current directory or a specific folder and choose which conflicting files to overwrite.
-- Copy files and directories between hosts, including distribution to several targets, destination selection, progress, cancellation, and results for each target.
+- Copy files and directories across file connections and storage engines, including other independent file sessions on the same host, with distribution to several targets, destination selection, progress, cancellation, and results for each target.
 - Advanced batch renaming with combined rules, result previews, name conflict checks, and saved presets.
 - Linux remote file-name search with a search directory, literal / wildcard / regular expression matching, filters, and navigation to results. Installation guidance is available when a required component is missing.
-- Remote bookmarks, local download locations, and a transfer list with live progress.
+- Remote bookmarks, local download locations, and a transfer list with live progress. Directory details can calculate total size when supported, with cancellation and recalculation.
 - Online text file editing and image preview.
 - Copy remote file paths and identify file sessions and transfers started through MCP.
-- Bidirectional directory sync between the terminal and workstation file panel, with the last successful directory preserved and manual recovery available after a disconnect.
+- Bidirectional directory sync between the terminal and its associated SFTP file panel, with the last successful directory preserved and manual recovery available after a disconnect.
+
+### Local mounts and caching
+
+- Mount a file profile as a Windows drive or a macOS / Linux directory, with temporary mounts, saved configurations, read-only access, automatic startup, sync, reconnect, and unmount. Failed entries offer restart, close, or recovery according to retained resources.
+- A file profile may have multiple read-only mounts and at most one writable mount. Windows requires WinFsp 2.1+, Linux requires FUSE3, and macOS requires macFUSE and system approval. The page provides environment diagnostics; application packages do not bundle these system drivers.
+- Content is downloaded on demand into a local disk cache. Verified content can be reused after remounting or restarting Core when the connection identity and remote version match. Opening a large file may fall back to a full download when an FTP or other server does not support range reads.
+- Sequential writes can upload while caching, with local buffering bounded by transfer progress. Complex random edits or unsupported streaming uploads use compatible writeback. The page reports accepted, transferred, and pending bytes and separates body transfer from final publication.
+- Completion in the system copy window does not always mean remote flushing, object commit, or replacement has finished. Ordinary copies within a mount transfer data through local reads and writes, without a server-side copy guarantee. S3 rename/move uses copy-then-delete, depends on server performance, and is not atomic.
+- Settings → Mounts controls the cache directory, total capacity, and reserved disk space, and shows usage and cleanup for unused cache. Changes apply on the next Core startup. The cache does not provide offline access or recover unpublished changes after a crash.
+- Normal exit, updates, and configuration restore coordinate synchronization. Failures retain an error and offer retry, return to the application, or explicit discard. Mounts are not intended for databases or virtual-machine disks that require full local-filesystem semantics.
 
 ### Server operations
 
@@ -107,6 +120,7 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - Synchronization shows progress and results per host, skips shell mismatches, and supports cancellation or reopening an active task.
 - Local forwarding, remote forwarding, and dynamic proxy.
 - Running forwards expose connection counts, cumulative traffic, live send/receive rates, restart, and stop actions.
+- Saved forwards can connect automatically when Core starts. This is off by default; initial connection failures are shown without automatic retries.
 - Connection settings include SSH keepalive and automatic recovery for background port forwards, with retry progress and an option to stop recovery.
 
 ### AI assistant
@@ -136,16 +150,23 @@ Termous brings SSH terminals, VNC remote desktops, hosts and credentials, remote
 - Use the address and client token provided in Settings and keep Termous running. The address may change after an application restart; use the current address shown there.
 - [Termous Skills](https://github.com/Countra/termous-skills) provides workflows already included with the built-in AI assistant. Under Settings → MCP → Authorized clients, choose Install skills, select a client type, and pick a project or home directory. Codex uses `.agents/skills` beneath that directory; Claude Code uses `.claude/skills`. Custom directory installs directly into the selected directory. Review the final path and existing items before installing: existing skills are skipped by default, and explicit replacement overwrites each matching folder. Configure MCP connectivity and permissions separately.
 
+### Audit center
+
+- Review tool calls, approvals, and background task results from the built-in AI assistant and external MCP clients, with combined filters, keyword search, details, and related events.
+- Records are stored separately on the local device and pruned under a 90-day retention policy. Ordinary manual operations are not recorded, and configuration backups do not include audit records.
+- Command-execution auditing retains the original command, including authentication arguments embedded in it. File bodies, conversation bodies, and full command output are excluded from audit details.
+
 ### Data, security, and desktop experience
 
 - Custom desktop window, tray menu, and minimize to tray.
+- Packaged Windows and macOS applications offer an off-by-default launch-at-login setting. Application startup is controlled separately from automatic connection of saved mounts and forwards.
 - Dark and light themes.
 - Shortcut settings can search actions, record keys, detect conflicts, and restore defaults for common terminal, smart completion, file list, and remote editor actions.
 - In-app update checks, downloads, and installation.
 - The startup window shows database checks and upgrades, with diagnostics retained on failure. Open About from the Help menu to view application information.
 - Encrypted `.tobp` backups with full, merge, and selective restore modes.
-- A reusable feature tour covering host connections, file bookmarks, local directories, transfers, and key settings.
-- Connection cleanup reminder before closing.
+- A reusable feature tour covering multi-engine file connections, mounts and caching, auditing, skill installation, and key settings.
+- Connection cleanup reminders and protection for unsynchronized mount changes before closing.
 - Simplified Chinese and English UI.
 
 ## Use cases
