@@ -126,6 +126,7 @@ function renderWorkspace(
     onConnectFileSession: vi.fn(),
     onSelectFileSession: vi.fn(),
     onCloseFileSession: vi.fn(),
+    onRestartFileSession: vi.fn(),
     onReconnectFileSession: vi.fn(),
     onUpdateFileSession: vi.fn(),
     onCreateFileBookmark: vi.fn(),

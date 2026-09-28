@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { uiStyles } from '#shared/ui'
 import { normalizeSessionTabColor, sessionTabColorPresets } from '../model/sessionTabPreferences'
-import styles from './WorkbenchSessionTabs.module.scss'
+import styles from './SessionTabs.module.scss'
 
 interface SessionTabColorSelectOptions {
   keepOpen?: boolean

@@ -83,7 +83,7 @@ vi.mock('#shared/ui', async (importOriginal) => ({
   ),
 }))
 
-vi.mock('./SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
+vi.mock('../../../features/session-tabs/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 
 import { WorkbenchSessionTabs, type SessionTabMenuAction } from './WorkbenchSessionTabs'
 

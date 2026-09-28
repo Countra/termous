@@ -1,5 +1,3 @@
-import type { Session } from '#entities/session'
-
 export interface SessionTabPreference {
   title?: string
   pinned?: boolean
@@ -101,7 +99,7 @@ export function areSessionTabPreferenceMapsEqual(left: SessionTabPreferenceMap, 
   })
 }
 
-export function sortSessionsForTabs(sessions: Session[], preferences: SessionTabPreferenceMap) {
+export function sortSessionsForTabs<T extends { id: string }>(sessions: readonly T[], preferences: SessionTabPreferenceMap) {
   const sessionOrder = new Map(sessions.map((session, index) => [session.id, index]))
   return [...sessions].sort((left, right) => {
     const leftPreference = preferences[left.id]

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { Session } from '#entities/session'
 import {
   parseSessionTabPreferences,
   pruneSessionTabPreferences,
@@ -36,7 +35,7 @@ test('固定会话按固定时间倒序排列，其他会话保持原顺序', ()
     { id: 'older-pinned' },
     { id: 'second' },
     { id: 'newer-pinned' },
-  ] as Session[]
+  ]
   const snapshot = [...sessions]
 
   const sorted = sortSessionsForTabs(sessions, {

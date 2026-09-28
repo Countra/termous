@@ -2991,6 +2991,10 @@
     }
   },
   "files": {
+    "tabMenu": {
+      "duplicateFailed": "复制文件会话失败",
+      "restartFailed": "重启文件会话失败"
+    },
     "smb": {
       "name": "配置名称",
       "host": "服务器地址",

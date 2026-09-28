@@ -3003,6 +3003,10 @@
     }
   },
   "files": {
+    "tabMenu": {
+      "duplicateFailed": "Could not duplicate the file session",
+      "restartFailed": "Could not restart the file session"
+    },
     "smb": {
       "name": "Profile name",
       "host": "Server address",

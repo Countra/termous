@@ -8,7 +8,7 @@ function readSource(relativePath: string) {
 }
 
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
-const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')
+const sessionStyles = readSource('../features/session-tabs/ui/SessionTabs.module.scss')
 const detailsStyles = readSource('../widgets/workbench/ui/WorkbenchDetails.module.scss')
 const sessionTabButtonSource = readSource('../shared/ui/SessionTabButton.tsx')
 const sessionTabStripSource = readSource('../shared/ui/SessionTabStrip.tsx')

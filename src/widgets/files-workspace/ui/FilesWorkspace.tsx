@@ -53,7 +53,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -161,7 +161,7 @@ import {
 } from '../model/useFilesTransferRefresh'
 import { useFileSessionStatusSync } from '../model/useFileSessionStatusSync'
 import { useFilesWorkspaceDragController } from './useFilesWorkspaceDragController'
-import { FileSessionTab } from './FileSessionTab'
+import { FileSessionTabs } from './FileSessionTabs'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -219,7 +219,8 @@ export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
   onOpenFileSessionLauncher: () => void
   onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
-  onCloseFileSession: (fileSessionId: string) => Promise<void>
+  onCloseFileSession: (fileSessionId: string) => Promise<boolean>
+  onRestartFileSession: (session: FileSession, initialPath: string) => Promise<FileSession | null>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
   onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
@@ -374,6 +375,7 @@ function FilesWorkspaceContent({
   onConnectFileSession,
   onSelectFileSession,
   onCloseFileSession,
+  onRestartFileSession,
   onReconnectFileSession,
   onUpdateFileSession,
   onCreateFileBookmark,
@@ -1040,10 +1042,6 @@ function FilesWorkspaceContent({
   const loading = directoryRequestLoading || initialDirectoryLoading
   fileSessionsRef.current = data.fileSessions
   localPathMappingsRef.current = data.localPathMappings
-  const displayedFileSessionKey = useMemo(
-    () => data.fileSessions.map((session) => session.id).join('|'),
-    [data.fileSessions],
-  )
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
@@ -1264,12 +1262,12 @@ function FilesWorkspaceContent({
   }, [cancelRecoveryForFileSession, closingFileSessionIds])
 
   const closeFileSessionTab = useCallback(
-    (fileSessionId: string) => {
+    async (fileSessionId: string) => {
       if (closingFileSessionIdSet.has(fileSessionId)) {
-        return
+        return false
       }
       cancelRecoveryForFileSession(fileSessionId)
-      void onCloseFileSession(fileSessionId)
+      return onCloseFileSession(fileSessionId)
     },
     [cancelRecoveryForFileSession, closingFileSessionIdSet, onCloseFileSession],
   )
@@ -1281,7 +1279,7 @@ function FilesWorkspaceContent({
       }
       event.preventDefault()
       event.stopPropagation()
-      closeFileSessionTab(fileSessionId)
+      void closeFileSessionTab(fileSessionId)
     },
     [closeFileSessionTab],
   )
@@ -3231,47 +3229,26 @@ function FilesWorkspaceContent({
     >
       <main className={styles['files-main-panel']} data-tour="files-workspace">
         <div className={`files-session-toolbar ${styles['terminal-toolbar']} terminal-toolbar`}>
-          <SessionTabStrip
-            ariaLabel={t('files.sessions')}
+          <FileSessionTabs
+            sessions={data.fileSessions}
+            hosts={[...(data.hostAssets ?? []), ...data.hosts]}
+            profiles={data.fileAccessProfiles}
             activeId={activeFileSessionId}
-            contentKey={displayedFileSessionKey}
-            scrollLeftLabel={t('workbench.scrollTabsLeft')}
-            scrollRightLabel={t('workbench.scrollTabsRight')}
-            tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
-            trailing={(
-              <SessionNewTabButton
-                label={t('files.openFileSession')}
-                onClick={onOpenFileSessionLauncher}
-              />
-            )}
-          >
-            {data.fileSessions.length === 0 ? (
-              <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />
-            ) : (
-              data.fileSessions.map((fileSession) => {
-                const host = data.hostAssets?.find((item) => item.id === fileSession.host_id) ?? data.hosts.find((item) => item.id === fileSession.host_id)
-                const profile = data.fileAccessProfiles?.find((item) => item.id === fileSession.file_access_profile_id)
-                const label = profile?.name ?? host?.name ?? shortId(fileSession.id)
-                const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
-                return (
-                  <FileSessionTab
-                    getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
-                    onReferenceAgentConnection={onReferenceAgentConnection}
-                    key={fileSession.id}
-                    fileSession={fileSession}
-                    host={host}
-                    getHostIconUrl={getHostIconUrl}
-                    label={label}
-                    active={fileSession.id === activeFileSessionId}
-                    closing={sessionClosing}
-                    onSelect={onSelectFileSession}
-                    onAuxClose={closeFileSessionFromTab}
-                    onClose={closeFileSessionTab}
-                  />
-                )
-              })
-            )}
-          </SessionTabStrip>
+            closingIds={closingFileSessionIdSet}
+            getHostIconUrl={getHostIconUrl}
+            getPath={(session) => normalizeRemotePath(workspaceStatesRef.current[session.id]?.committedPath || session.current_path || '/')}
+            onConnect={onConnectFileSession}
+            onClose={closeFileSessionTab}
+            onRestart={async (session, initialPath) => {
+              cancelRecoveryForFileSession(session.id)
+              return onRestartFileSession(session, initialPath)
+            }}
+            onSelect={onSelectFileSession}
+            onAuxClose={closeFileSessionFromTab}
+            onOpenLauncher={onOpenFileSessionLauncher}
+            getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+            onReferenceAgentConnection={onReferenceAgentConnection}
+          />
         </div>
 
         <div className={styles['files-location-bar']} role="toolbar" aria-label={t('files.pathNavigation')}>

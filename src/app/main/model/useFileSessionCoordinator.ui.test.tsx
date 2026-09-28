@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
+import { useState } from 'react'
 import { expect, test, vi, type Mock } from 'vitest'
 import type {
   FileSession,
@@ -143,7 +144,7 @@ test('同一文件会话的并发关闭请求只提交一次', async () => {
   const second = harness.result.current.closeFileSession(active.id)
   expect(harness.closeFileSession).toHaveBeenCalledTimes(1)
   await act(async () => request.resolve())
-  await Promise.all([first, second])
+  expect(await Promise.all([first, second])).toEqual([true, false])
   expect(harness.result.current.closingFileSessionIds).toEqual([])
 })
 
@@ -157,14 +158,14 @@ test('真实关闭期间公开 closing 状态并在成功后切换到备用标�
   })
 
   await act(async () => undefined)
-  let closePromise!: Promise<void>
+  let closePromise!: Promise<boolean>
   act(() => {
     closePromise = harness.result.current.closeFileSession(active.id)
   })
   expect(harness.result.current.closingFileSessionIds).toEqual([active.id])
 
   await act(async () => request.resolve())
-  await closePromise
+  expect(await closePromise).toBe(true)
 
   expect(harness.result.current.activeFileSession?.id).toBe(fallback.id)
   expect(harness.result.current.closingFileSessionIds).toEqual([])
@@ -178,8 +179,99 @@ test('关闭失败会反馈错误并清理本地 closing 状态', async () => {
     closeFileSession: vi.fn(async () => { throw closeError }),
   })
 
-  await act(() => harness.result.current.closeFileSession(active.id))
+  await act(async () => {
+    expect(await harness.result.current.closeFileSession(active.id)).toBe(false)
+  })
 
   expect(harness.onCloseError).toHaveBeenCalledWith(closeError)
   expect(harness.result.current.closingFileSessionIds).toEqual([])
+})
+
+function renderRestartCoordinator() {
+  const original = fileSession('original', { file_access_profile_id: 'profile', source_session_id: 'ssh' })
+  const other = fileSession('other')
+  const replacement = { ...original, id: 'replacement' }
+  const close = deferred<void>()
+  const connect = deferred<FileSession>()
+  const closeFileSession = vi.fn(() => close.promise)
+  const connectFileSession = vi.fn<ConnectFileSession>(() => connect.promise)
+  const onCloseError = vi.fn()
+  const view = renderHook(() => {
+    const [fileSessions, setFileSessions] = useState([original, other])
+    return useFileSessionCoordinator({
+      fileSessions,
+      fileSessionClosures: {},
+      closeFileSession: async (id) => {
+        await closeFileSession()
+        setFileSessions((current) => current.filter((session) => session.id !== id))
+      },
+      connectFileSession: async (input) => {
+        const result = await connectFileSession(input)
+        setFileSessions((current) => [...current, result])
+        return result
+      },
+      supersedeFileSessionRecovery: vi.fn(),
+      onCloseError,
+    })
+  })
+  return { ...view, original, other, replacement, close, connect, closeFileSession, connectFileSession, onCloseError }
+}
+
+test('重启等待关闭成功后按原配置、目录和来源新建，并恢复活动标签', async () => {
+  const harness = renderRestartCoordinator()
+  let restart!: Promise<FileSession | null>
+  act(() => { restart = harness.result.current.restartFileSession(harness.original, '/committed') })
+  expect(harness.connectFileSession).not.toHaveBeenCalled()
+  await act(async () => {
+    expect(await harness.result.current.restartFileSession(harness.original, '/committed')).toBeNull()
+  })
+  expect(harness.closeFileSession).toHaveBeenCalledTimes(1)
+  await act(async () => harness.close.resolve())
+  expect(harness.connectFileSession).toHaveBeenCalledExactlyOnceWith({
+    fileAccessProfileId: 'profile', sourceSessionId: 'ssh', initialPath: '/committed',
+  })
+  expect(harness.result.current.activeFileSession?.id).toBe(harness.other.id)
+  await act(async () => { harness.connect.resolve(harness.replacement); await restart })
+  expect(harness.result.current.activeFileSession?.id).toBe(harness.replacement.id)
+  expect(harness.result.current.displayedFileSessions.map((session) => session.id)).toEqual(['other', 'replacement'])
+})
+
+test.each(['before', 'closing', 'connecting'] as const)('重启后台标签或在 %s 阶段切换后不抢回选择', async (stage) => {
+  const harness = renderRestartCoordinator()
+  if (stage === 'before') act(() => harness.result.current.activateFileSession(harness.other.id))
+  let restart!: Promise<FileSession | null>
+  act(() => { restart = harness.result.current.restartFileSession(harness.original, '/') })
+  if (stage === 'closing') act(() => harness.result.current.activateFileSession(harness.other.id))
+  await act(async () => harness.close.resolve())
+  if (stage === 'connecting') act(() => harness.result.current.activateFileSession(harness.other.id))
+  await act(async () => { harness.connect.resolve(harness.replacement); await restart })
+  expect(harness.result.current.activeFileSession?.id).toBe(harness.other.id)
+})
+
+test('重启关闭失败只报告一次错误，保留原连接且不新建', async () => {
+  const harness = renderRestartCoordinator()
+  const error = new Error('close failed')
+  let restart!: Promise<FileSession | null>
+  act(() => { restart = harness.result.current.restartFileSession(harness.original, '/') })
+  await act(async () => { harness.close.reject(error); expect(await restart).toBeNull() })
+  expect(harness.onCloseError).toHaveBeenCalledExactlyOnceWith(error)
+  expect(harness.connectFileSession).not.toHaveBeenCalled()
+  expect(harness.result.current.activeFileSession?.id).toBe(harness.original.id)
+  expect(harness.result.current.closingFileSessionIds).toEqual([])
+})
+
+test('重启新建失败向调用方返回错误，不伪造连接或抢占备用标签', async () => {
+  const harness = renderRestartCoordinator()
+  const error = new Error('connect failed')
+  let restart!: Promise<FileSession | null>
+  act(() => { restart = harness.result.current.restartFileSession(harness.original, '/') })
+  await act(async () => harness.close.resolve())
+  await act(async () => {
+    const rejection = expect(restart).rejects.toBe(error)
+    harness.connect.reject(error)
+    await rejection
+  })
+  expect(harness.onCloseError).not.toHaveBeenCalled()
+  expect(harness.result.current.activeFileSession?.id).toBe(harness.other.id)
+  expect(harness.result.current.displayedFileSessions.map((session) => session.id)).toEqual(['other'])
 })

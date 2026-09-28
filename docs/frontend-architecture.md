@@ -59,6 +59,13 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 禁止使用 `#features/hosts/ui/HostsPage` 或跨 Slice 的 `../hosts/ui/HostsPage`。Slice 自身内部仍应使用 `./ui/HostsPage` 等相对路径，且内部模块不能导入自身的 `index.ts`，避免形成自入口循环。
 
+## 会话标签
+
+- `features/session-tabs` 统一管理标签标题、固定排序、颜色及本机偏好，提供共用菜单项和颜色面板；不调用连接接口。
+- Workbench 保留 SSH 专用的搜索、分屏和生命周期编排。文件工作区通过 `FileSessionTabs` 组合菜单，`FilesWorkspaceRuntimeProvider` 持有 `useFileSessionTabActions` 的偏好及防重状态，切换页面不会丢失进行中的操作；两个 Widget 不互相依赖。
+- SSH 标签沿用 `termous.ui.workbench.sessionTabPreferences.v1`，文件标签使用独立的 `termous.ui.files.sessionTabPreferences.v1`。偏好按会话 ID 保存，关闭后清理；重命名只改标签显示，不修改主机或连接配置。
+- 文件会话复制使用原文件访问 Profile 和该标签已提交的目录，不携带 SSH 来源 ID，避免服务端复用原文件会话。重启由应用协调器先确认旧会话关闭成功，再按原 Profile、目录及来源关联创建连接，并由工作区运行时继承标签外观；关闭失败不继续创建。后台标签重启以及重启期间显式切换标签后均不抢占当前选择。连接与资源清理仍由现有 Core 接口负责。
+
 ## 运行时不变量
 
 结构迁移必须保持以下合同：

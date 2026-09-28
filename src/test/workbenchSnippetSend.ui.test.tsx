@@ -160,7 +160,7 @@ vi.mock('#features/observability', () => ({
 }))
 vi.mock('#features/alias', () => ({ AliasPanel: () => null }))
 vi.mock('#features/firewall', () => ({ FirewallPanel: () => null }))
-vi.mock('../widgets/workbench/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
+vi.mock('../features/session-tabs/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 vi.mock('#features/docker', () => ({ DockerPanel: (props: DockerPanelProps) => {
   workbenchMocks.dockerProps = props
   return null

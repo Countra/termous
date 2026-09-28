@@ -4,21 +4,16 @@ import {
   Bot,
   CopyPlus,
   Layers,
-  Palette,
-  Pencil,
-  Pin,
-  PinOff,
   RefreshCw,
-  RotateCcw,
   Search,
   SquareTerminal,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   useMemo,
+  useState,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type RefObject,
 } from 'react'
 import { SessionQuickConnect } from '#features/hosts'
@@ -26,9 +21,13 @@ import { SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { HostAvatar, type Host } from '#entities/host'
 import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
 import type { Session } from '#entities/session'
-import type { SessionTabPreferenceMap } from '../model/sessionTabPreferences'
-import { SessionTabColorPanel } from './SessionTabColorPanel'
-import styles from './WorkbenchSessionTabs.module.scss'
+import {
+  buildSessionTabAppearanceItems,
+  SessionTabMenuItem as TerminalTabMenuItem,
+  SessionTabColorPanel,
+  sessionTabStyles as styles,
+  type SessionTabPreferenceMap,
+} from '#features/session-tabs'
 
 export type SessionTabMenuAction =
   | 'search'
@@ -96,6 +95,7 @@ export function WorkbenchSessionTabs({
   onReferenceAgentConnection,
 }: WorkbenchSessionTabsProps) {
   const { t } = useTranslation()
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
   const hostById = useMemo(
     () => new Map(hosts.map((host) => [host.id, host])),
     [hosts],
@@ -154,6 +154,7 @@ export function WorkbenchSessionTabs({
             <SessionTargetDropdown
               key={session.id}
               disabled={sessionClosing}
+              onOpenChange={(open) => setMenuSessionId((current) => open ? session.id : current === session.id ? null : current)}
               popupClassName={styles['terminal-tab-dropdown']}
               {...connectionReferenceMenuProps(session.kind === 'ssh' ? { kind: 'ssh_session', session_id: session.id } : undefined, { getAgentConnectionReferenceSnapshot, onReferenceAgentConnection })}
               items={buildSessionTabMenuItems(session, preference, actionBusy, t)}
@@ -213,6 +214,7 @@ export function WorkbenchSessionTabs({
                     closing={sessionClosing}
                     closingLabel={closingLabel}
                     tooltipTitle={tooltipTitle}
+                    tooltipDisabled={menuSessionId === session.id || colorSessionId === session.id}
                     pinned={preference?.pinned}
                     pinLabel={t('terminal.tabMenu.pinned')}
                     accentColor={preference?.color}
@@ -236,7 +238,6 @@ function buildSessionTabMenuItems(
   actionBusy: boolean,
   t: (key: string) => string,
 ) {
-  const pinned = Boolean(preference?.pinned)
   const canManageSshSession = session.kind === 'ssh' && Boolean(session.host_id)
   return [
     {
@@ -257,36 +258,6 @@ function buildSessionTabMenuItems(
       key: 'split',
       label: <TerminalTabMenuItem icon={<Layers size={15} />} title={t('terminal.tabMenu.split')} />,
     },
-    {
-      key: 'rename',
-      label: <TerminalTabMenuItem icon={<Pencil size={15} />} title={t('terminal.tabMenu.rename')} />,
-    },
-    {
-      key: 'pin',
-      label: (
-        <TerminalTabMenuItem
-          icon={pinned ? <PinOff size={15} /> : <Pin size={15} />}
-          title={pinned ? t('terminal.tabMenu.unpin') : t('terminal.tabMenu.pin')}
-        />
-      ),
-    },
-    {
-      key: 'color',
-      label: <TerminalTabMenuItem icon={<Palette size={15} />} title={t('terminal.tabMenu.color')} />,
-    },
-    {
-      key: 'reset',
-      disabled: !preference,
-      label: <TerminalTabMenuItem icon={<RotateCcw size={15} />} title={t('terminal.tabMenu.reset')} />,
-    },
+    ...buildSessionTabAppearanceItems(preference, t),
   ]
-}
-
-function TerminalTabMenuItem({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <span className={styles['terminal-tab-menu-item']}>
-      <span className={styles['terminal-tab-menu-icon']}>{icon}</span>
-      <span className={styles['terminal-tab-menu-label']}>{title}</span>
-    </span>
-  )
 }

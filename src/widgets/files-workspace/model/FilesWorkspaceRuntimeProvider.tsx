@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { FileSession } from '#entities/file'
+import { useFileSessionTabActions } from './useFileSessionTabActions'
 import { DirectorySizeResultCache } from '#features/remote-file'
 import {
   getFilesWorkspaceSessionState,
@@ -29,12 +30,15 @@ import {
 export function FilesWorkspaceRuntimeProvider({
   children,
   fileSessions,
+  tabSessions = fileSessions,
   closingFileSessionIds,
 }: {
   children: ReactNode
   fileSessions?: readonly FileSession[]
+  tabSessions?: readonly FileSession[]
   closingFileSessionIds?: readonly string[]
 }) {
+  const sessionTabs = useFileSessionTabActions(tabSessions)
   const [states, setStates] = useState<FilesWorkspaceRuntimeState>({})
   const [directorySizeCache] = useState(() => new DirectorySizeResultCache())
   const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
@@ -255,6 +259,7 @@ export function FilesWorkspaceRuntimeProvider({
   ), [])
 
   const value = useMemo<FilesWorkspaceRuntimeValue>(() => ({
+    sessionTabs,
     states,
     directorySizeCache,
     pendingTransferOperations,
@@ -277,6 +282,7 @@ export function FilesWorkspaceRuntimeProvider({
     clearDirectoryDirty,
     isDirectoryDirty,
   }), [
+    sessionTabs,
     adoptSession,
     beginPendingTransferAction,
     clearDirectoryDirty,

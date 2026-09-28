@@ -180,6 +180,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     activateFileSession,
     connectAndActivateFileSession,
     closeFileSession,
+    restartFileSession,
   } = useFileSessionCoordinator({
     fileSessions: data.fileSessions,
     fileSessionClosures,
@@ -1286,6 +1287,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }} />
       <FilesWorkspaceRuntimeProvider
         fileSessions={data.fileSessions}
+        tabSessions={displayedFileSessions}
         closingFileSessionIds={closingFileSessionIds}
       >
         <TransferRuntimeProvider api={gateways.transfers} enabled={runtimeConfigReady}>
@@ -1514,6 +1516,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                             activateFileSession(fileSessionId)
                           }}
                           onCloseFileSession={closeFileSession}
+                          onRestartFileSession={restartFileSession}
                           onReconnectFileSession={actions.reconnectFileSession}
                           onUpdateFileSession={actions.updateFileSession}
                           onCreateFileBookmark={actions.createFileBookmark}
