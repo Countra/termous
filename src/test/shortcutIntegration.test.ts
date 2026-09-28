@@ -52,10 +52,6 @@ const remoteTextEditorSource = readFileSync(
   fileURLToPath(new URL('../features/remote-file/ui/RemoteTextEditorModal.tsx', import.meta.url)),
   'utf8',
 )
-const termousDataSource = readFileSync(
-  fileURLToPath(new URL('../app/data-runtime/commands/settingsCommands.ts', import.meta.url)),
-  'utf8',
-)
 
 test('主机连接入口只通过统一窗口快捷键适配器触发', () => {
   assert.match(appSource, /<ShortcutRuntimeProvider settings=\{data\.settings\.shortcuts\}>/)
@@ -243,17 +239,5 @@ test('远程编辑器保存只由编辑器快捷键上下文触发', () => {
   assert.doesNotMatch(
     remoteTextEditorSource,
     /\(event\.ctrlKey \|\| event\.metaKey\).*event\.key\.toLowerCase\(\) === 's'/,
-  )
-})
-
-test('较早的快捷键写入失败会通知对应行且不会回退较新的乐观状态', () => {
-  const mutationStart = termousDataSource.indexOf('async updateShortcutSettings(')
-  const mutationEnd = termousDataSource.indexOf('async setWindowSettings(', mutationStart)
-  assert.notEqual(mutationStart, -1)
-  assert.notEqual(mutationEnd, -1)
-  const mutationSource = termousDataSource.slice(mutationStart, mutationEnd)
-  assert.match(
-    mutationSource,
-    /if \(shortcutSettingsMutation\.current !== mutation\) \{\s*throw updateError\s*\}/,
   )
 })

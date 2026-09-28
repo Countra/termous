@@ -708,6 +708,8 @@ vi.mock('#shared/hooks', () => ({
 }))
 
 vi.mock('#app/data-runtime', () => ({
+  desktopUpdateBridge: () => null,
+  localSettingsGateway: { getModule: () => undefined, readModule: async () => ({ id: 'terminal_local', schema_version: 1, revision: 1, value: { ssh_smooth_scroll: false }, state: { status: 'applied' } }), updateModule: vi.fn(), subscribeSettings: () => () => {} },
   useTermousData: () => ({
     gateways: {
       forwards: {},

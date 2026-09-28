@@ -1,3 +1,6 @@
+import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
+import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
+import { settingsIPCChannels } from '#common/contracts'
 import { notificationIPCChannels } from '#common/contracts'
 import { NotificationRuntime } from './notifications/runtime'
 import { NotificationPreferencesStore } from './notifications/preferences'
@@ -38,7 +41,7 @@ import { registerAgentRuntimeIPC } from './agent/ipc'
 import { AgentSkillBundleSource } from './agent/skillBundleSource'
 import { SkillInstaller } from './skills/installer'
 import { registerSkillInstallIPC } from './skills/ipc'
-import { registerLoginItemIPC } from './loginItemIPC'
+import { createLoginItemAdapter } from './loginItemIPC'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
@@ -100,6 +103,7 @@ const coreProcess = new CoreProcessManager({ logger: {
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
 } })
 let notificationDisposeIPC: (() => void) | null = null
+let notificationPreferences: NotificationPreferencesStore | null = null
 let notificationRuntime: NotificationRuntime | null = null
 let notificationSubscription: NotificationSubscription | null = null
 let notificationWarningAt = 0
@@ -113,6 +117,7 @@ async function initializeNotifications() {
   if (notificationRuntime) return
   const preferences = new NotificationPreferencesStore(path.join(app.getPath('userData'), 'notification-preferences.json'), warnNotification)
   await preferences.load()
+  notificationPreferences = preferences
   notificationRuntime = new NotificationRuntime({
     background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && (win.isMinimized() || !win.isVisible())),
     supported: () => Notification.isSupported(),
@@ -124,7 +129,7 @@ async function initializeNotifications() {
     },
     warn: warnNotification,
   })
-  notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, preferences, supported: () => Notification.isSupported(), trusted: isTrustedMainIPCEvent })
+  notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, trusted: isTrustedMainIPCEvent })
   const runtime = notificationRuntime
   notificationSubscription = new NotificationSubscription({ config: () => coreProcess.initialize(), receive: (event) => runtime.accept(event), warn: warnNotification })
   void notificationSubscription.start()
@@ -1206,8 +1211,8 @@ function registerCoreProcessControls() {
 function registerAgentRuntimeControls() {
   registerSkillInstallIPC({
     ipcMain,
-    installer: skillInstaller,
     isTrustedSender: isTrustedMainIPCEvent,
+    installer: skillInstaller,
     pickDirectory: async (event) => {
       const target = BrowserWindow.fromWebContents(event.sender)
       if (!target || target.isDestroyed()) return null
@@ -1221,8 +1226,8 @@ function registerAgentRuntimeControls() {
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerAgentRuntimeIPC({
     ipcMain,
-    supervisor: agentSupervisor,
     isTrustedSender: isTrustedMainIPCEvent,
+    supervisor: agentSupervisor,
     sendStatus: (status) => {
       const target = win
       if (target && !target.isDestroyed()) {
@@ -1757,14 +1762,12 @@ async function initializeApplication() {
   registerWindowControls()
   registerTrayControls()
   registerApplicationBuildControls()
-  registerLoginItemIPC({
-    ipcMain,
+  const loginItemAdapter = createLoginItemAdapter({
     app,
     platform: process.platform,
     development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
     executablePath: process.execPath,
     entryName: APP_ID,
-    isTrustedSender: isTrustedMainIPCEvent,
   })
   registerExternalNavigationControls()
   registerFilePickers()
@@ -1808,6 +1811,14 @@ async function initializeApplication() {
   }
   createSplashWindow()
   await initializeNotifications()
+  const desktopSettings = new DesktopSettingsRuntime({
+    notifications: notificationSettingsAdapter(() => notificationPreferences, () => Notification.isSupported()),
+    updates: updateSettingsAdapter(() => updateRuntime),
+    login_item: loginItemSettingsAdapter(loginItemAdapter),
+  }, (event) => {
+    if (win && !win.isDestroyed()) win.webContents.send(settingsIPCChannels.changed, event)
+  })
+  registerSettingsIPC({ ipcMain, runtime: desktopSettings, trusted: isTrustedMainIPCEvent })
   createWindow()
   trayController.initialize()
   void coreProcess.initialize().then(() => {

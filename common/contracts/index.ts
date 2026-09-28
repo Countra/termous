@@ -13,8 +13,7 @@ export type {
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
 export type { MountSettings, MountSettingsState, MountCacheState, MountCacheClear } from './mount-settings.ts'
 export { skillInstallIPCChannels } from './skill-install.ts'
-export { loginItemIPCChannels } from './login-item.ts'
-export type { LoginItemBridge, LoginItemState, LoginItemResponse, LoginItemError } from './login-item.ts'
+export type { LoginItemState, LoginItemResponse, LoginItemError } from './login-item.ts'
 export type { SkillInstallBridge, SkillInstallClient, SkillInstallPolicy, SkillInstallError, SkillInstallPlan, SkillInstallResult, SkillInstallResponse } from './skill-install.ts'
 export { canonicalizeMcpFileToolName } from './mcp-file-tools.ts'
 export { isAgentTerminalReferenceOrigin, type AgentTerminalReferenceOrigin } from './agent-attachment.ts'
@@ -49,9 +48,11 @@ export type {
 export type {
   AppearanceSettings,
   ConnectionSettings,
+  ConnectionSettingsPatch,
   CompletionProviderId,
   CompletionProviderSettings,
   CompletionSettings,
+  CompletionSettingsPatch,
   Settings,
   ShortcutActionOverride,
   ShortcutChord,
@@ -132,3 +133,5 @@ export type {
   TermousBridge,
   TermousUpdateWindowBridge,
 } from './bridge'
+
+export * from './settings-center.ts'

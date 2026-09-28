@@ -33,7 +33,7 @@ test.each(['agent', 'file', 'approval'] as const)('点击 %s 系统消息在异�
   let resolveNavigation!: (found: boolean) => void
   const navigation = new Promise<boolean>((resolve) => { resolveNavigation = resolve })
   const navigate = vi.fn(() => navigation)
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'direct', target, messages: [item] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'direct', target, messages: [item] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
   render(<NotificationControl api={gateway} enabled navigate={navigate} />)
   await waitFor(() => expect(navigate).toHaveBeenCalledWith(target))
   expect(screen.getByTestId('centre')).toHaveTextContent('closed')
@@ -48,7 +48,7 @@ test('合并通知直接打开消息分组，不尝试定位某个单独任务',
   const gateway = api()
   const messages: NotificationMessage[] = [{ ...message, kind: 'file' }, { ...message, id: 'two', kind: 'file' }]
   const navigate = vi.fn(async () => true)
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'group', target: { kind: 'centre' as const, filter: 'file' as const }, messages }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'group', target: { kind: 'centre' as const, filter: 'file' as const }, messages }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
   render(<NotificationControl api={gateway} enabled navigate={navigate} />)
   await waitFor(() => expect(desktop.bridge!.acknowledge).toHaveBeenCalledWith('group'))
   expect(screen.getByTestId('centre')).toHaveTextContent('file')
@@ -60,7 +60,7 @@ test('Renderer 就绪后消费暂存激活，已读落库成功之前不确认�
   const gateway = api()
   let resolve!: () => void
   gateway.read.mockImplementation(() => new Promise<void>((done) => { resolve = done }))
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'activation', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'activation', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
   const navigate = vi.fn(async () => true)
   const view = render(<NotificationControl api={gateway} enabled={false} navigate={navigate} />)
   expect(desktop.bridge.pending).not.toHaveBeenCalled()
@@ -74,7 +74,7 @@ test('Renderer 就绪后消费暂存激活，已读落库成功之前不确认�
 
 test('失效目标保留摘要，不能启动或重试原任务', async () => {
   const gateway = api()
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'deleted', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'deleted', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
   render(<NotificationControl api={gateway} enabled navigate={async () => false} />)
   await waitFor(() => expect(screen.getByTestId('result')).toHaveTextContent('run'))
   expect(gateway.read).toHaveBeenCalledWith({ ids: ['one'] })
@@ -87,7 +87,7 @@ test.each(['read', 'acknowledge'] as const)('跳转后的 %s 失败不弹开抽�
   if (operation === 'read') gateway.read.mockRejectedValueOnce(failure)
   else acknowledge.mockRejectedValueOnce(failure)
   let activate!: () => void
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'retry', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge, onActivation: vi.fn((callback) => { activate = callback; return () => {} }) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'retry', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge, onActivation: vi.fn((callback) => { activate = callback; return () => {} }) }
   const navigate = vi.fn(async () => true)
   render(<NotificationControl api={gateway} enabled navigate={navigate} />)
   await waitFor(() => expect(operation === 'read' ? gateway.read : acknowledge).toHaveBeenCalledTimes(1))
@@ -102,7 +102,7 @@ test('停用后的异步定位结果不再打开抽屉、写已读或确认激�
   const gateway = api()
   let resolve!: (found: boolean) => void
   const navigate = vi.fn(() => new Promise<boolean>((done) => { resolve = done }))
-  desktop.bridge = { status: vi.fn(), setPreferences: vi.fn(), pending: vi.fn(async () => [{ id: 'stale', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+  desktop.bridge = { pending: vi.fn(async () => [{ id: 'stale', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
   const rendered = render(<NotificationControl api={gateway} enabled navigate={navigate} />)
   await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1))
   rendered.rerender(<NotificationControl api={gateway} enabled={false} navigate={navigate} />)

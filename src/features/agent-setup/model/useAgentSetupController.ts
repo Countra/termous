@@ -443,7 +443,7 @@ function isAborted(value: unknown) {
 function isRevisionConflict(value: unknown): boolean {
   return value instanceof TermousApiError
     && value.status === 409
-    && value.code === 'AGENT_REVISION_CONFLICT'
+    && (value.code === 'AGENT_REVISION_CONFLICT' || value.code === 'SETTINGS_REVISION_CONFLICT')
 }
 
 function shouldPreserveMutationError(value: unknown) {

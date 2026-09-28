@@ -3,7 +3,6 @@ import type {
   ShortcutChord,
   ShortcutModifier,
   ShortcutSettings,
-  ShortcutSettingsPatch,
 } from '#common/contracts'
 import { isSupportedShortcutCode } from './chords.ts'
 
@@ -37,39 +36,6 @@ export function normalizeShortcutSettings(value: unknown): ShortcutSettings {
     schema_version: 1,
     overrides: normalizedOverrides,
   }
-}
-
-export function applyShortcutSettingsPatch(
-  current: ShortcutSettings,
-  patch: ShortcutSettingsPatch,
-): ShortcutSettings {
-  if (patch.reset_all) {
-    return normalizeShortcutSettings(defaultShortcutSettings)
-  }
-
-  const next = normalizeShortcutSettings(current)
-  for (const [actionId, change] of Object.entries(patch.changes ?? {})) {
-    if (!isShortcutActionId(actionId)) {
-      continue
-    }
-    if (change === null) {
-      delete next.overrides[actionId]
-      continue
-    }
-    const normalized = normalizeShortcutActionOverride(change)
-    if (normalized) {
-      next.overrides[actionId] = normalized
-    }
-  }
-  return normalizeShortcutSettings(next)
-}
-
-export function shortcutSettingsEqual(left: ShortcutSettings, right: ShortcutSettings) {
-  return shortcutSettingsSignature(left) === shortcutSettingsSignature(right)
-}
-
-export function shortcutSettingsSignature(settings: ShortcutSettings) {
-  return JSON.stringify(normalizeShortcutSettings(settings))
 }
 
 function normalizeShortcutActionOverride(value: unknown): ShortcutActionOverride | null {

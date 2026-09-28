@@ -55,15 +55,12 @@ export interface NotificationCapabilities {
 }
 
 export interface NotificationBridge {
-  status(): Promise<NotificationCapabilities>
-  setPreferences(value: NotificationPreferences): Promise<NotificationCapabilities>
   pending(): Promise<NotificationActivation[]>
   acknowledge(id: string): Promise<void>
   onActivation(callback: () => void): () => void
 }
 
 export const notificationIPCChannels = {
-  status: 'notifications:status', preferences: 'notifications:preferences',
   pending: 'notifications:pending', acknowledge: 'notifications:acknowledge',
   activation: 'notifications:activation',
 } as const

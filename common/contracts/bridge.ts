@@ -25,15 +25,13 @@ import type {
 } from './data-portability'
 import type { ExternalUrlOpenResult } from './external'
 import type { SkillInstallBridge } from './skill-install'
-import type { LoginItemBridge } from './login-item'
+import type { DesktopSettingsBridge } from './settings-center'
 import type { CoreStartupSnapshot } from './startup'
 import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from './terminal-ai-completion'
 import type {
   UpdateApplicationInfo,
   UpdateInstallConfirmation,
   UpdateInstallSummaryState,
-  UpdatePreferences,
-  UpdatePreferencesPatch,
   UpdateRuntimeSummary,
   UpdateRuntimeSummaryRefreshRequest,
   UpdateRuntimeSummaryReportContext,
@@ -55,7 +53,7 @@ export interface OpenLocalDirectoryResult {
 
 export interface TermousBridge {
   notifications?: import('./notification').NotificationBridge
-  loginItem?: LoginItemBridge
+  settings?: DesktopSettingsBridge
   skillInstall?: SkillInstallBridge
   getConfig: () => Promise<Partial<AppConfig>>
   getBuildInfo: () => Promise<AppBuildInfo>
@@ -132,8 +130,6 @@ export interface TermousBridge {
   }
   updates?: {
     getState: () => Promise<UpdateSnapshot>
-    getPreferences: () => Promise<UpdatePreferences>
-    setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
     openWindow: () => Promise<boolean>
     reportRuntimeSummary: (
       summary: UpdateRuntimeSummary,

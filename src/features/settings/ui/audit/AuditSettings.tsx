@@ -1,8 +1,9 @@
 import { Alert, Button, InputNumber, Spin, Switch } from 'antd'
 import { ClipboardList } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AuditSettings as Settings } from '#entities/audit'
+import { decodeAuditSettings, type AuditSettings as Settings } from '#entities/audit'
+import { useSettingsModule, settingsErrorCode } from '#entities/settings'
 import type { AuditSettingsGateway } from '../../api/auditSettingsGateway'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './AuditSettings.module.scss'
@@ -14,67 +15,48 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
   const [enabled, setEnabled] = useState(true)
   const [days, setDays] = useState<number | null>(90)
   const [records, setRecords] = useState<number | null>(0)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const module = useSettingsModule('audit', { gateway })
+  const [savedRevision, setSavedRevision] = useState<number>()
   const [savedNotice, setSavedNotice] = useState(false)
-  const [revision, setRevision] = useState(0)
-  const pending = useRef(false)
-  const lifetime = useRef<AbortController | null>(null)
+  const loading = module.busy && saved === null
+  const saving = module.busy && saved !== null
+  const unavailable = module.snapshot?.state.status === 'unavailable'
+  const failed = module.error !== null || unavailable
+  const conflict = settingsErrorCode(module.error) === 'SETTINGS_REVISION_CONFLICT'
 
+  useEffect(() => { setSaved(null); setSavedRevision(undefined); setSavedNotice(false) }, [gateway])
   useEffect(() => {
-    const controller = new AbortController()
-    lifetime.current = controller
-    pending.current = false
-    setLoading(true)
-    setSaving(false)
-    setFailed(false)
-    setSavedNotice(false)
-    setSaved(null)
-    void gateway.auditSettings(controller.signal).then((value) => {
-      if (controller.signal.aborted) return
-      setSaved(value)
-      setEnabled(value.enabled)
-      setDays(value.retention_days)
-      setRecords(value.max_records)
-    }).catch(() => { if (!controller.signal.aborted) setFailed(true) })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
-  }, [gateway, revision])
+    if (!module.snapshot || module.snapshot.state.status === 'unavailable' || saved !== null) return
+    const value = decodeAuditSettings(module.snapshot.value)
+    setSaved(value)
+    setSavedRevision(module.snapshot.revision)
+    setEnabled(value.enabled)
+    setDays(value.retention_days)
+    setRecords(value.max_records)
+  }, [module.snapshot, saved])
+
+  useEffect(() => { if (conflict && module.snapshot) setSavedRevision(module.snapshot.revision) }, [conflict, module.snapshot])
 
   const validDays = days !== null && Number.isInteger(days) && days >= 1 && days <= 3650
   const validRecords = records !== null && Number.isInteger(records) && (records === 0 || (records >= 1000 && records <= 1_000_000))
   const dirty = saved !== null && (saved.enabled !== enabled || saved.retention_days !== days || saved.max_records !== records)
-  const locked = disabled || loading || saving || !saved
+  const locked = disabled || loading || saving || !saved || unavailable
   const save = async () => {
-    if (locked || pending.current || !saved || !validDays || !validRecords || !dirty) return
-    const controller = lifetime.current
-    if (!controller || controller.signal.aborted) return
-    pending.current = true
-    setSaving(true)
-    setFailed(false)
+    if (locked || !saved || !validDays || !validRecords || !dirty) return
     setSavedNotice(false)
     const patch: Partial<Settings> = {}
     if (enabled !== saved.enabled) patch.enabled = enabled
     if (days !== saved.retention_days) patch.retention_days = days
     if (records !== saved.max_records) patch.max_records = records
-    try {
-      const value = await gateway.updateAuditSettings(patch, controller.signal)
-      if (controller.signal.aborted) return
-      setSaved(value)
-      setEnabled(value.enabled)
-      setDays(value.retention_days)
-      setRecords(value.max_records)
-      setSavedNotice(true)
-    } catch {
-      if (!controller.signal.aborted) setFailed(true)
-    } finally {
-      // 切换 Core 后，旧请求不能解除新请求的保存保护或覆盖页面状态。
-      if (!controller.signal.aborted) {
-        pending.current = false
-        setSaving(false)
-      }
-    }
+    const snapshot = await module.update(patch, savedRevision)
+    if (!snapshot) return
+    const value = decodeAuditSettings(snapshot.value)
+    setSaved(value)
+    setSavedRevision(snapshot.revision)
+    setEnabled(value.enabled)
+    setDays(value.retention_days)
+    setRecords(value.max_records)
+    setSavedNotice(true)
   }
 
   return (
@@ -84,8 +66,8 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
         <h2 id={`${id}-title`}>{t('settings.audit.title')}</h2>
       </div>
       <div className={styles.body}>
-        {failed && <Alert type="error" showIcon title={t(saved ? 'settings.audit.saveFailed' : 'settings.audit.loadFailed')}
-          action={!saved ? <Button size="small" disabled={disabled || loading} onClick={() => setRevision((value) => value + 1)}>{t('app.retry')}</Button> : undefined} />}
+        {failed && <Alert type="error" showIcon title={t(conflict ? 'settings.conflict' : saved ? 'settings.audit.saveFailed' : 'settings.audit.loadFailed')}
+          action={!saved ? <Button size="small" disabled={disabled || loading} onClick={() => void module.refresh()}>{t('app.retry')}</Button> : undefined} />}
         {loading ? <div className={styles.loading}><Spin /></div> : saved && <>
           <div className={styles.toggle}>
             <div><label htmlFor={`${id}-enabled`}>{t('settings.audit.enabled')}</label><p className={surfaceStyles.hint} id={`${id}-enabled-hint`}>{t('settings.audit.enabledHint')}</p></div>

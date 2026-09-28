@@ -14,7 +14,7 @@ const settings: ConnectionSettingsValue = {
   remote_desktop_auto_reconnect_enabled: true,
 }
 
-test('连接可靠性开关分别提交完整设置', async () => {
+test('连接可靠性开关只提交变动字段，避免覆盖其他待保存开关', async () => {
   const user = userEvent.setup()
   const onChange = vi.fn(async () => undefined)
   const { rerender } = render(
@@ -24,8 +24,6 @@ test('连接可靠性开关分别提交完整设置', async () => {
   await user.click(screen.getByRole('switch', { name: 'settings.sshKeepalive' }))
   expect(onChange).toHaveBeenLastCalledWith({
     ssh_keepalive_enabled: true,
-    forward_auto_reconnect_enabled: false,
-    remote_desktop_auto_reconnect_enabled: true,
   })
 
   const keepaliveEnabled = { ...settings, ssh_keepalive_enabled: true }
@@ -34,9 +32,7 @@ test('连接可靠性开关分别提交完整设置', async () => {
   )
   await user.click(screen.getByRole('switch', { name: 'settings.forwardAutoReconnect' }))
   expect(onChange).toHaveBeenLastCalledWith({
-    ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: true,
-    remote_desktop_auto_reconnect_enabled: true,
   })
 
   const forwardsEnabled = { ...keepaliveEnabled, forward_auto_reconnect_enabled: true }
@@ -45,8 +41,6 @@ test('连接可靠性开关分别提交完整设置', async () => {
   )
   await user.click(screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' }))
   expect(onChange).toHaveBeenLastCalledWith({
-    ssh_keepalive_enabled: true,
-    forward_auto_reconnect_enabled: true,
     remote_desktop_auto_reconnect_enabled: false,
   })
 })

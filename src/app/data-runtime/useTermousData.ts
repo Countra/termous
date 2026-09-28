@@ -1,3 +1,4 @@
+import { useSettingsSubscription } from './model/useSettingsSubscription'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TermousApiError } from '#shared/api'
 import {
@@ -12,7 +13,6 @@ import type {
 import type { SessionSnapshotEvent } from '#entities/session'
 import { sortCodeSnippetGroups } from '#entities/snippet'
 import { sortHostAssets } from '#entities/host-asset'
-import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
 import {
   cleanupSuppressedFileSessionRecoveryResult,
@@ -50,7 +50,6 @@ import {
   snippetStateChangedSince,
   type SnippetReloadCheckpoint,
 } from './model/snippetRuntimeState'
-import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
   indexHostReachability,
@@ -91,6 +90,7 @@ export function useTermousData() {
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [apiReady, setApiReady] = useState(false)
+  useSettingsSubscription(gateways.settings, apiReady)
   const [error, setError] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
@@ -121,36 +121,6 @@ export function useTermousData() {
     checkpoint: SnippetReloadCheckpoint
   } | null>(null)
   const snippetReloadLoopRef = useRef<Promise<void> | null>(null)
-  const completionSettingsMutationRef = useRef(0)
-  const completionSettingsPendingWritesRef = useRef(0)
-  const completionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
-  if (!completionSettingsWriteQueueRef.current) {
-    completionSettingsWriteQueueRef.current = new SerialMutationQueue()
-  }
-  const completionSettingsWriteQueue = completionSettingsWriteQueueRef.current
-  const completionSettingsRef = useRef(data.settings.completion)
-  const completionSettingsConfirmedRef = useRef(data.settings.completion)
-  completionSettingsRef.current = data.settings.completion
-  const connectionSettingsMutationRef = useRef(0)
-  const connectionSettingsPendingWritesRef = useRef(0)
-  const connectionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
-  if (!connectionSettingsWriteQueueRef.current) {
-    connectionSettingsWriteQueueRef.current = new SerialMutationQueue()
-  }
-  const connectionSettingsWriteQueue = connectionSettingsWriteQueueRef.current
-  const connectionSettingsRef = useRef(data.settings.connection)
-  const connectionSettingsConfirmedRef = useRef(data.settings.connection)
-  connectionSettingsRef.current = data.settings.connection
-  const shortcutSettingsMutationRef = useRef(0)
-  const shortcutSettingsPendingWritesRef = useRef(0)
-  const shortcutSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
-  if (!shortcutSettingsWriteQueueRef.current) {
-    shortcutSettingsWriteQueueRef.current = new SerialMutationQueue()
-  }
-  const shortcutSettingsWriteQueue = shortcutSettingsWriteQueueRef.current
-  const shortcutSettingsRef = useRef(data.settings.shortcuts)
-  const shortcutSettingsConfirmedRef = useRef(data.settings.shortcuts)
-  shortcutSettingsRef.current = data.settings.shortcuts
   const forwardStartCompletionWaitersRef = useRef(
     new Map<string, ForwardStartCompletionWaiter>(),
   )
@@ -162,6 +132,19 @@ export function useTermousData() {
       inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
     }
   })
+
+  useEffect(() => {
+    let language = gateways.settings.currentSettings().language
+    const sync = () => {
+      const settings = gateways.settings.currentSettings()
+      setData((current) => current.settings === settings ? current : { ...current, settings })
+      if (language !== settings.language) {
+        language = settings.language
+        void changeLanguage(settings.language).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+      }
+    }
+    return gateways.settings.subscribeSettings(sync)
+  }, [gateways])
 
   const releaseFileSessionRecoveryEpoch = useCallback((fileSessionId: string) => {
     fileSessionRecoveryCloseEpochsRef.current.delete(fileSessionId)
@@ -242,18 +225,6 @@ export function useTermousData() {
     loadRevisionRef.current = loadRevision
     const changedForwardIds = new Set<string>()
     forwardReloadChangeTrackersRef.current.add(changedForwardIds)
-    const completionSettingsReloadCheckpoint = {
-      generation: completionSettingsMutationRef.current,
-      hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
-    }
-    const connectionSettingsReloadCheckpoint = {
-      generation: connectionSettingsMutationRef.current,
-      hadPendingWrites: connectionSettingsPendingWritesRef.current > 0,
-    }
-    const shortcutSettingsReloadCheckpoint = {
-      generation: shortcutSettingsMutationRef.current,
-      hadPendingWrites: shortcutSettingsPendingWritesRef.current > 0,
-    }
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
     const snippetGenerationBaseline = snippetRuntimeCursorRef.current.generation
@@ -269,7 +240,7 @@ export function useTermousData() {
         scheduleSuppressedFileSessionCleanup(runtimeGateways, fileSessionId, originalSessionId)
       }
       const [
-        settings,
+        ,
         terminalFonts,
         snippetGroups,
         snippets,
@@ -302,34 +273,6 @@ export function useTermousData() {
         forwards ?? [],
       )
       const reloadedSessions = sessions ?? []
-      const nextSettings = normalizeSettings(settings)
-      const canApplyReloadedCompletion = canApplyReloadedValue(
-        completionSettingsReloadCheckpoint,
-        completionSettingsMutationRef.current,
-        completionSettingsPendingWritesRef.current,
-      )
-      if (canApplyReloadedCompletion) {
-        completionSettingsConfirmedRef.current = nextSettings.completion
-        completionSettingsRef.current = nextSettings.completion
-      }
-      const canApplyReloadedConnection = canApplyReloadedValue(
-        connectionSettingsReloadCheckpoint,
-        connectionSettingsMutationRef.current,
-        connectionSettingsPendingWritesRef.current,
-      )
-      if (canApplyReloadedConnection) {
-        connectionSettingsConfirmedRef.current = nextSettings.connection
-        connectionSettingsRef.current = nextSettings.connection
-      }
-      const canApplyReloadedShortcuts = canApplyReloadedValue(
-        shortcutSettingsReloadCheckpoint,
-        shortcutSettingsMutationRef.current,
-        shortcutSettingsPendingWritesRef.current,
-      )
-      if (canApplyReloadedShortcuts) {
-        shortcutSettingsConfirmedRef.current = nextSettings.shortcuts
-        shortcutSettingsRef.current = nextSettings.shortcuts
-      }
       reloadedSessions.forEach((session) => {
         if (!sessionChangedSince(
           session.id,
@@ -356,18 +299,6 @@ export function useTermousData() {
           snippetRuntimeCursorRef.current,
           snippetGenerationBaseline,
         )
-        const mergedSettings = {
-          ...nextSettings,
-          completion: canApplyReloadedCompletion
-            ? nextSettings.completion
-            : current.settings.completion,
-          connection: canApplyReloadedConnection
-            ? nextSettings.connection
-            : current.settings.connection,
-          shortcuts: canApplyReloadedShortcuts
-            ? nextSettings.shortcuts
-            : current.settings.shortcuts,
-        }
         const recentHosts = reconcileHostRecentTimestamps(
           current.hosts,
           hosts ?? [],
@@ -375,7 +306,7 @@ export function useTermousData() {
           sortHostAssets(hostAssets ?? []),
         )
         return {
-          settings: mergedSettings,
+          settings: runtimeGateways.settings.currentSettings(),
           groups: groups ?? [],
           hostIcons: sortHostIcons(hostIcons ?? []),
           proxies: sortConnectionProxies(proxies ?? []),
@@ -428,7 +359,7 @@ export function useTermousData() {
       })
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
-      await changeLanguage(nextSettings.language)
+      await changeLanguage(runtimeGateways.settings.currentSettings().language)
     } catch (loadError) {
       if (loadRevision === loadRevisionRef.current) {
         setApiReady(false)
@@ -713,23 +644,7 @@ export function useTermousData() {
       applyFileSessionSnapshot,
       ...createSettingsCommands({
         api: gateways.settings,
-        currentSettings: data.settings,
         setData,
-        completionSettingsMutation: completionSettingsMutationRef,
-        completionSettingsPendingWrites: completionSettingsPendingWritesRef,
-        completionSettingsWriteQueue,
-        completionSettings: completionSettingsRef,
-        confirmedCompletionSettings: completionSettingsConfirmedRef,
-        connectionSettingsMutation: connectionSettingsMutationRef,
-        connectionSettingsPendingWrites: connectionSettingsPendingWritesRef,
-        connectionSettingsWriteQueue,
-        connectionSettings: connectionSettingsRef,
-        confirmedConnectionSettings: connectionSettingsConfirmedRef,
-        shortcutSettingsMutation: shortcutSettingsMutationRef,
-        shortcutSettingsPendingWrites: shortcutSettingsPendingWritesRef,
-        shortcutSettingsWriteQueue,
-        shortcutSettings: shortcutSettingsRef,
-        confirmedShortcutSettings: shortcutSettingsConfirmedRef,
       }),
       ...createSnippetCommands(gateways.snippets, setData),
       ...createFileCatalogCommands(gateways.fileCatalog, setData),
@@ -795,14 +710,10 @@ export function useTermousData() {
       gateways,
       applySessionSnapshot,
       applyFileSessionSnapshot,
-      completionSettingsWriteQueue,
-      connectionSettingsWriteQueue,
-      shortcutSettingsWriteQueue,
       data.fileSessions,
       data.forwards,
       data.hostAssets,
       data.remoteDesktopProfiles,
-      data.settings,
       data.sessions,
       load,
       releaseFileSessionRecoveryEpoch,

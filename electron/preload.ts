@@ -17,15 +17,13 @@ import type {
   TerminalAICompletionCancel,
   TerminalAICompletionResult,
   TrayCommand,
-  UpdatePreferences,
-  UpdatePreferencesPatch,
   UpdateRuntimeSummary,
   UpdateRuntimeSummaryRefreshRequest,
   UpdateRuntimeSummaryReportContext,
   UpdateSnapshot,
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
-import { loginItemIPCChannels, skillInstallIPCChannels } from '#common/contracts'
+import { settingsIPCChannels, skillInstallIPCChannels } from '#common/contracts'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -121,8 +119,6 @@ window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
   notifications: {
-    status: () => ipcRenderer.invoke(notificationChannels.status),
-    setPreferences: (value: import('#common/contracts').NotificationPreferences) => ipcRenderer.invoke(notificationChannels.preferences, value),
     pending: () => ipcRenderer.invoke(notificationChannels.pending),
     acknowledge: (id: string) => ipcRenderer.invoke(notificationChannels.acknowledge, id),
     onActivation: (callback: () => void) => {
@@ -153,9 +149,14 @@ const bridge = {
     selectDirectory: (client) => ipcRenderer.invoke(skillInstallIPCChannels.selectDirectory, client),
     install: (request) => ipcRenderer.invoke(skillInstallIPCChannels.install, request),
   },
-  loginItem: {
-    get: () => ipcRenderer.invoke(loginItemIPCChannels.get),
-    setEnabled: (enabled) => ipcRenderer.invoke(loginItemIPCChannels.setEnabled, enabled),
+  settings: {
+    get: async (module) => unwrapSettings(await ipcRenderer.invoke(settingsIPCChannels.get, module)),
+    update: async (module, request) => unwrapSettings(await ipcRenderer.invoke(settingsIPCChannels.update, module, request)),
+    onChanged: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: import('#common/contracts').SettingsEvent) => callback(event)
+      ipcRenderer.on(settingsIPCChannels.changed, listener)
+      return () => { ipcRenderer.removeListener(settingsIPCChannels.changed, listener) }
+    },
   },
   agentRuntime: {
     getStatus: () => ipcRenderer.invoke(agentRuntimeIPCChannels.getStatus) as Promise<AgentRuntimeStatus>,
@@ -267,10 +268,6 @@ const bridge = {
   },
   updates: {
     getState: () => ipcRenderer.invoke('app-update:get-state') as Promise<UpdateSnapshot>,
-    getPreferences: () =>
-      ipcRenderer.invoke('app-update:get-preferences') as Promise<UpdatePreferences>,
-    setPreferences: (patch: UpdatePreferencesPatch) =>
-      ipcRenderer.invoke('app-update:set-preferences', patch) as Promise<UpdatePreferences>,
     openWindow: () =>
       ipcRenderer.invoke('app-update:open-window') as Promise<boolean>,
     reportRuntimeSummary: (
@@ -335,3 +332,8 @@ const bridge = {
 } satisfies TermousBridge
 
 contextBridge.exposeInMainWorld('termous', bridge)
+
+function unwrapSettings(result: import('#common/contracts').SettingsIPCResult) {
+  if (!result.ok) throw Object.assign(new Error(result.code), { code: result.code })
+  return result.snapshot
+}

@@ -273,29 +273,24 @@ export class ApplicationUpdateRuntime {
     this.subscriberDestroyListeners.clear()
   }
 
+  getPreferences() { return { ...this.manager.getSnapshot().preferences } }
+
+  async updatePreferences(patch: unknown) {
+    const previous = this.manager.getSnapshot().preferences
+    const preferences = await this.preferencesStore.update(patch)
+    const snapshot = this.manager.setPreferences(preferences)
+    if (preferences.automatic_check !== previous.automatic_check || preferences.check_interval !== previous.check_interval) {
+      this.automaticCheckAttempted = false
+      this.automaticCheckRetry.reset()
+    }
+    this.scheduleAutomaticCheck()
+    return snapshot.preferences
+  }
+
   private registerIPC() {
     ipcMain.handle('app-update:get-state', (event) => {
       this.assertSender(event, ['main', 'update'])
       return this.manager.getSnapshot()
-    })
-    ipcMain.handle('app-update:get-preferences', (event) => {
-      this.assertSender(event, ['main'])
-      return { ...this.manager.getSnapshot().preferences }
-    })
-    ipcMain.handle('app-update:set-preferences', async (event, patch: unknown) => {
-      this.assertSender(event, ['main'])
-      const previous = this.manager.getSnapshot().preferences
-      const preferences = await this.preferencesStore.update(patch)
-      const snapshot = this.manager.setPreferences(preferences)
-      if (
-        preferences.automatic_check !== previous.automatic_check
-        || preferences.check_interval !== previous.check_interval
-      ) {
-        this.automaticCheckAttempted = false
-        this.automaticCheckRetry.reset()
-      }
-      this.scheduleAutomaticCheck()
-      return snapshot.preferences
     })
     ipcMain.handle('app-update:check', async (event) => {
       this.assertSender(event, ['update'])

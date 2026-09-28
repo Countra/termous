@@ -1,6 +1,7 @@
+import { useSettingsModule, decodeMountSettings, settingsErrorCode } from '#entities/settings'
 import { Alert, Button, Input, InputNumber, Segmented, Spin, Tag } from 'antd'
 import { FolderOpen, HardDrive } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MountSettings as MountSettingsValue, MountSettingsState } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
@@ -17,64 +18,56 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
   const [directory, setDirectory] = useState('')
   const [capacity, setCapacity] = useState<number | null>(10)
   const [reserve, setReserve] = useState<number | null>(512)
-  const [operation, setOperation] = useState<'load' | 'save' | 'pick' | null>(null)
-  const busy = operation !== null
-  const [error, setError] = useState<string | null>(null)
+  const module = useSettingsModule('mount', { gateway: gateway ?? null })
+  const [savedRevision, setSavedRevision] = useState<number>()
+  const [picking, setPicking] = useState(false)
+  const busy = module.busy || picking
+  const operation = picking ? 'pick' : module.busy ? (state ? 'save' : 'load') : null
+  const [localError, setError] = useState<string | null>(null)
+  const conflict = settingsErrorCode(module.error) === 'SETTINGS_REVISION_CONFLICT'
+  const error = conflict ? t('settings.conflict') : module.error?.message ?? localError
   const [saved, setSaved] = useState(false)
   const pending = useRef(false)
-  const revision = useRef(0)
+  const lifetime = useRef<AbortController | null>(null)
   const bridge = getTermousBridge()?.files
-
-  const request = useCallback(async (settings?: MountSettingsValue) => {
-    if (pending.current) return
-    if (settings === undefined) {
-      setState(null)
-      setCustom(false)
-      setDirectory('')
-      setCapacity(10)
-      setReserve(512)
-      setOperation(null)
-    }
-    setError(null)
-    setSaved(false)
-    if (!gateway) return
-    const current = ++revision.current
-    pending.current = true
-    setOperation(settings === undefined ? 'load' : 'save')
-    try {
-      const next = settings === undefined ? await gateway.mountSettings() : await gateway.updateMountSettings(settings)
-      if (current !== revision.current) return
-      setState(next)
-      setCustom(Boolean(next.cache_directory))
-      setDirectory(next.cache_directory)
-      setCapacity(next.cache_max_bytes / 2 ** 30)
-      setReserve(next.cache_min_free_bytes / 2 ** 20)
-      setSaved(settings !== undefined)
-    } catch (err) {
-      if (current === revision.current) setError(err instanceof Error ? err.message : '')
-    } finally {
-      if (current === revision.current) { pending.current = false; setOperation(null) }
-    }
-  }, [gateway])
-
+  const accept = (next: MountSettingsState, revision: number) => {
+    setState(next); setSavedRevision(revision)
+    setCustom(Boolean(next.cache_directory)); setDirectory(next.cache_directory)
+    setCapacity(next.cache_max_bytes / 2 ** 30); setReserve(next.cache_min_free_bytes / 2 ** 20)
+  }
   useEffect(() => {
-    void request()
-    return () => { revision.current += 1; pending.current = false }
-  }, [request])
+    const controller = new AbortController()
+    lifetime.current = controller
+    setState(null); setPicking(false); setError(null); setSaved(false); pending.current = false
+    return () => { controller.abort() }
+  }, [gateway])
+  useEffect(() => {
+    if (module.snapshot && state === null) {
+      try { accept(decodeMountSettings(module.snapshot), module.snapshot.revision) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    }
+  }, [module.snapshot, state])
+  useEffect(() => { if (conflict && module.snapshot) setSavedRevision(module.snapshot.revision) }, [conflict, module.snapshot])
+  const request = async (settings?: MountSettingsValue) => {
+    if (busy || pending.current) return
+    setError(null); setSaved(false)
+    const next = settings ? await module.update({ ...settings }, savedRevision) : await module.refresh()
+    if (next) { accept(decodeMountSettings(next), next.revision); setSaved(settings !== undefined) }
+  }
 
   const pick = async () => {
     if (!bridge || pending.current) return
-    const current = ++revision.current
+    const controller = lifetime.current
+    if (!controller || controller.signal.aborted) return
     pending.current = true
-    setOperation('pick')
+    setPicking(true)
     setError(null)
     try {
       const selected = await bridge.pickDirectory()
-      if (current === revision.current && selected?.[0]) { setDirectory(selected[0]); setSaved(false) }
+      if (!controller.signal.aborted && selected?.[0]) { setDirectory(selected[0]); setSaved(false) }
     } catch (err) {
-      if (current === revision.current) setError(err instanceof Error ? err.message : '')
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : '')
     } finally {
-      if (current === revision.current) { pending.current = false; setOperation(null) }
+      if (!controller.signal.aborted) { pending.current = false; setPicking(false) }
     }
   }
   const value = custom ? directory.trim() : ''

@@ -7,8 +7,8 @@ describe('AgentSetupClient', () => {
   it('使用固定 Provider/目录路由并完整提交 revision 与风险确认字段', async () => {
     const timeoutSpy = vi.spyOn(window, 'setTimeout')
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse(settingsFixture(2)))
-      .mockResolvedValueOnce(jsonResponse(settingsFixture(3)))
+      .mockResolvedValueOnce(jsonResponse(settingsSnapshot(2)))
+      .mockResolvedValueOnce(jsonResponse(settingsSnapshot(3)))
       .mockResolvedValueOnce(jsonResponse(readinessFixture()))
       .mockResolvedValueOnce(jsonResponse({ readiness: readinessFixture() }))
       .mockResolvedValueOnce(jsonResponse(policyFixture(3)))
@@ -62,14 +62,14 @@ describe('AgentSetupClient', () => {
     await client.deleteModelProvider('apv/1', 5)
 
     expect(requestAt(fetchMock, 1)).toMatchObject({
-      path: '/api/v1/agent/settings', method: 'PATCH',
-      body: {
+      path: '/api/v1/settings/agent', method: 'PATCH',
+      body: { expected_revision: 2, patch: {
         default_model_id: 'apm-1', default_reasoning_level: 'high',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
         context_compaction_threshold_percent: 80,
         connect_ssh_profile_on_bind: false,
-        show_turn_token_usage: false, expected_revision: 2,
-      },
+        show_turn_token_usage: false,
+      } },
     })
     expect(requestAt(fetchMock, 5)).toMatchObject({
       path: '/api/v1/agent/model-providers', search: '?limit=16&cursor=cursor%2Fvalue',
@@ -182,4 +182,9 @@ function modelFixture(revision: number) {
     first_seen_at: '2026-08-28T00:00:00Z', last_seen_at: '2026-08-28T00:00:00Z', revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }
+}
+
+function settingsSnapshot(revision: number) {
+  const value = settingsFixture(revision)
+  return { id: 'agent', schema_version: 1, revision, value, state: { status: 'applied' } }
 }

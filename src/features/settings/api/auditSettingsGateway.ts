@@ -1,6 +1,3 @@
-import type { AuditSettings } from '#entities/audit'
+import type { SettingsGateway } from '#entities/settings'
 
-export interface AuditSettingsGateway {
-  auditSettings(signal?: AbortSignal): Promise<AuditSettings>
-  updateAuditSettings(patch: Partial<AuditSettings>, signal?: AbortSignal): Promise<AuditSettings>
-}
+export type AuditSettingsGateway = SettingsGateway

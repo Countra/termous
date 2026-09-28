@@ -2,14 +2,14 @@ import { Switch } from 'antd'
 import { Activity, MonitorPlay, RotateCw } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ConnectionSettings as ConnectionSettingsValue } from '#common/contracts'
+import type { ConnectionSettings as ConnectionSettingsValue, ConnectionSettingsPatch } from '#common/contracts'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './ConnectionSettings.module.scss'
 
 interface ConnectionSettingsProps {
   value: ConnectionSettingsValue
   disabled: boolean
-  onChange: (settings: ConnectionSettingsValue) => Promise<void>
+  onChange: (patch: ConnectionSettingsPatch) => Promise<void>
 }
 
 export function ConnectionSettings({ value, disabled, onChange }: ConnectionSettingsProps) {
@@ -28,7 +28,7 @@ export function ConnectionSettings({ value, disabled, onChange }: ConnectionSett
           hint={t('settings.sshKeepaliveHint')}
           checked={value.ssh_keepalive_enabled}
           disabled={disabled}
-          onChange={(checked) => void onChange({ ...value, ssh_keepalive_enabled: checked })}
+          onChange={(checked) => void onChange({ ssh_keepalive_enabled: checked })}
         />
         <SettingRow
           icon={<MonitorPlay size={15} aria-hidden="true" />}
@@ -36,7 +36,7 @@ export function ConnectionSettings({ value, disabled, onChange }: ConnectionSett
           hint={t('settings.remoteDesktopAutoReconnectHint')}
           checked={value.remote_desktop_auto_reconnect_enabled}
           disabled={disabled}
-          onChange={(checked) => void onChange({ ...value, remote_desktop_auto_reconnect_enabled: checked })}
+          onChange={(checked) => void onChange({ remote_desktop_auto_reconnect_enabled: checked })}
         />
         <SettingRow
           icon={<RotateCw size={15} aria-hidden="true" />}
@@ -44,7 +44,7 @@ export function ConnectionSettings({ value, disabled, onChange }: ConnectionSett
           hint={t('settings.forwardAutoReconnectHint')}
           checked={value.forward_auto_reconnect_enabled}
           disabled={disabled}
-          onChange={(checked) => void onChange({ ...value, forward_auto_reconnect_enabled: checked })}
+          onChange={(checked) => void onChange({ forward_auto_reconnect_enabled: checked })}
         />
       </div>
       <p className={styles.note}>{t('settings.connectionLimits')}</p>

@@ -5,14 +5,12 @@ export {
   syncImportedFontFaces,
 } from './model/terminalFonts.ts'
 export {
-  connectionSettingsEqual,
   defaultConnectionSettings,
   normalizeConnectionSettings,
 } from './model/connectionSettings.ts'
 export {
   completionProviderIds,
   completionProviderSettingsSignature,
-  completionSettingsEqual,
   defaultCompletionProviderSettings,
   defaultCompletionSettings,
   defaultTerminalSettings,
@@ -22,3 +20,8 @@ export {
   normalizeTerminalSettings,
 } from './model/terminalSettings.ts'
 export { terminalTheme } from './model/terminalTheme.ts'
+
+export { settingsErrorCode, SettingsModuleStore, decodeSettingsSnapshot, decodeSettingsCatalogue, decodeSettingsEvent, type SettingsTransport } from './model/moduleState.ts'
+
+export { SettingsGatewayContext, useSettingsModule, type SettingsGateway } from './model/useSettingsModule.ts'
+export { decodeMountSettings } from './model/mountSettings.ts'

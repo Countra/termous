@@ -4264,6 +4264,7 @@
     }
   },
   "settings": {
+    "conflict": "Settings changed elsewhere. The latest version is loaded and your draft is preserved. Review it before saving again.",
     "title": "Settings",
     "subtitle": "Application preferences, language, terminal, and data management",
     "tabGeneral": "General",

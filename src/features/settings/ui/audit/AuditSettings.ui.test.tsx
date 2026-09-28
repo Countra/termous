@@ -1,3 +1,4 @@
+import { SettingsModuleStore } from '#entities/settings'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { AuditSettings as Settings } from '#entities/audit'
@@ -7,12 +8,22 @@ import { AuditSettings } from './AuditSettings'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const initial: Settings = { enabled: true, retention_days: 90, max_records: 0 }
-function gateway(overrides: Partial<AuditSettingsGateway> = {}): AuditSettingsGateway {
-  return {
+interface AuditTestAPI {
+  auditSettings(signal?: AbortSignal): Promise<Settings>
+  updateAuditSettings(patch: Partial<Settings>, signal?: AbortSignal): Promise<Settings>
+}
+function gateway(overrides: Partial<AuditTestAPI> = {}): AuditSettingsGateway & AuditTestAPI {
+  const api: AuditTestAPI = {
     auditSettings: vi.fn(async () => initial),
     updateAuditSettings: vi.fn(async (patch) => ({ ...initial, ...patch })),
     ...overrides,
   }
+  let revision = 0
+  const store = new SettingsModuleStore({
+    read: async (_id, signal) => ({ id: 'audit', schema_version: 1, revision: ++revision, value: { ...await api.auditSettings(signal) }, state: { status: 'applied' } }),
+    update: async (_id, input, signal) => ({ id: 'audit', schema_version: 1, revision: ++revision, value: { ...await api.updateAuditSettings(input.patch, signal) }, state: { status: 'applied' } }),
+  })
+  return { ...api, getModule: (id) => store.snapshot(id), readModule: (id, signal) => store.read(id, signal), updateModule: (id, patch, options) => store.update(id, patch, options), subscribeSettings: store.subscribe }
 }
 
 describe('审计设置页', () => {
@@ -77,13 +88,13 @@ describe('审计设置页', () => {
     fireEvent.click(await screen.findByRole('switch', { name: '启用审计记录' }))
     const save = screen.getByRole('button', { name: '保存' })
     fireEvent.click(save); fireEvent.click(save)
-    expect(old.updateAuditSettings).toHaveBeenCalledOnce()
+    await waitFor(() => expect(old.updateAuditSettings).toHaveBeenCalledOnce())
     const signal = vi.mocked(old.updateAuditSettings).mock.calls[0][1]
     view.rerender(<AuditSettings gateway={next} disabled={false} />)
     expect(signal?.aborted).toBe(true)
     fireEvent.click(await screen.findByRole('switch', { name: '启用审计记录' }))
     fireEvent.click(save)
-    expect(next.updateAuditSettings).toHaveBeenCalledOnce()
+    await waitFor(() => expect(next.updateAuditSettings).toHaveBeenCalledOnce())
     await act(async () => { finishOld({ ...initial, retention_days: 7 }) })
     expect(screen.getByRole('switch')).toBeDisabled()
     expect(screen.getByRole('spinbutton', { name: '最长保留天数' })).toHaveValue('90')

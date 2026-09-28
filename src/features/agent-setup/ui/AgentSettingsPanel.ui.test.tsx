@@ -149,7 +149,7 @@ describe('AgentSettingsPanel', () => {
     }, expect.any(AbortSignal)))
   })
 
-  it('自动压缩阈值保存冲突时保留草稿，刷新后使用最新 revision', async () => {
+  it.each(['AGENT_REVISION_CONFLICT', 'SETTINGS_REVISION_CONFLICT'])('自动压缩阈值遇到 %s 时保留草稿，刷新后使用最新 revision', async (code) => {
     const user = userEvent.setup()
     const initial = readinessFixture(1)
     const latest = {
@@ -159,7 +159,7 @@ describe('AgentSettingsPanel', () => {
     const gateway = gatewayFixture({ readiness: initial })
     vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
     vi.mocked(gateway.updateSettings)
-      .mockRejectedValueOnce(new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409))
+      .mockRejectedValueOnce(new TermousApiError('revision conflict', code, 409))
       .mockResolvedValue({ ...latest.settings, context_compaction_threshold_percent: 85, revision: 3 })
     renderPanel(gateway)
     const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CompletionProviderId, CompletionSettings } from '#common/contracts'
+import type { CompletionProviderId, CompletionSettings, CompletionSettingsPatch } from '#common/contracts'
 import { completionProviderIds } from '#entities/settings'
 import { agentDefaultModelReasonKey, type AgentDefaultModelStatusView } from '#entities/agent'
 import surfaceStyles from '../SettingsSurface.module.scss'
@@ -19,7 +19,7 @@ import styles from './TerminalCompletionSettings.module.scss'
 interface TerminalCompletionSettingsProps {
   value: CompletionSettings
   disabled: boolean
-  onChange: (value: CompletionSettings) => Promise<void>
+  onChange: (patch: CompletionSettingsPatch) => Promise<void>
   modelStatus?: AgentDefaultModelStatusView
   onOpenAgentSettings?: () => void
 }
@@ -56,7 +56,7 @@ export function TerminalCompletionSettings({
 
   const updateSetting = async (
     settingKey: CompletionSettingKey,
-    nextValue: CompletionSettings,
+    nextValue: CompletionSettingsPatch,
   ) => {
     if (pendingKeysRef.current.size > 0) {
       return
@@ -87,7 +87,7 @@ export function TerminalCompletionSettings({
           disabled={disabled || pendingKeys.size > 0}
           loading={pendingKeys.has('enabled')}
           aria-label={t('settings.completionEnabled')}
-          onChange={(enabled) => void updateSetting('enabled', { ...value, enabled })}
+          onChange={(enabled) => void updateSetting('enabled', { enabled })}
         />
       </div>
       <div className={`${surfaceStyles.row} ${styles.row} ${styles['ai-row']}`}>
@@ -107,7 +107,7 @@ export function TerminalCompletionSettings({
           disabled={disabled || !value.enabled || pendingKeys.size > 0}
           loading={pendingKeys.has('ai_enabled')}
           aria-label={t('settings.completionAiEnabled')}
-          onChange={(ai_enabled) => void updateSetting('ai_enabled', { ...value, ai_enabled })}
+          onChange={(ai_enabled) => void updateSetting('ai_enabled', { ai_enabled })}
         />
       </div>
       <Collapse
@@ -159,9 +159,7 @@ export function TerminalCompletionSettings({
                       loading={pendingKeys.has(providerId)}
                       aria-label={t(`settings.completionProvider.${providerId}.name`)}
                       onChange={(enabled) => void updateSetting(providerId, {
-                        ...value,
                         providers: {
-                          ...value.providers,
                           [providerId]: enabled,
                         },
                       })}

@@ -24,16 +24,19 @@ import {
 } from '#features/agent-setup'
 import { TermousApiTransport } from '#shared/api'
 
+import { SettingsClient } from './settingsClient'
+
 const agentPath = '/api/v1/agent'
 const modelProbeTimeoutMs = 25_000
 
 export class AgentSetupClient extends TermousApiTransport implements AgentSetupGateway {
-  constructor(config: Partial<AppConfig> = {}) {
+  constructor(config: Partial<AppConfig> = {}, private readonly settingsCentre = new SettingsClient(config)) {
     super(config)
   }
 
-  settings(signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/settings`, { signal }).then(decodeAgentSettings)
+  async settings(signal?: AbortSignal) {
+    const snapshot = await this.settingsCentre.readModule('agent', signal)
+    return decodeAgentSettings({ ...snapshot.value, revision: snapshot.revision })
   }
 
   getDefaultModelStatus(options?: { signal?: AbortSignal }) {
@@ -50,7 +53,8 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
     show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/settings`, { method: 'PATCH', body: input, signal }).then(decodeAgentSettings)
+    const { expected_revision, ...patch } = input
+    return this.settingsCentre.updateModule('agent', patch, { expectedRevision: expected_revision, signal }).then((snapshot) => decodeAgentSettings({ ...snapshot.value, revision: snapshot.revision }))
   }
 
   readiness(signal?: AbortSignal) {

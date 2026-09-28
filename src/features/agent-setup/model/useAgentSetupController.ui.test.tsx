@@ -126,7 +126,7 @@ describe('useAgentSetupController', () => {
     expect(view.result.current.readiness?.settings).toEqual(updated)
   })
 
-  it('全局设置 revision 冲突后自动对账并保留冲突状态', async () => {
+  it.each(['AGENT_REVISION_CONFLICT', 'SETTINGS_REVISION_CONFLICT'])('全局设置 %s 冲突后自动对账并保留冲突状态', async (code) => {
     const original = readinessFixture(4, 'apm-1', 'high')
     const latest = readinessFixture(5, 'apm-1', 'off')
     const gateway = gatewayFixture({ readiness: original })
@@ -134,7 +134,7 @@ describe('useAgentSetupController', () => {
       .mockResolvedValueOnce(original)
       .mockResolvedValue(latest)
     vi.mocked(gateway.updateSettings).mockRejectedValue(
-      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+      new TermousApiError('revision conflict', code, 409),
     )
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))

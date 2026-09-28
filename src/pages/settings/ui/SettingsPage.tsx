@@ -1,13 +1,15 @@
-import { Bot, ClipboardList, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { SettingsGatewayContext, type SettingsGateway } from '#entities/settings'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useAgentDefaultModelStatus, type AgentDefaultModelStatusGateway } from '#entities/agent'
 import type {
   AppLanguage,
   AppearanceSettings,
   CompletionSettings,
+  CompletionSettingsPatch,
   ConnectionSettings,
+  ConnectionSettingsPatch,
   ShortcutSettings,
   ShortcutSettingsPatch,
   TerminalFont,
@@ -17,7 +19,6 @@ import type {
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
-import { McpIcon } from '#shared/ui'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
@@ -36,19 +37,11 @@ import {
 } from '#features/settings'
 import styles from './SettingsPage.module.scss'
 
-export type SettingsPageTabKey =
-  | 'general'
-  | 'terminal'
-  | 'connection'
-  | 'mount'
-  | 'shortcuts'
-  | 'agent'
-  | 'mcp'
-  | 'audit'
-  | 'data'
-  | 'updates'
+import { settingsPages, type SettingsPageTabKey } from '../model/registry'
+export type { SettingsPageTabKey } from '../model/registry'
 
 export interface SettingsPageProps {
+  settingsGateway?: SettingsGateway
   initialTab?: SettingsPageTabKey
   language: AppLanguage
   appearanceSettings: AppearanceSettings
@@ -71,8 +64,8 @@ export interface SettingsPageProps {
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
   onSshSmoothScrollChange: (enabled: boolean) => void
-  onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
-  onConnectionSettingsChange: (settings: ConnectionSettings) => Promise<void>
+  onCompletionSettingsChange: (patch: CompletionSettingsPatch) => Promise<void>
+  onConnectionSettingsChange: (patch: ConnectionSettingsPatch) => Promise<void>
   onShortcutSettingsChange: (patch: ShortcutSettingsPatch) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
@@ -80,6 +73,7 @@ export interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  settingsGateway,
   initialTab = 'general',
   language,
   appearanceSettings,
@@ -114,184 +108,111 @@ export function SettingsPage({
   const [activeTab, setActiveTab] = useState(initialTab)
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
-  return (
-    <section className={styles.page}>
-      <div className={styles['page-title-row']} data-tour="settings-workspace">
-        <div>
-          <h1>{t('settings.title')}</h1>
-          <p>{t('settings.subtitle')}</p>
+  const panels: Record<SettingsPageTabKey, ReactNode> = {
+    general: (
+      <div className={styles['tab-scroll']}>
+        <div className={styles['settings-stack']}>
+          <GeneralSettings
+            language={language}
+            appearanceSettings={appearanceSettings}
+            windowSettings={windowSettings}
+            disabled={actionBusy}
+            onLanguageChange={onLanguageChange}
+            onAppearanceSettingsChange={onAppearanceSettingsChange}
+            onWindowSettingsChange={onWindowSettingsChange}
+          />
+          <NotificationSettings disabled={actionBusy} />
         </div>
       </div>
-      <Tabs
-        className={styles.tabs}
-        activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as SettingsPageTabKey)}
-        items={[
-          {
-            key: 'general',
-            label: (
-              <span className={styles['tab-label']}>
-                <Settings2 size={15} aria-hidden="true" />
-                {t('settings.tabGeneral')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']}>
-                <div className={styles['settings-stack']}>
-                  <GeneralSettings
-                    language={language}
-                    appearanceSettings={appearanceSettings}
-                    windowSettings={windowSettings}
-                    disabled={actionBusy}
-                    onLanguageChange={onLanguageChange}
-                    onAppearanceSettingsChange={onAppearanceSettingsChange}
-                    onWindowSettingsChange={onWindowSettingsChange}
-                  />
-                  <NotificationSettings disabled={actionBusy} />
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: 'terminal',
-            label: (
-              <span className={styles['tab-label']} data-tour="settings-terminal-tab">
-                <SquareTerminal size={15} aria-hidden="true" />
-                {t('settings.tabTerminal')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']} data-tour="settings-terminal">
-                <div className={styles['settings-stack']}>
-                  <TerminalStyleSettings
-                    value={terminalSettings}
-                    sshSmoothScrollEnabled={sshSmoothScrollEnabled}
-                    fonts={terminalFonts}
-                    disabled={actionBusy}
-                    onChange={onTerminalSettingsChange}
-                    onSshSmoothScrollChange={onSshSmoothScrollChange}
-                    onUploadFont={onUploadTerminalFont}
-                    onDeleteFont={onDeleteTerminalFont}
-                  />
-                  <TerminalCompletionSettings
-                    value={completionSettings}
-                    disabled={actionBusy}
-                    onChange={onCompletionSettingsChange}
-                    modelStatus={modelStatus}
-                    onOpenAgentSettings={() => setActiveTab('agent')}
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: 'connection',
-            label: (
-              <span className={styles['tab-label']}>
-                <Network size={15} aria-hidden="true" />
-                {t('settings.tabConnection')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']}>
-                <ConnectionSettingsPanel
-                  value={connectionSettings}
-                  disabled={actionBusy}
-                  onChange={onConnectionSettingsChange}
-                />
-              </div>
-            ),
-          },
-          {
-            key: 'mount',
-            label: <span className={styles['tab-label']} data-tour="settings-mount-tab"><HardDrive size={15} aria-hidden="true" />{t('settings.tabMount')}</span>,
-            children: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
-          },
-          {
-            key: 'shortcuts',
-            label: (
-              <span className={styles['tab-label']}>
-                <Keyboard size={15} aria-hidden="true" />
-                {t('settings.tabShortcuts')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']}>
-                <ShortcutSettingsPanel
-                  value={shortcutSettings}
-                  platform={platform}
-                  onPatchChanges={(changes) => onShortcutSettingsChange({ changes })}
-                  onResetAll={() => onShortcutSettingsChange({ reset_all: true })}
-                />
-              </div>
-            ),
-          },
-          {
-            key: 'agent',
-            label: (
-              <span className={styles['tab-label']} data-tour="settings-agent-tab">
-                <Bot size={15} aria-hidden="true" />
-                {t('settings.tabAgent')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']} data-tour="settings-agent">
-                <AgentSettingsPanel gateway={agentSetupGateway} />
-              </div>
-            ),
-          },
-          {
-            key: 'mcp',
-            label: (
-              <span className={styles['tab-label']} data-tour="settings-mcp-tab">
-                <McpIcon size={15} aria-hidden="true" />
-                {t('settings.tabMcp')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']} data-tour="settings-mcp">
-                <McpSettingsPanel />
-              </div>
-            ),
-          },
-          {
-            key: 'audit',
-            label: <span className={styles['tab-label']}><ClipboardList size={15} aria-hidden="true" />{t('settings.tabAudit')}</span>,
-            children: <div className={styles['tab-scroll']}><AuditSettings gateway={auditSettingsGateway} disabled={actionBusy} /></div>,
-          },
-          {
-            key: 'data',
-            label: (
-              <span className={styles['tab-label']} data-tour="settings-data-tab">
-                <DatabaseBackup size={15} aria-hidden="true" />
-                {t('settings.tabData')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']} data-tour="settings-data">
-                <DataPortabilitySettings
-                  appVersion={appVersion}
-                  gateway={dataPortabilityGateway}
-                />
-              </div>
-            ),
-          },
-          {
-            key: 'updates',
-            label: (
-              <span className={styles['tab-label']}>
-                <RefreshCw size={15} aria-hidden="true" />
-                {t('settings.tabUpdates')}
-              </span>
-            ),
-            children: (
-              <div className={styles['tab-scroll']}>
-                <UpdateSettings updateRuntime={updatePreferencesRuntime} />
-              </div>
-            ),
-          },
-        ]}
-      />
-    </section>
+    ),
+    terminal: (
+      <div className={styles['tab-scroll']} data-tour="settings-terminal">
+        <div className={styles['settings-stack']}>
+          <TerminalStyleSettings
+            value={terminalSettings}
+            sshSmoothScrollEnabled={sshSmoothScrollEnabled}
+            fonts={terminalFonts}
+            disabled={actionBusy}
+            onChange={onTerminalSettingsChange}
+            onSshSmoothScrollChange={onSshSmoothScrollChange}
+            onUploadFont={onUploadTerminalFont}
+            onDeleteFont={onDeleteTerminalFont}
+          />
+          <TerminalCompletionSettings
+            value={completionSettings}
+            disabled={actionBusy}
+            onChange={onCompletionSettingsChange}
+            modelStatus={modelStatus}
+            onOpenAgentSettings={() => setActiveTab('agent')}
+          />
+        </div>
+      </div>
+    ),
+    connection: (
+      <div className={styles['tab-scroll']}>
+        <ConnectionSettingsPanel
+          value={connectionSettings}
+          disabled={actionBusy}
+          onChange={onConnectionSettingsChange}
+        />
+      </div>
+    ),
+    mount: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
+    shortcuts: (
+      <div className={styles['tab-scroll']}>
+        <ShortcutSettingsPanel
+          value={shortcutSettings}
+          platform={platform}
+          onPatchChanges={(changes) => onShortcutSettingsChange({ changes })}
+          onResetAll={() => onShortcutSettingsChange({ reset_all: true })}
+        />
+      </div>
+    ),
+    agent: (
+      <div className={styles['tab-scroll']} data-tour="settings-agent">
+        <AgentSettingsPanel gateway={agentSetupGateway} />
+      </div>
+    ),
+    mcp: (
+      <div className={styles['tab-scroll']} data-tour="settings-mcp">
+        <McpSettingsPanel />
+      </div>
+    ),
+    audit: <div className={styles['tab-scroll']}><AuditSettings gateway={auditSettingsGateway} disabled={actionBusy} /></div>,
+    data: (
+      <div className={styles['tab-scroll']} data-tour="settings-data">
+        <DataPortabilitySettings
+          appVersion={appVersion}
+          gateway={dataPortabilityGateway}
+        />
+      </div>
+    ),
+    updates: (
+      <div className={styles['tab-scroll']}>
+        <UpdateSettings updateRuntime={updatePreferencesRuntime} />
+      </div>
+    ),
+  }
+
+  return (
+    <SettingsGatewayContext.Provider value={settingsGateway ?? null}>
+      <section className={styles.page}>
+        <div className={styles['page-title-row']} data-tour="settings-workspace">
+          <div>
+            <h1>{t('settings.title')}</h1>
+            <p>{t('settings.subtitle')}</p>
+          </div>
+        </div>
+        <Tabs
+          className={styles.tabs}
+          activeKey={activeTab}
+          onChange={(key) => setActiveTab(key as SettingsPageTabKey)}
+          items={settingsPages.map((entry) => {
+            const Icon = entry.icon
+            return { key: entry.id, children: panels[entry.id], label: <span className={styles['tab-label']} data-tour={'tour' in entry ? entry.tour : undefined}><Icon size={15} aria-hidden="true" />{t(entry.title)}</span> }
+          })}
+        />
+      </section>
+    </SettingsGatewayContext.Provider>
   )
 }

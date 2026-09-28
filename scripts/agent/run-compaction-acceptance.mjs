@@ -89,7 +89,7 @@ async function runAcceptance() {
     heartbeat = setInterval(() => {
       renewal = renewal.then(register).catch((error) => { failure = error; activeWorker?.kill() })
     }, 10000)
-    const initialSettings = await api('/agent/settings')
+    const initialSettings = await api('/settings/agent')
     for (const mode of ['chat_completions', 'responses']) {
       const model = await ensureModel(mode)
       const session = await api('/agent/sessions', 'POST', {
@@ -134,7 +134,7 @@ async function runAcceptance() {
         }
       }
     }
-    assert.deepEqual(await api('/agent/settings'), initialSettings, '验收不得修改全局设置')
+    assert.deepEqual(await api('/settings/agent'), initialSettings, '验收不得修改全局设置')
     report.success = true
   } catch (error) {
     failure ??= error

@@ -121,3 +121,7 @@ node scripts/architecture/check.mjs --report-json
 ```
 
 该命令只输出报告，不修改 allowlist。
+
+## 统一设置中心
+
+`common` 定义纯模块合同，`entities/settings` 管理模块确认快照、revision、草稿和提交队列，`app/data-runtime` 按 Core／Electron／浏览器归属装配统一 Gateway；`features` 保留领域面板与资源操作，`pages/settings` 用注册项组合现有页签。桌面设置通过统一受控 IPC 接入，不迁入 Core；通知激活、更新执行及资源 CRUD 独立。详见[设置中心接入](settings-center.md)。

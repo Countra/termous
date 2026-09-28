@@ -15,10 +15,12 @@ import {
 } from '#features/mcp-access'
 import { TermousApiTransport } from '#shared/api'
 
+import { SettingsClient } from './settingsClient'
+
 const mcpPath = '/api/v1/mcp'
 
 export class McpAccessClient extends TermousApiTransport {
-  constructor(config: Partial<AppConfig> = {}) {
+  constructor(config: Partial<AppConfig> = {}, private readonly settingsCentre = new SettingsClient(config)) {
     super(config)
   }
 
@@ -26,12 +28,9 @@ export class McpAccessClient extends TermousApiTransport {
     return this.request<unknown>(`${mcpPath}/status`, { signal }).then(decodeMcpStatus)
   }
 
-  updateSettings(input: McpSettingsInput, signal?: AbortSignal) {
-    return this.request<unknown>(`${mcpPath}/settings`, {
-      method: 'PUT',
-      body: input,
-      signal,
-    }).then(decodeMcpStatus)
+  async updateSettings(input: McpSettingsInput, signal?: AbortSignal) {
+    await this.settingsCentre.updateModule('mcp', { enabled: input.enabled }, { expectedRevision: input.expected_revision, signal })
+    return this.status(signal)
   }
 
   clients(signal?: AbortSignal) {

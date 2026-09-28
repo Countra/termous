@@ -1,3 +1,5 @@
+import { desktopUpdateBridge, localSettingsGateway } from '#app/data-runtime'
+import { useSettingsModule } from '#entities/settings'
 import { NotificationControl } from '#app/notification-runtime'
 import type { NotificationTarget } from '#entities/notification'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
@@ -107,11 +109,11 @@ import { CoreFatalDialog } from './CoreFatalDialog'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
-const SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY = 'termous.ui.terminal.sshSmoothScroll.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
   const { i18n } = useTranslation()
+  const updateBridge = useMemo(() => desktopUpdateBridge(getTermousBridge()) ?? developmentUpdateSimulation?.mainBridge ?? null, [])
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
   const language: Language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
@@ -134,7 +136,7 @@ function App() {
   return (
     <TermousUiProvider language={language} theme={theme}>
       <UpdateRuntimeProvider
-        bridge={getTermousBridge()?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
+        bridge={updateBridge}
       >
         <AppContent theme={theme} setTheme={setTheme} />
       </UpdateRuntimeProvider>
@@ -254,10 +256,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [snippetsDirty, setSnippetsDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
-  const [sshSmoothScrollEnabled, setSshSmoothScrollEnabled] = usePersistentBooleanState(
-    SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY,
-    false,
-  )
+  const smoothScroll = useSettingsModule('terminal_local', { gateway: localSettingsGateway })
+  const sshSmoothScrollEnabled = smoothScroll.snapshot?.value.ssh_smooth_scroll === true
   const [selectedHostId, setSelectedHostId] = useState('')
   const [filesBookmarkManagementIntent, setFilesBookmarkManagementIntent] =
     useState<FilesBookmarkManagementIntent | null>(null)
@@ -1572,6 +1572,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
+                          settingsGateway={gateways.settings}
                           initialTab={settingsInitialTab}
                           language={data.settings.language}
                           appearanceSettings={data.settings.appearance}
@@ -1593,7 +1594,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
                           onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
                           onTerminalSettingsChange={saveTerminalSettings}
-                          onSshSmoothScrollChange={setSshSmoothScrollEnabled}
+                          onSshSmoothScrollChange={(enabled) => { void smoothScroll.update({ ssh_smooth_scroll: enabled }) }}
                           onCompletionSettingsChange={saveCompletionSettings}
                           onConnectionSettingsChange={saveConnectionSettings}
                           onShortcutSettingsChange={saveShortcutSettings}

@@ -191,8 +191,7 @@ const completionSettings: CompletionSettings = {
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   const handlers = {
     auditSettingsGateway: {
-      auditSettings: vi.fn(async () => ({ enabled: true, retention_days: 90, max_records: 0 })),
-      updateAuditSettings: vi.fn(async () => ({ enabled: false, retention_days: 90, max_records: 0 })),
+      getModule: vi.fn(), readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: vi.fn(() => () => {}),
     },
     agentSetupGateway: { readiness: vi.fn(async () => { throw new Error('unused') }) } as unknown as AgentSetupGateway,
     dataPortabilityGateway: {

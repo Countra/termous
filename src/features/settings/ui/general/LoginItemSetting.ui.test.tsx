@@ -1,15 +1,37 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { SettingsGatewayContext, SettingsModuleStore, type SettingsGateway } from '#entities/settings'
+import { act, fireEvent, render as testingRender, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { StrictMode } from 'react'
+import { StrictMode, useMemo, type ReactNode } from 'react'
 import { beforeEach, expect, test, vi } from 'vitest'
-import type { LoginItemBridge, LoginItemResponse, LoginItemState } from '#common/contracts'
+import type { LoginItemResponse, LoginItemState } from '#common/contracts'
 import { LoginItemSetting } from './LoginItemSetting'
 import { GeneralSettings } from './GeneralSettings'
 
+interface LoginItemBridge { get(): Promise<LoginItemResponse>; setEnabled(enabled: boolean): Promise<LoginItemResponse> }
 const state = vi.hoisted(() => ({ gateway: null as LoginItemBridge | null }))
-vi.mock('../../api/loginItemGateway', () => ({ getLoginItemGateway: () => state.gateway }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 const initial: LoginItemState = { available: true, enabled: false, unavailable_reason: null, requires_approval: false }
+
+function Fixture({ children }: { children: ReactNode }) {
+  const gateway = state.gateway
+  const settings = useMemo<SettingsGateway | null>(() => {
+    if (!gateway) return null
+    let revision = 0
+    const decode = async (result: Promise<LoginItemResponse>, current: number) => {
+      const response = await result
+      if (!response.ok) throw new Error(`LOGIN_ITEM_${response.error.toUpperCase()}`)
+      const { enabled, ...value } = response.value
+      return { id: 'login_item' as const, schema_version: 1, revision: current, value: { enabled }, state: { ...value, status: value.available ? 'applied' as const : 'unavailable' as const } }
+    }
+    const store = new SettingsModuleStore({ read: () => decode(gateway.get(), ++revision), update: (_id, input) => decode(gateway.setEnabled(input.patch.enabled as boolean), ++revision) })
+    return { getModule: (id) => store.snapshot(id), readModule: (id) => store.read(id), updateModule: (id, patch) => store.update(id, patch), subscribeSettings: store.subscribe }
+  }, [gateway])
+  return <SettingsGatewayContext.Provider value={settings}>{children}</SettingsGatewayContext.Provider>
+}
+function render(children: ReactNode) {
+  const view = testingRender(<Fixture>{children}</Fixture>)
+  return { ...view, rerender: (next: ReactNode) => view.rerender(<Fixture>{next}</Fixture>) }
+}
 
 beforeEach(() => {
   state.gateway = {
@@ -91,7 +113,7 @@ test('修改期间禁止重复提交，失败后读取实际状态而不重放�
   fireEvent.click(toggle)
   expect(toggle).toBeDisabled()
   expect(toggle).not.toBeChecked()
-  expect(state.gateway!.setEnabled).toHaveBeenCalledTimes(1)
+  await waitFor(() => expect(state.gateway!.setEnabled).toHaveBeenCalledTimes(1))
   await act(async () => finish({ ok: false, error: 'read_failed' }))
   expect(screen.getByRole('alert')).toHaveTextContent('settings.loginItem.errors.read_failed')
   state.gateway!.get = vi.fn().mockResolvedValue({ ok: true, value: { ...initial, enabled: true } })
@@ -106,7 +128,7 @@ test('严格模式丢弃旧读取结果，离开页面后移除焦点刷新监�
     .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
     .mockResolvedValue({ ok: true, value: { ...initial, enabled: true } })
   state.gateway!.get = get
-  const view = render(<StrictMode><LoginItemSetting disabled={false} /></StrictMode>)
+  const view = testingRender(<StrictMode><Fixture><LoginItemSetting disabled={false} /></Fixture></StrictMode>)
   const toggle = screen.getByRole('switch')
   await waitFor(() => expect(toggle).toBeChecked())
   await act(async () => finish({ ok: true, value: initial }))
