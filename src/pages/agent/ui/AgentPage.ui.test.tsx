@@ -2035,9 +2035,11 @@ describe('AgentPage', () => {
     expect(harness.connectResourceBinding).not.toHaveBeenCalled()
   })
 
-  it('开启自动连接后资源卡更换 SSH Profile 使用连接协调器', async () => {
+  it.each([false, true])('开启自动连接后资源卡更换 SSH Profile 使用连接协调器：模型目录延迟=%s', async (delayModels) => {
     const candidate = sshProfileSlashCandidate()
     const sourceSession = profileBoundSession()
+    const pendingModels = deferred<{ items: AgentModel[] }>()
+    if (delayModels) harness.models.mockReturnValueOnce(pendingModels.promise)
     harness.state = { ...workspaceState(), sessions: [sourceSession, sessions[1]!] }
     harness.connectResourceBinding.mockImplementationOnce(async (
       sessionId: string,
@@ -2055,10 +2057,20 @@ describe('AgentPage', () => {
     })
     await waitFor(() => expect(harness.resourceBindingConnection).toHaveBeenCalled())
 
+    if (delayModels) {
+      // 连接状态查询早于工作区就绪，不能据此调用尚未挂载的资源卡回调。
+      expect(harness.workspaceProps).toBeNull()
+      expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+      await act(async () => {
+        pendingModels.resolve({ items: [modelFixture()] })
+        await pendingModels.promise
+      })
+    }
+    await waitFor(() => expect(harness.workspaceProps?.onReplaceResourceBinding).toBeTypeOf('function'))
+    expect(harness.workspaceProps?.sshProfileAssociationMode).toBe('immediate')
+
     await act(async () => {
-      const replace = harness.workspaceProps?.onReplaceResourceBinding as (
-        reference: { kind: 'ssh_profile'; ssh_profile_id: string },
-      ) => Promise<boolean>
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as NonNullable<AgentWorkspaceProps['onReplaceResourceBinding']>
       expect(await replace({ kind: 'ssh_profile', ssh_profile_id: candidate.ssh_profile_id })).toBe(true)
     })
 
