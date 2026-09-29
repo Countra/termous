@@ -120,7 +120,9 @@ async function collectBundle(sourceDirectory) {
         size: Buffer.byteLength(content, 'utf8'),
         media_type: relativePath.endsWith('.yaml')
           ? 'application/yaml; charset=utf-8'
-          : 'text/markdown; charset=utf-8',
+          : relativePath.endsWith('.py')
+            ? 'text/x-python; charset=utf-8'
+            : 'text/markdown; charset=utf-8',
         content,
       })
     }
@@ -154,14 +156,19 @@ async function collectSkillFiles(skillRoot) {
   const entries = await readdir(skillRoot, { withFileTypes: true })
   const names = new Set(entries.map((entry) => entry.name))
   if (!names.has('SKILL.md')
-    || [...names].some((name) => name !== 'SKILL.md' && name !== 'references' && name !== 'agents')) {
+    || [...names].some((name) => name !== 'SKILL.md' && name !== 'references' && name !== 'agents' && name !== 'scripts')) {
     throw new Error(`Skill 目录包含未授权资源: ${path.basename(skillRoot)}`)
   }
   const files = ['SKILL.md']
   if (names.has('references')) {
     const referencesDirectory = path.join(skillRoot, 'references')
     await assertCanonicalDirectory(referencesDirectory, 'Skill references 目录')
-    files.push(...await collectMarkdownFiles(referencesDirectory, 'references'))
+    files.push(...await collectResourceFiles(referencesDirectory, 'references', '.md'))
+  }
+  if (names.has('scripts')) {
+    const scriptsDirectory = path.join(skillRoot, 'scripts')
+    await assertCanonicalDirectory(scriptsDirectory, 'Skill scripts 目录')
+    files.push(...await collectResourceFiles(scriptsDirectory, 'scripts', '.py'))
   }
   if (names.has('agents')) {
     const agentsDirectory = path.join(skillRoot, 'agents')
@@ -175,7 +182,7 @@ async function collectSkillFiles(skillRoot) {
   return files.sort(compareASCII)
 }
 
-async function collectMarkdownFiles(directory, prefix) {
+async function collectResourceFiles(directory, prefix, extension) {
   const entries = await readdir(directory, { withFileTypes: true })
   const files = []
   for (const entry of entries.sort((left, right) => compareASCII(left.name, right.name))) {
@@ -184,11 +191,11 @@ async function collectMarkdownFiles(directory, prefix) {
     }
     const relativePath = `${prefix}/${entry.name}`
     if (entry.isDirectory()) {
-      files.push(...await collectMarkdownFiles(path.join(directory, entry.name), relativePath))
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(...await collectResourceFiles(path.join(directory, entry.name), relativePath, extension))
+    } else if (entry.isFile() && entry.name.endsWith(extension)) {
       files.push(relativePath)
     } else {
-      throw new Error(`Skill references 仅允许 Markdown: ${relativePath}`)
+      throw new Error(`Skill ${prefix} 仅允许 ${extension} 文件: ${relativePath}`)
     }
   }
   return files

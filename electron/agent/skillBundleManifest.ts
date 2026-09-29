@@ -3,6 +3,7 @@ import {
   agentSkillBundleFormatVersion,
   calculateAgentSkillBundleFingerprint,
   skillResourceURI,
+  validSkillResourceMediaType,
   type AgentSkillCatalogEntry,
   type AgentSkillResource,
 } from './skillBundle.ts'
@@ -110,8 +111,7 @@ function parseManifestResource(value: unknown): AgentSkillManifestResource {
     || !Number.isSafeInteger(value.size)
     || Number(value.size) < 0
     || Number(value.size) > 512 * 1024
-    || (value.media_type !== 'text/markdown; charset=utf-8'
-      && value.media_type !== 'application/yaml; charset=utf-8')) {
+    || !validSkillResourceMediaType(value.uri, value.media_type)) {
     throw new AgentSkillBundleError('manifest_resource_invalid')
   }
   validateManifestRelativePath(value.path)

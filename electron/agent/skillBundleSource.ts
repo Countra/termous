@@ -151,12 +151,15 @@ async function listDevelopmentSkillFiles(skillRoot: string) {
   const rootEntries = await readdir(skillRoot, { withFileTypes: true })
   const rootNames = new Set(rootEntries.map((entry) => entry.name))
   if (!rootNames.has('SKILL.md')
-    || [...rootNames].some((name) => name !== 'SKILL.md' && name !== 'references' && name !== 'agents')) {
+    || [...rootNames].some((name) => name !== 'SKILL.md' && name !== 'references' && name !== 'agents' && name !== 'scripts')) {
     throw new AgentSkillBundleError('skill_layout_invalid')
   }
   const files = ['SKILL.md']
   if (rootNames.has('references')) {
     files.push(...await listFilesBelow(skillRoot, 'references', '.md'))
+  }
+  if (rootNames.has('scripts')) {
+    files.push(...await listFilesBelow(skillRoot, 'scripts', '.py'))
   }
   if (rootNames.has('agents')) {
     const agentFiles = await listFilesBelow(skillRoot, 'agents', '.yaml')
@@ -227,7 +230,9 @@ async function readResource(root: string, skillName: string, relativePath: strin
     size: Buffer.byteLength(content, 'utf8'),
     media_type: relativePath.endsWith('.yaml')
       ? 'application/yaml; charset=utf-8'
-      : 'text/markdown; charset=utf-8',
+      : relativePath.endsWith('.py')
+        ? 'text/x-python; charset=utf-8'
+        : 'text/markdown; charset=utf-8',
     content,
   } satisfies AgentSkillResource
 }

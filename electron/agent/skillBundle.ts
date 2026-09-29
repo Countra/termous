@@ -13,7 +13,7 @@ export interface AgentSkillResource {
   uri: string
   sha256: string
   size: number
-  media_type: 'text/markdown; charset=utf-8' | 'application/yaml; charset=utf-8'
+  media_type: 'text/markdown; charset=utf-8' | 'application/yaml; charset=utf-8' | 'text/x-python; charset=utf-8'
   content: string
 }
 
@@ -87,6 +87,14 @@ export function skillResourceURI(skillName: string, relativePath: string) {
   return `skill://${skillName}/${relativePath}`
 }
 
+export function validSkillResourceMediaType(uri: string, value: unknown): value is AgentSkillResource['media_type'] {
+  const scriptPath = /^skill:\/\/[^/]+\/scripts\//.test(uri)
+  const python = value === 'text/x-python; charset=utf-8'
+  // 脚本在所有加载入口都必须位于 scripts 下，并保持扩展名与媒体类型一致。
+  if (scriptPath || python) return scriptPath && python && uri.endsWith('.py')
+  return value === 'text/markdown; charset=utf-8' || value === 'application/yaml; charset=utf-8'
+}
+
 function assertSnapshotEntries(
   catalog: AgentSkillCatalogEntry[],
   resources: AgentSkillResource[],
@@ -116,8 +124,7 @@ function assertSnapshotEntries(
       || !Number.isSafeInteger(resource.size)
       || resource.size < 0
       || resource.size > 512 * 1024
-      || (resource.media_type !== 'text/markdown; charset=utf-8'
-        && resource.media_type !== 'application/yaml; charset=utf-8')
+      || !validSkillResourceMediaType(resource.uri, resource.media_type)
       || typeof resource.content !== 'string') {
       throw new Error('AGENT_SKILLS_RESOURCE_INVALID')
     }

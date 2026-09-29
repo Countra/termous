@@ -29,59 +29,19 @@ Windows 正式安装包在固定注册表路径保存安装元数据，供 Skill
 - 旧版安装、解压直接运行及开发环境不会自动产生记录。旧版用户安装或升级到支持该合同的安装包后才会有此记录；记录缺失时不要猜测安装目录。
 - 用户手动移动或删除程序后，记录可能失效，因此启动前仍须校验文件存在。
 
-## PowerShell 查询示例
+## Skill 查询与启动
 
-以下示例仅查询固定元数据，不启动应用，也不读取其他配置：
+`termous-skills` 仓库的 `skills/termous-desktop/scripts/termous_desktop.py` 是唯一维护的桌面操作实现，使用 Python 3.9+ 标准库，无第三方运行依赖。在已安装的 Skill 目录下调用：
 
-```powershell
-$termousInstall = & {
-    $ErrorActionPreference = 'Stop'
-    foreach ($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryHive]::LocalMachine)) {
-        $baseKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, [Microsoft.Win32.RegistryView]::Registry64)
-        try {
-            $key = $baseKey.OpenSubKey('Software\Termous\Install')
-            if ($null -eq $key) { continue }
-            try {
-                $schema = $key.GetValue('SchemaVersion')
-                $appId = $key.GetValue('AppId')
-                if ($schema -isnot [int] -or $schema -ne 1 -or
-                    $appId -isnot [string] -or $appId -cne 'dev.termous.app') { continue }
-                $installDirectory = $key.GetValue('InstallLocation')
-                $executable = $key.GetValue('ExecutablePath')
-                $version = $key.GetValue('DisplayVersion')
-                if ($installDirectory -isnot [string] -or $executable -isnot [string] -or
-                    $version -isnot [string] -or [string]::IsNullOrWhiteSpace($version)) { continue }
-                $absolutePathPattern = '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+(?:\\|$))'
-                if ($installDirectory -notmatch $absolutePathPattern -or
-                    $executable -notmatch $absolutePathPattern) { continue }
-                try {
-                    # 使用文件路径运算，避免失效盘符触发 PowerShell 驱动器错误。
-                    $installDirectory = [IO.Path]::GetFullPath($installDirectory)
-                    $expectedExecutable = [IO.Path]::GetFullPath([IO.Path]::Combine($installDirectory, 'Termous.exe'))
-                    $executable = [IO.Path]::GetFullPath($executable)
-                } catch [ArgumentException] { continue }
-                catch [NotSupportedException] { continue }
-                catch [IO.PathTooLongException] { continue }
-                if ($executable -ine $expectedExecutable -or
-                    -not (Test-Path -LiteralPath $expectedExecutable -PathType Leaf)) { continue }
-                return [pscustomobject]@{
-                    Version = $version
-                    InstallLocation = $installDirectory
-                    ExecutablePath = $expectedExecutable
-                    RegistryHive = $hive.ToString()
-                }
-            } finally {
-                $key.Dispose()
-            }
-        } finally {
-            $baseKey.Dispose()
-        }
-    }
-}
-$termousInstall
+```text
+python -B scripts/termous_desktop.py info
+python -B scripts/termous_desktop.py status
+python -B scripts/termous_desktop.py start
 ```
 
-取得用户对启动应用的授权后，可使用已验证的结果调用 `Start-Process -FilePath $termousInstall.ExecutablePath -WorkingDirectory $termousInstall.InstallLocation -ErrorAction Stop`。结果为空时先报告未找到有效安装；不要把注册表文本交给 `Invoke-Expression`，也不要自动提权或附加来源不明的启动参数。启动应用不代表 MCP 已启用，仍需使用用户配置的连接及权限。
+`info` 只查询元数据，`status` 进一步检查当前 Windows 会话进程，`start` 仅在用户明确要求且状态允许时发起一次启动。输出使用版本化 JSON，进程存在不代表窗口可见或 MCP 就绪；安装记录缺失、权限不足和启动未确认都应如实报告。实际调用应使用脚本的绝对路径，不再从文档提取代码或维护另一份查询实现。
+
+同一入口支持 macOS 应用包及 Linux AppImage，平台发现范围和参数见该 Skill 的 `references/platforms.md`。Skills 构建、开发读取、生产校验和安装流程支持 `scripts/**/*.py`，继续执行原有的普通文件、路径边界及哈希校验。资源读取和安装不会执行脚本，也不为内置 AI 助手新增本机执行权限。
 
 ## 验收
 
