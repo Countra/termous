@@ -43,7 +43,9 @@ $termousInstall = & {
             if ($null -eq $key) { continue }
             try {
                 $schema = $key.GetValue('SchemaVersion')
-                if ($schema -isnot [int] -or $schema -ne 1 -or $key.GetValue('AppId') -cne 'dev.termous.app') { continue }
+                $appId = $key.GetValue('AppId')
+                if ($schema -isnot [int] -or $schema -ne 1 -or
+                    $appId -isnot [string] -or $appId -cne 'dev.termous.app') { continue }
                 $installDirectory = $key.GetValue('InstallLocation')
                 $executable = $key.GetValue('ExecutablePath')
                 $version = $key.GetValue('DisplayVersion')
@@ -52,9 +54,16 @@ $termousInstall = & {
                 $absolutePathPattern = '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+(?:\\|$))'
                 if ($installDirectory -notmatch $absolutePathPattern -or
                     $executable -notmatch $absolutePathPattern) { continue }
-                $expectedExecutable = [IO.Path]::GetFullPath((Join-Path $installDirectory 'Termous.exe'))
-                if ([IO.Path]::GetFullPath($executable) -ine $expectedExecutable -or
-                    -not (Test-Path -LiteralPath $executable -PathType Leaf)) { continue }
+                try {
+                    # 使用文件路径运算，避免失效盘符触发 PowerShell 驱动器错误。
+                    $installDirectory = [IO.Path]::GetFullPath($installDirectory)
+                    $expectedExecutable = [IO.Path]::GetFullPath([IO.Path]::Combine($installDirectory, 'Termous.exe'))
+                    $executable = [IO.Path]::GetFullPath($executable)
+                } catch [ArgumentException] { continue }
+                catch [NotSupportedException] { continue }
+                catch [IO.PathTooLongException] { continue }
+                if ($executable -ine $expectedExecutable -or
+                    -not (Test-Path -LiteralPath $expectedExecutable -PathType Leaf)) { continue }
                 return [pscustomobject]@{
                     Version = $version
                     InstallLocation = $installDirectory
