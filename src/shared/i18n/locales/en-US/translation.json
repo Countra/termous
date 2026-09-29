@@ -18,7 +18,21 @@
     "pendingApproval": "Awaiting device approval",
     "syncTitle": "Cloud sync",
     "syncHint": "Sync hosts, credentials and configuration. Review changes before enabling. Remote file contents are excluded.",
+    "profile": {
+      "name": "Name",
+      "organization": "Company / organization",
+      "bio": "Bio",
+      "chooseAvatar": "Change avatar",
+      "removeAvatar": "Remove avatar",
+      "avatarHint": "PNG or JPEG, up to 2 MB. Automatically cropped to a centered square.",
+      "privateHint": "Profile details are stored by the cloud service. Local configuration is unaffected.",
+      "save": "Save profile",
+      "saved": "Profile saved",
+      "reload": "Reload",
+      "discard": "Discard unsaved changes and load the latest profile?"
+    },
     "tabs": {
+      "profile": "Profile",
       "sync": "Cloud sync",
       "devices": "Devices",
       "security": "Security"
@@ -33,6 +47,10 @@
       "reauthenticate": "Verify password"
     },
     "errors": {
+      "profile_conflict": "Your profile changed on another device. Your draft is preserved. Reload the latest profile before editing again.",
+      "profile_invalid": "Check the field lengths and special characters.",
+      "avatar_invalid": "Choose a valid PNG or JPEG image.",
+      "avatar_file_size": "Avatar files must be no larger than 2 MB.",
       "resource_in_use": "A connection or mount is using this configuration. Close the related sessions and retry.",
       "login_required": "Your session expired. Sign in again.",
       "network_unavailable": "Could not reach the cloud service. Try again later.",

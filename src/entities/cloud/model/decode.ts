@@ -1,4 +1,14 @@
 import type { CloudChallenge, CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import type { CloudProfile } from '#common/contracts'
+
+export function decodeCloudProfile(value: unknown): CloudProfile {
+  const r = record(value)
+  const revision = text(r.revision, 19)
+  const avatar = text(r.avatar, 349550)
+  if (!/^(0|[1-9]\d*)$/.test(revision) || BigInt(revision) > 9223372036854775807n) throw new Error('CLOUD_RESPONSE_INVALID')
+  if (avatar && !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar)) throw new Error('CLOUD_RESPONSE_INVALID')
+  return { user_id: text(r.user_id), name: text(r.name, 128), bio: text(r.bio, 400), organization: text(r.organization, 200), avatar, revision, updated_at: r.updated_at === null ? null : date(r.updated_at) }
+}
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('CLOUD_RESPONSE_INVALID')

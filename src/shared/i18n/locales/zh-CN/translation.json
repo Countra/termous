@@ -18,7 +18,21 @@
     "pendingApproval": "等待可信设备批准",
     "syncTitle": "云同步",
     "syncHint": "同步主机、凭据和常用配置。启用前可预览差异，不同步远程文件内容。",
+    "profile": {
+      "name": "名称",
+      "organization": "公司／组织",
+      "bio": "简介",
+      "chooseAvatar": "更换头像",
+      "removeAvatar": "移除头像",
+      "avatarHint": "支持 PNG、JPEG，最大 2 MB，自动居中裁剪为方形。",
+      "privateHint": "个人资料由云服务保存，不影响本机配置。",
+      "save": "保存资料",
+      "saved": "资料已保存",
+      "reload": "重新载入",
+      "discard": "放弃未保存的修改，载入最新资料？"
+    },
     "tabs": {
+      "profile": "个人资料",
       "sync": "云同步",
       "devices": "设备",
       "security": "安全"
@@ -33,6 +47,10 @@
       "reauthenticate": "验证密码"
     },
     "errors": {
+      "profile_conflict": "资料已在其他端修改。当前草稿已保留，请重新载入最新资料后再编辑。",
+      "profile_invalid": "请检查资料长度及特殊字符。",
+      "avatar_invalid": "请选择有效的 PNG 或 JPEG 图片。",
+      "avatar_file_size": "头像文件不能超过 2 MB。",
       "resource_in_use": "相关配置正在被连接或挂载使用，请关闭相关会话后重试。",
       "login_required": "登录已过期，请重新登录。",
       "network_unavailable": "无法连接云服务，请稍后重试。",

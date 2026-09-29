@@ -22,6 +22,17 @@
   font-size: 20px;
 }
 
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+
+  > div {
+    min-width: 0;
+  }
+}
+
 .profile strong {
   font-size: 18px;
   overflow-wrap: anywhere;

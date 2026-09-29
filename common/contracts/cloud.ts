@@ -67,4 +67,16 @@ export interface CloudPreviewItem { dataset: string; upload: number; download: n
 export interface CloudPreview { id: string; generation: string; items: CloudPreviewItem[]; blocked: boolean; error_code?: string }
 export interface CloudConflict { id: string; dataset: string; object_id: string; name: string; local_deleted: boolean; remote_deleted: boolean }
 export interface CloudRekeyStatus { id?: string; status: string; completed: number; total: number }
-export type CloudTab = 'sync' | 'devices' | 'security'
+export type CloudTab = 'profile' | 'sync' | 'devices' | 'security'
+
+export interface CloudProfile {
+  user_id: string
+  name: string
+  bio: string
+  organization: string
+  avatar: string
+  revision: string
+  updated_at: string | null
+}
+export type CloudProfileFields = Pick<CloudProfile, 'name' | 'bio' | 'organization' | 'avatar'>
+export type CloudProfilePatch = Partial<CloudProfileFields> & { expected_revision: string }

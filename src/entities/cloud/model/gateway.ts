@@ -1,6 +1,9 @@
 import type { CloudAuthAction, CloudChallenge, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import type { CloudProfile, CloudProfilePatch } from '#common/contracts'
 
 export interface CloudGateway {
+  profile(generation: string, signal?: AbortSignal): Promise<CloudProfile>
+  updateProfile(generation: string, patch: CloudProfilePatch, signal?: AbortSignal): Promise<CloudProfile>
   getStatus(): CloudStatus | undefined
   subscribeStatus(listener: () => void): () => void
   acceptStatus(value: CloudStatus): boolean

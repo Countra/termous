@@ -1,8 +1,16 @@
 import type { CloudAuthAction, CloudChallenge, CloudStatus } from '#common/contracts'
+import type { CloudProfilePatch } from '#common/contracts'
+import { decodeCloudProfile } from '#entities/cloud'
 import { CloudState, decodeCloudStatus, decodeCloudList, decodeCloudDevice, decodeCloudSession, decodeCloudPairing, decodeCloudApproval, decodeCloudPreview, decodeCloudConflict, decodeCloudRekey, type CloudGateway } from '#entities/cloud'
 import { TermousApiTransport } from '#shared/api'
 
 export class CloudClient extends TermousApiTransport implements CloudGateway {
+  profile(generation: string, signal?: AbortSignal) {
+    return this.request(`/api/v1/cloud/profile?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudProfile)
+  }
+  updateProfile(generation: string, patch: CloudProfilePatch, signal?: AbortSignal) {
+    return this.request('/api/v1/cloud/profile', { method: 'PATCH', body: { ...patch, generation }, signal, timeoutMs: 125_000 }).then(decodeCloudProfile)
+  }
   private readonly state = new CloudState()
   getStatus = this.state.snapshot
   subscribeStatus = this.state.subscribe
