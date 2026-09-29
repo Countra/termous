@@ -129,6 +129,9 @@ export function projectAgentMessages(
     const sourcePart = message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
       part.kind === 'text' && part.source_context !== undefined
     ))
+    const resourcePart = message.role === 'user' ? message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
+      part.kind === 'text' && part.resources !== undefined
+    )) : undefined
     const parts = interleaveActivities(
       projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
       message,
@@ -146,6 +149,7 @@ export function projectAgentMessages(
       parts,
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
+      resources: resourcePart?.resources,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
       duration_ms: message.role === 'assistant' && !streaming && (!messageRun || isAgentRunTerminal(messageRun.status))
         ? runDuration(messageRun?.started_at, messageRun?.completed_at)

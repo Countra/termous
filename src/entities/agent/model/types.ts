@@ -245,6 +245,13 @@ interface AgentResourceBindingBase {
   bound_at: string
 }
 
+export interface AgentMessageResource {
+  kind: AgentResourceKind
+  id: string
+  name: string
+  host_name?: string
+}
+
 export type AgentResourceBinding = AgentResourceBindingBase & (
   | { kind: 'ssh_session'; session_id: string; host_id: string; ssh_profile_id: string; host_name: string; platform: 'linux' }
   | { kind: 'ssh_profile'; host_id: string; ssh_profile_id: string; host_name: string; ssh_profile_name: string; platform: 'linux' }
@@ -419,7 +426,7 @@ export type AgentMessagePart = {
   created_at: string
   updated_at: string
 } & (
-  | { kind: 'text'; text: string; source_context?: AgentSourceContext; response_failure?: AgentResponseFailure }
+  | { kind: 'text'; text: string; source_context?: AgentSourceContext; resources?: AgentMessageResource[]; response_failure?: AgentResponseFailure }
   | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
   | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
   | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }

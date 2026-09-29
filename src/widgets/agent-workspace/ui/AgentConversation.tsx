@@ -17,6 +17,7 @@ import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
 import { AgentRetryActivity } from './AgentRetryActivity.tsx'
 import { AgentMessageFailure, AgentResponseFailure } from './AgentMessageFailure.tsx'
 import { AgentMessageActions } from './AgentMessageActions.tsx'
+import { AgentMessageResources } from './AgentMessageResources.tsx'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
@@ -149,6 +150,9 @@ const AgentMessageStack = memo(function AgentMessageStack({
             <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
           </header>
           <div className={styles['message-content']}>
+            {message.role === 'user' && message.resources?.length ? (
+              <AgentMessageResources resources={message.resources} />
+            ) : null}
             {message.source_context ? (
               <div className={styles['message-source']}><Waypoints size={12} />{message.source_context.title}</div>
             ) : null}

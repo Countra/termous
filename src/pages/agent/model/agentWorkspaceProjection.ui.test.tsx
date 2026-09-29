@@ -380,6 +380,7 @@ describe('Agent 工作区页面投影', () => {
         updated_at: '2026-08-29T00:00:00Z',
         kind: 'text',
         text: '检查连接',
+        resources: [{ kind: 'ssh_session', id: 'ses-original', name: '原关联主机' }],
         source_context: {
           kind: 'workbench', entity_id: 'host-one', title: '生产主机', summary: '连接中断',
         },
@@ -393,6 +394,7 @@ describe('Agent 工作区页面投影', () => {
 
     const [projected] = projectAgentMessages([message], undefined, [])
     expect(projected?.source_context?.entity_id).toBe('host-one')
+    expect(projected?.resources).toEqual([{ kind: 'ssh_session', id: 'ses-original', name: '原关联主机' }])
     expect(projected?.attachments[0]?.id).toBe('attachment-one')
   })
 

@@ -41,6 +41,7 @@ import {
   type AgentRunModelSnapshot,
   type AgentRunStatus,
   type AgentResourceBinding,
+  type AgentMessageResource,
   type AgentResourceKind,
   type AgentSourceContext,
   type AgentSession,
@@ -260,6 +261,9 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
       ...(kind === 'text' && body.source_context !== undefined
         ? { source_context: decodeAgentSourceContext(body.source_context) }
         : {}),
+      ...(kind === 'text' && body.resources !== undefined
+        ? { resources: decodeMessageResources(body.resources) }
+        : {}),
     }
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
@@ -360,6 +364,25 @@ export function decodeAgentAttachment(value: unknown): AgentAttachment {
     created_at: timestamp(source.created_at, 'Agent 附件创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 附件更新时间无效'),
   }
+}
+
+function decodeMessageResources(value: unknown): AgentMessageResource[] {
+  const resources = array(value, 'Agent 消息关联资源无效', 2).map((value): AgentMessageResource => {
+    const source = record(value, 'Agent 消息关联资源无效')
+    const id = identifier(source.id, 'Agent 消息关联资源 ID 无效')
+    const name = utf8(source.name, 'Agent 消息关联资源名称无效', 1_024)
+    const hostName = optionalString(source.host_name, 'Agent 消息关联主机名称无效', 1_024)
+    if (!/^[A-Za-z0-9_-]+$/.test(id) || name.includes('\0') || hostName?.includes('\0')) {
+      throw new AgentRuntimeProtocolError('Agent 消息关联资源身份或名称无效')
+    }
+    return {
+      kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 消息关联资源类型无效'),
+      id, name,
+      ...(hostName === undefined ? {} : { host_name: hostName }),
+    }
+  })
+  unique(resources.map(({ kind }) => agentResourceSlot(kind)), 'Agent 消息关联资源槽位重复')
+  return resources
 }
 
 export function decodeAgentSourceContext(value: unknown): AgentSourceContext {

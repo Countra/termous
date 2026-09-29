@@ -48,6 +48,30 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it('用户正文上方展示发送时关联的资源，旧消息与助手回复不显示关联标签', async () => {
+    const linked: AgentWorkspaceMessage = {
+      ...message('查看镜像'), id: 'user-linked', role: 'user', status: 'completed',
+      resources: [
+        { kind: 'ssh_session', id: 'ses-original', name: 'TX-HK' },
+        { kind: 'file_profile', id: 'file-original', name: '备份', host_name: '文件主机' },
+      ],
+    }
+    const legacy = { ...message('旧消息'), id: 'user-legacy', role: 'user' as const }
+    const assistant = { ...message('回复'), id: 'assistant', resources: linked.resources }
+    const view = render(<AgentConversation messages={[linked, legacy, assistant]} runStatus="completed" loading={false} sessionKey="one" />)
+    expect(screen.getAllByRole('group', { name: 'agent.message.resources' })).toHaveLength(1)
+    const group = screen.getByRole('group', { name: 'agent.message.resources' })
+    expect(within(group).getByText('TX-HK')).toBeVisible()
+    expect(within(group).getByText('备份')).toBeVisible()
+    expect(group.compareDocumentPosition(screen.getByText('查看镜像')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(group).queryByRole('button')).not.toBeInTheDocument()
+    fireEvent.focus(within(group).getByLabelText('agent.message.resourceKind.ssh_session · TX-HK'))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('ses-original')
+    view.rerender(<AgentConversation messages={[{ ...linked, resources: [{ kind: 'ssh_profile', id: 'ssh-one', name: '运维配置' }] }]} runStatus="completed" loading={false} sessionKey="two" />)
+    expect(screen.getByText('运维配置')).toBeVisible()
+    expect(screen.queryByText('TX-HK')).not.toBeInTheDocument()
+  })
+
   it('每条消息仅在正文下方操作行显示时间，头部不再重复显示', () => {
     const assistant = { ...message('助手正文'), status: 'completed' as const, duration_ms: 12_000 }
     const user = { ...message('用户正文'), id: 'message-user', role: 'user' as const, status: 'completed' as const }

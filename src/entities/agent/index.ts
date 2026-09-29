@@ -35,6 +35,7 @@ export {
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentResourceBinding,
+  type AgentMessageResource,
   type AgentResourceBindingUpdateInput,
   type AgentResourceKind,
   type AgentResourceSlot,

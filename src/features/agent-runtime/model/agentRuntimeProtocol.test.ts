@@ -312,6 +312,32 @@ test('消息协议投影附件与结构化来源上下文', () => {
   })), /附件归属/)
 })
 
+test('消息关联快照在历史与增量中一致，旧消息不推断当前绑定', () => {
+  const resources = [
+    { kind: 'ssh_session', id: 'ses-one', name: 'TX-HK' },
+    { kind: 'file_profile', id: 'file-one', name: '备份', host_name: '文件主机' },
+  ]
+  const response = (value?: unknown) => messageResponse({
+    role: 'user', status: 'completed',
+    parts: [partResponse('text', { text: { text: '检查镜像', ...(value === undefined ? {} : { resources: value }) } })],
+  })
+  const decoded = decodeAgentMessage(response(resources))
+  assert.deepEqual(decoded.parts[0]?.kind === 'text' ? decoded.parts[0].resources : undefined, resources)
+  const event = decodeAgentWorkspaceEvent({ type: 'upsert', revision: 2, message: response(resources) })
+  assert.deepEqual(event.type === 'upsert' ? event.message : undefined, decoded)
+  const legacy = decodeAgentMessage(response()).parts[0]
+  assert.equal(legacy?.kind === 'text' ? legacy.resources : undefined, undefined)
+  assert.throws(() => decodeAgentMessage(response([resources[0], { kind: 'ssh_profile', id: 'ssh-one', name: '运维' }])), /槽位重复/)
+  assert.throws(() => decodeAgentMessage(response([{ kind: 'unknown', id: 'one', name: 'test' }])), /资源类型无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], id: '' }])), /资源 ID 无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], id: 'ses/one' }])), /身份或名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], name: 'x'.repeat(1_025) }])), /资源名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], host_name: 'x'.repeat(1_025) }])), /主机名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], name: '名称\0' }])), /身份或名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], host_name: '主机\0' }])), /身份或名称无效/)
+  assert.doesNotThrow(() => decodeAgentMessage(response([{ ...resources[1], host_name: ' ' }])))
+})
+
 test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量', () => {
   const usage = {
     input_tokens: 120,

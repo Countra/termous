@@ -11,6 +11,7 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
+  AgentMessageResource,
   AgentResourceReference,
   AgentResourceKind,
   AgentSessionGroup,
@@ -161,6 +162,7 @@ export interface AgentWorkspaceMessage {
   parts: AgentWorkspaceMessagePart[]
   attachments: AgentAttachment[]
   source_context?: AgentSourceContext
+  resources?: AgentMessageResource[]
   usage?: AgentUsage
   duration_ms?: number
   error_code?: string

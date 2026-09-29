@@ -454,6 +454,12 @@
       "action": "Ask AI assistant"
     },
     "message": {
+      "resources": "Resources linked when sent",
+      "resourceKind": {
+        "ssh_session": "SSH session",
+        "ssh_profile": "SSH profile",
+        "file_profile": "File profile"
+      },
       "copied": "Copied",
       "copyFailed": "Copy failed. Try again.",
       "duration": "Took {{duration}}",

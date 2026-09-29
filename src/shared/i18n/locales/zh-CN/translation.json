@@ -454,6 +454,12 @@
       "action": "交给 AI 助手"
     },
     "message": {
+      "resources": "发送时关联的资源",
+      "resourceKind": {
+        "ssh_session": "SSH 会话",
+        "ssh_profile": "SSH 配置",
+        "file_profile": "文件配置"
+      },
       "copied": "已复制",
       "copyFailed": "复制失败，请重试",
       "duration": "用时 {{duration}}",
