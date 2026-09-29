@@ -3,7 +3,7 @@ import { Alert, Button, Empty, Input, Modal, Space, Tag } from 'antd'
 import { Check, Copy, Laptop, Plus, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudChallenge, CloudDevice, CloudStatus } from '#common/contracts'
-import type { CloudGateway } from '#entities/cloud'
+import { decodeCloudChallenge, type CloudGateway } from '#entities/cloud'
 import styles from './CloudAccount.module.scss'
 
 interface Props {
@@ -56,11 +56,11 @@ export function AccountDevices({ api, status, busy, run }: Props) {
       <h3>{t('cloud.approveDevice')}</h3>
       <Input.TextArea value={request} onChange={(event) => setRequest(event.target.value)} rows={4} maxLength={16_384} aria-label={t('cloud.pairRequest')} placeholder={t('cloud.pastePairing')} />
       <Button disabled={!request || busy} onClick={() => void run(async () => {
-        const value: unknown = JSON.parse(request)
-        if (!value || typeof value !== 'object' || !('signing_key' in value) || !('recipient' in value) || typeof value.signing_key !== 'string' || typeof value.recipient !== 'string') throw new Error('pairing_invalid')
+        let value: CloudChallenge
+        try { value = decodeCloudChallenge(JSON.parse(request)) } catch { throw new Error('pairing_invalid') }
         const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${value.signing_key}\0${value.recipient}`))
         const fingerprint = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('')
-        setCandidate({ challenge: value as CloudChallenge, fingerprint })
+        setCandidate({ challenge: value, fingerprint })
       })}>{t('cloud.reviewDevice')}</Button>
       {approvalRoot ? <Alert type="success" title={t('cloud.deviceApproved')} description={<Space direction="vertical"><span>{t('cloud.returnTrustRoot')}</span><code className={styles.mono}>{approvalRoot}</code><Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={() => void run(async () => { await navigator.clipboard.writeText(approvalRoot); setCopied(true) })}>{t('cloud.copy')}</Button></Space>} /> : null}
     </>}

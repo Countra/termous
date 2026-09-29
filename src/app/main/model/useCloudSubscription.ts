@@ -29,7 +29,9 @@ export function useCloudSubscription(api: CloudGateway, enabled: boolean, blocke
     enabled, eventsUrl, decode: decodeCloudEvent,
     onAwaitingSnapshot: () => { connection.current++; pending.current.clear() },
     onSnapshot: (event) => {
-      if (!api.acceptStatus(event.status)) return
+      api.acceptStatus(event.status)
+      // HTTP 可先返回更高版本的状态；同一绑定的数据失效提示仍须处理，避免列表永久停留在旧值。
+      if (api.getStatus()?.generation !== event.status.generation) return
       if (event.type === 'datasets') event.datasets?.forEach((dataset) => pending.current.add(dataset))
       if ((event.type === 'snapshot' || event.type === 'resync') && event.status.confirmed) cloudDatasets.forEach((dataset) => pending.current.add(dataset))
       void flush()

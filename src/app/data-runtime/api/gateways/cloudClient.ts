@@ -10,8 +10,9 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   private async readStatus(request: Promise<unknown>) {
     const epoch = this.state.epoch
     const value = decodeCloudStatus(await request)
-    this.state.accept(value, epoch)
-    return value
+    if (this.state.accept(value, epoch)) return value
+    // 调用方也必须获得已合并的当前状态，通知跳转不能使用被状态层拒绝的旧账号响应。
+    return this.state.snapshot()!
   }
   status(signal?: AbortSignal) { return this.readStatus(this.request('/api/v1/cloud/status', { signal })) }
   eventsUrl() { return this.websocketUrl('/api/v1/cloud/events') }

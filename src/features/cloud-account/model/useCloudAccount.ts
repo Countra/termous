@@ -22,6 +22,9 @@ export function useCloudAccount(api: CloudGateway) {
   useEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
+    pending.current = false
+    setBusy(false)
+    setError(undefined)
     void refresh()
     return () => controller.abort()
   }, [refresh])
@@ -41,11 +44,10 @@ export function useCloudAccount(api: CloudGateway) {
     } catch (cause) {
       if (!controller.signal.aborted) {
         await refresh()
-        setError(cause instanceof Error ? cause.message : 'local_failed')
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'local_failed')
       }
     } finally {
-      pending.current = false
-      if (!controller.signal.aborted) setBusy(false)
+      if (!controller.signal.aborted) { pending.current = false; setBusy(false) }
     }
   }, [refresh])
 

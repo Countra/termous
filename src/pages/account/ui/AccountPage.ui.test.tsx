@@ -63,4 +63,14 @@ describe('云账号页', () => {
     await act(async () => { logged.state.accept({ ...initial, generation: 'next', revision: 3 }) })
     expect(screen.queryByRole('tab', { name: '安全' })).not.toBeInTheDocument()
   })
+
+  it.each(['{', JSON.stringify({ signing_key: 'synthetic-key', recipient: 'synthetic-recipient' })])('拒绝不完整的设备配对材料并显示明确错误：%s', async (request) => {
+    const { cloud, gateway } = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'active' })
+    render(<SettingsGatewayContext value={gateway}><AccountPage api={cloud} initialTab="devices" /></SettingsGatewayContext>)
+    fireEvent.change(await screen.findByLabelText('生成配对请求'), { target: { value: request } })
+    fireEvent.click(screen.getByRole('button', { name: '核对设备' }))
+    expect(await screen.findByText('配对请求格式不正确，请重新复制。')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '核对设备' })).toBeEnabled()
+  })
 })
