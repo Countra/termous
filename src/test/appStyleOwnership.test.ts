@@ -83,7 +83,7 @@ test('共享表单和弹层样式通过显式 Module root 消费', () => {
     assert.doesNotMatch(globalStyles, new RegExp(`^\\.${selector}(?=[\\s.,:{])`, 'm'))
   }
 
-  assert.match(source('../features/docker/ui/DockerPanel.tsx'), /customSelectStyles\['select-dropdown'\]/)
+  assert.match(source('../features/docker/ui/DockerContainersPanel.tsx'), /customSelectStyles\['select-dropdown'\]/)
   assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\['search-input'\]/)
   assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\.tooltip/)
   assert.match(source('../features/local-download/ui/LocalDownloadMappingPane.tsx'), /confirmDialogStyles\.modal/)

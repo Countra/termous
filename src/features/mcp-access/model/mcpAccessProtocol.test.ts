@@ -261,6 +261,31 @@ test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
   assert.equal(approval?.targets[0]?.host_name, '测试主机')
 })
 
+test('Docker 资源审批保留明确目标与网络选项，拒绝不完整摘要', () => {
+  const decode = (operation: Record<string, unknown>) => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1,
+    items: [{ ...approvalFixture('pending'), kind: 'remoteops', operation: { domain: 'docker', ...operation } }],
+  }).items[0]?.operation
+  assert.equal(decode({ resource_kind: 'networks', action: 'create', resource_name: 'app', internal: false })?.internal, false)
+  const network = decode({ resource_kind: 'networks', action: 'connect', resource_id: 'network-id', target_resource_id: 'container-id', target_resource_name: 'web' })
+  assert.equal(network?.target_resource_id, 'container-id')
+  assert.equal(network?.target_resource_name, 'web')
+  assert.equal(decode({ resource_kind: 'images', action: 'tag', resource_id: 'image-id', image_tag: 'app:v2' })?.image_tag, 'app:v2')
+  for (const operation of [
+    { resource_kind: 'unknown', action: 'remove', resource_id: 'id' },
+    { resource_kind: null, action: 'remove', resource_id: 'id' },
+    { resource_kind: 1, action: 'remove', resource_id: 'id' },
+    { resource_kind: '', action: 'remove', resource_id: 'id' },
+    { resource_kind: 'volumes', action: 'tag', resource_id: 'data' },
+    { resource_kind: 'volumes', action: 'remove' },
+    { resource_kind: 'networks', action: 'create', resource_name: 'app' },
+    { resource_kind: 'networks', action: 'create', resource_name: 'app', internal: 'false' },
+    { resource_kind: 'networks', action: 'connect', resource_id: 'network-id' },
+    { resource_kind: 'images', action: 'tag', resource_id: 'image-id' },
+  ]) assert.throws(() => decode(operation), McpAccessProtocolError)
+  assert.equal(decode({ action: 'restart', resource_id: 'container-id' })?.action, 'restart')
+})
+
 test('MCP 审批协议解码端口转发和代码片段操作摘要', () => {
   const snapshot = decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',

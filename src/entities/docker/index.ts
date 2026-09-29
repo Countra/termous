@@ -17,3 +17,7 @@ export type {
   DockerListResult,
   DockerLogsResult,
 } from './model/types.ts'
+export type {
+  DockerResourceKind, DockerResource, DockerResourceQuery, DockerResourceList,
+  DockerResourceDetail, DockerResourceCreateRequest, DockerResourceActionRequest, DockerResourceActionResult,
+} from './model/resources.ts'

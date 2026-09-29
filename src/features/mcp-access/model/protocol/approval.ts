@@ -178,6 +178,28 @@ function decodeMcpApprovalOperation(
 ): McpApprovalOperation {
   const operation = requireRecord(value, 'MCP 审批操作无效')
   const action = requireString(operation.action, 'MCP 审批操作类型缺失')
+  const resourceKind = operation.resource_kind === undefined
+    ? undefined
+    : requireString(operation.resource_kind, 'MCP Docker 资源类型无效')
+  if (resourceKind && !['images', 'volumes', 'networks'].includes(resourceKind)) {
+    throw new McpAccessProtocolError('MCP Docker 资源类型无效')
+  }
+  const internal = optionalBoolean(operation.internal, 'MCP Docker 内部网络标识无效')
+  if (kind === 'remoteops' && operation.domain === 'docker' && resourceKind
+    && (state === 'pending' || state === 'dispatching')) {
+    const actions = resourceKind === 'images'
+      ? ['tag', 'remove']
+      : resourceKind === 'volumes' ? ['create', 'remove'] : ['create', 'connect', 'disconnect', 'remove']
+    if (!actions.includes(action)) throw new McpAccessProtocolError('MCP Docker 资源操作无效')
+    requireString(action === 'create' ? operation.resource_name : operation.resource_id, 'MCP Docker 审批目标缺失')
+    if (action === 'tag') requireString(operation.image_tag, 'MCP Docker 目标标签缺失')
+    if (action === 'connect' || action === 'disconnect') {
+      requireString(operation.target_resource_id, 'MCP Docker 目标容器缺失')
+    }
+    if (action === 'create' && resourceKind === 'networks' && internal === undefined) {
+      throw new McpAccessProtocolError('MCP Docker 网络隔离选项缺失')
+    }
+  }
   const overwritePolicy = optionalString(operation.overwrite_policy)
   if (overwritePolicy && !overwritePolicies.has(overwritePolicy as McpApprovalOperation['overwrite_policy'])) {
     throw new McpAccessProtocolError('MCP 文件管理审批冲突策略无效')
@@ -224,6 +246,11 @@ function decodeMcpApprovalOperation(
       : optionalString(operation.domain),
     resource_id: optionalString(operation.resource_id),
     resource_name: optionalString(operation.resource_name),
+    resource_kind: resourceKind as McpApprovalOperation['resource_kind'],
+    target_resource_id: optionalString(operation.target_resource_id),
+    target_resource_name: optionalString(operation.target_resource_name),
+    image_tag: optionalString(operation.image_tag),
+    internal,
     signal: optionalString(operation.signal),
     timeout_seconds: optionalNonNegativeInteger(operation.timeout_seconds, 'MCP 审批超时时间无效'),
     schedule: optionalString(operation.schedule),

@@ -22,7 +22,7 @@ const serviceLogsSource = readFileSync(
 )
 const docker = readStyle('../features/docker/ui/DockerPanel.module.scss')
 const dockerSource = readFileSync(
-  fileURLToPath(new URL('../features/docker/ui/DockerPanel.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/docker/ui/DockerContainersPanel.tsx', import.meta.url)),
   'utf8',
 )
 const firewall = readStyle('../features/firewall/ui/FirewallPanel.module.scss')

@@ -20,6 +20,11 @@ export interface McpApprovalOperation {
   domain?: string
   resource_id?: string
   resource_name?: string
+  resource_kind?: 'images' | 'volumes' | 'networks'
+  target_resource_id?: string
+  target_resource_name?: string
+  image_tag?: string
+  internal?: boolean
   signal?: string
   timeout_seconds?: number
   schedule?: string

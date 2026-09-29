@@ -7,6 +7,8 @@ import type {
   DockerContainerStats,
   DockerListResult,
   DockerLogsResult,
+  DockerResourceKind, DockerResourceQuery, DockerResourceList, DockerResourceDetail,
+  DockerResourceCreateRequest, DockerResourceActionRequest, DockerResourceActionResult,
 } from '#entities/docker'
 
 interface DockerRequestOptions {
@@ -14,6 +16,10 @@ interface DockerRequestOptions {
 }
 
 export interface DockerGateway {
+  sessionDockerResources(sessionId: string, kind: DockerResourceKind, query?: DockerResourceQuery, options?: DockerRequestOptions): Promise<DockerResourceList>
+  sessionDockerResourceDetail(sessionId: string, kind: DockerResourceKind, ref: string, options?: DockerRequestOptions): Promise<DockerResourceDetail>
+  sessionDockerResourceCreate(sessionId: string, kind: 'volumes' | 'networks', input: DockerResourceCreateRequest): Promise<DockerResourceActionResult>
+  sessionDockerResourceAction(sessionId: string, kind: DockerResourceKind, ref: string, input: DockerResourceActionRequest): Promise<DockerResourceActionResult>
   sessionDockerCapability(sessionId: string, options?: DockerRequestOptions): Promise<DockerCapability>
   sessionDockerContainers(
     sessionId: string,

@@ -15,6 +15,10 @@ const container: DockerContainerSummary = {
 async function setup(item = container) {
   const onOpenShell = vi.fn()
   const api: DockerGateway = {
+    sessionDockerResources: vi.fn(),
+    sessionDockerResourceDetail: vi.fn(),
+    sessionDockerResourceCreate: vi.fn(),
+    sessionDockerResourceAction: vi.fn(),
     sessionDockerCapability: vi.fn<DockerGateway['sessionDockerCapability']>(async () => ({ available: true, status: 'available', collected_at: '' })),
     sessionDockerContainers: vi.fn(async () => ({ items: [item], total: 1, filtered: 1, collected_at: '' })),
     sessionDockerContainerDetail: vi.fn(async () => ({ summary: item, collected_at: '' })),

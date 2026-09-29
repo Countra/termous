@@ -46,6 +46,8 @@ interface UseSessionDockerOptions {
   api: DockerGateway
   session: DockerSessionContext | null
   enabled: boolean
+  invalidationRevision?: number
+  onResourcesChanged?: (sessionId: string) => void
 }
 
 export const defaultDockerQuery: SessionDockerQueryState = {
@@ -95,7 +97,7 @@ function normalizeDockerLogTail(tail: number) {
   return Math.min(Math.trunc(tail), maxDockerLogTail)
 }
 
-export function useSessionDocker({ api, session, enabled }: UseSessionDockerOptions) {
+export function useSessionDocker({ api, session, enabled, invalidationRevision = 0, onResourcesChanged }: UseSessionDockerOptions) {
   const statesRef = useRef<Record<string, SessionDockerState>>({})
   const capabilityAbortRef = useRef<AbortController | null>(null)
   const listAbortRef = useRef<AbortController | null>(null)
@@ -109,6 +111,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
   const logsRevisionRef = useRef<Record<string, number>>({})
   const actionRefreshRef = useRef<Set<string>>(new Set())
   const actionRevisionRef = useRef<Record<string, number>>({})
+  const observedInvalidations = useRef<Record<string, number>>({})
   const [states, setStates] = useState<Record<string, SessionDockerState>>({})
   const sessionId = session?.id ?? ''
   const supported = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
@@ -145,6 +148,15 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
   }, [])
 
   useEffect(() => () => abortReadRequests(), [abortReadRequests, enabled, sessionId, supported])
+
+  useEffect(() => {
+    if ((observedInvalidations.current[sessionId] ?? 0) === invalidationRevision) return
+    observedInvalidations.current[sessionId] = invalidationRevision
+    actionRevisionRef.current[sessionId] = (actionRevisionRef.current[sessionId] ?? 0) + 1
+    updateSessionState(sessionId, (value) => (
+      value.list || value.loadingList || value.loadingCapability ? { ...value, refreshRequired: true } : value
+    ))
+  }, [invalidationRevision, sessionId, updateSessionState])
 
   const updateQuery = useCallback(
     (patch: Partial<SessionDockerQueryState>) => {
@@ -470,10 +482,11 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
         }
         return result
       } finally {
+        onResourcesChanged?.(sessionId)
         updateSessionState(sessionId, (current) => ({ ...current, actionRef: '' }))
       }
     },
-    [api, enabled, refreshChangedContainer, sessionId, supported, updateSessionState],
+    [api, enabled, onResourcesChanged, refreshChangedContainer, sessionId, supported, updateSessionState],
   )
 
   useEffect(() => {

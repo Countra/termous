@@ -360,7 +360,7 @@ describe('McpSettingsPanel', () => {
 
     const tooltip = await screen.findByRole('tooltip')
     for (const scope of scopes) {
-      expect(within(tooltip).getByText(`settings.mcp.scope.${scope.replace(':', '_')}`)).toBeInTheDocument()
+      expect(within(tooltip).getByText(`settings.mcp.scope.${scope.replace(/:/g, '_')}`)).toBeInTheDocument()
     }
   })
 

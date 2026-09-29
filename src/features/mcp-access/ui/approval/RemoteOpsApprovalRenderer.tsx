@@ -2,6 +2,9 @@ import {
   Activity,
   CalendarClock,
   Container,
+  HardDrive,
+  Layers,
+  Network,
   ServerCog,
   type LucideIcon,
 } from 'lucide-react'
@@ -12,9 +15,13 @@ import styles from '../McpApprovalCoordinator.module.scss'
 
 export function RemoteOpsApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
-  const Icon = remoteOpsDomainIcons[operation.domain ?? ''] ?? ServerCog
-  const domainKey = remoteOpsDomainKeys[operation.domain ?? '']
-    ?? 'settings.mcp.approval.remoteOpsDomain.other'
+  const resourceKind = operation.domain === 'docker' ? operation.resource_kind : undefined
+  const Icon = resourceKind
+    ? dockerResourceIcons[resourceKind]
+    : remoteOpsDomainIcons[operation.domain ?? ''] ?? ServerCog
+  const domainKey = resourceKind
+    ? `settings.mcp.approval.dockerResource.${resourceKind}`
+    : remoteOpsDomainKeys[operation.domain ?? ''] ?? 'settings.mcp.approval.remoteOpsDomain.other'
   const actionKey = remoteOpsActionKeys[operation.action]
     ?? 'settings.mcp.approval.remoteOpsAction.other'
   const resource = formatRemoteOpsResource(operation)
@@ -28,6 +35,30 @@ export function RemoteOpsApprovalRenderer({ operation }: { operation: McpApprova
 
       {resource ? (
         <ApprovalValue label={t('settings.mcp.approval.resource')} value={resource} />
+      ) : null}
+      {resourceKind && operation.image_tag ? (
+        <ApprovalValue label={t('settings.mcp.approval.dockerImageTag')} value={operation.image_tag} code />
+      ) : null}
+      {resourceKind === 'images' && operation.action === 'tag' ? (
+        <ApprovalValue label={t('settings.mcp.approval.impact')} value={t('settings.mcp.approval.dockerTagImpact')} />
+      ) : null}
+      {resourceKind && operation.target_resource_id ? (
+        <ApprovalValue
+          label={t('settings.mcp.approval.dockerContainer')}
+          value={[operation.target_resource_name, operation.target_resource_id].filter(Boolean).join(' · ')}
+        />
+      ) : null}
+      {resourceKind && operation.internal !== undefined ? (
+        <ApprovalValue
+          label={t('settings.mcp.approval.dockerInternal')}
+          value={t(operation.internal ? 'settings.mcp.approval.enabled' : 'settings.mcp.approval.disabled')}
+        />
+      ) : null}
+      {resourceKind && operation.action === 'remove' ? (
+        <ApprovalValue
+          label={t('settings.mcp.approval.impact')}
+          value={t(resourceKind === 'volumes' ? 'settings.mcp.approval.dockerVolumeRemoval' : 'settings.mcp.approval.dockerRemoval')}
+        />
       ) : null}
       {operation.schedule ? (
         <ApprovalValue label={t('settings.mcp.approval.schedule')} value={operation.schedule} code />
@@ -78,6 +109,8 @@ const remoteOpsDomainKeys: Record<string, string> = {
   crontab: 'settings.mcp.approval.remoteOpsDomain.crontab',
 }
 
+const dockerResourceIcons = { images: Layers, volumes: HardDrive, networks: Network }
+
 const remoteOpsDomainIcons: Record<string, LucideIcon> = {
   system: ServerCog,
   process: Activity,
@@ -104,6 +137,10 @@ const remoteOpsActionKeys: Record<string, string> = {
   create: 'settings.mcp.approval.remoteOpsAction.create',
   update: 'settings.mcp.approval.remoteOpsAction.update',
   delete: 'settings.mcp.approval.remoteOpsAction.delete',
+  remove: 'settings.mcp.approval.remoteOpsAction.delete',
+  tag: 'settings.mcp.approval.remoteOpsAction.tag',
+  connect: 'settings.mcp.approval.remoteOpsAction.connect',
+  disconnect: 'settings.mcp.approval.remoteOpsAction.disconnect',
 }
 
 function formatRemoteOpsResource(operation: McpApprovalOperation) {

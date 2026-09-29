@@ -638,6 +638,43 @@ describe('McpApprovalCoordinator', () => {
       headline: /remoteOpsDomain\.services.*remoteOpsAction\.mask/,
       details: ['nginx.service'],
     },
+    {
+      name: 'Docker 镜像标签',
+      operation: {
+        domain: 'docker', resource_kind: 'images', action: 'tag', resource_id: 'sha256:image', image_tag: 'app:v2',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.images.*remoteOpsAction\.tag/,
+      details: ['sha256:image', 'app:v2', 'settings.mcp.approval.dockerTagImpact'],
+    },
+    {
+      name: 'Docker 数据卷删除',
+      operation: {
+        domain: 'docker', resource_kind: 'volumes', action: 'remove', resource_id: 'data',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.volumes.*remoteOpsAction\.delete/,
+      details: ['data', 'settings.mcp.approval.dockerVolumeRemoval'],
+    },
+    {
+      name: 'Docker 网络连接',
+      operation: {
+        domain: 'docker', resource_kind: 'networks', action: 'connect', resource_id: 'network-id',
+        target_resource_id: 'container-id', target_resource_name: 'web',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.networks.*remoteOpsAction\.connect/,
+      details: ['network-id', 'web · container-id'],
+    },
+    {
+      name: 'Docker 非内部网络创建',
+      operation: {
+        domain: 'docker', resource_kind: 'networks', action: 'create', resource_name: 'app', internal: false,
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.networks.*remoteOpsAction\.create/,
+      details: ['app', 'settings.mcp.approval.disabled'],
+    },
   ])('展示$name审批摘要', ({ operation, headline, details }) => {
     testState.approvals = [{
       ...approvalFixture('2026-08-13T00:00:30Z'),

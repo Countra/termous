@@ -31,6 +31,21 @@ test('Scope 目录统一提供默认、审批和展示元数据', () => {
   assert.ok(mcpScopeCatalog.every((entry) => entry.labelKey && entry.descriptionKey))
 })
 
+test('Docker 资源权限独立、默认关闭，管理权限要求审批', () => {
+  const group = mcpScopeGroups.find((entry) => entry.key === 'docker')
+  for (const kind of ['images', 'volumes', 'networks']) {
+    for (const action of ['read', 'manage']) {
+      const entry = mcpScopeCatalog.find((item) => item.scope === `docker:${kind}:${action}`)
+      assert.ok(entry)
+      assert.ok(group?.scopes.includes(entry.scope))
+      assert.equal(entry.defaultEnabled, false)
+      assert.equal(entry.requiresApproval, action === 'manage')
+      assert.equal(entry.destructive, action === 'manage')
+      assert.equal(entry.labelKey, `settings.mcp.scope.docker_${kind}_${action}`)
+    }
+  }
+})
+
 test('文件管理删除独立授权、默认关闭并要求高风险审批', () => {
   const deletion = mcpScopeCatalog.find((entry) => entry.scope === 'files:delete')
   assert.ok(deletion)

@@ -20,7 +20,7 @@ const servicePanelSource = readFileSync(
   'utf8',
 )
 const dockerPanelSource = readFileSync(
-  fileURLToPath(new URL('../features/docker/ui/DockerPanel.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/docker/ui/DockerContainersPanel.tsx', import.meta.url)),
   'utf8',
 )
 const detailsPanelSource = readFileSync(

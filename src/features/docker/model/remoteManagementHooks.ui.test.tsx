@@ -45,6 +45,28 @@ function deferred<T>() {
 }
 
 describe('远端管理运行时合同', () => {
+  it('网络变更使已缓存的容器列表和详情在返回时重新读取', async () => {
+    const api = {
+      sessionDockerCapability: vi.fn(async () => dockerCapability),
+      sessionDockerContainers: vi.fn(async () => dockerList),
+      sessionDockerContainerDetail: vi.fn(async () => dockerDetail),
+    } as unknown as DockerGateway
+    const view = renderHook(({ enabled, revision }) => useSessionDocker({
+      api, session: connectedSession, enabled, invalidationRevision: revision,
+    }), { initialProps: { enabled: true, revision: 0 } })
+    await waitFor(() => expect(view.result.current.list).toEqual(dockerList))
+    await act(async () => { await view.result.current.selectContainer('container-a') })
+    view.rerender({ enabled: false, revision: 1 })
+    expect(api.sessionDockerContainers).toHaveBeenCalledTimes(1)
+    view.rerender({ enabled: true, revision: 1 })
+    await waitFor(() => expect(api.sessionDockerContainerDetail).toHaveBeenCalledTimes(2))
+    expect(api.sessionDockerContainers).toHaveBeenCalledTimes(2)
+    expect(api.sessionDockerCapability).toHaveBeenCalledTimes(1)
+    view.rerender({ enabled: false, revision: 1 })
+    view.rerender({ enabled: true, revision: 1 })
+    expect(api.sessionDockerContainers).toHaveBeenCalledTimes(2)
+  })
+
   it('Docker 启用后加载能力与列表，并保持查询转换语义', async () => {
     const sessionDockerCapability = vi.fn(async () => dockerCapability)
     const sessionDockerContainers = vi.fn(async () => dockerList)

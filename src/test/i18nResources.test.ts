@@ -247,8 +247,17 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
 })
 
 test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
+  for (const kind of ['images', 'volumes', 'networks']) {
+    assertBilingualString(`settings.mcp.approval.dockerResource.${kind}`)
+  }
+  for (const field of ['dockerImageTag', 'dockerTagImpact', 'dockerContainer', 'dockerInternal', 'impact', 'dockerVolumeRemoval', 'dockerRemoval']) {
+    assertBilingualString(`settings.mcp.approval.${field}`)
+  }
+  for (const action of ['tag', 'connect', 'disconnect']) {
+    assertBilingualString(`settings.mcp.approval.remoteOpsAction.${action}`)
+  }
   for (const scope of mcpScopes) {
-    const key = scope.replace(':', '_')
+    const key = scope.replace(/:/g, '_')
     assertBilingualString(`settings.mcp.scope.${key}`)
     assertBilingualString(`settings.mcp.scopeDescription.${key}`)
   }
