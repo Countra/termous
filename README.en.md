@@ -209,3 +209,7 @@ The Windows installer publishes the installation directory, version, and executa
 
 - Read the [changelog](./docs/CHANGELOG.md) for release updates.
 - Use [GitHub Issues](https://github.com/Countra/termous/issues) to report problems or suggest improvements.
+
+### Optional cloud account and sync
+
+Open Account from the bottom-left Account & Settings menu to manage authentication, synchronization, trusted devices, and security. Cloud access is unconfigured by default. Signing in never uploads local data automatically: authorize the device, review the differences, and explicitly confirm sync first. Configuration objects use end-to-end encryption; remote file contents, AI conversations, and machine-local settings remain outside sync. Offline features and local backups remain independent.

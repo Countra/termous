@@ -220,3 +220,7 @@ Windows 安装包通过固定的 `Software\Termous\Install` 注册表项提供�
 
 - 查看 [更新日志](./docs/CHANGELOG.md) 了解版本变化。
 - 通过 [GitHub Issues](https://github.com/Countra/termous/issues) 反馈问题或提出建议。
+
+### 可选云账号与同步
+
+从左下角“账号与设置”进入账号页，可管理登录、云同步、可信设备和安全。云服务默认未配置；登录不会自动上传，授权设备后先预览并确认差异。配置采用对象级端到端加密，不同步远程文件正文、AI 会话及本机设置，现有离线功能保持可用。详见[云账号说明](docs/cloud-account.md)。

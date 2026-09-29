@@ -2,6 +2,8 @@ import { desktopUpdateBridge, localSettingsGateway } from '#app/data-runtime'
 import { useSettingsModule } from '#entities/settings'
 import { NotificationControl } from '#app/notification-runtime'
 import type { NotificationTarget } from '#entities/notification'
+import type { CloudTab } from '#common/contracts'
+import { useCloudSubscription } from './model/useCloudSubscription'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -34,6 +36,7 @@ import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
+import { AccountPage } from '#pages/account'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
@@ -320,6 +323,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   const notificationNavigationBlocked = useRef(false)
+  const [accountInitialTab, setAccountInitialTab] = useState<CloudTab>('sync')
+  useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
   useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
     if (target.kind === 'approval') {
@@ -333,6 +338,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     if (hostSavingRef.current || notificationNavigationBlocked.current) return false
     try {
+      if (target.kind === 'cloud') {
+        const status = await gateways.cloud.status()
+        // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
+        if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
+        setAccountInitialTab(target.tab)
+        setPage('account')
+        return true
+      }
       if (target.kind === 'agent') {
         const session = await gateways.agentWorkspace.session(target.session_id)
         if (session.archived_at || hostSavingRef.current || notificationNavigationBlocked.current) return false
@@ -1573,6 +1586,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} initialTab={accountInitialTab} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           settingsGateway={gateways.settings}

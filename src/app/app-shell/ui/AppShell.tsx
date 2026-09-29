@@ -19,6 +19,7 @@ import {
   Settings,
   Shell,
   TerminalSquare,
+  UserRound,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -64,6 +65,7 @@ const navItems = [
 
 const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {
   workbench: MonitorCog,
+  account: UserRound,
 }
 
 const helpDropdownClassName = [
@@ -189,17 +191,21 @@ export function AppShell({
         </nav>
         <div className={styles['sidebar-footer']}>
           <div className={styles['sidebar-footer-actions']}>
-            <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
+            <Dropdown trigger={['click']} placement="topLeft" classNames={{ root: helpDropdownClassName }}
+              menu={{ items: [
+                { key: 'account', label: t('nav.account'), icon: <UserRound size={15} /> },
+                { key: 'settings', label: t('nav.settings'), icon: <Settings size={15} /> },
+              ], onClick: ({ key }) => { if (key === 'account' || key === 'settings') onNavigate(key) } }}>
               <Button
                 type="text"
-                className={`${styles['nav-item']} ${styles['sidebar-settings-button']} ${page === 'settings' ? styles['is-active'] : ''}`}
-                onClick={() => onNavigate('settings')}
-                aria-label={t('nav.settings')}
+                className={`${styles['nav-item']} ${styles['sidebar-settings-button']} ${page === 'settings' || page === 'account' ? styles['is-active'] : ''}`}
+                aria-label={t('cloud.accountAndSettings')}
+                aria-haspopup="menu"
                 icon={<Settings size={18} aria-hidden="true" />}
               >
-                <span>{t('nav.settings')}</span>
+                <span>{t('cloud.accountAndSettings')}</span>
               </Button>
-            </Tooltip>
+            </Dropdown>
             <span className={styles['product-tour-trigger']} data-tour="product-tour-trigger">
               <Tooltip title={t('productTour.helpButton')} placement={sidebarCollapsed ? 'right' : 'top'}>
                 <Dropdown

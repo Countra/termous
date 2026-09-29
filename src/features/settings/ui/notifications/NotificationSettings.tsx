@@ -6,7 +6,7 @@ import { useSettingsModule } from '#entities/settings'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './NotificationSettings.module.scss'
 
-const notificationCategories = ['agent', 'file', 'approval'] as const
+const notificationCategories = ['agent', 'file', 'approval', 'cloud'] as const
 
 export function NotificationSettings({ disabled = false }: { disabled?: boolean }) {
   const { t } = useTranslation()

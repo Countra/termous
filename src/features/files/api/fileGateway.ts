@@ -25,6 +25,7 @@ import type {
 } from '#entities/file'
 
 export interface AdvancedRenameGateway {
+  subscribeFileRenamePresets?: (listener: () => void) => () => void
   fileRenamePresets: () => Promise<FileRenamePreset[]>
   createFileRenamePreset: (input: FileRenamePresetInput) => Promise<FileRenamePreset>
   updateFileRenamePreset: (

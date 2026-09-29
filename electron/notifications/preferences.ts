@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { validateNotificationPreferences, type NotificationPreferences } from '#common/contracts'
 
-const defaults: NotificationPreferences = { enabled: true, agent: true, file: true, approval: true }
+const defaults: NotificationPreferences = { enabled: true, agent: true, file: true, approval: true, cloud: true }
 
 export class NotificationPreferencesStore {
   private value = { ...defaults }

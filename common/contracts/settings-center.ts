@@ -1,4 +1,4 @@
-export const coreSettingsModules = ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp'] as const
+export const coreSettingsModules = ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp', 'cloud'] as const
 export type CoreSettingsModule = typeof coreSettingsModules[number]
 export const desktopSettingsModules = ['notifications', 'updates', 'login_item'] as const
 export type DesktopSettingsModule = typeof desktopSettingsModules[number]

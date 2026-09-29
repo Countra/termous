@@ -1,4 +1,6 @@
 import { NotificationClient } from './gateways/notificationClient'
+import { CloudClient } from './gateways/cloudClient'
+import type { CloudGateway } from '#entities/cloud'
 import type { NotificationGateway } from '#entities/notification'
 import type { AuditGateway } from '#features/audit'
 import { AuditClient } from './gateways/auditClient'
@@ -47,6 +49,8 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly invalidateFileRenamePresets: () => void
+  readonly cloud: CloudGateway
   readonly notifications: NotificationGateway
   readonly audit: AuditGateway
   readonly agentSetup: AgentSetupGateway
@@ -112,6 +116,8 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    cloud: new CloudClient(config),
+    invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),
     notifications,
     audit,
     agentSetup,
@@ -292,6 +298,7 @@ function createFileGateway(
     ),
     localPathMappingStat: (id, path, signal) => catalog.localPathMappingStat(id, path, signal),
     fileRenamePresets: () => rename.fileRenamePresets(),
+    subscribeFileRenamePresets: (listener) => rename.subscribeFileRenamePresets(listener),
     createFileRenamePreset: (input) => rename.createFileRenamePreset(input),
     updateFileRenamePreset: (id, expectedUpdatedAt, input) => (
       rename.updateFileRenamePreset(id, expectedUpdatedAt, input)

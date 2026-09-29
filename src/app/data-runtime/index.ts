@@ -1,4 +1,5 @@
 export { useTermousData } from './useTermousData'
+export { cloudDatasets } from './model/cloudCatalog'
 export {
   createRuntimeGateways,
   createRuntimeGatewaysFromConfig,

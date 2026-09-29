@@ -8,7 +8,7 @@ import { NotificationRuntime } from './runtime.ts'
 test('消息 IPC 只接受主窗口，激活确认不接受路径或命令', () => {
   const handlers = new Map<string, (event: IpcMainInvokeEvent, payload?: unknown) => unknown>()
   const ipcMain = { handle: (channel: string, fn: (event: IpcMainInvokeEvent, payload?: unknown) => unknown) => handlers.set(channel, fn), removeHandler: (channel: string) => handlers.delete(channel) } as unknown as IpcMain
-  const runtime = new NotificationRuntime({ background: () => false, supported: () => false, preferences: () => ({ enabled: true, agent: true, file: true, approval: true }), language: () => 'en-US', create: () => { throw new Error('不得投递') }, activate() {}, warn() {} })
+  const runtime = new NotificationRuntime({ background: () => false, supported: () => false, preferences: () => ({ enabled: true, agent: true, file: true, cloud: true, approval: true }), language: () => 'en-US', create: () => { throw new Error('不得投递') }, activate() {}, warn() {} })
   const trusted = {} as IpcMainInvokeEvent
   const dispose = registerNotificationIPC({ ipcMain, runtime, trusted: (event) => event === trusted })
   for (const handler of handlers.values()) assert.throws(() => handler({} as IpcMainInvokeEvent), /NOT_ALLOWED/)

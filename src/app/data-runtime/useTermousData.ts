@@ -1,4 +1,5 @@
 import { useSettingsSubscription } from './model/useSettingsSubscription'
+import { loadCloudCatalog, mergeCloudCatalog } from './model/cloudCatalog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TermousApiError } from '#shared/api'
 import {
@@ -87,6 +88,17 @@ export function useTermousData() {
   const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
   const [runtimeConfigReady, setRuntimeConfigReady] = useState(false)
   const [data, setData] = useState<AppData>(initialData)
+  const cloudDataRef = useRef(data)
+  cloudDataRef.current = data
+  const reloadCloudDatasets = useCallback(async (datasets: string[], current: () => boolean) => {
+    const before = cloudDataRef.current
+    const patch = await loadCloudCatalog(gateways.snapshot, datasets)
+    if (!current() || Object.keys(patch).some((key) => cloudDataRef.current[key as keyof AppData] !== before[key as keyof AppData])) {
+      throw new Error('cloud_refresh_deferred')
+    }
+    setData((value) => current() ? mergeCloudCatalog(value, before, patch) : value)
+    if (datasets.includes('file_rename_presets')) gateways.invalidateFileRenamePresets()
+  }, [gateways])
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [apiReady, setApiReady] = useState(false)
@@ -637,6 +649,7 @@ export function useTermousData() {
     () => ({
       reload: () => load('background'),
       reloadSilent: () => load('silent'),
+      reloadCloudDatasets,
       reloadForwardsSilent: () => reloadForwards(),
       reloadSnippetsSilent: (eventRevision?: number) => reloadSnippets(eventRevision),
       resetSnippetEventCursor,
@@ -708,6 +721,7 @@ export function useTermousData() {
     }),
     [
       gateways,
+      reloadCloudDatasets,
       applySessionSnapshot,
       applyFileSessionSnapshot,
       data.fileSessions,

@@ -32,6 +32,6 @@ test('审批具有独立受控目标且旧偏好默认启用审批通知', () =>
   assert.equal(notificationText(message, 'zh-CN').summary, '')
   assert.equal(notificationText(message, 'en-US').title, 'Command awaiting approval')
   assert.throws(() => decodeNotification({ ...message, expires_at: undefined }))
-  assert.deepEqual(validateNotificationPreferences({ enabled: false, agent: false, file: true }), { enabled: false, agent: false, file: true, approval: true })
+  assert.deepEqual(validateNotificationPreferences({ enabled: false, agent: false, file: true }), { enabled: false, agent: false, file: true, approval: true, cloud: true })
   assert.throws(() => validateNotificationPreferences({ enabled: true, agent: true, file: true, approval: 'yes' }))
 })

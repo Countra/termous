@@ -135,3 +135,4 @@ export type {
 } from './bridge'
 
 export * from './settings-center.ts'
+export * from './cloud.ts'

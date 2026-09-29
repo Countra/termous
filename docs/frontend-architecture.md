@@ -144,3 +144,7 @@ node scripts/architecture/check.mjs --report-json
 ## 统一设置中心
 
 `common` 定义纯模块合同，`entities/settings` 管理模块确认快照、revision、草稿和提交队列，`app/data-runtime` 按 Core／Electron／浏览器归属装配统一 Gateway；`features` 保留领域面板与资源操作，`pages/settings` 用注册项组合现有页签。桌面设置通过统一受控 IPC 接入，不迁入 Core；通知激活、更新执行及资源 CRUD 独立。详见[设置中心接入](settings-center.md)。
+
+## 云账号
+
+common 定义纯云合同，entities/cloud 负责解码和代次／版本状态，features/cloud-account 实现领域操作，pages/account 组合面板，app/data-runtime 访问本地 Core。全局订阅仅按受影响数据集刷新配置，遇到草稿延迟；通知通过受控账号目标直达页签。详见[云账号设计](cloud-account.md)。

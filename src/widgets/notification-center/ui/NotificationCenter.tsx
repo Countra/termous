@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Drawer, Pagination, Select, Spin, Tooltip } from 'antd'
-import { Bell, Bot, CheckCheck, FolderSync, ShieldCheck, Trash2, X } from 'lucide-react'
+import { Bell, Bot, CheckCheck, Cloud, FolderSync, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { notificationText, type NotificationMessage, type NotificationKind, type NotificationState } from '#entities/notification'
@@ -56,7 +56,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
             onChange={(value) => { setUnread(value === 'unread'); setPage(1) }} />
           <Select aria-label={t('notifications.source')} value={filter} className={`${customSelectStyles.select} ${styles.source}`}
             classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-            options={(['all', 'agent', 'file', 'approval'] as const).map((value) => ({ value, label: t(`notifications.sources.${value}`) }))}
+            options={(['all', 'agent', 'file', 'approval', 'cloud'] as const).map((value) => ({ value, label: t(`notifications.sources.${value}`) }))}
             onChange={(value) => { props.onFilter(value); setPage(1) }} />
         </div>
         <div className={styles.actions}>
@@ -77,7 +77,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
         <ul className={styles.list}>
           {filtered.slice((currentPage - 1) * 30, currentPage * 30).map((message) => {
             const text = notificationText(message, i18n.language)
-            const Icon = message.kind === 'approval' ? ShieldCheck : message.kind === 'agent' ? Bot : FolderSync
+            const Icon = message.kind === 'cloud' ? Cloud : message.kind === 'approval' ? ShieldCheck : message.kind === 'agent' ? Bot : FolderSync
             return <li key={message.id} className={`${styles.item} ${!message.read ? styles.unread : ''}`}>
               <button type="button" className={styles.content} onClick={() => props.onView(message)} disabled={busy}>
                 <span className={`${styles.icon} ${message.outcome === 'failed' ? styles.failed : message.outcome !== 'success' ? styles.attention : ''}`}><Icon size={16} aria-hidden="true" /></span>

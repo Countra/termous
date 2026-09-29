@@ -15,6 +15,17 @@ import { requireCanonicalRemotePath } from '#shared/path'
 import { normalizeArray } from './responseNormalizers'
 
 export class FileRenameClient extends TermousApiTransport {
+  private presetListeners = new Set<() => void>()
+
+  subscribeFileRenamePresets(listener: () => void) {
+    this.presetListeners.add(listener)
+    return () => { this.presetListeners.delete(listener) }
+  }
+
+  invalidateFileRenamePresets() {
+    this.presetListeners.forEach((listener) => listener())
+  }
+
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
   }
