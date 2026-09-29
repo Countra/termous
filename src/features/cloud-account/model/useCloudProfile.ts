@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CloudProfile, CloudProfilePatch } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 
+export type CloudProfileController = ReturnType<typeof useCloudProfile>
+
 export function useCloudProfile(api: CloudGateway, generation: string, userId?: string) {
   const [state, setState] = useState<{ api: CloudGateway; generation: string; userId?: string; value?: CloudProfile; loading: boolean; error?: string }>()
   const lifetime = useRef<{ api: CloudGateway; generation: string; userId?: string; controller: AbortController } | null>(null)

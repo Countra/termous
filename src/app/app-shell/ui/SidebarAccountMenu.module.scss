@@ -1,0 +1,92 @@
+.trigger:global(.ant-btn) {
+  display: flex;
+  min-width: 0;
+  height: 40px;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 4px 8px;
+  color: var(--text-primary);
+  text-align: left;
+
+  &:hover, &[aria-expanded="true"], &.active {
+    border-color: var(--border);
+    background: var(--nav-active-bg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+
+  strong, span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 16px;
+  }
+}
+
+.trigger :global(.ant-avatar), .summary :global(.ant-avatar) {
+  flex-shrink: 0;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.trigger.collapsed {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  justify-content: center;
+  padding: 4px;
+}
+
+.popup:global(.ant-dropdown) {
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--termous-dropdown-bg);
+  box-shadow: var(--shadow-soft);
+  padding: 4px;
+
+  :global(.ant-dropdown-menu) {
+    min-width: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 4px 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 4px 14px;
+}

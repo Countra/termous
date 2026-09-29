@@ -1,6 +1,11 @@
 {
   "cloud": {
-    "accountAndSettings": "Account & settings",
+    "local": "Local",
+    "localHint": "Offline mode",
+    "accountMenu": "{{name}} · Account and settings",
+    "signInAccount": "Sign in",
+    "useOffline": "Continue offline without signing in",
+    "offlineHint": "Use local features without an account. Sign in whenever you're ready.",
     "welcome": "Connect your Termous account",
     "welcomeHint": "Securely sync configuration between trusted devices. Offline features remain available.",
     "email": "Email",

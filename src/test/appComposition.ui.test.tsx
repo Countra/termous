@@ -7,6 +7,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const testState = vi.hoisted(() => {
   const action = vi.fn(async () => undefined)
   return {
+    cloud: {
+      getStatus: () => undefined,
+      subscribeStatus: () => () => {},
+      eventsUrl: () => 'ws://127.0.0.1/cloud/events',
+    },
     action,
     notifications: {
       error: vi.fn(),
@@ -245,6 +250,10 @@ vi.mock('#app/app-shell', () => ({
       {children}
     </div>
   ),
+}))
+
+vi.mock('#pages/account', () => ({
+  AccountPage: ({ onUseOffline }: { onUseOffline: () => void }) => <button type="button" onClick={onUseOffline}>continue-offline</button>,
 }))
 
 vi.mock('#pages/agent', () => ({
@@ -712,6 +721,7 @@ vi.mock('#app/data-runtime', () => ({
   localSettingsGateway: { getModule: () => undefined, readModule: async () => ({ id: 'terminal_local', schema_version: 1, revision: 1, value: { ssh_smooth_scroll: false }, state: { status: 'applied' } }), updateModule: vi.fn(), subscribeSettings: () => () => {} },
   useTermousData: () => ({
     gateways: {
+      cloud: testState.cloud,
       forwards: {},
       hosts: {
         hostIconFileUrl: (iconId: string, sha256?: string) => (
@@ -812,6 +822,19 @@ describe('应用运行时组合合同', () => {
     testState.notifications.success.mockReset()
     testState.notifications.warning.mockReset()
     window.localStorage.clear()
+    window.localStorage.setItem('termous.ui.accountWelcomeCompleted.v1', 'true')
+  })
+
+  it('首次进入先展示账号选择，选择离线后进入工作站并记住选择', async () => {
+    window.localStorage.removeItem('termous.ui.accountWelcomeCompleted.v1')
+    const user = userEvent.setup()
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'continue-offline' })).toBeInTheDocument()
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
+    expect(testState.productTourProps?.ready).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'continue-offline' }))
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+    expect(window.localStorage.getItem('termous.ui.accountWelcomeCompleted.v1')).toBe('true')
   })
 
   it('保持运行时 Provider 的既定嵌套顺序', () => {

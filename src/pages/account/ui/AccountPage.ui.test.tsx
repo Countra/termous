@@ -1,10 +1,19 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState, useSyncExternalStore } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import type { CloudStatus } from '#common/contracts'
+import type { CloudStatus, CloudTab } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
 import { SettingsGatewayContext, SettingsModuleStore, type SettingsGateway } from '#entities/settings'
 import { changeLanguage } from '#shared/i18n'
-import { AccountPage } from './AccountPage'
+import { useCloudProfile } from '#features/cloud-account'
+import { AccountPage as AccountPageView } from './AccountPage'
+
+function AccountPage({ api, initialTab, onUseOffline = vi.fn() }: { api: CloudGateway; initialTab?: CloudTab; onUseOffline?: () => void }) {
+  const status = useSyncExternalStore(api.subscribeStatus, api.getStatus)
+  const profile = useCloudProfile(api, status?.generation ?? '', status?.authenticated ? status.user_id : undefined)
+  const [tab, setTab] = useState<CloudTab>(initialTab ?? 'sync')
+  return <AccountPageView api={api} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={onUseOffline} />
+}
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const initial: CloudStatus = { revision: 1, generation: 'initial', configured: true, authenticated: false, phase: 'signed_out', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
@@ -30,12 +39,45 @@ function setup(value = initial) {
 }
 
 describe('云账号页', () => {
+  it('侧栏重复定位页签仍生效，页签切换保留未保存的资料草稿', async () => {
+    const { cloud } = setup({ ...initial, authenticated: true, phase: 'ready', user_id: 'fixture' })
+    const profile = { profile: { user_id: 'fixture', name: 'Original', bio: '', organization: '', avatar: '', revision: '1', updated_at: null }, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
+    function Harness() {
+      const [tab, setTab] = useState<CloudTab>('profile')
+      return <>
+        <button onClick={() => setTab('profile')}>sidebar-profile</button>
+        <button onClick={() => setTab('devices')}>notification-devices</button>
+        <AccountPageView api={cloud} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={vi.fn()} />
+      </>
+    }
+    render(<Harness />)
+    fireEvent.change(await screen.findByLabelText('名称'), { target: { value: 'Unsaved draft' } })
+    fireEvent.click(screen.getByRole('tab', { name: '安全' }))
+    expect(screen.getByRole('tab', { name: '安全' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'sidebar-profile' }))
+    expect(screen.getByRole('tab', { name: '个人资料' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('名称')).toHaveValue('Unsaved draft')
+    fireEvent.click(screen.getByRole('button', { name: 'notification-devices' }))
+    expect(screen.getByRole('tab', { name: '设备' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'sidebar-profile' }))
+    expect(screen.getByLabelText('名称')).toHaveValue('Unsaved draft')
+  })
+
+  it('未配置云服务时仍可直接进入离线版', async () => {
+    const { cloud } = setup({ ...initial, configured: false, phase: 'unconfigured' })
+    const onUseOffline = vi.fn()
+    render(<AccountPage api={cloud} onUseOffline={onUseOffline} />)
+    fireEvent.click(screen.getByRole('button', { name: '暂不登录，使用离线版' }))
+    expect(onUseOffline).toHaveBeenCalledTimes(1)
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+  })
+
   it('登录成功仅显示预览入口，不自动上传或开启同步', async () => {
     const { api, cloud, gateway } = setup()
     render(<SettingsGatewayContext value={gateway}><AccountPage api={cloud} /></SettingsGatewayContext>)
     fireEvent.change(await screen.findByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: ' synthetic-password ' } })
-    fireEvent.click(screen.getByRole('button', { name: /登\s*录/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^登\s*录$/ }))
     await screen.findByText('fixture@example.test')
     expect(api.login).toHaveBeenCalledWith('initial', 'fixture@example.test', ' synthetic-password ')
     expect(api.preview).not.toHaveBeenCalled()

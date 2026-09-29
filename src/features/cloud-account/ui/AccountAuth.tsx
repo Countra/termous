@@ -45,7 +45,7 @@ export function AccountAuth({ api, generation, busy, run }: Props) {
       <Button block type="primary" htmlType="submit" loading={busy}>{t(`cloud.auth.${mode}`)}</Button>
     </Form>
     <Space wrap size="small">
-      {(['login', 'register', 'verify-email', 'resend-verification', 'password-reset/request', 'password-reset/confirm'] as const).filter((value) => value !== mode).map((value) =>
+      {(mode === 'login' ? ['register', 'password-reset/request', 'verify-email'] as const : ['login', 'register', 'verify-email', 'resend-verification', 'password-reset/request', 'password-reset/confirm'] as const).filter((value) => value !== mode).map((value) =>
         <Button key={value} type="link" size="small" disabled={busy} onClick={() => changeMode(value)}>{t(`cloud.auth.${value}`)}</Button>,
       )}
     </Space>

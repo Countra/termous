@@ -16,7 +16,6 @@ import {
   PlugZap,
   Route,
   Server,
-  Settings,
   Shell,
   TerminalSquare,
   UserRound,
@@ -25,15 +24,18 @@ import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { WindowCloseBehavior } from '#common/contracts'
+import type { CloudTab, WindowCloseBehavior } from '#common/contracts'
 import type { LocalShell } from '#entities/session'
 import type { PageKey } from '#shared/model'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import { BrandVersionControl, useOpenUpdateWindow } from '#features/update'
 import { WindowControls } from './WindowControls'
+import { SidebarAccountMenu, type SidebarAccountIdentity } from './SidebarAccountMenu'
 import styles from './AppShell.module.scss'
 
 export interface AppShellProps {
+  account?: SidebarAccountIdentity
+  onOpenAccount?: (tab: CloudTab) => void
   notificationControl?: ReactNode
   page: PageKey
   appVersion: string
@@ -74,6 +76,8 @@ const helpDropdownClassName = [
 ].join(' ')
 
 export function AppShell({
+  account,
+  onOpenAccount,
   notificationControl,
   page,
   appVersion,
@@ -94,6 +98,7 @@ export function AppShell({
   const [sidebarHelpOpen, setSidebarHelpOpen] = useState(false)
   const [topbarHelpOpen, setTopbarHelpOpen] = useState(false)
   const sidebarHelpButtonRef = useRef<HTMLButtonElement>(null)
+  const sidebarFooterActionsRef = useRef<HTMLDivElement>(null)
   const topbarHelpButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -190,22 +195,10 @@ export function AppShell({
           })}
         </nav>
         <div className={styles['sidebar-footer']}>
-          <div className={styles['sidebar-footer-actions']}>
-            <Dropdown trigger={['click']} placement="topLeft" classNames={{ root: helpDropdownClassName }}
-              menu={{ items: [
-                { key: 'account', label: t('nav.account'), icon: <UserRound size={15} /> },
-                { key: 'settings', label: t('nav.settings'), icon: <Settings size={15} /> },
-              ], onClick: ({ key }) => { if (key === 'account' || key === 'settings') onNavigate(key) } }}>
-              <Button
-                type="text"
-                className={`${styles['nav-item']} ${styles['sidebar-settings-button']} ${page === 'settings' || page === 'account' ? styles['is-active'] : ''}`}
-                aria-label={t('cloud.accountAndSettings')}
-                aria-haspopup="menu"
-                icon={<Settings size={18} aria-hidden="true" />}
-              >
-                <span>{t('cloud.accountAndSettings')}</span>
-              </Button>
-            </Dropdown>
+          <div ref={sidebarFooterActionsRef} className={styles['sidebar-footer-actions']}>
+            <SidebarAccountMenu identity={account} collapsed={sidebarCollapsed} active={page === 'account' || page === 'settings'}
+              getPopupWidth={() => sidebarFooterActionsRef.current?.getBoundingClientRect().width}
+              onAccount={(tab) => onOpenAccount ? onOpenAccount(tab) : onNavigate('account')} onSettings={() => onNavigate('settings')} />
             <span className={styles['product-tour-trigger']} data-tour="product-tour-trigger">
               <Tooltip title={t('productTour.helpButton')} placement={sidebarCollapsed ? 'right' : 'top'}>
                 <Dropdown

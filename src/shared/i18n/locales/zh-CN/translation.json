@@ -1,6 +1,11 @@
 {
   "cloud": {
-    "accountAndSettings": "账号与设置",
+    "local": "本地",
+    "localHint": "离线使用",
+    "accountMenu": "{{name}} · 账号与设置",
+    "signInAccount": "登录账号",
+    "useOffline": "暂不登录，使用离线版",
+    "offlineHint": "无需账号即可使用本地功能，之后可随时登录。",
     "welcome": "连接你的 Termous 账号",
     "welcomeHint": "在可信设备之间安全同步配置，离线功能始终可用。",
     "email": "邮箱",

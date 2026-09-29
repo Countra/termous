@@ -4,7 +4,7 @@ import { NotificationControl } from '#app/notification-runtime'
 import type { NotificationTarget } from '#entities/notification'
 import type { CloudTab } from '#common/contracts'
 import { useCloudSubscription } from './model/useCloudSubscription'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
@@ -37,6 +37,8 @@ import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
 import { AccountPage } from '#pages/account'
+import { useCloudProfile } from '#features/cloud-account'
+import { useAccountWelcome } from './model/useAccountWelcome'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
@@ -242,7 +244,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     eventsUrl: fileSessionEventsUrl,
     onSnapshot: actions.applyFileSessionSnapshot,
   })
-  const [page, setCurrentPage] = useState<PageKey>('workbench')
+  const cloudStatus = useSyncExternalStore(gateways.cloud.subscribeStatus, gateways.cloud.getStatus)
+  const cloudProfile = useCloudProfile(gateways.cloud, cloudStatus?.generation ?? '', apiReady && cloudStatus?.authenticated ? cloudStatus.user_id : undefined)
+  const { pending: accountWelcomePending, complete: completeAccountWelcome } = useAccountWelcome(cloudStatus?.authenticated === true)
+  const [page, setCurrentPage] = useState<PageKey>(() => accountWelcomePending ? 'account' : 'workbench')
   const [hostSaving, setHostSaving] = useState(false)
   const hostSavingRef = useRef(false)
   const handleHostSavingChange = useCallback((saving: boolean) => {
@@ -252,8 +257,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const setPage = useCallback((nextPage: PageKey) => {
     // 聚合创建提交后无法撤回，异步连接回调也不能在此期间卸载草稿页。
     if (hostSavingRef.current) return
+    if (nextPage !== 'account') completeAccountWelcome()
     setCurrentPage(nextPage)
-  }, [])
+  }, [completeAccountWelcome])
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
@@ -323,7 +329,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   const notificationNavigationBlocked = useRef(false)
-  const [accountInitialTab, setAccountInitialTab] = useState<CloudTab>('sync')
+  const [accountTab, setAccountTab] = useState<CloudTab>('sync')
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
   useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
@@ -342,7 +348,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         const status = await gateways.cloud.status()
         // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
         if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
-        setAccountInitialTab(target.tab)
+        setAccountTab(target.tab)
         setPage('account')
         return true
       }
@@ -371,10 +377,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const navigateToPage = useCallback((
     nextPage: PageKey,
-    options?: { settingsTab?: SettingsPageTabKey },
+    options?: { settingsTab?: SettingsPageTabKey; accountTab?: CloudTab },
   ) => {
     if (hostSavingRef.current) return
     if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
+    if (nextPage === 'account') setAccountTab(options?.accountTab ?? 'profile')
     if (nextPage === page) {
       return
     }
@@ -1341,6 +1348,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     onSessionsChange={setRemoteDesktopRuntimeSessions}
                   >
                     <AppShell
+                      account={{ authenticated: cloudStatus?.authenticated === true, email: cloudStatus?.email, name: cloudProfile.profile?.name, avatar: cloudProfile.profile?.avatar }}
+                      onOpenAccount={(tab) => navigateToPage('account', { accountTab: tab })}
                       notificationControl={<NotificationControl api={gateways.notifications} enabled={runtimeConfigReady && !coreFatal} navigate={navigateNotification} />}
                       page={page}
                       appVersion={appVersion}
@@ -1350,7 +1359,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onNavigate={navigateToPage}
                       onOpenConnectionLauncher={openTerminalSessionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
-                      onOpenProductTour={() => setProductTourRequestKey((current) => current + 1)}
+                      onOpenProductTour={() => { completeAccountWelcome(); setProductTourRequestKey((current) => current + 1) }}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
                       onBeforeClose={shutdownBeforeClose}
                       onCloseError={showActionError}
@@ -1586,7 +1595,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
-                      {page === 'account' ? <AccountPage api={gateways.cloud} initialTab={accountInitialTab} /> : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           settingsGateway={gateways.settings}
@@ -1628,7 +1637,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
                     </AppShell>
                     <ProductTourController
-                      ready={productTourReady}
+                      ready={productTourReady && !accountWelcomePending}
                       autoStartEligible={
                         data.credentials.length === 0
                         && data.hostAssets.length === 0
