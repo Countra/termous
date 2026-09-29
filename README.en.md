@@ -203,6 +203,8 @@ Termous is a desktop workstation that runs locally. Credentials are kept in secu
 
 Windows is the primary supported platform; the macOS and Linux experience continues to improve.
 
+The Windows installer publishes the installation directory, version, and executable path under the stable `Software\Termous\Install` registry key so Skills and local tools can locate the application. See the [installation discovery contract](./docs/windows-install-discovery.md).
+
 ## Help and support
 
 - Read the [changelog](./docs/CHANGELOG.md) for release updates.

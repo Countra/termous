@@ -214,6 +214,8 @@ Termous 是在本机运行的桌面工作站。凭据由设备上的安全存储
 
 Windows 是当前重点支持的平台，macOS 和 Linux 体验也在持续完善。
 
+Windows 安装包通过固定的 `Software\Termous\Install` 注册表项提供安装位置、版本和主程序路径，方便 Skill 与本机工具定位应用；详见[安装信息发现合同](./docs/windows-install-discovery.md)。
+
 ## 获取帮助
 
 - 查看 [更新日志](./docs/CHANGELOG.md) 了解版本变化。
