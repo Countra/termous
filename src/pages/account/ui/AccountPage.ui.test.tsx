@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState, useSyncExternalStore } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { CloudStatus, CloudTab } from '#common/contracts'
@@ -24,8 +24,9 @@ function setup(value = initial) {
   const api = {
     getStatus: state.snapshot, subscribeStatus: state.subscribe, acceptStatus: state.accept.bind(state),
     status: vi.fn(async () => state.snapshot()!),
-    login: vi.fn(async () => { const next = { ...value, generation: 'logged-in', revision: 2, phase: 'ready' as const, authenticated: true, device_status: 'active' as const, email: 'fixture@example.test' }; state.accept(next); return next }),
+    login: vi.fn(async () => { const next = { ...value, generation: 'logged-in', revision: 2, phase: 'ready' as const, error_code: undefined, authenticated: true, device_status: 'active' as const, email: 'fixture@example.test' }; state.accept(next); return next }),
     logout: vi.fn(async () => initial), devices: vi.fn(async () => []), sessions: vi.fn(async () => []),
+    auth: vi.fn(async () => undefined),
     rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })),
     preview: vi.fn(async () => ({ id: 'preview', generation: value.generation, blocked: false, items: [] })),
     conflicts: vi.fn(async () => []), confirm: vi.fn(async () => ({ ...value, confirmed: true })), run: vi.fn(async () => value),
@@ -39,6 +40,95 @@ function setup(value = initial) {
 }
 
 describe('云账号页', () => {
+  it('断网操作失败后恢复连接仍提示未完成，仅在用户重新提交后清除', async () => {
+    const logged: CloudStatus = { ...initial, authenticated: true, phase: 'ready', device_status: 'active' }
+    const { api, cloud, state } = setup(logged)
+    api.auth.mockImplementationOnce(async () => {
+      state.accept({ ...logged, revision: 2, phase: 'blocked', error_code: 'network_unavailable' })
+      throw new Error('network_unavailable')
+    })
+    render(<AccountPage api={cloud} initialTab="security" />)
+    fireEvent.change(await screen.findByLabelText('密码'), { target: { value: 'synthetic-password' } })
+    fireEvent.click(screen.getByRole('button', { name: '验证密码' }))
+    expect(await screen.findByText('暂时无法连接云服务')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('密码')).toBeEnabled())
+    act(() => { state.accept({ ...logged, revision: 3 }) })
+    expect(await screen.findByText('操作未完成，请重试。')).toBeInTheDocument()
+    expect(screen.queryByText('正在重连，可继续使用本地功能。')).not.toBeInTheDocument()
+    expect(api.auth).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /验证密码/ }))
+    await waitFor(() => expect(api.auth).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText('操作未完成，请重试。')).not.toBeInTheDocument())
+  })
+
+  it('断网保留账号与资料草稿，恢复后清除连接提示且不触发登录或同步', async () => {
+    const logged: CloudStatus = { ...initial, authenticated: true, phase: 'ready', device_status: 'active', email: 'fixture@example.test' }
+    const { cloud, api, state } = setup(logged)
+    const profile = { profile: { user_id: 'fixture', name: 'Original', bio: '', organization: '', avatar: '', revision: '1', updated_at: null }, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
+    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('名称'), { target: { value: 'Unsaved draft' } })
+    act(() => { state.accept({ ...logged, revision: 2, phase: 'blocked', error_code: 'network_unavailable' }) })
+    expect(await screen.findByText('暂时无法连接云服务')).toBeInTheDocument()
+    expect(screen.getByText('正在重连，可继续使用本地功能。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '退出登录' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('名称')).toHaveValue('Unsaved draft')
+    act(() => { state.accept({ ...logged, revision: 3 }) })
+    await waitFor(() => expect(screen.queryByText('暂时无法连接云服务')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('名称')).toHaveValue('Unsaved draft')
+    expect(api.login).not.toHaveBeenCalled()
+    expect(api.logout).not.toHaveBeenCalled()
+    expect(api.run).not.toHaveBeenCalled()
+  })
+
+  it('续期结果不明时保留账号，由用户主动打开重新验证且无需先退出', async () => {
+    const { api, cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
+    const profile = { profile: undefined, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
+    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '退出登录' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByLabelText('邮箱')).toHaveValue('fixture@example.test')
+    expect(screen.getByLabelText('邮箱')).toHaveAttribute('readonly')
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+    fireEvent.click(screen.getByRole('button', { name: /^登\s*录$/ }))
+    await waitFor(() => expect(api.login).toHaveBeenCalledWith('initial', 'fixture@example.test', 'synthetic-password'))
+    expect(api.logout).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('重新验证失败时在弹窗内显示错误，保留账号并允许再次提交', async () => {
+    const { api, cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
+    api.login.mockRejectedValueOnce(new Error('network_unavailable'))
+    const profile = { profile: undefined, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
+    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+    fireEvent.click(dialog.getByRole('button', { name: /^登\s*录$/ }))
+    expect(await dialog.findByText('暂时无法连接云服务，请稍后重试。')).toBeInTheDocument()
+    expect(dialog.getByLabelText('密码')).toHaveValue('synthetic-password')
+    expect(dialog.getByRole('button', { name: /^登\s*录$/ })).toBeEnabled()
+    expect(api.logout).not.toHaveBeenCalled()
+    expect(api.run).not.toHaveBeenCalled()
+    fireEvent.click(dialog.getByRole('button', { name: /^登\s*录$/ }))
+    await waitFor(() => expect(api.login).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('安全页打开重新登录弹窗时，两个密码字段各有唯一的标签关联', async () => {
+    const { cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
+    render(<AccountPage api={cloud} initialTab="security" />)
+    await screen.findByLabelText('密码')
+    fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    const fieldIds = Array.from(document.querySelectorAll('input[type="password"]'), (input) => input.id)
+    expect(fieldIds).toHaveLength(2)
+    expect(new Set(fieldIds).size).toBe(2)
+    expect(dialog.getByLabelText('密码')).toHaveAccessibleName('密码')
+  })
+
   it('侧栏重复定位页签仍生效，页签切换保留未保存的资料草稿', async () => {
     const { cloud } = setup({ ...initial, authenticated: true, phase: 'ready', user_id: 'fixture' })
     const profile = { profile: { user_id: 'fixture', name: 'Original', bio: '', organization: '', avatar: '', revision: '1', updated_at: null }, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }

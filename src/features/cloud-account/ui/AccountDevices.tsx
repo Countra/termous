@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Input, Modal, Space, Tag } from 'antd'
 import { Check, Copy, Laptop, Plus, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudChallenge, CloudDevice, CloudStatus } from '#common/contracts'
 import { decodeCloudChallenge, type CloudGateway } from '#entities/cloud'
+import { useCloudReconnect } from '../model/useCloudReconnect'
 import styles from './CloudAccount.module.scss'
 
 interface Props {
@@ -25,12 +26,27 @@ export function AccountDevices({ api, status, busy, run }: Props) {
   const [revoking, setRevoking] = useState<CloudDevice>()
   const [approvalRoot, setApprovalRoot] = useState('')
   const [copied, setCopied] = useState(false)
-  const load = async () => { setDevices(await api.devices()); setError(false) }
+  const generation = status.generation
+  const lifetime = useRef<{ api: CloudGateway; generation: string; active: boolean; request: number } | null>(null)
+  const load = useCallback(async () => {
+    const scope = lifetime.current
+    if (!scope?.active || scope.api !== api || scope.generation !== generation) return
+    const request = ++scope.request
+    try {
+      const items = await api.devices()
+      if (scope.active && request === scope.request) { setDevices(items); setError(false) }
+    } catch {
+      if (scope.active && request === scope.request) setError(true)
+    }
+  }, [api, generation])
   useEffect(() => {
-    let active = true
-    void api.devices().then((items) => { if (active) setDevices(items) }).catch(() => { if (active) setError(true) })
-    return () => { active = false }
-  }, [api, status.generation])
+    const scope = { api, generation, active: true, request: 0 }
+    lifetime.current = scope
+    setDevices([]); setError(false)
+    void load()
+    return () => { scope.active = false }
+  }, [api, generation, load])
+  useCloudReconnect(api, generation, load)
 
   return <section className={`${styles.surface} ${styles.section}`}>
     <div className={styles.actions}>

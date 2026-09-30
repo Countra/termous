@@ -12,28 +12,48 @@ interface Props {
   email?: string
   loading: boolean
   error?: string
-  reload: () => Promise<void>
-  save: (patch: CloudProfilePatch) => Promise<boolean>
+  reload: () => Promise<CloudProfile | undefined>
+  save: (patch: CloudProfilePatch) => Promise<CloudProfile | undefined>
 }
+
+const fields = ['name', 'bio', 'organization', 'avatar'] as const
+interface ProfileDraft { base: CloudProfile; fields: CloudProfileFields }
+const createDraft = (base: CloudProfile): ProfileDraft => ({ base, fields: { name: base.name, bio: base.bio, organization: base.organization, avatar: base.avatar } })
+const isDirty = (draft?: ProfileDraft) => Boolean(draft && fields.some((key) => draft.base[key] !== draft.fields[key]))
 
 export function AccountProfile({ profile, email, loading, error, reload, save }: Props) {
   const { t } = useTranslation()
-  const [draft, setDraft] = useState<CloudProfileFields>()
+  const [editing, setEditing] = useState<ProfileDraft>()
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string>()
   const [saved, setSaved] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const imageVersion = useRef(0)
+  const lifetime = useRef(0)
   useEffect(() => {
     const images = imageVersion
+    const scope = lifetime
+    scope.current++
     images.current++
     setImageBusy(false)
     setImageError(undefined)
-    setDraft(profile && { name: profile.name, bio: profile.bio, organization: profile.organization, avatar: profile.avatar })
-    return () => { images.current++ }
-  }, [profile])
-  const dirty = Boolean(profile && draft && (['name', 'bio', 'organization', 'avatar'] as const).some((key) => profile[key] !== draft[key]))
-  const edit = (patch: Partial<CloudProfileFields>) => { setDraft((value) => value && { ...value, ...patch }); setSaved(false) }
+    setSaved(false)
+    return () => { images.current++; scope.current++ }
+  }, [profile?.user_id])
+  useEffect(() => {
+    // 后台快照可以更新账号展示，但草稿必须保留编辑时的版本以继续检测冲突。
+    setEditing((current) => !profile ? undefined : current?.base.user_id === profile.user_id && (isDirty(current) || imageBusy) ? current : createDraft(profile))
+  }, [profile, imageBusy])
+  const draft = editing?.fields
+  const dirty = isDirty(editing)
+  const edit = (patch: Partial<CloudProfileFields>) => { setEditing((value) => value && { ...value, fields: { ...value.fields, ...patch } }); setSaved(false) }
+  const replace = async (request: () => Promise<CloudProfile | undefined>, saved: boolean) => {
+    const scope = lifetime.current
+    const value = await request()
+    if (value && scope === lifetime.current) {
+      setEditing(createDraft(value)); setSaved(saved); setImageError(undefined)
+    }
+  }
   const choose = async (file?: File) => {
     if (!file || loading || imageBusy) return
     const version = ++imageVersion.current
@@ -48,7 +68,7 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
   const failure = imageError ?? error
   return <section className={`${shared.surface} ${styles.panel}`} aria-label={t('cloud.tabs.profile')}>
     {failure ? <Alert type="warning" showIcon title={t(`cloud.errors.${failure}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
-    {!profile || !draft ? loading ? <Spin /> : <Button onClick={() => void reload()}>{t('cloud.retry')}</Button> : <Form layout="vertical" disabled={loading || imageBusy} onFinish={() => void save({ ...draft, expected_revision: profile.revision }).then(setSaved)}>
+    {!profile || !draft || !editing ? loading ? <Spin /> : <Button onClick={() => void reload()}>{t('cloud.retry')}</Button> : <Form layout="vertical" disabled={loading || imageBusy} onFinish={() => void replace(() => save({ ...draft, expected_revision: editing.base.revision }), true)}>
       <div className={styles['avatar-row']}>
         <Avatar className={styles.avatar} size={72} src={draft.avatar || undefined} icon={<UserRound size={30} />} />
         <div>
@@ -68,7 +88,7 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
       <div className={styles.footer}>
         <span className={shared.hint} role="status">{saved && !dirty ? t('cloud.profile.saved') : t('cloud.profile.privateHint')}</span>
         <div className={shared.actions}>
-          <Popconfirm disabled={!dirty} title={t('cloud.profile.discard')} onConfirm={() => { setSaved(false); void reload() }}><Button disabled={loading || imageBusy} onClick={() => { if (!dirty) { setSaved(false); void reload() } }}>{t('cloud.profile.reload')}</Button></Popconfirm>
+          <Popconfirm disabled={!dirty} title={t('cloud.profile.discard')} onConfirm={() => void replace(reload, false)}><Button disabled={loading || imageBusy} onClick={() => { if (!dirty) void replace(reload, false) }}>{t('cloud.profile.reload')}</Button></Popconfirm>
           <Button type="primary" htmlType="submit" loading={loading} disabled={!dirty || imageBusy || [...draft.name].length > 64 || [...draft.organization].length > 100 || [...draft.bio].length > 200}>{t('cloud.profile.save')}</Button>
         </div>
       </div>

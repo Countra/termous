@@ -9,10 +9,12 @@ interface Props {
   api: CloudGateway
   generation: string
   busy: boolean
+  email?: string
+  reauthenticate?: boolean
   run: <T>(action: () => Promise<T>) => Promise<T | undefined>
 }
 
-export function AccountAuth({ api, generation, busy, run }: Props) {
+export function AccountAuth({ api, generation, busy, run, email: savedEmail, reauthenticate = false }: Props) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<'login' | CloudAuthAction>('login')
   const [notice, setNotice] = useState(false)
@@ -22,19 +24,19 @@ export function AccountAuth({ api, generation, busy, run }: Props) {
   const changeMode = (next: typeof mode) => { setMode(next); setNotice(false); form.resetFields(['password', 'token']) }
 
   return <section className={styles.auth}>
-    <div className={styles.intro}>
+    {!reauthenticate ? <div className={styles.intro}>
       <h2>{t('cloud.welcome')}</h2>
       <p>{t('cloud.welcomeHint')}</p>
-    </div>
+    </div> : <p>{t('cloud.reconnectHint')}</p>}
     {notice ? <Alert type="success" showIcon title={t('cloud.authSent')} /> : null}
-    <Form form={form} layout="vertical" disabled={busy} requiredMark={false} onFinish={(values) => {
+    <Form name={reauthenticate ? 'cloud-reauth' : 'cloud-auth'} form={form} initialValues={{ email: savedEmail }} layout="vertical" disabled={busy} requiredMark={false} onFinish={(values) => {
       void run(async () => {
         if (mode === 'login') await api.login(generation, values.email, values.password)
         else { await api.auth(mode, { generation, ...values }); setNotice(true) }
         form.resetFields(['password', 'token'])
       })
     }}>
-      {email ? <Form.Item name="email" label={t('cloud.email')} rules={[{ required: true }, { type: 'email' }]}><Input autoComplete="username" maxLength={320} /></Form.Item> : null}
+      {email ? <Form.Item name="email" label={t('cloud.email')} rules={[{ required: true }, { type: 'email' }]}><Input autoComplete="username" readOnly={reauthenticate} maxLength={320} /></Form.Item> : null}
       {password ? <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }, {
         validator: async (_, value: string) => {
           const size = new TextEncoder().encode(value ?? '').length
@@ -44,10 +46,10 @@ export function AccountAuth({ api, generation, busy, run }: Props) {
       {['verify-email', 'password-reset/confirm'].includes(mode) ? <Form.Item name="token" label={t('cloud.verificationCode')} rules={[{ required: true }]}><Input autoComplete="one-time-code" maxLength={2048} /></Form.Item> : null}
       <Button block type="primary" htmlType="submit" loading={busy}>{t(`cloud.auth.${mode}`)}</Button>
     </Form>
-    <Space wrap size="small">
+    {!reauthenticate ? <Space wrap size="small">
       {(mode === 'login' ? ['register', 'password-reset/request', 'verify-email'] as const : ['login', 'register', 'verify-email', 'resend-verification', 'password-reset/request', 'password-reset/confirm'] as const).filter((value) => value !== mode).map((value) =>
         <Button key={value} type="link" size="small" disabled={busy} onClick={() => changeMode(value)}>{t(`cloud.auth.${value}`)}</Button>,
       )}
-    </Space>
+    </Space> : null}
   </section>
 }

@@ -1,8 +1,10 @@
-import { Alert, Avatar, Button, Empty, Spin, Tabs, Tag } from 'antd'
+import { useState } from 'react'
+import { Alert, Avatar, Button, Empty, Modal, Spin, Tabs, Tag } from 'antd'
 import { ArrowRight, LogOut, Monitor, ShieldCheck, UserRound } from 'lucide-react'
 import type { CloudTab } from '#common/contracts'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
+import { isCloudConnectionError } from '#entities/cloud'
 import { AccountAuth, AccountDevices, AccountProfile, AccountSecurity, AccountSync, useCloudAccount, type CloudProfileController } from '#features/cloud-account'
 import styles from './AccountPage.module.scss'
 
@@ -17,6 +19,7 @@ interface Props {
 export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange }: Props) {
   const { t } = useTranslation()
   const { status, busy, error, run, refresh } = useCloudAccount(api)
+  const [reauthGeneration, setReauthGeneration] = useState<string>()
   const offline = <div className={styles.offline}>
     <Button block icon={<Monitor size={16} />} disabled={busy} onClick={onUseOffline}>{t('cloud.useOffline')}<ArrowRight size={15} aria-hidden="true" /></Button>
     <p>{t('cloud.offlineHint')}</p>
@@ -27,13 +30,24 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
     {offline}
   </section></div>
   const loggedIn = status.authenticated
+  const disconnected = loggedIn && isCloudConnectionError(status.error_code)
+  const needsVerification = loggedIn && status.error_code === 'refresh_unconfirmed'
+  const failedWhileDisconnected = status.phase === 'ready' && !status.error_code && isCloudConnectionError(error)
 
   return <div className={styles.page}>
     {loggedIn ? <header className={styles.header}>
       <div className={styles.heading}><UserRound size={22} aria-hidden="true" /><h1>{t('nav.account')}</h1></div>
       <Button icon={<LogOut size={15} />} loading={busy} onClick={() => void run(() => api.logout(status.generation))}>{t('cloud.logout')}</Button>
     </header> : null}
-    {error || status.error_code ? <Alert type="warning" showIcon title={t(`cloud.errors.${error ?? status.error_code}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
+    {error || status.error_code ? <Alert type="warning" showIcon
+      title={disconnected ? t('cloud.connectionUnavailable') : failedWhileDisconnected ? t('cloud.operationFailed') : t(`cloud.errors.${error ?? status.error_code}`, { defaultValue: t('cloud.operationFailed') })}
+      description={disconnected ? t('cloud.connectionRetryHint') : undefined}
+      action={needsVerification ? <Button disabled={busy} onClick={() => setReauthGeneration(status.generation)}>{t('cloud.reconnectAccount')}</Button> : undefined}
+    /> : null}
+    <Modal key={status.generation} open={loggedIn && reauthGeneration === status.generation} title={t('cloud.reconnectAccount')} footer={null} destroyOnHidden onCancel={() => setReauthGeneration(undefined)}>
+      {error ? <Alert type="warning" showIcon title={t(`cloud.errors.${error}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
+      <AccountAuth key={status.generation} api={api} generation={status.generation} email={status.email} reauthenticate busy={busy} run={run} />
+    </Modal>
     {!loggedIn ? <section className={styles['login-surface']}>
       <div className={styles['login-brand']}><img src="./termous-icon.png" alt="" /><span>Termous</span></div>
       {status.configured ? <AccountAuth api={api} generation={status.generation} busy={busy} run={run} /> : <Empty description={t('cloud.unconfigured')} />}
