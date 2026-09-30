@@ -1,4 +1,4 @@
-import type { CloudAuthAction, CloudChallenge, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import type { CloudAuthAction, CloudChallenge, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
 import type { CloudProfile, CloudProfilePatch } from '#common/contracts'
 
 export interface CloudGateway {
@@ -9,9 +9,18 @@ export interface CloudGateway {
   acceptStatus(value: CloudStatus): boolean
   status(signal?: AbortSignal): Promise<CloudStatus>
   eventsUrl(): string
-  login(generation: string, email: string, password: string): Promise<CloudStatus>
+  login(generation: string, email: string, password: string): Promise<CloudLoginResult>
+  verifyLogin(generation: string, challengeId: string, method: CloudMFAMethod, code: string): Promise<CloudLoginResult>
+  cancelLogin(generation: string, challengeId: string): Promise<void>
   logout(generation: string): Promise<CloudStatus>
   auth(action: CloudAuthAction, input: { generation: string; email?: string; password?: string; token?: string }): Promise<void>
+  reauthenticate(generation: string, proof: CloudMFAProof): Promise<CloudReauthentication>
+  mfaStatus(generation: string, signal?: AbortSignal): Promise<CloudMFAStatus>
+  mfaSetup(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFASetup>
+  mfaConfirm(generation: string, revision: string, setupId: string, code: string): Promise<CloudMFACodes>
+  mfaCancel(generation: string, revision: string, setupId: string): Promise<CloudMFAStatus>
+  mfaDisable(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFAStatus>
+  mfaRegenerate(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFACodes>
   devices(): Promise<CloudDevice[]>
   sessions(): Promise<CloudSession[]>
   pairing(generation: string): Promise<{ challenge: CloudChallenge; fingerprint: string }>

@@ -212,4 +212,6 @@ The Windows installer publishes the installation directory, version, and executa
 
 ### Optional cloud account and sync
 
+The Security tab supports TOTP two-step verification and 10 one-time backup codes. Enable or disable verification, change the authenticator, or generate new backup codes. With verification enabled, signing in requires the second step after the password. Backup codes do not decrypt cloud data.
+
 The bottom-left entry shows your avatar and name, or “Local” when signed out. Its upward menu provides account and settings access. On first entry, sign in or choose to continue offline; the choice is remembered locally. The account page manages authentication, synchronization, trusted devices, and security. Cloud access is unconfigured by default. Signing in never uploads local data automatically: authorize the device, review the differences, and explicitly confirm sync first. Configuration objects use end-to-end encryption; remote file contents, AI conversations, and machine-local settings remain outside sync. Offline features and local backups remain independent.

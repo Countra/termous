@@ -1,7 +1,8 @@
-import type { CloudAuthAction, CloudChallenge, CloudStatus } from '#common/contracts'
+import type { CloudAuthAction, CloudChallenge, CloudStatus, CloudMFAMethod, CloudMFAProof } from '#common/contracts'
 import type { CloudProfilePatch } from '#common/contracts'
 import { decodeCloudProfile } from '#entities/cloud'
 import { CloudState, decodeCloudStatus, decodeCloudList, decodeCloudDevice, decodeCloudSession, decodeCloudPairing, decodeCloudApproval, decodeCloudPreview, decodeCloudConflict, decodeCloudRekey, type CloudGateway } from '#entities/cloud'
+import { decodeCloudLogin, decodeCloudMFAStatus, decodeCloudMFASetup, decodeCloudMFACodes, decodeCloudReauthentication } from '#entities/cloud'
 import { TermousApiTransport } from '#shared/api'
 
 export class CloudClient extends TermousApiTransport implements CloudGateway {
@@ -24,12 +25,51 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   }
   status(signal?: AbortSignal) { return this.readStatus(this.request('/api/v1/cloud/status', { signal })) }
   eventsUrl() { return this.websocketUrl('/api/v1/cloud/events') }
+  private async readLogin(request: Promise<unknown>) {
+    const epoch = this.state.epoch
+    const value = decodeCloudLogin(await request)
+    if (value.state === 'mfa_required') {
+      if (epoch !== this.state.epoch) throw new Error('CLOUD_STALE')
+      return value
+    }
+    if (this.state.accept(value.status, epoch)) return value
+    const current = this.state.snapshot()
+    if (current?.generation === value.status.generation) return { state: 'authenticated' as const, status: current }
+    throw new Error('CLOUD_STALE')
+  }
   login(generation: string, email: string, password: string) {
-    return this.readStatus(this.request('/api/v1/cloud/auth/login', { method: 'POST', body: { generation, email, password }, timeoutMs: 125_000 }))
+    return this.readLogin(this.request('/api/v1/cloud/auth/login', { method: 'POST', body: { generation, email, password }, timeoutMs: 125_000 }))
+  }
+  verifyLogin(generation: string, challengeId: string, method: CloudMFAMethod, code: string) {
+    return this.readLogin(this.request('/api/v1/cloud/auth/login/verify', { method: 'POST', body: { generation, challenge_id: challengeId, method, code }, timeoutMs: 125_000 }))
+  }
+  async cancelLogin(generation: string, challengeId: string) {
+    await this.request('/api/v1/cloud/auth/login/cancel', { method: 'POST', body: { generation, challenge_id: challengeId } })
   }
   logout(generation: string) { return this.readStatus(this.request('/api/v1/cloud/auth/logout', { method: 'POST', body: { generation }, timeoutMs: 125_000 })) }
   async auth(action: CloudAuthAction, input: { generation: string; email?: string; password?: string; token?: string }) {
     await this.request(`/api/v1/cloud/auth/${action}`, { method: 'POST', body: input, timeoutMs: 125_000 })
+  }
+  reauthenticate(generation: string, proof: CloudMFAProof) {
+    return this.request('/api/v1/cloud/auth/reauthenticate', { method: 'POST', body: { generation, ...proof }, timeoutMs: 125_000 }).then(decodeCloudReauthentication)
+  }
+  mfaStatus(generation: string, signal?: AbortSignal) {
+    return this.request(`/api/v1/cloud/auth/mfa?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudMFAStatus)
+  }
+  mfaSetup(generation: string, revision: string, proof: CloudMFAProof) {
+    return this.request('/api/v1/cloud/auth/mfa/setup', { method: 'POST', body: { generation, expected_revision: revision, ...proof }, timeoutMs: 125_000 }).then(decodeCloudMFASetup)
+  }
+  mfaConfirm(generation: string, revision: string, setupId: string, code: string) {
+    return this.request('/api/v1/cloud/auth/mfa/setup/confirm', { method: 'POST', body: { generation, expected_revision: revision, setup_id: setupId, code }, timeoutMs: 125_000 }).then(decodeCloudMFACodes)
+  }
+  mfaCancel(generation: string, revision: string, setupId: string) {
+    return this.request('/api/v1/cloud/auth/mfa/setup/cancel', { method: 'POST', body: { generation, expected_revision: revision, setup_id: setupId }, timeoutMs: 125_000 }).then(decodeCloudMFAStatus)
+  }
+  mfaDisable(generation: string, revision: string, proof: CloudMFAProof) {
+    return this.request('/api/v1/cloud/auth/mfa/disable', { method: 'POST', body: { generation, expected_revision: revision, ...proof }, timeoutMs: 125_000 }).then(decodeCloudMFAStatus)
+  }
+  mfaRegenerate(generation: string, revision: string, proof: CloudMFAProof) {
+    return this.request('/api/v1/cloud/auth/mfa/backup-codes/regenerate', { method: 'POST', body: { generation, expected_revision: revision, ...proof }, timeoutMs: 125_000 }).then(decodeCloudMFACodes)
   }
   devices() { return this.request('/api/v1/cloud/devices', { timeoutMs: 125_000 }).then((value) => decodeCloudList(value, decodeCloudDevice)) }
   sessions() { return this.request('/api/v1/cloud/sessions', { timeoutMs: 125_000 }).then((value) => decodeCloudList(value, decodeCloudSession)) }

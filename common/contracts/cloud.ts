@@ -61,7 +61,22 @@ export interface CloudEvent {
   datasets?: string[]
 }
 
-export type CloudAuthAction = 'register' | 'verify-email' | 'resend-verification' | 'password-reset/request' | 'password-reset/confirm' | 'reauthenticate'
+export type CloudAuthAction = 'register' | 'verify-email' | 'resend-verification' | 'password-reset/request' | 'password-reset/confirm'
+
+export type CloudMFAMethod = 'totp' | 'backup_code'
+export interface CloudMFAProof { password: string; method?: CloudMFAMethod; code?: string }
+export interface CloudLoginChallenge { id: string; expires_at: string; methods: CloudMFAMethod[] }
+export type CloudLoginResult = { state: 'authenticated'; status: CloudStatus } | { state: 'mfa_required'; challenge: CloudLoginChallenge }
+export interface CloudMFAStatus {
+  enabled: boolean
+  revision: string
+  enabled_at?: string
+  backup_codes_remaining: number
+  verified_until?: string
+}
+export interface CloudMFASetup { setup_id: string; expires_at: string; secret: string; otpauth_uri: string; revision: string }
+export interface CloudMFACodes { status: CloudMFAStatus; backup_codes: string[] }
+export interface CloudReauthentication { verified_until: string }
 
 export interface CloudPreviewItem { dataset: string; upload: number; download: number; delete: number; conflicts: number }
 export interface CloudPreview { id: string; generation: string; items: CloudPreviewItem[]; blocked: boolean; error_code?: string }

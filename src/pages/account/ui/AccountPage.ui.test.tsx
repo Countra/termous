@@ -24,9 +24,11 @@ function setup(value = initial) {
   const api = {
     getStatus: state.snapshot, subscribeStatus: state.subscribe, acceptStatus: state.accept.bind(state),
     status: vi.fn(async () => state.snapshot()!),
-    login: vi.fn(async () => { const next = { ...value, generation: 'logged-in', revision: 2, phase: 'ready' as const, error_code: undefined, authenticated: true, device_status: 'active' as const, email: 'fixture@example.test' }; state.accept(next); return next }),
+    login: vi.fn(async () => { const next = { ...value, generation: 'logged-in', revision: 2, phase: 'ready' as const, error_code: undefined, authenticated: true, device_status: 'active' as const, email: 'fixture@example.test' }; state.accept(next); return { state: 'authenticated' as const, status: next } }),
     logout: vi.fn(async () => initial), devices: vi.fn(async () => []), sessions: vi.fn(async () => []),
     auth: vi.fn(async () => undefined),
+    mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })),
+    reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })),
     rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })),
     preview: vi.fn(async (generation: string) => ({ id: 'preview', generation, blocked: false, items: [] })),
     conflicts: vi.fn(async () => []), confirm: vi.fn(async () => ({ ...value, confirmed: true })), run: vi.fn(async () => value),
@@ -43,21 +45,22 @@ describe('云账号页', () => {
   it('断网操作失败后恢复连接仍提示未完成，仅在用户重新提交后清除', async () => {
     const logged: CloudStatus = { ...initial, authenticated: true, phase: 'ready', device_status: 'active' }
     const { api, cloud, state } = setup(logged)
-    api.auth.mockImplementationOnce(async () => {
+    api.reauthenticate.mockImplementationOnce(async () => {
       state.accept({ ...logged, revision: 2, phase: 'blocked', error_code: 'network_unavailable' })
       throw new Error('network_unavailable')
     })
     render(<AccountPage api={cloud} initialTab="security" />)
     fireEvent.change(await screen.findByLabelText('密码'), { target: { value: 'synthetic-password' } })
-    fireEvent.click(screen.getByRole('button', { name: '验证密码' }))
+    fireEvent.click(screen.getByRole('button', { name: '验证身份' }))
     expect(await screen.findByText('暂时无法连接云服务')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByLabelText('密码')).toBeEnabled())
     act(() => { state.accept({ ...logged, revision: 3 }) })
     expect(await screen.findByText('操作未完成，请重试。')).toBeInTheDocument()
     expect(screen.queryByText('正在重连，可继续使用本地功能。')).not.toBeInTheDocument()
-    expect(api.auth).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: /验证密码/ }))
-    await waitFor(() => expect(api.auth).toHaveBeenCalledTimes(2))
+    expect(api.reauthenticate).toHaveBeenCalledTimes(1)
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+    fireEvent.click(screen.getByRole('button', { name: /验证身份/ }))
+    await waitFor(() => expect(api.reauthenticate).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByText('操作未完成，请重试。')).not.toBeInTheDocument())
   })
 

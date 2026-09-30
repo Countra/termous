@@ -12,7 +12,7 @@ const run = async <T,>(action: () => Promise<T>) => action()
 function gateway(overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(status)
-  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, devices: vi.fn(async () => []), sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })), ...overrides } as CloudGateway
+  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => []), sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })), ...overrides } as CloudGateway
 }
 
 test('设备、会话和轮换分别显示加载状态，完成读取后才显示空态', async () => {

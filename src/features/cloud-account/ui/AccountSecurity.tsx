@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input, Popconfirm, Progress, Tag, Tooltip } from 'antd'
-import { Fingerprint, KeyRound, Monitor, RefreshCw } from 'lucide-react'
+import { Alert, Button, Popconfirm, Progress, Tag, Tooltip } from 'antd'
+import { KeyRound, Monitor, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
+import { useCloudMFA } from '../model/useCloudMFA'
 import { AccountLoading, AccountSection } from './AccountSection'
+import { AccountMFA } from './AccountMFA'
+import { AccountVerification } from './AccountVerification'
 import styles from './CloudAccount.module.scss'
 
 interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
@@ -14,14 +17,13 @@ interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T
 export function AccountSecurity({ api, status, busy, run }: Props) {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<CloudSession[]>([])
-  const [verified, setVerified] = useState(false)
   const [sessionsError, setSessionsError] = useState(false)
   const [rekeyError, setRekeyError] = useState(false)
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [rekeyLoading, setRekeyLoading] = useState(true)
   const [rekey, setRekey] = useState<CloudRekeyStatus>()
-  const [form] = Form.useForm<{ password: string }>()
   const generation = status.generation
+  const mfa = useCloudMFA(api, generation)
   const lifetime = useRef<{ api: CloudGateway; generation: string; active: boolean; sessionsRequest: number; rekeyRequest: number } | null>(null)
   const loadSessions = useCallback(async () => {
     const scope = lifetime.current
@@ -71,19 +73,8 @@ export function AccountSecurity({ api, status, busy, run }: Props) {
   }
 
   return <div className={styles.section}>
-    <AccountSection title={t('cloud.securityVerification')} icon={<Fingerprint size={18} />} description={t('cloud.reauthenticateHint')}>
-      {verified ? <Alert type="success" title={t('cloud.verified')} /> : null}
-      <Form name="cloud-security" className={styles['compact-form']} form={form} layout="vertical" requiredMark={false} onFinish={(values) => void run(async () => {
-        await api.auth('reauthenticate', { generation: status.generation, password: values.password })
-        form.resetFields(); setVerified(true)
-      })}>
-        <label htmlFor="cloud-security-password">{t('cloud.password')}</label>
-        <div className={styles['verification-controls']}>
-          <Form.Item name="password" rules={[{ required: true, message: t('cloud.passwordRequired') }]}><Input.Password id="cloud-security-password" autoComplete="current-password" disabled={busy} /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={busy}>{t('cloud.auth.reauthenticate')}</Button>
-        </div>
-      </Form>
-    </AccountSection>
+    <AccountMFA api={api} generation={generation} value={mfa.value} loading={mfa.loading} error={mfa.error} busy={busy} accept={mfa.accept} reload={mfa.reload} onChanged={() => void loadSessions()} run={run} />
+    <AccountVerification api={api} generation={generation} mfa={mfa.value} unavailable={mfa.loading || mfa.error || !mfa.value} busy={busy} accept={mfa.accept} reload={mfa.reload} run={run} />
     <AccountSection title={t('cloud.sessions')} icon={<Monitor size={18} />} description={t('cloud.sessionsHint')} extra={<Button icon={<RefreshCw size={15} />} loading={sessionsLoading} disabled={busy || sessionsLoading} onClick={() => void loadSessions()}>{t('cloud.refreshSessions')}</Button>}>
       {sessionsError ? <Alert type="warning" showIcon title={t('cloud.sessionsLoadFailed')} /> : null}
       {sessions.length ? <div className={styles.list}>{sessions.map((session) => <div className={styles.row} key={session.id}>

@@ -14,7 +14,7 @@ const run = async <T,>(action: () => Promise<T>) => action()
 function gateway(overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(ready)
-  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
+  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
   const reconnect = () => {
     const revision = state.snapshot()!.revision
     state.accept({ ...ready, revision: revision + 1, phase: 'blocked', error_code: 'network_unavailable' })

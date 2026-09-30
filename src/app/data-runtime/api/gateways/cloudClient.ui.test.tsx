@@ -17,3 +17,33 @@ test('云状态请求在账号切换后才返回时，调用方同样获得当�
   expect(await pending).toEqual(current)
   expect(api.getStatus()).toEqual(current)
 })
+
+test('密码阶段只交付二步验证挑战，不切换账号状态或泄露远端令牌', async () => {
+  const challenge = { id: 'local-fixture', expires_at: new Date(Date.now() + 300_000).toISOString(), methods: ['totp', 'backup_code'] }
+  const fetch = vi.fn(async () => Response.json({ state: 'mfa_required', challenge }))
+  vi.stubGlobal('fetch', fetch)
+  const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
+  const current: CloudStatus = { generation: 'fixture', revision: 1, configured: true, authenticated: true, phase: 'ready', confirmed: true, auto_sync: true, pending: 0, conflicts: 0 }
+  api.acceptStatus(current)
+  expect(await api.login('fixture', 'fixture@example.test', 'synthetic-password')).toEqual({ state: 'mfa_required', challenge })
+  expect(api.getStatus()).toEqual(current)
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('迟到登录挑战不能用于切换后的账号，验证码失败不自动重放', async () => {
+  let respond!: (response: Response) => void
+  const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() => new Promise<Response>((done) => { respond = done }))
+  vi.stubGlobal('fetch', fetch)
+  const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
+  const status: CloudStatus = { generation: 'before', revision: 1, configured: true, authenticated: false, phase: 'signed_out', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
+  api.acceptStatus(status)
+  const pending = api.login('before', 'fixture@example.test', 'synthetic-password')
+  api.acceptStatus({ ...status, generation: 'after', revision: 2 })
+  respond(Response.json({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: new Date().toISOString(), methods: ['totp'] } }))
+  await expect(pending).rejects.toThrow('CLOUD_STALE')
+  const verification = api.verifyLogin('after', 'fixture', 'totp', '123456')
+  respond(Response.json({ error: { code: 'CLOUD_OPERATION_FAILED', message: 'mfa_invalid_code' } }, { status: 400 }))
+  await expect(verification).rejects.toThrow('mfa_invalid_code')
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(JSON.parse(fetch.mock.calls[1]![1]!.body as string)).toEqual({ generation: 'after', challenge_id: 'fixture', method: 'totp', code: '123456' })
+})

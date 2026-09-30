@@ -24,9 +24,9 @@ export function AccountSection({ title, icon, description, extra, children }: Pr
   </section>
 }
 
-export function AccountLoading() {
+export function AccountLoading({ label }: { label?: string } = {}) {
   const { t } = useTranslation()
-  return <div className={styles.loading} role="status" aria-label={t('cloud.loading')}>
+  return <div className={styles.loading} role="status" aria-label={label ?? t('cloud.loading')}>
     <Skeleton active title={false} paragraph={{ rows: 2 }} />
   </div>
 }
