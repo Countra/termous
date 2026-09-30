@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Avatar, Button, Form, Input, Popconfirm, Spin } from 'antd'
+import { Alert, Avatar, Button, Form, Input, Popconfirm } from 'antd'
 import { Camera, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudProfile, CloudProfileFields, CloudProfilePatch } from '#common/contracts'
 import { prepareAvatar } from '../model/avatar'
+import { WorkspaceEmptyState } from '#shared/ui'
+import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './AccountProfile.module.scss'
 import shared from './CloudAccount.module.scss'
 
@@ -46,6 +48,7 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
   }, [profile, imageBusy])
   const draft = editing?.fields
   const dirty = isDirty(editing)
+  const canSave = dirty && !loading && !imageBusy && Boolean(draft && [...draft.name].length <= 64 && [...draft.organization].length <= 100 && [...draft.bio].length <= 200)
   const edit = (patch: Partial<CloudProfileFields>) => { setEditing((value) => value && { ...value, fields: { ...value.fields, ...patch } }); setSaved(false) }
   const replace = async (request: () => Promise<CloudProfile | undefined>, saved: boolean) => {
     const scope = lifetime.current
@@ -66,9 +69,12 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
     } finally { if (version === imageVersion.current) setImageBusy(false) }
   }
   const failure = imageError ?? error
-  return <section className={`${shared.surface} ${styles.panel}`} aria-label={t('cloud.tabs.profile')}>
+  return <AccountSection title={t('cloud.tabs.profile')} icon={<UserRound size={18} />} description={t('cloud.profile.privateHint')}>
     {failure ? <Alert type="warning" showIcon title={t(`cloud.errors.${failure}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
-    {!profile || !draft || !editing ? loading ? <Spin /> : <Button onClick={() => void reload()}>{t('cloud.retry')}</Button> : <Form layout="vertical" disabled={loading || imageBusy} onFinish={() => void replace(() => save({ ...draft, expected_revision: editing.base.revision }), true)}>
+    {!profile || !draft || !editing ? loading ? <AccountLoading /> : <WorkspaceEmptyState className={shared.empty} icon={<UserRound size={20} />} title={t('cloud.profile.unavailable')} action={<Button onClick={() => void reload()}>{t('cloud.retry')}</Button>} /> : <Form layout="vertical" disabled={loading || imageBusy} onFinish={() => {
+      // 键盘提交也必须经过相同检查，不能仅依赖保存按钮的禁用状态。
+      if (canSave) void replace(() => save({ ...draft, expected_revision: editing.base.revision }), true)
+    }}>
       <div className={styles['avatar-row']}>
         <Avatar className={styles.avatar} size={72} src={draft.avatar || undefined} icon={<UserRound size={30} />} />
         <div>
@@ -78,7 +84,7 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
           </div>
           <p className={shared.hint}>{t('cloud.profile.avatarHint')}</p>
         </div>
-        <span className={styles['file-input']}><input ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label={t('cloud.profile.chooseAvatar')} onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file) }} /></span>
+        <input className={styles['file-input']} ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label={t('cloud.profile.chooseAvatar')} onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file) }} />
       </div>
       <div className={styles.fields}>
         <Form.Item label={t('cloud.profile.name')} htmlFor="cloud-profile-name"><Input id="cloud-profile-name" value={draft.name} count={{ show: true, max: 64, strategy: (value) => [...value].length }} onChange={(event) => edit({ name: event.target.value })} placeholder={email} /></Form.Item>
@@ -86,12 +92,12 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
       </div>
       <Form.Item label={t('cloud.profile.bio')} htmlFor="cloud-profile-bio"><Input.TextArea id="cloud-profile-bio" value={draft.bio} autoSize={{ minRows: 3, maxRows: 6 }} count={{ show: true, max: 200, strategy: (value) => [...value].length }} onChange={(event) => edit({ bio: event.target.value })} /></Form.Item>
       <div className={styles.footer}>
-        <span className={shared.hint} role="status">{saved && !dirty ? t('cloud.profile.saved') : t('cloud.profile.privateHint')}</span>
+        <span className={`${shared.hint} ${saved && !dirty ? styles.saved : ''}`} role="status">{saved && !dirty ? t('cloud.profile.saved') : dirty ? t('cloud.profile.unsaved') : t('cloud.profile.editHint')}</span>
         <div className={shared.actions}>
           <Popconfirm disabled={!dirty} title={t('cloud.profile.discard')} onConfirm={() => void replace(reload, false)}><Button disabled={loading || imageBusy} onClick={() => { if (!dirty) void replace(reload, false) }}>{t('cloud.profile.reload')}</Button></Popconfirm>
-          <Button type="primary" htmlType="submit" loading={loading} disabled={!dirty || imageBusy || [...draft.name].length > 64 || [...draft.organization].length > 100 || [...draft.bio].length > 200}>{t('cloud.profile.save')}</Button>
+          <Button type="primary" htmlType="submit" loading={loading} disabled={!canSave}>{t('cloud.profile.save')}</Button>
         </div>
       </div>
     </Form>}
-  </section>
+  </AccountSection>
 }

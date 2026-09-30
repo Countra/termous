@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { changeLanguage } from '#shared/i18n'
 import type { CloudProfile } from '#common/contracts'
@@ -59,4 +59,16 @@ test.each([false, true])('确认重新载入后才丢弃草稿，读取失败仍
   await waitFor(() => expect(reload).toHaveBeenCalledTimes(1))
   await waitFor(() => expect(screen.getByLabelText('名称')).toHaveValue(success ? 'Remote' : 'Draft'))
   expect(screen.getByRole('button', { name: '保存资料' }).hasAttribute('disabled')).toBe(success)
+})
+
+test.each(['pristine', 'too-long', 'loading'] as const)('表单提交入口与保存按钮遵循相同边界：%s', async (state) => {
+  const save = vi.fn(async () => profile)
+  const props = { profile, loading: false, save, reload: vi.fn() }
+  const view = render(<AccountProfile {...props} />)
+  if (state !== 'pristine') fireEvent.change(screen.getByLabelText('名称'), { target: { value: state === 'too-long' ? '😀'.repeat(65) : 'Draft' } })
+  if (state === 'loading') view.rerender(<AccountProfile {...props} loading />)
+  expect(screen.getByRole('button', { name: /保存资料/ })).toBeDisabled()
+  const form = screen.getByLabelText('名称').closest('form')!
+  await act(async () => { fireEvent.submit(form) })
+  expect(save).not.toHaveBeenCalled()
 })

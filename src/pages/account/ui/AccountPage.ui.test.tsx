@@ -28,7 +28,7 @@ function setup(value = initial) {
     logout: vi.fn(async () => initial), devices: vi.fn(async () => []), sessions: vi.fn(async () => []),
     auth: vi.fn(async () => undefined),
     rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })),
-    preview: vi.fn(async () => ({ id: 'preview', generation: value.generation, blocked: false, items: [] })),
+    preview: vi.fn(async (generation: string) => ({ id: 'preview', generation, blocked: false, items: [] })),
     conflicts: vi.fn(async () => []), confirm: vi.fn(async () => ({ ...value, confirmed: true })), run: vi.fn(async () => value),
   }
   const settings = new SettingsModuleStore({

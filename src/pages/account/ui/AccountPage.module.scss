@@ -1,28 +1,33 @@
 .page {
   display: flex;
-  width: min(100%, 1060px);
+  width: 100%;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
+  min-width: 0;
+  overflow: hidden;
   flex-direction: column;
-  gap: 20px;
-  margin-inline: auto;
-  padding: 24px;
+  gap: 14px;
 }
 
-.header, .heading, .profile {
+.header, .overview {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.header, .profile {
+  flex-shrink: 0;
   justify-content: space-between;
 }
 
-.heading h1 {
+.header h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 760;
+  line-height: 1.15;
+}
+
+.overview {
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
 }
 
 .identity {
@@ -30,39 +35,120 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
 
-  > div {
-    min-width: 0;
+.identity-text {
+  min-width: 0;
+
+  strong, p {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 12px;
   }
 }
 
-.profile strong {
-  font-size: 18px;
-  overflow-wrap: anywhere;
+.avatar {
+  flex-shrink: 0;
 }
 
-.profile p {
-  margin: 6px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
+.trust {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+}
+
+.tabs:global(.ant-tabs) {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.tabs > :global(.ant-tabs-nav) {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.tabs > :global(.ant-tabs-body-holder) {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+// 仅设置账号页自己的滚动容器，保留页签实例和未提交的输入。
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body),
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body) > :global(.ant-tabs-content),
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body) > :global(.ant-tabs-content) > :global(.ant-tabs-tabpane) {
+  height: 100%;
+  min-height: 0;
+}
+
+.tab-scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  padding-bottom: 18px;
+  scrollbar-gutter: stable;
+}
+
+.tab-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.tab-label, .tab-label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.login-page {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 24px 16px;
 }
 
 .login-surface {
   flex-shrink: 0;
-  width: min(100%, 460px);
+  display: flex;
+  width: min(100%, 440px);
+  flex-direction: column;
+  gap: 20px;
   margin: auto;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  padding: 28px 32px;
+  padding: 28px;
 }
 
 .login-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 26px;
   font-size: 16px;
   font-weight: 650;
 
@@ -74,7 +160,6 @@
 }
 
 .offline {
-  margin-top: 24px;
   border-top: 1px solid var(--border);
   padding-top: 20px;
 
@@ -88,16 +173,12 @@
 }
 
 @media (width <= 760px) {
-  .page {
-    padding: 16px;
-  }
-
   .login-surface {
     padding: 24px;
   }
 
-  .profile {
+  .overview {
     align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: wrap;
   }
 }
