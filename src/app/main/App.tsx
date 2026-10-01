@@ -2,7 +2,7 @@ import { desktopUpdateBridge, localSettingsGateway } from '#app/data-runtime'
 import { useSettingsModule } from '#entities/settings'
 import { NotificationControl } from '#app/notification-runtime'
 import type { NotificationTarget } from '#entities/notification'
-import type { CloudTab } from '#common/contracts'
+import type { CloudTab, CloudAuthorizationTarget } from '#common/contracts'
 import { useCloudSubscription } from './model/useCloudSubscription'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp } from 'antd'
@@ -330,6 +330,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const notificationNavigationBlocked = useRef(false)
   const [accountTab, setAccountTab] = useState<CloudTab>('sync')
+  const [accountAuthorization, setAccountAuthorization] = useState<CloudAuthorizationTarget>()
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
   useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
@@ -349,6 +350,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
         if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
         setAccountTab(target.tab)
+        setAccountAuthorization(target.authorization)
         setPage('account')
         return true
       }
@@ -1595,7 +1597,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
-                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} authorizationTarget={accountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           settingsGateway={gateways.settings}

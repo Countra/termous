@@ -1,11 +1,44 @@
-import type { CloudAuthAction, CloudChallenge, CloudStatus, CloudMFAMethod, CloudMFAProof } from '#common/contracts'
+import type { CloudAuthAction, CloudStatus, CloudMFAMethod, CloudMFAProof } from '#common/contracts'
 import type { CloudProfilePatch } from '#common/contracts'
 import { decodeCloudProfile } from '#entities/cloud'
-import { CloudState, decodeCloudStatus, decodeCloudList, decodeCloudDevice, decodeCloudSession, decodeCloudPairing, decodeCloudApproval, decodeCloudPreview, decodeCloudConflict, decodeCloudRekey, type CloudGateway } from '#entities/cloud'
+import { CloudState, decodeCloudStatus, decodeCloudList, decodeCloudDevice, decodeCloudSession, decodeCloudPreview, decodeCloudConflict, decodeCloudRekey, type CloudGateway } from '#entities/cloud'
 import { decodeCloudLogin, decodeCloudMFAStatus, decodeCloudMFASetup, decodeCloudMFACodes, decodeCloudReauthentication } from '#entities/cloud'
 import { TermousApiTransport } from '#shared/api'
+import type { CloudAuthorizationKind, CloudAuthorizationInput } from '#common/contracts'
+import { decodeCloudAuthorization, decodeCloudSecurity, decodeCloudRecoveryStatus } from '#entities/cloud'
 
 export class CloudClient extends TermousApiTransport implements CloudGateway {
+  security(generation: string, signal?: AbortSignal) {
+    return this.request(`/api/v1/cloud/security?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudSecurity)
+  }
+  async initializeMembership(generation: string, deviceIds: string[]) {
+    await this.request('/api/v1/cloud/membership/initialize', { method: 'POST', body: { generation, device_ids: deviceIds }, timeoutMs: 125_000 })
+  }
+  deviceRequests(generation: string, signal?: AbortSignal) {
+    return this.request(`/api/v1/cloud/device-requests?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(value => decodeCloudList(value, decodeCloudAuthorization))
+  }
+  createDeviceRequest(generation: string) {
+    return this.request('/api/v1/cloud/device-requests', { method: 'POST', body: { generation }, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
+  }
+  private authorizationPath(kind: CloudAuthorizationKind, id: string) {
+    return kind === 'approval' ? `/api/v1/cloud/device-requests/${encodeURIComponent(id)}` : `/api/v1/cloud/managed-recovery/${kind}/${encodeURIComponent(id)}`
+  }
+  authorization(generation: string, kind: CloudAuthorizationKind, id: string, signal?: AbortSignal) {
+    return this.request(`${this.authorizationPath(kind, id)}?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
+  }
+  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: string, input: CloudAuthorizationInput) {
+    return this.request(`${this.authorizationPath(kind, id)}/${encodeURIComponent(action)}`, { method: 'POST', body: { generation, ...input }, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
+  }
+  recoveryOperations(generation: string, signal?: AbortSignal) {
+    return this.request(`/api/v1/cloud/managed-recovery/operations?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(value => decodeCloudList(value, decodeCloudAuthorization))
+  }
+  createRecovery(generation: string, kind: 'enablement' | 'recovery') {
+    return this.request(`/api/v1/cloud/managed-recovery/${kind}`, { method: 'POST', body: { generation }, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
+  }
+  recoveryPolicy(generation: string, action: 'disable' | 'freeze' | 'unfreeze', revision: string, proof: CloudMFAProof) {
+    return this.request(`/api/v1/cloud/recovery-policy/${action}`, { method: 'POST', body: { generation, expected_revision: revision, ...proof }, timeoutMs: 125_000 }).then(decodeCloudRecoveryStatus)
+  }
+  async emergencyFreeze(generation: string) { await this.request('/api/v1/cloud/emergency-freeze', { method: 'POST', body: { generation }, timeoutMs: 125_000 }) }
   profile(generation: string, signal?: AbortSignal) {
     return this.request(`/api/v1/cloud/profile?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudProfile)
   }
@@ -73,9 +106,6 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   }
   devices() { return this.request('/api/v1/cloud/devices', { timeoutMs: 125_000 }).then((value) => decodeCloudList(value, decodeCloudDevice)) }
   sessions() { return this.request('/api/v1/cloud/sessions', { timeoutMs: 125_000 }).then((value) => decodeCloudList(value, decodeCloudSession)) }
-  pairing(generation: string) { return this.request('/api/v1/cloud/devices/pairing', { method: 'POST', body: { generation }, timeoutMs: 125_000 }).then(decodeCloudPairing) }
-  approve(generation: string, challenge: CloudChallenge, fingerprint: string) { return this.request('/api/v1/cloud/devices/approve', { method: 'POST', body: { generation, challenge, fingerprint }, timeoutMs: 125_000 }).then(decodeCloudApproval) }
-  accept(generation: string, trustRoot: string) { return this.readStatus(this.request('/api/v1/cloud/devices/accept', { method: 'POST', body: { generation, trust_root: trustRoot }, timeoutMs: 125_000 })) }
   async revokeDevice(generation: string, id: string) { await this.request(`/api/v1/cloud/devices/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: { generation }, timeoutMs: 125_000 }) }
   async revokeSession(generation: string, id: string) { await this.request(`/api/v1/cloud/sessions/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: { generation }, timeoutMs: 125_000 }) }
   preview(generation: string) { return this.request('/api/v1/cloud/sync/preview', { method: 'POST', body: { generation }, timeoutMs: 125_000 }).then(decodeCloudPreview) }

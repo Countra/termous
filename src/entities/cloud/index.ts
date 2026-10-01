@@ -1,5 +1,6 @@
 export type { CloudGateway } from './model/gateway.ts'
 export * from './model/decode.ts'
 export * from './model/mfa.ts'
+export * from './model/security.ts'
 export { CloudState } from './model/state.ts'
 export { isCloudConnectionError } from './model/connection.ts'

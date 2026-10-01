@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudDevice, CloudSession, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -14,7 +14,8 @@ const run = async <T,>(action: () => Promise<T>) => action()
 function gateway(overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(ready)
-  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
+  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => ({ account: { contract: 'cloud-authorization-v1', managed_recovery: false, mfa_enabled: false, mfa_revision: '0' }, recovery: { policy: { workspace_id: 'fixture', revision: '0', status: 'disabled', updated_at: '2026-10-01T00:00:00Z' }, available: false }, membership_initialized: false, keys_verified: false })), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), createDeviceRequest: vi.fn(), createRecovery: vi.fn(),
+    mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
   const reconnect = () => {
     const revision = state.snapshot()!.revision
     state.accept({ ...ready, revision: revision + 1, phase: 'blocked', error_code: 'network_unavailable' })
@@ -23,22 +24,18 @@ function gateway(overrides: Partial<CloudGateway> = {}) {
   return { api, state, reconnect }
 }
 
-test('重连自动恢复设备、会话和轮换状态，保留配对与密码输入且不执行写操作', async () => {
+test('重连自动恢复设备、会话和轮换状态且不执行授权写操作', async () => {
   const { api, reconnect } = gateway()
   vi.mocked(api.devices).mockRejectedValueOnce(new Error('network_unavailable'))
   vi.mocked(api.sessions).mockRejectedValueOnce(new Error('network_unavailable'))
   vi.mocked(api.rekeyStatus).mockRejectedValueOnce(new Error('network_unavailable'))
   render(<><AccountDevices api={api} status={ready} busy={false} run={run} /><AccountSecurity api={api} status={ready} busy={false} run={run} /></>)
   await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(4))
-  fireEvent.change(screen.getByLabelText('生成配对请求'), { target: { value: '尚未提交的配对内容' } })
-  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-draft' } })
   act(reconnect)
   expect(await screen.findByText('设备已更新', { selector: 'strong' })).toBeInTheDocument()
   expect(await screen.findByText('会话已更新', { selector: 'strong' })).toBeInTheDocument()
   expect(await screen.findByText(new RegExp('2 / 5'))).toBeInTheDocument()
   expect(screen.getAllByRole('alert')).toHaveLength(1)
-  expect(screen.getByLabelText('生成配对请求')).toHaveValue('尚未提交的配对内容')
-  expect(screen.getByLabelText('密码')).toHaveValue('synthetic-draft')
   expect(api.devices).toHaveBeenCalledTimes(2)
   expect(api.sessions).toHaveBeenCalledTimes(2)
   expect(api.rekeyStatus).toHaveBeenCalledTimes(2)

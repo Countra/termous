@@ -27,6 +27,7 @@ function setup(value = initial) {
     login: vi.fn(async () => { const next = { ...value, generation: 'logged-in', revision: 2, phase: 'ready' as const, error_code: undefined, authenticated: true, device_status: 'active' as const, email: 'fixture@example.test' }; state.accept(next); return { state: 'authenticated' as const, status: next } }),
     logout: vi.fn(async () => initial), devices: vi.fn(async () => []), sessions: vi.fn(async () => []),
     auth: vi.fn(async () => undefined),
+    security: vi.fn(async () => ({ account: { contract: 'cloud-authorization-v1', managed_recovery: false, mfa_enabled: false, mfa_revision: '0' }, recovery: { policy: { workspace_id: 'fixture', revision: '0', status: 'disabled', updated_at: '2026-10-01T00:00:00Z' }, available: false }, membership_initialized: false, keys_verified: false })), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), createDeviceRequest: vi.fn(), createRecovery: vi.fn(),
     mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })),
     reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })),
     rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })),
@@ -199,13 +200,13 @@ describe('云账号页', () => {
     expect(screen.queryByRole('tab', { name: '安全' })).not.toBeInTheDocument()
   })
 
-  it.each(['{', JSON.stringify({ signing_key: 'synthetic-key', recipient: 'synthetic-recipient' })])('拒绝不完整的设备配对材料并显示明确错误：%s', async (request) => {
-    const { cloud, gateway } = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'active' })
-    render(<SettingsGatewayContext value={gateway}><AccountPage api={cloud} initialTab="devices" /></SettingsGatewayContext>)
-    fireEvent.change(await screen.findByLabelText('生成配对请求'), { target: { value: request } })
-    fireEvent.click(screen.getByRole('button', { name: '核对设备' }))
-    expect(await screen.findByText('配对请求格式不正确，请重新复制。')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '核对设备' })).toBeEnabled()
+  it('待授权设备提供受控申请入口，不再输入或复制长配对材料', async () => {
+    const { cloud } = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'pending' })
+    render(<AccountPage api={cloud} initialTab="devices" />)
+    expect(await screen.findByRole('button', { name: '使用可信设备批准' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('生成配对请求')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(cloud.createDeviceRequest).not.toHaveBeenCalled()
+    expect(cloud.createRecovery).not.toHaveBeenCalled()
   })
 })

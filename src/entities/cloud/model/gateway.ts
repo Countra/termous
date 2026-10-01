@@ -1,7 +1,17 @@
-import type { CloudAuthAction, CloudChallenge, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
-import type { CloudProfile, CloudProfilePatch } from '#common/contracts'
+import type { CloudAuthAction, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
+import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
 
 export interface CloudGateway {
+  security(generation: string, signal?: AbortSignal): Promise<CloudSecurityOverview>
+  initializeMembership(generation: string, deviceIds: string[]): Promise<void>
+  deviceRequests(generation: string, signal?: AbortSignal): Promise<CloudAuthorization[]>
+  createDeviceRequest(generation: string): Promise<CloudAuthorization>
+  authorization(generation: string, kind: CloudAuthorizationKind, id: string, signal?: AbortSignal): Promise<CloudAuthorization>
+  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: string, input: CloudAuthorizationInput): Promise<CloudAuthorization>
+  recoveryOperations(generation: string, signal?: AbortSignal): Promise<CloudAuthorization[]>
+  createRecovery(generation: string, kind: 'enablement' | 'recovery'): Promise<CloudAuthorization>
+  recoveryPolicy(generation: string, action: 'disable' | 'freeze' | 'unfreeze', revision: string, proof: CloudMFAProof): Promise<CloudRecoveryStatus>
+  emergencyFreeze(generation: string): Promise<void>
   profile(generation: string, signal?: AbortSignal): Promise<CloudProfile>
   updateProfile(generation: string, patch: CloudProfilePatch, signal?: AbortSignal): Promise<CloudProfile>
   getStatus(): CloudStatus | undefined
@@ -23,9 +33,6 @@ export interface CloudGateway {
   mfaRegenerate(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFACodes>
   devices(): Promise<CloudDevice[]>
   sessions(): Promise<CloudSession[]>
-  pairing(generation: string): Promise<{ challenge: CloudChallenge; fingerprint: string }>
-  approve(generation: string, challenge: CloudChallenge, fingerprint: string): Promise<{ trust_root: string }>
-  accept(generation: string, trustRoot: string): Promise<CloudStatus>
   revokeDevice(generation: string, id: string): Promise<void>
   revokeSession(generation: string, id: string): Promise<void>
   preview(generation: string): Promise<CloudPreview>

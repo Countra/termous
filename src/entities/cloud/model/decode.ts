@@ -1,4 +1,4 @@
-import type { CloudChallenge, CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import type { CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
 import type { CloudProfile } from '#common/contracts'
 
 export function decodeCloudProfile(value: unknown): CloudProfile {
@@ -54,7 +54,7 @@ export function decodeCloudStatus(value: unknown): CloudStatus {
 }
 export function decodeCloudEvent(value: unknown): CloudEvent {
   const r = record(value)
-  return { type: choice(r.type, ['snapshot', 'status', 'resync', 'datasets']), status: decodeCloudStatus(r.status), datasets: r.datasets === undefined ? undefined : decodeCloudList(r.datasets, (v) => text(v, 64)) }
+  return { type: choice(r.type, ['snapshot', 'status', 'resync', 'datasets', 'security']), status: decodeCloudStatus(r.status), datasets: r.datasets === undefined ? undefined : decodeCloudList(r.datasets, (v) => text(v, 64)) }
 }
 export function decodeCloudDevice(value: unknown): CloudDevice {
   const r = record(value)
@@ -64,15 +64,6 @@ export function decodeCloudSession(value: unknown): CloudSession {
   const r = record(value)
   return { id: text(r.id), device_id: text(r.device_id), created_at: date(r.created_at), expires_at: date(r.expires_at), revoked: boolean(r.revoked) }
 }
-export function decodeCloudChallenge(value: unknown): CloudChallenge {
-  const r = record(value)
-  return { id: text(r.id), kind: text(r.kind), nonce: text(r.nonce), user_id: text(r.user_id), session_id: text(r.session_id), device_id: text(r.device_id), workspace_id: text(r.workspace_id), key_epoch: text(r.key_epoch), recovery_version: text(r.recovery_version), signing_key: text(r.signing_key), recipient: text(r.recipient), recovery_epoch: text(r.recovery_epoch), expires_at: date(r.expires_at) }
-}
-export function decodeCloudPairing(value: unknown) {
-  const r = record(value)
-  return { challenge: decodeCloudChallenge(r.challenge), fingerprint: text(r.fingerprint) }
-}
-export function decodeCloudApproval(value: unknown) { return { trust_root: text(record(value).trust_root, 8192) } }
 export function decodeCloudPreview(value: unknown): CloudPreview {
   const r = record(value)
   return { id: text(r.id), generation: text(r.generation), blocked: boolean(r.blocked), error_code: optional(r.error_code), items: decodeCloudList(r.items, (item) => {

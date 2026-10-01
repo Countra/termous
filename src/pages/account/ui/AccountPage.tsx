@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { Alert, Avatar, Button, Modal, Skeleton, Tabs, Tag, Tooltip } from 'antd'
+import { Alert, Avatar, Button, Modal, Popconfirm, Skeleton, Tabs, Tag, Tooltip } from 'antd'
 import { ArrowRight, Cloud, CloudOff, Laptop, LogOut, Monitor, ShieldCheck, ShieldX, UserRound } from 'lucide-react'
-import type { CloudTab } from '#common/contracts'
+import type { CloudTab, CloudAuthorizationTarget } from '#common/contracts'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
 import { isCloudConnectionError } from '#entities/cloud'
@@ -15,9 +15,10 @@ interface Props {
   onUseOffline: () => void
   activeTab: CloudTab
   onTabChange: (tab: CloudTab) => void
+  authorizationTarget?: CloudAuthorizationTarget
 }
 
-export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange }: Props) {
+export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange, authorizationTarget }: Props) {
   const { t } = useTranslation()
   const { status, busy, error, run, refresh } = useCloudAccount(api)
   const [reauthGeneration, setReauthGeneration] = useState<string>()
@@ -45,6 +46,7 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
       </> : error ? <WorkspaceEmptyState icon={<CloudOff size={20} />} title={t('cloud.loadFailed')} action={<Button onClick={() => void refresh()}>{t('cloud.retry')}</Button>} />
         : <div role="status" aria-label={t('cloud.loading')}><Skeleton active paragraph={{ rows: 3 }} /></div>}
       {offline}
+      {status?.device_status === 'active' && status.binding_id ? <Popconfirm title={t('cloud.authorization.emergencyConfirm')} onConfirm={() => run(() => api.emergencyFreeze(status.generation))}><Button danger disabled={busy}>{t('cloud.authorization.emergency')}</Button></Popconfirm> : null}
     </section>
   </div>
 
@@ -66,6 +68,7 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
       <Tag className={styles.trust} icon={status.device_status === 'revoked' ? <ShieldX size={13} /> : <ShieldCheck size={13} />}>{deviceLabel}</Tag>
     </section>
     {feedback}
+    {status.error_code === 'login_required' || status.error_code === 'refresh_unconfirmed' ? <Popconfirm title={t('cloud.authorization.emergencyConfirm')} onConfirm={() => run(() => api.emergencyFreeze(status.generation))}><Button danger disabled={busy || status.device_status !== 'active'}>{t('cloud.authorization.emergency')}</Button></Popconfirm> : null}
     <Modal key={`reauth-${status.generation}`} open={reauthGeneration === status.generation} title={t('cloud.reconnectAccount')} footer={null} destroyOnHidden onCancel={() => setReauthGeneration(undefined)}>
       {error ? <Alert type="warning" showIcon title={t(`cloud.errors.${error}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
       <AccountAuth key={status.generation} api={api} generation={status.generation} email={status.email} reauthenticate busy={busy} run={run} />
@@ -75,7 +78,7 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
     }} items={[
       { key: 'profile', label: label('profile', <UserRound size={15} />), children: panel(<AccountProfile {...profile} email={status.email} />) },
       { key: 'sync', label: label('sync', <Cloud size={15} />), children: panel(<AccountSync api={api} status={status} busy={busy} run={run} />) },
-      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} busy={busy} run={run} />) },
+      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} target={authorizationTarget} busy={busy} run={run} />) },
       { key: 'security', label: label('security', <ShieldCheck size={15} />), children: panel(<AccountSecurity api={api} status={status} busy={busy} run={run} />) },
     ]} />
   </div>

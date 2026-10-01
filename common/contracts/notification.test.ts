@@ -35,3 +35,14 @@ test('审批具有独立受控目标且旧偏好默认启用审批通知', () =>
   assert.deepEqual(validateNotificationPreferences({ enabled: false, agent: false, file: true }), { enabled: false, agent: false, file: true, approval: true, cloud: true })
   assert.throws(() => validateNotificationPreferences({ enabled: true, agent: true, file: true, approval: 'yes' }))
 })
+
+test('云安全消息只接受成对的受控授权目标，直接打开正确流程', () => {
+  for (const kind of ['approval', 'recovery', 'enablement'] as const) {
+    const message = decodeNotification({ ...base, kind: 'cloud', operation: 'cloud_recovery', authorization_id: 'authorization_fixture', authorization_kind: kind })
+    assert.deepEqual(notificationTarget(message), { kind: 'cloud', binding_id: 'run', tab: 'devices', authorization: { id: 'authorization_fixture', kind } })
+  }
+  assert.throws(() => decodeNotification({ ...base, kind: 'cloud', authorization_id: 'fixture' }))
+  assert.throws(() => decodeNotification({ ...base, kind: 'cloud', authorization_kind: 'recovery' }))
+  assert.throws(() => decodeNotification({ ...base, kind: 'cloud', authorization_id: '../other', authorization_kind: 'recovery' }))
+  assert.throws(() => decodeNotification({ ...base, authorization_id: 'fixture', authorization_kind: 'recovery' }))
+})

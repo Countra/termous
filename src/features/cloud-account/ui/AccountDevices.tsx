@@ -1,101 +1,135 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Input, Modal, Space, Tag, Tooltip } from 'antd'
-import { Check, Copy, Laptop, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Alert, Button, Checkbox, Form, Input, Modal, Tag, Tooltip } from 'antd'
+import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudChallenge, CloudDevice, CloudStatus } from '#common/contracts'
-import { decodeCloudChallenge, type CloudGateway } from '#entities/cloud'
+import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudMFAMethod, CloudStatus } from '#common/contracts'
+import type { CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
+import { useCloudAuthorization } from '../model/useCloudAuthorization'
+import { AccountAuthorization } from './AccountAuthorization'
+import { AccountMFAFields } from './AccountMFAFields'
 import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './CloudAccount.module.scss'
 
-interface Props {
-  api: CloudGateway
-  status: CloudStatus
-  busy: boolean
-  run: <T>(action: () => Promise<T>) => Promise<T | undefined>
-}
+interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
 
-export function AccountDevices({ api, status, busy, run }: Props) {
+export function AccountDevices({ api, status, busy, run, target }: Props) {
   const { t } = useTranslation()
   const [devices, setDevices] = useState<CloudDevice[]>([])
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [pairing, setPairing] = useState('')
-  const [fingerprint, setFingerprint] = useState('')
-  const [root, setRoot] = useState('')
-  const [request, setRequest] = useState('')
-  const [candidate, setCandidate] = useState<{ challenge: CloudChallenge; fingerprint: string }>()
   const [revoking, setRevoking] = useState<CloudDevice>()
-  const [approvalRoot, setApprovalRoot] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [selected, setSelected] = useState<CloudAuthorization>()
+  const [switching, setSwitching] = useState<{ from: CloudAuthorization; kind: 'approval' | 'recovery' }>()
+  const [initialize, setInitialize] = useState(false)
+  const [checked, setChecked] = useState<string[]>([])
+  const [proof] = Form.useForm<CloudMFAProof>()
+  const [method, setMethod] = useState<CloudMFAMethod>('totp')
+  const [targetError, setTargetError] = useState(false)
   const generation = status.generation
-  const lifetime = useRef<{ api: CloudGateway; generation: string; active: boolean; request: number } | null>(null)
+  const authorization = useCloudAuthorization(api, generation)
+  const lifetime = useRef<{ controller: AbortController; request: number } | null>(null)
   const load = useCallback(async () => {
     const scope = lifetime.current
-    if (!scope?.active || scope.api !== api || scope.generation !== generation) return
+    if (!scope || scope.controller.signal.aborted) return
     const request = ++scope.request
     setLoading(true)
     try {
       const items = await api.devices()
-      if (scope.active && request === scope.request) { setDevices(items); setError(false) }
-    } catch {
-      if (scope.active && request === scope.request) setError(true)
-    } finally {
-      if (scope.active && request === scope.request) setLoading(false)
-    }
+      if (!scope.controller.signal.aborted && request === scope.request && generation === api.getStatus()?.generation) { setDevices(items); setError(false) }
+    } catch { if (!scope.controller.signal.aborted && request === scope.request) setError(true) }
+    finally { if (!scope.controller.signal.aborted && request === scope.request) setLoading(false) }
   }, [api, generation])
   useEffect(() => {
-    const scope = { api, generation, active: true, request: 0 }
-    lifetime.current = scope
-    setDevices([]); setError(false)
+    const controller = new AbortController()
+    lifetime.current = { controller, request: 0 }
+    setDevices([]); setError(false); setSelected(undefined); setRevoking(undefined); setSwitching(undefined); setInitialize(false)
     void load()
-    return () => { scope.active = false }
-  }, [api, generation, load])
+    return () => { controller.abort(); proof.resetFields() }
+  }, [load, proof])
   useCloudReconnect(api, generation, load)
-
+  useEffect(() => {
+    if (!target) return
+    const controller = new AbortController()
+    setTargetError(false)
+    void api.authorization(generation, target.kind, target.id, controller.signal).then(value => {
+      if (!controller.signal.aborted && generation === api.getStatus()?.generation) setSelected(value)
+    }).catch(() => { if (!controller.signal.aborted) setTargetError(true) })
+    return () => controller.abort()
+  }, [api, generation, target])
+  const reloadAuthorization = authorization.reload
+  const changed = useCallback(() => { void load(); void reloadAuthorization() }, [load, reloadAuthorization])
+  const create = (kind: 'approval' | 'recovery') => run(async () => {
+    const scope = lifetime.current
+    const result = kind === 'approval' ? await api.createDeviceRequest(generation) : await api.createRecovery(generation, 'recovery')
+    if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setSelected(result); changed() }
+    return result
+  })
+  const outstanding = authorization.requests.filter(v => v.kind !== 'enablement' && !['cancelled', 'rejected', 'expired', 'invalidated', 'acknowledged', 'failed'].includes(v.status))
+  const begin = (kind: 'approval' | 'recovery') => {
+    const existing = outstanding.find(value => value.device_id === status.device_id)
+    if (existing) {
+      if (existing.kind === kind || !existing.allowed_actions.includes('cancel')) setSelected(existing)
+      else setSwitching({ from: existing, kind })
+    } else void create(kind)
+  }
   return <div className={styles.section}>
-    <AccountSection title={t('cloud.deviceList')} icon={<Laptop size={18} />} description={t('cloud.deviceListHint')} extra={
-      <Button icon={<RefreshCw size={15} />} loading={loading} disabled={busy || loading} onClick={() => void run(load)}>{t('cloud.refresh')}</Button>
-    }>
+    {targetError ? <Alert type="info" showIcon title={t('cloud.authorization.targetUnavailable')} /> : null}
+    {authorization.error ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} action={<Button onClick={() => void authorization.reload()}>{t('cloud.retry')}</Button>} /> : null}
+    {status.device_status === 'pending' ? <AccountSection title={t('cloud.authorizeDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.authorization.chooseHint')}>
+      <div className={styles.actions}>
+        <Button type="primary" disabled={busy || authorization.error || authorization.loading} onClick={() => begin('approval')}>{t('cloud.authorization.useTrusted')}</Button>
+        <Button disabled={busy || !authorization.security?.recovery.available || authorization.error} onClick={() => begin('recovery')}>{t('cloud.authorization.useRecovery')}</Button>
+      </div>
+      {!authorization.security?.recovery.available && authorization.security ? <p className={styles.hint}>{t(`cloud.authorization.reasons.${authorization.security.recovery.reason}`, { defaultValue: t('cloud.authorization.reasons.not_enabled') })}</p> : null}
+    </AccountSection> : null}
+    {authorization.security?.keys_verified && !authorization.security.membership_initialized ? <AccountSection title={t('cloud.authorization.initialize')} icon={<ShieldCheck size={18} />} description={t('cloud.authorization.initializeHint')}>
+      <Button disabled={busy || loading || error || authorization.error} onClick={() => { setChecked(devices.filter(d => d.status === 'active').map(d => d.id)); setInitialize(true) }}>{t('cloud.authorization.reviewMembers')}</Button>
+    </AccountSection> : null}
+    <AccountSection title={t('cloud.authorization.requests')} icon={<ShieldCheck size={18} />} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void authorization.reload()}>{t('cloud.refresh')}</Button>}>
+      {outstanding.length ? <div className={styles.list}>{outstanding.map(request => <div className={styles.row} key={request.id}>
+        <div className={styles.identity}><strong>{request.name || t('cloud.currentDevice')}</strong><small>{request.platform} · {new Date(request.created_at).toLocaleString()}</small></div>
+        <div className={styles.actions}><Tag>{t(`cloud.authorization.states.${request.status}`)}</Tag><Button disabled={busy} onClick={() => setSelected(request)}>{t('cloud.authorization.details')}</Button></div>
+      </div>)}</div> : authorization.loading ? <AccountLoading /> : <p className={styles.hint}>{t('cloud.authorization.noRequests')}</p>}
+    </AccountSection>
+    <AccountSection title={t('cloud.deviceList')} icon={<Laptop size={18} />} description={t('cloud.deviceListHint')} extra={<Button icon={<RefreshCw size={15} />} loading={loading} disabled={busy || loading} onClick={() => void load()}>{t('cloud.refresh')}</Button>}>
       {error ? <Alert type="warning" showIcon title={t('cloud.devicesLoadFailed')} /> : null}
-      {devices.length ? <div className={styles.list}>{devices.map((device) => <div className={styles.row} key={device.id}>
+      {devices.length ? <div className={styles.list}>{devices.map(device => <div className={styles.row} key={device.id}>
         <div className={styles['list-identity']}><span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span><div className={styles.identity}><strong>{device.name}</strong><small><Tooltip title={device.id}><span className={styles.identifier}>{device.id}</span></Tooltip></small></div></div>
-        <div className={styles.actions}><Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status === 'revoked' || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
+        <div className={styles.actions}><Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
       </div>)}</div> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
     </AccountSection>
-    {status.device_status === 'pending' ? <AccountSection title={t('cloud.authorizeDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.pairHint')}>
-      <div className={styles.actions}><Button type="primary" icon={<Plus size={15} />} loading={busy} onClick={() => void run(async () => {
-        const result = await api.pairing(status.generation)
-        setPairing(JSON.stringify(result.challenge, null, 2))
-        setFingerprint(result.fingerprint)
-      })}>{t('cloud.pairRequest')}</Button></div>
-      {pairing ? <Input.TextArea readOnly value={pairing} rows={5} aria-label={t('cloud.pairRequest')} /> : null}
-      {fingerprint ? <div className={styles.identity}><strong>{t('cloud.deviceFingerprint')}</strong><code className={styles.mono}>{fingerprint}</code></div> : null}
-      <label className={styles.hint} htmlFor="cloud-trust-root">{t('cloud.trustRoot')}</label>
-      <Input.TextArea id="cloud-trust-root" value={root} onChange={(event) => setRoot(event.target.value)} rows={3} maxLength={8192} placeholder={t('cloud.trustRoot')} />
-      <div className={styles.actions}><Button disabled={!root.trim() || busy} onClick={() => void run(() => api.accept(status.generation, root.trim()))}>{t('cloud.acceptTrust')}</Button></div>
-    </AccountSection> : status.device_status === 'active' ? <AccountSection title={t('cloud.approveDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.approveDeviceHint')}>
-      <Input.TextArea value={request} onChange={(event) => setRequest(event.target.value)} rows={4} maxLength={16_384} aria-label={t('cloud.pairRequest')} placeholder={t('cloud.pastePairing')} />
-      <div className={styles.actions}><Button disabled={!request.trim() || busy} onClick={() => void run(async () => {
-        let value: CloudChallenge
-        try { value = decodeCloudChallenge(JSON.parse(request)) } catch { throw new Error('pairing_invalid') }
-        const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${value.signing_key}\0${value.recipient}`))
-        const fingerprint = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('')
-        setCandidate({ challenge: value, fingerprint })
-      })}>{t('cloud.reviewDevice')}</Button></div>
-      {approvalRoot ? <Alert type="success" title={t('cloud.deviceApproved')} description={<Space direction="vertical"><span>{t('cloud.returnTrustRoot')}</span><code className={styles.mono}>{approvalRoot}</code><Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={() => void run(async () => { await navigator.clipboard.writeText(approvalRoot); setCopied(true) })}>{t('cloud.copy')}</Button></Space>} /> : null}
-    </AccountSection> : null}
-    <Modal open={Boolean(candidate)} title={t('cloud.approveDevice')} onCancel={() => setCandidate(undefined)} confirmLoading={busy} onOk={() => void run(async () => {
-      if (!candidate) return
-      const result = await api.approve(status.generation, candidate.challenge, candidate.fingerprint)
-      setApprovalRoot(result.trust_root); setCopied(false); setCandidate(undefined); setRequest(''); await load()
-    })}>
-      <p>{t('cloud.confirmFingerprint')}</p><code className={styles.mono}>{candidate?.fingerprint}</code>
+    {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled ?? true} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
+    <Modal open={Boolean(switching)} title={t('cloud.authorization.switchTitle')} closable={!busy} mask={{ closable: !busy }} confirmLoading={busy} onCancel={() => setSwitching(undefined)} onOk={async () => {
+      if (!switching) return
+      const cancelled = await run(() => api.authorizationAction(generation, switching.from.kind, switching.from.id, 'cancel', { expected_revision: switching.from.revision }))
+      if (cancelled && generation === api.getStatus()?.generation) { const kind = switching.kind; setSwitching(undefined); await create(kind) }
+      changed()
+    }}><p>{t('cloud.authorization.switchHint')}</p></Modal>
+    <Modal open={initialize} title={t('cloud.authorization.initialize')} footer={null} destroyOnHidden closable={!busy} mask={{ closable: !busy }} onCancel={() => { setInitialize(false); proof.resetFields() }}>
+      <p>{t('cloud.authorization.initializeHint')}</p><Checkbox.Group value={checked} onChange={values => setChecked(values as string[])} options={devices.filter(d => d.status === 'active').map(d => ({ label: `${d.name} · ${d.id}`, value: d.id, disabled: d.id === status.device_id }))} />
+      <Form form={proof} layout="vertical" onFinish={evidence => void run(async () => {
+        const scope = lifetime.current
+        try { await api.reauthenticate(generation, { ...evidence, method: authorization.security?.account.mfa_enabled ? method : undefined }); await api.initializeMembership(generation, checked); if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setInitialize(false); changed() } }
+        finally { proof.resetFields() }
+      })}>
+        <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={busy} /></Form.Item>
+        {authorization.security?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={busy} /> : null}
+        <Button type="primary" htmlType="submit" loading={busy} disabled={!checked.includes(status.device_id ?? '')}>{t('cloud.mfa.confirm')}</Button>
+      </Form>
     </Modal>
-    <Modal open={Boolean(revoking)} title={t('cloud.revoke')} onCancel={() => setRevoking(undefined)} okButtonProps={{ danger: true }} confirmLoading={busy} onOk={() => void run(async () => {
-      if (!revoking) return
-      await api.revokeDevice(status.generation, revoking.id); setRevoking(undefined); await load()
-    })}><p>{t('cloud.revokeHint')}</p></Modal>
+    <Modal open={Boolean(revoking)} title={t('cloud.revoke')} footer={null} destroyOnHidden closable={!busy} mask={{ closable: !busy }} onCancel={() => { setRevoking(undefined); proof.resetFields() }}><p>{t('cloud.revokeHint')}</p>
+      <Form form={proof} layout="vertical" onFinish={evidence => void run(async () => {
+        if (!revoking) return
+        const scope = lifetime.current
+        try { await api.reauthenticate(generation, { ...evidence, method: authorization.security?.account.mfa_enabled ? method : undefined }); await api.revokeDevice(generation, revoking.id); if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setRevoking(undefined); changed() } }
+        finally { proof.resetFields() }
+      })}>
+        <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={busy} /></Form.Item>
+        {authorization.security?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={busy} /> : null}
+        <Button type="primary" danger htmlType="submit" loading={busy}>{t('cloud.revoke')}</Button>
+      </Form>
+    </Modal>
   </div>
 }

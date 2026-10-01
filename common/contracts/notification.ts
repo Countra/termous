@@ -15,6 +15,8 @@ export interface NotificationMessage {
   target_count?: number
   expires_at?: string
   operation: string
+  authorization_id?: string
+  authorization_kind?: 'approval' | 'recovery' | 'enablement'
   name?: string
   completed_files: number
   total_files: number
@@ -40,7 +42,7 @@ export type NotificationTarget =
   | { kind: 'agent'; session_id: string }
   | { kind: 'transfer'; transfer_id: string }
   | { kind: 'approval'; approval_id: string }
-  | { kind: 'cloud'; binding_id: string; tab: 'sync' | 'devices' | 'security' }
+  | { kind: 'cloud'; binding_id: string; tab: 'sync' | 'devices' | 'security'; authorization?: { id: string; kind: 'approval' | 'recovery' | 'enablement' } }
   | { kind: 'centre'; filter: NotificationKind }
 
 export interface NotificationActivation {
@@ -97,10 +99,18 @@ export function decodeNotification(value: unknown): NotificationMessage {
   const id = text(r.id), source = text(r.source_id, 128)
   if (!id || !source) throw new Error('NOTIFICATION_INVALID')
   const expires = r.expires_at === undefined ? undefined : text(r.expires_at)
+  const authorizationId = r.authorization_id === undefined ? undefined : text(r.authorization_id, 128)
+  const authorizationKind = r.authorization_kind
+  if (authorizationKind !== undefined && authorizationKind !== 'approval' && authorizationKind !== 'recovery' && authorizationKind !== 'enablement') throw new Error('NOTIFICATION_INVALID')
+  if (authorizationId !== undefined || authorizationKind !== undefined) {
+    if (r.kind !== 'cloud' || !authorizationId || !authorizationKind) throw new Error('NOTIFICATION_INVALID')
+  }
+  if (authorizationId && !/^[a-zA-Z0-9_-]{1,128}$/.test(authorizationId)) throw new Error('NOTIFICATION_INVALID')
   if ((expires !== undefined && !Number.isFinite(Date.parse(expires))) || (r.kind === 'approval' && (!expires || Date.parse(expires) <= Date.parse(occurred)))) throw new Error('NOTIFICATION_INVALID')
   return {
     id, source_id: source, kind: r.kind, outcome: r.outcome, occurred_at: occurred,
     sequence: integer(r.sequence), operation: text(r.operation),
+    authorization_id: authorizationId, authorization_kind: authorizationKind,
     ...(r.session_id === undefined ? {} : { session_id: text(r.session_id, 128) }),
     ...(r.name === undefined ? {} : { name: text(r.name) }),
     ...(r.session_title === undefined ? {} : { session_title: summary(r.session_title, 80) }),
@@ -133,7 +143,7 @@ export function validateNotificationPreferences(value: unknown): NotificationPre
 }
 
 export function notificationTarget(message: NotificationMessage): NotificationTarget {
-  if (message.kind === 'cloud') return { kind: 'cloud', binding_id: message.source_id, tab: message.operation.startsWith('cloud_device') ? 'devices' : message.operation === 'cloud_rekey' || message.operation === 'cloud_auth' ? 'security' : 'sync' }
+  if (message.kind === 'cloud') return { kind: 'cloud', binding_id: message.source_id, tab: message.authorization_id && message.authorization_kind || message.operation.startsWith('cloud_device') ? 'devices' : ['cloud_rekey', 'cloud_auth', 'cloud_security', 'cloud_recovery'].includes(message.operation) ? 'security' : 'sync', authorization: message.authorization_id && message.authorization_kind ? { id: message.authorization_id, kind: message.authorization_kind } : undefined }
   if (message.kind === 'approval') return { kind: 'approval', approval_id: message.source_id }
   if (message.kind === 'agent') return message.session_id ? { kind: 'agent', session_id: message.session_id } : { kind: 'centre', filter: 'agent' }
   return { kind: 'transfer', transfer_id: message.source_id }
@@ -142,7 +152,7 @@ export function notificationTarget(message: NotificationMessage): NotificationTa
 export function notificationText(message: NotificationMessage, language: string): { title: string; body: string; subject: string; summary: string } {
   const zh = language.startsWith('zh')
   if (message.kind === 'cloud') {
-    const labels: Record<string, [string, string]> = { cloud_sync: ['云同步', 'Cloud sync'], cloud_device_approve: ['设备批准', 'Device approval'], cloud_device_revoke: ['设备撤销', 'Device revocation'], cloud_rekey: ['密钥轮换', 'Key rotation'], cloud_auth: ['云账号需要重新登录', 'Cloud sign-in required'], cloud_conflicts: ['云同步有冲突待处理', 'Cloud sync conflicts need attention'] }
+    const labels: Record<string, [string, string]> = { cloud_sync: ['云同步', 'Cloud sync'], cloud_device_request: ['设备授权有更新', 'Device authorization update'], cloud_recovery: ['云端恢复有更新', 'Cloud recovery update'], cloud_security: ['账号安全有更新', 'Account security update'], cloud_device_approve: ['设备批准', 'Device approval'], cloud_device_revoke: ['设备撤销', 'Device revocation'], cloud_rekey: ['密钥轮换', 'Key rotation'], cloud_auth: ['云账号需要重新登录', 'Cloud sign-in required'], cloud_conflicts: ['云同步有冲突待处理', 'Cloud sync conflicts need attention'] }
     const label = labels[message.operation] ?? ['云服务', 'Cloud service']
     const title = label[zh ? 0 : 1] + (message.outcome === 'attention' ? '' : zh ? message.outcome === 'success' ? '已完成' : '未完成' : message.outcome === 'success' ? ' completed' : ' incomplete')
     const body = zh ? '打开账号查看详情' : 'Open Account for details'

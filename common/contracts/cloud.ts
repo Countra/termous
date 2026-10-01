@@ -39,24 +39,8 @@ export interface CloudSession {
   revoked: boolean
 }
 
-export interface CloudChallenge {
-  id: string
-  kind: string
-  nonce: string
-  user_id: string
-  session_id: string
-  device_id: string
-  workspace_id: string
-  key_epoch: string
-  recovery_version: string
-  signing_key: string
-  recipient: string
-  recovery_epoch: string
-  expires_at: string
-}
-
 export interface CloudEvent {
-  type: 'snapshot' | 'status' | 'resync' | 'datasets'
+  type: 'snapshot' | 'status' | 'resync' | 'datasets' | 'security'
   status: CloudStatus
   datasets?: string[]
 }

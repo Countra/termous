@@ -10,6 +10,7 @@ import { useCloudMFA } from '../model/useCloudMFA'
 import { AccountLoading, AccountSection } from './AccountSection'
 import { AccountMFA } from './AccountMFA'
 import { AccountVerification } from './AccountVerification'
+import { AccountRecovery } from './AccountRecovery'
 import styles from './CloudAccount.module.scss'
 
 interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
@@ -73,6 +74,7 @@ export function AccountSecurity({ api, status, busy, run }: Props) {
   }
 
   return <div className={styles.section}>
+    <AccountRecovery api={api} status={status} busy={busy} run={run} />
     <AccountMFA api={api} generation={generation} value={mfa.value} loading={mfa.loading} error={mfa.error} busy={busy} accept={mfa.accept} reload={mfa.reload} onChanged={() => void loadSessions()} run={run} />
     <AccountVerification api={api} generation={generation} mfa={mfa.value} unavailable={mfa.loading || mfa.error || !mfa.value} busy={busy} accept={mfa.accept} reload={mfa.reload} run={run} />
     <AccountSection title={t('cloud.sessions')} icon={<Monitor size={18} />} description={t('cloud.sessionsHint')} extra={<Button icon={<RefreshCw size={15} />} loading={sessionsLoading} disabled={busy || sessionsLoading} onClick={() => void loadSessions()}>{t('cloud.refreshSessions')}</Button>}>
