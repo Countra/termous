@@ -7,6 +7,9 @@ import type { CloudGateway } from '#entities/cloud'
 import { useSettingsModule } from '#entities/settings'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { AccountSection } from './AccountSection'
+import { AccountArchives } from './AccountArchives'
+import { AccountWorkspaceRestart } from './AccountWorkspaceRestart'
+import { useCloudSafeguards } from '../model/useCloudSafeguards'
 import styles from './CloudAccount.module.scss'
 
 interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
@@ -14,10 +17,14 @@ interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T
 export function AccountSync({ api, status, busy, run }: Props) {
   const { t } = useTranslation()
   const settings = useSettingsModule('cloud')
+  const settingsRefresh = useRef(settings.refresh)
+  settingsRefresh.current = settings.refresh
+  useEffect(() => { void settingsRefresh.current() }, [status.generation, status.auto_sync])
   const [preview, setPreview] = useState<CloudPreview>()
   const [conflicts, setConflicts] = useState<CloudConflict[]>([])
   const [confirming, setConfirming] = useState(false)
   const generation = status.generation
+  const safeguards = useCloudSafeguards(api, generation)
   const lifetime = useRef<{ api: CloudGateway; generation: string; active: boolean } | null>(null)
   useEffect(() => {
     const scope = { api, generation, active: true }
@@ -28,7 +35,9 @@ export function AccountSync({ api, status, busy, run }: Props) {
   const isCurrent = (scope: typeof lifetime.current) => Boolean(scope?.active && scope.api === api && scope.generation === generation && api.getStatus()?.generation === generation)
   const available = status.device_status === 'active'
   const loading = busy || settings.busy
-  const canConfirm = available && !loading && Boolean(preview && !preview.blocked && preview.generation === generation)
+  const safeguardMissing = safeguards.value?.account.recovery_required === true && safeguards.value.account.recovery_ready !== true
+  const safeguardUnavailable = safeguardMissing || safeguards.error || safeguards.loading || !safeguards.value
+  const canConfirm = available && !loading && !safeguards.error && !safeguards.loading && !safeguardMissing && Boolean(preview && !preview.blocked && preview.generation === generation)
   const loadPreview = async () => {
     const scope = lifetime.current
     if (!isCurrent(scope)) return
@@ -44,11 +53,13 @@ export function AccountSync({ api, status, busy, run }: Props) {
   }
 
   return <div className={styles.section}>
+    {safeguardMissing ? <Alert type="warning" showIcon title={t('cloud.safeguards.firstTitle')} description={t('cloud.safeguards.firstHint')} /> : null}
+    {safeguards.error ? <Alert type="warning" showIcon title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void safeguards.reload()}>{t('cloud.retry')}</Button>} /> : null}
     <AccountSection title={t('cloud.syncTitle')} icon={<Cloud size={18} />} description={t('cloud.syncHint')} extra={<Tag>{t(`cloud.phases.${status.phase}`)}</Tag>}>
       {!available ? <Alert type="info" showIcon title={t('cloud.approvalNeeded')} /> : null}
       <div className={styles.row}>
         <div className={styles.identity}><strong id="cloud-auto-sync">{t('cloud.autoSync')}</strong><small>{t(status.confirmed ? 'cloud.autoSyncHint' : 'cloud.confirmFirst')}</small></div>
-        <Switch aria-labelledby="cloud-auto-sync" checked={settings.snapshot?.value.auto_sync === true} disabled={!available || !status.confirmed || loading || !settings.snapshot} loading={settings.busy} onChange={(auto_sync) => { void settings.update({ auto_sync }) }} />
+        <Switch aria-labelledby="cloud-auto-sync" checked={settings.snapshot?.value.auto_sync === true} disabled={!available || !status.confirmed || loading || !settings.snapshot || (settings.snapshot.value.auto_sync !== true && safeguardUnavailable)} loading={settings.busy} onChange={(auto_sync) => { void settings.update({ auto_sync }) }} />
       </div>
       {settings.error ? <Alert type="error" title={t('cloud.settingsFailed')} action={<Button onClick={() => void settings.refresh()}>{t('cloud.retry')}</Button>} /> : null}
       <dl className={styles.stats}>
@@ -58,7 +69,7 @@ export function AccountSync({ api, status, busy, run }: Props) {
       </dl>
       <div className={styles.actions}>
         <Button type={status.confirmed ? 'default' : 'primary'} icon={<ListFilter size={15} />} disabled={!available || loading} onClick={() => void run(loadPreview)}>{t('cloud.preview')}</Button>
-        {status.confirmed ? <Button type="primary" icon={<RefreshCw size={15} />} loading={busy} disabled={!available || loading} onClick={() => void run(async () => {
+        {status.confirmed ? <Button type="primary" icon={<RefreshCw size={15} />} loading={busy} disabled={!available || loading || safeguardUnavailable} onClick={() => void run(async () => {
           const scope = lifetime.current
           if (!isCurrent(scope)) return
           await api.run(generation)
@@ -88,6 +99,8 @@ export function AccountSync({ api, status, busy, run }: Props) {
         <Space wrap>{(['local', 'remote'] as const).map((choice) => <Button key={choice} disabled={loading} onClick={() => void run(async () => { await api.resolve(status.generation, conflict.id, choice); await loadPreview() })}>{t(`cloud.keep.${choice}`)}</Button>)}</Space>
       </div>)}</div>
     </AccountSection> : null}
+    <AccountArchives key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} run={run} />
+    <AccountSection title={t('cloud.safeguards.advancedTitle')} icon={<Cloud size={18} />} description={t('cloud.safeguards.advancedHint')}><AccountWorkspaceRestart key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} run={run} /></AccountSection>
     <Modal open={confirming} title={t('cloud.confirmSync')} confirmLoading={loading} okButtonProps={{ disabled: !canConfirm }} onCancel={() => setConfirming(false)} onOk={() => void run(async () => {
       const scope = lifetime.current
       if (!preview || !canConfirm || !isCurrent(scope)) return

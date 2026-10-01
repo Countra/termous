@@ -27,7 +27,7 @@ export interface CloudRecoveryStatus {
   blocked_until?: string
 }
 export interface CloudSecurityOverview {
-  account: { contract: 'cloud-authorization-v1'; managed_recovery: boolean; mfa_enabled: boolean; mfa_revision: string; recovery_blocked_until?: string }
+  account: { contract: 'cloud-authorization-v1' | 'cloud-recovery-safeguards-v1'; managed_recovery: boolean; mfa_enabled: boolean; mfa_revision: string; recovery_blocked_until?: string; workspace_id?: string; recovery_required?: boolean; recovery_ready?: boolean; personal_recovery_enabled?: boolean; archive_available?: boolean }
   recovery: CloudRecoveryStatus
   membership_initialized: boolean
   keys_verified: boolean
