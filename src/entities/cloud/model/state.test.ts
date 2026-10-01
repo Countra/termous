@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { CloudStatus } from '#common/contracts'
+import type { CloudStatus, CloudAccountChange } from '#common/contracts'
 import { CloudState } from './state.ts'
 import { decodeCloudStatus, decodeCloudEvent } from './decode.ts'
 import { decodeCloudProfile } from './decode.ts'
@@ -33,4 +33,25 @@ test('云合同解码拒绝非法水位和运行状态', () => {
     assert.throws(() => decodeCloudStatus({ ...status, ...patch }))
   }
   assert.throws(() => decodeCloudEvent({ type: 'datasets', status, datasets: [null] }))
+})
+
+test('账号变化局部失效，即使 HTTP 状态较新也不遗漏；切换账号后拒绝旧提示', () => {
+  const store = new CloudState(), changes: CloudAccountChange[] = []
+  const unsubscribe = store.subscribeChanges(change => changes.push(change))
+  store.accept({ ...status, revision: 10 })
+  store.acceptEvent({ type: 'account', status, changes: ['profile'], operations: [] })
+  assert.deepEqual(changes[0]?.changes, ['profile'])
+  store.acceptEvent({ type: 'snapshot', status: { ...status, generation: 'b' } })
+  assert.ok(changes[1]?.changes.includes('devices'))
+  store.acceptEvent({ type: 'account', status: { ...status, revision: 99 }, changes: ['mfa'] })
+  assert.equal(changes.length, 2)
+  unsubscribe()
+  store.acceptEvent({ type: 'resync', status: { ...status, generation: 'b' } })
+  assert.equal(changes.length, 2)
+})
+
+test('账号提示不允许任意失效类别或非法操作标识', () => {
+  assert.deepEqual(decodeCloudEvent({ type: 'account', status, changes: ['profile'], operations: ['request_test'] }).changes, ['profile'])
+  assert.throws(() => decodeCloudEvent({ type: 'account', status, changes: ['execute'] }))
+  assert.throws(() => decodeCloudEvent({ type: 'account', status, changes: ['profile'], operations: [null] }))
 })

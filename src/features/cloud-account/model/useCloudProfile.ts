@@ -3,6 +3,7 @@ import type { CloudProfile, CloudProfilePatch } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { isCloudConnectionError } from '#entities/cloud'
 import { useCloudReconnect } from './useCloudReconnect'
+import { useCloudChanges } from './useCloudChanges'
 
 export type CloudProfileController = ReturnType<typeof useCloudProfile>
 type ProfileResult = Promise<CloudProfile | undefined>
@@ -13,6 +14,7 @@ interface ProfileScope {
   controller: AbortController
   read?: { controller: AbortController; result: ProfileResult }
   saving?: ProfileResult
+  queued?: boolean
 }
 
 export function useCloudProfile(api: CloudGateway, generation: string, userId?: string) {
@@ -43,7 +45,10 @@ export function useCloudProfile(api: CloudGateway, generation: string, userId?: 
         if (controller.signal.aborted) return scope.read?.result
         setState((current) => ({ ...current, api, generation, userId, loading: false, readError: cause instanceof Error ? cause.message : 'local_failed' }))
       } finally {
-        if (scope.read?.controller === controller) scope.read = undefined
+        if (scope.read?.controller === controller) {
+          scope.read = undefined
+          if (scope.queued && !scope.controller.signal.aborted) { scope.queued = false; void load() }
+        }
       }
     })
     scope.read = { controller, result }
@@ -68,6 +73,14 @@ export function useCloudProfile(api: CloudGateway, generation: string, userId?: 
     void load()
   }, [api, generation, userId, load])
   useCloudReconnect(api, generation, reconnect)
+  const refresh = useCallback(() => {
+    const scope = lifetime.current
+    if (scope?.api !== api || scope.generation !== generation || scope.userId !== userId || scope.controller.signal.aborted) return
+    // 在线提示合并补读而不取消有效 GET，避免连续更新反复作废已接近完成的读取。
+    if (scope.read || scope.saving) { scope.queued = true; return }
+    void load()
+  }, [api, generation, userId, load])
+  useCloudChanges(api, generation, ['profile'], refresh)
   const save = useCallback(async (patch: CloudProfilePatch): ProfileResult => {
     const scope = lifetime.current
     if (!userId || scope?.api !== api || scope.generation !== generation || scope.userId !== userId || scope.controller.signal.aborted || scope.read || scope.saving) return
@@ -84,11 +97,14 @@ export function useCloudProfile(api: CloudGateway, generation: string, userId?: 
         return value
       } catch (cause) {
         if (!controller.signal.aborted) setState((current) => ({ ...current, api, generation, userId, loading: false, saveError: cause instanceof Error ? cause.message : 'local_failed' }))
-      } finally { scope.saving = undefined }
+      } finally {
+        scope.saving = undefined
+        if (scope.queued && !controller.signal.aborted) { scope.queued = false; void load() }
+      }
     })
     scope.saving = result
     return result
-  }, [api, generation, userId])
+  }, [api, generation, userId, load])
   const reload = useCallback(async () => {
     const value = await load()
     if (value) setState((current) => current?.api === api && current.generation === generation && current.userId === userId ? { ...current, saveError: undefined } : current)

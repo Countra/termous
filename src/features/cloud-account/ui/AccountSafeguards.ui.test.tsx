@@ -194,3 +194,27 @@ test('重置验证结果不明时清除证明，查询结果不会自动执行�
   expect(await screen.findByText('云端已切换，本机绑定待完成')).toBeInTheDocument()
   expect(api.verifyRestart).toHaveBeenCalledOnce()
 })
+
+test('重置实时补读保留同版本确认，版本变化清除确认且不自动切换', async () => {
+  const { api, state } = fixture()
+  api.subscribeChanges = state.subscribeChanges
+  const verified: CloudWorkspaceRestart = { id: 'restart_realtime', status: 'verified', revision: 2, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), email_sent: true }
+  api.createWorkspaceRestart = vi.fn(async () => verified)
+  api.workspaceRestart = vi.fn(async () => verified)
+  api.completeRestart = vi.fn()
+  render(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '重新开始云同步' }))
+  fireEvent.click(screen.getByRole('button', { name: '创建重新开始申请' }))
+  const confirm = await screen.findByRole('button', { name: '确认立即重新开始' })
+  fireEvent.click(screen.getByRole('checkbox'))
+  expect(confirm).toBeEnabled()
+  await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['workspaces'], operations: [verified.id] }) })
+  await waitFor(() => expect(api.workspaceRestart).toHaveBeenCalledOnce())
+  await waitFor(() => expect(confirm).toBeEnabled())
+  expect(screen.getByRole('checkbox')).toBeChecked()
+  vi.mocked(api.workspaceRestart).mockResolvedValueOnce({ ...verified, revision: 3 })
+  await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['workspaces'], operations: [verified.id] }) })
+  await waitFor(() => expect(confirm).toBeDisabled())
+  expect(screen.getByRole('checkbox')).not.toBeChecked()
+  expect(api.completeRestart).not.toHaveBeenCalled()
+})

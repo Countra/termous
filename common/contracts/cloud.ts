@@ -39,10 +39,15 @@ export interface CloudSession {
   revoked: boolean
 }
 
+export const cloudAccountAreas = ['profile', 'devices', 'sessions', 'security', 'mfa', 'recovery', 'authorizations', 'workspaces', 'rekey'] as const
+export type CloudAccountArea = typeof cloudAccountAreas[number]
+export interface CloudAccountChange { generation: string; changes: CloudAccountArea[]; operations: string[] }
 export interface CloudEvent {
-  type: 'snapshot' | 'status' | 'resync' | 'datasets' | 'security'
+  type: 'snapshot' | 'status' | 'resync' | 'datasets' | 'security' | 'account'
   status: CloudStatus
   datasets?: string[]
+  changes?: CloudAccountArea[]
+  operations?: string[]
 }
 
 export type CloudAuthAction = 'register' | 'verify-email' | 'resend-verification' | 'password-reset/request' | 'password-reset/confirm'

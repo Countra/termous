@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { CloudArchive, CloudArchivePreview, CloudMFAProof, CloudMFAMethod, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { useCloudReconnect } from '../model/useCloudReconnect'
+import { useCloudChanges } from '../model/useCloudChanges'
 import { useDeadlineExpired } from '../model/useDeadlineExpired'
 import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
 import { AccountMFAFields } from './AccountMFAFields'
@@ -40,6 +41,7 @@ export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
   }, [api, generation])
   useEffect(() => { const scope = { controller: new AbortController(), request: 0 }; life.current = scope; void load(); return () => { scope.controller.abort(); if (keyForm.getFieldInstance('recovery_key')) keyForm.resetFields(); if (proof.getFieldInstance('password')) proof.resetFields() } }, [load, keyForm, proof])
   useCloudReconnect(api, generation, load)
+  useCloudChanges(api, generation, ['workspaces'], load)
   const close = () => { feedback.reset(); setSelected(undefined); setPreview(undefined); setChoices({}); if (keyForm.getFieldInstance('recovery_key')) keyForm.resetFields() }
   const closeDelete = () => { feedback.reset(); setDeleting(undefined); proof.resetFields() }
   return <AccountSection title={t('cloud.safeguards.archivesTitle')} icon={<Archive size={18} />} description={t('cloud.safeguards.archiveHint')} extra={<Button type="text" icon={<RefreshCw size={14} />} loading={loading} disabled={busy || loading} onClick={() => void load()}>{t('cloud.refresh')}</Button>}>

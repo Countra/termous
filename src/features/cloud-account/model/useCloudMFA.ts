@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CloudMFAStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { useCloudReconnect } from './useCloudReconnect'
+import { useCloudChanges } from './useCloudChanges'
 
 export function useCloudMFA(api: CloudGateway, generation: string) {
   const [value, setValue] = useState<CloudMFAStatus>()
@@ -35,6 +36,7 @@ export function useCloudMFA(api: CloudGateway, generation: string) {
   }, [api, generation, reload])
   const refresh = useCallback(() => { void reload() }, [reload])
   useCloudReconnect(api, generation, refresh)
+  useCloudChanges(api, generation, ['mfa'], refresh)
   const accept = (next: CloudMFAStatus) => {
     const scope = lifetime.current
     if (!scope || scope.api !== api || scope.generation !== generation || scope.controller.signal.aborted || api.getStatus()?.generation !== generation || latest.current && BigInt(next.revision) < BigInt(latest.current.revision)) return

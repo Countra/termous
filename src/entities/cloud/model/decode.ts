@@ -1,5 +1,6 @@
 import type { CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
 import type { CloudProfile } from '#common/contracts'
+import { cloudAccountAreas } from '#common/contracts'
 
 export function decodeCloudProfile(value: unknown): CloudProfile {
   const r = record(value)
@@ -54,7 +55,12 @@ export function decodeCloudStatus(value: unknown): CloudStatus {
 }
 export function decodeCloudEvent(value: unknown): CloudEvent {
   const r = record(value)
-  return { type: choice(r.type, ['snapshot', 'status', 'resync', 'datasets', 'security']), status: decodeCloudStatus(r.status), datasets: r.datasets === undefined ? undefined : decodeCloudList(r.datasets, (v) => text(v, 64)) }
+  return {
+    type: choice(r.type, ['snapshot', 'status', 'resync', 'datasets', 'security', 'account']), status: decodeCloudStatus(r.status),
+    datasets: r.datasets === undefined ? undefined : decodeCloudList(r.datasets, (v) => text(v, 64)),
+    changes: r.changes === undefined ? undefined : decodeCloudList(r.changes, (v) => choice(v, cloudAccountAreas)),
+    operations: r.operations === undefined ? undefined : decodeCloudList(r.operations, (v) => text(v, 128)),
+  }
 }
 export function decodeCloudDevice(value: unknown): CloudDevice {
   const r = record(value)

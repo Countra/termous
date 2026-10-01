@@ -37,7 +37,7 @@ import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
 import { AccountPage } from '#pages/account'
-import { useCloudProfile } from '#features/cloud-account'
+import { AccountApprovalCoordinator, useCloudProfile } from '#features/cloud-account'
 import { useAccountWelcome } from './model/useAccountWelcome'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
@@ -330,7 +330,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const notificationNavigationBlocked = useRef(false)
   const [accountTab, setAccountTab] = useState<CloudTab>('sync')
-  const [accountAuthorization, setAccountAuthorization] = useState<CloudAuthorizationTarget>()
+  const [accountAuthorization, setAccountAuthorization] = useState<{ generation: string; target: CloudAuthorizationTarget }>()
+  const authorizationTarget = accountAuthorization?.generation === cloudStatus?.generation ? accountAuthorization?.target : undefined
+  const openAccountAuthorization = useCallback((target: CloudAuthorizationTarget) => {
+    const generation = gateways.cloud.getStatus()?.generation
+    if (generation) setAccountAuthorization({ generation, target })
+  }, [gateways.cloud])
+  useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
   useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
@@ -350,7 +356,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
         if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
         setAccountTab(target.tab)
-        setAccountAuthorization(target.authorization)
+        setAccountAuthorization(target.authorization ? { generation: status.generation, target: target.authorization } : undefined)
         setPage('account')
         return true
       }
@@ -1597,7 +1603,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
-                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} authorizationTarget={accountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} authorizationTarget={authorizationTarget} onOpenAuthorization={openAccountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           settingsGateway={gateways.settings}
@@ -1715,6 +1721,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         hosts={data.hosts}
         onBlockingChange={setHostKeyApprovalBlocking}
       />
+      {apiReady && !coreFatal && cloudStatus?.authenticated ? <AccountApprovalCoordinator key={cloudStatus.generation} api={gateways.cloud} status={cloudStatus}
+        blocked={hostKeyApprovalBlocking} target={authorizationTarget} onClose={() => setAccountAuthorization(undefined)} /> : null}
       <CoreFatalDialog key={coreFatal?.code ?? 'none'} fatal={coreFatal} />
           </TerminalRuntimeProvider>
         </TransferRuntimeProvider>

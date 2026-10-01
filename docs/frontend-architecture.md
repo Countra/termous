@@ -148,3 +148,5 @@ node scripts/architecture/check.mjs --report-json
 ## 云账号
 
 common 定义纯云合同，entities/cloud 负责解码和代次／版本状态，features/cloud-account 实现领域操作，pages/account 组合面板，app/data-runtime 访问本地 Core。全局订阅仅按受影响数据集刷新配置，遇到草稿延迟；通知通过受控账号目标直达页签。详见[云账号设计](cloud-account.md)。
+
+云账号实时更新复用 Core 本地 WS。`CloudState.acceptEvent` 分别合并状态版本和账号失效：同 generation 的失效不因 HTTP 状态较新而丢弃，旧 generation 继续拒绝。`useCloudChanges` 按固定区域及必要的操作 ID 订阅，页面补读权威状态，不触发安全写入。资料、MFA、设备、会话、审批、恢复、轮换与归档定向刷新；竞争响应按页面请求序号丢弃，资料草稿保留编辑 revision。云连接、Kafka 和令牌由 Core 管理，Renderer 不直接访问云 WS。详见[实时架构](../../termous-service/doc/31-cloud-realtime.md)。

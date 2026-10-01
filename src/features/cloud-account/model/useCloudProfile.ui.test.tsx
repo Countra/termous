@@ -9,7 +9,7 @@ const ready: CloudStatus = { revision: 1, generation: 'generation', configured: 
 function gateway(overrides: Partial<CloudGateway>) {
   const state = new CloudState()
   state.accept(ready)
-  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, acceptStatus: state.accept.bind(state), ...overrides } as CloudGateway
+  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, subscribeChanges: state.subscribeChanges, acceptEvent: state.acceptEvent.bind(state), acceptStatus: state.accept.bind(state), ...overrides } as CloudGateway
 }
 const reconnect = (api: CloudGateway) => {
   const status = api.getStatus()!
@@ -208,4 +208,56 @@ test('替换网关后旧订阅不能触发当前账号刷新', async () => {
   expect(next.profile).toHaveBeenCalledTimes(1)
   act(() => { reconnect(next) })
   await waitFor(() => expect(next.profile).toHaveBeenCalledTimes(2))
+})
+
+test('资料实时提示立即补读，纯设备提示不刷新资料', async () => {
+  const api = gateway({ profile: vi.fn().mockResolvedValueOnce(value('current')).mockResolvedValue({ ...value('current'), name: 'Remote', revision: '1' }) })
+  const view = renderHook(() => useCloudProfile(api, 'generation', 'current'))
+  await waitFor(() => expect(view.result.current.profile?.revision).toBe('0'))
+  act(() => api.acceptEvent({ type: 'account', status: ready, changes: ['devices'] }))
+  expect(api.profile).toHaveBeenCalledTimes(1)
+  act(() => api.acceptEvent({ type: 'account', status: ready, changes: ['profile'] }))
+  await waitFor(() => expect(view.result.current.profile?.name).toBe('Remote'))
+  expect(api.profile).toHaveBeenCalledTimes(2)
+})
+
+test('连续资料提示保留在途有效读取，并在完成后合并补读最新资料', async () => {
+  let finish!: (result: CloudProfile) => void
+  let finishLatest!: (result: CloudProfile) => void
+  const api = gateway({ profile: vi.fn().mockImplementationOnce(() => new Promise<CloudProfile>(done => { finish = done })).mockImplementationOnce(() => new Promise<CloudProfile>(done => { finishLatest = done })) })
+  const view = renderHook(() => useCloudProfile(api, 'generation', 'current'))
+  await waitFor(() => expect(api.profile).toHaveBeenCalledTimes(1))
+  const signal = vi.mocked(api.profile).mock.calls[0][1]!
+  act(() => {
+    for (let index = 0; index < 32; index++) api.acceptEvent({ type: 'account', status: ready, changes: ['profile'] })
+  })
+  expect(signal.aborted).toBe(false)
+  expect(api.profile).toHaveBeenCalledTimes(1)
+  await act(async () => { finish({ ...value('current'), revision: '1' }) })
+  await waitFor(() => expect(api.profile).toHaveBeenCalledTimes(2))
+  expect(view.result.current.profile?.revision).toBe('1')
+  await act(async () => { finishLatest({ ...value('current'), name: 'Latest', revision: '2' }) })
+  expect(view.result.current.profile?.name).toBe('Latest')
+  expect(view.result.current.loading).toBe(false)
+})
+
+test('保存期间重复资料提示只补读一次，不取消或重放写入', async () => {
+  let finish!: (result: CloudProfile) => void
+  const api = gateway({ profile: vi.fn(async () => value('current')), updateProfile: vi.fn(() => new Promise<CloudProfile>(done => { finish = done })) })
+  const view = renderHook(() => useCloudProfile(api, 'generation', 'current'))
+  await waitFor(() => expect(view.result.current.profile).toBeDefined())
+  let saving!: Promise<CloudProfile | undefined>
+  act(() => { saving = view.result.current.save({ expected_revision: '0', name: 'Saved' }) })
+  await waitFor(() => expect(api.updateProfile).toHaveBeenCalledTimes(1))
+  act(() => {
+    for (let index = 0; index < 32; index++) api.acceptEvent({ type: 'account', status: ready, changes: ['profile'] })
+  })
+  expect(api.profile).toHaveBeenCalledTimes(1)
+  const next = { ...value('current'), name: 'Saved', revision: '1' }
+  vi.mocked(api.profile).mockResolvedValue(next)
+  await act(async () => { finish(next); await saving })
+  await waitFor(() => expect(view.result.current.loading).toBe(false))
+  expect(api.profile).toHaveBeenCalledTimes(2)
+  expect(api.updateProfile).toHaveBeenCalledTimes(1)
+  expect(view.result.current.profile).toEqual(next)
 })

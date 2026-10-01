@@ -1,6 +1,7 @@
 import type { CloudAuthAction, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
 import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
 import type { CloudPersonalRecoveryStatus, CloudPersonalRecoverySetup, CloudPersonalRecoveryOperation, CloudWorkspaceRestart, CloudArchive, CloudArchivePreview } from '#common/contracts'
+import type { CloudAccountChange, CloudEvent } from '#common/contracts'
 
 export interface CloudGateway {
   personalRecoveryStatus(generation: string, signal?: AbortSignal): Promise<CloudPersonalRecoveryStatus>
@@ -34,6 +35,8 @@ export interface CloudGateway {
   updateProfile(generation: string, patch: CloudProfilePatch, signal?: AbortSignal): Promise<CloudProfile>
   getStatus(): CloudStatus | undefined
   subscribeStatus(listener: () => void): () => void
+  subscribeChanges(listener: (value: CloudAccountChange) => void): () => void
+  acceptEvent(event: CloudEvent): void
   acceptStatus(value: CloudStatus): boolean
   status(signal?: AbortSignal): Promise<CloudStatus>
   eventsUrl(): string

@@ -6,6 +6,7 @@ import type { CloudGateway } from '#entities/cloud'
 import { AccountMFAFields } from './AccountMFAFields'
 import { useDeadlineExpired } from '../model/useDeadlineExpired'
 import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
+import { useCloudChanges } from '../model/useCloudChanges'
 import { AccountOperationError } from './AccountOperationError'
 import styles from './AccountSafeguards.module.scss'
 
@@ -21,7 +22,10 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, run, se
   const inactive = busy || feedback.working
   useEffect(() => () => { if (proof.getFieldInstance('password')) proof.resetFields() }, [status.generation, proof])
   const close = () => { feedback.reset(); setOpen(false); if (proof.getFieldInstance('password')) proof.resetFields(); setOp(undefined); setAccepted(false) }
-  const read = async (current: () => boolean, id = op?.id ?? 'current') => { const value = await api.workspaceRestart(status.generation, id); if (current()) { setOp(value); setAccepted(false) } }
+  const read = async (current: () => boolean, id = op?.id ?? 'current') => { const value = await api.workspaceRestart(status.generation, id); if (current()) { setOp(value); if (value.revision !== op?.revision) setAccepted(false) } }
+  useCloudChanges(api, status.generation, ['workspaces', 'security', 'mfa'], () => {
+    if (open && op && !inactive) void feedback.perform(current => read(current))
+  }, op?.id)
   const expired = useDeadlineExpired(op?.status === 'verified' ? op.verified_until ?? op.expires_at : op?.expires_at) && !['completed', 'cancelled'].includes(op?.status ?? '')
   useEffect(() => { if (expired && proof.getFieldInstance('password')) proof.resetFields() }, [expired, proof])
   const stage = !op ? 0 : op.status === 'verified' || op.status === 'completed' ? 2 : 1

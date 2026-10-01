@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CloudSecurityOverview } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { useCloudReconnect } from './useCloudReconnect'
+import { useCloudChanges } from './useCloudChanges'
 
 export function useCloudSafeguards(api: CloudGateway, generation: string) {
   const [value, setValue] = useState<CloudSecurityOverview>()
@@ -26,5 +27,6 @@ export function useCloudSafeguards(api: CloudGateway, generation: string) {
     return () => current.controller.abort()
   }, [reload])
   useCloudReconnect(api, generation, reload)
+  useCloudChanges(api, generation, ['security', 'recovery', 'workspaces', 'devices'], reload)
   return { value, loading, error, reload }
 }

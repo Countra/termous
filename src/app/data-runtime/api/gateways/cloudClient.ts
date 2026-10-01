@@ -70,6 +70,8 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   private readonly state = new CloudState()
   getStatus = this.state.snapshot
   subscribeStatus = this.state.subscribe
+  subscribeChanges = this.state.subscribeChanges
+  acceptEvent = this.state.acceptEvent.bind(this.state)
   acceptStatus = (value: CloudStatus) => this.state.accept(value)
   private async readStatus(request: Promise<unknown>) {
     const epoch = this.state.epoch

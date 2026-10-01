@@ -6,6 +6,7 @@ import type { CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contra
 import type { CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
+import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudMFA } from '../model/useCloudMFA'
 import { AccountLoading, AccountSection } from './AccountSection'
 import { AccountMFA } from './AccountMFA'
@@ -64,6 +65,8 @@ export function AccountSecurity({ api, status, busy, run }: Props) {
     return () => { scope.active = false }
   }, [api, generation, refresh])
   useCloudReconnect(api, generation, refresh)
+  useCloudChanges(api, generation, ['sessions'], loadSessions)
+  useCloudChanges(api, generation, ['rekey'], loadRekey)
   const changeRekey = async (action: 'start' | 'resume' | 'cancel') => {
     const scope = lifetime.current
     const value = await api.rekey(generation, action)

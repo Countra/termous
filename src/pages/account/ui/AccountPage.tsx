@@ -16,9 +16,10 @@ interface Props {
   activeTab: CloudTab
   onTabChange: (tab: CloudTab) => void
   authorizationTarget?: CloudAuthorizationTarget
+  onOpenAuthorization?: (value: CloudAuthorizationTarget) => void
 }
 
-export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange, authorizationTarget }: Props) {
+export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange, authorizationTarget, onOpenAuthorization }: Props) {
   const { t } = useTranslation()
   const { status, busy, error, run, refresh } = useCloudAccount(api)
   const [reauthGeneration, setReauthGeneration] = useState<string>()
@@ -78,7 +79,7 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
     }} items={[
       { key: 'profile', label: label('profile', <UserRound size={15} />), children: panel(<AccountProfile {...profile} email={status.email} />) },
       { key: 'sync', label: label('sync', <Cloud size={15} />), children: panel(<AccountSync api={api} status={status} busy={busy} run={run} />) },
-      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} target={authorizationTarget} busy={busy} run={run} />) },
+      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} target={authorizationTarget} onOpenAuthorization={onOpenAuthorization} busy={busy} run={run} />) },
       { key: 'security', label: label('security', <ShieldCheck size={15} />), children: panel(<AccountSecurity api={api} status={status} busy={busy} run={run} />) },
     ]} />
   </div>

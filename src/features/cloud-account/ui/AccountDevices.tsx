@@ -6,6 +6,7 @@ import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMF
 import type { CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
+import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
 import { AccountAuthorization } from './AccountAuthorization'
 import { AccountPersonalAuthorize } from './AccountPersonalAuthorize'
@@ -14,9 +15,9 @@ import { AccountMFAFields } from './AccountMFAFields'
 import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './CloudAccount.module.scss'
 
-interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
+interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; onOpenAuthorization?: (value: CloudAuthorizationTarget) => void; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
 
-export function AccountDevices({ api, status, busy, run, target }: Props) {
+export function AccountDevices({ api, status, busy, run, target, onOpenAuthorization }: Props) {
   const { t } = useTranslation()
   const [devices, setDevices] = useState<CloudDevice[]>([])
   const [error, setError] = useState(false)
@@ -33,6 +34,10 @@ export function AccountDevices({ api, status, busy, run, target }: Props) {
   const [targetError, setTargetError] = useState(false)
   const generation = status.generation
   const authorization = useCloudAuthorization(api, generation)
+  const select = (value: CloudAuthorization) => {
+    if (onOpenAuthorization) onOpenAuthorization({ id: value.id, kind: value.kind })
+    else setSelected(value)
+  }
   const lifetime = useRef<{ controller: AbortController; request: number } | null>(null)
   const load = useCallback(async () => {
     const scope = lifetime.current
@@ -53,28 +58,29 @@ export function AccountDevices({ api, status, busy, run, target }: Props) {
     return () => { controller.abort(); if (proof.getFieldInstance('password')) proof.resetFields() }
   }, [load, proof])
   useCloudReconnect(api, generation, load)
+  useCloudChanges(api, generation, ['devices'], load)
   useEffect(() => {
-    if (!target) return
+    if (!target || onOpenAuthorization) return
     const controller = new AbortController()
     setTargetError(false)
     void api.authorization(generation, target.kind, target.id, controller.signal).then(value => {
       if (!controller.signal.aborted && generation === api.getStatus()?.generation) setSelected(value)
     }).catch(() => { if (!controller.signal.aborted) setTargetError(true) })
     return () => controller.abort()
-  }, [api, generation, target])
+  }, [api, generation, target, onOpenAuthorization])
   const reloadAuthorization = authorization.reload
   const changed = useCallback(() => { void load(); void reloadAuthorization() }, [load, reloadAuthorization])
   const create = (kind: 'approval' | 'recovery', revokes: string[] = []) => run(async () => {
     const scope = lifetime.current
     const result = kind === 'approval' ? await api.createDeviceRequest(generation) : await api.createRecovery(generation, 'recovery', revokes)
-    if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setSelected(result); changed() }
+    if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { select(result); changed() }
     return result
   })
   const outstanding = authorization.requests.filter(v => v.kind !== 'enablement' && !['cancelled', 'rejected', 'expired', 'invalidated', 'acknowledged', 'failed'].includes(v.status))
   const begin = (kind: 'approval' | 'recovery') => {
     const existing = outstanding.find(value => value.device_id === status.device_id)
     if (existing) {
-      if (existing.kind === kind || !existing.allowed_actions.includes('cancel')) setSelected(existing)
+      if (existing.kind === kind || !existing.allowed_actions.includes('cancel')) select(existing)
       else setSwitching({ from: existing, kind })
     } else if (kind === 'recovery') { setReplacementIds([]); setChoosingRecovery(true) } else void create(kind)
   }
@@ -98,7 +104,7 @@ export function AccountDevices({ api, status, busy, run, target }: Props) {
     <AccountSection title={t('cloud.authorization.requests')} icon={<ShieldCheck size={18} />} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void authorization.reload()}>{t('cloud.refresh')}</Button>}>
       {outstanding.length ? <div className={styles.list}>{outstanding.map(request => <div className={styles.row} key={request.id}>
         <div className={styles.identity}><strong>{request.name || t('cloud.currentDevice')}</strong><small>{request.platform} · {new Date(request.created_at).toLocaleString()}</small></div>
-        <div className={styles.actions}><Tag>{t(`cloud.authorization.states.${request.status}`)}</Tag><Button disabled={busy} onClick={() => setSelected(request)}>{t('cloud.authorization.details')}</Button></div>
+        <div className={styles.actions}><Tag>{t(`cloud.authorization.states.${request.status}`)}</Tag><Button disabled={busy} onClick={() => select(request)}>{t('cloud.authorization.details')}</Button></div>
       </div>)}</div> : authorization.loading ? <AccountLoading /> : <p className={styles.hint}>{t('cloud.authorization.noRequests')}</p>}
     </AccountSection>
     <AccountSection title={t('cloud.deviceList')} icon={<Laptop size={18} />} description={t('cloud.deviceListHint')} extra={<Button icon={<RefreshCw size={15} />} loading={loading} disabled={busy || loading} onClick={() => void load()}>{t('cloud.refresh')}</Button>}>
@@ -108,7 +114,7 @@ export function AccountDevices({ api, status, busy, run, target }: Props) {
         <div className={styles.actions}><Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
       </div>)}</div> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
     </AccountSection>
-    {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled ?? true} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
+    {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
     <Modal open={Boolean(switching)} title={t('cloud.authorization.switchTitle')} closable={!busy} mask={{ closable: !busy }} confirmLoading={busy} onCancel={() => setSwitching(undefined)} onOk={async () => {
       if (!switching) return
       const cancelled = await run(() => api.authorizationAction(generation, switching.from.kind, switching.from.id, 'cancel', { expected_revision: switching.from.revision }))
