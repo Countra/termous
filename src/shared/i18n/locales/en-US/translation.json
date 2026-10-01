@@ -346,7 +346,7 @@
     "currentSession": "Current sign-in",
     "revoke": "Revoke",
     "copy": "Copy",
-    "revokeHint": "Revocation prevents further cloud access. It does not remove data already downloaded by the device. Recent identity verification is required.",
+    "revokeHint": "Revocation removes this device from the list and ends its cloud authorization and associated sessions. Downloaded data is kept. Sign in again on that device to request authorization through the same flow as a first sign-in. Recent identity verification is required.",
     "reauthenticateHint": "Verify your identity before approving or revoking devices and rotating keys. With two-step verification enabled, a code is also required. Verification lasts 5 minutes.",
     "securityVerification": "Verify sensitive actions",
     "verified": "Identity verified",

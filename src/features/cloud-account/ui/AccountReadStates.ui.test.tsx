@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
-import type { CloudDevice, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import type { CloudAuthorization, CloudDevice, CloudRekeyStatus, CloudSecurityOverview, CloudSession, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
 import { changeLanguage } from '#shared/i18n'
 import { AccountDevices } from './AccountDevices'
@@ -57,4 +57,27 @@ test('已撤销设备可查看列表，不提供批准新设备的操作', async
   expect(await list.findByText('暂无已登记设备')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: '批准新设备' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '核对设备' })).not.toBeInTheDocument()
+})
+
+test('撤销后重新登录的待授权设备可主动申请可信批准，无需先开启云端恢复', async () => {
+  const pending: CloudStatus = { ...status, device_id: 'retained-device', device_status: 'pending' }
+  const overview: CloudSecurityOverview = {
+    account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: true, mfa_enabled: false, mfa_revision: '0', workspace_id: 'workspace', recovery_required: false, recovery_ready: false, personal_recovery_enabled: false, archive_available: false },
+    keys_verified: false, membership_initialized: true,
+    recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace', status: 'disabled', revision: '0', updated_at: new Date().toISOString() } },
+  }
+  const request: CloudAuthorization = {
+    id: 'new-request', workspace_id: 'workspace', device_id: pending.device_id!, kind: 'approval', status: 'pending', revision: '1',
+    name: 'Termous Desktop', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
+    target_confirmed: false, keys_verified: false, allowed_actions: ['cancel'],
+  }
+  const api = gateway({ getStatus: () => pending, security: vi.fn(async () => overview), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), createDeviceRequest: vi.fn(async () => request) })
+  render(<AccountDevices api={api} status={pending} busy={false} run={run} />)
+  const approve = screen.getByRole('button', { name: '使用可信设备批准' })
+  await waitFor(() => expect(approve).toBeEnabled())
+  expect(api.createDeviceRequest).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: '使用云端恢复' })).toBeDisabled()
+  expect(screen.queryByText('授权状态暂时不可用，请重新读取')).not.toBeInTheDocument()
+  fireEvent.click(approve)
+  await waitFor(() => expect(api.createDeviceRequest).toHaveBeenCalledWith(pending.generation))
 })
