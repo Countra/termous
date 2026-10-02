@@ -17,7 +17,7 @@ function request(id: string, overrides: Partial<CloudAuthorization> = {}): Cloud
   return {
     id, workspace_id: 'workspace', device_id: `device-${id}`, kind: 'approval', name: `申请设备 ${id}`,
     status: 'pending', revision: '1', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
-    platform: 'Windows', source_summary: '127.0.0.0/24', target_confirmed: false, keys_verified: false, allowed_actions: ['respond', 'reject'],
+    platform: 'Windows', source_summary: '127.0.0.0/24', target_confirmed: false, keys_verified: false, allowed_actions: ['approve', 'reject'],
     ...overrides,
   }
 }
@@ -114,36 +114,22 @@ test('关闭申请后重复提示和重连不再弹出，后续新申请仍自�
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
 })
 
-test('审批中的新申请排队展示，不覆盖指纹核对和身份验证草稿', async () => {
+test('审批中的新申请排队展示，不覆盖身份验证草稿', async () => {
   const fixture = gateway([request('first')])
-  const verifying = request('first', {
-    status: 'verifying', revision: '2', fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0',
-    target_confirmed: true, allowed_actions: ['verify', 'reject'],
-  })
-  fixture.api.authorizationAction.mockImplementation(async (_generation, _kind, id) => {
-    if (id === 'first') { fixture.requests.set(id, verifying); return verifying }
-    return fixture.requests.get(id)!
-  })
   render(<AccountApprovalCoordinator {...props(fixture.api)} />)
   await screen.findByText('申请设备 first')
-  fireEvent.click(screen.getByRole('button', { name: '开始核对' }))
-  await screen.findByRole('checkbox')
-  fireEvent.click(screen.getByRole('checkbox'))
-  fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
-  const password = await screen.findByLabelText('密码')
-  fireEvent.change(password, { target: { value: 'synthetic-password-draft' } })
-  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  const code = await screen.findByLabelText('验证器验证码')
+  fireEvent.change(code, { target: { value: '123456' } })
   await act(async () => { fixture.requests.set('second', request('second')); fixture.publish(['second']) })
   expect(screen.getByText('申请设备 first')).toBeInTheDocument()
   expect(screen.queryByText('申请设备 second')).not.toBeInTheDocument()
-  expect(screen.getByLabelText('密码')).toBe(password)
-  expect(password).toHaveValue('synthetic-password-draft')
-  expect(screen.getByLabelText('验证器验证码')).toHaveValue('123456')
-  expect(screen.getByRole('checkbox')).toBeChecked()
-  expect(fixture.api.authorizationAction).toHaveBeenCalledTimes(1)
+  expect(screen.getByLabelText('验证器验证码')).toBe(code)
+  expect(code).toHaveValue('123456')
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Close' }))
   await screen.findByText('申请设备 second')
-  expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
 })
 
 test('本机申请、过期、终态、其他流程及没有审批权限的申请不自动弹出', async () => {
@@ -185,55 +171,46 @@ test('主机密钥审批优先时暂缓自动弹窗，释放后立即显示待�
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
 })
 
-test('已打开的审批暂时让位主机密钥对话框，恢复时保留指纹和身份草稿', async () => {
+test('已打开的审批暂时让位主机密钥对话框，恢复时保留身份草稿', async () => {
   const value = request('first', {
-    status: 'verifying', fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['verify'],
+    fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['approve'],
   })
   const fixture = gateway([value])
   const input = props(fixture.api, { target: { kind: 'approval', id: value.id } })
   // JSDOM 不执行 CSS 动画，此处使用主题提供的禁用动效能力验证隐藏生命周期。
   const view = render(<AccountApprovalCoordinator {...input} />, { wrapper: ({ children }) => <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> })
-  fireEvent.click(await screen.findByRole('checkbox'))
-  const verify = screen.getByRole('button', { name: '验证本次操作' })
-  await waitFor(() => expect(verify).toBeEnabled())
-  fireEvent.click(verify)
-  const password = screen.getByLabelText('密码')
-  fireEvent.change(password, { target: { value: 'synthetic-preserved-draft' } })
-  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  const code = await screen.findByLabelText('验证器验证码')
+  fireEvent.change(code, { target: { value: '123456' } })
   view.rerender(<AccountApprovalCoordinator {...input} blocked />)
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
   expect(input.onClose).not.toHaveBeenCalled()
   view.rerender(<AccountApprovalCoordinator {...input} blocked={false} />)
   await screen.findByRole('dialog', { name: '设备授权申请' })
-  expect(screen.getByLabelText('密码')).toBe(password)
-  expect(password).toHaveValue('synthetic-preserved-draft')
-  expect(screen.getByLabelText('验证器验证码')).toHaveValue('123456')
-  expect(screen.getByRole('checkbox')).toBeChecked()
+  expect(screen.getByLabelText('验证器验证码')).toBe(code)
+  expect(code).toHaveValue('123456')
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
 })
 
 test('未知 MFA 状态阻止验证，重新读取成功后才允许提交本次证明', async () => {
   const value = request('first', {
-    status: 'verifying', fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['verify'],
+    fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['approve'],
   })
   const fixture = gateway([value])
   fixture.api.security.mockRejectedValueOnce(new Error('network_unavailable'))
   render(<AccountApprovalCoordinator {...props(fixture.api, { target: { kind: 'approval', id: value.id } })} />)
-  fireEvent.click(await screen.findByRole('checkbox'))
   expect(await screen.findByText('授权状态暂时不可用，请重新读取')).toBeInTheDocument()
-  const verify = screen.getByRole('button', { name: '验证本次操作' })
+  const verify = screen.getByRole('button', { name: '批准设备' })
   expect(verify).toBeDisabled()
   fireEvent.click(verify)
   expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
   await waitFor(() => expect(verify).toBeEnabled())
-  fireEvent.click(verify)
-  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-verified-password' } })
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
-  fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
-  await waitFor(() => expect(fixture.api.authorizationAction).toHaveBeenCalledWith(status.generation, 'approval', value.id, 'verify', expect.objectContaining({ password: 'synthetic-verified-password', method: 'totp', code: '123456' })))
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  await waitFor(() => expect(fixture.api.authorizationAction).toHaveBeenCalledWith(status.generation, 'approval', value.id, 'approve', expect.objectContaining({ method: 'totp', code: '123456' })))
   expect(fixture.api.authorizationAction).toHaveBeenCalledTimes(1)
 })
 
@@ -249,12 +226,13 @@ test('手动打开申请读取失败可重试，审批繁忙结束后不重复�
   fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
   await screen.findByText('申请设备 first')
   await waitFor(() => expect(fixture.api.authorization).toHaveBeenCalledTimes(3))
-  fireEvent.click(screen.getByRole('button', { name: '开始核对' }))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
   await waitFor(() => expect(fixture.api.authorizationAction).toHaveBeenCalledTimes(1))
   expect(fixture.api.authorization).toHaveBeenCalledTimes(3)
-  const verifying = { ...value, status: 'verifying' as const, revision: '2', allowed_actions: ['confirm'], fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0' }
-  await act(async () => { fixture.requests.set(value.id, verifying); response.resolve(verifying) })
-  await screen.findByRole('button', { name: '确认指纹' })
+  const approved = { ...value, status: 'approved' as const, revision: '2', allowed_actions: [], fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0' }
+  await act(async () => { fixture.requests.set(value.id, approved); response.resolve(approved) })
+  await screen.findByText('已批准，等待领取')
   // 操作完成后的权威补读由详情执行；全局 target 不重新初始化，避免清理用户草稿。
   expect(fixture.api.authorization).toHaveBeenCalledTimes(4)
   expect(fixture.api.authorization.mock.calls[3][3]?.aborted).toBe(false)

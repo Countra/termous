@@ -99,8 +99,8 @@ export function AccountSync({ api, status, busy, run }: Props) {
         <Space wrap>{(['local', 'remote'] as const).map((choice) => <Button key={choice} disabled={loading} onClick={() => void run(async () => { await api.resolve(status.generation, conflict.id, choice); await loadPreview() })}>{t(`cloud.keep.${choice}`)}</Button>)}</Space>
       </div>)}</div>
     </AccountSection> : null}
-    <AccountArchives key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} run={run} />
-    <AccountSection title={t('cloud.safeguards.advancedTitle')} icon={<Cloud size={18} />} description={t('cloud.safeguards.advancedHint')}><AccountWorkspaceRestart key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} run={run} /></AccountSection>
+    <AccountArchives key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} mfaRevision={safeguards.value?.account.mfa_revision} run={run} />
+    <AccountSection title={t('cloud.safeguards.advancedTitle')} icon={<Cloud size={18} />} description={t('cloud.safeguards.advancedHint')}><AccountWorkspaceRestart key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} mfaRevision={safeguards.value?.account.mfa_revision} run={run} /></AccountSection>
     <Modal open={confirming} title={t('cloud.confirmSync')} confirmLoading={loading} okButtonProps={{ disabled: !canConfirm }} onCancel={() => setConfirming(false)} onOk={() => void run(async () => {
       const scope = lifetime.current
       if (!preview || !canConfirm || !isCurrent(scope)) return

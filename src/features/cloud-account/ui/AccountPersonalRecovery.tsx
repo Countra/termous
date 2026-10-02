@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Form, Input, Modal, Steps, Tag } from 'antd'
 import { ClipboardCopy, Download, KeyRound, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudMFAProof, CloudMFAMethod, CloudPersonalRecoverySetup, CloudStatus } from '#common/contracts'
+import type { CloudMFAProof, CloudMFAStatus, CloudPersonalRecoverySetup, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { cloudOperationErrorCode } from '../model/useCloudOperationFeedback'
 import { useCloudSafeguards } from '../model/useCloudSafeguards'
-import { AccountMFAFields } from './AccountMFAFields'
+import { useCloudDeadline } from '../model/useCloudDeadline'
+import { AccountStepUpFields } from './AccountStepUpFields'
+import { buildCloudStepUpProof } from '../model/stepUpProof'
 import { AccountSection } from './AccountSection'
 import styles from './AccountSafeguards.module.scss'
 
@@ -15,12 +17,14 @@ interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; run: <T
 export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   const { t, i18n } = useTranslation()
   const security = useCloudSafeguards(api, status.generation)
+  const policy = useRef({ enabled: security.value?.account.mfa_enabled, revision: security.value?.account.mfa_revision })
+  useEffect(() => { policy.current = { enabled: security.value?.account.mfa_enabled, revision: security.value?.account.mfa_revision } }, [security.value?.account.mfa_enabled, security.value?.account.mfa_revision])
   const [open, setOpen] = useState(false)
   const [setup, setSetup] = useState<CloudPersonalRecoverySetup>()
   const [stage, setStage] = useState(0)
-  const [method, setMethod] = useState<CloudMFAMethod>('totp')
   const [rotate, setRotate] = useState(false)
   const [rotationPending, setRotationPending] = useState(false)
+  const [rotationMFA, setRotationMFA] = useState<Pick<CloudMFAStatus, 'enabled' | 'revision' | 'verified_until'>>()
   const [exportError, setExportError] = useState(false)
   const [operationError, setOperationError] = useState<string>()
   const [queriedPending, setQueriedPending] = useState(false)
@@ -28,15 +32,24 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   const [proof] = Form.useForm<CloudMFAProof>()
   const [answers] = Form.useForm<{ first: string; second: string }>()
   const wizardRun = useRef(0)
-  const life = useRef({ active: true, generation: status.generation, pending: false })
-  useEffect(() => { const current = { active: true, generation: status.generation, pending: false }; life.current = current; return () => { current.active = false; if (proof.getFieldInstance('password')) proof.resetFields(); if (answers.getFieldInstance('first')) answers.resetFields() } }, [status.generation, proof, answers])
+  const life = useRef({ active: true, api, generation: status.generation, pending: false })
+  useEffect(() => {
+    const current = { active: true, api, generation: status.generation, pending: false }; life.current = current
+    wizardRun.current++; setOpen(false); setSetup(undefined); setRotationPending(false); setRotationMFA(undefined); setOperationError(undefined); setWorking(false)
+    return () => { current.active = false; proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }
+  }, [api, status.generation, proof, answers])
   useEffect(() => {
     if (!setup) return
     const until = Math.min(Date.parse(setup.expires_at), Date.parse(setup.verified_until ?? setup.expires_at))
-    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); if (proof.getFieldInstance('password')) proof.resetFields(); if (answers.getFieldInstance('first')) answers.resetFields() }, Math.max(0, until - Date.now()))
+    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }, Math.max(0, until - Date.now()))
     return () => clearTimeout(timer)
   }, [setup, proof, answers])
-  const current = (scope: typeof life.current) => scope.active && scope.generation === api.getStatus()?.generation
+  const current = (scope: typeof life.current) => scope === life.current && scope.active && scope.api === api && scope.generation === api.getStatus()?.generation
+  const rotationDeadline = useCloudDeadline(rotationMFA?.verified_until)
+  const rotationVerified = Boolean(rotationMFA?.verified_until && !rotationDeadline.expired)
+  useEffect(() => {
+    if (rotationMFA && (rotationMFA.revision !== security.value?.account.mfa_revision || rotationMFA.enabled !== security.value?.account.mfa_enabled)) setRotationMFA(undefined)
+  }, [rotationMFA, security.value?.account.mfa_revision, security.value?.account.mfa_enabled])
   const disabled = busy || working
   const perform = (action: () => Promise<void>) => {
     const scope = life.current
@@ -48,14 +61,15 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         const code = cloudOperationErrorCode(cause, value => i18n.exists(`cloud.errors.${value}`))
         if (current(scope) && request === wizardRun.current) {
           setOperationError(code)
+          if (code === 'reauthentication_required') setRotationMFA(previous => previous ? { ...previous, verified_until: undefined } : undefined)
         }
         throw Object.assign(new Error(code), { cause })
       } finally { scope.pending = false; if (current(scope)) setWorking(false) }
     })
   }
   const enabled = security.value?.account.personal_recovery_enabled === true
-  const close = () => { wizardRun.current++; setOpen(false); setSetup(undefined); setStage(0); setExportError(false); setOperationError(undefined); setQueriedPending(false); if (proof.getFieldInstance('password')) proof.resetFields(); if (answers.getFieldInstance('first')) answers.resetFields() }
-  const start = (rotation: boolean) => { wizardRun.current++; setRotate(rotation); setOpen(true); setStage(0); setSetup(undefined); setOperationError(undefined); setQueriedPending(false) }
+  const close = () => { wizardRun.current++; setOpen(false); setSetup(undefined); setStage(0); setExportError(false); setOperationError(undefined); setQueriedPending(false); proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }
+  const start = (rotation: boolean) => { wizardRun.current++; setRotate(rotation); setRotationMFA(undefined); setOpen(true); setStage(0); setSetup(undefined); setOperationError(undefined); setQueriedPending(false) }
   const complete = async (id: string, values: string[]) => {
     const scope = life.current
     const request = wizardRun.current
@@ -63,7 +77,26 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     if (!['completed', 'acknowledged'].includes(result.status)) throw new Error('CLOUD_RESPONSE_INVALID')
     if (!current(scope) || request !== wizardRun.current) return
     close(); await security.reload()
-    if (rotate && current(scope)) setRotationPending(true)
+    if (rotate && current(scope)) {
+      const rotationRequest = wizardRun.current
+      const startedPolicy = policy.current
+      try {
+        const verified = await api.mfaStatus(status.generation)
+        if (!current(scope) || rotationRequest !== wizardRun.current) return
+        if (startedPolicy !== policy.current || verified.revision !== startedPolicy.revision || verified.enabled !== startedPolicy.enabled) throw new Error('mfa_revision_conflict')
+        setRotationMFA(verified)
+        if (verified.verified_until && Date.parse(verified.verified_until) > Date.now()) await api.rekey(status.generation, 'start')
+        else setRotationPending(true)
+      } catch (cause) {
+        if (current(scope) && rotationRequest === wizardRun.current) {
+          setRotationPending(true)
+          const code = cloudOperationErrorCode(cause, value => i18n.exists(`cloud.errors.${value}`))
+          setOperationError(code)
+          if (code === 'reauthentication_required') setRotationMFA(previous => previous ? { ...previous, verified_until: undefined } : undefined)
+        }
+        throw cause
+      }
+    }
   }
   const queryResult = async () => {
     const scope = life.current
@@ -77,12 +110,16 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   }
   const feedback = operationError ? <Alert type="error" showIcon title={t(`cloud.errors.${operationError}`, { defaultValue: t('cloud.safeguards.operationFailed') })} description={t('cloud.safeguards.errorCode', { code: operationError })} /> : null
   const generate = async (evidence: CloudMFAProof) => {
+    if (disabled || security.error || security.loading) return
     const scope = life.current
     const request = wizardRun.current
+    const startedPolicy = policy.current
     try {
-      const result = await api.setupPersonalRecovery(status.generation, { ...evidence, method: security.value?.account.mfa_enabled ? method : undefined })
-      if (current(scope) && request === wizardRun.current) { setSetup(result); setStage(1) }
-    } finally { if (current(scope) && request === wizardRun.current) proof.resetFields() }
+      const result = await api.setupPersonalRecovery(status.generation, buildCloudStepUpProof(security.value?.account.mfa_enabled, evidence))
+      if (!current(scope) || request !== wizardRun.current) return
+      if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
+      setSetup(result); setStage(1)
+    } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields() }
   }
   const exportKey = async (download: boolean) => {
     if (!setup) return
@@ -111,8 +148,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         {queriedPending ? <Alert type="info" showIcon title={t('cloud.safeguards.setupPending')} /> : null}
         {enabled ? <Alert type="warning" showIcon title={t('cloud.safeguards.replaceWarning')} /> : null}
         {stage === 0 ? <Form form={proof} layout="vertical" onFinish={value => perform(() => generate(value))}>
-          <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={disabled || security.error} autoFocus /></Form.Item>
-          {security.value?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={disabled} /> : null}
+          <AccountStepUpFields enabled={security.value?.account.mfa_enabled} revision={security.value?.account.mfa_revision} disabled={disabled || security.error} />
           <div className={styles.actions}><Button type="primary" htmlType="submit" loading={disabled} disabled={security.error || security.loading}>{t('cloud.safeguards.generate')}</Button><Button disabled={disabled} onClick={() => perform(async () => { await api.cancelPersonalRecovery(status.generation, 'setup', 'current') })}>{t('cloud.safeguards.cancelPrevious')}</Button><Button disabled={disabled} onClick={() => perform(queryResult)}>{t('cloud.safeguards.queryResult')}</Button></div>
         </Form> : null}
         {stage === 1 && setup ? <>
@@ -133,16 +169,25 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
       <p>{t('cloud.safeguards.rotateAfterReplaceHint')}</p>
       {feedback}
       <Form form={proof} layout="vertical" onFinish={evidence => perform(async () => {
+        if (security.loading || security.error) return
         const scope = life.current
+        const request = wizardRun.current
+        const startedPolicy = policy.current
         try {
-          await api.reauthenticate(status.generation, { ...evidence, method: security.value?.account.mfa_enabled ? method : undefined })
-          if (!current(scope)) return
+          if (!rotationMFA?.verified_until || Date.parse(rotationMFA.verified_until) <= Date.now()) {
+            if (rotationVerified) throw new Error('reauthentication_required')
+            const result = await api.reauthenticate(status.generation, buildCloudStepUpProof(security.value?.account.mfa_enabled, evidence))
+            if (!current(scope) || request !== wizardRun.current) return
+            if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
+            if (startedPolicy.enabled === undefined || startedPolicy.revision === undefined) throw new Error('CLOUD_MFA_UNAVAILABLE')
+            setRotationMFA({ enabled: startedPolicy.enabled, revision: startedPolicy.revision, verified_until: result.verified_until })
+          }
+          if (!current(scope) || request !== wizardRun.current) return
           await api.rekey(status.generation, 'start')
           if (current(scope)) setRotationPending(false)
-        } finally { proof.resetFields() }
+        } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields() }
       })}>
-        <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={disabled} autoFocus /></Form.Item>
-        {security.value?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={disabled} /> : null}
+        {!rotationVerified ? <AccountStepUpFields enabled={security.value?.account.mfa_enabled} revision={security.value?.account.mfa_revision} disabled={disabled} /> : null}
         <Button type="primary" htmlType="submit" loading={disabled} disabled={security.loading || security.error}>{t('cloud.rekeyStart')}</Button>
       </Form>
     </Modal>

@@ -2,19 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Form, Input, Modal, Radio, Table } from 'antd'
 import { Archive, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudArchive, CloudArchivePreview, CloudMFAProof, CloudMFAMethod, CloudStatus } from '#common/contracts'
+import type { CloudArchive, CloudArchivePreview, CloudMFAProof, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { useCloudReconnect } from '../model/useCloudReconnect'
 import { useCloudChanges } from '../model/useCloudChanges'
 import { useDeadlineExpired } from '../model/useDeadlineExpired'
 import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
-import { AccountMFAFields } from './AccountMFAFields'
+import { AccountStepUpFields } from './AccountStepUpFields'
+import { buildCloudStepUpProof } from '../model/stepUpProof'
 import { AccountOperationError } from './AccountOperationError'
 import { AccountSection } from './AccountSection'
 import styles from './AccountSafeguards.module.scss'
 
-interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; mfaEnabled?: boolean; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
-export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
+interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; mfaEnabled?: boolean; mfaRevision?: string; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
+export function AccountArchives({ api, status, busy, mfaEnabled, mfaRevision, run }: Props) {
   const { t } = useTranslation()
   const [archives, setArchives] = useState<CloudArchive[]>([])
   const [error, setError] = useState(false)
@@ -23,10 +24,11 @@ export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
   const [deleting, setDeleting] = useState<CloudArchive>()
   const [preview, setPreview] = useState<CloudArchivePreview>()
   const [choices, setChoices] = useState<Record<string, 'local' | 'remote'>>({})
-  const [method, setMethod] = useState<CloudMFAMethod>('totp')
   const [keyForm] = Form.useForm<{ recovery_key?: string }>()
   const [proof] = Form.useForm<CloudMFAProof>()
   const life = useRef<{ controller: AbortController; request: number } | null>(null)
+  const policy = useRef({ enabled: mfaEnabled, revision: mfaRevision })
+  useEffect(() => { policy.current = { enabled: mfaEnabled, revision: mfaRevision } }, [mfaEnabled, mfaRevision])
   const generation = status.generation
   const feedback = useCloudOperationFeedback(api, generation, run)
   const inactive = busy || feedback.working
@@ -39,7 +41,7 @@ export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
     catch { if (!scope.controller.signal.aborted && request === scope.request) setError(true) }
     finally { if (!scope.controller.signal.aborted && request === scope.request) setLoading(false) }
   }, [api, generation])
-  useEffect(() => { const scope = { controller: new AbortController(), request: 0 }; life.current = scope; void load(); return () => { scope.controller.abort(); if (keyForm.getFieldInstance('recovery_key')) keyForm.resetFields(); if (proof.getFieldInstance('password')) proof.resetFields() } }, [load, keyForm, proof])
+  useEffect(() => { const scope = { controller: new AbortController(), request: 0 }; life.current = scope; void load(); return () => { scope.controller.abort(); if (keyForm.getFieldInstance('recovery_key')) keyForm.resetFields(); proof.setFieldsValue({ password: undefined, code: undefined }) } }, [load, keyForm, proof])
   useCloudReconnect(api, generation, load)
   useCloudChanges(api, generation, ['workspaces'], load)
   const close = () => { feedback.reset(); setSelected(undefined); setPreview(undefined); setChoices({}); if (keyForm.getFieldInstance('recovery_key')) keyForm.resetFields() }
@@ -50,7 +52,7 @@ export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
     {archives.map(archive => <div className={styles.actions} key={archive.id}>
       <span>{t(archive.status === 'deleting' ? 'cloud.safeguards.cleaning' : 'cloud.safeguards.archiveUntil', { date: archive.expires_at ? new Date(archive.expires_at).toLocaleString() : '—' })}</span>
       <Button disabled={inactive || archive.status !== 'archived'} onClick={() => { close(); setSelected(archive) }}>{t('cloud.safeguards.retrieve')}</Button>
-      <Button danger disabled={inactive || archive.status !== 'archived' || mfaEnabled === undefined} onClick={() => { feedback.reset(); setMethod('totp'); setDeleting(archive) }}>{t('cloud.safeguards.deleteArchive')}</Button>
+      <Button danger disabled={inactive || archive.status !== 'archived' || mfaEnabled === undefined} onClick={() => { feedback.reset(); setDeleting(archive) }}>{t('cloud.safeguards.deleteArchive')}</Button>
     </div>)}
     <Modal open={Boolean(selected)} width={720} title={t('cloud.safeguards.retrieve')} footer={null} destroyOnHidden closable={!inactive} mask={{ closable: !inactive }} keyboard={!inactive} onCancel={close}>
       <div className={styles.wizard}>
@@ -75,12 +77,17 @@ export function AccountArchives({ api, status, busy, mfaEnabled, run }: Props) {
       <div className={styles.wizard}><Alert type="warning" showIcon title={t('cloud.safeguards.deleteArchiveHint')} />
         <AccountOperationError code={feedback.errorCode} />
         <Form form={proof} layout="vertical" onFinish={evidence => void feedback.perform(async current => {
-          if (!deleting) return
-          try { await api.reauthenticate(generation, { ...evidence, method: mfaEnabled ? method : undefined }); if (!current()) return; await api.deleteArchive(generation, deleting.id, deleting.revision); if (current()) { closeDelete(); await load() } }
-          finally { if (current()) proof.resetFields() }
+          if (!deleting || inactive || mfaEnabled === undefined) return
+          const startedPolicy = policy.current
+          try {
+            await api.reauthenticate(generation, buildCloudStepUpProof(mfaEnabled, evidence))
+            if (!current()) return
+            if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
+            await api.deleteArchive(generation, deleting.id, deleting.revision)
+            if (current()) { closeDelete(); await load() }
+          } finally { if (current() && startedPolicy === policy.current) proof.resetFields() }
         })}>
-          <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={inactive} /></Form.Item>
-          {mfaEnabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={inactive} /> : null}
+          <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={inactive} />
           <Button type="primary" danger htmlType="submit" loading={inactive} disabled={mfaEnabled === undefined}>{t('cloud.safeguards.deleteArchive')}</Button>
         </Form>
       </div>

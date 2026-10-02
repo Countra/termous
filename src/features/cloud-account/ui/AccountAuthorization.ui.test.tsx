@@ -8,45 +8,69 @@ import { AccountAuthorization } from './AccountAuthorization'
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const initial: CloudAuthorization = {
   id: 'authorization_fixture', workspace_id: 'workspace', device_id: 'target', kind: 'approval', name: 'New device',
-  status: 'verifying', revision: '3', expires_at: new Date(Date.now() + 300_000).toISOString(), created_at: new Date().toISOString(),
+  status: 'pending', revision: '3', expires_at: new Date(Date.now() + 300_000).toISOString(), created_at: new Date().toISOString(),
   source_summary: '127.0.0.0/24', platform: 'Windows', target_confirmed: false, keys_verified: false,
-  fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['confirm'],
+  fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', allowed_actions: ['approve'],
 }
-function setup(value = initial, read?: CloudGateway['authorization']) {
+function setup(value = initial, read?: CloudGateway['authorization'], mfaEnabled = true, errorCode?: string) {
   const state = new CloudState()
-  state.accept({ generation: 'fixture', revision: 1, configured: true, authenticated: true, phase: 'ready', auto_sync: false, confirmed: false, pending: 0, conflicts: 0 })
+  state.accept({ generation: 'fixture', revision: 1, configured: true, authenticated: true, phase: errorCode ? 'blocked' : 'ready', error_code: errorCode, auto_sync: false, confirmed: false, pending: 0, conflicts: 0 })
   const api = {
     getStatus: state.snapshot, subscribeStatus: state.subscribe, subscribeChanges: state.subscribeChanges,
     authorization: vi.fn<CloudGateway['authorization']>(read ?? (async () => value)), authorizationAction: vi.fn(async () => value),
   }
   const run = async <T,>(action: () => Promise<T>) => { try { return await action() } catch { return undefined } }
-  render(<AccountAuthorization api={api as unknown as CloudGateway} generation="fixture" value={value} mfaEnabled busy={false} run={run} onClose={vi.fn()} onChanged={vi.fn()} />)
+  render(<AccountAuthorization api={api as unknown as CloudGateway} generation="fixture" value={value} mfaEnabled={mfaEnabled} busy={false} run={run} onClose={vi.fn()} onChanged={vi.fn()} />)
   return { ...api, publish: () => state.acceptEvent({ type: 'account', status: state.snapshot()!, changes: ['authorizations'], operations: [value.id] }) }
 }
 
-test('两端核对必须明确勾选，提交绑定当前完整指纹', async () => {
+test('审批只提交一次第二因子证明，不要求密码或双方额外确认', async () => {
   const api = setup()
-  const confirm = screen.getByRole('button', { name: '确认指纹' })
-  expect(confirm).toBeDisabled()
+  expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   expect(api.authorizationAction).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('checkbox'))
-  fireEvent.click(confirm)
-  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledWith('fixture', 'approval', initial.id, 'confirm', expect.objectContaining({ expected_revision: '3', fingerprint: initial.fingerprint })))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'approval', initial.id, 'approve', { expected_revision: '3', confirm_trust: false, method: 'totp', code: '123456' }))
+})
+
+test('未开启2FA时审批只验证密码', async () => {
+  const api = setup(initial, undefined, false)
+  expect(screen.queryByLabelText('验证器验证码')).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'approval', initial.id, 'approve', { expected_revision: '3', confirm_trust: false, password: 'synthetic-password' }))
 })
 
 test('验证响应失败后清空密码和验证码，不自动重放一次性证明', async () => {
-  const api = setup({ ...initial, target_confirmed: true, allowed_actions: ['verify'] })
+  const api = setup()
   api.authorizationAction.mockRejectedValueOnce(new Error('response_incomplete'))
-  fireEvent.click(screen.getByRole('checkbox'))
-  fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
-  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
-  fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
   await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledTimes(1))
-  await waitFor(() => expect(screen.getByLabelText('密码')).toHaveValue(''))
-  expect(screen.getByLabelText('验证器验证码')).toHaveValue('')
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
   expect(screen.getByRole('alert')).toBeInTheDocument()
   expect(api.authorizationAction).toHaveBeenCalledTimes(1)
+})
+
+test.each(['mfa_invalid_code', 'mfa_code_reused'])('审批失败就地展示 %s 的具体原因，不重复提交证明', async code => {
+  const api = setup()
+  api.authorizationAction.mockRejectedValueOnce(new Error(code))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  expect(await screen.findByText(`错误代码：${code}`)).toBeInTheDocument()
+  expect(screen.getByText(code === 'mfa_code_reused' ? '此验证码已使用，请等待验证器生成下一枚验证码。' : '验证码或备用码不正确，请检查后重试。')).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
+  expect(api.authorizationAction).toHaveBeenCalledOnce()
+})
+
+test('审批异常正文不会作为错误码或敏感内容回显', async () => {
+  const api = setup()
+  api.authorizationAction.mockRejectedValueOnce(new Error('untrusted synthetic proof 123456'))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  expect(await screen.findByText('错误代码：local_failed')).toBeInTheDocument()
+  expect(screen.queryByText(/untrusted synthetic proof/)).not.toBeInTheDocument()
 })
 
 test('托管恢复结果必须先接受信任边界，才会自动领取', async () => {
@@ -58,19 +82,24 @@ test('托管恢复结果必须先接受信任边界，才会自动领取', async
   expect(api.authorizationAction).toHaveBeenCalledTimes(1)
 })
 
+test('普通获批后由Core自动完成，本机失败时可无证明重试同一授权结果', async () => {
+  const api = setup({ ...initial, status: 'approved', allowed_actions: ['claim'] }, undefined, true, 'local_failed')
+  expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('验证器验证码')).not.toBeInTheDocument()
+  expect(api.authorizationAction).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '重试完成授权' }))
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledExactlyOnceWith('fixture', 'approval', initial.id, 'claim', { expected_revision: '3', confirm_trust: false }))
+})
+
 test('授权过期时移除身份草稿且不提交证明', () => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
   try {
-    const api = setup({ ...initial, expires_at: new Date(Date.now() + 1000).toISOString(), allowed_actions: ['verify'] })
-    fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
-    expect(screen.getByLabelText('密码')).toHaveFocus()
-    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+    const api = setup({ ...initial, expires_at: new Date(Date.now() + 1000).toISOString() })
     fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
     act(() => vi.advanceTimersByTime(1000))
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('验证器验证码')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '验证本次操作' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '批准设备' })).not.toBeInTheDocument()
     expect(api.authorizationAction).not.toHaveBeenCalled()
   } finally {
     vi.useRealTimers()
@@ -78,10 +107,7 @@ test('授权过期时移除身份草稿且不提交证明', () => {
 })
 
 test.each(['invalidated', 'rejected', 'cancelled'] as const)('申请变为 %s 后立即清理身份草稿，不提交旧证明', async (status) => {
-  const api = setup({ ...initial, allowed_actions: ['verify'] })
-  fireEvent.click(screen.getByRole('checkbox'))
-  fireEvent.click(screen.getByRole('button', { name: '验证本次操作' }))
-  fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+  const api = setup()
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
   api.authorization.mockResolvedValue({ ...initial, revision: '4', status, allowed_actions: [] })
   await act(async () => { api.publish() })

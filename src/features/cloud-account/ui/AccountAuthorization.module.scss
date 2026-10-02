@@ -33,12 +33,18 @@
 }
 
 .checkpoint {
-  display: grid;
-  gap: 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-subtle);
   padding: 18px;
+
+  summary {
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  &[open] .fingerprint { margin-block: 14px; }
 
   p {
     margin: 0;

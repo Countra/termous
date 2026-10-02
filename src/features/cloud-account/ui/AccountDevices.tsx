@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Form, Input, Modal, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Form, Modal, Tag, Tooltip } from 'antd'
 import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudMFAMethod, CloudStatus } from '#common/contracts'
+import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
 import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
+import { useCloudMFA } from '../model/useCloudMFA'
 import { AccountAuthorization } from './AccountAuthorization'
 import { AccountPersonalAuthorize } from './AccountPersonalAuthorize'
 import { AccountWorkspaceRestart } from './AccountWorkspaceRestart'
-import { AccountMFAFields } from './AccountMFAFields'
+import { AccountStepUpFields } from './AccountStepUpFields'
+import { AccountStepUpDialog } from './AccountStepUpDialog'
+import { buildCloudStepUpProof } from '../model/stepUpProof'
+import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
+import { AccountOperationError } from './AccountOperationError'
 import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './CloudAccount.module.scss'
 
@@ -30,10 +35,14 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
   const [replacementIds, setReplacementIds] = useState<string[]>([])
   const [checked, setChecked] = useState<string[]>([])
   const [proof] = Form.useForm<CloudMFAProof>()
-  const [method, setMethod] = useState<CloudMFAMethod>('totp')
   const [targetError, setTargetError] = useState(false)
   const generation = status.generation
+  const mfa = useCloudMFA(api, generation)
+  const initializeFeedback = useCloudOperationFeedback(api, generation, run)
+  const initializeBusy = busy || initializeFeedback.working
   const authorization = useCloudAuthorization(api, generation)
+  const policy = useRef({ enabled: authorization.security?.account.mfa_enabled, revision: authorization.security?.account.mfa_revision })
+  useEffect(() => { policy.current = { enabled: authorization.security?.account.mfa_enabled, revision: authorization.security?.account.mfa_revision } }, [authorization.security?.account.mfa_enabled, authorization.security?.account.mfa_revision])
   const select = (value: CloudAuthorization) => {
     if (onOpenAuthorization) onOpenAuthorization({ id: value.id, kind: value.kind })
     else setSelected(value)
@@ -55,7 +64,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
     lifetime.current = { controller, request: 0 }
     setDevices([]); setError(false); setSelected(undefined); setRevoking(undefined); setSwitching(undefined); setInitialize(false)
     void load()
-    return () => { controller.abort(); if (proof.getFieldInstance('password')) proof.resetFields() }
+    return () => { controller.abort(); proof.setFieldsValue({ password: undefined, code: undefined }) }
   }, [load, proof])
   useCloudReconnect(api, generation, load)
   useCloudChanges(api, generation, ['devices'], load)
@@ -94,12 +103,12 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
         <AccountPersonalAuthorize key={generation} api={api} status={status} devices={devices} enabled={authorization.security?.account.personal_recovery_enabled === true} busy={busy} disabled={authorization.error || authorization.loading || loading || error} run={run} onChanged={changed} outstanding={outstanding.find(value => value.device_id === status.device_id)} />
       </div>
       {!authorization.security?.recovery.available && authorization.security ? <p className={styles.hint}>{t(`cloud.authorization.reasons.${authorization.security.recovery.reason}`, { defaultValue: t('cloud.authorization.reasons.not_enabled') })}</p> : null}
-      <AccountWorkspaceRestart key={generation} secondary api={api} status={status} busy={busy} mfaEnabled={authorization.security?.account.mfa_enabled} run={run} />
+      <AccountWorkspaceRestart key={generation} secondary api={api} status={status} busy={busy} mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} run={run} />
     </AccountSection> : null}
     {status.error_code === 'workspace_replaced' ? <AccountSection title={t('cloud.safeguards.replacedTitle')} icon={<ShieldCheck size={18} />} description={t('cloud.safeguards.replacedHint')}><Button type="primary" disabled={busy} onClick={() => void run(() => api.joinCurrentWorkspace(generation))}>{t('cloud.safeguards.joinCurrent')}</Button></AccountSection> : null}
-    {status.device_status !== 'active' && status.device_status !== 'pending' && status.error_code !== 'workspace_replaced' ? <AccountSection title={t('cloud.authorizeDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.safeguards.registrationBlocked')}><AccountWorkspaceRestart key={generation} secondary api={api} status={status} busy={busy} mfaEnabled={authorization.security?.account.mfa_enabled} run={run} /></AccountSection> : null}
+    {status.device_status !== 'active' && status.device_status !== 'pending' && status.error_code !== 'workspace_replaced' ? <AccountSection title={t('cloud.authorizeDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.safeguards.registrationBlocked')}><AccountWorkspaceRestart key={generation} secondary api={api} status={status} busy={busy} mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} run={run} /></AccountSection> : null}
     {authorization.security?.keys_verified && !authorization.security.membership_initialized ? <AccountSection title={t('cloud.authorization.initialize')} icon={<ShieldCheck size={18} />} description={t('cloud.authorization.initializeHint')}>
-      <Button disabled={busy || loading || error || authorization.error} onClick={() => { setChecked(devices.filter(d => d.status === 'active').map(d => d.id)); setInitialize(true) }}>{t('cloud.authorization.reviewMembers')}</Button>
+      <Button disabled={initializeBusy || loading || error || authorization.error} onClick={() => { initializeFeedback.reset(); setChecked(devices.filter(d => d.status === 'active').map(d => d.id)); setInitialize(true) }}>{t('cloud.authorization.reviewMembers')}</Button>
     </AccountSection> : null}
     <AccountSection title={t('cloud.authorization.requests')} icon={<ShieldCheck size={18} />} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void authorization.reload()}>{t('cloud.refresh')}</Button>}>
       {outstanding.length ? <div className={styles.list}>{outstanding.map(request => <div className={styles.row} key={request.id}>
@@ -114,7 +123,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
         <div className={styles.actions}><Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
       </div>)}</div> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
     </AccountSection>
-    {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
+    {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
     <Modal open={Boolean(switching)} title={t('cloud.authorization.switchTitle')} closable={!busy} mask={{ closable: !busy }} confirmLoading={busy} onCancel={() => setSwitching(undefined)} onOk={async () => {
       if (!switching) return
       const cancelled = await run(() => api.authorizationAction(generation, switching.from.kind, switching.from.id, 'cancel', { expected_revision: switching.from.revision }))
@@ -125,29 +134,27 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
       <p>{t('cloud.safeguards.replaceDevicesHint')}</p>
       <Checkbox.Group aria-label={t('cloud.safeguards.replaceDevices')} value={replacementIds} onChange={values => setReplacementIds(values as string[])} options={devices.filter(device => device.status === 'active').map(device => ({ label: device.name, value: device.id }))} />
     </Modal>
-    <Modal open={initialize} title={t('cloud.authorization.initialize')} footer={null} destroyOnHidden closable={!busy} mask={{ closable: !busy }} onCancel={() => { setInitialize(false); proof.resetFields() }}>
-      <p>{t('cloud.authorization.initializeHint')}</p><Checkbox.Group value={checked} onChange={values => setChecked(values as string[])} options={devices.filter(d => d.status === 'active').map(d => ({ label: `${d.name} · ${d.id}`, value: d.id, disabled: d.id === status.device_id }))} />
-      <Form form={proof} layout="vertical" onFinish={evidence => void run(async () => {
+    <Modal open={initialize} title={t('cloud.authorization.initialize')} footer={null} destroyOnHidden closable={!initializeBusy} mask={{ closable: !initializeBusy }} keyboard={!initializeBusy} onCancel={() => { initializeFeedback.reset(); setInitialize(false); proof.resetFields() }}>
+      <p>{t('cloud.authorization.initializeHint')}</p><Checkbox.Group disabled={initializeBusy} value={checked} onChange={values => setChecked(values as string[])} options={devices.filter(d => d.status === 'active').map(d => ({ label: `${d.name} · ${d.id}`, value: d.id, disabled: d.id === status.device_id }))} />
+      <AccountOperationError code={initializeFeedback.errorCode} />
+      <Form form={proof} layout="vertical" onFinish={evidence => void initializeFeedback.perform(async current => {
+        if (busy || authorization.error || authorization.security?.account.mfa_enabled === undefined) return
         const scope = lifetime.current
-        try { await api.reauthenticate(generation, { ...evidence, method: authorization.security?.account.mfa_enabled ? method : undefined }); await api.initializeMembership(generation, checked); if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setInitialize(false); changed() } }
-        finally { proof.resetFields() }
+        const startedPolicy = policy.current
+        try {
+          await api.reauthenticate(generation, buildCloudStepUpProof(authorization.security?.account.mfa_enabled, evidence))
+          if (!current() || scope?.controller.signal.aborted) return
+          if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
+          await api.initializeMembership(generation, checked)
+          if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setInitialize(false); changed() }
+        } finally { if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation && startedPolicy === policy.current) proof.resetFields() }
       })}>
-        <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={busy} /></Form.Item>
-        {authorization.security?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={busy} /> : null}
-        <Button type="primary" htmlType="submit" loading={busy} disabled={!checked.includes(status.device_id ?? '')}>{t('cloud.mfa.confirm')}</Button>
+        <AccountStepUpFields enabled={authorization.security?.account.mfa_enabled} revision={authorization.security?.account.mfa_revision} disabled={initializeBusy} />
+        <Button type="primary" htmlType="submit" loading={initializeBusy} disabled={!checked.includes(status.device_id ?? '') || authorization.error || authorization.security?.account.mfa_enabled === undefined}>{t('cloud.mfa.confirm')}</Button>
       </Form>
     </Modal>
-    <Modal open={Boolean(revoking)} title={t('cloud.revoke')} footer={null} destroyOnHidden closable={!busy} mask={{ closable: !busy }} onCancel={() => { setRevoking(undefined); proof.resetFields() }}><p>{t('cloud.revokeHint')}</p>
-      <Form form={proof} layout="vertical" onFinish={evidence => void run(async () => {
-        if (!revoking) return
-        const scope = lifetime.current
-        try { await api.reauthenticate(generation, { ...evidence, method: authorization.security?.account.mfa_enabled ? method : undefined }); await api.revokeDevice(generation, revoking.id); if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setRevoking(undefined); changed() } }
-        finally { proof.resetFields() }
-      })}>
-        <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true }]}><Input.Password autoComplete="current-password" disabled={busy} /></Form.Item>
-        {authorization.security?.account.mfa_enabled ? <AccountMFAFields method={method} onMethodChange={setMethod} disabled={busy} /> : null}
-        <Button type="primary" danger htmlType="submit" loading={busy}>{t('cloud.revoke')}</Button>
-      </Form>
-    </Modal>
+    {revoking ? <AccountStepUpDialog key={`${generation}:${revoking.id}`} api={api} generation={generation} title={t('cloud.revoke')} description={t('cloud.revokeHint')} danger busy={busy} run={run}
+      mfa={mfa.value} unavailable={mfa.loading || mfa.error || !mfa.value} accept={mfa.accept} reload={mfa.reload} onUncertain={changed} onClose={() => setRevoking(undefined)}
+      action={async () => { await api.revokeDevice(generation, revoking.id); changed() }} /> : null}
   </div>
 }

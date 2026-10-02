@@ -53,7 +53,7 @@ export interface CloudEvent {
 export type CloudAuthAction = 'register' | 'verify-email' | 'resend-verification' | 'password-reset/request' | 'password-reset/confirm'
 
 export type CloudMFAMethod = 'totp' | 'backup_code'
-export interface CloudMFAProof { password: string; method?: CloudMFAMethod; code?: string }
+export interface CloudMFAProof { password?: string; method?: CloudMFAMethod; code?: string }
 export interface CloudLoginChallenge { id: string; expires_at: string; methods: CloudMFAMethod[] }
 export type CloudLoginResult = { state: 'authenticated'; status: CloudStatus } | { state: 'mfa_required'; challenge: CloudLoginChallenge }
 export interface CloudMFAStatus {

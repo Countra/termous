@@ -100,6 +100,45 @@ test('账号切换后迟到的归档身份验证不能继续删除', async () =>
   expect(api.deleteArchive).not.toHaveBeenCalled()
 })
 
+test('因子更换后的迟到认证不能删除归档，旧验证码及时清除', async () => {
+  const { api } = fixture()
+  let resolve!: (value: { verified_until: string }) => void
+  vi.mocked(api.reauthenticate).mockImplementation(() => new Promise(done => { resolve = done }))
+  const view = render(<AccountArchives api={api} status={status} busy={false} mfaEnabled mfaRevision="1" run={run} />)
+  fireEvent.click(await screen.findByRole('button', { name: '永久删除归档' }))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '永久删除归档' }))
+  await waitFor(() => expect(api.reauthenticate).toHaveBeenCalledOnce())
+  view.rerender(<AccountArchives api={api} status={status} busy={false} mfaEnabled mfaRevision="2" run={run} />)
+  expect(screen.getByLabelText('验证器验证码')).toHaveValue('')
+  await act(async () => { resolve({ verified_until: new Date(Date.now() + 300_000).toISOString() }) })
+  expect(api.deleteArchive).not.toHaveBeenCalled()
+  expect(screen.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+})
+
+test('重新开始验证期间因子变化，仅查询事实，不采用旧验证结果或执行切换', async () => {
+  const { api } = fixture()
+  const pending: CloudWorkspaceRestart = { id: 'restart_fixture', status: 'pending', revision: 1, source_workspace_id: 'old', target_workspace_id: 'new', expires_at: archive.expires_at!, email_sent: true }
+  let resolve!: (value: CloudWorkspaceRestart) => void
+  api.createWorkspaceRestart = vi.fn(async () => pending)
+  api.workspaceRestart = vi.fn(async () => pending)
+  api.verifyRestart = vi.fn<CloudGateway['verifyRestart']>(() => new Promise(done => { resolve = done }))
+  api.completeRestart = vi.fn()
+  const view = render(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled mfaRevision="1" run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '重新开始云同步' }))
+  fireEvent.click(screen.getByRole('button', { name: '创建重新开始申请' }))
+  fireEvent.change(await screen.findByLabelText('邮件中的确认码'), { target: { value: 'synthetic-email-proof' } })
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '验证身份' }))
+  await waitFor(() => expect(resolve).toBeDefined())
+  view.rerender(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled mfaRevision="2" run={run} />)
+  await act(async () => { resolve({ ...pending, status: 'verified', revision: 2, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
+  expect(screen.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+  expect(api.workspaceRestart).toHaveBeenCalledOnce()
+  expect(api.completeRestart).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: '确认立即重新开始' })).not.toBeInTheDocument()
+})
+
 test('旧归档预览不能进入新账号的取回向导', async () => {
   const { api, state } = fixture()
   let resolve!: (value: CloudArchivePreview) => void

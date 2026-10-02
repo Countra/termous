@@ -4,6 +4,29 @@ import { CloudClient } from './cloudClient'
 
 afterEach(() => vi.unstubAllGlobals())
 
+function securityResponse(contract: string) {
+  return { account: { contract, managed_recovery: false, mfa_enabled: true, mfa_revision: '1' },
+    recovery: { policy: { workspace_id: 'workspace_fixture', status: 'disabled', revision: '0', updated_at: '2026-10-02T00:00:00Z' }, available: false },
+    membership_initialized: true, keys_verified: true }
+}
+
+test.each(['cloud-authorization-v1', 'cloud-recovery-safeguards-v1', 'cloud-direct-approval-v1'])('安全概要经过真实 Gateway 解码支持合同 %s', async contract => {
+  const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => Response.json(securityResponse(contract)))
+  vi.stubGlobal('fetch', fetch)
+  const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
+  const result = await api.security('current')
+  expect(result.account.contract).toBe(contract)
+  expect(result.account.mfa_enabled).toBe(true)
+  expect(result.keys_verified).toBe(true)
+  expect(String(fetch.mock.calls[0]?.[0])).toBe('http://127.0.0.1:8122/api/v1/cloud/security?generation=current')
+})
+
+test('安全概要拒绝未知合同，不将新策略推断为已关闭', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json(securityResponse('unknown-security-contract'))))
+  const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
+  await expect(api.security('current')).rejects.toThrow('CLOUD_RESPONSE_INVALID')
+})
+
 test('云状态请求在账号切换后才返回时，调用方同样获得当前账号状态', async () => {
   let respond!: (response: Response) => void
   vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { respond = resolve })))

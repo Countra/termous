@@ -1,5 +1,5 @@
 import type { CloudAuthAction, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
-import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
+import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationAction, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
 import type { CloudPersonalRecoveryStatus, CloudPersonalRecoverySetup, CloudPersonalRecoveryOperation, CloudWorkspaceRestart, CloudArchive, CloudArchivePreview } from '#common/contracts'
 import type { CloudAccountChange, CloudEvent } from '#common/contracts'
 
@@ -26,7 +26,7 @@ export interface CloudGateway {
   deviceRequests(generation: string, signal?: AbortSignal): Promise<CloudAuthorization[]>
   createDeviceRequest(generation: string): Promise<CloudAuthorization>
   authorization(generation: string, kind: CloudAuthorizationKind, id: string, signal?: AbortSignal): Promise<CloudAuthorization>
-  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: string, input: CloudAuthorizationInput): Promise<CloudAuthorization>
+  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: CloudAuthorizationAction, input: CloudAuthorizationInput): Promise<CloudAuthorization>
   recoveryOperations(generation: string, signal?: AbortSignal): Promise<CloudAuthorization[]>
   createRecovery(generation: string, kind: 'enablement' | 'recovery', revokeDeviceIds?: string[]): Promise<CloudAuthorization>
   recoveryPolicy(generation: string, action: 'disable' | 'freeze' | 'unfreeze', revision: string, proof: CloudMFAProof): Promise<CloudRecoveryStatus>

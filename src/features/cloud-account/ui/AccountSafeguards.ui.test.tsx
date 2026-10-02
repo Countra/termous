@@ -15,7 +15,7 @@ function fixture(enabled = false) {
   const state = new CloudState(); state.accept(status)
   const security: CloudSecurityOverview = { account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: true, mfa_enabled: false, mfa_revision: '0', workspace_id: 'workspace_test', recovery_required: true, recovery_ready: enabled, personal_recovery_enabled: enabled, archive_available: false }, keys_verified: true, membership_initialized: true, recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace_test', status: 'disabled', revision: '0', updated_at: new Date().toISOString() } } }
   const setup: CloudPersonalRecoverySetup = { id: 'personal_setup_test', kind: 'setup', status: 'verified', revision: '2', membership_head: 'synthetic_head', personal_revision: '0', key_epoch: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), recovery_key: `TRK1-${groups.join('-')}`, confirm_groups: [0, 1] }
-  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => security), setupPersonalRecovery: vi.fn(async () => setup), confirmPersonalRecovery: vi.fn(async () => ({ ...setup, status: 'completed' })), reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })), rekey: vi.fn(async () => ({ status: 'complete', completed: 0, total: 0 })) } as unknown as CloudGateway
+  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => security), setupPersonalRecovery: vi.fn(async () => setup), confirmPersonalRecovery: vi.fn(async () => ({ ...setup, status: 'completed' })), mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })), rekey: vi.fn(async () => ({ status: 'complete', completed: 0, total: 0 })) } as unknown as CloudGateway
   return { api, state, setup }
 }
 async function generate() {
@@ -142,7 +142,24 @@ test('关闭向导后到达的生成响应不能重新展示恢复秘密', async
   expect(screen.queryByRole('list', { name: '个人恢复密钥' })).not.toBeInTheDocument()
 })
 
-test('更换完成后轮换单独验证，失败保留待办且不重复提交恢复密钥', async () => {
+test('更换 Core 网关后，旧生成结果不能进入新向导或保留繁忙状态', async () => {
+  const previous = fixture(), next = fixture()
+  let resolve!: (value: CloudPersonalRecoverySetup) => void
+  vi.mocked(previous.api.setupPersonalRecovery).mockImplementation(() => new Promise(done => { resolve = done }))
+  const view = render(<AccountPersonalRecovery api={previous.api} status={status} busy={false} run={run} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '设置恢复密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '设置恢复密钥' })); await generate()
+  await waitFor(() => expect(resolve).toBeDefined())
+  view.rerender(<AccountPersonalRecovery api={next.api} status={status} busy={false} run={run} />)
+  await act(async () => { resolve(previous.setup) })
+  await waitFor(() => expect(screen.getByRole('button', { name: '设置恢复密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '设置恢复密钥' }))
+  expect(screen.getByLabelText('密码')).toHaveValue('')
+  expect(screen.queryByRole('list', { name: '个人恢复密钥' })).not.toBeInTheDocument()
+  expect(next.api.setupPersonalRecovery).not.toHaveBeenCalled()
+})
+
+test('更换完成后近期期限不可用才就地补验，失败保留待办且不重复提交恢复密钥', async () => {
   const { api } = fixture(true)
   vi.mocked(api.reauthenticate).mockRejectedValueOnce(new Error('network_unavailable'))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
@@ -164,6 +181,94 @@ test('更换完成后轮换单独验证，失败保留待办且不重复提交�
   fireEvent.change(rotation.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
   fireEvent.click(rotation.getByRole('button', { name: '开始轮换' }))
   await waitFor(() => expect(api.rekey).toHaveBeenCalledWith('fixture', 'start'))
+  expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce()
+})
+
+test('更换并轮换复用前段成功后的服务端验证期限，不要求再次输入证明', async () => {
+  const { api } = fixture(true)
+  vi.mocked(api.mfaStatus).mockResolvedValue({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
+  render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
+  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
+  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
+  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
+  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await waitFor(() => expect(api.rekey).toHaveBeenCalledExactlyOnceWith('fixture', 'start'))
+  expect(api.reauthenticate).not.toHaveBeenCalled()
+  expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()
+  expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('button', { name: '开始轮换' })).not.toBeInTheDocument()
+})
+
+test('更换完成后的旧验证状态不能越过新的因子版本启动轮换', async () => {
+  const { api, state } = fixture(true)
+  const original = await api.security('fixture')
+  api.subscribeChanges = state.subscribeChanges
+  let resolve!: (value: { enabled: boolean; revision: string; backup_codes_remaining: number; verified_until: string }) => void
+  vi.mocked(api.mfaStatus).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
+  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
+  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
+  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
+  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await waitFor(() => expect(resolve).toBeDefined())
+  vi.mocked(api.security).mockResolvedValue({ ...original, account: { ...original.account, mfa_enabled: true, mfa_revision: '1' } })
+  await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
+  await act(async () => { resolve({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
+  const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
+  const dialog = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
+  expect(dialog.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+  expect(dialog.getByLabelText('验证器验证码')).toHaveValue('')
+  expect(api.rekey).not.toHaveBeenCalled()
+  expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()
+  expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce()
+})
+
+test('初次读取失败后补验成功，轮换暂时失败仍保留有效期限而不重复证明', async () => {
+  const { api } = fixture(true)
+  vi.mocked(api.mfaStatus).mockRejectedValueOnce(new Error('network_unavailable'))
+  vi.mocked(api.rekey).mockRejectedValueOnce(new Error('network_unavailable'))
+  render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
+  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
+  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
+  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
+  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
+  const dialog = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
+  fireEvent.change(dialog.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
+  fireEvent.click(rotationButton)
+  await waitFor(() => expect(api.rekey).toHaveBeenCalledOnce())
+  await waitFor(() => expect(rotationButton).toBeEnabled())
+  expect(dialog.queryByLabelText('密码')).not.toBeInTheDocument()
+  fireEvent.click(rotationButton)
+  await waitFor(() => expect(api.rekey).toHaveBeenCalledTimes(2))
+  expect(api.reauthenticate).toHaveBeenCalledOnce()
+  expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce()
+})
+
+test('服务器认为组合验证已过期时清除本机期限，只补验轮换而不重做密钥更换', async () => {
+  const { api } = fixture(true)
+  vi.mocked(api.mfaStatus).mockResolvedValue({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
+  vi.mocked(api.rekey).mockRejectedValueOnce(new TermousApiError('reauthentication_required', 'CLOUD_OPERATION_FAILED', 409))
+  render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
+  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
+  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
+  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
+  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
+  const rotation = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
+  fireEvent.change(await rotation.findByLabelText('密码'), { target: { value: 'synthetic-password' } })
+  fireEvent.click(rotationButton)
+  await waitFor(() => expect(api.rekey).toHaveBeenCalledTimes(2))
+  expect(api.reauthenticate).toHaveBeenCalledExactlyOnceWith('fixture', { password: 'synthetic-password' })
+  expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()
   expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce()
 })
 

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Steps, Tag } from 'antd'
+import { Alert, Button, Form, Modal, Steps, Tag } from 'antd'
 import { RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudMFAMethod, CloudMFAProof, CloudMFASetup, CloudMFAStatus } from '#common/contracts'
+import type { CloudMFAProof, CloudMFASetup, CloudMFAStatus } from '#common/contracts'
 import { isCloudMFAUncertainError, type CloudGateway } from '#entities/cloud'
 import { useCloudDeadline } from '../model/useCloudDeadline'
 import { AccountLoading, AccountSection } from './AccountSection'
 import { AccountMFAFields } from './AccountMFAFields'
+import { AccountStepUpFields } from './AccountStepUpFields'
+import { buildCloudStepUpProof } from '../model/stepUpProof'
 import { AccountMFACodes } from './AccountMFACodes'
 import { AccountMFASetup } from './AccountMFASetup'
 import styles from './AccountMFA.module.scss'
@@ -20,7 +22,6 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
   const [action, setAction] = useState<Action>('setup')
   const [setup, setSetup] = useState<CloudMFASetup>()
   const [codes, setCodes] = useState<string[]>()
-  const [method, setMethod] = useState<CloudMFAMethod>('totp')
   const [operationStatus, setOperationStatus] = useState<Pick<CloudMFAStatus, 'enabled' | 'revision'>>()
   const [operationError, setOperationError] = useState<string>()
   const [uncertain, setUncertain] = useState(false)
@@ -52,7 +53,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
   const start = (next: Action) => {
     if (!value || disabled || loading || error) return
     invalidated.current = false
-    setAction(next); setOpen(true); setSetup(undefined); setCodes(undefined); setOperationError(undefined); setUncertain(false); setMethod('totp'); setOperationStatus({ enabled: value.enabled, revision: value.revision }); form.resetFields()
+    setAction(next); setOpen(true); setSetup(undefined); setCodes(undefined); setOperationError(undefined); setUncertain(false); setOperationStatus({ enabled: value.enabled, revision: value.revision }); form.resetFields()
   }
   const finish = () => { setOpen(false); setSetup(undefined); setCodes(undefined); form.resetFields() }
   const perform = (operation: () => Promise<void>) => {
@@ -121,7 +122,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
           <Form name="cloud-mfa-identity" form={form} layout="vertical" requiredMark={false} disabled={disabled} onFinish={(values) => perform(async () => {
             if (!value || !operationStatus || value.revision !== operationStatus.revision) throw new Error('mfa_revision_conflict')
             const scope = lifetime.current
-            const proof: CloudMFAProof = { password: values.password, ...(operationStatus.enabled ? { method, code: values.code } : {}) }
+            const proof = buildCloudStepUpProof(operationStatus.enabled, values)
             if (action === 'setup') {
               const next = await api.mfaSetup(generation, operationStatus.revision, proof)
               if (current(scope) && !invalidated.current) { setSetup(next); setOperationStatus({ enabled: operationStatus.enabled, revision: next.revision }); form.resetFields() }
@@ -133,8 +134,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
               if (current(scope) && !invalidated.current) { update(next); finish() }
             }
           })}>
-            <Form.Item name="password" label={t('cloud.password')} rules={[{ required: true, message: t('cloud.passwordRequired') }]}><Input.Password autoComplete="current-password" /></Form.Item>
-            {operationStatus?.enabled ? <AccountMFAFields method={method} disabled={disabled} onMethodChange={(next) => { setMethod(next); form.resetFields(['code']) }} /> : null}
+            <AccountStepUpFields enabled={operationStatus?.enabled} revision={operationStatus?.revision} disabled={disabled} />
             <div className={styles.actions}><Button type="primary" danger={action === 'disable'} htmlType="submit" loading={disabled}>{t(action === 'disable' ? 'cloud.mfa.confirmDisable' : action === 'regenerate' ? 'cloud.mfa.regenerate' : 'cloud.mfa.continue')}</Button><Button disabled={disabled} onClick={close}>{t('cloud.mfa.cancel')}</Button></div>
           </Form>
         </>}

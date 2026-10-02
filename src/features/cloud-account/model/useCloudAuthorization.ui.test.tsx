@@ -47,7 +47,7 @@ test('安全及恢复读取挂起时，新申请仍独立立即补读并显示',
   const request: CloudAuthorization = {
     id: 'new-request', workspace_id: 'workspace', device_id: 'new-device', kind: 'approval', status: 'pending', revision: '1',
     name: 'Synthetic Device', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
-    target_confirmed: false, keys_verified: false, allowed_actions: ['respond'],
+    target_confirmed: false, keys_verified: false, allowed_actions: ['approve'],
   }
   const api = gateway()
   api.security.mockImplementation(() => security.promise)
@@ -133,7 +133,7 @@ test('等待申请列表不固定轮询，事件到达立即补读新申请', as
     expect(api.deviceRequests).toHaveBeenCalledTimes(1)
     await act(async () => { vi.advanceTimersByTime(120_000) })
     expect(api.deviceRequests).toHaveBeenCalledTimes(1)
-    const value: CloudAuthorization = { id: 'new-request', workspace_id: 'workspace', device_id: 'new-device', kind: 'approval', status: 'pending', revision: '1', name: 'New device', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(), target_confirmed: false, keys_verified: false, allowed_actions: ['respond'] }
+    const value: CloudAuthorization = { id: 'new-request', workspace_id: 'workspace', device_id: 'new-device', kind: 'approval', status: 'pending', revision: '1', name: 'New device', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(), target_confirmed: false, keys_verified: false, allowed_actions: ['approve'] }
     api.deviceRequests.mockResolvedValue([value])
     await act(async () => { state.acceptEvent({ type: 'account', status: state.snapshot()!, changes: ['authorizations'], operations: [value.id] }) })
     expect(view.result.current.requests).toEqual([value])
@@ -160,7 +160,7 @@ test('在途读取遇到连续 WS 提示仍立即展示当前申请，再合并�
   api.security.mockImplementationOnce(() => firstSecurity.promise).mockImplementationOnce(() => latestSecurity.promise)
   let notify!: Parameters<CloudGateway['subscribeChanges']>[0]
   api.subscribeChanges.mockImplementation(listener => { notify = listener; return () => {} })
-  const value: CloudAuthorization = { id: 'burst-first', workspace_id: 'workspace', device_id: 'new-device', kind: 'approval', status: 'pending', revision: '1', name: 'First request', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(), target_confirmed: false, keys_verified: false, allowed_actions: ['respond'] }
+  const value: CloudAuthorization = { id: 'burst-first', workspace_id: 'workspace', device_id: 'new-device', kind: 'approval', status: 'pending', revision: '1', name: 'First request', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(), target_confirmed: false, keys_verified: false, allowed_actions: ['approve'] }
   const view = renderHook(() => useCloudAuthorization(api as unknown as CloudGateway, 'current'))
   await waitFor(() => expect(api.deviceRequests).toHaveBeenCalledTimes(1))
   await act(async () => { for (let i = 0; i < 20; i++) notify({ generation: 'current', changes: ['authorizations'], operations: [value.id] }) })

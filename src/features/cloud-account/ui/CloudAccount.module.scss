@@ -214,23 +214,6 @@
 
 .compact-form {
   width: min(100%, 520px);
-
-  > label {
-    display: block;
-    margin-bottom: 8px;
-  }
-}
-
-.verification-controls {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-
-  > :global(.ant-form-item) {
-    min-width: 0;
-    flex: 1 1 auto;
-    margin-bottom: 0;
-  }
 }
 
 .auth-links {

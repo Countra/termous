@@ -79,7 +79,7 @@ export function useCloudAuthorization(api: CloudGateway, generation: string) {
     })
     return () => { controller.abort(); unsubscribe() }
   }, [api, generation, reload])
-  useCloudChanges(api, generation, ['authorizations', 'security', 'devices', 'recovery', 'workspaces'], refresh)
+  useCloudChanges(api, generation, ['authorizations', 'security', 'mfa', 'devices', 'recovery', 'workspaces'], refresh)
   useCloudReconnect(api, generation, reload)
   return { security, requests: [...deviceRequests, ...operations], error: requestError || contextError, loading, reload }
 }

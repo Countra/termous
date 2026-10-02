@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input } from 'antd'
+import { useEffect, useRef } from 'react'
+import { Alert, Button, Form } from 'antd'
 import { Fingerprint } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudMFAMethod, CloudMFAProof, CloudMFAStatus } from '#common/contracts'
+import type { CloudMFAProof, CloudMFAStatus } from '#common/contracts'
 import { isCloudMFAUncertainError, type CloudGateway } from '#entities/cloud'
 import { useCloudDeadline } from '../model/useCloudDeadline'
+import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
+import { AccountOperationError } from './AccountOperationError'
 import { AccountSection } from './AccountSection'
-import { AccountMFAFields } from './AccountMFAFields'
+import { buildCloudStepUpProof } from '../model/stepUpProof'
+import { AccountStepUpFields } from './AccountStepUpFields'
 import styles from './CloudAccount.module.scss'
 
 interface Props { api: CloudGateway; generation: string; mfa?: CloudMFAStatus; unavailable: boolean; busy: boolean; accept: (value: CloudMFAStatus) => void; reload: () => Promise<CloudMFAStatus | undefined>; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
@@ -14,41 +17,37 @@ interface Props { api: CloudGateway; generation: string; mfa?: CloudMFAStatus; u
 export function AccountVerification({ api, generation, mfa, unavailable, busy, accept, reload, run }: Props) {
   const { t } = useTranslation()
   const [form] = Form.useForm<CloudMFAProof>()
-  const [method, setMethod] = useState<CloudMFAMethod>('totp')
-  const lifetime = useRef<{ active: boolean; api: CloudGateway; generation: string } | null>(null)
+  const feedback = useCloudOperationFeedback(api, generation, run)
+  const disabled = busy || feedback.working
+  const policy = useRef({ enabled: mfa?.enabled, revision: mfa?.revision })
   useEffect(() => {
-    const scope = { active: true, api, generation }
-    lifetime.current = scope; form.resetFields(); setMethod('totp')
-    return () => { scope.active = false }
-  }, [api, generation, form])
+    policy.current = { enabled: mfa?.enabled, revision: mfa?.revision }; form.resetFields()
+    return () => form.setFieldsValue({ password: undefined, code: undefined })
+  }, [api, generation, form, mfa?.enabled, mfa?.revision])
   const { expired } = useCloudDeadline(mfa?.verified_until)
   const verified = mfa?.verified_until && !expired
   return <AccountSection title={t('cloud.securityVerification')} icon={<Fingerprint size={18} />} description={t('cloud.reauthenticateHint')}>
     {verified ? <Alert type="success" title={t('cloud.verified')} description={t('cloud.mfa.verifiedUntil', { time: new Date(mfa.verified_until!).toLocaleTimeString() })} /> : null}
-    <Form name="cloud-security" className={styles['compact-form']} form={form} layout="vertical" requiredMark={false} disabled={busy || unavailable} onFinish={(values) => void run(async () => {
-      const scope = lifetime.current
-      const current = () => scope?.active && scope.api === api && scope.generation === generation && api.getStatus()?.generation === generation
+    <AccountOperationError code={feedback.errorCode} />
+    <Form name="cloud-security" className={styles['compact-form']} form={form} layout="vertical" requiredMark={false} disabled={disabled || unavailable} onFinish={(values) => void feedback.perform(async current => {
+      if (busy || unavailable || !mfa) return
+      const startedPolicy = policy.current
       try {
-        const result = await api.reauthenticate(generation, { password: values.password, ...(mfa?.enabled ? { method, code: values.code } : {}) })
-        if (current() && mfa) {
+        const proof = buildCloudStepUpProof(mfa?.enabled, values)
+        const result = await api.reauthenticate(generation, proof)
+        if (current()) {
+          if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
           accept({ ...mfa, verified_until: result.verified_until }); form.resetFields()
           // 备用码消费不提升因子版本，补读余量；读取失败保留已确认的验证期限。
-          if (method === 'backup_code') await reload()
+          if (proof.method === 'backup_code') await reload()
         }
       } catch (cause) {
         if (current() && isCloudMFAUncertainError(cause)) { form.resetFields(); await reload() }
         throw cause
-      }
+      } finally { if (current() && startedPolicy === policy.current) form.resetFields() }
     })}>
-      <label htmlFor="cloud-security-password">{t('cloud.password')}</label>
-      <div className={styles['verification-controls']}>
-        <Form.Item name="password" rules={[{ required: true, message: t('cloud.passwordRequired') }]}><Input.Password id="cloud-security-password" autoComplete="current-password" /></Form.Item>
-        {!mfa?.enabled ? <Button type="primary" htmlType="submit" loading={busy}>{t('cloud.auth.reauthenticate')}</Button> : null}
-      </div>
-      {mfa?.enabled ? <>
-        <AccountMFAFields method={method} disabled={busy || unavailable} onMethodChange={(value) => { setMethod(value); form.resetFields(['code']) }} />
-        <Button type="primary" htmlType="submit" loading={busy}>{t('cloud.auth.reauthenticate')}</Button>
-      </> : null}
+      <AccountStepUpFields enabled={mfa?.enabled} revision={mfa?.revision} disabled={disabled || unavailable} autoFocus={false} />
+      <Button type="primary" htmlType="submit" loading={disabled}>{t('cloud.auth.reauthenticate')}</Button>
     </Form>
   </AccountSection>
 }

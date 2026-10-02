@@ -27,6 +27,6 @@ export function useCloudSafeguards(api: CloudGateway, generation: string) {
     return () => current.controller.abort()
   }, [reload])
   useCloudReconnect(api, generation, reload)
-  useCloudChanges(api, generation, ['security', 'recovery', 'workspaces', 'devices'], reload)
+  useCloudChanges(api, generation, ['security', 'mfa', 'recovery', 'workspaces', 'devices'], reload)
   return { value, loading, error, reload }
 }

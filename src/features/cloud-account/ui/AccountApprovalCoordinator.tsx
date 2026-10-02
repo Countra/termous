@@ -47,7 +47,7 @@ export function AccountApprovalCoordinator({ api, status, blocked, target, onClo
   useEffect(() => {
     if (blocked || busy || selected || target || status.device_status !== 'active' || !status.authenticated || api.getStatus()?.generation !== generation) return
     const next = authorization.requests.find(value => value.kind === 'approval' && value.status === 'pending'
-      && value.device_id !== status.device_id && value.allowed_actions.includes('respond')
+      && value.device_id !== status.device_id && value.allowed_actions.includes('approve')
       && Date.parse(value.expires_at) > Date.now() && !handled.current.has(value.id))
     if (!next) return
     // 同一申请关闭后不因重连或重复事件再次打断用户，其他申请依次展示。
@@ -57,7 +57,7 @@ export function AccountApprovalCoordinator({ api, status, blocked, target, onClo
   const close = () => { if (!busy) { setSelected(undefined); setTargetError(false); onClose() } }
   return <>
     {selected ? <AccountAuthorization key={`${generation}:${selected.kind}:${selected.id}`} api={api} generation={generation} value={selected}
-      mfaEnabled={authorization.security?.account.mfa_enabled} open={!blocked} busy={busy} run={run} onClose={close} onChanged={() => void authorization.reload()} /> : null}
+      mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} open={!blocked} busy={busy} run={run} onClose={close} onChanged={() => void authorization.reload()} /> : null}
     <Modal open={!blocked && targetError && !selected} title={t('cloud.authorization.approvalTitle')} onCancel={close} footer={<Button onClick={() => setRetry(value => value + 1)}>{t('cloud.retry')}</Button>}>
       <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} />
     </Modal>

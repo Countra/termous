@@ -4,7 +4,7 @@ import { decodeCloudProfile } from '#entities/cloud'
 import { CloudState, decodeCloudStatus, decodeCloudList, decodeCloudDevice, decodeCloudSession, decodeCloudPreview, decodeCloudConflict, decodeCloudRekey, type CloudGateway } from '#entities/cloud'
 import { decodeCloudLogin, decodeCloudMFAStatus, decodeCloudMFASetup, decodeCloudMFACodes, decodeCloudReauthentication } from '#entities/cloud'
 import { TermousApiTransport } from '#shared/api'
-import type { CloudAuthorizationKind, CloudAuthorizationInput } from '#common/contracts'
+import type { CloudAuthorizationKind, CloudAuthorizationAction, CloudAuthorizationInput } from '#common/contracts'
 import { decodeCloudAuthorization, decodeCloudSecurity, decodeCloudRecoveryStatus } from '#entities/cloud'
 import { decodePersonalStatus, decodePersonalSetup, decodePersonalOperation, decodeWorkspaceRestart, decodeArchive, decodeArchivePreview } from '#entities/cloud'
 
@@ -48,7 +48,7 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   authorization(generation: string, kind: CloudAuthorizationKind, id: string, signal?: AbortSignal) {
     return this.request(`${this.authorizationPath(kind, id)}?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
   }
-  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: string, input: CloudAuthorizationInput) {
+  authorizationAction(generation: string, kind: CloudAuthorizationKind, id: string, action: CloudAuthorizationAction, input: CloudAuthorizationInput) {
     return this.request(`${this.authorizationPath(kind, id)}/${encodeURIComponent(action)}`, { method: 'POST', body: { generation, ...input }, timeoutMs: 125_000 }).then(decodeCloudAuthorization)
   }
   recoveryOperations(generation: string, signal?: AbortSignal) {

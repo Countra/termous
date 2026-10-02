@@ -1,6 +1,7 @@
 import type { CloudMFAProof } from './cloud'
 
 export type CloudAuthorizationKind = 'approval' | 'recovery' | 'enablement'
+export type CloudAuthorizationAction = 'approve' | 'reject' | 'cancel' | 'verify' | 'complete' | 'claim'
 export interface CloudAuthorizationTarget { id: string; kind: CloudAuthorizationKind }
 export interface CloudAuthorization {
   id: string
@@ -27,13 +28,12 @@ export interface CloudRecoveryStatus {
   blocked_until?: string
 }
 export interface CloudSecurityOverview {
-  account: { contract: 'cloud-authorization-v1' | 'cloud-recovery-safeguards-v1'; managed_recovery: boolean; mfa_enabled: boolean; mfa_revision: string; recovery_blocked_until?: string; workspace_id?: string; recovery_required?: boolean; recovery_ready?: boolean; personal_recovery_enabled?: boolean; archive_available?: boolean }
+  account: { contract: 'cloud-authorization-v1' | 'cloud-recovery-safeguards-v1' | 'cloud-direct-approval-v1'; managed_recovery: boolean; mfa_enabled: boolean; mfa_revision: string; recovery_blocked_until?: string; workspace_id?: string; recovery_required?: boolean; recovery_ready?: boolean; personal_recovery_enabled?: boolean; archive_available?: boolean }
   recovery: CloudRecoveryStatus
   membership_initialized: boolean
   keys_verified: boolean
 }
 export interface CloudAuthorizationInput extends Partial<CloudMFAProof> {
   expected_revision: string
-  fingerprint?: string
   confirm_trust?: boolean
 }
