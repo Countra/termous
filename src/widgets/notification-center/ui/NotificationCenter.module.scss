@@ -27,7 +27,7 @@
 }
 
 .root {
-  // 抽屉 Portal 覆盖顶栏时，关闭按钮和遮罩仍需响应鼠标事件。
+  // 可见抽屉需覆盖顶栏交互；关闭后必须销毁 Portal，避免整屏 no-drag 残留阻塞窗口拖动。
   -webkit-app-region: no-drag;
 }
 

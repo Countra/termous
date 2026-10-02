@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { ConfigProvider } from 'antd'
+import { useState } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import type { NotificationMessage } from '#entities/notification'
 import { NotificationCenter, type NotificationCenterProps } from './NotificationCenter'
@@ -37,4 +39,34 @@ test('失效目标显示保留结果，清理已读在没有已读项时禁用',
   render(<NotificationCenter {...props()} selected={item} unavailable />)
   expect(screen.getByText('notifications.targetMissing')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'notifications.clearRead' })).toBeDisabled()
+})
+
+function CenterLifecycle({ input }: { input: NotificationCenterProps }) {
+  const [open, setOpen] = useState(false)
+  return <ConfigProvider theme={{ token: { motion: false } }}>
+    <NotificationCenter {...input} open={open} onOpen={setOpen} onView={(message) => { input.onView(message); setOpen(false) }} />
+  </ConfigProvider>
+}
+
+test.each(['close', 'mask', 'escape', 'message'] as const)('%s 关闭消息抽屉后移除整屏覆盖层，重新打开保留筛选和交互', async (action) => {
+  const input = props()
+  render(<CenterLifecycle input={input} />)
+  const trigger = screen.getByRole('button', { name: 'notifications.title' })
+  expect(document.querySelector('.ant-drawer')).toBeNull()
+  trigger.focus()
+  fireEvent.click(trigger)
+  await screen.findByRole('dialog')
+  fireEvent.click(screen.getByRole('tab', { name: 'notifications.unread' }))
+  if (action === 'close') fireEvent.click(screen.getByRole('button', { name: 'app.close' }))
+  else if (action === 'mask') fireEvent.click(document.querySelector('.ant-drawer-mask')!)
+  else if (action === 'escape') fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', code: 'Escape', keyCode: 27 })
+  else fireEvent.click(screen.getByRole('button', { name: /文件上传部分完成.*example.zip/ }))
+  await waitFor(() => expect(document.querySelector('.ant-drawer')).toBeNull())
+  expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  expect(trigger).toHaveFocus()
+  expect(input.onView).toHaveBeenCalledTimes(action === 'message' ? 1 : 0)
+  fireEvent.click(trigger)
+  await screen.findByRole('dialog')
+  expect(screen.getByRole('tab', { name: 'notifications.unread' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByText('example.zip')).toBeInTheDocument()
 })

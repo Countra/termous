@@ -56,6 +56,7 @@ describe('审计详情关闭与切换', () => {
     expect(signal?.aborted).toBe(true)
     await act(async () => { pending.resolve({ ...event, summary: '迟到的详情' }) })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(document.querySelector('.ant-drawer')).toBeNull())
     expect(screen.queryByText('迟到的详情')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重新打开' }))
     await screen.findByText('重新读取的详情')

@@ -59,7 +59,7 @@ export function AuditDetailsPanel({ api, id, onClose, onSelect }: { api: AuditGa
   }
 
   return (
-    <Drawer open={Boolean(id)} onClose={close} title={t('audit.detail')} size="large" rootClassName={styles['drawer-root']} className={styles.drawer} extra={correlationId ? <Button type="text" size="small" icon={<ListTree size={15} aria-hidden="true" />} onClick={() => { related.current?.scrollIntoView({ block: 'start' }); related.current?.focus({ preventScroll: true }) }}>{t('audit.related')}</Button> : null}>
+    <Drawer open={Boolean(id)} destroyOnHidden onClose={close} title={t('audit.detail')} size="large" rootClassName={styles['drawer-root']} className={styles.drawer} extra={correlationId ? <Button type="text" size="small" icon={<ListTree size={15} aria-hidden="true" />} onClick={() => { related.current?.scrollIntoView({ block: 'start' }); related.current?.focus({ preventScroll: true }) }}>{t('audit.related')}</Button> : null}>
       <div ref={content} tabIndex={-1} className={styles['detail-content']} aria-label={t('audit.detail')} aria-busy={loading} data-loading={loading}>
       {loading ? <div className={styles['detail-loading']} role="status"><Spin /><span>{t('audit.loadingDetail')}</span></div> : null}
       {current?.failed ? <Alert type="error" title={t('audit.loadFailed')} action={<Button size="small" onClick={retry}>{t('audit.retry')}</Button>} /> : event ? (

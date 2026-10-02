@@ -333,7 +333,7 @@
 }
 
 .drawer-root {
-  // Portal 覆盖 Electron 顶部拖拽区时，遮罩与关闭按钮必须仍接收鼠标事件。
+  // 可见抽屉需覆盖顶栏交互；关闭后必须销毁 Portal，避免整屏 no-drag 残留阻塞窗口拖动。
   -webkit-app-region: no-drag;
 }
 

@@ -44,7 +44,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
       title={<span className={styles.heading}><Bell size={17} aria-hidden="true" /><span>{t('notifications.title')}</span>
         {state.unread > 0 && <span className={styles.count} aria-label={t('notifications.unread')}>{state.unread}</span>}
       </span>}
-      open={open} size={440} onClose={() => props.onOpen(false)} closeIcon={<X size={18} aria-hidden="true" />}
+      open={open} size={440} destroyOnHidden onClose={() => props.onOpen(false)} closeIcon={<X size={18} aria-hidden="true" />}
       closable={{ placement: 'end', 'aria-label': t('app.close') }} rootClassName={styles.root}
       afterOpenChange={(visible) => { if (!visible) trigger.current?.focus({ preventScroll: true }) }}
       classNames={{ section: styles.panel, header: styles.header, body: styles.body, footer: styles.footer, close: styles.close }}
