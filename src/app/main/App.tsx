@@ -1603,7 +1603,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
-                      {page === 'account' ? <AccountPage api={gateways.cloud} profile={cloudProfile} authorizationTarget={authorizationTarget} onOpenAuthorization={openAccountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} settingsGateway={gateways.settings} profile={cloudProfile} authorizationTarget={authorizationTarget} onOpenAuthorization={openAccountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
                       {page === 'settings' ? (
                         <SettingsPage
                           settingsGateway={gateways.settings}

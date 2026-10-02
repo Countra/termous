@@ -5,12 +5,14 @@ import type { CloudTab, CloudAuthorizationTarget } from '#common/contracts'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
 import { isCloudConnectionError } from '#entities/cloud'
+import { SettingsGatewayContext, type SettingsGateway } from '#entities/settings'
 import { AccountAuth, AccountDevices, AccountProfile, AccountSecurity, AccountSync, useCloudAccount, type CloudProfileController } from '#features/cloud-account'
 import { WorkspaceEmptyState } from '#shared/ui'
 import styles from './AccountPage.module.scss'
 
 interface Props {
   api: CloudGateway
+  settingsGateway: SettingsGateway
   profile: CloudProfileController
   onUseOffline: () => void
   activeTab: CloudTab
@@ -19,7 +21,7 @@ interface Props {
   onOpenAuthorization?: (value: CloudAuthorizationTarget) => void
 }
 
-export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange, authorizationTarget, onOpenAuthorization }: Props) {
+export function AccountPage({ api, settingsGateway, profile, onUseOffline, activeTab, onTabChange, authorizationTarget, onOpenAuthorization }: Props) {
   const { t } = useTranslation()
   const { status, busy, error, run, refresh } = useCloudAccount(api)
   const [reauthGeneration, setReauthGeneration] = useState<string>()
@@ -78,7 +80,7 @@ export function AccountPage({ api, profile, onUseOffline, activeTab, onTabChange
       if (tab === 'profile' || tab === 'sync' || tab === 'devices' || tab === 'security') onTabChange(tab)
     }} items={[
       { key: 'profile', label: label('profile', <UserRound size={15} />), children: panel(<AccountProfile {...profile} email={status.email} />) },
-      { key: 'sync', label: label('sync', <Cloud size={15} />), children: panel(<AccountSync api={api} status={status} busy={busy} run={run} />) },
+      { key: 'sync', label: label('sync', <Cloud size={15} />), children: panel(<SettingsGatewayContext value={settingsGateway}><AccountSync api={api} status={status} busy={busy} run={run} onOpenSecurity={() => onTabChange('security')} /></SettingsGatewayContext>) },
       { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} target={authorizationTarget} onOpenAuthorization={onOpenAuthorization} busy={busy} run={run} />) },
       { key: 'security', label: label('security', <ShieldCheck size={15} />), children: panel(<AccountSecurity api={api} status={status} busy={busy} run={run} />) },
     ]} />

@@ -3,16 +3,17 @@ import { useState, useSyncExternalStore } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { CloudStatus, CloudTab } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
-import { SettingsGatewayContext, SettingsModuleStore, type SettingsGateway } from '#entities/settings'
+import { SettingsModuleStore, type SettingsGateway } from '#entities/settings'
 import { changeLanguage } from '#shared/i18n'
 import { useCloudProfile } from '#features/cloud-account'
 import { AccountPage as AccountPageView } from './AccountPage'
 
-function AccountPage({ api, initialTab, onUseOffline = vi.fn() }: { api: CloudGateway; initialTab?: CloudTab; onUseOffline?: () => void }) {
+function AccountPage({ api, settingsGateway, initialTab, onUseOffline = vi.fn() }: { api: CloudGateway; settingsGateway?: SettingsGateway; initialTab?: CloudTab; onUseOffline?: () => void }) {
   const status = useSyncExternalStore(api.subscribeStatus, api.getStatus)
   const profile = useCloudProfile(api, status?.generation ?? '', status?.authenticated ? status.user_id : undefined)
   const [tab, setTab] = useState<CloudTab>(initialTab ?? 'sync')
-  return <AccountPageView api={api} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={onUseOffline} />
+  const [fallbackSettings] = useState(() => setup().gateway)
+  return <AccountPageView api={api} settingsGateway={settingsGateway ?? fallbackSettings} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={onUseOffline} />
 }
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
@@ -43,6 +44,40 @@ function setup(value = initial) {
 }
 
 describe('云账号页', () => {
+  it('自动同步设置在途时，退出登录不能与设置写入并发执行', async () => {
+    const { cloud, gateway, api } = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'active', confirmed: true })
+    const update = gateway.updateModule.bind(gateway)
+    let finish!: () => void
+    vi.spyOn(gateway, 'updateModule').mockImplementation((...args) => new Promise((resolve, reject) => {
+      finish = () => { void update(...args).then(resolve, reject) }
+    }))
+    render(<AccountPage api={cloud} settingsGateway={gateway} />)
+    const toggle = await screen.findByRole('switch', { name: '自动同步' })
+    const logout = screen.getByRole('button', { name: '退出登录' })
+    await waitFor(() => expect(toggle).toBeEnabled())
+    fireEvent.click(toggle)
+    await waitFor(() => expect(gateway.updateModule).toHaveBeenCalledTimes(1))
+    fireEvent.click(logout)
+    expect(api.logout).not.toHaveBeenCalled()
+    await act(async () => { finish() })
+    await waitFor(() => expect(toggle).toBeChecked())
+    await waitFor(() => expect(toggle).toBeEnabled())
+    fireEvent.click(logout)
+    await waitFor(() => expect(api.logout).toHaveBeenCalledTimes(1))
+  })
+
+  it('正式页面显式接入设置网关，已确认设备可直接开启自动同步', async () => {
+    const { cloud, gateway, api } = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'active', confirmed: true })
+    render(<AccountPage api={cloud} settingsGateway={gateway} />)
+    const toggle = await screen.findByRole('switch', { name: '自动同步' })
+    await waitFor(() => expect(toggle).toBeEnabled())
+    fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toBeChecked())
+    expect(gateway.getModule('cloud')?.value.auto_sync).toBe(true)
+    expect(api.preview).not.toHaveBeenCalled()
+    expect(api.confirm).not.toHaveBeenCalled()
+  })
+
   it('断网操作失败后恢复连接仍提示未完成，仅在用户重新提交后清除', async () => {
     const logged: CloudStatus = { ...initial, authenticated: true, phase: 'ready', device_status: 'active' }
     const { api, cloud, state } = setup(logged)
@@ -69,7 +104,7 @@ describe('云账号页', () => {
     const logged: CloudStatus = { ...initial, authenticated: true, phase: 'ready', device_status: 'active', email: 'fixture@example.test' }
     const { cloud, api, state } = setup(logged)
     const profile = { profile: { user_id: 'fixture', name: 'Original', bio: '', organization: '', avatar: '', revision: '1', updated_at: null }, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
-    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    render(<AccountPageView api={cloud} settingsGateway={setup().gateway} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
     fireEvent.change(await screen.findByLabelText('名称'), { target: { value: 'Unsaved draft' } })
     act(() => { state.accept({ ...logged, revision: 2, phase: 'blocked', error_code: 'network_unavailable' }) })
     expect(await screen.findByText('暂时无法连接云服务')).toBeInTheDocument()
@@ -88,7 +123,7 @@ describe('云账号页', () => {
   it('续期结果不明时保留账号，由用户主动打开重新验证且无需先退出', async () => {
     const { api, cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
     const profile = { profile: undefined, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
-    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    render(<AccountPageView api={cloud} settingsGateway={setup().gateway} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
     expect(screen.getByRole('button', { name: '退出登录' })).toBeInTheDocument()
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
@@ -106,7 +141,7 @@ describe('云账号页', () => {
     const { api, cloud } = setup({ ...initial, authenticated: true, phase: 'blocked', device_status: 'active', email: 'fixture@example.test', error_code: 'refresh_unconfirmed' })
     api.login.mockRejectedValueOnce(new Error('network_unavailable'))
     const profile = { profile: undefined, loading: false, error: undefined, reload: vi.fn(), save: vi.fn() }
-    render(<AccountPageView api={cloud} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
+    render(<AccountPageView api={cloud} settingsGateway={setup().gateway} profile={profile} activeTab="profile" onTabChange={vi.fn()} onUseOffline={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '重新登录' }))
     const dialog = within(await screen.findByRole('dialog'))
     fireEvent.change(dialog.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
@@ -141,7 +176,7 @@ describe('云账号页', () => {
       return <>
         <button onClick={() => setTab('profile')}>sidebar-profile</button>
         <button onClick={() => setTab('devices')}>notification-devices</button>
-        <AccountPageView api={cloud} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={vi.fn()} />
+        <AccountPageView api={cloud} settingsGateway={setup().gateway} profile={profile} activeTab={tab} onTabChange={setTab} onUseOffline={vi.fn()} />
       </>
     }
     render(<Harness />)
@@ -168,7 +203,7 @@ describe('云账号页', () => {
 
   it('登录成功仅显示预览入口，不自动上传或开启同步', async () => {
     const { api, cloud, gateway } = setup()
-    render(<SettingsGatewayContext value={gateway}><AccountPage api={cloud} /></SettingsGatewayContext>)
+    render(<AccountPage api={cloud} settingsGateway={gateway} />)
     fireEvent.change(await screen.findByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: ' synthetic-password ' } })
     fireEvent.click(screen.getByRole('button', { name: /^登\s*录$/ }))
@@ -177,11 +212,11 @@ describe('云账号页', () => {
     expect(api.preview).not.toHaveBeenCalled()
     expect(api.confirm).not.toHaveBeenCalled()
     expect(api.run).not.toHaveBeenCalled()
-    expect(screen.getByRole('switch')).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled())
     expect(screen.getByRole('switch')).not.toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: '预览同步' }))
     await waitFor(() => expect(api.preview).toHaveBeenCalledTimes(1))
-    expect(await screen.findByRole('heading', { name: '同步范围与差异' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: '同步预览' })).toBeInTheDocument()
     expect(api.confirm).not.toHaveBeenCalled()
   })
 
@@ -192,7 +227,7 @@ describe('云账号页', () => {
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
     view.unmount()
     const logged = setup({ ...initial, authenticated: true, phase: 'ready', device_status: 'active' })
-    render(<SettingsGatewayContext value={logged.gateway}><AccountPage api={logged.cloud} initialTab="security" /></SettingsGatewayContext>)
+    render(<AccountPage api={logged.cloud} settingsGateway={logged.gateway} initialTab="security" />)
     await waitFor(() => expect(logged.api.sessions).toHaveBeenCalled())
     expect(screen.getByRole('tab', { name: '安全' })).toHaveAttribute('aria-selected', 'true')
     expect(logged.api.preview).not.toHaveBeenCalled()

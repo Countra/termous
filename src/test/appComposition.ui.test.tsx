@@ -12,6 +12,7 @@ const testState = vi.hoisted(() => {
       subscribeStatus: () => () => {},
       eventsUrl: () => 'ws://127.0.0.1/cloud/events',
     },
+    settingsGateway: { getModule: () => undefined, readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: () => () => {} },
     action,
     notifications: {
       error: vi.fn(),
@@ -253,7 +254,10 @@ vi.mock('#app/app-shell', () => ({
 }))
 
 vi.mock('#pages/account', () => ({
-  AccountPage: ({ onUseOffline }: { onUseOffline: () => void }) => <button type="button" onClick={onUseOffline}>continue-offline</button>,
+  AccountPage: ({ onUseOffline, settingsGateway }: { onUseOffline: () => void; settingsGateway: unknown }) => {
+    expect(settingsGateway).toBe(testState.settingsGateway)
+    return <button type="button" onClick={onUseOffline}>continue-offline</button>
+  },
 }))
 
 vi.mock('#pages/agent', () => ({
@@ -722,6 +726,7 @@ vi.mock('#app/data-runtime', () => ({
   useTermousData: () => ({
     gateways: {
       cloud: testState.cloud,
+      settings: testState.settingsGateway,
       forwards: {},
       hosts: {
         hostIconFileUrl: (iconId: string, sha256?: string) => (
