@@ -30,12 +30,14 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
 export function decodeCloudAuthorization(value: unknown): CloudAuthorization {
   const r = object(value)
   if (!Array.isArray(r.allowed_actions) || r.allowed_actions.length > 8) throw new Error('CLOUD_RESPONSE_INVALID')
+  const pairingCode = r.pairing_code === undefined ? undefined : text(r.pairing_code, 39)
+  if (pairingCode !== undefined && !/^[A-F0-9]{4}( [A-F0-9]{4}){7}$/.test(pairingCode)) throw new Error('CLOUD_RESPONSE_INVALID')
   const fingerprint = r.fingerprint === undefined ? undefined : text(r.fingerprint)
   if (fingerprint && !/^[A-F0-9]{4}( [A-F0-9]{4}){7}$/.test(fingerprint)) throw new Error('CLOUD_RESPONSE_INVALID')
   return { id: text(r.id, 128), workspace_id: text(r.workspace_id, 128), device_id: text(r.device_id, 128), approver_id: r.approver_id === undefined ? undefined : text(r.approver_id, 128),
     kind: choice(r.kind, ['approval', 'recovery', 'enablement']), name: text(r.name), revision: revision(r.revision),
     status: choice(r.status, ['pending', 'verifying', 'verified', 'processing', 'approved', 'acknowledged', 'rejected', 'cancelled', 'expired', 'invalidated', 'failed']),
-    expires_at: date(r.expires_at), created_at: date(r.created_at), source_summary: text(r.source_summary), platform: text(r.platform, 64), fingerprint,
+    expires_at: date(r.expires_at), created_at: date(r.created_at), source_summary: text(r.source_summary), platform: text(r.platform, 64), pairing_code: pairingCode, fingerprint,
     target_confirmed: bool(r.target_confirmed), keys_verified: bool(r.keys_verified), allowed_actions: r.allowed_actions.map(v => choice(v, ['cancel', 'respond', 'reject', 'confirm', 'verify', 'approve', 'claim', 'complete'])) }
 }
 export function decodeCloudRecoveryStatus(value: unknown): CloudRecoveryStatus {

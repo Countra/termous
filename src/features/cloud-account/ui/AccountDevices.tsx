@@ -85,7 +85,8 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
     if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { select(result); changed() }
     return result
   })
-  const outstanding = authorization.requests.filter(v => v.kind !== 'enablement' && !['cancelled', 'rejected', 'expired', 'invalidated', 'acknowledged', 'failed'].includes(v.status))
+  const outstanding = authorization.requests.filter(v => v.kind !== 'enablement' && !['cancelled', 'rejected', 'expired', 'invalidated', 'failed'].includes(v.status)
+    && (v.status !== 'acknowledged' || v.device_id === status.device_id && !v.keys_verified && v.allowed_actions.includes('claim')))
   const begin = (kind: 'approval' | 'recovery') => {
     const existing = outstanding.find(value => value.device_id === status.device_id)
     if (existing) {

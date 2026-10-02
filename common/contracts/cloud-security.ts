@@ -16,6 +16,7 @@ export interface CloudAuthorization {
   created_at: string
   source_summary: string
   platform: string
+  pairing_code?: string
   fingerprint?: string
   target_confirmed: boolean
   keys_verified: boolean

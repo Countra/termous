@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Form, Modal, Tag } from 'antd'
-import { ShieldCheck } from 'lucide-react'
+import { Clock3, Laptop, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationAction, CloudMFAProof } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
@@ -14,12 +14,24 @@ import styles from './AccountAuthorization.module.scss'
 
 interface Props { api: CloudGateway; generation: string; value: CloudAuthorization; mfaEnabled?: boolean; mfaRevision?: string; open?: boolean; busy: boolean; run: <T>(action: () => Promise<T>) => Promise<T | undefined>; onClose: () => void; onChanged: () => void }
 interface ReadScope { api: CloudGateway; generation: string; kind: CloudAuthorization['kind']; id: string; controller: AbortController; active: boolean; request: number; pending: boolean; queued: boolean; submitting: boolean }
+interface ActionError { action: CloudAuthorizationAction; code: string }
+
+function actionConfirmed(action: CloudAuthorizationAction, value: CloudAuthorization) {
+  if (['rejected', 'cancelled', 'expired', 'invalidated'].includes(value.status)) return true
+  const approved = ['approved', 'acknowledged'].includes(value.status)
+  switch (action) {
+    case 'approve': case 'complete': return approved
+    case 'verify': return ['verified', 'processing'].includes(value.status) || approved
+    case 'claim': return value.keys_verified
+    default: return false
+  }
+}
 
 export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRevision, open = true, busy, run, onClose, onChanged }: Props) {
   const { t, i18n } = useTranslation()
   const [current, setCurrent] = useState(value)
   const [error, setError] = useState(false)
-  const [actionError, setActionError] = useState<string>()
+  const [actionError, setActionError] = useState<ActionError>()
   const [now, setNow] = useState(Date.now())
   const [trust, setTrust] = useState(false)
   const [working, setWorking] = useState(false)
@@ -67,7 +79,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
           return result
         } catch (cause) {
           const code = cloudOperationErrorCode(cause, value => i18n.exists(`cloud.errors.${value}`))
-          if (scope.active && generation === api.getStatus()?.generation) setActionError(code)
+          if (scope.active && generation === api.getStatus()?.generation) setActionError({ action: name, code })
           throw Object.assign(new Error(code), { cause })
         }
       })
@@ -92,38 +104,58 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
     // 申请过期、失效或验证权限撤回时立即移除身份草稿。
     form.resetFields()
   }, [canVerify, form])
+  useEffect(() => {
+    // 响应丢失后只按已确认的业务结果清除旧错误；相同状态补读不能吞掉失败原因。
+    if (actionError && actionConfirmed(actionError.action, current)) setActionError(undefined)
+  }, [actionError, current])
   const disabled = busy || working
   const status = api.getStatus()
-  const retryClaim = current.kind === 'approval' && current.status === 'approved' && !current.keys_verified && allowed('claim')
+  const approval = current.kind === 'approval'
+  const requester = approval && current.device_id === status?.device_id
+  const approved = ['approved', 'acknowledged'].includes(current.status)
+  const title = approval && requester ? current.keys_verified ? 'completedTitle' : 'waitingTitle' : `${current.kind}Title`
+  const retryClaim = requester && approved && !current.keys_verified && allowed('claim')
     && status?.phase === 'blocked' && Boolean(status.error_code) && !['login_required', 'refresh_unconfirmed'].includes(status.error_code ?? '')
   // 临时让位主机密钥审批时保留表单；真正关闭由父组件卸载并清理秘密。
-  return <Modal open={open} title={t(`cloud.authorization.${current.kind}Title`)} footer={null} width={600} onCancel={onClose} mask={{ closable: !disabled }} closable={!disabled} keyboard={!disabled}>
+  return <Modal open={open} title={t(`cloud.authorization.${title}`)} footer={null} width={560} centered onCancel={onClose} mask={{ closable: !disabled }} closable={!disabled} keyboard={!disabled}>
     <div className={styles.flow}>
-      <div className={styles.summary}><ShieldCheck size={22} /><div><strong>{current.name || t('cloud.currentDevice')}</strong><span>{current.platform} {current.source_summary}</span></div><Tag>{t(`cloud.authorization.states.${current.status}`)}</Tag></div>
-      <p className={styles.caption}>{t('cloud.authorization.created', { date: new Date(current.created_at).toLocaleString() })}</p>
+      <div className={styles.summary}>
+        <span className={styles['device-icon']} aria-hidden="true"><Laptop size={22} /></span>
+        <div><strong>{current.name || t('cloud.currentDevice')}</strong><span>{[current.platform, current.source_summary].filter(Boolean).join(' · ')}</span></div>
+        <Tag color={approved ? 'success' : expired ? 'warning' : undefined}>{t(`cloud.authorization.states.${current.status}`)}</Tag>
+      </div>
+      <div className={styles.metadata}>
+        <time dateTime={current.created_at}>{new Date(current.created_at).toLocaleString(i18n.language, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+        {!expired && ['pending', 'verifying', 'verified', 'processing'].includes(current.status) ? <span><Clock3 size={13} aria-hidden="true" />{t('cloud.authorization.remaining', { time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` })}</span> : null}
+      </div>
       {error ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} action={<Button onClick={() => void read()}>{t('cloud.retry')}</Button>} /> : null}
-      <AccountOperationError code={actionError} />
+      <AccountOperationError code={actionError?.code} />
       {mfaEnabled === undefined && canVerify ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} action={<Button onClick={onChanged}>{t('cloud.retry')}</Button>} /> : null}
       {expired ? <Alert type="warning" showIcon title={t('cloud.authorization.expired')} /> : null}
-      {!expired && ['pending', 'verifying', 'verified', 'processing'].includes(current.status) ? <p className={styles.caption}>{t('cloud.authorization.remaining', { time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` })}</p> : null}
-      {current.fingerprint ? <details className={styles.checkpoint}>
-        <summary>{t('cloud.authorization.fingerprint')}</summary>
-        <div className={styles.fingerprint}>{current.fingerprint.split(' ').map((group, i) => <code key={i}>{group}</code>)}</div>
-        <p>{t('cloud.authorization.fingerprintHint')}</p>
-      </details> : null}
+      {approval ? <section className={styles.pairing} aria-label={t('cloud.authorization.pairingCode')}>
+        <div className={styles['pairing-label']}><ShieldCheck size={15} aria-hidden="true" /><span>{t('cloud.authorization.pairingCode')}</span></div>
+        {current.pairing_code ? <div className={styles.fingerprint}>{current.pairing_code.split(' ').map((group, i) => <code key={i}>{group}</code>)}</div> : <div className={styles['pairing-unavailable']}><span>{t('cloud.authorization.pairingUnavailable')}</span><Button type="link" size="small" disabled={disabled} onClick={() => void read()}>{t('cloud.retry')}</Button></div>}
+        <p>{t(requester || !canVerify ? 'cloud.authorization.pairingRequestHint' : 'cloud.authorization.pairingApproveHint')}</p>
+      </section> : null}
+      {requester && !expired && !approved && ['pending', 'verifying'].includes(current.status) ? <p className={styles.waiting}>{t('cloud.authorization.waitingHint')}</p> : null}
       {current.keys_verified ? <Alert type="success" showIcon title={t('cloud.authorization.verified')} description={t('cloud.authorization.previewNext')} /> : null}
-      {current.kind === 'approval' && current.status === 'approved' && !current.keys_verified ? <Alert type={retryClaim ? 'warning' : 'info'} showIcon title={t(retryClaim ? 'cloud.authorization.localRetryHint' : 'cloud.authorization.finishingLocal')}
+      {approval && !requester && approved ? <Alert type="success" showIcon title={t('cloud.authorization.approvedTitle')} description={t('cloud.authorization.approvedHint')} /> : null}
+      {requester && approved && !current.keys_verified ? <Alert type={retryClaim ? 'warning' : 'info'} showIcon title={t(retryClaim ? 'cloud.authorization.localRetryHint' : 'cloud.authorization.finishingLocal')}
         action={retryClaim ? <Button disabled={disabled} loading={working} onClick={() => void action('claim')}>{t('cloud.authorization.retryLocal')}</Button> : undefined} /> : null}
       {current.kind !== 'approval' ? <Checkbox checked={trust} disabled={disabled} onChange={event => setTrust(event.target.checked)}>{t('cloud.authorization.platformTrust')}</Checkbox> : null}
-      {canVerify ? <Form form={form} layout="vertical" onFinish={proof => { if (canVerify && !error && !disabled && mfaEnabled !== undefined && (current.kind === 'approval' || mfaEnabled)) void action(current.kind === 'approval' ? 'approve' : 'verify', buildCloudStepUpProof(mfaEnabled, proof, current.kind !== 'approval')) }}>
-        {current.kind === 'approval' ? <p className={styles.caption}>{t('cloud.authorization.approvalHint')}</p> : null}
-        <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={disabled} totpOnly={current.kind !== 'approval'} />
-        <Button type="primary" htmlType="submit" loading={disabled} disabled={error || expired || mfaEnabled === undefined || current.kind !== 'approval' && (!mfaEnabled || !trust)}>{t(current.kind === 'approval' ? 'cloud.authorization.approve' : 'cloud.authorization.verify')}</Button>
-      </Form> : null}
+      <Form form={form} hidden={!canVerify} layout="vertical" onFinish={proof => { if (canVerify && !error && !disabled && mfaEnabled !== undefined && (current.kind === 'approval' || mfaEnabled)) void action(current.kind === 'approval' ? 'approve' : 'verify', buildCloudStepUpProof(mfaEnabled, proof, current.kind !== 'approval')) }}>
+        {canVerify ? <>
+          <AccountStepUpFields enabled={mfaEnabled} revision={mfaRevision} disabled={disabled} totpOnly={current.kind !== 'approval'} />
+          <div className={styles.actions}>
+            {allowed('reject') ? <Button danger type="text" disabled={disabled} onClick={() => void action('reject')}>{t('cloud.authorization.reject')}</Button> : null}
+            <Button type="primary" htmlType="submit" loading={disabled} disabled={error || expired || mfaEnabled === undefined || current.kind !== 'approval' && (!mfaEnabled || !trust)}>{t(current.kind === 'approval' ? 'cloud.authorization.approve' : 'cloud.authorization.verify')}</Button>
+          </div>
+        </> : null}
+      </Form>
       <div className={styles.actions}>
         {allowed('complete') ? <Button type="primary" disabled={disabled || error || expired || !trust} onClick={() => void action('complete')}>{t('cloud.authorization.complete')}</Button> : null}
         {allowed('claim') && !current.keys_verified && current.kind === 'recovery' ? <Button type="primary" disabled={disabled || error || !trust} onClick={() => void action('claim')}>{t('cloud.authorization.claim')}</Button> : null}
-        {allowed('reject') ? <Button danger disabled={disabled} onClick={() => void action('reject')}>{t('cloud.authorization.reject')}</Button> : null}
+        {allowed('reject') && !canVerify ? <Button danger disabled={disabled} onClick={() => void action('reject')}>{t('cloud.authorization.reject')}</Button> : null}
         {allowed('cancel') ? <Button disabled={disabled} onClick={() => void action('cancel')}>{t('cloud.authorization.cancel')}</Button> : null}
       </div>
     </div>

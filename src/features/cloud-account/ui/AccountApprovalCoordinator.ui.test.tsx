@@ -17,7 +17,7 @@ function request(id: string, overrides: Partial<CloudAuthorization> = {}): Cloud
   return {
     id, workspace_id: 'workspace', device_id: `device-${id}`, kind: 'approval', name: `申请设备 ${id}`,
     status: 'pending', revision: '1', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
-    platform: 'Windows', source_summary: '127.0.0.0/24', target_confirmed: false, keys_verified: false, allowed_actions: ['approve', 'reject'],
+    platform: 'Windows', source_summary: '127.0.0.0/24', pairing_code: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', target_confirmed: false, keys_verified: false, allowed_actions: ['approve', 'reject'],
     ...overrides,
   }
 }
@@ -62,7 +62,7 @@ test('实时提示立即打开新申请，安全上下文慢时仍不等待，�
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   const draft = screen.getByLabelText('当前页面草稿')
   act(() => { fixture.requests.set('first', request('first')); fixture.publish(['first']) })
-  expect(await screen.findByRole('dialog', { name: '设备授权申请' })).toBeInTheDocument()
+  expect(await screen.findByRole('dialog', { name: '授权新设备' })).toBeInTheDocument()
   expect(screen.getByText('申请设备 first')).toBeInTheDocument()
   expect(screen.getByLabelText('当前页面草稿')).toBe(draft)
   expect(draft).toHaveValue('未保存的主机编辑')
@@ -85,13 +85,29 @@ test('设备页列表与常驻审批同步更新，手动详情共用唯一弹�
   act(() => { fixture.requests.set('first', request('first')); fixture.publish(['first']) })
   const list = within(screen.getByRole('region', { name: '设备授权申请' }))
   await list.findByText('申请设备 first')
-  expect(await screen.findByRole('dialog', { name: '设备授权申请' })).toBeInTheDocument()
+  expect(await screen.findByRole('dialog', { name: '授权新设备' })).toBeInTheDocument()
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
   fireEvent.click(screen.getByRole('button', { name: 'Close' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   fireEvent.click(list.getByRole('button', { name: '查看详情' }))
-  expect(await screen.findByRole('dialog', { name: '设备授权申请' })).toBeInTheDocument()
+  expect(await screen.findByRole('dialog', { name: '授权新设备' })).toBeInTheDocument()
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
+})
+
+test('已确认领取但本机密钥未就绪的申请保留详情入口，其他已完成申请不回到待办', async () => {
+  const pendingLocal = request('local-save', { status: 'acknowledged', device_id: status.device_id!, allowed_actions: ['claim'] })
+  const verifiedLocal = request('verified-local', { status: 'acknowledged', device_id: status.device_id!, keys_verified: true, allowed_actions: ['claim'] })
+  const otherDevice = request('other-device', { status: 'acknowledged', allowed_actions: [] })
+  const fixture = gateway([pendingLocal, verifiedLocal, otherDevice], { ...status, phase: 'blocked', error_code: 'local_failed' })
+  const open = vi.fn()
+  render(<AccountDevices api={fixture.api as unknown as CloudGateway} status={fixture.api.getStatus()!} busy={false} run={async action => action()} onOpenAuthorization={open} />)
+  const list = within(screen.getByRole('region', { name: '设备授权申请' }))
+  expect(await list.findByText(pendingLocal.name)).toBeInTheDocument()
+  expect(list.queryByText(verifiedLocal.name)).not.toBeInTheDocument()
+  expect(list.queryByText(otherDevice.name)).not.toBeInTheDocument()
+  fireEvent.click(list.getByRole('button', { name: '查看详情' }))
+  expect(open).toHaveBeenCalledExactlyOnceWith({ kind: 'approval', id: pendingLocal.id })
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
 })
 
@@ -186,7 +202,7 @@ test('已打开的审批暂时让位主机密钥对话框，恢复时保留身�
   expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
   expect(input.onClose).not.toHaveBeenCalled()
   view.rerender(<AccountApprovalCoordinator {...input} blocked={false} />)
-  await screen.findByRole('dialog', { name: '设备授权申请' })
+  await screen.findByRole('dialog', { name: '授权新设备' })
   expect(screen.getByLabelText('验证器验证码')).toBe(code)
   expect(code).toHaveValue('123456')
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -200,8 +216,8 @@ test('未知 MFA 状态阻止验证，重新读取成功后才允许提交本次
   const fixture = gateway([value])
   fixture.api.security.mockRejectedValueOnce(new Error('network_unavailable'))
   render(<AccountApprovalCoordinator {...props(fixture.api, { target: { kind: 'approval', id: value.id } })} />)
-  expect(await screen.findByText('授权状态暂时不可用，请重新读取')).toBeInTheDocument()
-  const verify = screen.getByRole('button', { name: '批准设备' })
+  expect(await screen.findByText('暂时无法读取授权状态')).toBeInTheDocument()
+  const verify = screen.getByRole('button', { name: '确认授权' })
   expect(verify).toBeDisabled()
   fireEvent.click(verify)
   expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
@@ -209,7 +225,7 @@ test('未知 MFA 状态阻止验证，重新读取成功后才允许提交本次
   fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
   await waitFor(() => expect(verify).toBeEnabled())
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
-  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
   await waitFor(() => expect(fixture.api.authorizationAction).toHaveBeenCalledWith(status.generation, 'approval', value.id, 'approve', expect.objectContaining({ method: 'totp', code: '123456' })))
   expect(fixture.api.authorizationAction).toHaveBeenCalledTimes(1)
 })
@@ -221,18 +237,18 @@ test('手动打开申请读取失败可重试，审批繁忙结束后不重复�
   const response = deferred<CloudAuthorization>()
   fixture.api.authorizationAction.mockImplementationOnce(() => response.promise)
   render(<AccountApprovalCoordinator {...props(fixture.api, { target: { kind: 'approval', id: value.id } })} />)
-  expect(await screen.findByText('授权状态暂时不可用，请重新读取')).toBeInTheDocument()
+  expect(await screen.findByText('暂时无法读取授权状态')).toBeInTheDocument()
   expect(fixture.api.authorization).toHaveBeenCalledTimes(1)
   fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
   await screen.findByText('申请设备 first')
   await waitFor(() => expect(fixture.api.authorization).toHaveBeenCalledTimes(3))
   fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
-  fireEvent.click(screen.getByRole('button', { name: '批准设备' }))
+  fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
   await waitFor(() => expect(fixture.api.authorizationAction).toHaveBeenCalledTimes(1))
   expect(fixture.api.authorization).toHaveBeenCalledTimes(3)
   const approved = { ...value, status: 'approved' as const, revision: '2', allowed_actions: [], fingerprint: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0' }
   await act(async () => { fixture.requests.set(value.id, approved); response.resolve(approved) })
-  await screen.findByText('已批准，等待领取')
+  await screen.findByText('已批准')
   // 操作完成后的权威补读由详情执行；全局 target 不重新初始化，避免清理用户草稿。
   expect(fixture.api.authorization).toHaveBeenCalledTimes(4)
   expect(fixture.api.authorization.mock.calls[3][3]?.aborted).toBe(false)
