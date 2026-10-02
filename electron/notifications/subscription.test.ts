@@ -29,6 +29,7 @@ test('原生订阅断线重连并获取新 Core 配置，关闭后不再接收�
   Socket.instances[0].close()
   t.mock.timers.tick(1000)
   await Promise.resolve()
+  await Promise.resolve()
   assert.equal(configs, 2)
   assert.equal(Socket.instances.length, 2)
   Socket.instances[0].emit(snapshot)

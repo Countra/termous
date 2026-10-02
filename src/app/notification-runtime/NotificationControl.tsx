@@ -49,8 +49,13 @@ export function NotificationControl({ api, enabled, navigate }: {
     let active = true
     let draining = false
     let again = false
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let failures = 0
     const drain = async () => {
+      if (!active) return
       if (draining) { again = true; return }
+      if (retry) clearTimeout(retry)
+      retry = null
       draining = true
       try {
         do {
@@ -77,13 +82,20 @@ export function NotificationControl({ api, enabled, navigate }: {
             navigatedActivation.current = null
             setError(false)
           }
+          failures = 0
         } while (again && active)
-      } catch { if (active) setError(true) }
+      } catch {
+        if (active) {
+          setError(true)
+          // 交接失败保留主进程中的消费意图；恢复后只补交接，不再次跳转或依赖下一条通知。
+          retry = setTimeout(() => { retry = null; void drain() }, Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)))
+        }
+      }
       finally { draining = false }
     }
     const stop = bridge.onActivation(() => { void drain() })
     void drain()
-    return () => { active = false; stop() }
+    return () => { active = false; if (retry) clearTimeout(retry); stop() }
   }, [api, enabled, view])
 
   return <NotificationCenter state={state} open={open} filter={filter} selected={selected} unavailable={unavailable} busy={busy} error={error}

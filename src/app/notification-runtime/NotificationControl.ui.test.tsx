@@ -112,6 +112,46 @@ test('停用后的异步定位结果不再打开抽屉、写已读或确认激�
   expect(desktop.centreRenders.mock.calls.every(([open]) => open === false)).toBe(true)
 })
 
+test.each(['read', 'acknowledge'] as const)('激活交接的 %s 失败会自动补交，不依赖新通知且不重复跳转', async (operation) => {
+  vi.useFakeTimers()
+  try {
+    const gateway = api()
+    const acknowledge = vi.fn(async () => {})
+    const failure = new Error('fixture unavailable')
+    if (operation === 'read') gateway.read.mockRejectedValueOnce(failure)
+    else acknowledge.mockRejectedValueOnce(failure)
+    desktop.bridge = { pending: vi.fn(async () => [{ id: 'automatic-retry', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge, onActivation: vi.fn(() => () => {}) }
+    const navigate = vi.fn(async () => true)
+    let rendered!: ReturnType<typeof render>
+    await act(async () => { rendered = render(<NotificationControl api={gateway} enabled navigate={navigate} />) })
+    expect(operation === 'read' ? gateway.read : acknowledge).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(acknowledge).toHaveBeenCalledTimes(operation === 'read' ? 1 : 2)
+    expect(navigate).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(acknowledge).toHaveBeenCalledTimes(operation === 'read' ? 1 : 2)
+    rendered.unmount()
+  } finally { vi.useRealTimers() }
+})
+
+test('停用消息中心会取消失败交接的自动重试', async () => {
+  vi.useFakeTimers()
+  try {
+    const gateway = api()
+    gateway.read.mockRejectedValue(new Error('fixture unavailable'))
+    desktop.bridge = { pending: vi.fn(async () => [{ id: 'stop-retry', target: { kind: 'agent' as const, session_id: 'session' }, messages: [message] }]), acknowledge: vi.fn(async () => {}), onActivation: vi.fn(() => () => {}) }
+    const navigate = vi.fn(async () => true)
+    let rendered!: ReturnType<typeof render>
+    await act(async () => { rendered = render(<NotificationControl api={gateway} enabled navigate={navigate} />) })
+    expect(gateway.read).toHaveBeenCalledTimes(1)
+    rendered.rerender(<NotificationControl api={gateway} enabled={false} navigate={navigate} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(gateway.read).toHaveBeenCalledTimes(1)
+    expect(desktop.bridge.acknowledge).not.toHaveBeenCalled()
+    rendered.unmount()
+  } finally { vi.useRealTimers() }
+})
+
 test('批量已读固定点击时水位，不扩展到后到的消息', async () => {
   const gateway = api()
   render(<NotificationControl api={gateway} enabled navigate={async () => false} />)
