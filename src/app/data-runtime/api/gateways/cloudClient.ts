@@ -1,3 +1,4 @@
+import type { CloudRecoveryCredential } from '#common/contracts'
 import type { CloudAuthAction, CloudStatus, CloudMFAMethod, CloudMFAProof } from '#common/contracts'
 import type { CloudProfilePatch } from '#common/contracts'
 import { decodeCloudProfile } from '#entities/cloud'
@@ -11,8 +12,8 @@ import { decodePersonalStatus, decodePersonalSetup, decodePersonalOperation, dec
 export class CloudClient extends TermousApiTransport implements CloudGateway {
   personalRecoveryStatus(generation: string, signal?: AbortSignal) { return this.request(`/api/v1/cloud/personal-recovery?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodePersonalStatus) }
   setupPersonalRecovery(generation: string, proof: CloudMFAProof) { return this.request('/api/v1/cloud/personal-recovery/setup', { method: 'POST', body: { generation, ...proof }, timeoutMs: 125_000 }).then(decodePersonalSetup) }
-  confirmPersonalRecovery(generation: string, id: string, answers: string[]) { return this.request('/api/v1/cloud/personal-recovery/setup/confirm', { method: 'POST', body: { generation, id, answers }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
-  recoverPersonal(generation: string, recoveryKey: string, revokeDeviceIds: string[]) { return this.request('/api/v1/cloud/personal-recovery/recover', { method: 'POST', body: { generation, recovery_key: recoveryKey, revoke_device_ids: revokeDeviceIds }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
+  confirmPersonalRecovery(generation: string, id: string, saved: boolean) { return this.request('/api/v1/cloud/personal-recovery/setup/confirm', { method: 'POST', body: { generation, id, saved }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
+  recoverPersonal(generation: string, credential: CloudRecoveryCredential | undefined, revokeDeviceIds: string[]) { return this.request('/api/v1/cloud/personal-recovery/recover', { method: 'POST', body: { generation, ...credential, revoke_device_ids: revokeDeviceIds }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
   personalOperation(generation: string, kind: 'setup' | 'recover', id: string, signal?: AbortSignal) { return this.request(`/api/v1/cloud/personal-recovery/${kind}/${encodeURIComponent(id)}?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodePersonalOperation) }
   cancelPersonalRecovery(generation: string, kind: 'setup' | 'recover', id: string) { return this.request(`/api/v1/cloud/personal-recovery/${kind}/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: { generation, expected_revision: '0' }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
   createWorkspaceRestart(generation: string) { return this.request('/api/v1/cloud/workspace-restarts', { method: 'POST', body: { generation }, timeoutMs: 125_000 }).then(decodeWorkspaceRestart) }
@@ -27,7 +28,7 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   cancelRestart(generation: string, id: string, revision: number) { return this.request(`/api/v1/cloud/workspace-restarts/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: { generation, expected_revision: revision }, timeoutMs: 125_000 }).then(decodeWorkspaceRestart) }
   joinCurrentWorkspace(generation: string) { return this.readStatus(this.request('/api/v1/cloud/workspace/join', { method: 'POST', body: { generation }, timeoutMs: 125_000 })) }
   archives(generation: string, signal?: AbortSignal) { return this.request(`/api/v1/cloud/workspace-archives?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(value => decodeCloudList(value, decodeArchive)) }
-  previewArchive(generation: string, workspaceId: string, recoveryKey: string) { return this.request('/api/v1/cloud/workspace-archives/preview', { method: 'POST', body: { generation, workspace_id: workspaceId, recovery_key: recoveryKey }, timeoutMs: 125_000 }).then(decodeArchivePreview) }
+  previewArchive(generation: string, workspaceId: string, credential: CloudRecoveryCredential | undefined) { return this.request('/api/v1/cloud/workspace-archives/preview', { method: 'POST', body: { generation, workspace_id: workspaceId, ...credential }, timeoutMs: 125_000 }).then(decodeArchivePreview) }
   applyArchive(generation: string, id: string, choices: Record<string, 'local' | 'remote'>) { return this.readStatus(this.request('/api/v1/cloud/workspace-archives/apply', { method: 'POST', body: { generation, id, choices }, timeoutMs: 125_000 })) }
   async deleteArchive(generation: string, workspaceId: string, revision: string) { await this.request('/api/v1/cloud/workspace-archives/delete', { method: 'POST', body: { generation, workspace_id: workspaceId, expected_revision: revision, confirm: true }, timeoutMs: 125_000 }) }
   security(generation: string, signal?: AbortSignal) {

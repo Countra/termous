@@ -1,3 +1,4 @@
+import { CLOUD_PERSONAL_KEY_FILE_MAX_BYTES } from '#common/contracts'
 import type { CloudArchive, CloudArchivePreview, CloudPersonalRecoveryOperation, CloudPersonalRecoverySetup, CloudPersonalRecoveryStatus, CloudWorkspaceRestart } from '#common/contracts'
 import { decodeCloudConflict, decodeCloudList, decodeCloudPreview } from './decode.ts'
 
@@ -20,10 +21,11 @@ export function decodePersonalOperation(value: unknown): CloudPersonalRecoveryOp
 export function decodePersonalSetup(value: unknown): CloudPersonalRecoverySetup {
   const r = object(value), op = decodePersonalOperation(value)
   if (op.kind !== 'setup' || op.status !== 'verified') throw new Error('CLOUD_RESPONSE_INVALID')
-  if (!Array.isArray(r.confirm_groups) || r.confirm_groups.length !== 2 || r.confirm_groups.some(v => !Number.isInteger(v) || v < 0 || v > 11) || r.confirm_groups[0] === r.confirm_groups[1]) throw new Error('CLOUD_RESPONSE_INVALID')
+
   const key = text(r.recovery_key)
   if (!/^TRK1-(?:[A-Z2-7]{5}-){11}[A-Z2-7]{5}$/.test(key)) throw new Error('CLOUD_RESPONSE_INVALID')
-  return { ...op, recovery_key: key, confirm_groups: r.confirm_groups as number[] }
+  if (typeof r.recovery_file !== 'string' || !r.recovery_file || new TextEncoder().encode(r.recovery_file).length > CLOUD_PERSONAL_KEY_FILE_MAX_BYTES) throw new Error('CLOUD_RESPONSE_INVALID')
+  return { ...op, recovery_key: key, recovery_file: r.recovery_file }
 }
 export function decodeWorkspaceRestart(value: unknown): CloudWorkspaceRestart {
   const r = object(value)

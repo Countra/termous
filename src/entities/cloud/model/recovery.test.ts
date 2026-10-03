@@ -16,10 +16,10 @@ test('恢复合同拒绝非法 ID、版本、期限和未知状态', () => {
 })
 
 test('短时密钥只从已验证的设置响应交付，普通查询不暴露额外秘密', () => {
-  const setup = { ...operation, recovery_key: key, confirm_groups: [0, 11] }
+  const setup = { ...operation, recovery_key: key, recovery_file: '{"format":"termous-personal-recovery-key"}' }
   assert.deepEqual(decodePersonalSetup(setup), setup)
   assert.deepEqual(decodePersonalOperation(setup), operation)
-  for (const patch of [{ kind: 'recover' }, { status: 'pending' }, { status: 'completed' }, { recovery_key: key.toLowerCase() }, { confirm_groups: [0, 0] }, { confirm_groups: [-1, 1] }, { confirm_groups: [1, 12] }, { confirm_groups: [0, 1, 2] }]) {
+  for (const patch of [{ kind: 'recover' }, { status: 'pending' }, { status: 'completed' }, { recovery_key: key.toLowerCase() }, { recovery_file: undefined }, { recovery_file: '' }, { recovery_file: 'a'.repeat(4097) }]) {
     assert.throws(() => decodePersonalSetup({ ...setup, ...patch }))
   }
 })

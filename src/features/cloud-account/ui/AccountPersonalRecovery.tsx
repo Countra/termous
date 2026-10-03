@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Steps, Tag } from 'antd'
+import { Alert, Button, Form, Modal, Steps, Tag } from 'antd'
 import { ClipboardCopy, Download, KeyRound, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { CLOUD_PERSONAL_KEY_FILE_EXTENSION } from '#common/contracts'
 import type { CloudMFAProof, CloudMFAStatus, CloudPersonalRecoverySetup, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
 import { cloudOperationErrorCode } from '../model/useCloudOperationFeedback'
@@ -30,20 +31,19 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   const [queriedPending, setQueriedPending] = useState(false)
   const [working, setWorking] = useState(false)
   const [proof] = Form.useForm<CloudMFAProof>()
-  const [answers] = Form.useForm<{ first: string; second: string }>()
   const wizardRun = useRef(0)
   const life = useRef({ active: true, api, generation: status.generation, pending: false })
   useEffect(() => {
     const current = { active: true, api, generation: status.generation, pending: false }; life.current = current
     wizardRun.current++; setOpen(false); setSetup(undefined); setRotationPending(false); setRotationMFA(undefined); setOperationError(undefined); setWorking(false)
-    return () => { current.active = false; proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }
-  }, [api, status.generation, proof, answers])
+    return () => { current.active = false; if (proof.getFieldInstance('password') || proof.getFieldInstance('code')) proof.resetFields() }
+  }, [api, status.generation, proof])
   useEffect(() => {
     if (!setup) return
     const until = Math.min(Date.parse(setup.expires_at), Date.parse(setup.verified_until ?? setup.expires_at))
-    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }, Math.max(0, until - Date.now()))
+    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); if (proof.getFieldInstance('password') || proof.getFieldInstance('code')) proof.resetFields() }, Math.max(0, until - Date.now()))
     return () => clearTimeout(timer)
-  }, [setup, proof, answers])
+  }, [setup, proof])
   const current = (scope: typeof life.current) => scope === life.current && scope.active && scope.api === api && scope.generation === api.getStatus()?.generation
   const rotationDeadline = useCloudDeadline(rotationMFA?.verified_until)
   const rotationVerified = Boolean(rotationMFA?.verified_until && !rotationDeadline.expired)
@@ -68,12 +68,12 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     })
   }
   const enabled = security.value?.account.personal_recovery_enabled === true
-  const close = () => { wizardRun.current++; setOpen(false); setSetup(undefined); setStage(0); setExportError(false); setOperationError(undefined); setQueriedPending(false); proof.setFieldsValue({ password: undefined, code: undefined }); if (answers.getFieldInstance('first')) answers.resetFields() }
-  const start = (rotation: boolean) => { wizardRun.current++; setRotate(rotation); setRotationMFA(undefined); setOpen(true); setStage(0); setSetup(undefined); setOperationError(undefined); setQueriedPending(false) }
-  const complete = async (id: string, values: string[]) => {
+  const close = () => { wizardRun.current++; setOpen(false); setSetup(undefined); setStage(0); setExportError(false); setOperationError(undefined); setQueriedPending(false); if (proof.getFieldInstance('password') || proof.getFieldInstance('code')) proof.resetFields() }
+  const start = (rotation: boolean) => { wizardRun.current++; setRotate(rotation); setRotationMFA(undefined); setOpen(true); setStage(0); setSetup(undefined); setOperationError(undefined); setQueriedPending(false); setExportError(false) }
+  const complete = async (id: string, saved: boolean) => {
     const scope = life.current
     const request = wizardRun.current
-    const result = await api.confirmPersonalRecovery(status.generation, id, values)
+    const result = await api.confirmPersonalRecovery(status.generation, id, saved)
     if (!['completed', 'acknowledged'].includes(result.status)) throw new Error('CLOUD_RESPONSE_INVALID')
     if (!current(scope) || request !== wizardRun.current) return
     close(); await security.reload()
@@ -103,7 +103,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     const request = wizardRun.current
     const op = await api.personalOperation(status.generation, 'setup', setup?.id ?? 'current')
     if (!current(scope) || request !== wizardRun.current) return
-    if (['completed', 'acknowledged'].includes(op.status)) await complete(op.id, [])
+    if (['completed', 'acknowledged'].includes(op.status)) await complete(op.id, false)
     else if (op.status === 'expired') throw new Error('authorization_expired')
     else if (['invalidated', 'cancelled'].includes(op.status)) throw new Error('authorization_stale')
     else setQueriedPending(true)
@@ -128,11 +128,13 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     let url: string | undefined
     try {
       if (download) {
-        url = URL.createObjectURL(new Blob([`Termous personal recovery key\nService: ${status.origin ?? ''}\nAccount: ${status.email ?? ''}\nWorkspace: ${status.workspace_id ?? ''}\n\n${setup.recovery_key}\n\nKeep this key private and store it separately from your devices.\n`], { type: 'text/plain;charset=utf-8' }))
-        const link = document.createElement('a'); link.href = url; link.download = 'termous-personal-recovery-key.txt'; link.click()
+        url = URL.createObjectURL(new Blob([setup.recovery_file], { type: 'application/json;charset=utf-8' }))
+        const link = document.createElement('a'); link.href = url; link.download = `termous-recovery-${setup.id}${CLOUD_PERSONAL_KEY_FILE_EXTENSION}`
+        document.body.appendChild(link)
+        try { link.click() } finally { link.remove() }
       } else await navigator.clipboard.writeText(setup.recovery_key)
       if (current(scope) && request === wizardRun.current) setExportError(false)
-    } catch { if (current(scope) && request === wizardRun.current) setExportError(true) } finally { if (url) URL.revokeObjectURL(url) }
+    } catch { if (current(scope) && request === wizardRun.current) setExportError(true) } finally { if (url) { const downloaded = url; setTimeout(() => URL.revokeObjectURL(downloaded), 1000) } }
   }
   return <AccountSection title={t('cloud.safeguards.personalTitle')} icon={<KeyRound size={18} />} description={t('cloud.safeguards.personalHint')} extra={<Tag>{t(security.loading ? 'cloud.loading' : security.error ? 'cloud.safeguards.unavailable' : enabled ? 'cloud.safeguards.enabled' : 'cloud.safeguards.notSet')}</Tag>}>
     {security.error ? <Alert type="warning" showIcon title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void security.reload()}>{t('cloud.retry')}</Button>} /> : null}
@@ -143,7 +145,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     </div>
     <Modal open={open} title={t(enabled ? 'cloud.safeguards.replaceKey' : 'cloud.safeguards.setupKey')} footer={null} destroyOnHidden onCancel={close}>
       <div className={styles.wizard}>
-        <Steps size="small" current={stage} items={['verifyIdentity', 'saveKey', 'confirmSaved'].map(key => ({ title: t(`cloud.safeguards.${key}`) }))} />
+        <Steps size="small" current={stage} items={['verifyIdentity', 'saveKey'].map(key => ({ title: t(`cloud.safeguards.${key}`) }))} />
         {feedback}
         {queriedPending ? <Alert type="info" showIcon title={t('cloud.safeguards.setupPending')} /> : null}
         {enabled ? <Alert type="warning" showIcon title={t('cloud.safeguards.replaceWarning')} /> : null}
@@ -153,16 +155,15 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         </Form> : null}
         {stage === 1 && setup ? <>
           <Alert type="warning" showIcon title={t('cloud.safeguards.saveWarning')} description={t('cloud.safeguards.saveHint')} />
-          <ol className={styles['key-grid']} aria-label={t('cloud.safeguards.personalTitle')}>{setup.recovery_key.slice(5).split('-').map((group, index) => <li key={index}><small>{index + 1}</small><code>{group}</code></li>)}</ol>
           {exportError ? <Alert type="error" title={t('cloud.mfa.exportFailed')} /> : null}
-          <div className={styles.actions}><Button icon={<ClipboardCopy size={14} />} onClick={() => void exportKey(false)}>{t('cloud.copy')}</Button><Button icon={<Download size={14} />} onClick={() => void exportKey(true)}>{t('cloud.safeguards.downloadKey')}</Button></div>
-          <Button type="primary" onClick={() => { setSetup({ ...setup, recovery_key: '' }); setStage(2) }}>{t('cloud.safeguards.savedContinue')}</Button>
+          <div className={styles['key-file']}>
+            <Download size={24} aria-hidden />
+            <div><strong>{t('cloud.safeguards.keyFile')}</strong><p>{t('cloud.safeguards.keyFileHint')}</p></div>
+            <Button icon={<Download size={14} />} disabled={disabled} onClick={() => void exportKey(true)}>{t('cloud.safeguards.downloadKey')}</Button>
+          </div>
+          <details className={styles['key-text']}><summary>{t('cloud.safeguards.showKey')}</summary><code>{setup.recovery_key}</code><Button icon={<ClipboardCopy size={14} />} disabled={disabled} onClick={() => void exportKey(false)}>{t('cloud.copy')}</Button></details>
+          <div className={styles.actions}><Button type="primary" loading={disabled} onClick={() => perform(() => complete(setup.id, true))}>{t('cloud.safeguards.savedActivate')}</Button><Button disabled={disabled} onClick={() => perform(queryResult)}>{t('cloud.safeguards.queryResult')}</Button></div>
         </> : null}
-        {stage === 2 && setup ? <Form form={answers} layout="vertical" onFinish={value => perform(() => complete(setup.id, [value.first, value.second]))}>
-          <p>{t('cloud.safeguards.confirmHint')}</p>
-          {setup.confirm_groups.map((index, i) => <Form.Item key={index} name={i === 0 ? 'first' : 'second'} label={t('cloud.safeguards.group', { number: index + 1 })} rules={[{ required: true }]}><Input autoComplete="off" spellCheck={false} maxLength={5} disabled={disabled} autoFocus={i === 0} /></Form.Item>)}
-          <div className={styles.actions}><Button type="primary" htmlType="submit" loading={disabled}>{t('cloud.safeguards.activate')}</Button><Button disabled={disabled} onClick={() => perform(queryResult)}>{t('cloud.safeguards.queryResult')}</Button></div>
-        </Form> : null}
       </div>
     </Modal>
     <Modal open={rotationPending} title={t('cloud.safeguards.rotateAfterReplace')} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={() => { setRotationPending(false); setOperationError(undefined); proof.resetFields() }}>

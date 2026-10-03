@@ -1,3 +1,4 @@
+import type { CloudRecoveryCredential } from '#common/contracts'
 import type { CloudAuthAction, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
 import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationAction, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
 import type { CloudPersonalRecoveryStatus, CloudPersonalRecoverySetup, CloudPersonalRecoveryOperation, CloudWorkspaceRestart, CloudArchive, CloudArchivePreview } from '#common/contracts'
@@ -6,8 +7,8 @@ import type { CloudAccountChange, CloudEvent } from '#common/contracts'
 export interface CloudGateway {
   personalRecoveryStatus(generation: string, signal?: AbortSignal): Promise<CloudPersonalRecoveryStatus>
   setupPersonalRecovery(generation: string, proof: CloudMFAProof): Promise<CloudPersonalRecoverySetup>
-  confirmPersonalRecovery(generation: string, id: string, answers: string[]): Promise<CloudPersonalRecoveryOperation>
-  recoverPersonal(generation: string, recoveryKey: string, revokeDeviceIds: string[]): Promise<CloudPersonalRecoveryOperation>
+  confirmPersonalRecovery(generation: string, id: string, saved: boolean): Promise<CloudPersonalRecoveryOperation>
+  recoverPersonal(generation: string, credential: CloudRecoveryCredential | undefined, revokeDeviceIds: string[]): Promise<CloudPersonalRecoveryOperation>
   personalOperation(generation: string, kind: 'setup' | 'recover', id: string, signal?: AbortSignal): Promise<CloudPersonalRecoveryOperation>
   cancelPersonalRecovery(generation: string, kind: 'setup' | 'recover', id: string): Promise<CloudPersonalRecoveryOperation>
   createWorkspaceRestart(generation: string): Promise<CloudWorkspaceRestart>
@@ -18,7 +19,7 @@ export interface CloudGateway {
   cancelRestart(generation: string, id: string, revision: number): Promise<CloudWorkspaceRestart>
   joinCurrentWorkspace(generation: string): Promise<CloudStatus>
   archives(generation: string, signal?: AbortSignal): Promise<CloudArchive[]>
-  previewArchive(generation: string, workspaceId: string, recoveryKey: string): Promise<CloudArchivePreview>
+  previewArchive(generation: string, workspaceId: string, credential: CloudRecoveryCredential | undefined): Promise<CloudArchivePreview>
   applyArchive(generation: string, id: string, choices: Record<string, 'local' | 'remote'>): Promise<CloudStatus>
   deleteArchive(generation: string, workspaceId: string, revision: string): Promise<void>
   security(generation: string, signal?: AbortSignal): Promise<CloudSecurityOverview>

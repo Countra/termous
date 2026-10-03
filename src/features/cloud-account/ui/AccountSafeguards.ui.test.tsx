@@ -14,7 +14,7 @@ const groups = ['ABCDE', 'FGHIJ', 'KLMNO', 'PQRST', 'UVWXY', 'Z2345', 'ABCDE', '
 function fixture(enabled = false) {
   const state = new CloudState(); state.accept(status)
   const security: CloudSecurityOverview = { account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: true, mfa_enabled: false, mfa_revision: '0', workspace_id: 'workspace_test', recovery_required: true, recovery_ready: enabled, personal_recovery_enabled: enabled, archive_available: false }, keys_verified: true, membership_initialized: true, recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace_test', status: 'disabled', revision: '0', updated_at: new Date().toISOString() } } }
-  const setup: CloudPersonalRecoverySetup = { id: 'personal_setup_test', kind: 'setup', status: 'verified', revision: '2', membership_head: 'synthetic_head', personal_revision: '0', key_epoch: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), recovery_key: `TRK1-${groups.join('-')}`, confirm_groups: [0, 1] }
+  const setup: CloudPersonalRecoverySetup = { id: 'personal_setup_test', kind: 'setup', status: 'verified', revision: '2', membership_head: 'synthetic_head', personal_revision: '0', key_epoch: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), recovery_key: `TRK1-${groups.join('-')}`, recovery_file: JSON.stringify({ format: 'termous-personal-recovery-key', recovery_key: `TRK1-${groups.join('-')}` }) }
   const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => security), setupPersonalRecovery: vi.fn(async () => setup), confirmPersonalRecovery: vi.fn(async () => ({ ...setup, status: 'completed' })), mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })), rekey: vi.fn(async () => ({ status: 'complete', completed: 0, total: 0 })) } as unknown as CloudGateway
   return { api, state, setup }
 }
@@ -23,70 +23,82 @@ async function generate() {
   fireEvent.click(screen.getByRole('button', { name: '生成恢复密钥' }))
 }
 
-async function enterSavedGroups() {
+async function enterSaveStep() {
   await waitFor(() => expect(screen.getByRole('button', { name: '设置恢复密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '设置恢复密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
-  fireEvent.change(screen.getByLabelText('第 12 组'), { target: { value: groups[11] } })
-  fireEvent.change(screen.getByLabelText('第 5 组'), { target: { value: groups[4] } })
+  await screen.findByRole('button', { name: '已保存，启用' })
 }
 
-test('正确分组提交失败时，在弹窗内显示具体错误并保留输入', async () => {
+test('下载保存 Core 文件原文，使用专用后缀且不增加分组考试', async () => {
   const { api, setup } = fixture()
-  setup.confirm_groups = [11, 4]
+  const create = vi.fn(() => 'blob:recovery-fixture'), revoke = vi.fn()
+  const OriginalURL = URL
+  vi.stubGlobal('URL', class extends OriginalURL { static createObjectURL = create; static revokeObjectURL = revoke })
+  let filename = ''
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { filename = this.download })
+  try {
+    render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
+    await enterSaveStep()
+    fireEvent.click(screen.getByRole('button', { name: '下载密钥文件' }))
+    expect(filename).toBe(`termous-recovery-${setup.id}.torkey`)
+    const blob = (create.mock.calls as unknown as [Blob][])[0][0]
+    const body = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsText(blob) })
+    expect(body).toBe(setup.recovery_file)
+    expect(api.confirmPersonalRecovery).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText(/第 \d+ 组/)).not.toBeInTheDocument()
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:recovery-fixture'), { timeout: 2000 })
+  } finally { click.mockRestore(); vi.unstubAllGlobals() }
+})
+
+test('保存确认失败时，在弹窗内显示具体错误并保留密钥', async () => {
+  const { api, setup } = fixture()
   vi.mocked(api.confirmPersonalRecovery).mockRejectedValueOnce(new TermousApiError('membership_conflict', 'CLOUD_OPERATION_FAILED', 409))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
-  await enterSavedGroups()
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await enterSaveStep()
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   const dialog = within(screen.getByRole('dialog'))
   expect(await dialog.findByText('操作版本已变化，请查询最新结果后继续。')).toBeInTheDocument()
   expect(dialog.getByText('错误代码：membership_conflict')).toBeInTheDocument()
-  expect(dialog.getByLabelText('第 12 组')).toHaveValue(groups[11])
-  expect(dialog.getByLabelText('第 5 组')).toHaveValue(groups[4])
-  expect(api.confirmPersonalRecovery).toHaveBeenCalledExactlyOnceWith('fixture', setup.id, [groups[11], groups[4]])
+  expect(api.confirmPersonalRecovery).toHaveBeenCalledExactlyOnceWith('fixture', setup.id, true)
 })
 
 test('确认响应丢失后查询终态，补齐本机结果且不重新生成或提交身份证明', async () => {
   const { api, setup } = fixture()
-  setup.confirm_groups = [11, 4]
   vi.mocked(api.confirmPersonalRecovery).mockRejectedValueOnce(new TermousApiError('network_unavailable', 'CLOUD_OPERATION_FAILED', 503))
   api.personalOperation = vi.fn<CloudGateway['personalOperation']>(async () => ({ ...setup, status: 'completed' }))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
-  await enterSavedGroups()
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await enterSaveStep()
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   await screen.findByText('错误代码：network_unavailable')
   fireEvent.click(screen.getByRole('button', { name: '查询操作状态' }))
   await waitFor(() => expect(screen.getByRole('button', { name: '设置恢复密钥' })).toBeEnabled())
   expect(api.personalOperation).toHaveBeenCalledExactlyOnceWith('fixture', 'setup', setup.id)
   expect(api.confirmPersonalRecovery).toHaveBeenCalledTimes(2)
-  expect(api.confirmPersonalRecovery).toHaveBeenLastCalledWith('fixture', setup.id, [])
+  expect(api.confirmPersonalRecovery).toHaveBeenLastCalledWith('fixture', setup.id, false)
   expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()
   // AntD 关闭动画在 jsdom 中会保留旧 DOM，通过重新打开检查向导已清空且未重复提交。
   fireEvent.click(screen.getByRole('button', { name: '设置恢复密钥' }))
   expect(screen.getByLabelText('密码')).toHaveValue('')
-  expect(screen.queryByLabelText('第 12 组')).not.toBeInTheDocument()
+  expect(screen.queryByText(setup.recovery_key)).not.toBeInTheDocument()
 })
 
 test('查询未完成申请只提示当前状态，不代替用户再次确认', async () => {
   const { api, setup } = fixture()
-  setup.confirm_groups = [11, 4]
   api.personalOperation = vi.fn(async () => setup)
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
-  await enterSavedGroups()
+  await enterSaveStep()
   fireEvent.click(screen.getByRole('button', { name: '查询操作状态' }))
-  expect(await within(screen.getByRole('dialog')).findByText('恢复密钥尚未启用。请核对分组并确认；申请过期时可取消后重新验证身份。')).toBeInTheDocument()
+  expect(await within(screen.getByRole('dialog')).findByText('恢复密钥尚未启用。保存后点击“已保存，启用”；过期后可取消并重新验证身份。')).toBeInTheDocument()
   expect(api.confirmPersonalRecovery).not.toHaveBeenCalled()
-  expect(screen.getByLabelText('第 12 组')).toHaveValue(groups[11])
 })
 
 test('等待确认期间拦截重复提交，关闭后迟到结果不能重新打开向导', async () => {
   const { api, setup } = fixture()
-  setup.confirm_groups = [11, 4]
   let resolve!: (value: CloudPersonalRecoverySetup) => void
   vi.mocked(api.confirmPersonalRecovery).mockImplementation(() => new Promise(done => { resolve = done }))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
-  await enterSavedGroups()
-  const confirm = screen.getByRole('button', { name: '确认启用' })
+  await enterSaveStep()
+  const confirm = screen.getByRole('button', { name: '已保存，启用' })
   fireEvent.click(confirm); fireEvent.click(confirm)
   await waitFor(() => expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce())
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
@@ -94,7 +106,7 @@ test('等待确认期间拦截重复提交，关闭后迟到结果不能重新�
   await waitFor(() => expect(screen.getByRole('button', { name: '设置恢复密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '设置恢复密钥' }))
   expect(screen.getByLabelText('密码')).toHaveValue('')
-  expect(screen.queryByLabelText('第 12 组')).not.toBeInTheDocument()
+  expect(screen.queryByText(setup.recovery_key)).not.toBeInTheDocument()
 })
 
 test('切换账号后旧生成响应不能把恢复密钥放进新账号向导', async () => {
@@ -116,12 +128,11 @@ test('切换账号后旧生成响应不能把恢复密钥放进新账号向导',
 })
 
 test('未知异常正文不进入弹窗的错误代码区域', async () => {
-  const { api, setup } = fixture()
-  setup.confirm_groups = [11, 4]
+  const { api } = fixture()
   vi.mocked(api.confirmPersonalRecovery).mockRejectedValueOnce(new Error('SyntheticSecretDoNotDisplay'))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
-  await enterSavedGroups()
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await enterSaveStep()
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   const dialog = within(screen.getByRole('dialog'))
   expect(await dialog.findByText('错误代码：local_failed')).toBeInTheDocument()
   expect(dialog.queryByText(/SyntheticSecretDoNotDisplay/)).not.toBeInTheDocument()
@@ -165,11 +176,9 @@ test('更换完成后近期期限不可用才就地补验，失败保留待办�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
+  await screen.findByRole('button', { name: '已保存，启用' })
   expect(screen.queryByRole('list', { name: '个人恢复密钥' })).not.toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
-  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   await waitFor(() => expect(api.confirmPersonalRecovery).toHaveBeenCalledOnce())
   // AntD 在测试环境固定标题 ID，退出动画期间通过操作按钮定位当前对话框。
   const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
@@ -190,10 +199,8 @@ test('更换并轮换复用前段成功后的服务端验证期限，不要求�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
-  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
-  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await screen.findByRole('button', { name: '已保存，启用' })
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   await waitFor(() => expect(api.rekey).toHaveBeenCalledExactlyOnceWith('fixture', 'start'))
   expect(api.reauthenticate).not.toHaveBeenCalled()
   expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()
@@ -210,10 +217,8 @@ test('更换完成后的旧验证状态不能越过新的因子版本启动轮�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
-  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
-  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await screen.findByRole('button', { name: '已保存，启用' })
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   await waitFor(() => expect(resolve).toBeDefined())
   vi.mocked(api.security).mockResolvedValue({ ...original, account: { ...original.account, mfa_enabled: true, mfa_revision: '1' } })
   await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
@@ -234,10 +239,8 @@ test('初次读取失败后补验成功，轮换暂时失败仍保留有效期�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
-  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
-  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await screen.findByRole('button', { name: '已保存，启用' })
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
   const dialog = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
   fireEvent.change(dialog.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
@@ -258,10 +261,8 @@ test('服务器认为组合验证已过期时清除本机期限，只补验轮�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
-  fireEvent.click(await screen.findByRole('button', { name: '已保存，隐藏并核对' }))
-  fireEvent.change(screen.getByLabelText('第 1 组'), { target: { value: groups[0] } })
-  fireEvent.change(screen.getByLabelText('第 2 组'), { target: { value: groups[1] } })
-  fireEvent.click(screen.getByRole('button', { name: '确认启用' }))
+  await screen.findByRole('button', { name: '已保存，启用' })
+  fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
   const rotation = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
   fireEvent.change(await rotation.findByLabelText('密码'), { target: { value: 'synthetic-password' } })

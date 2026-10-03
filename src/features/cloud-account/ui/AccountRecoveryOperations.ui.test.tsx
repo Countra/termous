@@ -24,6 +24,7 @@ function fixture() {
 }
 async function openArchive() {
   fireEvent.click(await screen.findByRole('button', { name: '取回到本地' }))
+  fireEvent.click(screen.getByRole('button', { name: '使用旧版文本密钥' }))
   fireEvent.change(screen.getByLabelText('个人恢复密钥'), { target: { value: 'synthetic-recovery-key' } })
   fireEvent.submit(screen.getByLabelText('个人恢复密钥').closest('form')!)
 }
@@ -33,6 +34,7 @@ test('个人恢复失败在弹窗内显示安全错误码并清除密钥输入',
   api.recoverPersonal = vi.fn(async () => { throw new TermousApiError('membership_conflict', 'CLOUD_OPERATION_FAILED', 409) })
   render(<AccountPersonalAuthorize api={api} status={status} devices={[]} enabled busy={false} disabled={false} run={run} onChanged={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: '使用个人恢复密钥' }))
+  fireEvent.click(screen.getByRole('button', { name: '使用旧版文本密钥' }))
   const dialog = within(screen.getByRole('dialog'))
   fireEvent.change(dialog.getByLabelText('个人恢复密钥'), { target: { value: 'synthetic-recovery-key' } })
   fireEvent.submit(dialog.getByLabelText('个人恢复密钥').closest('form')!)
@@ -46,6 +48,7 @@ test('个人恢复处理中拦截重复提交和关闭', async () => {
   api.recoverPersonal = vi.fn<CloudGateway['recoverPersonal']>(() => new Promise((_resolve, fail) => { reject = fail }))
   render(<AccountPersonalAuthorize api={api} status={status} devices={[]} enabled busy={false} disabled={false} run={run} onChanged={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: '使用个人恢复密钥' }))
+  fireEvent.click(screen.getByRole('button', { name: '使用旧版文本密钥' }))
   const dialog = within(screen.getByRole('dialog'))
   const field = dialog.getByLabelText('个人恢复密钥')
   fireEvent.change(field, { target: { value: 'synthetic-recovery-key' } })
@@ -150,6 +153,7 @@ test('旧归档预览不能进入新账号的取回向导', async () => {
   view.rerender(<AccountArchives key={next.generation} api={api} status={next} busy={false} mfaEnabled={false} run={run} />)
   await act(async () => { resolve(preview) })
   fireEvent.click(await screen.findByRole('button', { name: '取回到本地' }))
+  fireEvent.click(screen.getByRole('button', { name: '使用旧版文本密钥' }))
   expect(screen.getByLabelText('个人恢复密钥')).toHaveValue('')
   expect(screen.queryByText('Synthetic group')).not.toBeInTheDocument()
 })
