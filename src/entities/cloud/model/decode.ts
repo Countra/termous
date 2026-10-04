@@ -1,5 +1,5 @@
 import type { CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
-import type { CloudProfile } from '#common/contracts'
+import type { CloudProfile, CloudQRLogin } from '#common/contracts'
 import { cloudAccountAreas } from '#common/contracts'
 
 export function decodeCloudProfile(value: unknown): CloudProfile {
@@ -44,6 +44,7 @@ export function decodeCloudList<T>(value: unknown, decode: (item: unknown) => T)
 export function decodeCloudStatus(value: unknown): CloudStatus {
   const r = record(value)
   return {
+    qr_login: r.qr_login === undefined ? undefined : decodeCloudQRLogin(r.qr_login),
     generation: text(r.generation), revision: integer(r.revision), configured: boolean(r.configured), authenticated: boolean(r.authenticated),
     phase: choice(r.phase, ['unconfigured', 'unavailable', 'signed_out', 'ready', 'blocked', 'syncing']),
     binding_id: optional(r.binding_id), current_session_id: optional(r.current_session_id), origin: optional(r.origin), error_code: optional(r.error_code),
@@ -52,6 +53,15 @@ export function decodeCloudStatus(value: unknown): CloudStatus {
     confirmed: boolean(r.confirmed), auto_sync: boolean(r.auto_sync), pending: integer(r.pending), conflicts: integer(r.conflicts),
     last_success: r.last_success === undefined ? undefined : date(r.last_success),
   }
+}
+
+export function decodeCloudQRLogin(value: unknown): CloudQRLogin {
+  const r = record(value)
+  const revision = text(r.revision, 19)
+  const pairing = text(r.pairing_code, 6)
+  const code = optional(r.qr_code)
+  if ((revision && !/^[1-9]\d*$/.test(revision)) || (pairing && !/^\d{6}$/.test(pairing)) || (code && !code.startsWith('termous://qr-login?'))) throw new Error('CLOUD_RESPONSE_INVALID')
+  return { id: text(r.id, 128), state: choice(r.state, ['pending', 'scanned', 'preparing', 'ready', 'approved', 'issued', 'completed', 'expired', 'cancelled', 'rejected', 'invalidated']), revision, qr_code: code, pairing_code: pairing, expires_at: date(r.expires_at), remaining_seconds: integer(r.remaining_seconds), error_code: optional(r.error_code) }
 }
 export function decodeCloudEvent(value: unknown): CloudEvent {
   const r = record(value)

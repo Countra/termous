@@ -1,5 +1,25 @@
 {
   "cloud": {
+    "qr": {
+      "password": "Password",
+      "login": "QR code",
+      "loading": "Preparing QR code",
+      "pending": "Waiting to scan",
+      "scanned": "Scanned",
+      "preparing": "Preparing device",
+      "ready": "Confirm on your phone",
+      "approved": "Completing sign-in",
+      "issued": "Completing sign-in",
+      "completed": "Signed in",
+      "expired": "QR code expired",
+      "cancelled": "Sign-in cancelled",
+      "rejected": "Sign-in declined",
+      "invalidated": "Request no longer valid",
+      "hint": "Scan with your trusted Termous phone",
+      "checkCode": "Verification code",
+      "remaining": "Expires in {{seconds}}s",
+      "refresh": "Refresh QR code"
+    },
     "syncFlow": {
       "enable": "Enable sync",
       "settingsUnavailable": "Sync settings are unavailable. Please retry.",
@@ -308,6 +328,16 @@
       "steps": { "identity": "Verify identity", "authenticator": "Link authenticator", "save": "Save backup codes" }
     },
     "errors": {
+      "qr_expired": "This QR code has expired. Generate a new one.",
+      "qr_state_changed": "The sign-in request changed. Reload it.",
+      "qr_already_scanned": "Another phone has already scanned this code.",
+      "qr_account_mismatch": "Scan with the original account.",
+      "qr_invalid": "Invalid QR code.",
+      "qr_origin_mismatch": "This code belongs to another service.",
+      "device_not_trusted": "Trust this phone before scanning.",
+      "client_upgrade_required": "Update the cloud service to use QR sign-in.",
+      "qr_claimed": "Another phone has already scanned this code.",
+      "local_failed": "Could not complete QR sign-in. Try again.",
       "CLOUD_PERSONAL_SAVE_REQUIRED": "Save your recovery key before enabling recovery.",
       "CLOUD_PERSONAL_FILE_INVALID": "Choose a valid .torkey recovery key file (up to 4 KiB).",
       "CLOUD_PERSONAL_FILE_VERSION": "This key file version is not supported. Update your client.",

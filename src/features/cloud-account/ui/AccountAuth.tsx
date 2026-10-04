@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input } from 'antd'
+import { Alert, Button, Form, Input, Segmented } from 'antd'
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
@@ -7,6 +7,7 @@ import type { CloudAuthAction, CloudLoginChallenge, CloudLoginResult, CloudMFAMe
 import { isCloudMFAUncertainError } from '#entities/cloud'
 import { useCloudDeadline } from '../model/useCloudDeadline'
 import { AccountMFAFields } from './AccountMFAFields'
+import { AccountQRLogin } from './AccountQRLogin'
 import styles from './CloudAccount.module.scss'
 
 interface Props {
@@ -31,6 +32,7 @@ const relatedModes: Record<AuthMode, AuthMode[]> = {
 export function AccountAuth({ api, generation, busy, run, email: savedEmail, reauthenticate = false }: Props) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<AuthMode>('login')
+  const [loginMethod, setLoginMethod] = useState<'password' | 'qr'>('password')
   const [notice, setNotice] = useState(false)
   const [challenge, setChallenge] = useState<CloudLoginChallenge>()
   const [method, setMethod] = useState<CloudMFAMethod>('totp')
@@ -87,7 +89,11 @@ export function AccountAuth({ api, generation, busy, run, email: savedEmail, rea
     </Form>
   </section>
 
+  const methodSwitch = mode === 'login' ? <Segmented block value={loginMethod} disabled={busy} options={[{ value: 'password', label: t('cloud.qr.password') }, { value: 'qr', label: t('cloud.qr.login') }]} onChange={value => { form.resetFields(['password', 'token']); setLoginMethod(value === 'qr' ? 'qr' : 'password') }} /> : null
+  if (mode === 'login' && loginMethod === 'qr') return <section className={styles.auth}>{methodSwitch}<AccountQRLogin api={api} generation={generation} reauthenticate={reauthenticate} /></section>
+
   return <section className={styles.auth}>
+    {methodSwitch}
     {!reauthenticate && mode !== 'login' ? <Button className={styles.back} type="text" size="small" icon={<ArrowLeft size={14} />} disabled={busy} onClick={() => changeMode('login')}>{t('cloud.backToLogin')}</Button> : null}
     {!reauthenticate ? <div className={styles.intro}>
       <h2>{mode === 'login' ? t('cloud.welcome') : t(`cloud.auth.${mode}`)}</h2>

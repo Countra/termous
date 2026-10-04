@@ -1,4 +1,5 @@
 export interface CloudStatus {
+  qr_login?: CloudQRLogin
   revision: number
   binding_id?: string
   authenticated: boolean
@@ -19,6 +20,24 @@ export interface CloudStatus {
   pending: number
   conflicts: number
   last_success?: string
+}
+
+export interface CloudQRLogin {
+  id: string
+  state: 'pending' | 'scanned' | 'preparing' | 'ready' | 'approved' | 'issued' | 'completed' | 'expired' | 'cancelled' | 'rejected' | 'invalidated'
+  revision: string
+  qr_code?: string
+  pairing_code: string
+  expires_at: string
+  remaining_seconds: number
+  error_code?: string
+}
+export interface CloudQRLoginInput {
+  generation: string
+  action: 'create' | 'watch' | 'cancel' | 'retry'
+  id?: string
+  watching?: boolean
+  reauthenticate?: boolean
 }
 
 export interface CloudDevice {

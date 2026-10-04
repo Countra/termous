@@ -1,5 +1,25 @@
 {
   "cloud": {
+    "qr": {
+      "password": "密码登录",
+      "login": "扫码登录",
+      "loading": "正在准备二维码",
+      "pending": "等待扫描",
+      "scanned": "已扫描",
+      "preparing": "正在准备设备",
+      "ready": "等待手机确认",
+      "approved": "正在完成登录",
+      "issued": "正在完成登录",
+      "completed": "登录完成",
+      "expired": "二维码已过期",
+      "cancelled": "扫码已取消",
+      "rejected": "手机已拒绝登录",
+      "invalidated": "扫码请求已失效",
+      "hint": "使用已授信的 Termous 手机扫码",
+      "checkCode": "核对码",
+      "remaining": "{{seconds}} 秒后失效",
+      "refresh": "刷新二维码"
+    },
     "syncFlow": {
       "enable": "启用同步",
       "settingsUnavailable": "同步设置暂不可用，请重试",
@@ -308,6 +328,16 @@
       "steps": { "identity": "验证身份", "authenticator": "绑定验证器", "save": "保存备用码" }
     },
     "errors": {
+      "qr_expired": "二维码已过期，请重新生成。",
+      "qr_state_changed": "扫码状态已变化，请重新读取。",
+      "qr_already_scanned": "此二维码已由另一台手机扫描。",
+      "qr_account_mismatch": "请使用原账号扫描。",
+      "qr_invalid": "二维码无效。",
+      "qr_origin_mismatch": "二维码不属于当前云服务。",
+      "device_not_trusted": "请先将手机设为可信设备。",
+      "client_upgrade_required": "当前云服务尚不支持扫码登录，请升级服务。",
+      "qr_claimed": "此二维码已由另一台手机扫描。",
+      "local_failed": "无法完成扫码操作，请重试。",
       "CLOUD_PERSONAL_SAVE_REQUIRED": "请先保存恢复密钥，再确认启用。",
       "CLOUD_PERSONAL_FILE_INVALID": "请选择有效的 .torkey 恢复密钥文件（不超过 4 KiB）。",
       "CLOUD_PERSONAL_FILE_VERSION": "暂不支持此密钥文件版本，请更新客户端。",

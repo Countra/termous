@@ -1,10 +1,11 @@
-import type { CloudRecoveryCredential } from '#common/contracts'
+import type { CloudRecoveryCredential, CloudQRLoginInput, CloudQRLogin } from '#common/contracts'
 import type { CloudAuthAction, CloudConflict, CloudDevice, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus, CloudLoginResult, CloudMFAMethod, CloudMFAStatus, CloudMFAProof, CloudMFASetup, CloudMFACodes, CloudReauthentication } from '#common/contracts'
 import type { CloudProfile, CloudProfilePatch, CloudAuthorization, CloudAuthorizationKind, CloudAuthorizationAction, CloudAuthorizationInput, CloudSecurityOverview, CloudRecoveryStatus } from '#common/contracts'
 import type { CloudPersonalRecoveryStatus, CloudPersonalRecoverySetup, CloudPersonalRecoveryOperation, CloudWorkspaceRestart, CloudArchive, CloudArchivePreview } from '#common/contracts'
 import type { CloudAccountChange, CloudEvent } from '#common/contracts'
 
 export interface CloudGateway {
+  qrLogin(input: CloudQRLoginInput): Promise<CloudQRLogin>
   personalRecoveryStatus(generation: string, signal?: AbortSignal): Promise<CloudPersonalRecoveryStatus>
   setupPersonalRecovery(generation: string, proof: CloudMFAProof): Promise<CloudPersonalRecoverySetup>
   confirmPersonalRecovery(generation: string, id: string, saved: boolean): Promise<CloudPersonalRecoveryOperation>

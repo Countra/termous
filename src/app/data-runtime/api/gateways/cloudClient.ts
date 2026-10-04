@@ -1,4 +1,5 @@
-import type { CloudRecoveryCredential } from '#common/contracts'
+import type { CloudRecoveryCredential, CloudQRLoginInput } from '#common/contracts'
+import { decodeCloudQRLogin } from '#entities/cloud'
 import type { CloudAuthAction, CloudStatus, CloudMFAMethod, CloudMFAProof } from '#common/contracts'
 import type { CloudProfilePatch } from '#common/contracts'
 import { decodeCloudProfile } from '#entities/cloud'
@@ -10,6 +11,7 @@ import { decodeCloudAuthorization, decodeCloudSecurity, decodeCloudRecoveryStatu
 import { decodePersonalStatus, decodePersonalSetup, decodePersonalOperation, decodeWorkspaceRestart, decodeArchive, decodeArchivePreview } from '#entities/cloud'
 
 export class CloudClient extends TermousApiTransport implements CloudGateway {
+  qrLogin(input: CloudQRLoginInput) { return this.request('/api/v1/cloud/auth/qr-login', { method: 'POST', body: input, timeoutMs: 125_000 }).then(decodeCloudQRLogin) }
   personalRecoveryStatus(generation: string, signal?: AbortSignal) { return this.request(`/api/v1/cloud/personal-recovery?generation=${encodeURIComponent(generation)}`, { signal, timeoutMs: 125_000 }).then(decodePersonalStatus) }
   setupPersonalRecovery(generation: string, proof: CloudMFAProof) { return this.request('/api/v1/cloud/personal-recovery/setup', { method: 'POST', body: { generation, ...proof }, timeoutMs: 125_000 }).then(decodePersonalSetup) }
   confirmPersonalRecovery(generation: string, id: string, saved: boolean) { return this.request('/api/v1/cloud/personal-recovery/setup/confirm', { method: 'POST', body: { generation, id, saved }, timeoutMs: 125_000 }).then(decodePersonalOperation) }
