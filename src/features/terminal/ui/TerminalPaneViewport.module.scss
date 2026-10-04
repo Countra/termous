@@ -84,7 +84,7 @@
   right: calc(var(--terminal-canvas-inset-inline) + 9px);
   display: inline-flex;
   max-width: calc(100% - 42px);
-  height: 24px;
+  min-height: 24px;
   align-items: center;
   gap: 6px;
   overflow: hidden;
@@ -99,6 +99,10 @@
   pointer-events: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.input-lock-notice button {
+  pointer-events: auto;
 }
 
 .empty-state {

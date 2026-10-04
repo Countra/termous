@@ -35,6 +35,8 @@ jobs:
     outputs:
       core_sha: ${{ steps.core.outputs.sha }}
       skills_sha: ${{ steps.skills.outputs.sha }}
+      remote_repository: ${{ steps.remote.outputs.repository }}
+      remote_sha: ${{ steps.remote.outputs.sha }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       release_date: ${{ steps.release.outputs.release_date }}
       tag: ${{ steps.release.outputs.tag }}
@@ -88,6 +90,20 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "release_date=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+
+      - name: Pin remote core metadata
+        id: remote
+        shell: bash
+        env:
+          REMOTE_REPOSITORY: ${{ vars.TERMOUS_REMOTE_REPOSITORY }}
+          REMOTE_REVISION: ${{ vars.TERMOUS_REMOTE_SHA }}
+        run: |
+          if [[ ! "$REMOTE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ || ! "$REMOTE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "请配置 TERMOUS_REMOTE_REPOSITORY 和完整的 TERMOUS_REMOTE_SHA，禁止使用浮动分支。" >&2
+            exit 1
+          fi
+          echo "repository=$REMOTE_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "sha=$REMOTE_REVISION" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the release tag
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -167,6 +183,8 @@ jobs:
     outputs:
       core_sha: ${{ needs.metadata.outputs.core_sha }}
       skills_sha: ${{ needs.metadata.outputs.skills_sha }}
+      remote_repository: ${{ needs.metadata.outputs.remote_repository }}
+      remote_sha: ${{ needs.metadata.outputs.remote_sha }}
       prerelease: ${{ needs.metadata.outputs.prerelease }}
       release_date: ${{ needs.metadata.outputs.release_date }}
       tag: ${{ needs.metadata.outputs.tag }}
@@ -281,6 +299,13 @@ jobs:
           path: termous-skills
           persist-credentials: false
 
+      - name: Checkout pinned remote core
+        uses: ./web/.github/actions/remote-checkout
+        with:
+          repository: ${{ needs.prepare-release.outputs.remote_repository }}
+          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -292,6 +317,9 @@ jobs:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install shared protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -480,6 +508,13 @@ jobs:
           path: web
           persist-credentials: false
 
+      - name: Checkout pinned remote core
+        uses: ./web/.github/actions/remote-checkout
+        with:
+          repository: ${{ needs.prepare-release.outputs.remote_repository }}
+          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -491,6 +526,9 @@ jobs:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install shared protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
       - name: Install locked dependencies
         shell: bash
@@ -566,6 +604,13 @@ jobs:
           path: web
           persist-credentials: false
 
+      - name: Checkout pinned remote core
+        uses: ./web/.github/actions/remote-checkout
+        with:
+          repository: ${{ needs.prepare-release.outputs.remote_repository }}
+          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -577,6 +622,9 @@ jobs:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install shared protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
       - name: Install locked dependencies
         shell: bash
@@ -658,6 +706,13 @@ jobs:
           path: web
           persist-credentials: false
 
+      - name: Checkout pinned remote core
+        uses: ./web/.github/actions/remote-checkout
+        with:
+          repository: ${{ needs.prepare-release.outputs.remote_repository }}
+          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -669,6 +724,9 @@ jobs:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install shared protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
       - name: Install locked dependencies
         shell: bash
@@ -712,6 +770,13 @@ jobs:
           path: web
           persist-credentials: false
 
+      - name: Checkout pinned remote core
+        uses: ./web/.github/actions/remote-checkout
+        with:
+          repository: ${{ needs.prepare-release.outputs.remote_repository }}
+          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -723,6 +788,9 @@ jobs:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install shared protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
       - name: Install locked dependencies
         shell: bash

@@ -1,0 +1,271 @@
+.workbench {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 14px 24px;
+}
+
+.identity,
+.profile-name,
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.identity {
+  strong {
+    display: block;
+    font-size: 16px;
+  }
+
+  small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-secondary);
+  }
+
+}
+
+.device-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--accent);
+}
+
+.metric {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+
+.sidebar {
+  display: flex;
+  width: 264px;
+  flex-shrink: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 6px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.resources {
+  min-height: 0;
+  overflow: auto;
+}
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.profile small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-name strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+}
+
+.session {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.session span {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.online {
+  color: var(--success);
+}
+
+.main {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.panels {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.panes {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.paired {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.paired .pane {
+  border-inline-end: 1px solid var(--border);
+}
+
+.panels > :global(.ant-tabs) {
+  min-width: 0;
+  min-height: 0;
+}
+
+.main :global(.ant-tabs-nav) {
+  margin: 0;
+  background: var(--surface);
+  padding: 8px 8px 0;
+}
+
+.main > :global(.ant-empty) {
+  align-self: center;
+}
+
+.challenge {
+  max-width: 720px;
+  margin: 36px auto;
+  padding: 20px;
+}
+
+.loading {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+}
+
+.empty {
+  display: flex;
+  align-self: center;
+  align-items: center;
+  flex-direction: column;
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-icon {
+  display: grid;
+  width: 84px;
+  height: 84px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.empty h1 {
+  margin: 24px 0 8px;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+
+.empty p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.empty > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 32px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.footer {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0 20px;
+  font-size: 11px;
+}
+
+.footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}

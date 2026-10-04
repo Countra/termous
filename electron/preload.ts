@@ -118,6 +118,15 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  remoteControl: {
+    open: (generation, id, name) => ipcRenderer.invoke('remote:open', generation, id, name),
+    devices: generation => ipcRenderer.invoke('remote:devices', generation),
+    policy: generation => ipcRenderer.invoke('remote:policy', generation),
+    configure: (generation, revision, enabled, ids) => ipcRenderer.invoke('remote:configure', generation, revision, enabled, ids),
+    profiles: () => ipcRenderer.invoke('remote:profiles'),
+    addDirectory: (generation, revision, write) => ipcRenderer.invoke('remote:add-directory', generation, revision, write),
+    removeDirectory: (generation, revision, id) => ipcRenderer.invoke('remote:remove-directory', generation, revision, id),
+  },
   notifications: {
     pending: () => ipcRenderer.invoke(notificationChannels.pending),
     acknowledge: (id: string) => ipcRenderer.invoke(notificationChannels.acknowledge, id),

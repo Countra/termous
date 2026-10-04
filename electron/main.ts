@@ -1,4 +1,6 @@
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
+import { RemoteControlRuntime } from './remoteControl/runtime'
+import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
 import { settingsIPCChannels } from '#common/contracts'
 import { notificationIPCChannels } from '#common/contracts'
@@ -184,6 +186,7 @@ let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
 let updateRuntime: ApplicationUpdateRuntime | null = null
 let appTheme: AppTheme = 'dark'
+let remoteControlRuntime: RemoteControlRuntime | undefined
 let appLanguage: AppLanguage = 'zh-CN'
 let mainWindowReady = false
 let startupReadyRequested = false
@@ -1301,6 +1304,7 @@ function registerAppearanceControls() {
       win.setBackgroundColor(theme === 'dark' ? '#0f1116' : '#f4f5f7')
     }
     updateRuntime?.updateAppearance(theme, appLanguage)
+    remoteControlRuntime?.updateAppearance()
     applyStartupWindowState()
     return writeCachedAppTheme(theme)
   })
@@ -1316,6 +1320,7 @@ function registerTrayControls() {
       applyStartupWindowState()
     }
     updateRuntime?.updateAppearance(appTheme, appLanguage)
+    remoteControlRuntime?.updateAppearance()
     return true
   })
 }
@@ -1756,6 +1761,17 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  remoteControlRuntime = new RemoteControlRuntime({
+    core: new RemoteCore(() => coreProcess.initialize()),
+    trusted: isTrustedMainIPCEvent,
+    preload: path.join(__dirname, 'remote-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    icon: APP_ICON,
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
+  app.once('before-quit', () => remoteControlRuntime?.close())
   registerAgentRuntimeControls()
   registerStartupControls()
   registerAppearanceControls()

@@ -8,8 +8,9 @@ import {
   resolveRendererSurface,
 } from '../app/renderer-entry/rendererSurface.ts'
 
-test('仅显式 update surface 加载独立更新界面', () => {
+test('仅显式选择的 surface 加载独立界面', () => {
   assert.equal(resolveRendererSurface('?surface=update'), 'update')
+  assert.equal(resolveRendererSurface('?surface=remote'), 'remote')
   assert.equal(resolveRendererSurface('?surface=main'), 'main')
   assert.equal(resolveRendererSurface('?surface=UPDATE'), 'main')
   assert.equal(resolveRendererSurface(''), 'main')
@@ -26,6 +27,7 @@ test('surface 分流只调用目标模块加载器', async () => {
       calls.push('update')
       return 'update'
     },
+    remote: async () => { calls.push('remote'); return 'remote' },
   })
 
   assert.equal(result, 'update')
@@ -73,6 +75,7 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
   assert.deepEqual(loaders, {
     main: '#app/main',
     update: '#app/update-surface',
+    remote: '#app/remote-surface',
   })
 })
 

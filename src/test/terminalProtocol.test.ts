@@ -14,6 +14,26 @@ import {
 
 const epoch = '00112233445566778899aabbccddeeff'
 
+test('远控输入锁保留控制设备和代次，允许本机收回错误', () => {
+  const inputLock = { locked: true, owner: 'remote_control', device_id: 'phone', generation: 7 }
+  const decoded = decodeTerminalControlMessage(JSON.stringify({ type: 'input_lock', input_lock: inputLock }))
+  assert.equal(decoded.type, 'input_lock')
+  if (decoded.type !== 'input_lock') assert.fail('应返回输入锁')
+  assert.equal(decoded.input_lock.owner, 'remote_control')
+  assert.equal(decoded.input_lock.device_id, 'phone')
+  assert.equal(decoded.input_lock.generation, 7)
+  for (const generation of [-1, Number.MAX_SAFE_INTEGER + 1, 1.5]) {
+    assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+      type: 'input_lock', input_lock: { ...inputLock, generation },
+    })), TerminalProtocolError)
+  }
+  const error = decodeTerminalControlMessage(JSON.stringify({
+    type: 'request_error', scope: 'input_takeover', code: 'TAKEOVER_FAILED',
+    retryable: false, message: '输入权收回失败',
+  }))
+  assert.equal(error.type, 'request_error')
+})
+
 test('attach 使用服务端流游标恢复且空游标不携带伪字段', () => {
   assert.deepEqual(JSON.parse(encodeTerminalAttach()), { type: 'attach' })
   assert.deepEqual(JSON.parse(encodeTerminalAttach({

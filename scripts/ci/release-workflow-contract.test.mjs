@@ -118,17 +118,30 @@ test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签"
 
 test("全部 Actions 固定完整 SHA 并标注版本", async () => {
   const { source } = await loadWorkflow();
-  const usesLines = source
+  const remoteActionUrl = new URL("../../.github/actions/remote-checkout/action.yml", import.meta.url);
+  const { source: remoteSource, workflow: remoteAction } = await loadWorkflow(remoteActionUrl);
+  const usesLines = `${source}\n${remoteSource}`
     .split(/\r?\n/u)
-    .map((line) => line.trim())
+    .map((line) => line.trim().replace(/^- /u, ""))
     .filter((line) => line.startsWith("uses:"));
   assert.ok(usesLines.length > 0);
   for (const line of usesLines) {
+    if (line === "uses: ./web/.github/actions/remote-checkout") continue;
     assert.match(
       line,
       /^uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[a-f0-9]{40} # v\d+\.\d+\.\d+$/u,
     );
   }
+  assert.equal(remoteAction.runs.using, "composite");
+  assert.match(remoteAction.runs.steps[0].run, /\^\[0-9a-f\]\{40\}\$/u);
+  const checkout = remoteAction.runs.steps.find(({ uses }) => uses?.startsWith("actions/checkout@"));
+  assert.deepEqual(checkout.with, {
+    repository: "${{ inputs.repository }}",
+    ref: "${{ inputs.revision }}",
+    token: "${{ inputs.token }}",
+    path: "termous-remote",
+    "persist-credentials": false,
+  });
 });
 
 test("Workflow、Job 与 checkout 保持最小权限", async () => {
@@ -163,7 +176,7 @@ test("Workflow、Job 与 checkout 保持最小权限", async () => {
   }
 });
 
-test("Metadata 在环境审批前固定标签与三个仓库提交", async () => {
+test("Metadata 在环境审批前固定标签与四个仓库提交", async () => {
   const { workflow } = await loadWorkflow();
   assert.deepEqual(workflow.concurrency, {
     group: "release",
@@ -177,6 +190,8 @@ test("Metadata 在环境审批前固定标签与三个仓库提交", async () =>
     "core_sha",
     "prerelease",
     "release_date",
+    "remote_repository",
+    "remote_sha",
     "skills_sha",
     "tag",
     "termous_sha",
@@ -196,12 +211,30 @@ test("Metadata 在环境审批前固定标签与三个仓库提交", async () =>
   assert.deepEqual(workflow.jobs["prepare-release"].outputs, {
     core_sha: "${{ needs.metadata.outputs.core_sha }}",
     skills_sha: "${{ needs.metadata.outputs.skills_sha }}",
+    remote_repository: "${{ needs.metadata.outputs.remote_repository }}",
+    remote_sha: "${{ needs.metadata.outputs.remote_sha }}",
     prerelease: "${{ needs.metadata.outputs.prerelease }}",
     release_date: "${{ needs.metadata.outputs.release_date }}",
     tag: "${{ needs.metadata.outputs.tag }}",
     termous_sha: "${{ needs.metadata.outputs.termous_sha }}",
     version: "${{ needs.metadata.outputs.version }}",
   });
+  const remote = metadata.steps.find(({ id }) => id === "remote");
+  assert.deepEqual(remote.env, {
+    REMOTE_REPOSITORY: "${{ vars.TERMOUS_REMOTE_REPOSITORY }}",
+    REMOTE_REVISION: "${{ vars.TERMOUS_REMOTE_SHA }}",
+  });
+  assert.match(remote.run, /\^\[0-9a-f\]\{40\}\$/u);
+  assert.match(remote.run, /sha=\$REMOTE_REVISION/u);
+  for (const [name, job] of Object.entries(workflow.jobs)) {
+    if (name === "metadata") continue;
+    assert.equal(JSON.stringify(job).includes("vars.TERMOUS_REMOTE_"), false);
+    for (const step of job.steps ?? []) {
+      if (step.uses !== "./web/.github/actions/remote-checkout") continue;
+      assert.equal(step.with.repository, "${{ needs.prepare-release.outputs.remote_repository }}");
+      assert.equal(step.with.revision, "${{ needs.prepare-release.outputs.remote_sha }}");
+    }
+  }
   const skillsCheckout = stepsFor(workflow, "build").find(
     ({ name }) => name === "Checkout pinned Termous Skills",
   );

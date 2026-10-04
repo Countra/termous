@@ -1,0 +1,4 @@
+export { RemoteClient, RemoteError, unwrap } from './model/client'
+export { create } from '@bufbuild/protobuf'
+export { SessionRequestSchema, FileRequestSchema, FileLocationSchema } from '@termous/remote-protocol'
+export type { Session, Inventory, Profile, FileEntry, FileLocation, ControlLease, TerminalAttachment, HostKeyChallenge, FileOperation, LocalRoot, Transfer } from '@termous/remote-protocol'

@@ -6,7 +6,7 @@ import type {
 } from './types.ts'
 
 const sessionKinds = new Set<SessionKind>(['ssh', 'local'])
-const sessionOrigins = new Set<SessionOrigin>(['app', 'mcp'])
+const sessionOrigins = new Set<SessionOrigin>(['app', 'mcp', 'remote'])
 const sessionStatuses = new Set<SessionStatus>([
   'connecting',
   'waiting_host_trust',

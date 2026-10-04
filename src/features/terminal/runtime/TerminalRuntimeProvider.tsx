@@ -560,6 +560,8 @@ export function TerminalRuntimeProvider({
       && current.owner === next.owner
       && current.task_id === next.task_id
       && current.locked_at === next.locked_at
+      && current.device_id === next.device_id
+      && current.generation === next.generation
     ) {
       return
     }
@@ -1643,6 +1645,7 @@ export function TerminalRuntimeProvider({
       focusSession,
       sendTextToSession,
       sendTextToActive,
+      takeBackSessionInput: sessionId => entriesRef.current.get(sessionId)?.transport.takeBackInput() ?? false,
       subscribeSessionInputLock,
       getSessionInputLockSnapshot,
       subscribeSessionCompletion,

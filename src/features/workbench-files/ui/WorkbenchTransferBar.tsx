@@ -1,5 +1,5 @@
 import { Button, Progress, Tooltip } from 'antd'
-import { Bot, Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
+import { Bot, Copy, DownloadCloud, MonitorUp, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveTransferOrigin } from '#entities/file'
 import type { FileTransferGateway } from '#features/files'
@@ -33,14 +33,12 @@ export function WorkbenchTransferBar({
   const upload = task?.type.startsWith('upload')
   const download = task?.type.startsWith('download')
   const TransferIcon = upload ? UploadCloud : download ? DownloadCloud : Copy
-  const containsMcpTransfer = task
-    ? active
-      ? summary.tasks.some((item) => (
-        (item.status === 'queued' || item.status === 'running')
-        && resolveTransferOrigin(item) === 'mcp'
-      ))
-      : resolveTransferOrigin(task) === 'mcp'
-    : false
+  const externalOrigins = (['mcp', 'remote'] as const).filter((origin) => task && (active
+    ? summary.tasks.some((item) => (
+      (item.status === 'queued' || item.status === 'running')
+      && resolveTransferOrigin(item) === origin
+    ))
+    : resolveTransferOrigin(task) === origin))
 
   const retry = async () => {
     if (!task?.retryable) {
@@ -108,7 +106,7 @@ export function WorkbenchTransferBar({
       ].filter(Boolean).join(' ')}
       data-workbench-file-transfer
       data-state={active ? 'active' : 'failed'}
-      data-transfer-origin={containsMcpTransfer ? 'mcp' : undefined}
+      data-transfer-origin={externalOrigins.length ? externalOrigins.join(' ') : undefined}
     >
       <span
         className={scopedClassName('workbench-file-transfer-announcement')}
@@ -120,17 +118,17 @@ export function WorkbenchTransferBar({
       <div className={scopedClassName('workbench-file-transfer-main')}>
         <span className={scopedClassName('workbench-file-transfer-icon')}>
           <TransferIcon size={15} aria-hidden="true" />
-          {containsMcpTransfer ? (
-            <Tooltip title={t('files.transferOrigin.mcp')}>
+          {externalOrigins.map((origin) => (
+            <Tooltip key={origin} title={t(`files.transferOrigin.${origin}`)}>
               <span
                 className={styles['workbench-file-transfer-origin']}
                 role="img"
-                aria-label={t('files.transferOrigin.mcp')}
+                aria-label={t(`files.transferOrigin.${origin}`)}
               >
-                <Bot size={9} strokeWidth={2.2} aria-hidden="true" />
+                {origin === 'remote' ? <MonitorUp size={9} strokeWidth={2.2} aria-hidden="true" /> : <Bot size={9} strokeWidth={2.2} aria-hidden="true" />}
               </span>
             </Tooltip>
-          ) : null}
+          ))}
         </span>
         <div className={scopedClassName('workbench-file-transfer-copy')}>
           <strong>{title}</strong>

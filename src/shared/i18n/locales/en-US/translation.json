@@ -18,7 +18,8 @@
       "hint": "Scan with your trusted Termous phone",
       "checkCode": "Verification code",
       "remaining": "Expires in {{seconds}}s",
-      "refresh": "Refresh QR code"
+      "refresh": "Refresh QR code",
+      "retry": "Retry"
     },
     "syncFlow": {
       "enable": "Enable sync",
@@ -791,7 +792,13 @@
     "no": "No"
   },
   "sessionOrigin": {
-    "mcp": "Created by MCP"
+    "mcp": "Created by MCP",
+    "remote": "Created by remote control"
+  },
+  "remoteControl": {
+    "controlled": "Remotely controlled",
+    "takeover": "Take back input",
+    "takeoverFailed": "Unable to take back input. Check your connection."
   },
   "nav": {
     "account": "Account",
@@ -4399,7 +4406,8 @@
     },
     "transfers": "Transfers",
     "transferOrigin": {
-      "mcp": "MCP-managed transfer"
+      "mcp": "MCP-managed transfer",
+      "remote": "Remote-controlled transfer"
     },
     "transferScope": "Transfer scope",
     "transferFilter": "Filter transfer tasks",

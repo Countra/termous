@@ -102,6 +102,6 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
     {scanned && <div className={styles.pair}><span>{t('cloud.qr.checkCode')}</span><strong>{item.pairing_code}</strong></div>}
     {item && !terminal && <small>{t('cloud.qr.remaining', { seconds: remaining })}</small>}
     {code && <Alert type="error" showIcon title={t(i18n.exists(`cloud.errors.${code}`) ? `cloud.errors.${code}` : 'cloud.errors.local_failed')} />}
-    {terminal ? <Button type="primary" block loading={busy} onClick={() => void act('create')}>{t('cloud.qr.refresh')}</Button> : code && <Button block loading={busy} onClick={() => void act(item ? 'retry' : 'create')}>{t('common.retry')}</Button>}
+    {terminal ? <Button type="primary" block loading={busy} onClick={() => void act('create')}>{t('cloud.qr.refresh')}</Button> : code && <Button block loading={busy} onClick={() => void act(item ? 'retry' : 'create')}>{t('cloud.qr.retry')}</Button>}
   </div>
 }

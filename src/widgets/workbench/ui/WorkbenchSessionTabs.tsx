@@ -4,6 +4,7 @@ import {
   Bot,
   CopyPlus,
   Layers,
+  MonitorUp,
   RefreshCw,
   Search,
   SquareTerminal,
@@ -131,8 +132,8 @@ export function WorkbenchSessionTabs({
           const sessionClosing = closingSessionIds.has(session.id)
           const statusLabel = t(`status.${session.status}`)
           const closingLabel = t('workbench.closingSession')
-          const isMcpSession = session.origin === 'mcp'
-          const originLabel = t('sessionOrigin.mcp')
+          const externalOrigin = session.origin === 'mcp' || session.origin === 'remote' ? session.origin : undefined
+          const originLabel = externalOrigin ? t(`sessionOrigin.${externalOrigin}`) : undefined
           const host = session.host_id ? hostById.get(session.host_id) : undefined
           const defaultIcon = <SquareTerminal size={18} />
           const sessionIcon = host?.icon_id?.trim() ? (
@@ -144,10 +145,10 @@ export function WorkbenchSessionTabs({
               fallbackIcon={defaultIcon}
             />
           ) : defaultIcon
-          const accessibleLabel = isMcpSession
+          const accessibleLabel = externalOrigin
             ? `${title} · ${originLabel} · ${sessionClosing ? closingLabel : statusLabel}`
             : undefined
-          const tooltipTitle = isMcpSession
+          const tooltipTitle = externalOrigin
             ? (sessionClosing ? `${title} · ${originLabel}` : accessibleLabel)
             : undefined
           return (
@@ -185,7 +186,7 @@ export function WorkbenchSessionTabs({
                     aria-selected={session.id === activeSessionId}
                     aria-label={accessibleLabel}
                     data-session-tab-id={session.id}
-                    data-session-origin={isMcpSession ? 'mcp' : undefined}
+                    data-session-origin={externalOrigin}
                     dragging={draggingSessionId === session.id}
                     onClick={(event) => {
                       if (sessionClosing || suppressNextClickRef.current) {
@@ -207,7 +208,7 @@ export function WorkbenchSessionTabs({
                     }}
                     onAuxClick={(event) => onAuxClose(event, session.id)}
                     icon={sessionIcon}
-                    sourceIndicator={isMcpSession ? <Bot size={12} strokeWidth={2} /> : undefined}
+                    sourceIndicator={externalOrigin === 'remote' ? <MonitorUp size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
                     label={title}
                     status={session.status}
                     statusLabel={statusLabel}

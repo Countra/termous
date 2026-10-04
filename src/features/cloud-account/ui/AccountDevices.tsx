@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Alert, Button, Checkbox, Form, Modal, Tag, Tooltip } from 'antd'
 import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -20,9 +20,9 @@ import { AccountOperationError } from './AccountOperationError'
 import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './CloudAccount.module.scss'
 
-interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; onOpenAuthorization?: (value: CloudAuthorizationTarget) => void; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
+interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; onOpenAuthorization?: (value: CloudAuthorizationTarget) => void; renderDeviceActions?: (device: CloudDevice) => ReactNode; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
 
-export function AccountDevices({ api, status, busy, run, target, onOpenAuthorization }: Props) {
+export function AccountDevices({ api, status, busy, run, target, onOpenAuthorization, renderDeviceActions }: Props) {
   const { t } = useTranslation()
   const [devices, setDevices] = useState<CloudDevice[]>([])
   const [error, setError] = useState(false)
@@ -121,7 +121,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
       {error ? <Alert type="warning" showIcon title={t('cloud.devicesLoadFailed')} /> : null}
       {devices.length ? <div className={styles.list}>{devices.map(device => <div className={styles.row} key={device.id}>
         <div className={styles['list-identity']}><span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span><div className={styles.identity}><strong>{device.name}</strong><small><Tooltip title={device.id}><span className={styles.identifier}>{device.id}</span></Tooltip></small></div></div>
-        <div className={styles.actions}><Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
+        <div className={styles.actions}>{renderDeviceActions?.(device)}<Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
       </div>)}</div> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
     </AccountSection>
     {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}

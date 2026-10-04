@@ -18,7 +18,8 @@
       "hint": "使用已授信的 Termous 手机扫码",
       "checkCode": "核对码",
       "remaining": "{{seconds}} 秒后失效",
-      "refresh": "刷新二维码"
+      "refresh": "刷新二维码",
+      "retry": "重试"
     },
     "syncFlow": {
       "enable": "启用同步",
@@ -791,7 +792,13 @@
     "no": "否"
   },
   "sessionOrigin": {
-    "mcp": "MCP 创建的会话"
+    "mcp": "MCP 创建的会话",
+    "remote": "远控创建的会话"
+  },
+  "remoteControl": {
+    "controlled": "正在被远程控制",
+    "takeover": "收回输入权",
+    "takeoverFailed": "未能收回输入权，请检查连接"
   },
   "nav": {
     "account": "账号",
@@ -4374,7 +4381,8 @@
     },
     "transfers": "传输列表",
     "transferOrigin": {
-      "mcp": "MCP 托管的传输"
+      "mcp": "MCP 托管的传输",
+      "remote": "远控创建的传输"
     },
     "transferScope": "传输范围",
     "transferFilter": "筛选传输任务",

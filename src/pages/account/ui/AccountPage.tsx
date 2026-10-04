@@ -8,6 +8,7 @@ import { isCloudConnectionError } from '#entities/cloud'
 import { SettingsGatewayContext, type SettingsGateway } from '#entities/settings'
 import { AccountAuth, AccountDevices, AccountProfile, AccountSecurity, AccountSync, useCloudAccount, type CloudProfileController } from '#features/cloud-account'
 import { WorkspaceEmptyState } from '#shared/ui'
+import { RemoteAccountAccess } from '#features/remote-control'
 import styles from './AccountPage.module.scss'
 
 interface Props {
@@ -81,7 +82,7 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
     }} items={[
       { key: 'profile', label: label('profile', <UserRound size={15} />), children: panel(<AccountProfile {...profile} email={status.email} />) },
       { key: 'sync', label: label('sync', <Cloud size={15} />), children: panel(<SettingsGatewayContext value={settingsGateway}><AccountSync api={api} status={status} busy={busy} run={run} onOpenSecurity={() => onTabChange('security')} /></SettingsGatewayContext>) },
-      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<AccountDevices api={api} status={status} target={authorizationTarget} onOpenAuthorization={onOpenAuthorization} busy={busy} run={run} />) },
+      { key: 'devices', label: label('devices', <Laptop size={15} />), children: panel(<RemoteAccountAccess key={status.generation} generation={status.generation} currentDevice={status.device_id ?? ''} trusted={status.device_status === 'active'}>{renderDeviceActions => <AccountDevices api={api} status={status} target={authorizationTarget} onOpenAuthorization={onOpenAuthorization} busy={busy} run={run} renderDeviceActions={renderDeviceActions} />}</RemoteAccountAccess>) },
       { key: 'security', label: label('security', <ShieldCheck size={15} />), children: panel(<AccountSecurity api={api} status={status} busy={busy} run={run} />) },
     ]} />
   </div>

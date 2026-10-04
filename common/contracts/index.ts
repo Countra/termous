@@ -1,4 +1,5 @@
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
+export type { RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
 export { notificationIPCChannels, decodeNotification, decodeNotificationPage, decodeNotificationEvent, validateNotificationPreferences, notificationTarget, notificationText } from './notification.ts'
 export type {
   AgentRuntimeCommandResult,

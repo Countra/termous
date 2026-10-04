@@ -40,6 +40,10 @@ function normalizeBuildStep(step) {
   ) {
     delete normalized.with.ref;
   }
+  if (normalized.name === "Checkout pinned remote core") {
+    delete normalized.with.repository;
+    delete normalized.with.revision;
+  }
   if (normalized.name === "Setup pnpm") {
     delete normalized.with.cache;
   }
@@ -285,8 +289,12 @@ test("提交构建按分支选择平台并复用 Release 打包路径", async ()
   assert.deepEqual(
     steps.map(normalizeBuildStep),
     releaseBuildSteps.map(normalizeBuildStep),
-    "除 ref 与缓存配置外，提交构建步骤必须与 Release 完全一致",
+    "除已单独验证的仓库版本来源与缓存配置外，提交构建步骤必须与 Release 完全一致",
   );
+
+  const remoteCheckout = steps.find(({ name }) => name === "Checkout pinned remote core");
+  assert.equal(remoteCheckout.with.repository, "${{ vars.TERMOUS_REMOTE_REPOSITORY }}");
+  assert.equal(remoteCheckout.with.revision, "${{ vars.TERMOUS_REMOTE_SHA }}");
 
   const frontendCheckout = steps.find(
     ({ name }) => name === "Checkout Termous",

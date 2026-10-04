@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  remoteControl?: import('./remote-control').RemoteLauncher
   notifications?: import('./notification').NotificationBridge
   settings?: DesktopSettingsBridge
   skillInstall?: SkillInstallBridge

@@ -238,6 +238,18 @@ export class TerminalTransport {
     }
   }
 
+  takeBackInput() {
+    const socket = this.liveSocket()
+    if (!socket) return false
+    try {
+      socket.send(JSON.stringify({ type: 'input_takeover' }))
+      return true
+    } catch {
+      this.closeCurrentSocket()
+      return false
+    }
+  }
+
   private connect() {
     if (this.disposed || this.reconnectStopped || !this.started) {
       return

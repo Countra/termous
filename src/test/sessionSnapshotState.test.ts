@@ -35,6 +35,10 @@ test('会话清单协议只接受 canonical 完整快照', () => {
     revision: 5,
     sessions: [{ ...session, origin: 'mcp' }],
   }).sessions[0]?.origin, 'mcp')
+  assert.equal(decodeSessionSnapshotEvent({
+    type: 'session_snapshot', instance_id: 'core-a', revision: 6,
+    sessions: [{ ...session, origin: 'remote' }],
+  }).sessions[0]?.origin, 'remote')
   assert.throws(() => decodeSessionSnapshotEvent({
     type: 'session_snapshot',
     instance_id: 'core-a',

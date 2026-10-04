@@ -1,5 +1,5 @@
 import { Popover } from 'antd'
-import { Bot, CopyPlus, Folder, RefreshCw } from 'lucide-react'
+import { Bot, CopyPlus, Folder, MonitorUp, RefreshCw } from 'lucide-react'
 import { startTransition, useEffect, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
@@ -57,8 +57,8 @@ export function FileSessionTab({
   }, [closing])
   const statusLabel = t(`files.sessionStatus.${fileSession.status}`)
   const closingLabel = t('files.sessionStatus.closing')
-  const isMcpSession = fileSession.origin === 'mcp'
-  const originLabel = t('sessionOrigin.mcp')
+  const externalOrigin = fileSession.origin === 'mcp' || fileSession.origin === 'remote' ? fileSession.origin : undefined
+  const originLabel = externalOrigin ? t(`sessionOrigin.${externalOrigin}`) : undefined
   const defaultIcon = <Folder size={18} />
   const sessionIcon = host?.icon_id?.trim() ? (
     <HostAvatar
@@ -69,10 +69,10 @@ export function FileSessionTab({
       fallbackIcon={defaultIcon}
     />
   ) : defaultIcon
-  const accessibleLabel = isMcpSession
+  const accessibleLabel = externalOrigin
     ? `${label} · ${originLabel} · ${closing ? closingLabel : statusLabel}`
     : undefined
-  const tooltipTitle = isMcpSession
+  const tooltipTitle = externalOrigin
     ? (closing ? `${label} · ${originLabel}` : accessibleLabel)
     : undefined
 
@@ -130,7 +130,7 @@ export function FileSessionTab({
             aria-selected={active}
             aria-label={accessibleLabel}
             data-session-tab-id={fileSession.id}
-            data-session-origin={isMcpSession ? 'mcp' : undefined}
+            data-session-origin={externalOrigin}
             onClick={() => {
               if (!closing) {
                 startTransition(() => onSelect(fileSession.id))
@@ -143,7 +143,7 @@ export function FileSessionTab({
             }}
             onAuxClick={(event) => onAuxClose(event, fileSession.id)}
             icon={sessionIcon}
-            sourceIndicator={isMcpSession ? <Bot size={12} strokeWidth={2} /> : undefined}
+            sourceIndicator={externalOrigin === 'remote' ? <MonitorUp size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
             label={label}
             status={fileSession.status}
             statusLabel={statusLabel}

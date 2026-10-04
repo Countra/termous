@@ -16,6 +16,7 @@ import {
   FolderOpen,
   Loader2,
   MoreHorizontal,
+  MonitorUp,
   RefreshCw,
   RotateCcw,
   Trash2,
@@ -501,8 +502,9 @@ function TransferRow({
   const routeLabel = remoteRoute
     ? t('files.remoteCopy.route', remoteRoute)
     : null
-  const originLabel = resolveTransferOrigin(task) === 'mcp'
-    ? t('files.transferOrigin.mcp')
+  const origin = resolveTransferOrigin(task)
+  const originLabel = origin === 'mcp' || origin === 'remote'
+    ? t(`files.transferOrigin.${origin}`)
     : null
 
   const openLocalDirectory = async () => {
@@ -583,7 +585,7 @@ function TransferRow({
         className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
         aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
-        data-transfer-origin={originLabel ? 'mcp' : undefined}
+        data-transfer-origin={originLabel ? origin : undefined}
       >
         <span className="transfer-kind-icon">
           <Icon size={17} aria-hidden="true" />
@@ -593,7 +595,7 @@ function TransferRow({
             {originLabel ? (
               <Tooltip title={originLabel}>
                 <span className="transfer-origin-indicator" role="img" aria-label={originLabel}>
-                  <Bot size={12} strokeWidth={2} aria-hidden="true" />
+                  {origin === 'remote' ? <MonitorUp size={12} strokeWidth={2} aria-hidden="true" /> : <Bot size={12} strokeWidth={2} aria-hidden="true" />}
                 </span>
               </Tooltip>
             ) : null}
