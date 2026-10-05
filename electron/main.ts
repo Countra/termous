@@ -121,7 +121,7 @@ async function initializeNotifications() {
   await preferences.load()
   notificationPreferences = preferences
   notificationRuntime = new NotificationRuntime({
-    background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && (win.isMinimized() || !win.isVisible())),
+    background: (message) => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && (message.remote ? !remoteControlRuntime?.agentVisible(message) : win.isMinimized() || !win.isVisible())),
     supported: () => Notification.isSupported(),
     preferences: () => preferences.get(), language: () => appLanguage,
     create: (title, body) => new Notification({ title, body, icon: APP_ICON }),

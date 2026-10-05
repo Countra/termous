@@ -2,6 +2,7 @@ export type NotificationKind = 'agent' | 'file' | 'approval' | 'cloud'
 export type NotificationOutcome = 'success' | 'failed' | 'partial' | 'uncertain' | 'attention'
 
 export interface NotificationMessage {
+  remote?: { account: string; device_id: string; device_name: string; instance_id: string; approval_id?: string }
   id: string
   sequence: number
   kind: NotificationKind
@@ -39,6 +40,7 @@ export type NotificationEvent =
   | { type: 'upsert'; message: NotificationMessage }
 
 export type NotificationTarget =
+  | { kind: 'remote_agent'; account: string; device_id: string; device_name: string; session_id: string; approval_id?: string }
   | { kind: 'agent'; session_id: string }
   | { kind: 'transfer'; transfer_id: string }
   | { kind: 'approval'; approval_id: string }
@@ -108,6 +110,7 @@ export function decodeNotification(value: unknown): NotificationMessage {
   if (authorizationId && !/^[a-zA-Z0-9_-]{1,128}$/.test(authorizationId)) throw new Error('NOTIFICATION_INVALID')
   if ((expires !== undefined && !Number.isFinite(Date.parse(expires))) || (r.kind === 'approval' && (!expires || Date.parse(expires) <= Date.parse(occurred)))) throw new Error('NOTIFICATION_INVALID')
   return {
+    ...(r.remote === undefined ? {} : { remote: decodeRemoteSource(r.remote) }),
     id, source_id: source, kind: r.kind, outcome: r.outcome, occurred_at: occurred,
     sequence: integer(r.sequence), operation: text(r.operation),
     authorization_id: authorizationId, authorization_kind: authorizationKind,
@@ -123,6 +126,14 @@ export function decodeNotification(value: unknown): NotificationMessage {
     completed_files: integer(r.completed_files), total_files: integer(r.total_files),
     skipped_items: integer(r.skipped_items), native_eligible: boolean(r.native_eligible), read: boolean(r.read),
   }
+}
+
+function decodeRemoteSource(value: unknown): NonNullable<NotificationMessage['remote']> {
+  const r = record(value)
+  const account = text(r.account, 128), device = text(r.device_id, 128), instance = text(r.instance_id, 128)
+  const approval = r.approval_id === undefined ? undefined : text(r.approval_id, 128)
+  if (![account, device, instance, ...(approval ? [approval] : [])].every(value => /^[a-zA-Z0-9_-]{1,128}$/.test(value))) throw new Error('NOTIFICATION_INVALID')
+  return { account, device_id: device, instance_id: instance, device_name: summary(r.device_name, 80), approval_id: approval }
 }
 export function decodeNotificationPage(value: unknown): NotificationPage {
   const r = record(value)
@@ -143,6 +154,7 @@ export function validateNotificationPreferences(value: unknown): NotificationPre
 }
 
 export function notificationTarget(message: NotificationMessage): NotificationTarget {
+  if (message.remote) return message.session_id ? { kind: 'remote_agent', account: message.remote.account, device_id: message.remote.device_id, device_name: message.remote.device_name, session_id: message.session_id, approval_id: message.remote.approval_id } : { kind: 'centre', filter: 'agent' }
   if (message.kind === 'cloud') return { kind: 'cloud', binding_id: message.source_id, tab: message.authorization_id && message.authorization_kind || message.operation.startsWith('cloud_device') ? 'devices' : ['cloud_rekey', 'cloud_auth', 'cloud_security', 'cloud_recovery'].includes(message.operation) ? 'security' : 'sync', authorization: message.authorization_id && message.authorization_kind ? { id: message.authorization_id, kind: message.authorization_kind } : undefined }
   if (message.kind === 'approval') return { kind: 'approval', approval_id: message.source_id }
   if (message.kind === 'agent') return message.session_id ? { kind: 'agent', session_id: message.session_id } : { kind: 'centre', filter: 'agent' }
@@ -151,6 +163,11 @@ export function notificationTarget(message: NotificationMessage): NotificationTa
 
 export function notificationText(message: NotificationMessage, language: string): { title: string; body: string; subject: string; summary: string } {
   const zh = language.startsWith('zh')
+  if (message.remote) {
+    const subject = `${message.remote.device_name} · ${message.session_title || (zh ? 'AI 对话' : 'AI conversation')}`
+    const body = message.kind === 'approval' ? (zh ? '需要审批' : 'Approval needed') : message.outcome === 'success' ? (zh ? '回复已完成' : 'Reply completed') : (zh ? '执行失败' : 'Task failed')
+    return { title: subject, body, subject, summary: body }
+  }
   if (message.kind === 'cloud') {
     const labels: Record<string, [string, string]> = { cloud_sync: ['云同步', 'Cloud sync'], cloud_device_request: ['设备授权有更新', 'Device authorization update'], cloud_recovery: ['云端恢复有更新', 'Cloud recovery update'], cloud_security: ['账号安全有更新', 'Account security update'], cloud_device_approve: ['设备批准', 'Device approval'], cloud_device_revoke: ['设备撤销', 'Device revocation'], cloud_rekey: ['密钥轮换', 'Key rotation'], cloud_auth: ['云账号需要重新登录', 'Cloud sign-in required'], cloud_conflicts: ['云同步有冲突待处理', 'Cloud sync conflicts need attention'] }
     const label = labels[message.operation] ?? ['云服务', 'Cloud service']

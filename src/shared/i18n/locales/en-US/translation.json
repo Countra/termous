@@ -815,7 +815,9 @@
     "settings": "Settings"
   },
   "agent": {
+    "remoteApprovals": "Approvals",
     "sessions": {
+      "remoteOrigin": "Created remotely",
       "title": "Sessions",
       "new": "New session",
       "untitled": "New session",
@@ -1444,6 +1446,7 @@
       "remoteImageBlocked": "Remote image blocked"
     },
     "readiness": {
+      "remoteDescription": "Configure the AI assistant on the controlled computer.",
       "title": "Prepare the AI assistant runtime",
       "description": "The AI assistant uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > AI assistant.",
       "prepare": "Set up or repair",

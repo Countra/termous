@@ -334,6 +334,8 @@ export type AgentJsonValue =
   | { [key: string]: AgentJsonValue }
 
 export interface AgentSession {
+  origin?: 'remote'
+  creator_device_id?: string
   id: string
   title: string
   group_id?: string

@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RemoteBootstrap, RemoteWindowBridge } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
+  setAgentView: (session, id) => ipcRenderer.invoke('remote:agent-view', session, id),
+  agentUpload: (data, mime, id) => ipcRenderer.invoke('remote:agent-upload', data, mime, id),
+  agentDownload: (content, id) => ipcRenderer.invoke('remote:agent-download', content, id),
   bootstrap: () => ipcRenderer.invoke('remote:bootstrap'),
   connection: () => ipcRenderer.invoke('remote:connection'),
   reconnect: () => ipcRenderer.invoke('remote:reconnect'),

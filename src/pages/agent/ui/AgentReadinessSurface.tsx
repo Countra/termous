@@ -10,10 +10,12 @@ export function AgentReadinessSurface({
   onPrepare,
   onRefresh,
   compact = false,
+  remote = false,
 }: {
   readiness: AgentReadiness | null
   loading: boolean
-  onPrepare: () => void
+  onPrepare?: () => void
+  remote?: boolean
   onRefresh: () => void
   compact?: boolean
 }) {
@@ -27,9 +29,9 @@ export function AgentReadinessSurface({
   ] as const : []
   const actions = <>
     <Button icon={<RefreshCw size={15} />} disabled={loading} onClick={onRefresh}>{t('app.retry')}</Button>
-    <Button type="primary" icon={readiness?.status === 'ready' ? <Settings2 size={15} /> : <Wrench size={15} />} loading={loading} onClick={onPrepare}>
+    {onPrepare ? <Button type="primary" icon={readiness?.status === 'ready' ? <Settings2 size={15} /> : <Wrench size={15} />} loading={loading} onClick={onPrepare}>
       {t('agent.readiness.prepare')}
-    </Button>
+    </Button> : null}
   </>
   if (compact) return <Alert className={styles.alert} type="warning" showIcon title={t('agent.readiness.title')}
     description={t('agent.resource.recovery.infrastructureUnavailable')} action={actions} />
@@ -37,7 +39,7 @@ export function AgentReadinessSurface({
     <section className={styles.readiness}>
       <div className={styles['readiness-mark']}><Bot size={24} /></div>
       <h1>{t('agent.readiness.title')}</h1>
-      <p>{t('agent.readiness.description')}</p>
+      <p>{t(remote ? 'agent.readiness.remoteDescription' : 'agent.readiness.description')}</p>
       {readiness ? <div className={styles['readiness-list']}>{components.map(([key, component]) => (
         <div key={key}>
           <span className={component.status === 'ready' ? styles['is-ready'] : ''}>

@@ -6,6 +6,8 @@ import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDe
 import { RemoteCore, RemoteCoreError, result, validId } from './core'
 import { RemoteTerminalStream } from './stream'
 import { RemoteLocalTransfers } from './files'
+import { RemoteAgentContent } from './agentContent'
+import type { NotificationMessage } from '#common/contracts'
 
 interface Options {
   core: RemoteCore
@@ -15,6 +17,7 @@ interface Options {
   warn(code: string): void
 }
 interface Entry {
+  account?: string; agentSession?: string
   window: BrowserWindow; bootstrap: RemoteBootstrap
   opening: Promise<RemoteConnection>; connection?: RemoteConnection
   stream?: RemoteTerminalStream
@@ -25,10 +28,12 @@ interface Entry {
 }
 
 export class RemoteControlRuntime {
+  private agentContent: RemoteAgentContent
   private entries = new Map<string, Entry>()
   private timer: ReturnType<typeof setInterval>
   private checking = false
   constructor(private options: Options) {
+    this.agentContent = new RemoteAgentContent(options.core)
     this.register()
     this.timer = setInterval(() => { void this.checkAccount() }, 3000)
     this.timer.unref()
@@ -75,6 +80,38 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    ipcMain.handle('remote:agent-view', (event, session: unknown, id: string) => result(async () => {
+      const { entry } = await this.active(event, id)
+      if (session !== undefined && !validId(session)) throw new RemoteCoreError('remote_invalid_request')
+      entry.agentSession = session as string | undefined
+      return true
+    }))
+    ipcMain.handle('remote:open-agent', (event, generation: string, target: unknown) => result(async () => {
+      this.main(event, generation)
+      if (!target || typeof target !== 'object' || !('account' in target) || !('device_id' in target) || !('session_id' in target) || !validId(target.account) || !validId(target.device_id) || !validId(target.session_id)) throw new RemoteCoreError('remote_invalid_request')
+      const approval = 'approval_id' in target ? target.approval_id : undefined
+      if (approval !== undefined && !validId(approval)) throw new RemoteCoreError('remote_invalid_request')
+      const status = await this.options.core.request<{ generation: string; scope_id: string; available: boolean }>('/remote-control/status')
+      if (!status.available || status.generation !== generation || status.scope_id !== target.account) throw new RemoteCoreError('remote_account_unavailable')
+      const devices = await this.options.core.request<{ devices: RemoteDevice[] }>(`/remote-control/devices?generation=${encodeURIComponent(generation)}`)
+      const device = devices.devices?.find(device => device.id === target.device_id)
+      if (!device) throw new RemoteCoreError('remote_host_unavailable')
+      await this.open(generation, device.id, device.name, { id: randomUUID(), sessionId: target.session_id, approvalId: approval })
+      return true
+    }))
+    ipcMain.handle('remote:configure-agent', (event, generation: string, revision: number, enabled: boolean) => result(async () => {
+      this.main(event, generation)
+      if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean') throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request<RemotePolicy>('/remote-control/agent-policy', { generation, revision, enabled }, 'PUT')
+    }))
+    ipcMain.handle('remote:agent-upload', (event, data: unknown, mime: unknown, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
+      return this.agentContent.upload(base, entry.bootstrap.generation, data, mime)
+    }))
+    ipcMain.handle('remote:agent-download', (event, content: unknown, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
+      return this.agentContent.download(base, entry.bootstrap.generation, content)
+    }))
     ipcMain.handle('remote:open', (event, generation: string, deviceId: string, name: string) => result(async () => {
       this.main(event, generation)
       if (!validId(deviceId) || typeof name !== 'string' || name.length > 256) throw new RemoteCoreError('remote_invalid_request')
@@ -186,16 +223,19 @@ export class RemoteControlRuntime {
     ipcMain.handle('remote:close', event => { this.own(event).window.close() })
   }
 
-  private async open(generation: string, deviceId: string, name: string) {
-    const status = await this.options.core.request<{ generation: string; available: boolean }>('/remote-control/status')
+  private async open(generation: string, deviceId: string, name: string, agentTarget?: RemoteBootstrap['agentTarget']) {
+    const status = await this.options.core.request<{ generation: string; available: boolean; scope_id: string }>('/remote-control/status')
     if (!status.available || status.generation !== generation) throw new RemoteCoreError('remote_account_unavailable')
     const key = `${generation}:${deviceId}`
     const existing = this.entries.get(key)
-    if (existing && !existing.window.isDestroyed()) { existing.window.show(); existing.window.focus(); return }
+    if (existing && !existing.window.isDestroyed()) {
+      if (agentTarget) { existing.bootstrap = { ...existing.bootstrap, agentTarget }; existing.window.webContents.send('remote:appearance', existing.bootstrap) }
+      existing.window.show(); existing.window.focus(); return
+    }
     const appearance = this.options.appearance()
     const window = new BrowserWindow({ width: 1220, height: 800, minWidth: 860, minHeight: 560, show: false, title: `Termous · ${name}`, icon: this.options.icon, autoHideMenuBar: true, backgroundColor: appearance.theme === 'dark' ? '#0f1116' : '#f4f5f7', webPreferences: { preload: this.options.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } })
     const opening = this.options.core.request<RemoteConnection>('/remote-control/connections', { generation, device_id: deviceId, operation_id: randomUUID() })
-    const entry: Entry = { window, bootstrap: { generation, deviceId, deviceName: name, ...appearance }, opening, files: new RemoteLocalTransfers(this.options.core, this.options.warn) }
+    const entry: Entry = { account: status.scope_id, window, bootstrap: { generation, deviceId, deviceName: name, agentTarget, ...appearance }, opening, files: new RemoteLocalTransfers(this.options.core, this.options.warn) }
     this.entries.set(key, entry)
     void opening.then(async connection => { entry.connection = connection; if (window.isDestroyed()) await this.disconnect(entry) }).catch(() => this.options.warn('remote_connection_failed'))
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -220,6 +260,7 @@ export class RemoteControlRuntime {
   }
 
   private async disconnect(entry: Entry) {
+    entry.agentSession = undefined
     const stream = entry.stream
     entry.stream = undefined
     stream?.close()
@@ -280,6 +321,11 @@ export class RemoteControlRuntime {
       entry.bootstrap = { ...entry.bootstrap, ...this.options.appearance() }
       if (!entry.window.isDestroyed()) entry.window.webContents.send('remote:appearance', entry.bootstrap)
     }
+  }
+  agentVisible(message: NotificationMessage) {
+    return !!message.remote && [...this.entries.values()].some(entry =>
+      entry.account === message.remote!.account && entry.bootstrap.deviceId === message.remote!.device_id &&
+      entry.agentSession === message.session_id && !!entry.agentSession && !entry.window.isDestroyed() && entry.window.isFocused() && entry.window.isVisible())
   }
   close() { clearInterval(this.timer); for (const entry of this.entries.values()) entry.window.close() }
 }

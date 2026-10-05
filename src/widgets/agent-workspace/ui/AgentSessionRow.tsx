@@ -1,3 +1,4 @@
+import { Monitor } from 'lucide-react'
 import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { Archive, ArrowDown, ArrowUp, FolderInput, GripVertical, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react'
 import { useRef, type HTMLAttributes } from 'react'
@@ -117,7 +118,7 @@ export function AgentSessionRow({ session, groups, selected, disabled, busy, edi
               draggable={!unavailable && Boolean(dragProps?.draggable)} onDragStart={dragProps?.onDragStart} onDragEnd={dragProps?.onDragEnd}
               {...pointerProps}><GripVertical size={14} aria-hidden="true" /></button>
             <button ref={buttonRef} className={styles['session-select']} type="button" aria-current={selected ? 'page' : undefined} onClick={() => onSelect(session.id)}>
-              <strong>{session.pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span></strong>
+              <strong>{session.origin === 'remote' ? <span title={t('agent.sessions.remoteOrigin')}><Monitor size={12} aria-label={t('agent.sessions.remoteOrigin')} /></span> : null}{session.pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span></strong>
               <span className={styles['session-meta']}>
                 <span className={styles['session-model']} title={modelName}>
                   <i data-status={session.run_status.replace('_', '-')} aria-hidden="true" />

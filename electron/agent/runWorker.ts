@@ -148,11 +148,12 @@ export class AgentRunWorker {
     }))
   }
 
-  steer(message: string): Promise<AgentRunWorkerSteerResult> {
+  steer(message: string, requestID?: string): Promise<AgentRunWorkerSteerResult> {
     if (!this.runtimeStarted || this.settled || this.stopping) {
       return Promise.resolve({ accepted: false, error_code: 'AGENT_RUNTIME_RUN_NOT_ACTIVE' })
     }
-    const clientRequestID = `agsr_${randomUUID()}`
+    const clientRequestID = requestID ?? `agsr_${randomUUID()}`
+    if (this.pendingSteerAcks.has(clientRequestID)) return Promise.resolve({ accepted: false, error_code: 'AGENT_RUNTIME_STEER_PENDING' })
     return new Promise<AgentRunWorkerSteerResult>((resolve) => {
       const timer = this.setTimeoutImplementation(() => {
         this.resolveSteerAck(clientRequestID, {

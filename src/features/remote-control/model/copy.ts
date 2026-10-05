@@ -1,7 +1,14 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
-  title: 'Remote control', sessions: 'Sessions', hosts: 'Hosts', files: 'Files', terminal: 'Terminal', split: 'Split view',
+  title: 'Remote control',
+  agentDisabled: 'Enable remote AI access on the controlled computer.',
+  agentUnsupported: 'The controlled computer does not support remote AI. Update Termous on that computer.',
+  agentRestarted: 'The AI service on the controlled computer restarted. Reconnect to continue.',
+  agentChecking: 'Checking AI access on the controlled computer',
+  agentResourcesUnavailable: 'Could not load resources from the controlled computer.',
+  agentViewUnavailable: 'Could not update notification status for this conversation.',
+  quoteAgent: 'Quote selection in AI', agent: 'AI assistant', agentPermission: 'Allow remote AI assistant', agentPermissionHint: 'Allow trusted devices to view all AI conversations and use the existing AI tool permissions.', sessions: 'Sessions', hosts: 'Hosts', files: 'Files', terminal: 'Terminal', split: 'Split view',
   uploadHost: 'Upload from controlled computer', downloadHost: 'Download to controlled computer',
   uploadDevice: 'Upload from this device', downloadDevice: 'Download to this device',
   uploadFolderDevice: 'Upload folder from this device', directoryReplace: 'For folders, choose Keep both or Skip.',
@@ -45,7 +52,14 @@ const en = {
   emptyDirectory: 'This folder is empty', operationPending: 'File operation started', shellNotice: 'Commands run with the selected SSH account permissions.',
 }
 const zh: typeof en = {
-  title: '远程控制', sessions: '会话', hosts: '主机', files: '文件', terminal: '终端', split: '并排显示',
+  title: '远程控制',
+  agentDisabled: '请在被控电脑开启 AI 助手远程访问权限。',
+  agentUnsupported: '被控电脑尚不支持远程 AI，请更新该电脑上的 Termous。',
+  agentRestarted: '被控电脑的 AI 服务已重启，请重新连接。',
+  agentChecking: '正在检查被控电脑的 AI 访问状态',
+  agentResourcesUnavailable: '被控电脑的资源列表暂时不可用。',
+  agentViewUnavailable: '此会话的通知状态更新失败。',
+  quoteAgent: '引用选区到 AI', agent: 'AI 助手', agentPermission: '允许远程使用 AI 助手', agentPermissionHint: '允许可信设备查看全部 AI 对话，并沿用此电脑的 AI 工具权限。', sessions: '会话', hosts: '主机', files: '文件', terminal: '终端', split: '并排显示',
   uploadHost: '上传自被控电脑', downloadHost: '下载到被控电脑',
   uploadDevice: '上传自此设备', downloadDevice: '下载到此设备',
   uploadFolderDevice: '上传此设备的目录', directoryReplace: '传输目录时，请选择保留两者或跳过。',
@@ -94,6 +108,9 @@ export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code).toLowerCase() : ''
   if (error && typeof error === 'object' && 'uncertain' in error && error.uncertain) return copy.uncertain
   if (code === 'remote_policy_changed') return copy.policyChanged
+  if (code === 'remote_agent_disabled') return copy.agentDisabled
+  if (code === 'remote_agent_unsupported') return copy.agentUnsupported
+  if (code === 'remote_agent_restarted') return copy.agentRestarted
   if (code === 'remote_profile_changed') return copy.changedProfile
   if (code === 'remote_signaling_unavailable') return copy.signalingUnavailable
   if (code === 'remote_signaling_rejected') return copy.signalingRejected

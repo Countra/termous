@@ -8,7 +8,7 @@ export interface NativeNotification {
   removeAllListeners(): unknown
 }
 interface Options {
-  background(): boolean
+  background(message: NotificationMessage): boolean
   supported(): boolean
   preferences(): NotificationPreferences
   language(): string
@@ -55,7 +55,7 @@ export class NotificationRuntime {
       if (message.sequence <= this.watermark) continue
       this.watermark = message.sequence
       const age = (this.options.now?.() ?? Date.now()) - Date.parse(message.occurred_at)
-      if (age > 120_000 || age < -60_000 || message.read || !message.native_eligible || !this.allowed(message)) continue
+      if (age > 120_000 && !(message.remote && message.kind === 'approval') || age < -60_000 || message.read || !message.native_eligible || !this.allowed(message)) continue
       if (message.kind === 'file') {
         this.files.push(message)
         if (this.files.length > 1000) this.files.shift()
@@ -68,7 +68,7 @@ export class NotificationRuntime {
   private allowed(message: NotificationMessage) {
     const preferences = this.options.preferences()
     const expired = message.expires_at && Date.parse(message.expires_at) <= (this.options.now?.() ?? Date.now())
-    return !expired && preferences.enabled && preferences[message.kind] && this.options.background() && this.options.supported()
+    return !expired && preferences.enabled && preferences[message.kind] && this.options.background(message) && this.options.supported()
   }
   private deliver(messages: NotificationMessage[]) {
     if (this.closed || !messages.length || !this.allowed(messages[0])) return

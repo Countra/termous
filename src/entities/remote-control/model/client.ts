@@ -41,6 +41,8 @@ export class RemoteClient {
   onEvent(callback: (event: Event) => void) { this.events.add(callback); return () => { this.events.delete(callback) } }
   async selectTransfer(input: RemoteLocalSelection) { return unwrap(await this.bridge.selectTransfer(input, this.connection.id)) }
   async localTransfers() { return unwrap(await this.bridge.localTransfers(this.connection.id)) }
+  async agentUpload(data: Uint8Array, mime: string) { return unwrap(await this.bridge.agentUpload(data, mime, this.connection.id)) }
+  async agentDownload(id: string) { return unwrap(await this.bridge.agentDownload(id, this.connection.id)) }
   async localTransferAction(id: string, action: 'resume' | 'cancel') { return unwrap(await this.bridge.localTransferAction(id, action, this.connection.id)) }
   async send(input: MessageInitShape<typeof StreamFrameSchema>) {
     unwrap(await this.bridge.send(toBinary(StreamFrameSchema, create(StreamFrameSchema, input)), this.connection.id))

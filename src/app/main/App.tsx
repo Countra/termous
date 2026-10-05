@@ -340,6 +340,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
   useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
+    if (target.kind === 'remote_agent') {
+      const generation = gateways.cloud.getStatus()?.generation
+      const remote = getTermousBridge()?.remoteControl
+      if (!generation || !remote) return false
+      try { return (await remote.openAgent(generation, target)).ok } catch { return false }
+    }
     if (target.kind === 'approval') {
       if (hostKeyApprovalBlocking) return false
       try {

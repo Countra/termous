@@ -19,7 +19,8 @@ const output = path.resolve(process.argv[2])
 await mkdir(output, { recursive: true })
 app.setPath('userData', path.join(output, 'user-data'))
 const token = randomUUID()
-const { bridge } = createPreview(new URLSearchParams())
+const { bridge } = createPreview(new URLSearchParams('agent'))
+let attachment = Buffer.alloc(0)
 let creates = 0, closes = 0, authenticatedRequests = 0, terminalFrames = 0
 let rejectUpgrade = false
 const server = createServer(async (request, response) => {
@@ -28,8 +29,19 @@ const server = createServer(async (request, response) => {
     authenticatedRequests++
     const parts: Buffer[] = []
     for await (const chunk of request) parts.push(Buffer.from(chunk))
-    const input = parts.length ? JSON.parse(Buffer.concat(parts).toString()) : {}
     const route = new URL(request.url!, 'http://localhost').pathname
+    if (route.endsWith('/agent-content')) {
+      attachment = Buffer.concat(parts)
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ id: 'content-fixture' }))
+      return
+    }
+    if (route.endsWith('/agent-content/content-fixture')) {
+      response.writeHead(200, { 'Content-Type': 'text/plain' })
+      response.end(attachment)
+      return
+    }
+    const input = parts.length ? JSON.parse(Buffer.concat(parts).toString()) : {}
     let value: unknown
     if (route === '/api/v1/remote-control/status') value = { generation: '1', available: true }
     else if (route === '/api/v1/cloud/status') value = { generation: '1', authenticated: true }
@@ -80,6 +92,8 @@ try {
   console.log('启动窗口已加载')
   const forbidden = await launcher.webContents.executeJavaScript('window.acceptance.call("remote:connection")')
   assert.equal(forbidden.code, 'remote_ipc_forbidden')
+  const forbiddenAgent = await launcher.webContents.executeJavaScript('window.acceptance.call("remote:agent-download", "content-fixture", "preview")')
+  assert.equal(forbiddenAgent.code, 'remote_ipc_forbidden')
   for (let i = 0; i < 2; i++) assert.equal((await launcher.webContents.executeJavaScript('window.acceptance.call("remote:open", "1", "host", "Termous Workstation")')).ok, true)
   const windows = BrowserWindow.getAllWindows().filter(item => item !== launcher)
   console.log('远控窗口已打开')
@@ -92,6 +106,18 @@ try {
   assert.equal(await remote.webContents.executeJavaScript('typeof window.termous'), 'undefined')
   const result = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, "preview")')
   assert.equal(result.ok, true); assert.equal(result.value.inventory.sessions.length, 4)
+  assert.equal(result.value.inventory.agentEnabled, true)
+  const agent = await remote.webContents.executeJavaScript('window.termousRemote.request({agent:{query:{kind:1}}}, "preview")')
+  assert.equal(agent.ok, true); assert.equal(agent.value.agent.type, 'readiness')
+  const upload = await remote.webContents.executeJavaScript('window.termousRemote.agentUpload(new Uint8Array([65,66,67]), "text/plain", "preview")')
+  assert.equal(upload.ok, true); assert.equal(upload.value.id, 'content-fixture')
+  const download = await remote.webContents.executeJavaScript('window.termousRemote.agentDownload("content-fixture", "preview")')
+  assert.equal(download.ok, true); assert.deepEqual(Array.from(download.value), [65, 66, 67])
+  const jsonUpload = await remote.webContents.executeJavaScript('window.termousRemote.agentUpload(new Uint8Array([123,125]), "application/json", "preview")')
+  assert.equal(jsonUpload.ok, true)
+  const badAttachment = await remote.webContents.executeJavaScript('window.termousRemote.agentUpload(new Uint8Array([65]), "invalid mime", "preview")')
+  assert.equal(badAttachment.code, 'remote_invalid_request')
+  assert.equal((await remote.webContents.executeJavaScript('window.termousRemote.setAgentView("ags-session", "preview")')).ok, true)
   const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}}, "preview")')
   assert.equal(invalid.code, 'remote_invalid_request')
   await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("选择连接") && document.body.innerText.includes("Release bucket")'))
@@ -133,6 +159,8 @@ try {
   assert.equal(creates, 2)
   const stale = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, "preview")')
   assert.equal(stale.code, 'remote_disconnected')
+  const staleAgent = await remote.webContents.executeJavaScript('window.termousRemote.agentDownload("content-fixture", "preview")')
+  assert.equal(staleAgent.code, 'remote_disconnected')
   const unbound = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}})')
   assert.equal(unbound.code, 'remote_disconnected')
   const nullBinding = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, null)')
@@ -163,7 +191,7 @@ try {
     socket.send('invalid text frame')
     await until(() => streamClosed)
   } finally { stream.close() }
-  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, failedStreamRetry: true, disconnectOnly: true, reconnect: true, staleConnectionRejected: true, boundedTerminalBackpressure: true, authenticatedRequests, terminalFrames }, null, 2))
+  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, agentRPC: true, agentAttachmentRoundTrip: true, agentOwnedIPC: true, failedStreamRetry: true, disconnectOnly: true, reconnect: true, staleConnectionRejected: true, boundedTerminalBackpressure: true, authenticatedRequests, terminalFrames }, null, 2))
   console.log('Electron 独立窗口及 IPC 验收通过')
 } finally {
   runtime.close(); launcher.destroy(); ipcMain.removeAllListeners()

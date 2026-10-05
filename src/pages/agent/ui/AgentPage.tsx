@@ -92,6 +92,7 @@ const noSlashCandidates: AgentSlashCandidateCatalog = {
 
 export function AgentPage({
   notificationSessionId,
+  onVisibleSessionChange,
   onNotificationSessionHandled,
   gateway,
   setupGateway,
@@ -108,9 +109,11 @@ export function AgentPage({
   onRuntimeSummaryChange,
   onReferenceTargetsChange,
   onOpenSettings,
+  remote = false,
 }: {
   gateway: AgentWorkspaceGateway
-  setupGateway: AgentSetupGateway
+  setupGateway: Pick<AgentSetupGateway, 'readiness' | 'modelProviders' | 'models'> & Partial<Pick<AgentSetupGateway, 'setup'>>
+  remote?: boolean
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
   sshProfileResourcesReady?: boolean
@@ -120,6 +123,7 @@ export function AgentPage({
   enabled: boolean
   active: boolean
   notificationSessionId?: string
+  onVisibleSessionChange?: (sessionId?: string) => void
   onNotificationSessionHandled?: () => void
   launchIntent?: AgentLaunchIntent | null
   onLaunchIntentHandled?: (key: number) => void
@@ -137,14 +141,37 @@ export function AgentPage({
   const getQueuedEditOwner = useAgentQueuedTurnEditOwners(controller)
   const [composerFocusKey, setComposerFocusKey] = useState(0)
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
-  useEffect(() => {
-    if (!active || !state.snapshot_complete || !notificationSessionId) return
-    if (state.sessions.some((session) => session.id === notificationSessionId)) controller.selectSession(notificationSessionId)
-    onNotificationSessionHandled?.()
-  }, [active, controller, notificationSessionId, onNotificationSessionHandled, state.snapshot_complete, state.sessions])
   const management = useAgentSessionManagement(controller, gateway, state.sessions, enabled && active)
   const [archivesOpen, setArchivesOpen] = useState(false)
   const archives = useAgentArchives(gateway, archivesOpen && enabled && active, state.sessions)
+  const [notificationArchive, setNotificationArchive] = useState<string>()
+  useEffect(() => {
+    if (!active || !state.snapshot_complete || !notificationSessionId) return
+    if (controller.getSnapshot().sessions.some(session => session.id === notificationSessionId)) {
+      controller.selectSession(notificationSessionId)
+      onNotificationSessionHandled?.()
+      return
+    }
+    const abort = new AbortController()
+    void gateway.session(notificationSessionId, abort.signal).then(session => {
+      if (abort.signal.aborted) return
+      if (session.archived_at) { setArchivesOpen(true); setNotificationArchive(session.id) }
+      else onNotificationSessionHandled?.()
+    }).catch(() => {
+      if (!abort.signal.aborted) { notification.error({ message: t('agent.error.degraded') }); onNotificationSessionHandled?.() }
+    })
+    return () => abort.abort()
+  }, [active, controller, gateway, notificationSessionId, onNotificationSessionHandled, state.snapshot_complete, notification, t])
+  useEffect(() => {
+    if (!notificationArchive || archives.listLoading || !archives.sessions.some(session => session.id === notificationArchive)) return
+    archives.selectSession(notificationArchive)
+    setNotificationArchive(undefined)
+    onNotificationSessionHandled?.()
+  }, [notificationArchive, archives, onNotificationSessionHandled])
+  useEffect(() => {
+    onVisibleSessionChange?.(active ? archivesOpen ? archives.selectedSessionId : state.selected_session_id : undefined)
+    return () => onVisibleSessionChange?.(undefined)
+  }, [active, archivesOpen, archives.selectedSessionId, state.selected_session_id, onVisibleSessionChange])
   const [draftGroupId, setDraftGroupId] = useState<string>()
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
   const [providers, setProviders] = useState<AgentModelProvider[]>([])
@@ -354,6 +381,7 @@ export function AgentPage({
   }, 'resource'), [controller, perform])
 
   const changeApprovalMode = useCallback(async (mode: AgentApprovalMode) => {
+    if (remote) throw new Error('REMOTE_OPERATION_UNSUPPORTED')
     const policy = readiness?.mcp_policy
     if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')
     const epoch = activeSetupEpochRef.current
@@ -381,7 +409,7 @@ export function AgentPage({
       }
     })
     if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
-  }, [gateway, perform, readiness?.mcp_policy, setupGateway])
+  }, [gateway, perform, readiness?.mcp_policy, setupGateway, remote])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
   const newSessionModelId = draftModelId
@@ -707,8 +735,9 @@ export function AgentPage({
     ? {
         status: 'ready' as const,
         mode: agentApprovalModeFromBypass(approvalBypass),
+        ...(remote ? { readOnly: true } : {}),
       }
-    : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass])
+    : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass, remote])
 
   // 连接恢复不依赖 Skills 或 Worker；已有引用的工作区保留访问，任务入口另行锁定。
   const recoveryWorkspaceAvailable = state.snapshot_complete && state.sessions.some((session) => !session.archived_at
@@ -718,14 +747,15 @@ export function AgentPage({
     compact={enabled && Boolean(readiness) && recoveryWorkspaceAvailable}
     loading={setupLoading || operationBusy.workspace}
     onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
-    onPrepare={() => void perform(async () => {
+    remote={remote}
+    onPrepare={remote || !setupGateway.setup ? undefined : () => void perform(async () => {
       if (!enabled || !active) return
       const epoch = activeSetupEpochRef.current
       activeSetupAbortRef.current?.abort()
       const requestAbort = new AbortController()
       activeSetupAbortRef.current = requestAbort
       try {
-        const result = await setupGateway.setup(requestAbort.signal)
+        const result = await setupGateway.setup!(requestAbort.signal)
         requestAbort.signal.throwIfAborted()
         const catalog = await loadAgentModelCatalog(setupGateway, requestAbort.signal)
         if (requestAbort.signal.aborted || activeSetupEpochRef.current !== epoch) return
@@ -739,7 +769,7 @@ export function AgentPage({
       }
     })}
   />
-  if (!enabled || !readiness || !workspaceInfrastructureReady && !recoveryWorkspaceAvailable) {
+  if (!enabled || !readiness || !remote && !workspaceInfrastructureReady && !recoveryWorkspaceAvailable) {
     return <div className={styles.page}>{referenceNotice}{readinessSurface}</div>
   }
 

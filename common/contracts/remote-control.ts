@@ -1,5 +1,6 @@
 import type { JsonValue } from '@bufbuild/protobuf'
 import type { AppLanguage, AppTheme } from './application'
+import type { NotificationTarget } from './notification'
 
 export interface RemoteConnection {
   id: string
@@ -19,10 +20,13 @@ export interface RemoteDevice {
 }
 export interface RemotePolicy {
   revision: number; enabled: boolean
+  agent_enabled?: boolean
   hosts: { id: string }[]
   directories: { id: string; name: string; path: string; read: boolean; write: boolean }[]
 }
+export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
 export interface RemoteBootstrap {
+  agentTarget?: { id: string; sessionId: string; approvalId?: string }
   generation: string; deviceId: string; deviceName: string
   language: AppLanguage; theme: AppTheme
 }
@@ -39,15 +43,20 @@ export interface RemoteLocalSelection {
   directory?: boolean
 }
 export interface RemoteLauncher {
+  openAgent(generation: string, target: Extract<NotificationTarget, { kind: 'remote_agent' }>): Promise<RemoteResult<boolean>>
   open(generation: string, deviceId: string, deviceName: string): Promise<RemoteResult<boolean>>
   devices(generation: string): Promise<RemoteResult<RemoteDevice[]>>
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
   configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
+  configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  setAgentView?(sessionId: string | undefined, connectionId: string): Promise<RemoteResult<boolean>>
+  agentUpload(data: Uint8Array, mime: string, connectionId: string): Promise<RemoteResult<{ id: string }>>
+  agentDownload(id: string, connectionId: string): Promise<RemoteResult<Uint8Array>>
   bootstrap(): Promise<RemoteBootstrap>
   connection(): Promise<RemoteResult<RemoteConnection>>
   reconnect(): Promise<RemoteResult<RemoteConnection>>

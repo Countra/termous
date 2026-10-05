@@ -27,6 +27,7 @@ import type {
   AgentSessionUpdateInput,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
+import type { AgentWorkspaceObserver, AgentWorkspaceSubscription } from './agentSubscription.ts'
 
 export interface AgentSessionListOptions {
   archived?: boolean
@@ -57,6 +58,8 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  readonly runtimeOwnedByHost?: boolean
+  subscribeWorkspace?(observer: AgentWorkspaceObserver): AgentWorkspaceSubscription
   sessionGroups(signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
   createSessionGroup(name: string, signal?: AbortSignal): Promise<AgentSessionGroup>
   updateSessionGroup(id: string, input: { name: string; expected_revision: number }, signal?: AbortSignal): Promise<AgentSessionGroup>

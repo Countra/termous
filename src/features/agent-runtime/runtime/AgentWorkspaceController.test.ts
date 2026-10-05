@@ -36,6 +36,44 @@ import {
   AgentWorkspaceControllerError,
 } from './AgentWorkspaceController.ts'
 import { decodeAgentRunEventPage } from '../model/agentRuntimeProtocol.ts'
+import type { AgentWorkspaceObserver } from '../api/agentSubscription.ts'
+
+test('旧订阅迟到的关闭事件不能使重新打开的工作区进入重连', async () => {
+  const gateway: AgentWorkspaceGateway = new FakeGateway()
+  const observers: AgentWorkspaceObserver[] = []
+  gateway.subscribeWorkspace = observer => {
+    observers.push(observer)
+    return { close: () => undefined }
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  try {
+    controller.start()
+    await settle()
+    controller.close()
+    controller.start()
+    await settle()
+    observers[1]!.event({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+    const current = controller.getSnapshot()
+    observers[0]!.close()
+    assert.equal(controller.getSnapshot(), current)
+    assert.equal(controller.getSnapshot().snapshot_complete, true)
+  } finally { controller.close() }
+})
+
+test('订阅同步交付无效事件时仍能关闭最终返回的订阅句柄', async () => {
+  const gateway: AgentWorkspaceGateway = new FakeGateway()
+  let closed = 0
+  gateway.subscribeWorkspace = observer => {
+    observer.event({ type: 'invalid' })
+    return { close: () => { closed++; observer.close() } }
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  try {
+    controller.start()
+    assert.equal(closed, 1)
+    await settle()
+  } finally { controller.close() }
+})
 
 test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提交内容', async () => {
   const rejectedGateway = new FakeGateway()

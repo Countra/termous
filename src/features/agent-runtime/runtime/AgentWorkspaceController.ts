@@ -15,7 +15,7 @@ import type {
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
-import { retireWebSocket } from '#shared/websocket'
+import { subscribeLocalWorkspace, type AgentWorkspaceSubscription, type AgentWorkspaceObserver } from '../api/agentSubscription.ts'
 import type { AgentWorkspaceGateway } from '../api/agentRuntimeGateway.ts'
 import { loadAgentMessages } from './loadAgentMessages.ts'
 import {
@@ -102,8 +102,8 @@ export class AgentWorkspaceController {
   private readonly newClientRequestID: () => string
   private readonly setTimer: NonNullable<AgentWorkspaceControllerOptions['setTimer']>
   private readonly clearTimer: NonNullable<AgentWorkspaceControllerOptions['clearTimer']>
-  private socket: WebSocket | null = null
-  private snapshotSocket: WebSocket | null = null
+  private socket: AgentWorkspaceSubscription | null = null
+  private snapshotSocket: AgentWorkspaceSubscription | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private streamNotificationTimer: ReturnType<typeof setTimeout> | undefined
   private pendingStreamNotification: AgentStreamNotification | undefined
@@ -185,7 +185,7 @@ export class AgentWorkspaceController {
     const socket = this.socket
     this.socket = null
     this.snapshotSocket = null
-    if (socket) retireWebSocket(socket)
+    socket?.close()
     this.unsubscribeRuntime?.()
     this.unsubscribeRuntime = undefined
     this.commit({ ...this.state, phase: 'idle', snapshot_complete: false })
@@ -386,7 +386,7 @@ export class AgentWorkspaceController {
       }
       let result
       try {
-        result = await this.gateway.startRuntime(run)
+        result = this.gateway.runtimeOwnedByHost ? { accepted: true } : await this.gateway.startRuntime(run)
       } catch (error) {
         await this.cancelRejectedRuntimeStart(run)
         throw new AgentRuntimeStartError(runtimeStartErrorCode(error), run)
@@ -409,7 +409,7 @@ export class AgentWorkspaceController {
     return await this.runMutation(async () => {
       const run = activeAgentRun(this.state)
       if (!run) return undefined
-      const runtimeStopping = this.gateway.stopRuntime(run).then(
+      const runtimeStopping = (this.gateway.runtimeOwnedByHost ? Promise.resolve({ accepted: true, error_code: undefined }) : this.gateway.stopRuntime(run)).then(
         (result) => ({ ok: true as const, result }),
         (error: unknown) => ({ ok: false as const, error }),
       )
@@ -469,25 +469,27 @@ export class AgentWorkspaceController {
 
   private connect() {
     if (this.disposed || this.socket) return
-    let socket: WebSocket
-    try {
-      socket = this.socketFactory(this.gateway.eventsUrl())
-    } catch (error) {
-      this.captureError(error, 'reconnecting')
-      this.scheduleReconnect()
-      return
-    }
+    let stop: ((immediate?: boolean) => void) | undefined
+    let closing = false
+    let immediateClose = false
+    const socket: AgentWorkspaceSubscription = { close: immediate => {
+      closing = true
+      immediateClose ||= immediate === true
+      stop?.(immediateClose)
+    } }
     this.socket = socket
     this.snapshotSocket = null
-    socket.addEventListener('open', () => {
-      if (this.disposed || this.socket !== socket) return
-      this.reconnectDelay = reconnectInitialDelay
-      void this.reload().catch((error) => this.captureError(error))
-    })
-    socket.addEventListener('message', (message: MessageEvent<string>) => {
-      if (this.disposed || this.socket !== socket) return
+    const observer: AgentWorkspaceObserver = {
+      resync: async () => { if (!this.disposed && this.socket === socket) await this.reload() },
+      open: () => {
+        if (closing || this.disposed || this.socket !== socket) return
+        this.reconnectDelay = reconnectInitialDelay
+        void this.reload().catch((error) => this.captureError(error))
+      },
+      event: (value) => {
+      if (closing || this.disposed || this.socket !== socket) return
       try {
-        const event = decodeAgentWorkspaceEvent(JSON.parse(String(message.data)))
+        const event = decodeAgentWorkspaceEvent(value)
         if (event.type !== 'snapshot' && this.snapshotSocket !== socket) {
           throw new AgentWorkspaceControllerError('AGENT_WORKSPACE_SNAPSHOT_REQUIRED')
         }
@@ -500,7 +502,7 @@ export class AgentWorkspaceController {
             new AgentWorkspaceControllerError('AGENT_WORKSPACE_REVISION_GAP'),
             'reconnecting',
           )
-          socket.close()
+          socket.close(true)
           return
         }
         this.authorityVersion += 1
@@ -588,18 +590,31 @@ export class AgentWorkspaceController {
       } catch (error) {
         this.invalidateHydrations()
         this.captureError(error, 'reconnecting')
-        socket.close()
+        socket.close(true)
       }
-    })
-    socket.addEventListener('error', () => socket.close())
-    socket.addEventListener('close', () => {
-      if (this.socket === socket) this.socket = null
+      },
+      close: () => {
+      if (this.socket !== socket) return
+      this.socket = null
       if (this.snapshotSocket === socket) this.snapshotSocket = null
       if (!this.disposed) {
         this.commit({ ...this.state, phase: 'reconnecting', snapshot_complete: false })
         this.scheduleReconnect()
       }
-    })
+      },
+    }
+    try {
+      const subscription = this.gateway.subscribeWorkspace
+        ? this.gateway.subscribeWorkspace(observer)
+        : subscribeLocalWorkspace(this.gateway.eventsUrl(), observer, this.socketFactory)
+      stop = immediate => subscription.close(immediate)
+      // 订阅可能同步交付事件；校验失败时延后释放刚返回的句柄，不能丢失关闭请求。
+      if (closing) stop(immediateClose)
+    } catch (error) {
+      this.socket = null
+      this.captureError(error, 'reconnecting')
+      this.scheduleReconnect()
+    }
   }
 
   private scheduleReconnect() {

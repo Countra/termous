@@ -6,6 +6,7 @@ import {
   type AgentSkillsBundleStatus,
 } from '#common/contracts'
 import { isRecord, validGeneration, validRunID } from './protocol.ts'
+import { isAgentControlCommand, type AgentControlCommand, type AgentControlIdentity, type AgentControlAck } from './controlProtocol.ts'
 
 export type AgentRuntimeFailureCategory =
   | 'worker_crash'
@@ -39,6 +40,8 @@ export interface AgentQueuedTurnSteerResult {
 }
 
 export interface AgentCoreRuntimePort {
+  pollControl?(identity: AgentControlIdentity, signal: AbortSignal): Promise<AgentControlCommand | null>
+  ackControl?(input: AgentControlAck, signal: AbortSignal): Promise<void>
   registerSupervisor(
     supervisorInstanceID: string,
     skillsBundle: AgentSkillsBundleStatus,
@@ -216,17 +219,28 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     }
   }
 
-  private async request(pathname: string, init: RequestInit) {
+  async pollControl(identity: AgentControlIdentity, signal: AbortSignal) {
+    const value = await this.request('/api/v1/agent/runtime/control/poll', { method: 'POST', body: JSON.stringify(identity), signal }, 25_000)
+    if (value === null) return null
+    if (!isAgentControlCommand(value)) throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
+    return value
+  }
+
+  async ackControl(input: AgentControlAck, signal: AbortSignal) {
+    await this.request('/api/v1/agent/runtime/control/ack', { method: 'POST', body: JSON.stringify(input), signal })
+  }
+
+  private async request(pathname: string, init: RequestInit, timeoutMs = this.requestTimeoutMs) {
     const config = await this.getConfig()
     const baseURL = validateCoreBaseURL(config.apiBaseUrl)
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs)
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await this.fetchImplementation(new URL(pathname, baseURL), {
         ...init,
         cache: 'no-store',
         redirect: 'error',
-        signal: controller.signal,
+        signal: init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal,
         headers: {
           'Cache-Control': 'no-store',
           'Content-Type': 'application/json',

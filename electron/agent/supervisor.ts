@@ -22,6 +22,7 @@ import {
 import type { AgentWorkerFactory } from './workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 import type { AgentSkillBundleSourcePort } from './skillBundleSource.ts'
+import { AgentControlChannel } from './controlChannel.ts'
 
 const defaultLeaseRefreshIntervalMs = 10_000
 const defaultWorkerAbortGraceMs = 5_000
@@ -75,9 +76,18 @@ export class AgentSupervisor {
   private skillsStatus: AgentSkillsBundleStatus = unavailableSkillsStatus()
   private worker: AgentRunWorker | null = null
   private operationTail: Promise<void> = Promise.resolve()
+  private readonly controlChannel: AgentControlChannel
 
   constructor(options: AgentSupervisorOptions) {
     this.core = options.core
+    this.controlChannel = new AgentControlChannel(this.core, async (command) => {
+      if (!this.leaseEnabled) return this.rejected('AGENT_RUNTIME_UNAVAILABLE')
+      if (command.action === 'wake') return this.wakeQueue()
+      const request = { run_id: command.run_id!, generation: command.generation! }
+      if (command.action === 'start') return this.startRun(request)
+      if (command.action === 'stop') return this.stopRun(request)
+      return this.steerRun({ ...request, message: command.message! }, command.id)
+    })
     this.workerFactory = options.workerFactory
     this.skills = options.skills
     this.logger = options.logger
@@ -163,7 +173,7 @@ export class AgentSupervisor {
     })
   }
 
-  steerRun(request: AgentRuntimeSteerRequest): Promise<AgentRuntimeCommandResult> {
+  steerRun(request: AgentRuntimeSteerRequest, clientRequestID?: string): Promise<AgentRuntimeCommandResult> {
     return this.runExclusive<PreparedAgentSteer>(async () => {
       if (!validRunRef(request)
         || typeof request.message !== 'string'
@@ -176,7 +186,7 @@ export class AgentSupervisor {
         return { command: this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE') }
       }
       // 等待 Worker 确认时不占用 Supervisor 串行队列，使 stop/shutdown 能立即取消在途请求。
-      return { pending: active.steer(request.message) }
+      return { pending: active.steer(request.message, clientRequestID) }
     }).then(async (prepared) => {
       if ('command' in prepared) return prepared.command
       const result = await prepared.pending
@@ -212,6 +222,7 @@ export class AgentSupervisor {
     // 先阻止在途续租和领取继续派发，再由串行队列完成 Worker 与租约清理。
     this.lifecycleRevision += 1
     this.leaseEnabled = false
+    this.controlChannel.close()
     this.clearLeaseTimer()
     return this.runExclusive(async () => {
       const lease = this.lease
@@ -440,6 +451,7 @@ export class AgentSupervisor {
       .then(async (lease) => {
         const previous = this.lease
         this.lease = lease
+        if (this.leaseEnabled) this.controlChannel.attach(lease)
         if (previous && previous.core_instance_id !== lease.core_instance_id && this.worker) {
           const active = this.worker
           await this.stopActiveWorker(active, false)

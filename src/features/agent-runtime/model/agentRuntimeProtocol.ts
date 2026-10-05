@@ -85,6 +85,8 @@ export function decodeAgentSession(value: unknown): AgentSession {
   const resourceBindings = bindings.map(decodeAgentResourceBinding)
   unique(resourceBindings.map(({ kind }) => agentResourceSlot(kind)), 'Agent 资源绑定槽位重复')
   return {
+    ...(source.origin === undefined || source.origin === '' ? {} : { origin: enumValue<'remote'>(source.origin, ['remote'], 'Agent 会话来源无效') }),
+    ...(source.creator_device_id === undefined ? {} : { creator_device_id: identifier(source.creator_device_id, 'Agent 创建设备无效') }),
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
     ...(source.group_id === undefined ? {} : { group_id: identifier(source.group_id, 'Agent 会话分组 ID 无效') }),
@@ -927,7 +929,8 @@ function identifier(value: unknown, message: string, maxBytes = 128) {
 }
 
 function optionalIdentifier(value: unknown, message: string, maxBytes = 128) {
-  return value === undefined ? undefined : identifier(value, message, maxBytes)
+  // v1 旧投影用空字符串表达文件资源没有主机或 SSH 依赖，统一归一为未设置。
+  return value === undefined || value === '' ? undefined : identifier(value, message, maxBytes)
 }
 
 function utf8(value: unknown, message: string, maxBytes: number, allowEmpty = false) {

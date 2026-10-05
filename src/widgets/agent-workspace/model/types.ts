@@ -73,6 +73,7 @@ export type AgentWorkspaceRunStatus =
   | 'interrupted'
 
 export interface AgentWorkspaceSession {
+  origin?: 'remote'
   id: string
   title: string
   group_id?: string

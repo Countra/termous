@@ -5,6 +5,29 @@ import { RemoteWorkbench } from './RemoteWorkbench'
 
 vi.mock('./RemoteSessionPanels', () => ({ RemoteSessionPanels: ({ client, selected }: { client: { connection: RemoteConnection }; selected: string }) => <div data-testid="session">{client.connection.id}:{selected}</div> }))
 
+test.each([true, false, undefined])('AI 入口不依赖本机配置或清单权限标记（%s），首次点击才装配工作区', async agentEnabled => {
+  const connection = { id: 'connection', state: 'connected', scope: { generation: '1' } } as RemoteConnection
+  const bridge: RemoteWindowBridge = {
+    agentUpload: vi.fn(), agentDownload: vi.fn(), bootstrap: vi.fn(), reconnect: vi.fn(),
+    connection: vi.fn(async () => ({ ok: true as const, value: connection })),
+    request: vi.fn(async () => ({ ok: true as const, value: { inventory: { ...(agentEnabled === undefined ? {} : { agentEnabled }), sessions: [] } } })),
+    subscribe: () => () => {}, localTransfers: async () => ({ ok: true, value: [] }),
+    localTransferAction: vi.fn(), selectTransfer: vi.fn(), send: vi.fn(), consume: vi.fn(),
+    disconnect: vi.fn(), close: vi.fn(), onAppearance: () => () => {},
+  }
+  const renderAgent = vi.fn(() => <div>被控端 AI 工作区</div>)
+  render(<RemoteWorkbench bridge={bridge} bootstrap={{ generation: '1', deviceId: 'host', deviceName: 'Desktop', language: 'zh-CN', theme: 'dark' }} renderAgent={renderAgent} />)
+  const entry = await screen.findByRole('button', { name: 'AI 助手' })
+  await waitFor(() => expect(entry).toBeEnabled())
+  expect(renderAgent).not.toHaveBeenCalled()
+  fireEvent.click(entry)
+  expect(screen.getByText('被控端 AI 工作区')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+  await waitFor(() => expect(bridge.request).toHaveBeenCalledTimes(2))
+  expect(screen.getByText('被控端 AI 工作区')).toBeVisible()
+  expect(bridge.connection).toHaveBeenCalledTimes(1)
+})
+
 test('断开后在同一窗口重连，保留选中会话且旧回调不能关闭新连接', async () => {
   let id = 'first'
   const connection = () => ({ id, state: 'connected', scope: { generation: '1' }, stats: { path: 'direct', protocol: 'udp', rtt_ms: 1 } }) as RemoteConnection
@@ -14,6 +37,7 @@ test('断开后在同一窗口重连，保留选中会话且旧回调不能关�
   const reconnect = vi.fn(async () => { await gate; id = 'second'; return { ok: true as const, value: connection() } })
   const request = vi.fn(async () => ({ ok: true as const, value: { inventory: { sessions: [{ id: 'ssh', name: 'Existing SSH', kind: 'ssh', generation: '1', state: 'connected' }] } } }))
   const bridge: RemoteWindowBridge = {
+    agentUpload: vi.fn(), agentDownload: vi.fn(),
     bootstrap: vi.fn(), connection: async () => ({ ok: true, value: connection() }), reconnect, request,
     subscribe: (_frames, closed) => { stopped.push(closed); return () => {} },
     localTransfers: async () => ({ ok: true, value: [] }),

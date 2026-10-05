@@ -5,6 +5,7 @@ import {
   decodeAgentAttachment,
   decodeAgentMessage,
   decodeAgentMessagePage,
+  decodeAgentResourceBinding,
   decodeAgentQueuedTurn,
   decodeAgentQueuedTurnMoveResult,
   decodeAgentQueuedTurnPage,
@@ -19,6 +20,30 @@ import {
   agentRunFixture,
   agentSessionFixture,
 } from './agentRuntimeTestFixtures.ts'
+
+test('文件资源兼容 v1 空可选身份，SSH 身份仍须完整', () => {
+  for (const engine of ['sftp', 'ftp', 'webdav', 's3', 'object-store']) {
+    const file = {
+      kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '文件',
+      engine, bound_at: agentFixtureTime,
+    }
+    for (const hostId of [undefined, '', 'host-one']) {
+      for (const sshProfileId of [undefined, '', 'ssh-one']) {
+        const decoded = decodeAgentResourceBinding({ ...file, host_id: hostId, ssh_profile_id: sshProfileId })
+        assert.equal(decoded.host_id, hostId || undefined)
+        assert.equal(decoded.ssh_profile_id, sshProfileId || undefined)
+      }
+    }
+    for (const invalid of [null, 3, {}, ' ', 'x'.repeat(129)]) {
+      assert.throws(() => decodeAgentResourceBinding({ ...file, ssh_profile_id: invalid }), /SSH Profile ID 无效/)
+      assert.throws(() => decodeAgentResourceBinding({ ...file, host_id: invalid }), /Host ID 无效/)
+    }
+    assert.throws(() => decodeAgentResourceBinding({ ...file, file_access_profile_id: '' }), /文件 Profile ID 无效/)
+  }
+  const ssh = { kind: 'ssh_profile', host_id: 'host-one', ssh_profile_id: 'ssh-one', ssh_profile_name: 'SSH', host_name: '主机', platform: 'linux', bound_at: agentFixtureTime }
+  assert.throws(() => decodeAgentResourceBinding({ ...ssh, host_id: '' }), /Host ID 无效/)
+  assert.throws(() => decodeAgentResourceBinding({ ...ssh, ssh_profile_id: '' }), /SSH Profile ID 无效/)
+})
 
 test('Agent 会话严格解码可信 SSH 资源绑定', () => {
   const session = decodeAgentSession({

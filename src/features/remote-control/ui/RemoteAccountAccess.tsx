@@ -62,6 +62,16 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     setBusy(true); setError(undefined)
     try { const next = unwrap(await api.configure(generation, policy.revision, enabled, selected)); if (scope === lifetime.current) { setPolicy(next); setOpen(false); await load() } } catch (reason) { if (scope === lifetime.current) setError(reason) } finally { if (scope === lifetime.current) setBusy(false) }
   }
+  const configureAgent = async (value: boolean) => {
+    if (!api || !policy) return
+    const scope = lifetime.current
+    setBusy(true); setError(undefined)
+    try {
+      const next = unwrap(await api.configureAgent(generation, policy.revision, value))
+      if (scope === lifetime.current) setPolicy(next)
+    } catch (reason) { if (scope === lifetime.current) setError(reason) }
+    finally { if (scope === lifetime.current) setBusy(false) }
+  }
   const directory = async (write: boolean, id?: string) => {
     if (!api || !policy) return
     const scope = lifetime.current
@@ -82,7 +92,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     })}
     {error && !open ? <Alert type="warning" title={remoteErrorText(copy, error)} closable onClose={() => setError(undefined)} /> : null}
     <Modal title={copy.configure} open={open} width={640} onCancel={() => setOpen(false)} onOk={() => void save()} confirmLoading={busy} okText={copy.save} cancelText={copy.cancel} okButtonProps={{ disabled: !policy }}>
-      <div className={styles.form}>{error ? <Alert type="warning" title={remoteErrorText(copy, error)} action={<Button size="small" onClick={() => void edit()}>{copy.refresh}</Button>} /> : null}<p>{copy.settingsHint}</p><Space><Switch checked={enabled} disabled={busy || !policy} onChange={setEnabled} aria-label={copy.hostSettings} /><strong>{copy.hostSettings}</strong></Space><h3>{copy.allowedHosts}</h3><Checkbox.Group className={styles.choices} value={selected} disabled={busy || !policy} onChange={values => setSelected(values as string[])} options={hosts.map(profile => ({ value: profile.id, label: profile.name }))} /><h3>{copy.allowedFolders}</h3>{(policy?.directories ?? []).map(root => <div key={root.id} className={styles.directory}><div><strong>{root.name}</strong><small>{root.path}</small></div><Tag>{root.write ? `${copy.read} / ${copy.write}` : copy.read}</Tag><Button type="text" danger disabled={busy} icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void directory(false, root.id)} /></div>)}<Space wrap><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(false)}>{copy.addRead}</Button><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(true)}>{copy.addWrite}</Button></Space></div>
+      <div className={styles.form}>{error ? <Alert type="warning" title={remoteErrorText(copy, error)} action={<Button size="small" onClick={() => void edit()}>{copy.refresh}</Button>} /> : null}<p>{copy.settingsHint}</p><Space><Switch checked={enabled} disabled={busy || !policy} onChange={setEnabled} aria-label={copy.hostSettings} /><strong>{copy.hostSettings}</strong></Space><Space><Switch checked={policy?.agent_enabled === true} disabled={busy || !policy} onChange={value => void configureAgent(value)} aria-label={copy.agentPermission} /><strong>{copy.agentPermission}</strong></Space><p>{copy.agentPermissionHint}</p><h3>{copy.allowedHosts}</h3><Checkbox.Group className={styles.choices} value={selected} disabled={busy || !policy} onChange={values => setSelected(values as string[])} options={hosts.map(profile => ({ value: profile.id, label: profile.name }))} /><h3>{copy.allowedFolders}</h3>{(policy?.directories ?? []).map(root => <div key={root.id} className={styles.directory}><div><strong>{root.name}</strong><small>{root.path}</small></div><Tag>{root.write ? `${copy.read} / ${copy.write}` : copy.read}</Tag><Button type="text" danger disabled={busy} icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void directory(false, root.id)} /></div>)}<Space wrap><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(false)}>{copy.addRead}</Button><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(true)}>{copy.addWrite}</Button></Space></div>
     </Modal>
   </>
 }

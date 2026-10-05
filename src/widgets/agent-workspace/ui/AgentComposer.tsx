@@ -483,7 +483,7 @@ export const AgentComposer = memo(function AgentComposer({
             </>
             <AgentApprovalModeControl
               policy={approvalPolicy}
-              disabled={approvalModeDisabled}
+              disabled={approvalModeDisabled || approvalPolicy.status === 'ready' && approvalPolicy.readOnly === true}
               onChange={onApprovalModeChange}
             />
           </div>

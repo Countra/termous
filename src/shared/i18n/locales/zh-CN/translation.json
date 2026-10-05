@@ -815,7 +815,9 @@
     "settings": "设置"
   },
   "agent": {
+    "remoteApprovals": "待审批",
     "sessions": {
+      "remoteOrigin": "远程创建",
       "title": "会话",
       "new": "新建会话",
       "untitled": "新会话",
@@ -1442,6 +1444,7 @@
       "remoteImageBlocked": "远程图片已阻止"
     },
     "readiness": {
+      "remoteDescription": "请在被控电脑完成 AI 助手配置。",
       "title": "准备 AI 助手运行环境",
       "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作，始终具备全部 MCP 能力，新增能力自动更新。工具执行遵循当前审批策略；模型在“设置 > AI 助手”中管理。",
       "prepare": "准备或修复",

@@ -1,6 +1,7 @@
 import { create, fromBinary, fromJson, toBinary, type JsonValue } from '@bufbuild/protobuf'
 import { EnvelopeSchema, RequestSchema, StreamFrameSchema, type StreamFrame } from '@termous/remote-protocol'
 import type { RemoteBootstrap, RemoteConnection, RemoteWindowBridge } from '#common/contracts'
+import { createAgentPreview } from './agentPreview'
 
 export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBridge; bootstrap: RemoteBootstrap } {
   const bootstrap: RemoteBootstrap = { generation: '1', deviceId: 'host', deviceName: 'Termous Workstation', language: query.has('en') ? 'en-US' : 'zh-CN', theme: query.has('light') ? 'light' : 'dark' }
@@ -16,6 +17,7 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
   const entries = [{ name: 'releases', path: '/releases', kind: 'directory', size: '0' }, { name: 'app.log', path: '/app.log', kind: 'file', size: '16428' }, { name: 'README.md', path: '/README.md', kind: 'file', size: '2048' }]
   let receive: ((sequence: number, data: Uint8Array) => void) | undefined
   let sequence = 0, outputSequence = 0n, offset = 0n, controlled = false
+  const agent = createAgentPreview(query.has('en'), () => receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'event', value: { type: 'agent.update', value: { case: 'agent', value: { instanceId: 'agent-instance', resync: true } } } } }))))
   const control = () => ({ generation: '1', ownerDeviceId: controlled ? 'controller' : '', acceptedSequence: '0' })
   const emit = (frame: StreamFrame) => {
     receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'stream', value: frame } })))
@@ -37,8 +39,9 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
       const request = fromJson(RequestSchema, value)
       let result: JsonValue = {}
       switch (request.operation.case) {
+        case 'agent': result = agent(request.operation.value); break
         case 'inventory':
-          result = { inventory: { hosts, sessions, roots: [{ id: 'root', name: 'Downloads', readable: true, writable: true }], operations: [{ id: 'delete', sessionId: 'sftp-profile', kind: 'delete', state: 'completed', path: '/old-release', completedEntries: '4', totalEntries: '4' }] } }
+          result = { inventory: { hosts, sessions, agentEnabled: query.has('agent'), roots: [{ id: 'root', name: 'Downloads', readable: true, writable: true }], operations: [{ id: 'delete', sessionId: 'sftp-profile', kind: 'delete', state: 'completed', path: '/old-release', completedEntries: '4', totalEntries: '4' }] } }
           break
         case 'session': {
           const action = request.operation.value.action
@@ -81,6 +84,9 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
       return { ok: true, value: true }
     },
     selectTransfer: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
+    agentUpload: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
+    agentDownload: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
+    setAgentView: async () => ({ ok: true, value: true }),
     localTransfers: async () => ({ ok: true, value: query.has('progress') ? [
       { id: 'upload', state: query.get('progress') === 'completed' ? 'completed' : 'running', stage: query.get('progress') === 'sending' ? 'running' : 'publishing', remote_id: '', session_id: 'sftp-profile', name: 'release.tar.gz', direction: 'upload', confirmed_bytes: 8388608, total_bytes: 8388608, target_bytes: query.get('progress') === 'sending' ? 0 : query.get('progress') === 'writing' ? 4194304 : 8388608, resumable: false },
     ] : [{ id: 'transfer', state: 'paused', remote_id: '', name: 'release.tar.gz', direction: 'download', confirmed_bytes: 2097152, total_bytes: 8388608, resumable: true }] }),

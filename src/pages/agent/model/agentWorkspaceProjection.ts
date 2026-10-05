@@ -79,6 +79,7 @@ export function projectAgentSessions(
       ?.model_snapshot
     return {
       id: session.id,
+      origin: session.origin,
       title: session.title,
       group_id: session.group_id,
       pinned: session.pinned,

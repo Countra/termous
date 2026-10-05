@@ -7,13 +7,14 @@ import { RemoteFiles, RemoteHostKey, RemoteTerminal, type RemoteCopy } from '#fe
 import styles from './RemoteWorkbench.module.scss'
 
 interface Props {
+  onQuote?: (session: Session, text: string) => void
   client: RemoteClient; tabs: Session[]; selected: string; inventory?: Inventory
   localTasks?: RemoteLocalTask[]
   copy: RemoteCopy; theme: AppTheme; name(session: Session): string
   select(id: string): void; close(id: string): void; changed(): void
 }
 
-export function RemoteSessionPanels({ client, tabs, selected, inventory, localTasks, copy, theme, name, select, close, changed }: Props) {
+export function RemoteSessionPanels({ client, tabs, selected, inventory, localTasks, copy, theme, name, select, close, changed, onQuote }: Props) {
   const [split, setSplit] = useState(false)
   const primary = tabs.find(item => item.id === selected)
   const secondary = tabs.find(item => item.kind !== primary?.kind)
@@ -27,7 +28,7 @@ export function RemoteSessionPanels({ client, tabs, selected, inventory, localTa
       {tabs.map(session => <section key={session.id} className={styles.pane} hidden={session.id !== selected && (!paired || session.id !== secondary.id)} aria-label={`${name(session)} · ${session.kind === 'ssh' ? copy.terminal : copy.files}`}>
         {session.hostKeyChallengeId ? <div className={styles.challenge}><RemoteHostKey key={session.hostKeyChallengeId} client={client} session={session} copy={copy} changed={changed} /></div>
           : session.state !== 'connected' ? <div className={styles.loading}>{session.state === 'connecting' ? <Spin /> : <Alert type="info" title={copy.disconnected} />}</div>
-            : session.kind === 'ssh' ? <RemoteTerminal client={client} session={session} copy={copy} theme={theme} />
+            : session.kind === 'ssh' ? <RemoteTerminal onQuote={onQuote ? text => onQuote(session, text) : undefined} client={client} session={session} copy={copy} theme={theme} />
               : <RemoteFiles client={client} session={session} copy={copy} roots={inventory?.roots ?? []} operations={inventory?.operations ?? []} transfers={inventory?.transfers} localTasks={localTasks} changed={changed} />}
       </section>)}
     </div>
