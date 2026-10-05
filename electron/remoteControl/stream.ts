@@ -1,4 +1,5 @@
-import { WebSocket, type RawData } from 'ws'
+import type { Duplex } from 'node:stream'
+import { createWebSocketStream, WebSocket } from 'ws'
 import { fromBinary } from '@bufbuild/protobuf'
 import { StreamFrameSchema } from '@termous/remote-protocol'
 import type { AppConfig } from '#common/contracts'
@@ -11,6 +12,8 @@ export class RemoteTerminalStream {
   private outstanding = new Map<number, number>()
   private buffered = 0
   private stopped = false
+  private incoming?: Duplex
+  private resumeReceive?: () => void
 
   constructor(private receive: (sequence: number, bytes: Uint8Array) => void, private closed: () => void) {}
 
@@ -22,20 +25,11 @@ export class RemoteTerminalStream {
     url.searchParams.set('generation', generation)
     const socket = new WebSocket(url, { headers: { 'X-Termous-Token': config.apiToken }, followRedirects: false, maxPayload: 65536, handshakeTimeout: 8000, perMessageDeflate: false })
     this.socket = socket
-    socket.on('message', (data: RawData, binary: boolean) => {
-      const bytes = Buffer.isBuffer(data) ? data : Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data)
-      if (!binary || bytes.length > 65536 || this.buffered + bytes.length > 512 * 1024 || this.outstanding.size >= 128) {
-        this.close()
-        return
-      }
-      const sequence = ++this.sequence
-      this.outstanding.set(sequence, bytes.length)
-      this.buffered += bytes.length
-      this.receive(sequence, new Uint8Array(bytes))
-      if (this.buffered >= 256 * 1024) socket.pause()
-    })
     socket.on('error', () => this.close())
     socket.on('close', () => this.close())
+    // 对象流保留消息边界，由迭代器按额度拉取；同一 TCP 读取内的小帧突发不会淹没 IPC。
+    this.incoming = createWebSocketStream(socket, { readableObjectMode: true, readableHighWaterMark: 8 })
+    void this.read(this.incoming)
     await new Promise<void>((resolve, reject) => {
       socket.once('open', resolve)
       socket.once('error', () => reject(new RemoteCoreError('remote_stream_unavailable')))
@@ -43,12 +37,34 @@ export class RemoteTerminalStream {
     })
   }
 
+  private async read(incoming: Duplex) {
+    try {
+      for await (const bytes of incoming) {
+        while (!this.stopped && (this.buffered >= 256 * 1024 || this.outstanding.size >= 64)) {
+          await new Promise<void>(resolve => { this.resumeReceive = resolve })
+        }
+        if (this.stopped) return
+        if (!Buffer.isBuffer(bytes) || bytes.length > 65536) break
+        const sequence = ++this.sequence
+        this.outstanding.set(sequence, bytes.length)
+        this.buffered += bytes.length
+        this.receive(sequence, new Uint8Array(bytes))
+      }
+    } catch {
+      // 读取、解码或窗口投递失败统一关闭所属流，由工作区展示断连状态。
+    } finally { this.close() }
+  }
+
   consume(sequence: number) {
     const size = this.outstanding.get(sequence)
     if (size === undefined) return
     this.outstanding.delete(sequence)
     this.buffered -= size
-    if (this.buffered < 128 * 1024) this.socket?.resume()
+    if (this.buffered < 128 * 1024 && this.outstanding.size < 32) {
+      const resume = this.resumeReceive
+      this.resumeReceive = undefined
+      resume?.()
+    }
   }
 
   async send(data: unknown) {
@@ -65,6 +81,9 @@ export class RemoteTerminalStream {
   close() {
     if (this.stopped) return
     this.stopped = true
+    this.resumeReceive?.()
+    this.resumeReceive = undefined
+    this.incoming?.destroy()
     this.socket?.terminate()
     this.outstanding.clear()
     this.buffered = 0

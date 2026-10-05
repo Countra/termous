@@ -19,8 +19,8 @@ export class RemoteClient {
   start(closed: () => void) {
     this.stop?.()
     this.stop = this.bridge.subscribe((sequence, data) => {
-      void this.receive(data).catch(closed).finally(() => this.bridge.consume(sequence))
-    }, closed)
+      void this.receive(data).catch(closed).finally(() => this.bridge.consume(sequence, this.connection.id))
+    }, closed, this.connection.id)
   }
   private async receive(data: Uint8Array) {
     const envelope = fromBinary(EnvelopeSchema, data)
@@ -29,7 +29,7 @@ export class RemoteClient {
     else if (envelope.payload.case === 'event') for (const listener of this.events) listener(envelope.payload.value)
   }
   async request(input: MessageInitShape<typeof RequestSchema>) {
-    const value = unwrap(await this.bridge.request(toJson(RequestSchema, create(RequestSchema, input))))
+    const value = unwrap(await this.bridge.request(toJson(RequestSchema, create(RequestSchema, input)), this.connection.id))
     const response = fromJson(ResponseSchema, value)
     if (response.error) throw new RemoteError(response.error.code, response.error.uncertain)
     return response
@@ -39,11 +39,11 @@ export class RemoteClient {
     return () => { if (this.streams.get(id) === callback) this.streams.delete(id) }
   }
   onEvent(callback: (event: Event) => void) { this.events.add(callback); return () => { this.events.delete(callback) } }
-  async selectTransfer(input: RemoteLocalSelection) { return unwrap(await this.bridge.selectTransfer(input)) }
-  async localTransfers() { return unwrap(await this.bridge.localTransfers()) }
-  async localTransferAction(id: string, action: 'resume' | 'cancel') { return unwrap(await this.bridge.localTransferAction(id, action)) }
+  async selectTransfer(input: RemoteLocalSelection) { return unwrap(await this.bridge.selectTransfer(input, this.connection.id)) }
+  async localTransfers() { return unwrap(await this.bridge.localTransfers(this.connection.id)) }
+  async localTransferAction(id: string, action: 'resume' | 'cancel') { return unwrap(await this.bridge.localTransferAction(id, action, this.connection.id)) }
   async send(input: MessageInitShape<typeof StreamFrameSchema>) {
-    unwrap(await this.bridge.send(toBinary(StreamFrameSchema, create(StreamFrameSchema, input))))
+    unwrap(await this.bridge.send(toBinary(StreamFrameSchema, create(StreamFrameSchema, input)), this.connection.id))
   }
   dispose() { this.stop?.(); this.stop = undefined; this.streams.clear(); this.events.clear() }
 }

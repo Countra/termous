@@ -9,6 +9,7 @@ import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { EnvelopeSchema, StreamFrameSchema } from '@termous/remote-protocol'
 import { RemoteCore } from '../../electron/remoteControl/core'
 import { RemoteControlRuntime } from '../../electron/remoteControl/runtime'
+import { RemoteTerminalStream } from '../../electron/remoteControl/stream'
 import { createPreview } from './previewBridge'
 
 async function main() {
@@ -32,14 +33,14 @@ const server = createServer(async (request, response) => {
     let value: unknown
     if (route === '/api/v1/remote-control/status') value = { generation: '1', available: true }
     else if (route === '/api/v1/cloud/status') value = { generation: '1', authenticated: true }
-    else if (route === '/api/v1/remote-control/connections') { creates++; value = (await bridge.connection() as { value: unknown }).value }
+    else if (route === '/api/v1/remote-control/connections') { creates++; value = (await (creates === 1 ? bridge.connection() : bridge.reconnect()) as { value: unknown }).value }
     else if (route.endsWith('/local-transfers')) value = { tasks: [] }
     else if (route.endsWith('/request')) {
-      const result = await bridge.request(input.request)
+      const result = await bridge.request(input.request, 'preview')
       if (!result.ok) { response.writeHead(400, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ error: { code: result.code } })); return }
       value = result.value
     } else if (route.endsWith('/close')) { closes++; value = {} }
-    else if (route.endsWith('/preview')) value = (await bridge.connection() as { value: unknown }).value
+    else if (route.includes('/connections/preview')) value = (await bridge.connection() as { value: unknown }).value
     else throw new Error('未预期的本机接口')
     response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(value))
   } catch {
@@ -53,8 +54,8 @@ server.on('upgrade', (request, socket, head) => {
   sockets.handleUpgrade(request, socket, head, ws => sockets.emit('connection', ws))
 })
 sockets.on('connection', socket => {
-  const stop = bridge.subscribe((_sequence, data) => socket.send(data, { binary: true }), () => socket.close())
-  socket.on('message', bytes => { terminalFrames++; void bridge.send(new Uint8Array(bytes as Buffer)) })
+  const stop = bridge.subscribe((_sequence, data) => socket.send(data, { binary: true }), () => socket.close(), 'preview')
+  socket.on('message', bytes => { terminalFrames++; void bridge.send(new Uint8Array(bytes as Buffer), 'preview') })
   socket.on('close', stop)
 })
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -89,18 +90,18 @@ try {
   assert.equal(security.sandbox, true); assert.equal(security.contextIsolation, true); assert.equal(security.nodeIntegration, false)
   assert.equal(await remote.webContents.executeJavaScript('typeof require'), 'undefined')
   assert.equal(await remote.webContents.executeJavaScript('typeof window.termous'), 'undefined')
-  const result = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}})')
+  const result = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, "preview")')
   assert.equal(result.ok, true); assert.equal(result.value.inventory.sessions.length, 4)
-  const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}})')
+  const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}}, "preview")')
   assert.equal(invalid.code, 'remote_invalid_request')
   await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("选择连接") && document.body.innerText.includes("Release bucket")'))
   // DOM 就绪早于合成器提交；等绘制完成再保存界面证据。
   await remote.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   await writeFile(path.join(output, 'window.png'), (await remote.webContents.capturePage()).toPNG())
-  await remote.webContents.executeJavaScript('window.__acceptanceFrames = []; void window.termousRemote.subscribe((sequence, data) => { window.__acceptanceFrames.push(Array.from(data)); window.termousRemote.consume(sequence) }, () => {})')
+  await remote.webContents.executeJavaScript('window.__acceptanceFrames = []; void window.termousRemote.subscribe((sequence, data) => { window.__acceptanceFrames.push(Array.from(data)); window.termousRemote.consume(sequence, "preview") }, () => {}, "preview")')
   await until(() => sockets.clients.size === 1)
   const credit = toBinary(StreamFrameSchema, create(StreamFrameSchema, { streamId: 'terminal:preview', kind: 'credit', credit: 262144n }))
-  assert.equal((await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(credit))}))`)).ok, true)
+  assert.equal((await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(credit))}), "preview")`)).ok, true)
   await until(() => remote.webContents.executeJavaScript('window.__acceptanceFrames.length > 0'))
   const firstFrame = fromBinary(EnvelopeSchema, new Uint8Array(await remote.webContents.executeJavaScript('window.__acceptanceFrames[0]')))
   assert.equal(firstFrame.payload.case, 'stream')
@@ -109,26 +110,60 @@ try {
     assert.match(new TextDecoder().decode(firstFrame.payload.value.data), /Ubuntu 24\.04 LTS/u)
   }
   const input = toBinary(StreamFrameSchema, create(StreamFrameSchema, { streamId: 'terminal:preview', kind: 'terminal_input', controlGeneration: 1n, sequence: 1n, data: new TextEncoder().encode('synthetic input') }))
-  assert.equal((await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(input))}))`)).ok, true)
+  assert.equal((await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(input))}), "preview")`)).ok, true)
   await until(() => remote.webContents.executeJavaScript('window.__acceptanceFrames.length >= 3'))
   const echo = fromBinary(EnvelopeSchema, new Uint8Array(await remote.webContents.executeJavaScript('window.__acceptanceFrames[1]')))
   assert.equal(echo.payload.case, 'stream')
   if (echo.payload.case === 'stream') assert.equal(new TextDecoder().decode(echo.payload.value.data), 'synthetic input')
   assert.equal(terminalFrames, 2)
   // 本机流关闭或握手失败必须清除旧引用，后续订阅不能对失效对象返回成功。
-  await remote.webContents.executeJavaScript('window.__acceptanceClosed = 0; void window.termousRemote.subscribe(() => {}, () => { window.__acceptanceClosed++ })')
+  await remote.webContents.executeJavaScript('window.__acceptanceClosed = 0; void window.termousRemote.subscribe(() => {}, () => { window.__acceptanceClosed++ }, "preview")')
   for (const socket of sockets.clients) socket.terminate()
   await until(() => remote.webContents.executeJavaScript('window.__acceptanceClosed > 0'))
   rejectUpgrade = true
-  await remote.webContents.executeJavaScript('window.__retryClosed = false; void window.termousRemote.subscribe(() => {}, () => { window.__retryClosed = true })')
+  await remote.webContents.executeJavaScript('window.__retryClosed = false; void window.termousRemote.subscribe(() => {}, () => { window.__retryClosed = true }, "preview")')
   await until(() => remote.webContents.executeJavaScript('window.__retryClosed'))
   rejectUpgrade = false
-  await remote.webContents.executeJavaScript('void window.termousRemote.subscribe(() => {}, () => {})')
+  await remote.webContents.executeJavaScript('void window.termousRemote.subscribe(() => {}, () => {}, "preview")')
   await until(() => sockets.clients.size === 1)
+  // 同窗重连只创建一个新连接，旧页面请求和旧额度不得落到新连接。
+  const retries = await remote.webContents.executeJavaScript('Promise.all([window.termousRemote.reconnect(), window.termousRemote.reconnect()])')
+  assert.equal(retries[0].ok, true); assert.equal(retries[1].ok, true)
+  assert.equal(retries[0].value.id, retries[1].value.id)
+  assert.equal(creates, 2)
+  const stale = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, "preview")')
+  assert.equal(stale.code, 'remote_disconnected')
+  const unbound = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}})')
+  assert.equal(unbound.code, 'remote_disconnected')
+  const nullBinding = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}}, null)')
+  assert.equal(nullBinding.code, 'remote_disconnected')
+  const staleSend = await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(input))}), "preview")`)
+  assert.equal(staleSend.ok, false)
   await remote.webContents.executeJavaScript('window.termousRemote.close()')
-  await until(() => closes === 1 && remote.isDestroyed())
-  assert.equal(creates, 1)
-  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, failedStreamRetry: true, disconnectOnly: true, authenticatedRequests, terminalFrames }, null, 2))
+  await until(() => closes === 2 && remote.isDestroyed())
+  await until(() => sockets.clients.size === 0)
+  // 同一网络读取可以包含大量小帧；慢渲染应施加背压，不能直接关闭连接。
+  const received: number[] = []
+  let streamClosed = false
+  const stream = new RemoteTerminalStream(sequence => { received.push(sequence) }, () => { streamClosed = true })
+  try {
+    await stream.open({ apiBaseUrl: `http://127.0.0.1:${address.port}`, apiToken: token }, '1', 'preview')
+    const socket = [...sockets.clients][0]!
+    const packet = toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: 'preview', generation: 1n, payload: { case: 'stream', value: { streamId: 'stream', kind: 'terminal_output', data: Uint8Array.of(65) } } }))
+    for (let i = 0; i < 300; i++) socket.send(packet)
+    await until(() => streamClosed || received.length >= 64)
+    assert.equal(streamClosed, false)
+    assert(received.length <= 64, '慢渲染未限制在途消息数')
+    let consumed = 0
+    await until(() => {
+      while (consumed < received.length) stream.consume(received[consumed++]!)
+      return consumed === 300 || streamClosed
+    })
+    assert.equal(streamClosed, false); assert.equal(consumed, 300)
+    socket.send('invalid text frame')
+    await until(() => streamClosed)
+  } finally { stream.close() }
+  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, failedStreamRetry: true, disconnectOnly: true, reconnect: true, staleConnectionRejected: true, boundedTerminalBackpressure: true, authenticatedRequests, terminalFrames }, null, 2))
   console.log('Electron 独立窗口及 IPC 验收通过')
 } finally {
   runtime.close(); launcher.destroy(); ipcMain.removeAllListeners()

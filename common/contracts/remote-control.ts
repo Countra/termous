@@ -50,13 +50,14 @@ export interface RemoteLauncher {
 export interface RemoteWindowBridge {
   bootstrap(): Promise<RemoteBootstrap>
   connection(): Promise<RemoteResult<RemoteConnection>>
-  request(request: JsonValue): Promise<RemoteResult<JsonValue>>
-  selectTransfer(input: RemoteLocalSelection): Promise<RemoteResult<RemoteLocalTask | null>>
-  localTransfers(): Promise<RemoteResult<RemoteLocalTask[]>>
-  localTransferAction(id: string, action: 'resume' | 'cancel'): Promise<RemoteResult<RemoteLocalTask>>
-  subscribe(callback: (sequence: number, data: Uint8Array) => void, closed: () => void): () => void
-  consume(sequence: number): void
-  send(data: Uint8Array): Promise<RemoteResult<boolean>>
+  reconnect(): Promise<RemoteResult<RemoteConnection>>
+  request(request: JsonValue, connectionId: string): Promise<RemoteResult<JsonValue>>
+  selectTransfer(input: RemoteLocalSelection, connectionId: string): Promise<RemoteResult<RemoteLocalTask | null>>
+  localTransfers(connectionId: string): Promise<RemoteResult<RemoteLocalTask[]>>
+  localTransferAction(id: string, action: 'resume' | 'cancel', connectionId: string): Promise<RemoteResult<RemoteLocalTask>>
+  subscribe(callback: (sequence: number, data: Uint8Array) => void, closed: () => void, connectionId: string): () => void
+  consume(sequence: number, connectionId: string): void
+  send(data: Uint8Array, connectionId: string): Promise<RemoteResult<boolean>>
   disconnect(): Promise<RemoteResult<boolean>>
   close(): Promise<void>
   onAppearance(callback: (value: RemoteBootstrap) => void): () => void

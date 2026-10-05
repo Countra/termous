@@ -18,7 +18,7 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
   let sequence = 0, outputSequence = 0n, offset = 0n, controlled = false
   const control = () => ({ generation: '1', ownerDeviceId: controlled ? 'controller' : '', acceptedSequence: '0' })
   const emit = (frame: StreamFrame) => {
-    receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: 'preview', generation: 1n, payload: { case: 'stream', value: frame } })))
+    receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'stream', value: frame } })))
   }
   const output = (data: Uint8Array) => {
     emit(create(StreamFrameSchema, { streamId: 'terminal:preview', kind: 'terminal_output', epoch: 'epoch', offset, sequence: ++outputSequence, data }))
@@ -27,6 +27,12 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
   const bridge: RemoteWindowBridge = {
     bootstrap: async () => bootstrap,
     connection: async () => ({ ok: true, value: connection }),
+    reconnect: async () => {
+      connection.id = `preview-${++sequence}`
+      connection.scope.connection_id = connection.id
+      connection.state = 'connected'
+      return { ok: true, value: connection }
+    },
     request: async value => {
       const request = fromJson(RequestSchema, value)
       let result: JsonValue = {}

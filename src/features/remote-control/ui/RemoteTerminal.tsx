@@ -7,6 +7,7 @@ import '@xterm/xterm/css/xterm.css'
 import { RemoteClient, type ControlLease, type Session } from '#entities/remote-control'
 import type { AppTheme } from '#common/contracts'
 import { TerminalInput } from '../model/terminalInput'
+import { TerminalOutput } from '../model/terminalOutput'
 import { remoteErrorText, type RemoteCopy } from '../model/copy'
 import styles from './RemoteTerminal.module.scss'
 
@@ -23,6 +24,7 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
   const [gap, setGap] = useState(false)
   const [error, setError] = useState<unknown>()
   const [busy, setBusy] = useState(false)
+  const [ended, setEnded] = useState(false)
   const controlled = control?.ownerDeviceId === client.connection.scope.controller_id && !control?.blockedBy
 
   const applyControl = (value: ControlLease) => {
@@ -62,6 +64,7 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
     const current = {}
     lifetime.current = current
     let active = true
+    let outputEnded = false
     let unstream: (() => void) | undefined
     let activeStream = ''
     let lastSequence = 0n
@@ -75,12 +78,22 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
       await client.send({ streamId: activeStream, kind: 'terminal_input', data, controlGeneration: generation, sequence })
     }, frozen => { if (active) { setUncertain(frozen); term.options.disableStdin = frozen || lease.current?.ownerDeviceId !== client.connection.scope.controller_id || Boolean(lease.current?.blockedBy) } })
     input.current = writer
+    const finishOutput = () => {
+      outputEnded = true; lifetime.current = undefined; lease.current = undefined
+      setControl(undefined); setBusy(false); setEnded(true); writer.dispose(); term.options.disableStdin = true
+    }
+    const output = new TerminalOutput((data, done) => term.write(data, done), bytes => client.send({ streamId: activeStream, kind: 'credit', credit: BigInt(bytes) }), reason => {
+      if (!active) return
+      finishOutput(); setError(reason)
+      unstream?.()
+      void client.request({ operation: { case: 'session', value: { action: 'detach', sessionId: session.id, generation: session.generation, streamId: activeStream } } }).catch(error => { if (active) setError(error) })
+    })
     const typing = term.onData(text => writer.push(new TextEncoder().encode(text)))
     let resizeTimer: ReturnType<typeof setTimeout>
     const observer = new ResizeObserver(() => {
       clearTimeout(resizeTimer)
       resizeTimer = setTimeout(() => {
-        if (!active) return
+        if (!active || outputEnded) return
         fit.fit()
         if (lease.current?.ownerDeviceId === client.connection.scope.controller_id && !lease.current.blockedBy) {
           void client.request({ operation: { case: 'session', value: { sessionId: session.id, generation: session.generation, action: 'resize', controlGeneration: lease.current.generation, columns: term.cols, rows: term.rows } } }).catch(reason => { if (active) setError(reason) })
@@ -89,7 +102,7 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
     })
     observer.observe(element)
     const unlisten = client.onEvent(event => {
-      if (!active) return
+      if (!active || outputEnded) return
       if (event.value.case === 'attachment' && event.value.value.streamId === activeStream && event.value.value.gap) setGap(true)
       if (event.value.case === 'session' && event.value.value.id === session.id) {
         if (event.type === 'input_rejected') { writer.freeze(); setError({ code: event.value.value.errorCode }) }
@@ -104,23 +117,22 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
       if (!active) { await client.request({ operation: { case: 'session', value: { action: 'detach', sessionId: session.id, generation: session.generation, streamId: activeStream } } }); return }
       setGap(Boolean(attachment.gap))
       unstream = client.stream(activeStream, async frame => {
-        if (!active) return
+        if (!active || outputEnded) return
         if (frame.kind === 'ack') { writer.acknowledge(frame.controlGeneration, frame.sequence); return }
         if (frame.kind !== 'terminal_output') return
         if (frame.sequence <= lastSequence) return
         if (frame.sequence !== lastSequence + 1n) setGap(true)
         lastSequence = frame.sequence
-        if (frame.end) { term.options.disableStdin = true; writer.dispose(); return }
-        await new Promise<void>(resolve => term.write(frame.data, resolve))
-        if (active && frame.data.length) await client.send({ streamId: activeStream, kind: 'credit', credit: BigInt(frame.data.length) })
+        if (frame.end) { finishOutput(); output.dispose(); return }
+        await output.consume(frame.data)
       })
-      await client.send({ streamId: activeStream, kind: 'credit', credit: 65536n })
+      if (!await output.start() || !active || outputEnded) return
       const state = await client.request({ operation: { case: 'session', value: { action: 'control_status', sessionId: session.id, generation: session.generation } } })
-      if (active && state.result.case === 'control') applyControl(state.result.value)
+      if (active && !outputEnded && state.result.case === 'control') applyControl(state.result.value)
     })().catch(reason => { if (active) setError(reason) })
     return () => {
       if (lifetime.current === current) lifetime.current = undefined
-      active = false; clearTimeout(resizeTimer); observer.disconnect(); typing.dispose(); clipboard.dispose(); links.dispose(); unstream?.(); unlisten(); writer.dispose(); term.dispose(); terminal.current = null; input.current = null
+      active = false; clearTimeout(resizeTimer); observer.disconnect(); typing.dispose(); clipboard.dispose(); links.dispose(); unstream?.(); unlisten(); output.dispose(); writer.dispose(); term.dispose(); terminal.current = null; input.current = null
       if (activeStream) void client.request({ operation: { case: 'session', value: { action: 'detach', sessionId: session.id, generation: session.generation, streamId: activeStream } } }).catch(() => { console.warn('[termous:remote] 视图释放未确认，输入权将由连接关闭或租约到期收回') })
     }
     // 每个附着独立持有输出与输入队列；主题更新在下方执行，不重建 SSH 会话。
@@ -130,7 +142,7 @@ export function RemoteTerminal({ client, session, copy, theme }: Props) {
   useEffect(() => { if (terminal.current) terminal.current.options.theme = { background: theme === 'dark' ? '#0f1116' : '#f4f5f7', foreground: theme === 'dark' ? '#e4e9f1' : '#202734' } }, [theme])
 
   return <div className={styles.terminal}>
-    <div className={styles.toolbar}><Tag icon={controlled ? <Keyboard size={13} /> : <LockKeyhole size={13} />} color={controlled ? 'blue' : undefined}>{controlled ? copy.controlling : copy.readOnly}</Tag><Space><Button size="small" loading={busy} onClick={() => void act(controlled ? 'control_release' : 'control_acquire')}>{controlled ? copy.releaseControl : copy.takeControl}</Button><Button size="small" icon={<RefreshCw size={14} />} aria-label={copy.inputStatus} onClick={() => void act('control_status')} /></Space></div>
+    <div className={styles.toolbar}><Tag icon={controlled && !ended ? <Keyboard size={13} /> : <LockKeyhole size={13} />} color={controlled && !ended ? 'blue' : undefined}>{controlled && !ended ? copy.controlling : copy.readOnly}</Tag><Space><Button size="small" loading={busy} disabled={ended} onClick={() => void act(controlled ? 'control_release' : 'control_acquire')}>{controlled ? copy.releaseControl : copy.takeControl}</Button><Button size="small" disabled={ended} icon={<RefreshCw size={14} />} aria-label={copy.inputStatus} onClick={() => void act('control_status')} /></Space></div>
     {error ? <Alert type="warning" showIcon title={remoteErrorText(copy, error)} closable onClose={() => setError(undefined)} /> : null}
     {gap ? <Alert type="info" title={copy.gap} closable onClose={() => setGap(false)} /> : null}
     {uncertain ? <Alert type="warning" title={copy.inputUncertain} /> : null}

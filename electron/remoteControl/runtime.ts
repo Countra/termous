@@ -19,6 +19,7 @@ interface Entry {
   opening: Promise<RemoteConnection>; connection?: RemoteConnection
   stream?: RemoteTerminalStream
   streamOpening?: Promise<void>
+  reconnecting?: Promise<RemoteConnection>
   files: RemoteLocalTransfers
   allowClose?: boolean; closing?: boolean
 }
@@ -50,11 +51,18 @@ export class RemoteControlRuntime {
     }
     throw new RemoteCoreError('remote_ipc_forbidden')
   }
-  private async active(event: IpcMainInvokeEvent) {
+  private async current(event: IpcMainInvokeEvent) {
     const entry = this.own(event)
-    const connection = await entry.opening
-    if (entry.window.isDestroyed()) throw new RemoteCoreError('remote_disconnected')
-    return { entry, connection, base: `/remote-control/connections/${encodeURIComponent(connection.id)}` }
+    const opening = entry.opening
+    const connection = await opening
+    if (entry.window.isDestroyed() || entry.opening !== opening) throw new RemoteCoreError('remote_disconnected')
+    return { entry, connection, opening, base: `/remote-control/connections/${encodeURIComponent(connection.id)}` }
+  }
+  private async active(event: IpcMainInvokeEvent, expected: unknown) {
+    if (!validId(expected)) throw new RemoteCoreError('remote_disconnected')
+    const current = await this.current(event)
+    if (expected !== current.connection.id) throw new RemoteCoreError('remote_disconnected')
+    return current
   }
   private main(event: IpcMainInvokeEvent, generation?: unknown) {
     if (!this.options.trusted(event) || generation !== undefined && !validId(generation)) throw new RemoteCoreError('remote_ipc_forbidden')
@@ -107,25 +115,26 @@ export class RemoteControlRuntime {
       return this.saveDirectories(generation, revision, (policy.directories ?? []).filter(value => value.id !== id))
     }))
     ipcMain.handle('remote:bootstrap', event => this.own(event).bootstrap)
-    ipcMain.handle('remote:select-transfer', (event, input: RemoteLocalSelection) => result(async () => {
-      const { entry, base } = await this.active(event)
+    ipcMain.handle('remote:reconnect', event => result(() => this.reconnect(this.own(event))))
+    ipcMain.handle('remote:select-transfer', (event, input: RemoteLocalSelection, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
       return entry.files.select(entry.window, base, entry.bootstrap.generation, input)
     }))
-    ipcMain.handle('remote:local-transfers', event => result(async () => {
-      const { entry, base } = await this.active(event)
+    ipcMain.handle('remote:local-transfers', (event, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
       return (await this.options.core.request<{ tasks: RemoteLocalTask[] }>(`${base}/local-transfers?generation=${encodeURIComponent(entry.bootstrap.generation)}`)).tasks ?? []
     }))
-    ipcMain.handle('remote:local-transfer-action', (event, id: string, action: string) => result(async () => {
-      const { entry, base } = await this.active(event)
+    ipcMain.handle('remote:local-transfer-action', (event, id: string, action: string, connection: string) => result(async () => {
+      const { entry, base } = await this.active(event, connection)
       if (!validId(id) || !['resume', 'cancel'].includes(action)) throw new RemoteCoreError('remote_invalid_request')
       return this.options.core.request<RemoteLocalTask>(`${base}/local-transfers/${encodeURIComponent(id)}/action`, { generation: entry.bootstrap.generation, action })
     }))
     ipcMain.handle('remote:connection', event => result(async () => {
-      const { entry, base } = await this.active(event)
+      const { entry, base } = await this.current(event)
       return this.options.core.request<RemoteConnection>(`${base}?generation=${encodeURIComponent(entry.bootstrap.generation)}`)
     }))
-    ipcMain.handle('remote:request', (event, input: JsonValue) => result(async () => {
-      const { entry, base } = await this.active(event)
+    ipcMain.handle('remote:request', (event, input: JsonValue, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
       if (JSON.stringify(input).length > 65536) throw new RemoteCoreError('remote_invalid_request')
       const request = fromJson(RequestSchema, input)
       if (!request.operation.case || request.operation.case === 'hello') throw new RemoteCoreError('remote_invalid_request')
@@ -135,15 +144,18 @@ export class RemoteControlRuntime {
       }
       return this.options.core.request<JsonValue>(`${base}/request`, { generation: entry.bootstrap.generation, request: toJson(RequestSchema, request) })
     }))
-    ipcMain.handle('remote:subscribe', event => result(async () => {
-      const { entry, connection } = await this.active(event)
+    ipcMain.handle('remote:subscribe', (event, id: string) => result(async () => {
+      const { entry, connection, opening: connectionOpening } = await this.active(event, id)
+      // 异步校验返回后可能已开始重连，旧订阅不能重新占用窗口的唯一二进制通道。
+      if (entry.opening !== connectionOpening || entry.window.isDestroyed()) throw new RemoteCoreError('remote_disconnected')
       if (entry.streamOpening) { await entry.streamOpening; return true }
       if (entry.stream) return true
       const stream = new RemoteTerminalStream((sequence, data) => {
-        if (!entry.window.isDestroyed()) entry.window.webContents.send('remote:frame', sequence, data)
+        if (entry.stream === stream && !entry.window.isDestroyed()) entry.window.webContents.send('remote:frame', connection.id, sequence, data)
       }, () => {
-        if (entry.stream === stream) entry.stream = undefined
-        if (!entry.window.isDestroyed()) entry.window.webContents.send('remote:stream-closed')
+        if (entry.stream !== stream) return
+        entry.stream = undefined
+        if (!entry.window.isDestroyed()) entry.window.webContents.send('remote:stream-closed', connection.id)
       })
       entry.stream = stream
       const opening = this.options.core.config().then(config => stream.open(config, entry.bootstrap.generation, connection.id))
@@ -154,13 +166,16 @@ export class RemoteControlRuntime {
       } finally { if (entry.streamOpening === opening) entry.streamOpening = undefined }
       return true
     }))
-    ipcMain.handle('remote:send', (event, data: Uint8Array) => result(async () => {
+    ipcMain.handle('remote:send', (event, data: Uint8Array, id: string) => result(async () => {
       const entry = this.own(event)
-      if (!entry.stream) throw new RemoteCoreError('remote_stream_unavailable')
+      if (!entry.stream || entry.connection?.id !== id) throw new RemoteCoreError('remote_stream_unavailable')
       return entry.stream.send(data)
     }))
-    ipcMain.on('remote:consume', (event, sequence: number) => {
-      try { if (Number.isSafeInteger(sequence)) this.own(event).stream?.consume(sequence) } catch { this.options.warn('remote_ipc_forbidden') }
+    ipcMain.on('remote:consume', (event, sequence: number, id: string) => {
+      try {
+        const entry = this.own(event)
+        if (Number.isSafeInteger(sequence) && entry.connection?.id === id) entry.stream?.consume(sequence)
+      } catch { this.options.warn('remote_ipc_forbidden') }
     })
     ipcMain.handle('remote:disconnect', event => result(async () => {
       const entry = this.own(event)
@@ -205,8 +220,41 @@ export class RemoteControlRuntime {
   }
 
   private async disconnect(entry: Entry) {
-    entry.stream?.close()
-    if (entry.connection) await this.options.core.request(`/remote-control/connections/${encodeURIComponent(entry.connection.id)}/close`, { generation: entry.bootstrap.generation })
+    const stream = entry.stream
+    entry.stream = undefined
+    stream?.close()
+    if (stream && entry.connection && !entry.window.isDestroyed()) entry.window.webContents.send('remote:stream-closed', entry.connection.id)
+    if (entry.connection) {
+      try { await this.options.core.request(`/remote-control/connections/${encodeURIComponent(entry.connection.id)}/close`, { generation: entry.bootstrap.generation }) }
+      catch (error) {
+        if (!(error instanceof RemoteCoreError) || error.code !== 'remote_connection_unavailable') throw error
+      }
+    }
+  }
+
+  private reconnect(entry: Entry): Promise<RemoteConnection> {
+    if (entry.reconnecting) return entry.reconnecting
+    const previous = entry.opening
+    const opening = (async () => {
+      // 等初次连接结束后再清理，失败的连接也允许用户原地重试。
+      await previous.catch(() => undefined)
+      await this.disconnect(entry)
+      if (entry.streamOpening) await entry.streamOpening.catch(() => undefined)
+      const status = await this.options.core.request<{ generation: string; available: boolean }>('/remote-control/status')
+      if (!status.available || status.generation !== entry.bootstrap.generation) throw new RemoteCoreError('remote_account_unavailable')
+      if (entry.window.isDestroyed()) throw new RemoteCoreError('remote_disconnected')
+      const connection = await this.options.core.request<RemoteConnection>('/remote-control/connections', { generation: entry.bootstrap.generation, device_id: entry.bootstrap.deviceId, operation_id: randomUUID() })
+      entry.connection = connection
+      if (entry.window.isDestroyed()) {
+        await this.disconnect(entry)
+        throw new RemoteCoreError('remote_disconnected')
+      }
+      return connection
+    })()
+    entry.opening = opening
+    entry.reconnecting = opening
+    void opening.finally(() => { if (entry.reconnecting === opening) entry.reconnecting = undefined }).catch(() => this.options.warn('remote_reconnect_failed'))
+    return opening
   }
 
   private async confirmDisconnect(entry: Entry): Promise<boolean> {
