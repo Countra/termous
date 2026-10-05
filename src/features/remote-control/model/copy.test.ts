@@ -20,6 +20,8 @@ test('远控连接错误区分网络、认证、信任、限流与目标状态',
       ['REMOTE_ACCOUNT_UNAVAILABLE', copy.accountUnavailable],
       ['REMOTE_POLICY_CHANGED', copy.policyChanged],
       ['REMOTE_FILE_FORBIDDEN', copy.denied],
+      ['AGENT_REVISION_CONFLICT', copy.contentChanged],
+      ['MCP_CONFLICT', copy.contentChanged],
     ]) {
       assert.equal(remoteErrorText(copy, { code }), expected, `${language}: ${code}`)
     }

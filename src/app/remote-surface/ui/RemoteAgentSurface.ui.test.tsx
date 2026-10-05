@@ -116,7 +116,7 @@ test('资源刷新失败单独重试，保留会话草稿且不重新检查整�
   const { client, request, failResources } = fixture([fileCandidate('ftp')])
   failResources('remote_request_failed')
   render(<RemoteAgentSurface client={client} active />)
-  expect(await screen.findByRole('alert')).toHaveTextContent('被控电脑的资源列表暂时不可用。')
+  expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('被控电脑的资源列表暂时不可用。')
   fireEvent.change(screen.getByRole('textbox', { name: '草稿' }), { target: { value: '尚未发送的消息' } })
   request.mockClear()
   failResources('')
@@ -127,6 +127,19 @@ test('资源刷新失败单独重试，保留会话草稿且不重新检查整�
   expect(request).toHaveBeenCalledTimes(1)
   const query = fromJson(RequestSchema, request.mock.calls[0][0]).operation
   expect(query.case === 'agent' && query.value.operation.case === 'query' && query.value.operation.value.kind).toBe(Q.RESOURCES)
+})
+
+test('资源瞬时失败自动补读，不闪出警告或丢失会话草稿', async () => {
+  const { client, failResources } = fixture([fileCandidate('ftp')])
+  failResources('remote_capacity_exceeded')
+  render(<RemoteAgentSurface client={client} active />)
+  await screen.findByText('被控端会话')
+  fireEvent.change(screen.getByRole('textbox', { name: '草稿' }), { target: { value: '仍在输入' } })
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  failResources('')
+  expect(await screen.findByText('资源就绪：1 个文件配置，0 个终端')).toBeVisible()
+  expect(screen.getByRole('textbox', { name: '草稿' })).toHaveValue('仍在输入')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('非法文件身份仍拒绝，修正后可原地恢复资源', async () => {

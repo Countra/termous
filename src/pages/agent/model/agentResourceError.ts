@@ -34,9 +34,9 @@ export function resolveAgentResourceError(error: unknown): AgentResourceError {
 
 function errorCode(error: unknown) {
   const code = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined
-  if (typeof code === 'string' && code) return code
-  return error instanceof Error && error.message === 'AGENT_RESOURCE_BINDING_UNAVAILABLE'
-    ? error.message
+  if (typeof code === 'string' && code) return code.toUpperCase()
+  return error instanceof Error
+    ? error.message.toUpperCase()
     : undefined
 }
 

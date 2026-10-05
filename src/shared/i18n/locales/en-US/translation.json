@@ -1458,6 +1458,10 @@
       "degraded": "Some AI assistant state is temporarily unavailable",
       "degradedDescription": "Session content is preserved. Retry to load Core's authoritative state.",
       "operation": "The AI assistant operation did not complete",
+      "uncertain": "Operation result is not confirmed",
+      "conflict": "The conversation has changed",
+      "conflictDescription": "Check the latest state before trying again. Unsubmitted drafts are preserved.",
+      "uncertainDescription": "The operation may have run on the controlled computer. Refresh and check its result before submitting again.",
       "operationDescription": "Check Core, the model profile, and runtime status, then try again."
     }
   },

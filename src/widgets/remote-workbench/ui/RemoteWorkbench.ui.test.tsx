@@ -65,3 +65,36 @@ test('断开后在同一窗口重连，保留选中会话且旧回调不能关�
   expect(request.mock.calls.every(args => JSON.stringify(args).includes('inventory'))).toBe(true)
   view.unmount()
 })
+
+test('首次清单读取失败不误判断连，原地刷新即可恢复', async () => {
+  const connection = { id: 'connection', state: 'connected', scope: { generation: '1' } } as RemoteConnection
+  const request = vi.fn<RemoteWindowBridge['request']>().mockResolvedValueOnce({ ok: false, code: 'remote_invalid' })
+    .mockResolvedValue({ ok: true, value: { inventory: { sessions: [{ id: 'ssh', name: 'Existing SSH', kind: 'ssh', generation: '1', state: 'connected' }] } } })
+  const bridge = { connection: async () => ({ ok: true, value: connection }), request, subscribe: () => () => {}, localTransfers: async () => ({ ok: true, value: [] }) } as unknown as RemoteWindowBridge
+  render(<RemoteWorkbench bridge={bridge} bootstrap={{ generation: '1', deviceId: 'host', deviceName: 'Desktop', language: 'zh-CN', theme: 'dark' }} />)
+  await screen.findByRole('alert')
+  expect(screen.getByRole('button', { name: '重新连接' })).toBeDisabled()
+  fireEvent.click(screen.getAllByRole('button', { name: '刷新' })[0]!)
+  expect(await screen.findByText('Existing SSH')).toBeVisible()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test.each([true, false])('较早清单读取的迟到结果不能覆盖较新的清单或提示（失败：%s）', async fail => {
+  const connection = { id: 'connection', state: 'connected', scope: { generation: '1' } } as RemoteConnection
+  const inventory = (name: string) => ({ ok: true as const, value: { inventory: { sessions: [{ id: 'ssh', name, kind: 'ssh', generation: '1', state: 'connected' }] } } })
+  const request = vi.fn<RemoteWindowBridge['request']>().mockResolvedValue(inventory('初始会话'))
+  const bridge = { connection: async () => ({ ok: true, value: connection }), request, subscribe: () => () => {}, localTransfers: async () => ({ ok: true, value: [] }) } as unknown as RemoteWindowBridge
+  render(<RemoteWorkbench bridge={bridge} bootstrap={{ generation: '1', deviceId: 'host', deviceName: 'Desktop', language: 'zh-CN', theme: 'dark' }} />)
+  await screen.findByText('初始会话')
+  let finish!: (value: Awaited<ReturnType<RemoteWindowBridge['request']>>) => void
+  request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+  request.mockResolvedValue(inventory('最新会话'))
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+  await screen.findByText('最新会话')
+  await act(async () => finish(fail ? { ok: false, code: 'remote_invalid' } : inventory('过期会话')))
+  expect(screen.getByText('最新会话')).toBeVisible()
+  expect(screen.queryByText('过期会话')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(request).toHaveBeenCalledTimes(3)
+})

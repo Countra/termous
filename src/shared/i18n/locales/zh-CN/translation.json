@@ -1456,6 +1456,10 @@
       "degraded": "部分 AI 助手状态暂时不可用",
       "degradedDescription": "会话内容已保留，可重试读取 Core 权威状态。",
       "operation": "AI 助手操作未完成",
+      "uncertain": "操作结果尚未确认",
+      "conflict": "会话内容已更新",
+      "conflictDescription": "请核对最新状态后重新操作，尚未提交的草稿会保留。",
+      "uncertainDescription": "操作可能已在被控电脑执行。请先刷新并核对结果，不要重复提交。",
       "operationDescription": "请检查 Core、模型配置和运行状态后重试。"
     }
   },

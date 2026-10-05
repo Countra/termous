@@ -8,6 +8,9 @@ const en = {
   agentChecking: 'Checking AI access on the controlled computer',
   agentResourcesUnavailable: 'Could not load resources from the controlled computer.',
   agentViewUnavailable: 'Could not update notification status for this conversation.',
+  agentApprovalsUnavailable: 'Could not refresh approvals. Refresh their status before making a decision.',
+  syncUnavailable: 'Could not refresh device information. Previously loaded content is preserved.',
+  contentChanged: 'The content has changed. Check the latest state before trying this operation again.',
   quoteAgent: 'Quote selection in AI', agent: 'AI assistant', agentPermission: 'Allow remote AI assistant', agentPermissionHint: 'Allow trusted devices to view all AI conversations and use the existing AI tool permissions.', sessions: 'Sessions', hosts: 'Hosts', files: 'Files', terminal: 'Terminal', split: 'Split view',
   uploadHost: 'Upload from controlled computer', downloadHost: 'Download to controlled computer',
   uploadDevice: 'Upload from this device', downloadDevice: 'Download to this device',
@@ -59,6 +62,9 @@ const zh: typeof en = {
   agentChecking: '正在检查被控电脑的 AI 访问状态',
   agentResourcesUnavailable: '被控电脑的资源列表暂时不可用。',
   agentViewUnavailable: '此会话的通知状态更新失败。',
+  agentApprovalsUnavailable: '审批状态暂时无法更新，请刷新后再处理。',
+  syncUnavailable: '设备信息暂时无法更新，已保留上次读取的内容。',
+  contentChanged: '内容已变化，请核对最新状态后重新操作。',
   quoteAgent: '引用选区到 AI', agent: 'AI 助手', agentPermission: '允许远程使用 AI 助手', agentPermissionHint: '允许可信设备查看全部 AI 对话，并沿用此电脑的 AI 工具权限。', sessions: '会话', hosts: '主机', files: '文件', terminal: '终端', split: '并排显示',
   uploadHost: '上传自被控电脑', downloadHost: '下载到被控电脑',
   uploadDevice: '上传自此设备', downloadDevice: '下载到此设备',
@@ -108,6 +114,7 @@ export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code).toLowerCase() : ''
   if (error && typeof error === 'object' && 'uncertain' in error && error.uncertain) return copy.uncertain
   if (code === 'remote_policy_changed') return copy.policyChanged
+  if (code === 'agent_revision_conflict' || code === 'revision_conflict' || code === 'mcp_conflict') return copy.contentChanged
   if (code === 'remote_agent_disabled') return copy.agentDisabled
   if (code === 'remote_agent_unsupported') return copy.agentUnsupported
   if (code === 'remote_agent_restarted') return copy.agentRestarted

@@ -446,6 +446,23 @@ describe('AgentPage', () => {
     expect(harness.updateDraft).not.toHaveBeenCalled()
   })
 
+  it('远程操作冲突去重并保留，状态刷新不会让提示快速消失', async () => {
+    const page = renderPage({ remote: true })
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
+    harness.updateSession.mockRejectedValue({ code: 'agent_revision_conflict' })
+    vi.useFakeTimers()
+    try {
+      const changeModel = () => (harness.workspaceProps!.onModelChange as (id: string) => void)(modelFixture().id)
+      await act(async () => { changeModel() })
+      await act(async () => { changeModel() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(6000) })
+      expect(page.getAllByText('agent.error.conflict')).toHaveLength(1)
+      expect(harness.updateSession).toHaveBeenCalledTimes(2)
+      act(() => publishState())
+      expect(page.getByText('agent.error.conflict')).toBeVisible()
+    } finally { page.unmount(); vi.useRealTimers() }
+  })
+
   it('空白新草稿禁用 compact，直接调用回调也不会创建会话', async () => {
     harness.state = {
       ...workspaceState(),
@@ -2988,6 +3005,7 @@ function resourceConnectionView(
 }
 
 function renderPage({
+  remote = false,
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
@@ -3000,6 +3018,7 @@ function renderPage({
   sshProfileResourcesReady = fileResourcesReady,
   slashCandidates = emptySlashCandidates(),
 }: {
+  remote?: boolean
   launchIntent?: AgentLaunchIntent
   onLaunchIntentHandled?: (key: number) => void
   onRuntimeSummaryChange?: (snapshot: {
@@ -3044,6 +3063,7 @@ function renderPage({
   } = {}) => (
     <AntdApp>
       <AgentPage
+        remote={remote}
         gateway={gateway}
         setupGateway={setupGateway}
         enabled

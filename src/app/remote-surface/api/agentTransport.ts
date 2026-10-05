@@ -1,6 +1,6 @@
 import type { MessageInitShape } from '@bufbuild/protobuf'
 import { AgentQuery_Kind as Query, type AgentRequestSchema, type AgentQuerySchema } from '@termous/remote-protocol/agent'
-import { RemoteClient, RemoteError } from '#entities/remote-control'
+import { RemoteClient, RemoteError, retryRemoteRead } from '#entities/remote-control'
 import type { AgentWorkspaceObserver, AgentWorkspaceSubscription } from '#features/agent-runtime'
 
 export type AgentOperation = MessageInitShape<typeof AgentRequestSchema>['operation']
@@ -12,7 +12,11 @@ export class RemoteAgentTransport {
 
   async call(type: string, operation: AgentOperation, signal?: AbortSignal, operationId?: string): Promise<unknown> {
     signal?.throwIfAborted()
-    const result = await this.client.request({ operation: { case: 'agent', value: { operationId, expectedInstanceId: this.instanceId, operation } } })
+    const result = await this.client.request({ operation: { case: 'agent', value: { operationId, expectedInstanceId: this.instanceId, operation } } }).catch(error => {
+      // AI 页面沿用本机合同的错误码，转换大小写时保留结果不明，不能把冲突误报成普通故障。
+      if (error instanceof RemoteError && error.code.startsWith('agent_')) throw new RemoteError(error.code.toUpperCase(), error.uncertain)
+      throw error
+    })
     signal?.throwIfAborted()
     if (result.result.case !== 'agent' || result.result.value.type !== type || result.result.value.content) throw new RemoteError('remote_invalid')
     const instanceId = result.result.value.instanceId
@@ -24,7 +28,7 @@ export class RemoteAgentTransport {
   }
 
   query(type: string, kind: Query, input: Omit<MessageInitShape<typeof AgentQuerySchema>, 'kind' | '$typeName'> = {}, signal?: AbortSignal) {
-    return this.call(type, { case: 'query', value: { ...input, kind } }, signal)
+    return retryRemoteRead(() => this.call(type, { case: 'query', value: { ...input, kind } }, signal), signal)
   }
 
   async write(type: string, operation: AgentOperation, signal?: AbortSignal, operationId: string = crypto.randomUUID()) {
@@ -36,7 +40,11 @@ export class RemoteAgentTransport {
         signal?.throwIfAborted()
         await new Promise(resolve => setTimeout(resolve, 1000))
         try { return await this.query(type, Query.OPERATION, { id: operationId }, signal) } catch (reason) {
-          if (!(reason instanceof RemoteError) || reason.code !== 'remote_operation_uncertain') throw reason
+          signal?.throwIfAborted()
+          if (reason instanceof RemoteError && reason.code === 'remote_operation_uncertain') continue
+          // 对账读取失败不证明原写入失败；保持未知结果，明确的业务冲突仍按原合同反馈。
+          if (reason instanceof RemoteError && /^(AGENT_|mcp_)/.test(reason.code)) throw reason
+          throw error
         }
       }
       throw error

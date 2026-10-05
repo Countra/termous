@@ -48,6 +48,7 @@ import {
   type AgentApprovalMode,
 } from '#features/agent-approval-policy'
 import { termousNotificationClassName } from '#shared/ui'
+import { isTransientRemoteReadError } from '#entities/remote-control'
 import {
   AgentWorkspace,
   AgentArchiveManager,
@@ -67,6 +68,7 @@ import {
 } from '../model/agentWorkspaceProjection.ts'
 import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
 import { resolveAgentResourceError } from '../model/agentResourceError.ts'
+import { useAgentSyncWarning } from '../model/useAgentSyncWarning.ts'
 import {
   compactDraftHasPayload,
   compactSlashDisabledReason,
@@ -278,18 +280,18 @@ export function AgentPage({
             controller.reloadUsage(selectedSessionId),
           ])
         } catch {
-          if (!signal?.aborted) notifyError(notificationRef.current, tRef.current)
+          if (!signal?.aborted && !remote) notifyError(notificationRef.current, tRef.current)
         }
       }
       signal?.throwIfAborted()
       return shouldAccept()
     } catch {
-      if (!signal?.aborted) notifyError(notificationRef.current, tRef.current)
+      if (!signal?.aborted && !remote) notifyError(notificationRef.current, tRef.current)
       return false
     } finally {
       if (setupLoadRequestRef.current === request) setSetupLoading(false)
     }
-  }, [acceptSetupSnapshot, controller, setupGateway])
+  }, [acceptSetupSnapshot, controller, setupGateway, remote])
 
   const markActiveSetupReady = useCallback((epoch: number) => {
     if (epoch <= 0 || activeSetupEpochRef.current !== epoch) return
@@ -354,13 +356,13 @@ export function AgentPage({
       await operation()
       return true
     } catch (error) {
-      notifyError(notificationRef.current, tRef.current, error, errorContext)
+      notifyError(notificationRef.current, tRef.current, error, errorContext, remote)
       return false
     } finally {
       operationBusyRef.current = { ...operationBusyRef.current, [lane]: false }
       setOperationBusy(operationBusyRef.current)
     }
-  }, [])
+  }, [remote])
 
   const performResourceMutation = useCallback(async (
     sessionId: string,
@@ -540,6 +542,10 @@ export function AgentPage({
   const activeSetupFailed = active
     && activeSetupFailedEpoch > 0
     && activeSetupFailedEpoch === activeSetupEpochRef.current
+  const syncWarningVisible = useAgentSyncWarning(
+    activeSetupFailed ? 'setup' : state.error_code,
+    remote && !activeSetupFailed && isTransientRemoteReadError({ code: state.error_code }),
+  )
   const selectedRun = useMemo(() => {
     if (!selected) return undefined
     const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
@@ -624,7 +630,7 @@ export function AgentPage({
     if (!accepted) {
       notifyError(notificationRef.current, tRef.current,
         new Error(profileConnection.coordinator.getSnapshot()[latestSession.id]?.error_code
-          ?? 'AGENT_RESOURCE_CONNECTION_FAILED'), 'resource')
+          ?? 'AGENT_RESOURCE_CONNECTION_FAILED'), 'resource', remote)
     }
     return accepted
   }
@@ -960,7 +966,7 @@ export function AgentPage({
         targetSession = await pendingDraftSession
       } catch (error) {
         updateSlashExecutionSessions(trackedExecutionSessionIds, false)
-        notifyError(notificationRef.current, tRef.current, error)
+        notifyError(notificationRef.current, tRef.current, error, 'generic', remote)
         return false
       }
       trackedExecutionSessionIds.push(targetSession.id)
@@ -1067,6 +1073,7 @@ export function AgentPage({
         tRef.current,
         error,
         execution.command_id === 'compact' ? 'generic' : 'resource',
+        remote,
       )
     } finally {
       if (pendingDraftSession) draftSessionCoordinator.release(pendingDraftSession)
@@ -1109,7 +1116,7 @@ export function AgentPage({
   return (
     <div className={styles.page}>
       {referenceNotice}
-      {!workspaceInfrastructureReady ? readinessSurface : activeSetupFailed ? (
+      {!workspaceInfrastructureReady ? readinessSurface : activeSetupFailed && syncWarningVisible ? (
         <Alert
           className={styles.alert}
           type="warning"
@@ -1126,7 +1133,7 @@ export function AgentPage({
             </button>
           )}
         />
-      ) : state.error_code ? (
+      ) : state.error_code && syncWarningVisible ? (
         <Alert
           className={styles.alert}
           type="warning"
@@ -1243,12 +1250,12 @@ export function AgentPage({
           ) {
             controller.selectSession(nextSessionId)
           }
-        })().catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
+        })().catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error, 'generic', remote))}
         onDeleteSession={(sessionId) => void management.perform([sessionId], async () => {
           const session = requireSession(controller.getSnapshot().sessions, sessionId)
           await controller.deleteSession(sessionId, session.revision)
           draftAttachments.clear(sessionId)
-        }).catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error))}
+        }).catch((error: unknown) => notifyError(notificationRef.current, tRef.current, error, 'generic', remote))}
         onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
             const model = modelById.get(modelId)
@@ -1421,7 +1428,7 @@ export function AgentPage({
           try {
             controller.setContextCompressionPending(selected.id, enabled)
           } catch {
-            notifyError(notificationRef.current, tRef.current)
+            notifyError(notificationRef.current, tRef.current, undefined, 'generic', remote)
           }
         }}
         onRetryContext={() => {
@@ -1684,11 +1691,22 @@ function notifyError(
   t: (key: string) => string,
   error?: unknown,
   context: 'generic' | 'resource' = 'generic',
+  remote = false,
 ) {
-  if (context === 'resource') {
+  const feedback = remote ? { key: `remote-agent-operation-${context}`, duration: 0 } : {}
+  if (remote && error && typeof error === 'object' && 'uncertain' in error && error.uncertain) {
+    notification.warning({
+      ...feedback,
+      title: t('agent.error.uncertain'), description: t('agent.error.uncertainDescription'),
+      className: termousNotificationClassName,
+    })
+    return
+  }
+  if (context === 'resource' || remote) {
     const resourceError = resolveAgentResourceError(error)
     if (resourceError.kind === 'unavailable') {
       notification.error({
+        ...feedback,
         title: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.errorTitle' : 'agent.resource.error.unavailableTitle'),
         description: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.hint.stale' : `agent.resource.error.reason.${resourceError.reason}`),
         className: termousNotificationClassName,
@@ -1697,14 +1715,16 @@ function notifyError(
     }
     if (resourceError.kind === 'revision_conflict') {
       notification.warning({
-        title: t('agent.resource.error.conflictTitle'),
-        description: t('agent.resource.error.conflictDescription'),
+        ...feedback,
+        title: t(context === 'resource' ? 'agent.resource.error.conflictTitle' : 'agent.error.conflict'),
+        description: t(context === 'resource' ? 'agent.resource.error.conflictDescription' : 'agent.error.conflictDescription'),
         className: termousNotificationClassName,
       })
       return
     }
     if (resourceError.kind === 'run_conflict') {
       notification.warning({
+        ...feedback,
         title: t('agent.resource.error.activeRunTitle'),
         description: t('agent.resource.error.activeRunDescription'),
         className: termousNotificationClassName,
@@ -1713,6 +1733,7 @@ function notifyError(
     }
   }
   notification.error({
+    ...feedback,
     title: t('agent.error.operation'),
     description: t('agent.error.operationDescription'),
     className: termousNotificationClassName,
