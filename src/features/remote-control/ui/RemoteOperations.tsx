@@ -10,7 +10,7 @@ export function RemoteOperations({ client, operations, sessions, copy, changed }
     const session = sessions.find(item => item.id === task.sessionId)
     if (!session) return
     try {
-      await client.request({ operation: { case: 'file', value: { action: 'operation_cancel', taskId: task.id, location: { kind: 'ssh_files', resourceId: session.id, generation: session.generation, path: '/' } } } })
+      await client.request({ operation: { case: 'file', value: { action: 'operation_cancel', taskId: task.id, location: { kind: 'files', resourceId: session.id, generation: session.generation, path: '/' } } } })
       changed()
     } catch (reason) { setError(reason) }
   }

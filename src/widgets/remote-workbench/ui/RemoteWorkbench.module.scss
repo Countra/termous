@@ -110,6 +110,20 @@
   white-space: nowrap;
 }
 
+.connection {
+  min-height: 40px;
+  justify-content: flex-start;
+  padding-inline: 8px;
+}
+
+.connection-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
 .session-row {
   display: flex;
   align-items: center;

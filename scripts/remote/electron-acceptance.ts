@@ -90,10 +90,10 @@ try {
   assert.equal(await remote.webContents.executeJavaScript('typeof require'), 'undefined')
   assert.equal(await remote.webContents.executeJavaScript('typeof window.termous'), 'undefined')
   const result = await remote.webContents.executeJavaScript('window.termousRemote.request({inventory:{}})')
-  assert.equal(result.ok, true); assert.equal(result.value.inventory.sessions.length, 2)
+  assert.equal(result.ok, true); assert.equal(result.value.inventory.sessions.length, 4)
   const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}})')
   assert.equal(invalid.code, 'remote_invalid_request')
-  await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("选择连接") && document.body.innerText.includes("deploy@192.0.2.10")'))
+  await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("选择连接") && document.body.innerText.includes("Release bucket")'))
   // DOM 就绪早于合成器提交；等绘制完成再保存界面证据。
   await remote.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   await writeFile(path.join(output, 'window.png'), (await remote.webContents.capturePage()).toPNG())

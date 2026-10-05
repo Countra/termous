@@ -81,12 +81,12 @@ export class RemoteControlRuntime {
     ipcMain.handle('remote:configure', (event, generation: string, revision: number, enabled: boolean, ids: string[]) => result(async () => {
       this.main(event, generation)
       if (!Number.isSafeInteger(revision) || typeof enabled !== 'boolean' || !Array.isArray(ids) || ids.length > 256 || !ids.every(validId)) throw new RemoteCoreError('remote_invalid_request')
-      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, profile_ids: ids }, 'PUT')
+      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, host_ids: ids }, 'PUT')
     }))
-    ipcMain.handle('remote:profiles', event => result(async () => {
+    ipcMain.handle('remote:hosts', event => result(async () => {
       this.main(event)
-      const profiles = await this.options.core.request<{ id: string; name: string }[]>('/ssh-access-profiles')
-      return (profiles ?? []).map(({ id, name }) => ({ id, name }))
+      const hosts = await this.options.core.request<{ id: string; name: string }[]>('/host-assets')
+      return (hosts ?? []).map(({ id, name }) => ({ id, name }))
     }))
     ipcMain.handle('remote:add-directory', (event, generation: string, revision: number, write: boolean) => result(async () => {
       this.main(event, generation)

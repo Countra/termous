@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Alert, Button, Spin, Tabs, Tooltip } from 'antd'
 import { Columns2, Folder, Terminal } from 'lucide-react'
-import type { AppTheme } from '#common/contracts'
+import type { AppTheme, RemoteLocalTask } from '#common/contracts'
 import { type Inventory, RemoteClient, type Session } from '#entities/remote-control'
 import { RemoteFiles, RemoteHostKey, RemoteTerminal, type RemoteCopy } from '#features/remote-control'
 import styles from './RemoteWorkbench.module.scss'
 
 interface Props {
   client: RemoteClient; tabs: Session[]; selected: string; inventory?: Inventory
+  localTasks?: RemoteLocalTask[]
   copy: RemoteCopy; theme: AppTheme; name(session: Session): string
   select(id: string): void; close(id: string): void; changed(): void
 }
 
-export function RemoteSessionPanels({ client, tabs, selected, inventory, copy, theme, name, select, close, changed }: Props) {
+export function RemoteSessionPanels({ client, tabs, selected, inventory, localTasks, copy, theme, name, select, close, changed }: Props) {
   const [split, setSplit] = useState(false)
   const primary = tabs.find(item => item.id === selected)
   const secondary = tabs.find(item => item.kind !== primary?.kind)
@@ -27,7 +28,7 @@ export function RemoteSessionPanels({ client, tabs, selected, inventory, copy, t
         {session.hostKeyChallengeId ? <div className={styles.challenge}><RemoteHostKey key={session.hostKeyChallengeId} client={client} session={session} copy={copy} changed={changed} /></div>
           : session.state !== 'connected' ? <div className={styles.loading}>{session.state === 'connecting' ? <Spin /> : <Alert type="info" title={copy.disconnected} />}</div>
             : session.kind === 'ssh' ? <RemoteTerminal client={client} session={session} copy={copy} theme={theme} />
-              : <RemoteFiles client={client} session={session} copy={copy} roots={inventory?.roots ?? []} operations={inventory?.operations ?? []} changed={changed} />}
+              : <RemoteFiles client={client} session={session} copy={copy} roots={inventory?.roots ?? []} operations={inventory?.operations ?? []} transfers={inventory?.transfers} localTasks={localTasks} changed={changed} />}
       </section>)}
     </div>
   </div>

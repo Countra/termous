@@ -19,7 +19,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   const api = getTermousBridge()?.remoteControl
   const [devices, setDevices] = useState<RemoteDevice[]>([])
   const [policy, setPolicy] = useState<RemotePolicy>()
-  const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([])
+  const [hosts, setHosts] = useState<{ id: string; name: string }[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
@@ -46,10 +46,14 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     const scope = lifetime.current
     setOpen(true); setBusy(true); setError(undefined)
     try {
-      const [policy, profiles] = await Promise.all([api.policy(generation), api.profiles()])
+      const [policy, hosts] = await Promise.all([api.policy(generation), api.hosts()])
       if (scope !== lifetime.current) return
       const value = unwrap(policy)
-      setPolicy(value); setEnabled(value.enabled); setSelected((value.profiles ?? []).map(item => item.id)); setProfiles(unwrap(profiles))
+      const availableHosts = unwrap(hosts)
+      const availableIDs = new Set(availableHosts.map(host => host.id))
+      setPolicy(value); setEnabled(value.enabled)
+      setSelected((value.hosts ?? []).map(item => item.id).filter(id => availableIDs.has(id)))
+      setHosts(availableHosts)
     } catch (reason) { if (scope === lifetime.current) setError(reason) } finally { if (scope === lifetime.current) setBusy(false) }
   }
   const save = async () => {
@@ -78,7 +82,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     })}
     {error && !open ? <Alert type="warning" title={remoteErrorText(copy, error)} closable onClose={() => setError(undefined)} /> : null}
     <Modal title={copy.configure} open={open} width={640} onCancel={() => setOpen(false)} onOk={() => void save()} confirmLoading={busy} okText={copy.save} cancelText={copy.cancel} okButtonProps={{ disabled: !policy }}>
-      <div className={styles.form}>{error ? <Alert type="warning" title={remoteErrorText(copy, error)} action={<Button size="small" onClick={() => void edit()}>{copy.refresh}</Button>} /> : null}<p>{copy.settingsHint}</p><Space><Switch checked={enabled} disabled={busy || !policy} onChange={setEnabled} aria-label={copy.hostSettings} /><strong>{copy.hostSettings}</strong></Space><h3>{copy.allowedProfiles}</h3><Checkbox.Group className={styles.choices} value={selected} disabled={busy || !policy} onChange={values => setSelected(values as string[])} options={profiles.map(profile => ({ value: profile.id, label: profile.name }))} /><h3>{copy.allowedFolders}</h3>{(policy?.directories ?? []).map(root => <div key={root.id} className={styles.directory}><div><strong>{root.name}</strong><small>{root.path}</small></div><Tag>{root.write ? `${copy.read} / ${copy.write}` : copy.read}</Tag><Button type="text" danger disabled={busy} icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void directory(false, root.id)} /></div>)}<Space wrap><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(false)}>{copy.addRead}</Button><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(true)}>{copy.addWrite}</Button></Space></div>
+      <div className={styles.form}>{error ? <Alert type="warning" title={remoteErrorText(copy, error)} action={<Button size="small" onClick={() => void edit()}>{copy.refresh}</Button>} /> : null}<p>{copy.settingsHint}</p><Space><Switch checked={enabled} disabled={busy || !policy} onChange={setEnabled} aria-label={copy.hostSettings} /><strong>{copy.hostSettings}</strong></Space><h3>{copy.allowedHosts}</h3><Checkbox.Group className={styles.choices} value={selected} disabled={busy || !policy} onChange={values => setSelected(values as string[])} options={hosts.map(profile => ({ value: profile.id, label: profile.name }))} /><h3>{copy.allowedFolders}</h3>{(policy?.directories ?? []).map(root => <div key={root.id} className={styles.directory}><div><strong>{root.name}</strong><small>{root.path}</small></div><Tag>{root.write ? `${copy.read} / ${copy.write}` : copy.read}</Tag><Button type="text" danger disabled={busy} icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void directory(false, root.id)} /></div>)}<Space wrap><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(false)}>{copy.addRead}</Button><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(true)}>{copy.addWrite}</Button></Space></div>
     </Modal>
   </>
 }

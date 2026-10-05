@@ -38,7 +38,7 @@ export function RemoteTransferDialog({ client, session, roots, copy, upload, pat
   const start = async () => {
     if (busy || !root || upload && !selected.length) return
     setBusy(true); setError(undefined)
-    const remote = (path: string) => ({ kind: 'ssh_files', resourceId: session.id, generation: session.generation, path })
+    const remote = (path: string) => ({ kind: 'files', resourceId: session.id, generation: session.generation, path })
     const host = (path: string) => ({ kind: 'host_local', resourceId: root, path })
     try {
       await client.request({ operation: { case: 'transfer', value: { action: 'create', operationId: crypto.randomUUID(), overwrite, sources: upload ? selected.map(host) : paths.map(remote), target: upload ? remote(directory) : host(path) } } })

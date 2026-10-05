@@ -19,7 +19,7 @@ export interface RemoteDevice {
 }
 export interface RemotePolicy {
   revision: number; enabled: boolean
-  profiles: { id: string; fingerprint: string }[]
+  hosts: { id: string }[]
   directories: { id: string; name: string; path: string; read: boolean; write: boolean }[]
 }
 export interface RemoteBootstrap {
@@ -30,6 +30,7 @@ export type RemoteResult<T> = { ok: true; value: T } | { ok: false; code: string
 export interface RemoteLocalTask {
   id: string; state: string; error_code?: string; remote_id: string; name: string
   direction: 'upload' | 'download'; confirmed_bytes: number; total_bytes: number; resumable: boolean
+  target_bytes?: number; stage?: string; session_id?: string
 }
 export interface RemoteLocalSelection {
   direction: 'upload' | 'download'; location: JsonValue; name?: string
@@ -41,8 +42,8 @@ export interface RemoteLauncher {
   open(generation: string, deviceId: string, deviceName: string): Promise<RemoteResult<boolean>>
   devices(generation: string): Promise<RemoteResult<RemoteDevice[]>>
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
-  configure(generation: string, revision: number, enabled: boolean, profileIds: string[]): Promise<RemoteResult<RemotePolicy>>
-  profiles(): Promise<RemoteResult<{ id: string; name: string }[]>>
+  configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
+  hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
