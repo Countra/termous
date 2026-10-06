@@ -14,6 +14,8 @@ export type AgentRuntimeFailureCategory =
   | 'forced_stop'
 
 export interface AgentSupervisorLease {
+  supervisor_epoch: number
+  max_concurrent_runs: number
   core_instance_id: string
   supervisor_instance_id: string
   runtime_protocol_version: typeof agentRuntimeProtocolVersion
@@ -39,6 +41,17 @@ export interface AgentQueuedTurnSteerResult {
   }
 }
 
+export interface AgentRuntimeAllocation extends AgentRuntimeRunRef {
+  execution_id: string
+  session_id: string
+}
+
+export interface AgentRuntimeClaim {
+  allocation: AgentRuntimeAllocation | null
+  max_concurrent_runs: number
+  occupied_slots: number
+}
+
 export interface AgentCoreRuntimePort {
   pollControl?(identity: AgentControlIdentity, signal: AbortSignal): Promise<AgentControlCommand | null>
   ackControl?(input: AgentControlAck, signal: AbortSignal): Promise<void>
@@ -47,12 +60,14 @@ export interface AgentCoreRuntimePort {
     skillsBundle: AgentSkillsBundleStatus,
   ): Promise<AgentSupervisorLease>
   unregisterSupervisor(supervisorInstanceID: string, expectedRevision: number): Promise<void>
-  claimNextQueuedRun(supervisorInstanceID: string): Promise<AgentRuntimeRunRef | null>
+  claimNextQueuedRun(supervisorInstanceID: string, supervisorEpoch: number, claimSequence: number): Promise<AgentRuntimeClaim>
+  releaseExecution(supervisorInstanceID: string, supervisorEpoch: number, allocation: AgentRuntimeAllocation): Promise<void>
   steerQueuedTurn(request: AgentQueuedTurnSteerRequest): Promise<AgentQueuedTurnSteerResult>
   issueRuntimeTicket(
     supervisorInstanceID: string,
     runID: string,
     generation: number,
+    executionID: string,
   ): Promise<AgentRuntimeTicket>
   reportRuntimeFailure(
     supervisorInstanceID: string,
@@ -120,20 +135,29 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     })
   }
 
-  async claimNextQueuedRun(supervisorInstanceID: string) {
+  async claimNextQueuedRun(supervisorInstanceID: string, supervisorEpoch: number, claimSequence: number): Promise<AgentRuntimeClaim> {
     const value = await this.requestRecoverableMutation('/api/v1/agent/runtime/queue/claim-next', {
       method: 'POST',
-      body: JSON.stringify({ supervisor_instance_id: supervisorInstanceID }),
+      body: JSON.stringify({ supervisor_instance_id: supervisorInstanceID, supervisor_epoch: supervisorEpoch, claim_sequence: claimSequence }),
     })
-    if (!isRecord(value)) {
-      if (value === null) return null
+    if (!isRecord(value) || !Number.isInteger(value.max_concurrent_runs) || Number(value.max_concurrent_runs) < 1 || Number(value.max_concurrent_runs) > 8
+      || !Number.isInteger(value.occupied_slots) || Number(value.occupied_slots) < 0 || Number(value.occupied_slots) > 8) {
       throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
     }
-    if (value.run === undefined || value.run === null) return null
-    if (!isCoreRun(value.run)) {
+    const capacity = { max_concurrent_runs: Number(value.max_concurrent_runs), occupied_slots: Number(value.occupied_slots) }
+    if (value.run === null) return { ...capacity, allocation: null }
+    if (!isCoreRun(value.run) || typeof value.execution_id !== 'string' || !value.execution_id || !validRunID(value.session_id)) {
       throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
     }
-    return { run_id: value.run.id, generation: value.run.generation }
+    return { ...capacity, allocation: { run_id: value.run.id, generation: value.run.generation, execution_id: value.execution_id, session_id: value.session_id } }
+  }
+
+  async releaseExecution(supervisorInstanceID: string, supervisorEpoch: number, allocation: AgentRuntimeAllocation) {
+    await this.requestRecoverableMutation('/api/v1/agent/runtime/executions/release', {
+      method: 'POST',
+      body: JSON.stringify({ supervisor_instance_id: supervisorInstanceID, supervisor_epoch: supervisorEpoch,
+        execution_id: allocation.execution_id, run_id: allocation.run_id, generation: allocation.generation }),
+    })
   }
 
   async steerQueuedTurn(request: AgentQueuedTurnSteerRequest) {
@@ -166,6 +190,7 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     supervisorInstanceID: string,
     runID: string,
     generation: number,
+    executionID: string,
   ) {
     const value = await this.request(
       `/api/v1/agent/runs/${encodeURIComponent(runID)}/runtime-tickets`,
@@ -174,6 +199,7 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
         body: JSON.stringify({
           supervisor_instance_id: supervisorInstanceID,
           expected_generation: generation,
+          execution_id: executionID,
         }),
       },
     )
@@ -317,6 +343,8 @@ function isSupervisorLease(value: unknown, supervisorInstanceID: string): value 
     && validRuntimeIdentity(value.supervisor_instance_id)
     && value.runtime_protocol_version === agentRuntimeProtocolVersion
     && validRuntimeIdentity(value.core_instance_id)
+    && validGeneration(value.supervisor_epoch)
+    && Number.isInteger(value.max_concurrent_runs) && Number(value.max_concurrent_runs) >= 1 && Number(value.max_concurrent_runs) <= 8
     && validGeneration(value.revision)
     && typeof value.expires_at === 'string'
     && validFutureTimestamp(value.expires_at)

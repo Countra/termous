@@ -7,7 +7,7 @@ export function createAgentPreview(english: boolean, changed: () => void) {
   const now = new Date().toISOString()
   const dates = { created_at: now, updated_at: now }
   const session = { id: 'ags-session', title: english ? 'Review deployment' : '检查部署状态', model_id: 'apm-1', reasoning_level: 'medium', origin: 'remote', creator_device_id: 'controller', revision: 1, resource_bindings: [], ...dates }
-  const settings = { default_model_id: 'apm-1', default_reasoning_level: 'medium', global_context_window_tokens: 32768, global_max_output_tokens: 4096, show_turn_token_usage: true, revision: 1, context_compaction_threshold_percent: 80, ...dates }
+  const settings = { default_model_id: 'apm-1', default_reasoning_level: 'medium', global_context_window_tokens: 32768, global_max_output_tokens: 4096, max_concurrent_runs: 4, show_turn_token_usage: true, revision: 1, context_compaction_threshold_percent: 80, ...dates }
   const component = { status: 'ready', message: '' }
   const readiness = { status: 'ready', mcp_runtime: component, mcp_client: component, skills_bundle: component, default_model: component, settings, mcp_policy: { client_id: 'builtin-ai', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 } }
   const model = { id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'fixture', display_name: 'Fixture AI', availability: 'available', source: 'sync', parameter_mode: 'custom', context_window_tokens: 32768, max_output_tokens: 4096, default_reasoning_level: 'medium', reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'medium', 'high'], supports_images: true, supports_reasoning: true, capabilities_confirmed: true, effective_context_window_tokens: 32768, effective_max_output_tokens: 4096, effective_default_reasoning_level: 'medium', first_seen_at: now, last_seen_at: now, revision: 1, ...dates }
@@ -28,7 +28,7 @@ export function createAgentPreview(english: boolean, changed: () => void) {
         case Q.SESSIONS: return document('sessions', { items: q.archived ? [] : [session] })
         case Q.SESSION: return document('session', session)
         case Q.GROUPS: return document('groups', [])
-        case Q.WORKSPACE: return document('workspace', { type: 'snapshot', revision, sessions: [session], session_groups: [], active_runs: [], queued_turns: [] })
+        case Q.WORKSPACE: return document('workspace', { type: 'snapshot', revision, sessions: [session], session_groups: [], active_runs: [], queued_turns: [], queue_states: [] })
         case Q.MESSAGES: return document('messages', { items: messages.filter(m => BigInt(m.sequence) > q.afterSequence) })
         case Q.QUEUE: return document('queue', { items: [], queue_state: { session_id: session.id, state: 'running', revision: 1 } })
         case Q.RESOURCES: return document('resources', { items: [] })

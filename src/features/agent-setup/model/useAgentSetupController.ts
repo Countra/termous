@@ -180,6 +180,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     global_context_window_tokens?: number
     global_max_output_tokens?: number
     context_compaction_threshold_percent?: number
+    max_concurrent_runs?: number
     connect_ssh_profile_on_bind?: boolean
     show_turn_token_usage?: boolean
   }) => {
@@ -202,6 +203,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
             ?? currentSettings.global_max_output_tokens,
           context_compaction_threshold_percent: patch.context_compaction_threshold_percent
             ?? currentSettings.context_compaction_threshold_percent,
+          max_concurrent_runs: patch.max_concurrent_runs ?? currentSettings.max_concurrent_runs,
           connect_ssh_profile_on_bind: patch.connect_ssh_profile_on_bind
             ?? currentSettings.connect_ssh_profile_on_bind,
           show_turn_token_usage: patch.show_turn_token_usage ?? currentSettings.show_turn_token_usage,

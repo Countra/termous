@@ -31,7 +31,7 @@ class FakeCore implements AgentCoreRuntimePort {
   lease: AgentSupervisorLease = {
     core_instance_id: 'core-1',
     supervisor_instance_id: 'supervisor-1',
-    runtime_protocol_version: agentRuntimeProtocolVersion,
+    runtime_protocol_version: agentRuntimeProtocolVersion, supervisor_epoch: 1, max_concurrent_runs: 4,
     revision: 1,
     expires_at: '2030-01-01T00:00:00Z',
   }
@@ -72,8 +72,12 @@ class FakeCore implements AgentCoreRuntimePort {
 
   async claimNextQueuedRun() {
     this.claimCalls += 1
-    return this.queueClaims.shift() ?? null
+    const run = this.queueClaims.shift()
+    return { allocation: run ? { ...run, execution_id: `execution-${this.claimCalls}`, session_id: `session-${run.run_id}` } : null,
+      max_concurrent_runs: this.lease.max_concurrent_runs, occupied_slots: 0 }
   }
+  releases: string[] = []
+  async releaseExecution(_id: string, _epoch: number, allocation: { execution_id: string }) { this.releases.push(allocation.execution_id) }
 
   async steerQueuedTurn(request: AgentQueuedTurnSteerRequest) {
     if (this.queuedTurnSteerError) throw this.queuedTurnSteerError
@@ -171,6 +175,15 @@ class FakeWorkerFactory implements AgentWorkerFactory {
   }
 }
 
+const fixtureCores = new WeakMap<AgentSupervisor, FakeCore>()
+const persistedRuns = new WeakMap<AgentSupervisor, Set<string>>()
+async function startPersistedRun(supervisor: AgentSupervisor, request: AgentRuntimeRunRef) {
+  const persisted = persistedRuns.get(supervisor) ?? new Set<string>()
+  const key = `${request.run_id}:${request.generation}`
+  if (!persisted.has(key)) { fixtureCores.get(supervisor)!.queueClaims.push(request); persisted.add(key); persistedRuns.set(supervisor, persisted) }
+  return supervisor.startRun(request)
+}
+
 function createFixture(options: { steerAckTimeoutMs?: number } = {}) {
   const core = new FakeCore()
   const factory = new FakeWorkerFactory()
@@ -189,6 +202,7 @@ function createFixture(options: { steerAckTimeoutMs?: number } = {}) {
     settledExitGraceMs: 5,
     steerAckTimeoutMs: options.steerAckTimeoutMs,
   })
+  fixtureCores.set(supervisor, core)
   return { core, factory, skills, supervisor }
 }
 
@@ -220,7 +234,7 @@ test('Supervisor 初始化、显式唤醒与 Worker 退出都会串行拉取持�
   core.queueClaims.push(primaryRun)
 
   await supervisor.initialize()
-  assert.equal(core.claimCalls, 1)
+  assert.equal(core.claimCalls, 2)
   assert.equal(factory.workers.length, 1)
 
   const primary = factory.workers[0]
@@ -231,6 +245,7 @@ test('Supervisor 初始化、显式唤醒与 Worker 退出都会串行拉取持�
   })
   core.queueClaims.push({ run_id: 'agr_second', generation: 1 })
   primary.emitExit(0)
+  await flushSupervisor()
   await flushSupervisor()
   assert.equal(factory.workers.length, 2)
 
@@ -283,7 +298,7 @@ test('shutdown 会阻止在途续租响应继续领取并启动排队 Worker', a
   assert.equal(supervisor.getStatus().state, 'offline')
 })
 
-test('重复唤醒在首次领取后复用同一 Worker 且不重复 claim', async () => {
+test('重复唤醒在首次领取后复用同一 Worker 且按可用容量补充领取', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
   core.queueClaims.push(primaryRun)
@@ -296,14 +311,14 @@ test('重复唤醒在首次领取后复用同一 Worker 且不重复 claim', asy
 
   assert.equal(results.every((result) => result.accepted), true)
   assert.equal(factory.workers.length, 1)
-  assert.equal(core.claimCalls, 2)
+  assert.equal(core.claimCalls, 3)
   await supervisor.shutdown()
 })
 
 test('queued-turn steer 仅在 Core 原子写入成功后停止当前 Worker并优先拉取后继任务', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
@@ -324,6 +339,7 @@ test('queued-turn steer 仅在 Core 原子写入成功后停止当前 Worker并�
   assert.equal(accepted.accepted, true)
   assert.deepEqual(core.queuedTurnSteers, [request])
   assert.equal(worker.sent.some((message) => (message as { type?: string }).type === 'abort'), true)
+  await flushSupervisor()
   assert.equal(factory.workers.length, 2)
 
   await supervisor.shutdown()
@@ -332,7 +348,7 @@ test('queued-turn steer 仅在 Core 原子写入成功后停止当前 Worker并�
 test('queued-turn steer 遇到 Worker 退出超时时保持 stopping 且不提前领取后继任务', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
@@ -348,13 +364,14 @@ test('queued-turn steer 遇到 Worker 退出超时时保持 stopping 且不提�
     ...primaryRun, expected_run_revision: 4,
   })
   assert.equal(result.accepted, true)
-  assert.equal(result.status.state, 'stopping')
-  assert.equal(result.status.active_run_id, primaryRun.run_id)
-  assert.equal(result.status.error_code, 'AGENT_RUNTIME_WORKER_TERMINATION_TIMEOUT')
+  assert.equal(result.status.workers?.[0]?.state, 'stopping')
+  assert.equal(result.status.workers?.[0]?.run_id, primaryRun.run_id)
+  assert.equal(result.status.workers?.[0]?.error_code, 'AGENT_RUNTIME_WORKER_TERMINATION_TIMEOUT')
   assert.equal(factory.workers.length, 1)
   assert.equal(core.queueClaims.length, 1)
 
   worker.emitExit(9)
+  await flushSupervisor()
   await flushSupervisor()
   assert.equal(factory.workers.length, 2)
   await supervisor.shutdown()
@@ -363,7 +380,7 @@ test('queued-turn steer 遇到 Worker 退出超时时保持 stopping 且不提�
 test('queued-turn steer 不等待在途续租即可原子落库并启动取消预算', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
@@ -393,11 +410,11 @@ test('queued-turn steer 不等待在途续租即可原子落库并启动取消�
   await supervisor.shutdown()
 })
 
-test('Supervisor 仅接管一个 Run 并隔离旧 generation 消息', async () => {
+test('Supervisor 并发接管不同 Run 并隔离旧 generation 消息', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
 
-  assert.equal((await supervisor.startRun(primaryRun)).accepted, true)
+  assert.equal((await startPersistedRun(supervisor, primaryRun)).accepted, true)
   const worker = factory.workers[0]
   assert.equal(core.ticketCalls, 0)
   worker.emitSpawn()
@@ -411,20 +428,20 @@ test('Supervisor 仅接管一个 Run 并隔离旧 generation 消息', async () =
     generation: primaryRun.generation,
     skills: testAgentSkillBundle(),
   })
-  assert.equal((await supervisor.startRun(primaryRun)).accepted, true)
+  assert.equal((await startPersistedRun(supervisor, primaryRun)).accepted, true)
   assert.equal(core.ticketCalls, 1)
-  assert.equal((await supervisor.startRun({ run_id: 'agr_other', generation: 1 })).accepted, false)
+  assert.equal((await startPersistedRun(supervisor, { run_id: 'agr_other', generation: 1 })).accepted, true)
 
   worker.emitMessage({
     type: 'started', protocol_version: agentRuntimeProtocolVersion, run_id: primaryRun.run_id, generation: 2,
   })
   await flushSupervisor()
-  assert.equal(supervisor.getStatus().state, 'starting')
+  assert.equal(supervisor.getStatus().workers?.[0]?.state, 'starting')
   worker.emitMessage({
     type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun,
   })
   await flushSupervisor()
-  assert.equal(supervisor.getStatus().state, 'running')
+  assert.equal(supervisor.getStatus().workers?.[0]?.state, 'running')
 
   worker.emitMessage({
     type: 'settled', protocol_version: agentRuntimeProtocolVersion, ...primaryRun, outcome: 'completed',
@@ -439,7 +456,7 @@ test('Supervisor 仅接管一个 Run 并隔离旧 generation 消息', async () =
 test('Supervisor 在 5 秒协作预算耗尽后强制结束并只上报一次', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -457,7 +474,7 @@ test('Supervisor 在 5 秒协作预算耗尽后强制结束并只上报一次', 
 test('Supervisor 将异常退出收口为 worker_crash 且不接受迟到消息', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -480,7 +497,7 @@ test('Supervisor 将异常退出收口为 worker_crash 且不接受迟到消息'
 test('Supervisor 将 Worker 启动完成前的退出分类为 launch_failed', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -497,10 +514,10 @@ test('Skills ready 租约后快照失败会终止排队 Run 并立即降级租�
   await supervisor.initialize()
   skills.snapshot = async () => { throw new Error('snapshot failed') }
 
-  const result = await supervisor.startRun(primaryRun)
+  const result = await startPersistedRun(supervisor, primaryRun)
 
-  assert.equal(result.accepted, false)
-  assert.equal(result.error_code, 'AGENT_RUNTIME_LAUNCH_FAILED')
+  assert.equal(result.accepted, true)
+  assert.equal(result.status.error_code, 'AGENT_RUNTIME_LAUNCH_FAILED')
   assert.deepEqual(core.failures, [{ ...primaryRun, category: 'launch_failed' }])
   assert.deepEqual(core.skillsStatuses[core.skillsStatuses.length - 1], {
     status: 'unavailable',
@@ -510,8 +527,8 @@ test('Skills ready 租约后快照失败会终止排队 Run 并立即降级租�
     error_category: 'snapshot_failed',
   })
   assert.deepEqual(supervisor.getStatus(), {
-    state: 'offline',
-    error_code: 'AGENT_SKILLS_BUNDLE_NOT_READY',
+    state: 'offline', capacity: 4, occupied_slots: 0, workers: [],
+    error_code: 'AGENT_RUNTIME_LAUNCH_FAILED',
   })
   await supervisor.shutdown()
 })
@@ -537,10 +554,10 @@ test('非 Skills 启动失败不污染 Skills readiness', async () => {
     await fixture.supervisor.initialize()
     scenario.fail(fixture)
 
-    const result = await fixture.supervisor.startRun(primaryRun)
+    const result = await startPersistedRun(fixture.supervisor, primaryRun)
 
-    assert.equal(result.accepted, false, scenario.name)
-    assert.equal(result.error_code, 'AGENT_RUNTIME_LAUNCH_FAILED', scenario.name)
+    assert.equal(result.accepted, true, scenario.name)
+    assert.equal(result.status.error_code, 'AGENT_RUNTIME_LAUNCH_FAILED', scenario.name)
     assert.deepEqual(
       fixture.core.failures,
       [{ ...primaryRun, category: 'launch_failed' }],
@@ -558,7 +575,7 @@ test('非 Skills 启动失败不污染 Skills readiness', async () => {
       scenario.name,
     )
     assert.deepEqual(fixture.supervisor.getStatus(), {
-      state: 'ready',
+      state: 'ready', capacity: 4, occupied_slots: 0, workers: [],
       error_code: 'AGENT_RUNTIME_LAUNCH_FAILED',
     }, scenario.name)
     await fixture.supervisor.shutdown()
@@ -568,7 +585,7 @@ test('非 Skills 启动失败不污染 Skills readiness', async () => {
 test('Supervisor 只在 Worker 进入 running 后接受 steer', async () => {
   const { factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -598,7 +615,7 @@ test('Supervisor 只在 Worker 进入 running 后接受 steer', async () => {
 test('终态冻结会明确拒绝在途 steer，重复和迟到 ack 不会污染后续请求', async () => {
   const { factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -636,7 +653,7 @@ test('终态冻结会明确拒绝在途 steer，重复和迟到 ack 不会污染
 test('stop 可立即取消等待 ack 的 steer 且 Worker 退出后不遗留请求', async () => {
   const { factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -659,7 +676,7 @@ test('stop 可立即取消等待 ack 的 steer 且 Worker 退出后不遗留请�
 test('stop 不等待在途续租即可取消并按原始五秒预算强杀且并发请求保持幂等', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -678,7 +695,7 @@ test('stop 不等待在途续租即可取消并按原始五秒预算强杀且并
   const aborts = worker.sent.filter((message) =>
     (message as { type?: string }).type === 'abort')
   assert.equal(aborts.length, 1)
-  assert.equal(supervisor.getStatus().state, 'stopping')
+  assert.equal(supervisor.getStatus().workers?.[0]?.state, 'stopping')
   await new Promise((resolve) => setTimeout(resolve, 15))
   assert.equal(worker.killed, true)
 
@@ -693,7 +710,7 @@ test('stop 不等待在途续租即可取消并按原始五秒预算强杀且并
 test('停止旧 Run 时不会取消已经接管的后继 Worker', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const primary = factory.workers[0]
   primary.emitSpawn()
   primary.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
@@ -713,7 +730,7 @@ test('停止旧 Run 时不会取消已经接管的后继 Worker', async () => {
   const result = await supervisor.stopRun(primaryRun)
 
   assert.equal(result.accepted, false)
-  assert.equal(result.error_code, 'AGENT_RUNTIME_RUN_CONFLICT')
+  assert.equal(result.error_code, 'AGENT_RUNTIME_RUN_NOT_ACTIVE')
   assert.equal(next.sent.some((message) => (message as { type?: string }).type === 'abort'), false)
   await supervisor.shutdown()
 })
@@ -721,7 +738,7 @@ test('停止旧 Run 时不会取消已经接管的后继 Worker', async () => {
 test('Worker 崩溃会拒绝等待 ack 的 steer 并恢复 Supervisor 空闲状态', async () => {
   const { factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -743,7 +760,7 @@ test('Worker 崩溃会拒绝等待 ack 的 steer 并恢复 Supervisor 空闲状�
 test('steer 确认超时后忽略迟到 ack，且不污染下一次请求', async () => {
   const { factory, supervisor } = createFixture({ steerAckTimeoutMs: 50 })
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -782,7 +799,7 @@ test('steer 确认超时后忽略迟到 ack，且不污染下一次请求', asyn
 test('Worker 在停止期间先写入终态再退出时不误报强制终止', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -808,7 +825,7 @@ test('Worker 在停止期间先写入终态再退出时不误报强制终止', a
 test('租约过期且续租失败时立即收口活动 Worker', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -826,7 +843,7 @@ test('租约过期且续租失败时立即收口活动 Worker', async () => {
 test('用户停止与压缩回写失败并发时按取消收口，不误报 Worker 崩溃', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
@@ -853,7 +870,7 @@ test('Supervisor 隔离状态订阅异常并幂等处理重复 fatal', async () 
     throw new Error('listener failed')
   })
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -873,10 +890,11 @@ test('Supervisor 隔离状态订阅异常并幂等处理重复 fatal', async () 
   await supervisor.shutdown()
 })
 
-test('Worker 强杀失败时保留占用并拒绝启动第二个 Run', async () => {
+test('并发上限为一时强杀失败保留名额且后继 Run 等待', async () => {
   const { core, factory, supervisor } = createFixture()
+  core.lease.max_concurrent_runs = 1
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -887,8 +905,8 @@ test('Worker 强杀失败时保留占用并拒绝启动第二个 Run', async () 
 
   const stopped = await supervisor.stopRun(primaryRun)
   assert.equal(stopped.accepted, true)
-  assert.equal(supervisor.getStatus().state, 'stopping')
-  assert.equal((await supervisor.startRun({ run_id: 'agr_second', generation: 1 })).accepted, false)
+  assert.equal(supervisor.getStatus().workers?.[0]?.state, 'stopping')
+  assert.equal((await startPersistedRun(supervisor, { run_id: 'agr_second', generation: 1 })).accepted, true)
   assert.deepEqual(core.failures, [{ ...primaryRun, category: 'forced_stop' }])
 
   worker.emitExit(9)
@@ -900,7 +918,7 @@ test('Worker 强杀失败时保留占用并拒绝启动第二个 Run', async () 
 test('Core instance 换代时先停止旧 Worker 再恢复 ready', async () => {
   const { core, factory, supervisor } = createFixture()
   await supervisor.initialize()
-  await supervisor.startRun(primaryRun)
+  await startPersistedRun(supervisor, primaryRun)
   const worker = factory.workers[0]
   worker.emitSpawn()
   await flushSupervisor()
@@ -914,5 +932,58 @@ test('Core instance 换代时先停止旧 Worker 再恢复 ready', async () => {
   assert.equal(worker.killed, true)
   assert.equal(supervisor.getStatus().state, 'ready')
   assert.deepEqual(core.failures, [{ ...primaryRun, category: 'forced_stop' }])
+  await supervisor.shutdown()
+})
+
+
+test('默认四个会话并行，业务终态早于退出时不释放名额，第五个等待退出回执', async () => {
+  const { core, factory, supervisor } = createFixture()
+  core.queueClaims.push(...Array.from({ length: 5 }, (_, index) => ({ run_id: `agr_parallel_${index}`, generation: 1 })))
+  await supervisor.initialize()
+  assert.equal(factory.workers.length, 4)
+  assert.equal(supervisor.getStatus().occupied_slots, 4)
+  assert.equal(core.queueClaims.length, 1)
+  const first = factory.workers[0]!
+  first.emitSpawn()
+  await flushSupervisor()
+  first.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, run_id: 'agr_parallel_0', generation: 1 })
+  first.emitMessage({ type: 'settled', protocol_version: agentRuntimeProtocolVersion, run_id: 'agr_parallel_0', generation: 1, outcome: 'completed' })
+  await supervisor.wakeQueue()
+  assert.equal(core.releases.length, 0)
+  assert.equal(factory.workers.length, 4)
+  first.emitExit(0)
+  await flushSupervisor()
+  await supervisor.wakeQueue()
+  assert.equal(core.releases.length, 1)
+  assert.equal(factory.workers.length, 5)
+  assert.equal(supervisor.getStatus().workers?.length, 4)
+  core.lease.max_concurrent_runs = 1
+  await supervisor.wakeQueue()
+  assert.equal(supervisor.getStatus().workers?.length, 4)
+  assert.equal(supervisor.getStatus().capacity, 1)
+  await supervisor.shutdown()
+})
+
+test('退出回执失败保留名额记录，再次唤醒按同一分配重试释放', async () => {
+  const { core, factory, supervisor } = createFixture()
+  let reachable = false
+  const releases: string[] = []
+  core.releaseExecution = async (_id, _epoch, allocation) => {
+    releases.push(allocation.execution_id)
+    if (!reachable) throw new TypeError('退出回执传输失败')
+  }
+  core.queueClaims.push(primaryRun)
+  await supervisor.initialize()
+  factory.workers[0]!.emitExit(1)
+  await flushSupervisor()
+  await supervisor.wakeQueue()
+  assert.equal(supervisor.getStatus().workers?.length, 0)
+  assert.equal(supervisor.getStatus().occupied_slots, 1)
+  assert.ok(releases.length > 0)
+  reachable = true
+  await supervisor.wakeQueue()
+  assert.equal(supervisor.getStatus().occupied_slots, 0)
+  assert.equal(new Set(releases).size, 1)
+  assert.equal(factory.workers.length, 1)
   await supervisor.shutdown()
 })

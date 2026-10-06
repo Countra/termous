@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   AgentRuntimeRunRef,
-  AgentRuntimeStatus,
+  AgentRuntimeWorkerStatus,
 } from '#common/contracts'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type {
@@ -23,6 +23,8 @@ export interface AgentRunWorkerLogger {
 export interface AgentRunWorkerOptions {
   process: AgentWorkerProcess
   request: AgentRuntimeRunRef
+  executionID: string
+  sessionID: string
   coreInstanceID: string
   coreBaseURL: string
   skills: AgentSkillBundleSnapshot
@@ -31,7 +33,7 @@ export interface AgentRunWorkerOptions {
   logger?: AgentRunWorkerLogger
   enqueue: <T>(operation: () => Promise<T>) => Promise<T>
   reportFailure: (category: AgentRuntimeFailureCategory) => Promise<void>
-  publish: (status: AgentRuntimeStatus) => void
+  publish: (status: AgentRuntimeWorkerStatus) => void
   onExited: (worker: AgentRunWorker) => Promise<void> | void
   setTimeout: typeof globalThis.setTimeout
   clearTimeout: typeof globalThis.clearTimeout
@@ -52,6 +54,8 @@ interface PendingSteerAck {
 }
 
 export class AgentRunWorker {
+  readonly executionID: string
+  readonly sessionID: string
   readonly runID: string
   readonly generation: number
   private readonly process: AgentWorkerProcess
@@ -90,6 +94,8 @@ export class AgentRunWorker {
   private readonly pendingSteerAcks = new Map<string, PendingSteerAck>()
 
   constructor(options: AgentRunWorkerOptions) {
+    this.executionID = options.executionID
+    this.sessionID = options.sessionID
     this.process = options.process
     this.runID = options.request.run_id
     this.generation = options.request.generation
@@ -262,6 +268,7 @@ export class AgentRunWorker {
         this.supervisorInstanceID,
         this.runID,
         this.generation,
+        this.executionID,
       )
       if (this.stopping) {
         return
@@ -440,12 +447,13 @@ export class AgentRunWorker {
   }
 
   private publishStatus(
-    state: Extract<AgentRuntimeStatus['state'], 'running' | 'stopping'>,
+    state: Extract<AgentRuntimeWorkerStatus['state'], 'running' | 'stopping'>,
     errorCode?: string,
   ) {
     this.publish({
       state,
-      active_run_id: this.runID,
+      run_id: this.runID,
+      session_id: this.sessionID,
       generation: this.generation,
       ...(errorCode ? { error_code: errorCode } : {}),
     })

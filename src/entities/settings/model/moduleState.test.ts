@@ -78,3 +78,11 @@ test('桌面桥接仅保留 message 时仍识别冲突并保留草稿', async ()
   assert.equal(store.snapshot('notifications')?.revision, 3)
   assert.deepEqual(store.draft('notifications'), { enabled: false })
 })
+
+test('Agent 设置目录支持 v2 并保留并发上限，拒绝目录与快照版本不一致', () => {
+  const agent = { ...snapshot('agent'), schema_version: 2, value: { max_concurrent_runs: 4 } }
+  const entry = { id: 'agent', schema_version: 2, backup: 'exclude', apply: 'immediate', snapshot: agent }
+  assert.equal(decodeSettingsCatalogue({ instance_id: 'core', modules: [entry] }).modules[0].snapshot?.value.max_concurrent_runs, 4)
+  assert.equal(decodeSettingsSnapshot(agent).schema_version, 2)
+  assert.throws(() => decodeSettingsCatalogue({ instance_id: 'core', modules: [{ ...entry, schema_version: 1 }] }), /CATALOGUE/)
+})

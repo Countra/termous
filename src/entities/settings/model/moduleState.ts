@@ -30,13 +30,18 @@ function moduleId(value: unknown): SettingsModuleId {
   if (typeof value !== 'string' || !knownModules.has(value)) throw new Error('SETTINGS_UNSUPPORTED_MODULE')
   return value as SettingsModuleId
 }
+function schemaVersion(id: SettingsModuleId, value: unknown): number {
+  if (value === 1 || id === 'agent' && value === 2) return value
+  throw new Error('SETTINGS_UNSUPPORTED_VERSION')
+}
 export function decodeSettingsSnapshot(input: unknown, expected?: SettingsModuleId): SettingsSnapshot {
   const data = object(input)
   const id = moduleId(data.id)
-  if (id !== (expected ?? id) || data.schema_version !== 1) throw new Error('SETTINGS_UNSUPPORTED_VERSION')
+  if (id !== (expected ?? id)) throw new Error('SETTINGS_UNSUPPORTED_VERSION')
+  const version = schemaVersion(id, data.schema_version)
   const state = object(data.state)
   if (!['applied', 'restart_required', 'unavailable'].includes(String(state.status))) throw new Error('SETTINGS_INVALID_STATE')
-  return { id, schema_version: 1, revision: revision(data.revision), value: object(data.value), state: state as SettingsSnapshot['state'] }
+  return { id, schema_version: version, revision: revision(data.revision), value: object(data.value), state: state as SettingsSnapshot['state'] }
 }
 export function decodeSettingsCatalogue(input: unknown): SettingsCatalogue {
   const data = object(input)
@@ -46,11 +51,14 @@ export function decodeSettingsCatalogue(input: unknown): SettingsCatalogue {
   return { instance_id: data.instance_id, modules: data.modules.map((raw) => {
     const item = object(raw)
     const id = moduleId(item.id)
-    if (ids.has(id) || item.schema_version !== 1 || !['include', 'exclude'].includes(String(item.backup)) || !['immediate', 'restart'].includes(String(item.apply))) throw new Error('SETTINGS_INVALID_CATALOGUE')
+    const version = schemaVersion(id, item.schema_version)
+    if (ids.has(id) || !['include', 'exclude'].includes(String(item.backup)) || !['immediate', 'restart'].includes(String(item.apply))) throw new Error('SETTINGS_INVALID_CATALOGUE')
     ids.add(id)
     if (item.error !== undefined && typeof item.error !== 'string') throw new Error('SETTINGS_INVALID_CATALOGUE')
-    return { id, schema_version: 1, backup: item.backup as 'include' | 'exclude', apply: item.apply as 'immediate' | 'restart',
-      ...(item.snapshot ? { snapshot: decodeSettingsSnapshot(item.snapshot, id) } : { error: String(item.error ?? 'SETTINGS_UNAVAILABLE') }) }
+    const snapshot = item.snapshot ? decodeSettingsSnapshot(item.snapshot, id) : undefined
+    if (snapshot && snapshot.schema_version !== version) throw new Error('SETTINGS_INVALID_CATALOGUE')
+    return { id, schema_version: version, backup: item.backup as 'include' | 'exclude', apply: item.apply as 'immediate' | 'restart',
+      ...(snapshot ? { snapshot } : { error: String(item.error ?? 'SETTINGS_UNAVAILABLE') }) }
   }) }
 }
 export function decodeSettingsEvent(input: unknown): SettingsEvent {

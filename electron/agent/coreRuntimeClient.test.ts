@@ -30,7 +30,7 @@ test('Core Runtime Client 仅向本地 Core 发送主进程 Token', async () => 
       return new Response(JSON.stringify({
         core_instance_id: 'core-1',
         supervisor_instance_id: 'supervisor-1',
-        runtime_protocol_version: agentRuntimeProtocolVersion,
+        runtime_protocol_version: agentRuntimeProtocolVersion, supervisor_epoch: 1, max_concurrent_runs: 4,
         revision: 1,
         expires_at: '2030-01-01T00:00:00Z',
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -74,28 +74,28 @@ test('Core Runtime Client 使用受管 Supervisor 领取下一条持久任务', 
     getConfig: async () => runtimeConfig(),
     fetch: (async (input, init) => {
       requests.push({ url: String(input), body: JSON.parse(String(init?.body)) })
-      return new Response(JSON.stringify({ run: { id: 'agr_queued', generation: 3 } }), {
+      return new Response(JSON.stringify({ run: { id: 'agr_queued', generation: 3 }, execution_id: 'exec-1', session_id: 'ags-1', max_concurrent_runs: 4, occupied_slots: 1 }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       })
     }) as typeof fetch,
   })
 
-  assert.deepEqual(await client.claimNextQueuedRun('supervisor-1'), {
-    run_id: 'agr_queued', generation: 3,
+  assert.deepEqual(await client.claimNextQueuedRun('supervisor-1', 1, 1), {
+    allocation: { run_id: 'agr_queued', generation: 3, execution_id: 'exec-1', session_id: 'ags-1' }, max_concurrent_runs: 4, occupied_slots: 1,
   })
   assert.deepEqual(requests, [{
     url: 'http://127.0.0.1:8122/api/v1/agent/runtime/queue/claim-next',
-    body: { supervisor_instance_id: 'supervisor-1' },
+    body: { supervisor_instance_id: 'supervisor-1', supervisor_epoch: 1, claim_sequence: 1 },
   }])
 })
 
-test('Core Runtime Client 将 claim-next 的 204 响应解析为空队列', async () => {
+test('Core Runtime Client 将 claim-next 的空分配解析为等待容量', async () => {
   const client = new AgentCoreRuntimeClient({
     getConfig: async () => runtimeConfig(),
-    fetch: (async () => new Response(null, { status: 204 })) as typeof fetch,
+    fetch: (async () => new Response(JSON.stringify({ run: null, max_concurrent_runs: 4, occupied_slots: 4 }), { status: 200 })) as typeof fetch,
   })
 
-  assert.equal(await client.claimNextQueuedRun('supervisor-1'), null)
+  assert.deepEqual(await client.claimNextQueuedRun('supervisor-1', 1, 1), { allocation: null, max_concurrent_runs: 4, occupied_slots: 4 })
 })
 
 test('Core Runtime Client 严格校验 queued-turn steer 归属并发送 generation 与乐观锁字段', async () => {
@@ -132,23 +132,27 @@ test('Core Runtime Client 严格校验 queued-turn steer 归属并发送 generat
 
 test('Core Runtime Client 对可恢复的 claim-next 传输失败仅重试一次', async () => {
   let calls = 0
+  const requests: unknown[] = []
   const client = new AgentCoreRuntimeClient({
     getConfig: async () => runtimeConfig(),
-    fetch: (async () => {
+    fetch: (async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)))
       calls += 1
       if (calls === 1) {
         throw new TypeError('response lost')
       }
-      return new Response(JSON.stringify({ run: { id: 'agr_recovered', generation: 4 } }), {
+      return new Response(JSON.stringify({ run: { id: 'agr_recovered', generation: 4 }, execution_id: 'exec-1', session_id: 'ags-1', max_concurrent_runs: 4, occupied_slots: 1 }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       })
     }) as typeof fetch,
   })
 
-  assert.deepEqual(await client.claimNextQueuedRun('supervisor-1'), {
-    run_id: 'agr_recovered', generation: 4,
+  assert.deepEqual(await client.claimNextQueuedRun('supervisor-1', 1, 1), {
+    allocation: { run_id: 'agr_recovered', generation: 4, execution_id: 'exec-1', session_id: 'ags-1' }, max_concurrent_runs: 4, occupied_slots: 1,
   })
   assert.equal(calls, 2)
+  assert.deepEqual(requests[0], requests[1])
+  assert.deepEqual(requests[0], { supervisor_instance_id: 'supervisor-1', supervisor_epoch: 1, claim_sequence: 1 })
 })
 
 test('Core Runtime Client 对可恢复的 queued-turn steer 传输失败仅重试一次', async () => {
@@ -188,7 +192,7 @@ test('Core Runtime Client 不重试业务冲突', async () => {
   })
 
   await assert.rejects(
-    () => client.claimNextQueuedRun('supervisor-1'),
+    () => client.claimNextQueuedRun('supervisor-1', 1, 1),
     (error: unknown) => error instanceof AgentCoreRuntimeError
       && error.code === 'AGENT_REVISION_CONFLICT',
   )

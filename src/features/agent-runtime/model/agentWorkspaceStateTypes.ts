@@ -23,7 +23,7 @@ export interface AgentWorkspaceState {
   sessions: AgentSession[]
   session_groups: AgentSessionGroup[]
   runs: Record<string, AgentRun>
-  active_run_id?: string
+  active_run_ids: Record<string, string>
   messages: Record<string, AgentMessage[]>
   run_events: Record<string, AgentRunEvent[]>
   run_event_sequences: Record<string, number>
@@ -43,5 +43,6 @@ export interface AgentWorkspaceState {
 
 export interface AgentWorkspaceMergeResult {
   state: AgentWorkspaceState
+  reconcile_runs?: Array<{ id: string; generation: number }>
   reconcile_run?: { id: string; generation: number }
 }

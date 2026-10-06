@@ -28,7 +28,6 @@ import {
 } from '#entities/agent'
 import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
 import {
-  AgentRuntimeStartError,
   AgentDraftSessionCoordinator,
   AgentWorkspaceController,
   useAgentDraftAttachments,
@@ -179,14 +178,15 @@ export function AgentPage({
   const [providers, setProviders] = useState<AgentModelProvider[]>([])
   const [models, setModels] = useState<AgentModel[]>([])
   const [setupLoading, setSetupLoading] = useState(true)
-  const [operationBusy, setOperationBusy] = useState<AgentOperationBusy>(() => createOperationBusy())
+  const [operationsBySession, setOperationsBySession] = useState<Record<string, AgentOperationBusy>>({})
+  const operationBusy = operationsBySession[state.selected_session_id ?? "new"] ?? createOperationBusy()
   const [draftModelId, setDraftModelId] = useState<string>()
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
   const [dismissedProfileConnectionKey, setDismissedProfileConnectionKey] = useState<string>()
   const [slashExecutionSessionIds, setSlashExecutionSessionIds] = useState<ReadonlySet<string>>(() => new Set())
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
-  const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
+  const operationBusyRef = useRef<Record<string, AgentOperationBusy>>({})
   const setupLoadRequestRef = useRef(0)
   const activeSetupEpochRef = useRef(0)
   const activeSetupReadyEpochRef = useRef(0)
@@ -326,10 +326,10 @@ export function AgentPage({
 
   useEffect(() => {
     onRuntimeSummaryChange?.({
-      agentRunCount: state.active_run_id ? 1 : 0,
+      agentRunCount: Object.keys(state.active_run_ids).length,
       snapshotComplete: enabled && state.snapshot_complete,
     })
-  }, [enabled, onRuntimeSummaryChange, state.active_run_id, state.snapshot_complete])
+  }, [enabled, onRuntimeSummaryChange, state.active_run_ids, state.snapshot_complete])
 
   useLayoutEffect(() => {
     if (!enabled || !active) return
@@ -349,9 +349,11 @@ export function AgentPage({
     errorContext: 'generic' | 'resource' = 'generic',
     lane: AgentOperationLane = 'workspace',
   ) => {
-    if (operationBusyRef.current[lane]) return false
-    operationBusyRef.current = { ...operationBusyRef.current, [lane]: true }
-    setOperationBusy(operationBusyRef.current)
+    const sessionKey = controller.getSnapshot().selected_session_id ?? 'new'
+    const busy = operationBusyRef.current[sessionKey] ?? createOperationBusy()
+    if (busy[lane]) return false
+    operationBusyRef.current = { ...operationBusyRef.current, [sessionKey]: { ...busy, [lane]: true } }
+    setOperationsBySession(operationBusyRef.current)
     try {
       await operation()
       return true
@@ -359,10 +361,10 @@ export function AgentPage({
       notifyError(notificationRef.current, tRef.current, error, errorContext, remote)
       return false
     } finally {
-      operationBusyRef.current = { ...operationBusyRef.current, [lane]: false }
-      setOperationBusy(operationBusyRef.current)
+      operationBusyRef.current = { ...operationBusyRef.current, [sessionKey]: { ...operationBusyRef.current[sessionKey]!, [lane]: false } }
+      setOperationsBySession(operationBusyRef.current)
     }
-  }, [remote])
+  }, [remote, controller])
 
   const performResourceMutation = useCallback(async (
     sessionId: string,
@@ -548,11 +550,11 @@ export function AgentPage({
   )
   const selectedRun = useMemo(() => {
     if (!selected) return undefined
-    const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
+    const activeRun = selected && state.active_run_ids[selected.id] ? state.runs[state.active_run_ids[selected.id]!] : undefined
     return activeRun?.session_id === selected.id
       ? activeRun
       : latestSessionRun(selected.id, state.runs)
-  }, [selected, state.active_run_id, state.runs])
+  }, [selected, state.active_run_ids, state.runs])
   const selectedMessageEntities = selected ? state.messages[selected.id] : undefined
   const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
   const workspaceMessages = useMemo(
@@ -612,7 +614,7 @@ export function AgentPage({
       className: termousNotificationClassName,
     })
   }, [controller])
-  const connectionObservationRevision = `${selectedQueueState?.revision ?? 0}:${state.active_run_id ?? ''}:${sshResources
+  const connectionObservationRevision = `${selectedQueueState?.revision ?? 0}:${selected ? state.active_run_ids[selected.id] ?? '' : ''}:${sshResources
     .map((resource) => `${resource.session_id}:${resource.status}:${resource.started_at}`).join('|')}`
   const profileConnection = useAgentResourceBindingConnection(
     gateway,
@@ -782,7 +784,7 @@ export function AgentPage({
   const resourceRunBlocked = resourceContexts.some(({ status }) => status !== 'ready')
   const resourceRecoveryBlocked = isAgentResourceRecoveryBlocking(recovery.state)
   const resourceConnectionBlocked = isAgentResourceBindingConnectionBlocking(profileConnection.state)
-  const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
+  const activeRun = selected && state.active_run_ids[selected.id] ? state.runs[state.active_run_ids[selected.id]!] : undefined
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
   const selectedModelRunnable = Boolean(selectedModel && isAgentModelRunnable(
@@ -906,7 +908,7 @@ export function AgentPage({
     },
     skills: [],
     mcp: {
-      connection: projectMcpConnection(Boolean(state.active_run_id), state.runtime_status?.state),
+      connection: projectMcpConnection(Boolean(activeRun), state.runtime_status?.state),
       scope_count: readiness.mcp_policy?.scope_count ?? 0,
     },
   }
@@ -1202,7 +1204,7 @@ export function AgentPage({
           status: activeRun.status,
         } : undefined}
         run_blocked={!activeSetupReady || agentRunInteractionBlocked(
-          state.active_run_id,
+          activeRun?.id,
           selectedRun,
           state.runtime_status,
         )}
@@ -1405,21 +1407,8 @@ export function AgentPage({
               }
             }
             const targetSessionId = targetSession.id
-            const clearCommittedDraft = () => {
-              draftAttachments.clearCommitted(targetSessionId, attachmentIds ?? [])
-            }
-            try {
-              await controller.startRun(targetSessionId, message, attachmentIds)
-            } catch (error) {
-              if (
-                error instanceof AgentRuntimeStartError
-                && error.run.session_id === targetSessionId
-              ) {
-                clearCommittedDraft()
-              }
-              throw error
-            }
-            clearCommittedDraft()
+            await controller.startRun(targetSessionId, message, attachmentIds)
+            draftAttachments.clearCommitted(targetSessionId, attachmentIds ?? [])
           }, resourceContexts.length ? 'resource' : 'generic')
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun(), 'generic', 'stop') }}

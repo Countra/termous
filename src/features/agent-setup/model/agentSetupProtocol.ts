@@ -114,6 +114,7 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
     global_context_window_tokens: globalContextWindowTokens,
     global_max_output_tokens: globalMaxOutputTokens,
     context_compaction_threshold_percent: Number(compactionThreshold),
+    max_concurrent_runs: decodeConcurrency(source.max_concurrent_runs),
     connect_ssh_profile_on_bind: source.connect_ssh_profile_on_bind === undefined
       ? false
       : boolean(source.connect_ssh_profile_on_bind, 'Agent SSH Profile 关联方式设置无效'),
@@ -339,4 +340,11 @@ function decodeBaseUrl(value: unknown) {
 
 function ensureUnique(values: string[], message: string) {
   if (new Set(values).size !== values.length) throw new AgentSetupProtocolError(message)
+}
+
+function decodeConcurrency(value: unknown) {
+  // 缺失字段只用于旧远控主机适配；当前 Core 的 v2 设置始终显式返回此值。
+  if (value === undefined) return 1
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 8) throw new AgentSetupProtocolError('Agent 并发数量无效')
+  return Number(value)
 }

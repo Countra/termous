@@ -300,6 +300,7 @@ function runFixture() {
       api_mode: 'responses', base_url: 'https://model.example.test/v1', model_id: 'test-model',
       provider_id: 'apv-provider', provider_name: '测试 Provider', model_display_name: '测试模型',
       provider_revision: 1, model_revision: 1,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       context_window_tokens: 32768, max_output_tokens: 4096,
       supports_images: false,

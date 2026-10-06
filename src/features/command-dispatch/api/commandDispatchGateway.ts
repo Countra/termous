@@ -12,6 +12,8 @@ export interface CommandDispatchLatestRequestOptions extends CommandDispatchRequ
 }
 
 export interface CommandDispatchGateway {
+  tasks(options?: CommandDispatchRequestOptions & { clientRequestId?: string }): Promise<{ revision: number; items: CommandDispatchTask[] }>
+  tasksEventsUrl(): string
   createTask(
     input: CommandDispatchTaskInput,
     options?: CommandDispatchRequestOptions,

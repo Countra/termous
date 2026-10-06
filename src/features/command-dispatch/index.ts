@@ -4,6 +4,8 @@ export type {
 } from './api/commandDispatchGateway.ts'
 export {
   CommandDispatchProtocolError,
+  decodeCommandDispatchCollection,
+  decodeCommandDispatchCollectionEvent,
   decodeCommandDispatchLatestTaskEvent,
   decodeCommandDispatchOutputControl,
   decodeCommandDispatchTask,

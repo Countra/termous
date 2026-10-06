@@ -5208,6 +5208,7 @@
         "hint": "50–95%, default 80%. Recent conversation is retained. Changes apply to new runs.",
         "validation": "Enter a whole percentage from 50 to 95."
       },
+      "concurrency": {"title": "Concurrent AI sessions", "description": "Default: 4. Choose 1–8. Lowering the limit does not stop running tasks."},
       "profileBinding": {
         "title": "SSH Profile association",
         "description": "When off, only associate the Profile so the AI assistant can create an SSH session on demand. When on, connect immediately during association.",
@@ -6044,6 +6045,9 @@
     }
   },
   "commandDispatch": {
+    "resultUnknown": "Command submission result is unknown. Check the task list before deciding whether to run it again.",
+    "taskList": "Command tasks",
+    "status": {"queued": "Queued", "validating": "Validating", "running": "Running", "interrupting": "Interrupting", "completed": "Completed", "failed": "Failed", "interrupted": "Interrupted", "partial_failed": "Partially failed"},
     "title": "Session command console",
     "resizeDock": "Resize command console",
     "scope": "Command target scope",
@@ -6067,7 +6071,7 @@
     "sending": "Sending",
     "sendToCount": "Send to {{count}} sessions",
     "results": "Per-session results",
-    "recovering": "Recovering the latest command task…",
+    "recovering": "Recovering command tasks…",
     "noResults": "Per-session results appear here after sending",
     "ptyOutput": "Original terminal output",
     "openOriginalTerminal": "Open original terminal",

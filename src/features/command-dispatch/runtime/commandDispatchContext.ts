@@ -12,6 +12,8 @@ import type { CommandDispatchOutputSnapshot } from '../model/commandDispatchOutp
 import type { CommandDispatchTaskViewState } from '../model/commandDispatchTaskState'
 
 export interface CommandDispatchRuntimeContextValue {
+  tasks: CommandDispatchTask[]
+  selectTask: (taskId: string) => void
   state: CommandDispatchTaskViewState
   start: (input: CommandDispatchTaskInput) => Promise<CommandDispatchTask>
   interruptTask: () => Promise<CommandDispatchTask | null>

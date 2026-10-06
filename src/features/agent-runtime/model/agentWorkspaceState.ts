@@ -26,6 +26,7 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     sessions: [],
     session_groups: [],
     runs: {},
+    active_run_ids: {},
     messages: {},
     run_events: {},
     run_event_sequences: {},
@@ -265,8 +266,9 @@ export function selectAgentSession(current: AgentWorkspaceState, sessionId?: str
   }
 }
 
-export function activeAgentRun(current: AgentWorkspaceState) {
-  const run = current.active_run_id ? current.runs[current.active_run_id] : undefined
+export function activeAgentRun(current: AgentWorkspaceState, sessionId = current.selected_session_id) {
+  const id = sessionId ? current.active_run_ids[sessionId] : undefined
+  const run = id ? current.runs[id] : undefined
   return run && isAgentRunActive(run.status) ? run : undefined
 }
 
@@ -279,27 +281,25 @@ function applySnapshot(
   const terminalRuns = Object.fromEntries(Object.entries(state.runs).filter(([, run]) => (
     sessionIDs.has(run.session_id) && !isAgentRunActive(run.status)
   )))
-  state = { ...state, runs: terminalRuns, active_run_id: undefined }
+  state = { ...state, runs: terminalRuns, active_run_ids: {} }
   for (const run of event.active_runs) state = upsertRun(state, run)
   const queuedBySession = new Map<string, AgentQueuedTurn[]>()
   for (const turn of event.queued_turns ?? []) {
     queuedBySession.set(turn.session_id, [...(queuedBySession.get(turn.session_id) ?? []), turn])
   }
-  const queueSessionIDs = new Set([...queuedBySession.keys(), ...(event.queue_state ? [event.queue_state.session_id] : [])])
+  const queueStates = event.queue_states ?? (event.queue_state ? [event.queue_state] : [])
+  const queueSessionIDs = new Set([...queuedBySession.keys(), ...queueStates.map(({ session_id }) => session_id)])
   state = {
     ...state,
     queued_turns: Object.fromEntries([...queuedBySession].map(([sessionId, turns]) => [sessionId, sortQueuedTurns(turns)])),
-    queue_states: event.queue_state ? { [event.queue_state.session_id]: event.queue_state } : {},
+    queue_states: Object.fromEntries(queueStates.map((queue) => [queue.session_id, queue])),
     queued_turn_edits: Object.fromEntries(Object.entries(state.queued_turn_edits).filter(([sessionId]) => queueSessionIDs.has(sessionId))),
   }
   for (const sessionId of queueSessionIDs) {
     state = replaceAgentQueuedTurns(state, sessionId, state.queued_turns[sessionId] ?? [], state.queue_states[sessionId])
   }
-  const run = event.active_runs[0]
-  return run && runRequiresReconcile(state, run) ? {
-    state,
-    reconcile_run: { id: run.id, generation: run.generation },
-  } : { state }
+  return { state, reconcile_runs: event.active_runs.filter((run) => runRequiresReconcile(state, run))
+    .map((run) => ({ id: run.id, generation: run.generation })) }
 }
 
 function upsertSession(current: AgentWorkspaceState, session: AgentSession) {
@@ -316,6 +316,10 @@ function upsertMessage(current: AgentWorkspaceState, message: AgentMessage) {
 }
 
 function upsertRun(current: AgentWorkspaceState, run: AgentRun) {
+  // 创建回执可能晚于下一轮的推送；旧活动 Run 不能重新夺回本会话的执行位置。
+  if (isAgentRunActive(run.status) && Object.values(current.runs).some((candidate) => (
+    candidate.session_id === run.session_id && candidate.generation > run.generation
+  ))) return current
   const existing = current.runs[run.id]
   if (existing && (
     existing.generation > run.generation
@@ -323,27 +327,27 @@ function upsertRun(current: AgentWorkspaceState, run: AgentRun) {
   )) return current
   const generationChanged = existing !== undefined && existing.generation !== run.generation
   const runs = { ...current.runs, [run.id]: run }
-  let activeRunId = current.active_run_id
+  const activeRunIds = { ...current.active_run_ids }
   const supersededRunIDs: string[] = []
   if (isAgentRunActive(run.status)) {
     for (const [id, candidate] of Object.entries(runs)) {
-      if (id !== run.id && isAgentRunActive(candidate.status)) {
+      if (id !== run.id && candidate.session_id === run.session_id && isAgentRunActive(candidate.status)) {
         delete runs[id]
         supersededRunIDs.push(id)
       }
     }
-    activeRunId = run.id
-  } else if (activeRunId === run.id) {
-    activeRunId = undefined
+    activeRunIds[run.session_id] = run.id
+  } else if (activeRunIds[run.session_id] === run.id) {
+    delete activeRunIds[run.session_id]
   }
   if (!generationChanged && supersededRunIDs.length === 0) {
-    return applyRunMessageStatus({ ...current, runs, active_run_id: activeRunId }, run)
+    return applyRunMessageStatus({ ...current, runs, active_run_ids: activeRunIds }, run)
   }
   const clearedRunIDs = generationChanged ? [...supersededRunIDs, run.id] : supersededRunIDs
   return applyRunMessageStatus({
     ...current,
     runs,
-    active_run_id: activeRunId,
+    active_run_ids: activeRunIds,
     run_events: withoutKeys(current.run_events, clearedRunIDs),
     run_event_sequences: withoutKeys(current.run_event_sequences, clearedRunIDs),
     run_part_overlays: withoutKeys(current.run_part_overlays, clearedRunIDs),
@@ -477,9 +481,7 @@ function removeEntity(
       queued_turn_edits: withoutKey(current.queued_turn_edits, id),
       session_contexts: withoutKey(current.session_contexts, id),
       session_usages: withoutKey(current.session_usages, id),
-      active_run_id: current.active_run_id && removedRunIDs.includes(current.active_run_id)
-        ? undefined
-        : current.active_run_id,
+      active_run_ids: withoutKey(current.active_run_ids, id),
       ...selection,
     }
   }
@@ -499,7 +501,7 @@ function removeEntity(
     run_events: withoutKey(current.run_events, id),
     run_event_sequences: withoutKey(current.run_event_sequences, id),
     run_part_overlays: withoutKey(current.run_part_overlays, id),
-    active_run_id: current.active_run_id === id ? undefined : current.active_run_id,
+    active_run_ids: Object.fromEntries(Object.entries(current.active_run_ids).filter(([, runId]) => runId !== id)),
   }
 }
 

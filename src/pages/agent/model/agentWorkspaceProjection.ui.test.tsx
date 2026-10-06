@@ -22,16 +22,16 @@ describe('Agent 工作区页面投影', () => {
   it('仅在 Main Runtime 与当前 Run 的 generation 对齐后开放运行态交互', () => {
     const run = activeRun()
     expect(agentRunInteractionBlocked(run.id, run, {
-      state: 'starting', active_run_id: run.id, generation: run.generation,
+      state: 'ready', workers: [{ state: 'starting', run_id: run.id, generation: run.generation, session_id: run.session_id }],
     })).toBe(true)
     expect(agentRunInteractionBlocked(run.id, run, {
-      state: 'running', active_run_id: run.id, generation: run.generation + 1,
+      state: 'ready', workers: [{ state: 'running', run_id: run.id, generation: run.generation + 1, session_id: run.session_id }],
     })).toBe(true)
     expect(agentRunInteractionBlocked(run.id, run, {
-      state: 'running', active_run_id: run.id, generation: run.generation,
+      state: 'ready', workers: [{ state: 'running', run_id: run.id, generation: run.generation, session_id: run.session_id }],
     })).toBe(false)
     expect(agentRunInteractionBlocked('agr-other', run, {
-      state: 'running', active_run_id: 'agr-other', generation: run.generation,
+      state: 'ready', workers: [{ state: 'running', run_id: 'agr-other', generation: run.generation, session_id: run.session_id }],
     })).toBe(true)
   })
 
@@ -57,6 +57,7 @@ describe('Agent 工作区页面投影', () => {
       settings: {
         default_model_id: 'model-missing', default_reasoning_level: 'off',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+        max_concurrent_runs: 4,
         context_compaction_threshold_percent: 80,
         connect_ssh_profile_on_bind: false,
         show_turn_token_usage: true, revision: 1,
@@ -562,7 +563,7 @@ function modelSnapshot(
     model_display_name: '模型快照',
     provider_revision: 1,
     model_revision: 1,
-    context_compaction_threshold_percent: 80,
+        context_compaction_threshold_percent: 80,
     context_window_tokens: 8_192,
     max_output_tokens: 1_024,
     supports_images: false,

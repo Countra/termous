@@ -113,6 +113,7 @@ function settingsFixture() {
   return {
     default_reasoning_level: 'off', global_context_window_tokens: 16_384,
     global_max_output_tokens: 4_096, show_turn_token_usage: true, revision: 1,
+    max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }

@@ -25,17 +25,17 @@ test('Agent Runtime IPC 拒绝非主窗口调用并转发可信请求', async ()
     getStatus: () => ({ state: 'ready' as const }),
     startRun: async (request: unknown) => {
       started.push(request)
-      return { accepted: true, status: { state: 'starting' as const } }
+      return { accepted: true, status: { state: 'ready' as const } }
     },
-    stopRun: async () => ({ accepted: true, status: { state: 'stopping' as const } }),
-    steerRun: async () => ({ accepted: true, status: { state: 'running' as const } }),
+    stopRun: async () => ({ accepted: true, status: { state: 'ready' as const } }),
+    steerRun: async () => ({ accepted: true, status: { state: 'ready' as const } }),
     wakeQueue: async () => {
       wakeCount += 1
       return { accepted: true, status: { state: 'ready' as const } }
     },
     steerQueuedTurn: async (request: unknown) => {
       queuedSteers.push(request)
-      return { accepted: true, status: { state: 'stopping' as const } }
+      return { accepted: true, status: { state: 'ready' as const } }
     },
     subscribe: (listener: (status: AgentRuntimeStatus) => void) => {
       listener({ state: 'ready' })

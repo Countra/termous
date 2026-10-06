@@ -36,6 +36,7 @@ describe('AgentSetupClient', () => {
     await client.updateSettings({
       default_model_id: 'apm-1', default_reasoning_level: 'high',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false, expected_revision: 2,
@@ -66,6 +67,7 @@ describe('AgentSetupClient', () => {
       body: { expected_revision: 2, patch: {
         default_model_id: 'apm-1', default_reasoning_level: 'high',
         global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+        max_concurrent_runs: 4,
         context_compaction_threshold_percent: 80,
         connect_ssh_profile_on_bind: false,
         show_turn_token_usage: false,
@@ -121,6 +123,7 @@ function settingsFixture(revision: number) {
   return {
     default_model_id: 'apm-1', default_reasoning_level: 'high',
     global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+    max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80,
     connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true, revision,

@@ -6,6 +6,7 @@ export type {
   AgentRuntimeRunRef,
   AgentRuntimeState,
   AgentRuntimeStatus,
+  AgentRuntimeWorkerStatus,
   AgentRuntimeSteerRequest,
   AgentQueuedTurnSteerRequest,
   AgentSkillsBundleState,

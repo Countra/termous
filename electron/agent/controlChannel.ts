@@ -30,16 +30,19 @@ export class AgentControlChannel {
     this.identity = null
   }
   private async run(identity: AgentControlIdentity, signal: AbortSignal) {
-    let active = 0
+    const activeByRun = new Map<string, number>()
     while (!signal.aborted) {
       try {
         const command = await this.core.pollControl!(identity, signal)
         if (!command || signal.aborted) continue
-        if (active >= 4 && command.action !== 'stop') {
+        // 回执限额按 Run 隔离；唤醒由 Supervisor 合并，停止始终走及时通道。
+        const key = command.action === 'steer' ? `${command.run_id}:${command.generation}` : null
+        const active = key ? activeByRun.get(key) ?? 0 : 0
+        if (key && active >= 4) {
           await this.ack(identity, command.id, { accepted: false, error_code: 'AGENT_RUNTIME_BUSY' }, signal)
           continue
         }
-        active++
+        if (key) activeByRun.set(key, active + 1)
         void (async () => {
           try {
             const result = await this.execute(command)
@@ -47,7 +50,13 @@ export class AgentControlChannel {
           } catch {
             // 异常不能当作未执行；Go 保留 started 账本，控制端补读权威状态。
             await this.ack(identity, command.id, { accepted: false, error_code: 'AGENT_RUNTIME_CONTROL_UNCERTAIN' }, signal)
-          } finally { active-- }
+          } finally {
+            if (key) {
+              const remaining = (activeByRun.get(key) ?? 1) - 1
+              if (remaining === 0) activeByRun.delete(key)
+              else activeByRun.set(key, remaining)
+            }
+          }
         })()
       } catch {
         if (!signal.aborted) await pause(signal, 1000)

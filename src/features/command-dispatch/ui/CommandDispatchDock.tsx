@@ -1,4 +1,4 @@
-import { App as AntdApp } from 'antd'
+import { App as AntdApp, Select } from 'antd'
 import {
   CircleStop,
   Radio,
@@ -22,6 +22,7 @@ import type {
 } from '#entities/command-dispatch'
 import type { Session } from '#entities/session'
 import type { Host } from '#entities/host'
+import { TermousApiError } from '#shared/api'
 import {
   buildCommandDispatchSessionOptions,
   commandDispatchUTF8ByteLength,
@@ -129,7 +130,6 @@ export function CommandDispatchDock({
     && !tooManyTargets
     && !state.recovering
     && !state.starting
-    && !taskRunning
   const sendLabel = state.starting
     ? t('commandDispatch.sending')
     : t('commandDispatch.sendToCount', { count: targetSessionIds.length })
@@ -157,7 +157,9 @@ export function CommandDispatchDock({
       })
       setActiveResultSessionId(nextTask.targets[0]?.session_id ?? '')
     } catch (error) {
-      void message.error(error instanceof Error ? error.message : t('commandDispatch.startFailed'))
+      void message.error(error instanceof TermousApiError && error.code === 'COMMAND_DISPATCH_RESULT_UNKNOWN'
+        ? t('commandDispatch.resultUnknown')
+        : error instanceof Error ? error.message : t('commandDispatch.startFailed'))
     }
   }, [canSend, command, message, runtime, scope, t, targetSessionIds])
 
@@ -236,6 +238,10 @@ export function CommandDispatchDock({
           </button>
         ) : null}
       </header>
+
+      {runtime.tasks.length > 0 && <Select aria-label={t('commandDispatch.taskList')} value={task?.id}
+        options={runtime.tasks.map((entry) => ({ value: entry.id, label: `${t(`commandDispatch.status.${entry.status}`)} · ${entry.command}` }))}
+        onChange={runtime.selectTask} />}
 
       <div className={styles.compose}>
         <span className={styles.prompt} aria-hidden="true">$</span>
@@ -337,7 +343,7 @@ export function CommandDispatchDock({
               </span>
               <span className={styles['empty-state-copy']}>
                 <strong>{t('commandDispatch.results')}</strong>
-                <small>{state.errorMessage
+                <small>{(state.errorCode === 'COMMAND_DISPATCH_RESULT_UNKNOWN' ? t('commandDispatch.resultUnknown') : state.errorMessage)
                   || (state.recovering
                     ? t('commandDispatch.recovering')
                     : t('commandDispatch.noResults'))}</small>

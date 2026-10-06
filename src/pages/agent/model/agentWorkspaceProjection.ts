@@ -270,9 +270,8 @@ export function agentRunInteractionBlocked(
 ) {
   if (!activeRunId) return false
   if (!selectedRun || selectedRun.id !== activeRunId || !isAgentRunActive(selectedRun.status)) return true
-  return runtimeStatus?.state !== 'running'
-    || runtimeStatus.active_run_id !== selectedRun.id
-    || runtimeStatus.generation !== selectedRun.generation
+  return !runtimeStatus?.workers?.some((worker) => worker.state === 'running'
+    && worker.run_id === selectedRun.id && worker.generation === selectedRun.generation)
 }
 
 export function selectionAfterSessionRemoval(

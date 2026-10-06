@@ -55,7 +55,7 @@ import {
 const maxAgentPromptBytes = 1 << 20
 
 export type AgentWorkspaceEvent =
-  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; session_groups?: AgentSessionGroup[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_state?: AgentQueueState }
+  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; session_groups?: AgentSessionGroup[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_states?: AgentQueueState[]; queue_state?: AgentQueueState }
   | {
       type: 'upsert'
       revision: number
@@ -635,9 +635,11 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     const groups = decodeAgentSessionGroups({ items: source.session_groups ?? [] }).items
     const activeRuns = array(source.active_runs, 'Agent Workspace Run 快照无效').map(decodeAgentRun)
     const queuedTurns = array(source.queued_turns ?? [], 'Agent Workspace 排队消息快照无效').map(decodeAgentQueuedTurn)
-    const queueState = source.queue_state === undefined ? undefined : decodeAgentQueueState(source.queue_state)
+    const queueStates = array(source.queue_states ?? (source.queue_state === undefined ? [] : [source.queue_state]), 'Agent 会话队列快照无效').map(decodeAgentQueueState)
     unique(sessions.map(({ id }) => id), 'Agent Workspace Session 快照包含重复 ID')
     unique(activeRuns.map(({ id }) => id), 'Agent Workspace Run 快照包含重复 ID')
+    unique(activeRuns.map(({ session_id }) => session_id), '同一会话存在多个活动 Run')
+    unique(queueStates.map(({ session_id }) => session_id), 'Agent 队列快照包含重复会话')
     unique(queuedTurns.map(({ id }) => id), 'Agent Workspace 排队消息快照包含重复 ID')
     unique(
       queuedTurns.map(({ session_id, queue_sequence }) => `${session_id}\u0000${queue_sequence}`),
@@ -646,15 +648,14 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     const sessionIDs = new Set(sessions.map(({ id }) => id))
     if (
       queuedTurns.some(({ session_id }) => !sessionIDs.has(session_id))
-      || (queueState && !sessionIDs.has(queueState.session_id))
-      || (queueState && queuedTurns.some(({ session_id }) => session_id !== queueState.session_id))
+      || queueStates.some(({ session_id }) => !sessionIDs.has(session_id))
     ) {
       throw new AgentRuntimeProtocolError('Agent Workspace 排队消息快照归属无效')
     }
-    if (activeRuns.length > 1 || activeRuns.some(({ status }) => !isAgentRunActive(status))) {
+    if (activeRuns.some(({ status, session_id }) => !isAgentRunActive(status) || !sessionIDs.has(session_id))) {
       throw new AgentRuntimeProtocolError('Agent Workspace 活动 Run 快照无效')
     }
-    return { type: source.type, revision, sessions, session_groups: groups, active_runs: activeRuns, queued_turns: queuedTurns, queue_state: queueState }
+    return { type: source.type, revision, sessions, session_groups: groups, active_runs: activeRuns, queued_turns: queuedTurns, queue_states: queueStates }
   }
   if (revision === 0) {
     throw new AgentRuntimeProtocolError('Agent Workspace 增量 revision 无效')

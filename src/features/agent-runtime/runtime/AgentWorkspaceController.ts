@@ -58,7 +58,7 @@ const usageRefreshDelay = 750
 const streamRenderDelay = 64
 const maximumPageCount = 100
 
-type AgentMutationLane = 'workspace' | 'queue' | 'control' | `session:${string}` | `session-create:${number}` | `group:${string}` | 'group-create' | 'group-order' | 'pin-order' | 'session-order'
+type AgentMutationLane = 'workspace' | `queue:${string}` | `control:${string}` | `session:${string}` | `session-create:${number}` | `group:${string}` | 'group-create' | 'group-order' | 'pin-order' | 'session-order'
 
 interface AgentStreamNotification {
   run_id: string
@@ -84,16 +84,6 @@ export class AgentWorkspaceControllerError extends Error {
   }
 }
 
-export class AgentRuntimeStartError extends AgentWorkspaceControllerError {
-  readonly run: AgentRun
-
-  constructor(code: string, run: AgentRun) {
-    super(code)
-    this.name = 'AgentRuntimeStartError'
-    this.run = run
-  }
-}
-
 export class AgentWorkspaceController {
   private state = createAgentWorkspaceState()
   private readonly listeners = new Set<() => void>()
@@ -106,7 +96,7 @@ export class AgentWorkspaceController {
   private snapshotSocket: AgentWorkspaceSubscription | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private streamNotificationTimer: ReturnType<typeof setTimeout> | undefined
-  private pendingStreamNotification: AgentStreamNotification | undefined
+  private readonly pendingStreamNotifications = new Map<string, AgentStreamNotification>()
   private reconnectDelay = reconnectInitialDelay
   private disposed = true
   private authorityVersion = 0
@@ -130,7 +120,10 @@ export class AgentWorkspaceController {
   }>()
   private readonly usageRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly queuedTurnRequests = new Map<string, { fingerprint: string; clientRequestID: string }>()
-  private queueAuthorityVersion = 0
+  private readonly queueAuthorityVersions = new Map<string, number>()
+  private readonly queueReads = new Map<string, number>()
+  private errorVersion = 0
+  private readonly runAuthorityVersions = new Map<string, number>()
   private readonly mutations = new Map<AgentMutationLane, Promise<unknown>>()
   private readonly removedSessionIDs = new Set<string>()
   private readonly removedGroupIDs = new Set<string>()
@@ -215,7 +208,7 @@ export class AgentWorkspaceController {
   }
 
   setContextCompressionPending(sessionId: string, pending: boolean) {
-    if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
+    if (activeAgentRun(this.state, sessionId)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
     if (!this.state.sessions.some(({ id, archived_at }) => id === sessionId && !archived_at)) {
       throw new AgentWorkspaceControllerError('AGENT_SESSION_NOT_FOUND')
     }
@@ -267,7 +260,7 @@ export class AgentWorkspaceController {
       const session = await this.gateway.updateSession(id, input)
       this.acceptSession(session)
       return session
-    })
+    }, `session:${id}`)
   }
 
   async deleteSession(id: string, expectedRevision: number) {
@@ -367,7 +360,7 @@ export class AgentWorkspaceController {
     attachmentIds: string[] = [],
   ) {
     return await this.runMutation(async () => {
-      if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
+      if (activeAgentRun(this.state, sessionId)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
       if (!this.state.sessions.some(({ id }) => id === sessionId)) {
         throw new AgentWorkspaceControllerError('AGENT_SESSION_NOT_FOUND')
       }
@@ -384,36 +377,28 @@ export class AgentWorkspaceController {
       if (this.state.drafts[sessionId] === submittedDraft) {
         this.commit(setAgentDraft(this.state, sessionId, ''))
       }
-      let result
-      try {
-        result = this.gateway.runtimeOwnedByHost ? { accepted: true } : await this.gateway.startRuntime(run)
-      } catch (error) {
-        await this.cancelRejectedRuntimeStart(run)
-        throw new AgentRuntimeStartError(runtimeStartErrorCode(error), run)
-      }
-      if (!result.accepted) {
-        await this.cancelRejectedRuntimeStart(run)
-        throw new AgentRuntimeStartError(
-          result.error_code ?? 'AGENT_RUNTIME_START_REJECTED',
-          run,
-        )
+      // 唤醒失败不能撤销已受理的 Run；Core 队列与后续唤醒继续负责执行。
+      if (!this.gateway.runtimeOwnedByHost) {
+        void this.gateway.startRuntime(run).then((result) => {
+          if (!result.accepted) this.recoverRuntimeWake(run)
+        }, () => this.recoverRuntimeWake(run))
       }
       if (forceContextCompression) {
         this.commit(setAgentContextCompressionPending(this.state, sessionId, false))
       }
       return run
-    })
+    }, `session:${sessionId}`)
   }
 
-  async stopActiveRun() {
+  async stopActiveRun(sessionId = this.state.selected_session_id) {
     return await this.runMutation(async () => {
-      const run = activeAgentRun(this.state)
+      const run = activeAgentRun(this.state, sessionId)
       if (!run) return undefined
+      const stopping = await this.gateway.stopRun(run.id, run.revision, run.generation)
       const runtimeStopping = (this.gateway.runtimeOwnedByHost ? Promise.resolve({ accepted: true, error_code: undefined }) : this.gateway.stopRuntime(run)).then(
         (result) => ({ ok: true as const, result }),
         (error: unknown) => ({ ok: false as const, error }),
       )
-      const stopping = await this.gateway.stopRun(run.id, run.revision, run.generation)
       this.commit(replaceAgentRun(this.state, stopping))
       if (runUsageRequiresRefresh(run, stopping)) this.scheduleUsageRefresh(stopping.session_id)
       const runtimeOutcome = await runtimeStopping
@@ -426,12 +411,12 @@ export class AgentWorkspaceController {
         throw new AgentWorkspaceControllerError(result.error_code ?? 'AGENT_RUNTIME_STOP_REJECTED')
       }
       return stopping
-    }, 'control')
+    }, `control:${sessionId}`)
   }
 
-  async steerActiveRun(message: string) {
+  async steerActiveRun(message: string, sessionId = this.state.selected_session_id) {
     return await this.runMutation(async () => {
-      const run = activeAgentRun(this.state)
+      const run = activeAgentRun(this.state, sessionId)
       if (!run) throw new AgentWorkspaceControllerError('AGENT_RUN_NOT_ACTIVE')
       if (!message.trim()) throw new AgentWorkspaceControllerError('AGENT_STEER_EMPTY')
       const result = await this.gateway.steerRuntime(run, message)
@@ -439,15 +424,17 @@ export class AgentWorkspaceController {
         throw new AgentWorkspaceControllerError(result.error_code ?? 'AGENT_RUNTIME_STEER_REJECTED')
       }
       return result
-    }, 'control')
+    }, `control:${sessionId}`)
   }
 
   async reload() {
+    const recoveryErrors = this.errorVersion
     const recoverySocket = this.socket
-    const recoveryAuthority = this.authorityVersion
+    const recoveryAuthority = this.state.revision
     await this.hydrateSessions()
     const run = activeAgentRun(this.state)
-    if (run) await this.hydrateRun(run.id)
+    const activeRunIDs = Object.values(this.state.active_run_ids)
+    if (activeRunIDs.length) await Promise.all(activeRunIDs.map((id) => this.hydrateRun(id)))
     const selected = this.state.selected_session_id
     await Promise.all([
       this.reloadSessionGroups(),
@@ -462,7 +449,8 @@ export class AgentWorkspaceController {
       && recoverySocket
       && this.socket === recoverySocket
       && this.snapshotSocket === recoverySocket
-      && this.authorityVersion === recoveryAuthority) {
+      && recoveryErrors === this.errorVersion
+      && this.state.revision === recoveryAuthority) {
       this.commit({ ...this.state, phase: 'ready', error_code: undefined })
     }
   }
@@ -505,10 +493,32 @@ export class AgentWorkspaceController {
           socket.close(true)
           return
         }
-        this.authorityVersion += 1
-        if (eventChangesQueueAuthority(event)) this.queueAuthorityVersion += 1
-        for (const hydration of this.runHydrations.values()) hydration.dirty = true
+        if (event.type === 'snapshot') {
+          this.authorityVersion += 1
+          for (const hydration of this.runHydrations.values()) hydration.dirty = true
+          for (const id of new Set([...this.queueAuthorityVersions.keys(), ...event.sessions.map(({ id }) => id)])) this.bumpQueueAuthority(id)
+        } else {
+          const runId = event.type === 'upsert' ? event.run?.id ?? event.run_event?.run_id : undefined
+          if (runId) {
+            this.runAuthorityVersions.set(runId, (this.runAuthorityVersions.get(runId) ?? 0) + 1)
+            const hydration = this.runHydrations.get(runId)
+            if (hydration) hydration.dirty = true
+          }
+          if (eventChangesQueueAuthority(event)) {
+            const id = event.type === 'upsert' ? event.queued_turn?.session_id ?? event.queue_state?.session_id
+              : event.entity === 'session' ? event.id : event.session_id
+            if (id) this.bumpQueueAuthority(id)
+          }
+        }
         const previousState = this.state
+        if (event.type === 'removed' && (event.entity === 'run' || event.entity === 'session')) {
+          for (const [runId, hydration] of this.runHydrations) {
+            if (event.entity === 'run' ? runId === event.id : previousState.runs[runId]?.session_id === event.id) {
+              hydration.controller.abort()
+              this.runHydrations.delete(runId)
+            }
+          }
+        }
         if (event.type === 'snapshot' || event.type === 'upsert' && event.session_group
           || event.type === 'removed' && event.entity === 'session_group') this.groupAuthorityVersion += 1
         if (event.type === 'removed' && event.entity === 'session') this.removedSessionIDs.add(event.id)
@@ -520,7 +530,7 @@ export class AgentWorkspaceController {
           for (const id of groupIDs) this.removedGroupIDs.delete(id)
           for (const group of previousState.session_groups) if (!groupIDs.has(group.id)) this.removedGroupIDs.add(group.id)
         }
-        const previousActiveRun = activeAgentRun(previousState)
+        const previousActiveRuns = Object.values(previousState.active_run_ids).map((id) => previousState.runs[id]!)
         const result = applyAgentWorkspaceEvent(previousState, event)
         const streamNotification = this.streamNotificationForEvent(previousState, event)
         const changedContextModels = changedContextModelSessions(previousState, result.state)
@@ -538,10 +548,10 @@ export class AgentWorkspaceController {
         for (const sessionId of changedContextModels) {
           void this.hydrateContext(sessionId, 'restart')
         }
-        const nextActiveRun = activeAgentRun(result.state)
-        if (previousActiveRun && previousActiveRun.id !== nextActiveRun?.id) {
-          void this.hydrateContext(previousActiveRun.session_id, 'refresh')
-          this.scheduleUsageRefresh(previousActiveRun.session_id)
+        for (const previousRun of previousActiveRuns) {
+          if (result.state.active_run_ids[previousRun.session_id] === previousRun.id) continue
+          void this.hydrateContext(previousRun.session_id, 'refresh')
+          this.scheduleUsageRefresh(previousRun.session_id)
         }
         const usageSessionId = usageRefreshSession(previousState, result.state, event)
         if (usageSessionId) this.scheduleUsageRefresh(usageSessionId)
@@ -584,6 +594,7 @@ export class AgentWorkspaceController {
             sequence: event.run_event.sequence,
           })
         }
+        for (const run of result.reconcile_runs ?? []) void this.hydrateRun(run.id).catch((error) => this.captureError(error))
         if (result.reconcile_run) {
           void this.hydrateRun(result.reconcile_run.id).catch((error) => this.captureError(error))
         }
@@ -693,8 +704,10 @@ export class AgentWorkspaceController {
 
   private async performRunHydration(runId: string, signal: AbortSignal) {
     const authority = this.authorityVersion
+    const runAuthority = this.runAuthorityVersions.get(runId) ?? 0
     const run = await this.gateway.run(runId, signal)
-    if (this.disposed || authority !== this.authorityVersion) return
+    if (this.disposed || signal.aborted || this.removedSessionIDs.has(run.session_id)
+      || authority !== this.authorityVersion || runAuthority !== (this.runAuthorityVersions.get(runId) ?? 0)) return
     const currentRun = this.state.runs[run.id]
     const afterSequence = currentRun?.generation === run.generation
       ? this.state.run_event_sequences[run.id] ?? 0
@@ -703,7 +716,8 @@ export class AgentWorkspaceController {
       this.loadRunEvents(run, afterSequence, signal),
       this.loadMessages(run.session_id, 0, signal),
     ])
-    if (this.disposed || authority !== this.authorityVersion) return
+    if (this.disposed || signal.aborted || this.removedSessionIDs.has(run.session_id)
+      || authority !== this.authorityVersion || runAuthority !== (this.runAuthorityVersions.get(runId) ?? 0)) return
     let merged = replaceAgentRun(this.state, run)
     merged = replaceAgentMessages(merged, run.session_id, messages)
     const result = mergeAgentRunEvents(merged, run, events)
@@ -739,7 +753,7 @@ export class AgentWorkspaceController {
         force_context_compression: this.state.session_contexts[sessionId]?.compression_pending === true,
       }
       const pending = this.queuedTurnRequest(sessionId, request)
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       let turn: AgentQueuedTurn
       try {
         turn = await this.enqueueTurnWithRecovery(sessionId, request, pending.clientRequestID)
@@ -762,7 +776,7 @@ export class AgentWorkspaceController {
       }
       void this.gateway.wakeQueue().catch(() => undefined)
       return turn
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   private async enqueueTurnWithRecovery(
@@ -791,7 +805,7 @@ export class AgentWorkspaceController {
   async beginQueuedTurnEdit(sessionId: string, turnId: string) {
     return await this.runMutation(async () => {
       const turn = this.queuedTurn(sessionId, turnId)
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       const updated = await this.gateway.beginQueuedTurnEdit(turn.id, turn.revision)
       if (!this.acceptQueuedTurnMutation(sessionId, updated, authority)) return updated
       let state = replaceAgentQueuedTurn(this.state, updated)
@@ -802,7 +816,7 @@ export class AgentWorkspaceController {
       })
       this.commit(state)
       return updated
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   updateQueuedTurnEditDraft(sessionId: string, text: string) {
@@ -824,7 +838,7 @@ export class AgentWorkspaceController {
       const edit = this.state.queued_turn_edits[sessionId]
       if (!edit || !edit.text.trim()) throw new AgentWorkspaceControllerError('AGENT_QUEUED_TURN_EMPTY')
       const turn = this.queuedTurn(sessionId, edit.turn_id)
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       const updated = await this.gateway.updateQueuedTurn(turn.id, {
         prompt: edit.text,
         attachment_ids: attachmentIds,
@@ -837,7 +851,7 @@ export class AgentWorkspaceController {
       this.commit(setAgentQueuedTurnEdit(replaceAgentQueuedTurn(this.state, updated), sessionId))
       void this.gateway.wakeQueue().catch(() => undefined)
       return updated
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async cancelQueuedTurnEdit(sessionId: string) {
@@ -845,7 +859,7 @@ export class AgentWorkspaceController {
       const edit = this.state.queued_turn_edits[sessionId]
       if (!edit) return undefined
       const turn = this.queuedTurn(sessionId, edit.turn_id)
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       const updated = await this.gateway.cancelQueuedTurnEdit(turn.id, turn.revision)
       if (!this.acceptQueuedTurnMutation(sessionId, updated, authority)) {
         void this.gateway.wakeQueue().catch(() => undefined)
@@ -854,7 +868,7 @@ export class AgentWorkspaceController {
       this.commit(setAgentQueuedTurnEdit(replaceAgentQueuedTurn(this.state, updated), sessionId))
       void this.gateway.wakeQueue().catch(() => undefined)
       return updated
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async deleteQueuedTurn(sessionId: string, turnId: string) {
@@ -868,9 +882,9 @@ export class AgentWorkspaceController {
         (this.state.queued_turns[sessionId] ?? []).filter(({ id }) => id !== turn.id),
         queueState,
       ))
-      this.queueAuthorityVersion += 1
+      this.bumpQueueAuthority(sessionId)
       void this.gateway.wakeQueue().catch(() => undefined)
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async moveQueuedTurn(
@@ -883,7 +897,7 @@ export class AgentWorkspaceController {
       const turn = this.queuedTurn(sessionId, turnId)
       const target = this.queuedTurn(sessionId, targetTurnId)
       if (turn.id === target.id) return true
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       let result
       try {
         result = await this.gateway.moveQueuedTurn(turn.id, {
@@ -900,7 +914,7 @@ export class AgentWorkspaceController {
         }
         throw error
       }
-      if (authority !== this.queueAuthorityVersion) {
+      if (authority !== this.queueAuthority(sessionId)) {
         await this.hydrateQueuedTurns(sessionId)
         void this.gateway.wakeQueue().catch(() => undefined)
         return true
@@ -916,17 +930,17 @@ export class AgentWorkspaceController {
           merged,
           this.state.queue_states[sessionId],
         ))
-        this.queueAuthorityVersion += 1
+        this.bumpQueueAuthority(sessionId)
       }
       void this.gateway.wakeQueue().catch(() => undefined)
       return true
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async steerQueuedTurn(sessionId: string, turnId: string) {
     return await this.runMutation(async () => {
       const turn = this.queuedTurn(sessionId, turnId)
-      const run = activeAgentRun(this.state)
+      const run = activeAgentRun(this.state, sessionId)
       if (!run || run.session_id !== sessionId) throw new AgentWorkspaceControllerError('AGENT_RUN_NOT_ACTIVE')
       const result = await this.gateway.steerQueuedTurn({
         turn_id: turn.id,
@@ -937,7 +951,7 @@ export class AgentWorkspaceController {
       })
       if (!result.accepted) throw new AgentWorkspaceControllerError(result.error_code ?? 'AGENT_RUNTIME_STEER_REJECTED')
       return result
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async resumeQueue(sessionId: string) {
@@ -946,10 +960,10 @@ export class AgentWorkspaceController {
       if (!queueState) throw new AgentWorkspaceControllerError('AGENT_QUEUE_STATE_UNAVAILABLE')
       const updated = await this.gateway.resumeQueue(sessionId, queueState.revision)
       this.commit(replaceAgentQueueState(this.state, updated))
-      this.queueAuthorityVersion += 1
+      this.bumpQueueAuthority(sessionId)
       void this.gateway.wakeQueue().catch(() => undefined)
       return updated
-    }, 'queue')
+    }, `queue:${sessionId}`)
   }
 
   async replaceResourceBinding(id: string, input: AgentResourceBindingUpdateInput) {
@@ -957,7 +971,7 @@ export class AgentWorkspaceController {
       const session = await this.gateway.replaceResourceBinding(id, input)
       this.acceptSession(session)
       return session
-    })
+    }, `session:${id}`)
   }
 
   acceptRecoveredResourceSession(session: AgentSession) {
@@ -978,7 +992,7 @@ export class AgentWorkspaceController {
       const session = await this.gateway.removeResourceBinding(id, expectedRevision, kind)
       this.acceptSession(session)
       return session
-    })
+    }, `session:${id}`)
   }
 
   private async hydrateMessages(sessionId: string, authoritative: boolean) {
@@ -989,7 +1003,7 @@ export class AgentWorkspaceController {
     const after = authoritative ? 0 : lastMessageSequence(this.state.messages[sessionId] ?? [])
     try {
       const messages = await this.loadMessages(sessionId, after, controller.signal)
-      if (this.disposed || authority !== this.authorityVersion) return
+      if (this.disposed || controller.signal.aborted || this.messageHydrations.get(sessionId) !== controller || authority !== this.authorityVersion) return
       this.commit(authoritative
         ? replaceAgentMessages(this.state, sessionId, messages)
         : replaceAgentMessages(this.state, sessionId, [
@@ -1073,9 +1087,15 @@ export class AgentWorkspaceController {
     return entry.promise
   }
 
+  private queueAuthority(sessionId: string) { return this.queueAuthorityVersions.get(sessionId) ?? 0 }
+
+  private bumpQueueAuthority(sessionId: string) { this.queueAuthorityVersions.set(sessionId, this.queueAuthority(sessionId) + 1) }
+
   private async hydrateQueuedTurns(sessionId: string) {
+    const request = (this.queueReads.get(sessionId) ?? 0) + 1
+    this.queueReads.set(sessionId, request)
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const authority = this.queueAuthorityVersion
+      const authority = this.queueAuthority(sessionId)
       const turns = []
       const turnIDs = new Set<string>()
       const turnSequences = new Set<number>()
@@ -1085,7 +1105,7 @@ export class AgentWorkspaceController {
       try {
         for (let page = 0; page < maximumPageCount; page += 1) {
           const result = await this.gateway.queuedTurns(sessionId, { cursor, limit: 200 })
-          if (this.disposed || authority !== this.queueAuthorityVersion) return
+          if (this.disposed || request !== this.queueReads.get(sessionId) || authority !== this.queueAuthority(sessionId)) return
           if (result.items.some((turn) => turn.session_id !== sessionId) || (result.queue_state && result.queue_state.session_id !== sessionId)) {
             throw new AgentWorkspaceControllerError('AGENT_QUEUE_OWNER_INVALID')
           }
@@ -1105,10 +1125,9 @@ export class AgentWorkspaceController {
           if (page === maximumPageCount - 1) throw new AgentWorkspaceControllerError('AGENT_QUEUE_PAGE_LIMIT')
         }
         this.commit(replaceAgentQueuedTurns(this.state, sessionId, turns, queueState))
-        this.queueAuthorityVersion += 1
         return
       } catch (error) {
-        if (this.disposed || authority !== this.queueAuthorityVersion) return
+        if (this.disposed || request !== this.queueReads.get(sessionId) || authority !== this.queueAuthority(sessionId)) return
         if (errorCode(error) !== 'AGENT_REVISION_CONFLICT' || attempt === 2) throw error
       }
     }
@@ -1141,9 +1160,9 @@ export class AgentWorkspaceController {
   }
 
   private acceptQueuedTurnMutation(sessionId: string, turn: AgentQueuedTurn, authority: number) {
-    if (authority === this.queueAuthorityVersion) {
+    if (authority === this.queueAuthority(sessionId)) {
       this.commit(replaceAgentQueuedTurn(this.state, turn))
-      this.queueAuthorityVersion += 1
+      this.bumpQueueAuthority(sessionId)
       return true
     }
     const current = this.state.queued_turns[sessionId]?.find(({ id }) => id === turn.id)
@@ -1303,35 +1322,9 @@ export class AgentWorkspaceController {
     }
   }
 
-  private async cancelRejectedRuntimeStart(run: AgentRun) {
-    let current = this.state.runs[run.id] ?? run
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (isAgentRunTerminal(current.status)) return
-      try {
-        const stopped = await this.gateway.stopRun(current.id, current.revision, current.generation)
-        this.commit(replaceAgentRun(this.state, stopped))
-        if (runUsageRequiresRefresh(current, stopped)) this.scheduleUsageRefresh(stopped.session_id)
-        if (stopped.status === 'stopping') {
-          const result = await this.gateway.stopRuntime(stopped)
-          if (!result.accepted && result.error_code !== 'AGENT_RUNTIME_RUN_NOT_ACTIVE') {
-            void this.hydrateRun(run.id).catch((error) => this.captureError(error))
-          }
-        }
-        return
-      } catch {
-        if (attempt === 0) {
-          try {
-            current = await this.gateway.run(run.id)
-            this.commit(replaceAgentRun(this.state, current))
-            continue
-          } catch {
-            // 启动错误仍按原始原因返回，后台水合负责恢复权威任务状态。
-          }
-        }
-        void this.hydrateRun(run.id).catch((error) => this.captureError(error))
-        return
-      }
-    }
+  private recoverRuntimeWake(run: AgentRun) {
+    void this.hydrateRun(run.id).catch((error) => this.captureError(error))
+    void this.gateway.wakeQueue().catch((error) => this.captureError(error))
   }
 
   private runMutation<Result>(
@@ -1341,6 +1334,7 @@ export class AgentWorkspaceController {
     if (this.mutations.has(lane)) {
       return Promise.reject(new AgentWorkspaceControllerError('AGENT_MUTATION_IN_PROGRESS'))
     }
+    if (lane.startsWith('queue:')) this.bumpQueueAuthority(lane.slice(6))
     const promise = operation()
     this.mutations.set(lane, promise)
     void promise.then(
@@ -1352,13 +1346,14 @@ export class AgentWorkspaceController {
 
   private captureError(error: unknown, phase: AgentWorkspaceState['phase'] = 'degraded') {
     if (this.disposed || isAbortError(error)) return
+    this.errorVersion += 1
     this.commit({ ...this.state, phase, error_code: errorCode(error) })
   }
 
   private invalidateHydrations() {
     this.authorityVersion += 1
     this.groupAuthorityVersion += 1
-    this.queueAuthorityVersion += 1
+    for (const id of this.queueAuthorityVersions.keys()) this.bumpQueueAuthority(id)
     this.hydrateController?.abort()
     for (const hydration of this.runHydrations.values()) hydration.controller.abort()
     this.runHydrations.clear()
@@ -1392,8 +1387,8 @@ export class AgentWorkspaceController {
         sequence: event.run_event.sequence,
       }
     }
-    const pending = this.pendingStreamNotification
     const run = event.run
+    const pending = run ? this.pendingStreamNotifications.get(run.id) : undefined
     const previousRun = run ? previousState.runs[run.id] : undefined
     if (!pending || !run || !previousRun) return undefined
     if (
@@ -1409,11 +1404,11 @@ export class AgentWorkspaceController {
   }
 
   private scheduleStreamNotification(streamNotification: AgentStreamNotification) {
-    this.pendingStreamNotification = streamNotification
+    this.pendingStreamNotifications.set(streamNotification.run_id, streamNotification)
     if (this.streamNotificationTimer !== undefined) return
     this.streamNotificationTimer = this.setTimer(() => {
       this.streamNotificationTimer = undefined
-      this.pendingStreamNotification = undefined
+      this.pendingStreamNotifications.clear()
       this.notifyListeners()
     }, streamRenderDelay)
   }
@@ -1422,7 +1417,7 @@ export class AgentWorkspaceController {
     if (this.streamNotificationTimer === undefined) return
     this.clearTimer(this.streamNotificationTimer)
     this.streamNotificationTimer = undefined
-    this.pendingStreamNotification = undefined
+    this.pendingStreamNotifications.clear()
   }
 
   private notifyListeners() {
@@ -1444,15 +1439,6 @@ function errorCode(error: unknown) {
     if (typeof code === 'string' && code) return code
   }
   return error instanceof AgentWorkspaceControllerError ? error.code : 'AGENT_WORKSPACE_UNAVAILABLE'
-}
-
-function runtimeStartErrorCode(error: unknown) {
-  const code = errorCode(error)
-  if (code !== 'AGENT_WORKSPACE_UNAVAILABLE') return code
-  if (error instanceof Error && error.message === 'AGENT_RUNTIME_BRIDGE_UNAVAILABLE') {
-    return error.message
-  }
-  return 'AGENT_RUNTIME_START_FAILED'
 }
 
 function isAbortError(error: unknown) {

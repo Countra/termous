@@ -12,8 +12,8 @@ const steerAck = {
   accepted: true,
 }
 
-test('Agent Worker 使用包含 SSH Profile 绑定的协议 v10', () => {
-  assert.equal(agentRuntimeProtocolVersion, '10')
+test('Agent Worker 使用包含多会话执行分配的协议 v11', () => {
+  assert.equal(agentRuntimeProtocolVersion, '11')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

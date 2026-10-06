@@ -29,6 +29,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../runtime/commandDispatchContext', () => ({
   useCommandDispatchRuntime: () => ({
+    tasks: runtime.task ? [runtime.task] : [],
+    selectTask: vi.fn(),
     state: {
       task: runtime.task,
       recovering: false,

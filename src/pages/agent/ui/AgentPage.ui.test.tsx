@@ -3,7 +3,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentFileResourceState, AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentResourceConnectionInput, AgentResourceConnectionView, AgentResourceRecoveryView, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSlashCandidate, AgentSlashCandidateCatalog, AgentSlashFileProfileCandidate, AgentSlashFileSessionCandidate, AgentSlashSSHProfileCandidate, AgentSlashSSHSessionCandidate, AgentSSHResourceState, AgentSSHSlotResourceBinding } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
-import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
+import type { AgentWorkspaceGateway } from '#features/agent-runtime'
 import { TermousApiError } from '#shared/api'
 import type { AgentWorkspaceProps, AgentWorkspaceSlashExecution } from '#widgets/agent-workspace'
 
@@ -70,11 +70,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('#features/agent-runtime', async () => ({
   ...await vi.importActual<typeof import('#features/agent-runtime')>('#features/agent-runtime'),
-  AgentRuntimeStartError: class AgentRuntimeStartError extends Error {
-    constructor(_code: string, readonly run: { session_id: string }) {
-      super(_code)
-    }
-  },
   AgentWorkspaceController: function AgentWorkspaceController() {
     return {
       subscribe: (listener: () => void) => {
@@ -1391,7 +1386,7 @@ describe('AgentPage', () => {
         ...harness.state,
         phase: 'reconnecting',
         snapshot_complete: false,
-        active_run_id: 'run-one',
+        active_run_ids: { 'session-one': 'run-one' },
       }
       publishState()
     })
@@ -1459,27 +1454,17 @@ describe('AgentPage', () => {
     }))
   })
 
-  it('查看其他会话时投影全局活动 Run，并可返回运行会话', async () => {
+  it('其他会话运行不会占用当前会话的操作入口', async () => {
     const run = runFixture({ session_id: 'session-two' })
     harness.state = {
       ...workspaceState(),
-      active_run_id: run.id,
+      active_run_ids: { [run.session_id]: run.id },
       runs: { [run.id]: run },
-      runtime_status: { state: 'running', active_run_id: run.id, generation: run.generation },
+      runtime_status: { state: 'ready', capacity: 4, occupied_slots: 1, workers: [{ state: 'running', run_id: run.id, generation: run.generation, session_id: run.session_id }] },
     }
     renderPage()
-
-    await waitFor(() => expect(harness.workspaceProps?.active_run).toEqual({
-      session_id: 'session-two',
-      status: 'running',
-    }))
-    expect((harness.workspaceProps?.inspector as { mcp: { connection: string } }).mcp.connection)
-      .toBe('connected')
-    act(() => {
-      const returnToRun = harness.workspaceProps?.onReturnToActiveRun as () => void
-      returnToRun()
-    })
-    expect(harness.selectSession).toHaveBeenCalledWith('session-two')
+    await waitFor(() => expect(harness.workspaceProps).toBeDefined())
+    expect(harness.workspaceProps?.active_run).toBeUndefined()
   })
 
   it('返回 Agent 页面时刷新当前会话的权威上下文容量与 Token 用量', async () => {
@@ -1824,7 +1809,7 @@ describe('AgentPage', () => {
   it('运行中元数据保存只锁当前行，输入草稿与其他会话操作保持可用', async () => {
     const pending = deferred<AgentSession>()
     const run = runFixture()
-    harness.state = { ...workspaceState(), active_run_id: run.id, runs: { [run.id]: run }, drafts: { 'session-one': { text: '尚未发送', updated_at: 1 } } }
+    harness.state = { ...workspaceState(), active_run_ids: { [run.session_id]: run.id }, runs: { [run.id]: run }, drafts: { 'session-one': { text: '尚未发送', updated_at: 1 } } }
     harness.updateSessionMetadata.mockReturnValueOnce(pending.promise)
     renderPage()
     await waitFor(() => expect(harness.workspaceProps?.draft).toBe('尚未发送'))
@@ -1927,11 +1912,8 @@ describe('AgentPage', () => {
     expect(harness.workspaceProps?.draft).toBe('新选择的会话草稿')
   })
 
-  it('Run 已创建但 Runtime 启动失败时清理已提交附件', async () => {
-    harness.startRun.mockRejectedValueOnce(new AgentRuntimeStartError(
-      'AGENT_RUNTIME_START_REJECTED',
-      { session_id: 'session-one' } as AgentRun,
-    ))
+  it('Run 受理后清理已提交附件，后续调度不占用附件草稿', async () => {
+    harness.startRun.mockResolvedValueOnce({ session_id: 'session-one', status: 'queued' } as AgentRun)
     renderPage()
     await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
 
@@ -2493,9 +2475,9 @@ describe('AgentPage', () => {
     })
     harness.state = {
       ...workspaceState(),
-      active_run_id: run.id,
+      active_run_ids: { [run.session_id]: run.id },
       runs: { [run.id]: run },
-      runtime_status: { state: 'running', active_run_id: run.id, generation: run.generation },
+      runtime_status: { state: 'ready', capacity: 4, occupied_slots: 1, workers: [{ state: 'running', run_id: run.id, generation: run.generation, session_id: run.session_id }] },
     }
 
     renderPage()
@@ -2795,6 +2777,7 @@ const sessions: AgentSession[] = [
 
 function workspaceState() {
   return {
+    active_run_ids: {},
     phase: 'ready',
     snapshot_complete: true,
     revision: 1,
@@ -3175,6 +3158,7 @@ function readinessFixture(
       default_reasoning_level: 'off',
       global_context_window_tokens: 16_384,
       global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       show_turn_token_usage: true,
       connect_ssh_profile_on_bind: false,

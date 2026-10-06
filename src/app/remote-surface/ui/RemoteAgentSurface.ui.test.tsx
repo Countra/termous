@@ -29,6 +29,7 @@ vi.mock('./RemoteAgentApprovals.tsx', () => ({ RemoteAgentApprovals: () => null 
 const component = { status: 'ready', message: '' }
 const readiness = { status: 'ready', mcp_runtime: component, mcp_client: component, skills_bundle: component, default_model: component,
   settings: { default_model_id: 'model', default_reasoning_level: 'medium', global_context_window_tokens: 32768, global_max_output_tokens: 4096, revision: 1, show_turn_token_usage: true,
+    max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80, created_at: '2026-10-05T00:00:00Z', updated_at: '2026-10-05T00:00:00Z' } }
 
 function fixture(initialResources: unknown[] = []) {

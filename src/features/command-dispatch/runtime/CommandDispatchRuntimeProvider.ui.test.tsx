@@ -91,7 +91,32 @@ describe('CommandDispatchRuntimeProvider 创建门禁', () => {
     expect(createTask).toHaveBeenCalledTimes(1)
   })
 
-  it('稳定代际的权威空 latest GET 清理旧任务、输出和中断状态', async () => {
+  it.each([true, false])('创建响应丢失后按原请求 ID 恢复，禁止通过 latest 或重新创建猜测结果：%s', async (recoverable) => {
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const createTask = vi.fn().mockRejectedValue(new Error('连接已断开'))
+    const latestTask = vi.fn()
+    const tasks = vi.fn(async (options?: { clientRequestId?: string }) => ({
+      revision: 1, items: recoverable && options?.clientRequestId === 'request-1' ? [taskFixture()] : [],
+    }))
+    const gateway = createGateway({ createTask, latestTask, tasks })
+    let runtime: CommandDispatchRuntimeContextValue | null = null
+    render(<CommandDispatchRuntimeProvider api={gateway}>
+      <RuntimeCapture onRuntime={(value) => { runtime = value }} />
+    </CommandDispatchRuntimeProvider>)
+    await waitFor(() => expect(runtime!.state.recovering).toBe(false))
+    await act(async () => {
+      if (recoverable) await expect(runtime!.start(inputFixture())).resolves.toMatchObject({ id: 'task-1' })
+      else await expect(runtime!.start(inputFixture())).rejects.toMatchObject({
+        code: 'COMMAND_DISPATCH_RESULT_UNKNOWN', details: { client_request_id: 'request-1' },
+      })
+    })
+    expect(createTask).toHaveBeenCalledTimes(1)
+    expect(tasks).toHaveBeenCalledWith({ clientRequestId: 'request-1' })
+    expect(latestTask).not.toHaveBeenCalled()
+    if (!recoverable) expect(runtime!.state.errorCode).toBe('COMMAND_DISPATCH_RESULT_UNKNOWN')
+  })
+
+  it('稳定代际的权威空集合 GET 清理旧任务、输出和中断状态', async () => {
     FakeWebSocket.sockets.length = 0
     vi.stubGlobal('WebSocket', FakeWebSocket)
     const currentTask = runningTaskFixture('task-running')
@@ -153,14 +178,13 @@ describe('CommandDispatchRuntimeProvider 创建门禁', () => {
     const latestSocket = FakeWebSocket.sockets.find((socket) => socket.url.includes('latest-events'))
 
     act(() => latestSocket?.receive({
-      type: 'command_dispatch_latest_snapshot',
-      task: null,
+      type: 'command_dispatch_collection_snapshot', revision: 0, items: [],
     }))
 
     expect(runtime!.state.task).toBeNull()
   })
 
-  it('拒绝本地新任务之后迟到的旧 latest 请求和 WebSocket 首帧', async () => {
+  it('拒绝旧集合覆盖本地新任务，后台任务不抢占当前选择', async () => {
     FakeWebSocket.sockets.length = 0
     vi.stubGlobal('WebSocket', FakeWebSocket)
     let resolveFresh: (task: CommandDispatchTask | null) => void = () => undefined
@@ -170,8 +194,14 @@ describe('CommandDispatchRuntimeProvider 创建门禁', () => {
     const currentTask = taskFixture('task-current', '2026-08-12T00:00:00.000000200Z')
     const staleTask = taskFixture('task-stale', '2026-08-12T00:00:00.000000100Z')
     const newerExternalTask = taskFixture('task-external', '2026-08-12T00:00:00.000000300Z')
+    let reads = 0
     const gateway = createGateway({
       latestTask,
+      tasks: async () => {
+        if (++reads > 2) return { revision: 2, items: [currentTask] }
+        const task = await latestTask({ fresh: reads > 1 })
+        return { revision: 0, items: task ? [task] : [] }
+      },
       createTask: vi.fn().mockResolvedValue(currentTask),
     })
     let runtime: CommandDispatchRuntimeContextValue | null = null
@@ -199,21 +229,21 @@ describe('CommandDispatchRuntimeProvider 创建门禁', () => {
     expect(runtime!.state.task?.id).toBe('task-current')
 
     act(() => socket?.receive({
-      type: 'command_dispatch_latest_snapshot',
-      task: null,
+      type: 'command_dispatch_collection_snapshot', revision: 0, items: [],
     }))
     expect(runtime!.state.task?.id).toBe('task-current')
 
     act(() => socket?.receive({
-      type: 'command_dispatch_latest_snapshot',
-      task: staleTask,
+      type: 'command_dispatch_collection_snapshot', revision: 1, items: [staleTask],
     }))
     expect(runtime!.state.task?.id).toBe('task-current')
 
     act(() => socket?.receive({
-      type: 'command_dispatch_latest_update',
-      task: newerExternalTask,
+      type: 'command_dispatch_collection_snapshot', revision: 2, items: [newerExternalTask, currentTask],
     }))
+    expect(runtime!.state.task?.id).toBe('task-current')
+    expect(runtime!.tasks.map(({ id }) => id)).toContain('task-external')
+    act(() => runtime!.selectTask('task-external'))
     expect(runtime!.state.task?.id).toBe('task-external')
   })
 })
@@ -254,8 +284,11 @@ function createGateway(
   overrides: Partial<CommandDispatchGateway>,
 ): CommandDispatchGateway {
   const unsupported = vi.fn(() => Promise.reject(new Error('本测试不调用此接口')))
+  let reads = 0
   return {
     createTask: unsupported,
+    tasks: async () => { const task = await overrides.latestTask?.({ fresh: reads++ > 0 }); return { revision: 0, items: task ? [task] : [] } },
+    tasksEventsUrl: () => "ws://termous.test/latest-events",
     latestTask: unsupported,
     task: unsupported,
     interruptTask: unsupported,

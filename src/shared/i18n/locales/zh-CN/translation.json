@@ -5183,6 +5183,7 @@
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
       },
+      "concurrency": {"title": "同时运行的 AI 会话", "description": "默认 4 个，可设为 1–8 个。降低上限不会中断正在运行的任务。"},
       "profileBinding": {
         "title": "SSH Profile 关联方式",
         "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
@@ -6018,6 +6019,9 @@
     }
   },
   "commandDispatch": {
+    "resultUnknown": "命令提交结果未知，请检查任务列表后再决定是否重新执行。",
+    "taskList": "命令任务",
+    "status": {"queued": "排队中", "validating": "校验中", "running": "执行中", "interrupting": "中断中", "completed": "已完成", "failed": "失败", "interrupted": "已中断", "partial_failed": "部分失败"},
     "title": "会话命令台",
     "resizeDock": "调整命令台高度",
     "scope": "命令目标范围",
@@ -6041,7 +6045,7 @@
     "sending": "正在发送",
     "sendToCount": "发送到 {{count}} 个会话",
     "results": "各会话执行结果",
-    "recovering": "正在恢复最近的命令任务…",
+    "recovering": "正在恢复命令任务列表…",
     "noResults": "发送后将在这里显示每个会话的结果",
     "ptyOutput": "原终端输出",
     "openOriginalTerminal": "转到原终端",

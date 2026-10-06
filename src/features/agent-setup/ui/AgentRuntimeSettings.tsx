@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Switch } from 'antd'
+import { Button, Select, Switch } from 'antd'
 import {
   RefreshCw,
   Wrench,
@@ -76,6 +76,16 @@ export function AgentRuntimeSettings({
             runtime={runtime}
             onConflictVisibilityChange={onDefaultsConflictVisibilityChange}
           />
+
+          <section className={styles['agent-setting-row']} aria-labelledby="agent-concurrency-title">
+            <div className={styles['agent-setting-copy']}>
+              <strong id="agent-concurrency-title">{t('settings.agent.concurrency.title')}</strong>
+              <span>{t('settings.agent.concurrency.description')}</span>
+            </div>
+            <Select aria-label={t('settings.agent.concurrency.title')} value={readiness.settings.max_concurrent_runs}
+              disabled={busy} options={Array.from({ length: 8 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))}
+              onChange={(value) => consume(runtime.updateSettings({ max_concurrent_runs: value }))} />
+          </section>
 
           <section className={styles['agent-setting-row']} aria-labelledby="agent-profile-binding-title">
             <div className={styles['agent-setting-copy']}>

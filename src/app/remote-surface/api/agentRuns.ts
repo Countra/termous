@@ -9,10 +9,13 @@ export function agentRuns(t: RemoteAgentTransport) {
   const status = async (): Promise<AgentRuntimeStatus> => {
     const snapshot = decodeAgentWorkspaceEvent(await t.query('workspace', Q.WORKSPACE))
     if (snapshot.type !== 'snapshot') throw new RemoteError('remote_invalid')
-    const run = snapshot.active_runs[0]
-    if (run) return { state: run.status === 'stopping' ? 'stopping' : run.status === 'queued' ? 'starting' : 'running', active_run_id: run.id, generation: run.generation }
     const readiness = decodeAgentReadiness(await t.query('readiness', Q.STATUS))
-    return { state: readiness.status === 'ready' ? 'ready' : 'offline' }
+    return { state: readiness.status === 'ready' ? 'ready' : 'offline',
+      capacity: readiness.settings.max_concurrent_runs,
+      occupied_slots: snapshot.active_runs.length,
+      workers: snapshot.active_runs.map((run) => ({ state: run.status === 'stopping' ? 'stopping' : run.status === 'queued' ? 'starting' : 'running',
+        run_id: run.id, generation: run.generation, session_id: run.session_id })) }
+
   }
   const command = async (value: unknown) => {
     const result = object(value)
