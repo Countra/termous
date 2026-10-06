@@ -80,6 +80,17 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    // 只允许远控窗口的主 frame 操作其自身窗口，窗口按钮不依赖远端连接状态。
+    ipcMain.handle('remote:window-minimize', event => result(async () => {
+      this.own(event).window.minimize()
+      return true
+    }))
+    ipcMain.handle('remote:window-toggle-maximize', event => result(async () => {
+      const window = this.own(event).window
+      if (window.isMaximized()) window.unmaximize(); else window.maximize()
+      return window.isMaximized()
+    }))
+    ipcMain.handle('remote:window-is-maximized', event => result(async () => this.own(event).window.isMaximized()))
     ipcMain.handle('remote:agent-view', (event, session: unknown, id: string) => result(async () => {
       const { entry } = await this.active(event, id)
       if (session !== undefined && !validId(session)) throw new RemoteCoreError('remote_invalid_request')
@@ -233,9 +244,10 @@ export class RemoteControlRuntime {
       existing.window.show(); existing.window.focus(); return
     }
     const appearance = this.options.appearance()
-    const window = new BrowserWindow({ width: 1220, height: 800, minWidth: 860, minHeight: 560, show: false, title: `Termous · ${name}`, icon: this.options.icon, autoHideMenuBar: true, backgroundColor: appearance.theme === 'dark' ? '#0f1116' : '#f4f5f7', webPreferences: { preload: this.options.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } })
+    const isMac = process.platform === 'darwin'
+    const window = new BrowserWindow({ width: 1220, height: 800, minWidth: 860, minHeight: 560, frame: isMac, titleBarStyle: isMac ? 'hiddenInset' : 'default', show: false, title: `Termous · ${name}`, icon: this.options.icon, autoHideMenuBar: true, backgroundColor: appearance.theme === 'dark' ? '#0f1116' : '#f4f5f7', webPreferences: { preload: this.options.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } })
     const opening = this.options.core.request<RemoteConnection>('/remote-control/connections', { generation, device_id: deviceId, operation_id: randomUUID() })
-    const entry: Entry = { account: status.scope_id, window, bootstrap: { generation, deviceId, deviceName: name, agentTarget, ...appearance }, opening, files: new RemoteLocalTransfers(this.options.core, this.options.warn) }
+    const entry: Entry = { account: status.scope_id, window, bootstrap: { generation, deviceId, deviceName: name, agentTarget, platform: process.platform, ...appearance }, opening, files: new RemoteLocalTransfers(this.options.core, this.options.warn) }
     this.entries.set(key, entry)
     void opening.then(async connection => { entry.connection = connection; if (window.isDestroyed()) await this.disconnect(entry) }).catch(() => this.options.warn('remote_connection_failed'))
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -243,6 +255,8 @@ export class RemoteControlRuntime {
     window.webContents.on('will-redirect', event => event.preventDefault())
     window.webContents.on('will-attach-webview', event => event.preventDefault())
     window.once('ready-to-show', () => window.show())
+    window.on('maximize', () => window.webContents.send('remote:maximize-state', true))
+    window.on('unmaximize', () => window.webContents.send('remote:maximize-state', false))
     window.on('close', event => {
       if (entry.allowClose) return
       event.preventDefault()

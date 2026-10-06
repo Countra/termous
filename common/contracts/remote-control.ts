@@ -26,6 +26,7 @@ export interface RemotePolicy {
 }
 export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
 export interface RemoteBootstrap {
+  platform?: string
   agentTarget?: { id: string; sessionId: string; approvalId?: string }
   generation: string; deviceId: string; deviceName: string
   language: AppLanguage; theme: AppTheme
@@ -54,6 +55,12 @@ export interface RemoteLauncher {
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  windowControls?: {
+    minimize(): Promise<RemoteResult<boolean>>
+    toggleMaximize(): Promise<RemoteResult<boolean>>
+    isMaximized(): Promise<RemoteResult<boolean>>
+    onMaximizeState(callback: (maximized: boolean) => void): () => void
+  }
   setAgentView?(sessionId: string | undefined, connectionId: string): Promise<RemoteResult<boolean>>
   agentUpload(data: Uint8Array, mime: string, connectionId: string): Promise<RemoteResult<{ id: string }>>
   agentDownload(id: string, connectionId: string): Promise<RemoteResult<Uint8Array>>

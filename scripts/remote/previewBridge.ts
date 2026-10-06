@@ -1,5 +1,6 @@
 import { create, fromBinary, fromJson, toBinary, type JsonValue } from '@bufbuild/protobuf'
 import { EnvelopeSchema, RequestSchema, StreamFrameSchema, type StreamFrame } from '@termous/remote-protocol'
+import { AgentQuery_Kind as Q } from '@termous/remote-protocol/agent'
 import type { RemoteBootstrap, RemoteConnection, RemoteWindowBridge } from '#common/contracts'
 import { createAgentPreview } from './agentPreview'
 
@@ -17,7 +18,11 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
   const entries = [{ name: 'releases', path: '/releases', kind: 'directory', size: '0' }, { name: 'app.log', path: '/app.log', kind: 'file', size: '16428' }, { name: 'README.md', path: '/README.md', kind: 'file', size: '2048' }]
   let receive: ((sequence: number, data: Uint8Array) => void) | undefined
   let sequence = 0, outputSequence = 0n, offset = 0n, controlled = false
-  const agent = createAgentPreview(query.has('en'), () => receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'event', value: { type: 'agent.update', value: { case: 'agent', value: { instanceId: 'agent-instance', resync: true } } } } }))))
+  let maximized = false
+  let connectionFailed = query.get('feedback') === 'connection'
+  let inventoryReads = 0
+  const maximizeListeners = new Set<(value: boolean) => void>()
+  const agent = createAgentPreview(query.has('en'), () => receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'event', value: { type: 'agent.update', value: { case: 'agent', value: { instanceId: 'agent-instance', resync: true } } } } }))), query.has('scroll'))
   const control = () => ({ generation: '1', ownerDeviceId: controlled ? 'controller' : '', acceptedSequence: '0' })
   const emit = (frame: StreamFrame) => {
     receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'stream', value: frame } })))
@@ -27,9 +32,20 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
     offset += BigInt(data.length)
   }
   const bridge: RemoteWindowBridge = {
+    ...(query.has('window') ? { windowControls: {
+      minimize: async () => ({ ok: true as const, value: true }),
+      toggleMaximize: async () => {
+        maximized = !maximized
+        maximizeListeners.forEach(listener => listener(maximized))
+        return { ok: true as const, value: maximized }
+      },
+      isMaximized: async () => ({ ok: true as const, value: maximized }),
+      onMaximizeState: (callback: (value: boolean) => void) => { maximizeListeners.add(callback); return () => { maximizeListeners.delete(callback) } },
+    } } : {}),
     bootstrap: async () => bootstrap,
-    connection: async () => ({ ok: true, value: connection }),
+    connection: async () => connectionFailed ? { ok: false, code: 'remote_signaling_unavailable' } : { ok: true, value: connection },
     reconnect: async () => {
+      connectionFailed = false
       connection.id = `preview-${++sequence}`
       connection.scope.connection_id = connection.id
       connection.state = 'connected'
@@ -39,8 +55,13 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
       const request = fromJson(RequestSchema, value)
       let result: JsonValue = {}
       switch (request.operation.case) {
-        case 'agent': result = agent(request.operation.value); break
+        case 'agent':
+          if (query.get('feedback') === 'combined' && request.operation.value.operation.case === 'query' && request.operation.value.operation.value.kind === Q.RESOURCES) return { ok: false, code: 'remote_invalid' }
+          if (query.get('feedback') === 'approval' && request.operation.value.operation.case === 'approval') return { ok: false, code: 'remote_operation_uncertain', uncertain: true }
+          result = agent(request.operation.value); break
         case 'inventory':
+          inventoryReads++
+          if (query.get('feedback') === 'refresh' && inventoryReads === 2 || query.get('feedback') === 'combined' && inventoryReads > 1) return { ok: false, code: 'remote_invalid' }
           result = { inventory: { hosts, sessions, agentEnabled: query.has('agent'), roots: [{ id: 'root', name: 'Downloads', readable: true, writable: true }], operations: [{ id: 'delete', sessionId: 'sftp-profile', kind: 'delete', state: 'completed', path: '/old-release', completedEntries: '4', totalEntries: '4' }] } }
           break
         case 'session': {
@@ -54,6 +75,7 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
           break
         }
         case 'createSession': {
+          if (query.get('feedback') === 'action') return { ok: false, code: 'remote_operation_uncertain', uncertain: true }
           const input = request.operation.value
           result = { session: sessions.find(item => item.kind === input.kind && item.profileId === input.profileId)! }
           break

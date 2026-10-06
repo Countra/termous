@@ -56,4 +56,23 @@ describe('CommandDispatchClient', () => {
       'ws://127.0.0.1:49217/api/v1/command-dispatch-tasks/events?token=renderer-token',
     )
   })
+
+  it('任务和输出订阅保留已编码的标识及续传游标', () => {
+    const client = createRuntimeGatewaysFromConfig({
+      apiBaseUrl: 'https://core.example.test',
+      apiToken: 'test-token',
+    }).commandDispatch
+    const task = new URL(client.taskEventsUrl('task/id?name'))
+    expect(task.protocol).toBe('wss:')
+    expect(task.pathname).toBe('/api/v1/command-dispatch-tasks/task%2Fid%3Fname/events')
+    expect(task.searchParams.get('token')).toBe('test-token')
+
+    const output = new URL(client.targetOutputUrl('task/id', 'session/id', {
+      streamEpoch: 'epoch &+=', lastOffset: '123',
+    }))
+    expect(output.pathname).toBe('/api/v1/command-dispatch-tasks/task%2Fid/targets/session%2Fid/output')
+    expect(output.searchParams.get('token')).toBe('test-token')
+    expect(output.searchParams.get('stream_epoch')).toBe('epoch &+=')
+    expect(output.searchParams.get('last_offset')).toBe('123')
+  })
 })

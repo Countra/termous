@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { WebSocketServer } from 'ws'
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { EnvelopeSchema, StreamFrameSchema } from '@termous/remote-protocol'
@@ -23,6 +23,8 @@ const { bridge } = createPreview(new URLSearchParams('agent'))
 let attachment = Buffer.alloc(0)
 let creates = 0, closes = 0, authenticatedRequests = 0, terminalFrames = 0
 let rejectUpgrade = false
+let activeLocalTransfer = false
+const originalMessageBox = dialog.showMessageBox
 const server = createServer(async (request, response) => {
   try {
     assert.equal(request.headers['x-termous-token'], token)
@@ -46,7 +48,7 @@ const server = createServer(async (request, response) => {
     if (route === '/api/v1/remote-control/status') value = { generation: '1', available: true }
     else if (route === '/api/v1/cloud/status') value = { generation: '1', authenticated: true }
     else if (route === '/api/v1/remote-control/connections') { creates++; value = (await (creates === 1 ? bridge.connection() : bridge.reconnect()) as { value: unknown }).value }
-    else if (route.endsWith('/local-transfers')) value = { tasks: [] }
+    else if (route.endsWith('/local-transfers')) value = { tasks: activeLocalTransfer ? [{ id: 'active-transfer', state: 'running', remote_id: '', name: 'fixture.txt', direction: 'download', confirmed_bytes: 0, total_bytes: 1, resumable: false }] : [] }
     else if (route.endsWith('/request')) {
       const result = await bridge.request(input.request, 'preview')
       if (!result.ok) { response.writeHead(400, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ error: { code: result.code } })); return }
@@ -94,6 +96,9 @@ try {
   assert.equal(forbidden.code, 'remote_ipc_forbidden')
   const forbiddenAgent = await launcher.webContents.executeJavaScript('window.acceptance.call("remote:agent-download", "content-fixture", "preview")')
   assert.equal(forbiddenAgent.code, 'remote_ipc_forbidden')
+  for (const channel of ['remote:window-minimize', 'remote:window-toggle-maximize', 'remote:window-is-maximized']) {
+    assert.equal((await launcher.webContents.executeJavaScript(`window.acceptance.call(${JSON.stringify(channel)})`)).code, 'remote_ipc_forbidden')
+  }
   for (let i = 0; i < 2; i++) assert.equal((await launcher.webContents.executeJavaScript('window.acceptance.call("remote:open", "1", "host", "Termous Workstation")')).ok, true)
   const windows = BrowserWindow.getAllWindows().filter(item => item !== launcher)
   console.log('远控窗口已打开')
@@ -120,7 +125,21 @@ try {
   assert.equal((await remote.webContents.executeJavaScript('window.termousRemote.setAgentView("ags-session", "preview")')).ok, true)
   const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}}, "preview")')
   assert.equal(invalid.code, 'remote_invalid_request')
-  await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("选择连接") && document.body.innerText.includes("Release bucket")'))
+  await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("远程工作台") && document.body.innerText.includes("Release bucket")'))
+  assert.equal(await remote.webContents.executeJavaScript('getComputedStyle(document.querySelector("header")).getPropertyValue("-webkit-app-region")'), 'drag')
+  assert.equal(await remote.webContents.executeJavaScript('getComputedStyle(document.querySelector("header button")).getPropertyValue("-webkit-app-region")'), 'no-drag')
+  if (process.platform !== 'darwin') {
+    // 使用真实按钮与系统事件，验证新 IPC 只操作当前窗口且同步还原状态。
+    await remote.webContents.executeJavaScript('document.querySelector("button[aria-label=最大化]").click()')
+    await until(() => remote.isMaximized())
+    await until(() => remote.webContents.executeJavaScript('Boolean(document.querySelector("button[aria-label=还原]:not(:disabled)"))'))
+    remote.unmaximize()
+    await until(() => remote.webContents.executeJavaScript('Boolean(document.querySelector("button[aria-label=最大化]:not(:disabled)"))'))
+    await remote.webContents.executeJavaScript('document.querySelector("button[aria-label=最小化]").click()')
+    await until(() => remote.isMinimized())
+    remote.restore()
+    assert.equal(creates, 1); assert.equal(closes, 0)
+  }
   // DOM 就绪早于合成器提交；等绘制完成再保存界面证据。
   await remote.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   await writeFile(path.join(output, 'window.png'), (await remote.webContents.capturePage()).toPNG())
@@ -167,8 +186,19 @@ try {
   assert.equal(nullBinding.code, 'remote_disconnected')
   const staleSend = await remote.webContents.executeJavaScript(`window.termousRemote.send(new Uint8Array(${JSON.stringify(Array.from(input))}), "preview")`)
   assert.equal(staleSend.ok, false)
-  await remote.webContents.executeJavaScript('window.termousRemote.close()')
+  // 只替换隔离进程的确认回执：取消保留窗口，再确认关闭，不弹出测试系统对话框。
+  activeLocalTransfer = true
+  let confirmations = 0
+  dialog.showMessageBox = async () => ({ response: ++confirmations === 1 ? 0 : 1, checkboxChecked: false })
+  const closeWindow = () => remote.webContents.executeJavaScript(process.platform === 'darwin' ? 'window.termousRemote.close()' : 'document.querySelector("header button[aria-label=关闭]").click()')
+  await closeWindow()
+  await until(() => confirmations === 1)
+  assert.equal(remote.isDestroyed(), false)
+  assert.equal(closes, 1)
+  if (process.platform !== 'darwin') await until(() => remote.webContents.executeJavaScript('Boolean(document.querySelector("header button[aria-label=关闭]:not(:disabled)"))'))
+  await closeWindow()
   await until(() => closes === 2 && remote.isDestroyed())
+  assert.equal(confirmations, 2)
   await until(() => sockets.clients.size === 0)
   // 同一网络读取可以包含大量小帧；慢渲染应施加背压，不能直接关闭连接。
   const received: number[] = []
@@ -191,9 +221,10 @@ try {
     socket.send('invalid text frame')
     await until(() => streamClosed)
   } finally { stream.close() }
-  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, agentRPC: true, agentAttachmentRoundTrip: true, agentOwnedIPC: true, failedStreamRetry: true, disconnectOnly: true, reconnect: true, staleConnectionRejected: true, boundedTerminalBackpressure: true, authenticatedRequests, terminalFrames }, null, 2))
+  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, customTitlebar: true, windowControls: true, windowControlsOwnedIPC: true, closeTransferConfirmation: true, sandbox: true, windowReuse: true, ownedIPC: true, protobufRPC: true, binaryRoundTrip: true, agentRPC: true, agentAttachmentRoundTrip: true, agentOwnedIPC: true, failedStreamRetry: true, disconnectOnly: true, reconnect: true, staleConnectionRejected: true, boundedTerminalBackpressure: true, authenticatedRequests, terminalFrames }, null, 2))
   console.log('Electron 独立窗口及 IPC 验收通过')
 } finally {
+  dialog.showMessageBox = originalMessageBox
   runtime.close(); launcher.destroy(); ipcMain.removeAllListeners()
   for (const socket of sockets.clients) socket.terminate()
   sockets.close(); server.close(); app.quit()

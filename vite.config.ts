@@ -13,6 +13,7 @@ const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
 
 // https://vite.dev/config/
 export default defineConfig({
+  cacheDir: path.resolve(__dirname, '../TEMP/vite'),
   plugins: [
     react(),
     electron({

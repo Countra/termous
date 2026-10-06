@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const output = path.resolve(root, '../TEMP/mobile/electron-remote')
 await mkdir(output, { recursive: true })
 for (const [entry, filename, format] of [['scripts/remote/electron-acceptance.ts', 'acceptance.mjs', 'es'], ['electron/remote-preload.ts', 'remote-preload.cjs', 'cjs'], ['scripts/remote/launcher.ts', 'launcher.cjs', 'cjs']]) {
-  await build({ configFile: false, root, logLevel: 'warn', ssr: { noExternal: true, external: ['electron'] }, build: {
+  await build({ configFile: false, root, cacheDir: path.resolve(root, '../TEMP/vite'), logLevel: 'warn', ssr: { noExternal: true, external: ['electron'] }, build: {
     ssr: path.join(root, entry), outDir: output, emptyOutDir: false, target: 'node24', minify: false,
     rolldownOptions: { external: ['electron'], output: { format, entryFileNames: filename, codeSplitting: false } },
   } })

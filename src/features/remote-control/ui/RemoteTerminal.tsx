@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Space, Tag } from 'antd'
+import { Button, Space, Tag, Tooltip } from 'antd'
 import { Keyboard, LockKeyhole, RefreshCw } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -10,6 +10,7 @@ import { TerminalInput } from '../model/terminalInput'
 import { TerminalOutput } from '../model/terminalOutput'
 import { remoteErrorText, type RemoteCopy } from '../model/copy'
 import styles from './RemoteTerminal.module.scss'
+import { RemoteFeedback, RemoteFeedbackStack } from './RemoteFeedback'
 
 interface Props { onQuote?: (text: string) => void; client: RemoteClient; session: Session; copy: RemoteCopy; theme: AppTheme }
 
@@ -142,10 +143,12 @@ export function RemoteTerminal({ client, session, copy, theme, onQuote }: Props)
   useEffect(() => { if (terminal.current) terminal.current.options.theme = { background: theme === 'dark' ? '#0f1116' : '#f4f5f7', foreground: theme === 'dark' ? '#e4e9f1' : '#202734' } }, [theme])
 
   return <div className={styles.terminal}>
-    <div className={styles.toolbar}><Tag icon={controlled && !ended ? <Keyboard size={13} /> : <LockKeyhole size={13} />} color={controlled && !ended ? 'blue' : undefined}>{controlled && !ended ? copy.controlling : copy.readOnly}</Tag><Space>{onQuote ? <Button size="small" onClick={() => { const text = terminal.current?.getSelection(); if (text?.trim()) onQuote(text) }}>{copy.quoteAgent}</Button> : null}<Button size="small" loading={busy} disabled={ended} onClick={() => void act(controlled ? 'control_release' : 'control_acquire')}>{controlled ? copy.releaseControl : copy.takeControl}</Button><Button size="small" disabled={ended} icon={<RefreshCw size={14} />} aria-label={copy.inputStatus} onClick={() => void act('control_status')} /></Space></div>
-    {error ? <Alert type="warning" showIcon title={remoteErrorText(copy, error)} closable onClose={() => setError(undefined)} /> : null}
-    {gap ? <Alert type="info" title={copy.gap} closable onClose={() => setGap(false)} /> : null}
-    {uncertain ? <Alert type="warning" title={copy.inputUncertain} /> : null}
+    <div className={styles.toolbar}><Tooltip title={controlled && !ended ? copy.controlling : copy.inputHint}><Tag icon={controlled && !ended ? <Keyboard size={13} /> : <LockKeyhole size={13} />} color={controlled && !ended ? 'blue' : undefined}>{controlled && !ended ? copy.controlling : copy.readOnly}</Tag></Tooltip><Space wrap>{onQuote ? <Button size="small" onClick={() => { const text = terminal.current?.getSelection(); if (text?.trim()) onQuote(text) }}>{copy.quoteAgent}</Button> : null}<Button size="small" type={controlled ? 'default' : 'primary'} icon={controlled ? <LockKeyhole size={14} /> : <Keyboard size={14} />} loading={busy} disabled={ended} onClick={() => void act(controlled ? 'control_release' : 'control_acquire')}>{controlled ? copy.releaseControl : copy.takeControl}</Button><Tooltip title={copy.inputStatus}><Button type="text" size="small" disabled={ended} icon={<RefreshCw size={14} />} aria-label={copy.inputStatus} onClick={() => void act('control_status')} /></Tooltip></Space></div>
     <div ref={container} className={styles.viewport} />
+    <RemoteFeedbackStack>
+      {error ? <RemoteFeedback message={remoteErrorText(copy, error)} closeLabel={copy.close} onClose={() => setError(undefined)} /> : null}
+      {gap ? <RemoteFeedback tone="info" message={copy.gap} closeLabel={copy.close} onClose={() => setGap(false)} /> : null}
+      {uncertain ? <RemoteFeedback message={copy.inputUncertain} action={<Button size="small" loading={busy} disabled={ended} onClick={() => void act('control_status')}>{copy.inputStatus}</Button>} /> : null}
+    </RemoteFeedbackStack>
   </div>
 }

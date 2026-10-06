@@ -50,9 +50,12 @@ export class TermousApiTransport {
 
   websocketUrl(path: string) {
     const base = new URL(this.config.apiBaseUrl)
+    const target = new URL(path, base)
     base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
-    base.pathname = path
-    base.search = ''
+    // 分别保留路由和查询参数，鉴权地址仍使用已配置的 Core。
+    base.pathname = target.pathname
+    base.search = target.search
+    base.hash = ''
     if (this.config.apiToken) {
       base.searchParams.set('token', this.config.apiToken)
     }

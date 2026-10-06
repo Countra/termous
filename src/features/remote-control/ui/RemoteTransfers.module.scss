@@ -1,0 +1,52 @@
+.transfers {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--chrome-bg);
+
+  :global(.ant-collapse-header) {
+    align-items: center;
+    padding: 9px 16px;
+  }
+  :global(.ant-collapse-content-box) { padding: 4px 20px 16px; }
+}
+
+.summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.count {
+  min-width: 18px;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  padding: 1px 5px;
+  text-align: center;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity {
+  margin-left: auto;
+  color: var(--warning);
+  font-size: 11px;
+}
+
+.list {
+  max-height: min(230px, 32dvh);
+  overflow: auto;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+
+  > :global(.ant-flex) {
+    min-width: 0;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+  :global(.ant-typography-secondary) { font-size: 11px; }
+  :global(.ant-progress) { margin: 0; }
+}

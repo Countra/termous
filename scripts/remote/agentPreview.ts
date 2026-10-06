@@ -3,7 +3,7 @@ import { AgentQuery_Kind as Q } from '@termous/remote-protocol/agent'
 import { agentRunFixture } from '../../src/features/agent-runtime/model/agentRuntimeTestFixtures'
 
 // 只服务隔离验收入口，使用真实协议解码器与界面；不连接模型或读取账号数据。
-export function createAgentPreview(english: boolean, changed: () => void) {
+export function createAgentPreview(english: boolean, changed: () => void, scroll = false) {
   const now = new Date().toISOString()
   const dates = { created_at: now, updated_at: now }
   const session = { id: 'ags-session', title: english ? 'Review deployment' : '检查部署状态', model_id: 'apm-1', reasoning_level: 'medium', origin: 'remote', creator_device_id: 'controller', revision: 1, resource_bindings: [], ...dates }
@@ -14,8 +14,12 @@ export function createAgentPreview(english: boolean, changed: () => void) {
   const provider = { id: 'apv-1', name: 'Fixture AI', api_mode: 'responses', base_url: 'https://example.test/v1', enabled: true, api_key_configured: true, refresh_status: 'ready', revision: 1, ...dates }
   const message = (id: string, role: string, content: string, sequence: number) => ({ id, role, session_id: session.id, status: 'completed', sequence, revision: 1, ...dates, attachments: [], parts: [{ id: `part-${id}`, message_id: id, kind: 'text', sequence: 1, revision: 1, content: { text: { text: content } }, ...dates }] })
   const messages = [message('user', 'user', english ? 'Check the release status.' : '检查当前版本的发布状态。', 1), message('answer', 'assistant', english ? 'The service is healthy.\n\n- Deployment checks passed\n- No pending migrations\n\nThe next operation needs your approval.' : '服务运行正常。\n\n- 部署检查通过\n- 没有待执行的迁移\n\n下一项操作需要你的批准。', 2)]
-  let approved = false, revision = 1
-  const approvals = () => ({ instance_id: 'approval-instance', revision, items: approved ? [] : [{ id: 'approval', run_id: 'run', generation: 1, agent_session_id: session.id, agent_session_title: session.title, kind: 'command', client_id: 'builtin-ai', client_name: english ? 'AI assistant' : 'AI 助手', client_request_id: 'request', revision: 1, state: 'pending', command: 'systemctl status termous', session_ids: [], targets: [], expires_at: new Date(Date.now() + 300000).toISOString(), ...dates }] })
+  // 长内容夹具用于检查滚动和审批列表，不调用模型或执行命令。
+  if (scroll) messages.push(message('long-answer', 'assistant', Array.from({ length: 18 }, (_, index) => english ? `### Check ${index + 1}\n\nService health and migration checks passed. Review the deployment logs before continuing.` : `### 检查项 ${index + 1}\n\n服务状态与数据库迁移检查通过。继续部署前，请确认日志中没有异常。`).join('\n\n'), 3))
+  const decided = new Set<string>()
+  const expires = new Date(Date.now() + 300000).toISOString()
+  let revision = 1
+  const approvals = () => ({ instance_id: 'approval-instance', revision, items: Array.from({ length: scroll ? 4 : 1 }, (_, index) => ({ id: index ? `approval-${index}` : 'approval', run_id: 'run', generation: 1, agent_session_id: session.id, agent_session_title: session.title, kind: 'command', client_id: 'builtin-ai', client_name: english ? 'AI assistant' : 'AI 助手', client_request_id: `request-${index}`, revision: 1, state: 'pending', command: index ? `journalctl -u termous --no-pager -n ${index * 50}` : 'systemctl status termous', session_ids: [], targets: [], expires_at: expires, ...dates })).filter(item => !decided.has(item.id)) })
   const document = (type: string, value: unknown) => ({ agent: { type, instanceId: 'agent-instance', json: btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))) } })
   return (request: AgentRequest) => {
     const op = request.operation
@@ -41,7 +45,7 @@ export function createAgentPreview(english: boolean, changed: () => void) {
     }
     if (op.case === 'resource') return document(op.value.action === 7 ? 'resource_recovery' : 'resource_connection', { instance_id: 'agent-instance', kind: 'ssh_session', can_recover: false, operation: null })
     if (op.case === 'session') { session.revision++; if (op.value.title) session.title = op.value.title; return document('session', session) }
-    if (op.case === 'approval') { approved = true; revision++; queueMicrotask(changed); return document('approval', {}) }
+    if (op.case === 'approval') { decided.add(op.value.id); revision++; queueMicrotask(changed); return document('approval', {}) }
     if (op.case === 'run') {
       messages.push(message(`sent-${messages.length}`, 'user', op.value.prompt, messages.length + 1))
       messages.push(message(`reply-${messages.length}`, 'assistant', english ? 'Done.' : '已完成。', messages.length + 1))

@@ -23,3 +23,18 @@ test('按主机展示独立的终端和多引擎文件连接，禁止打开已�
   expect(screen.queryByRole('button', { name: `${copy.newTerminal} · Storage · deploy` })).toBeNull()
   expect(screen.getByText('Storage')).toBeVisible()
 })
+
+test('搜索临时展开已折叠主机，清空搜索后保留原折叠状态', () => {
+  const hosts = [create(HostSchema, { id: 'host', name: 'Storage', connections: [
+    { id: 'ssh', name: 'deploy', kind: 'ssh', available: true },
+    { id: 's3', name: 'Releases', kind: 'files', engine: 's3', available: true },
+  ] })]
+  const props = { hosts, disabled: false, copy: remoteCopy('en-US'), create: vi.fn() }
+  const view = render(<RemoteHostList {...props} filter="" />)
+  fireEvent.click(screen.getByRole('button', { name: 'Storage' }))
+  expect(screen.queryByRole('button', { name: 'Open files · Storage · Releases' })).not.toBeInTheDocument()
+  view.rerender(<RemoteHostList {...props} filter="s3" />)
+  expect(screen.getByRole('button', { name: 'Open files · Storage · Releases' })).toBeVisible()
+  view.rerender(<RemoteHostList {...props} filter="" />)
+  expect(screen.getByRole('button', { name: 'Storage' })).toHaveAttribute('aria-expanded', 'false')
+})

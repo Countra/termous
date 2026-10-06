@@ -8,6 +8,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock('#features/mcp-access', () => ({
   decodeMcpApprovalSnapshot: (value: unknown) => value,
   McpApprovalDetails: () => <span>审批详情</span>, McpApprovalExpiry: () => null,
+  mcpApprovalStyles: {},
 }))
 
 function fixture() {
@@ -26,6 +27,8 @@ test('批准结果未明的提示不会被后台成功补读抹掉，也不会�
   fireEvent.click(await screen.findByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('操作结果尚未确认')
   await waitFor(() => expect(query).toHaveBeenCalledTimes(2))
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+  await waitFor(() => expect(query).toHaveBeenCalledTimes(3))
   await act(async () => refresh())
   expect(screen.getByRole('alert')).toHaveTextContent('操作结果尚未确认')
   expect(write).toHaveBeenCalledTimes(1)
@@ -36,7 +39,7 @@ test('批准后刷新失败只提示读取失败，不误报批准结果未知',
   const approve = await screen.findByRole('button', { name: 'settings.mcp.approval.allowOnce' })
   query.mockRejectedValue(new RemoteError('remote_request_failed'))
   fireEvent.click(approve)
-  expect(await screen.findByRole('alert')).toHaveTextContent('审批状态暂时无法更新')
+  expect(await screen.findByRole('alert')).toHaveTextContent('审批更新失败')
   expect(screen.queryByText(/操作结果尚未确认/)).not.toBeInTheDocument()
   expect(approve).toBeDisabled()
   query.mockResolvedValue({ instance_id: 'core', items: [] })

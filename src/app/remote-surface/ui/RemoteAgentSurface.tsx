@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Spin } from 'antd'
+import { Button, Spin } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { RemoteClient } from '#entities/remote-control'
 import type { RemoteBootstrap, RemoteAgentQuote } from '#common/contracts'
 import type { AgentLaunchIntent } from '#entities/agent'
 import { AgentPage } from '#pages/agent'
-import { remoteCopy, remoteErrorText } from '#features/remote-control'
+import { RemoteFeedback, RemoteFeedbackStack, remoteCopy, remoteErrorText } from '#features/remote-control'
 import { createRemoteAgentGateway } from '../api/agentGateway.ts'
 import { RemoteAgentApprovals } from './RemoteAgentApprovals.tsx'
 import { emptyAgentResources, loadAgentResources } from '../api/agentResources.ts'
@@ -83,12 +83,14 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
   }, [transport, active, resourceAttempt, access])
   if (access !== 'allowed') return <section className={styles.surface} aria-label={copy.agent}>
     {access === 'checking' ? <Spin description={copy.agentChecking}><div className={styles['access-loading']} /></Spin>
-      : <Alert type="warning" showIcon title={remoteErrorText(copy, accessError)} action={<Button onClick={() => setAttempt(value => value + 1)}>{t('app.retry')}</Button>} />}
+      : <div className={styles['access-feedback']}><RemoteFeedback message={remoteErrorText(copy, accessError)} action={<Button size="small" onClick={() => setAttempt(value => value + 1)}>{t('app.retry')}</Button>} /></div>}
   </section>
   return <section className={styles.surface}>
     <div className={styles.toolbar}><RemoteAgentApprovals transport={transport} target={target} /></div>
-    {resourceFailed ? <Alert type="warning" title={copy.agentResourcesUnavailable} action={<Button onClick={() => setResourceAttempt(value => value + 1)}>{t('app.retry')}</Button>} /> : null}
-    {viewFailed ? <Alert type="warning" title={copy.agentViewUnavailable} action={<Button onClick={() => visibleSession(visibleSessionRef.current)}>{t('app.retry')}</Button>} /> : null}
     <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote onVisibleSessionChange={visibleSession} notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
+    <RemoteFeedbackStack>
+      {resourceFailed ? <RemoteFeedback message={copy.agentResourcesUnavailable} action={<Button size="small" onClick={() => setResourceAttempt(value => value + 1)}>{t('app.retry')}</Button>} /> : null}
+      {viewFailed ? <RemoteFeedback message={copy.agentViewUnavailable} action={<Button size="small" onClick={() => visibleSession(visibleSessionRef.current)}>{t('app.retry')}</Button>} /> : null}
+    </RemoteFeedbackStack>
   </section>
 }

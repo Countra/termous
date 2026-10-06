@@ -70,8 +70,8 @@ test('控制端无本机 AI 时仅查询被控端，仍可进入远程会话', a
 })
 
 test.each([
-  ['remote_agent_disabled', '请在被控电脑开启 AI 助手远程访问权限。'],
-  ['remote_agent_unsupported', '被控电脑尚不支持远程 AI，请更新该电脑上的 Termous。'],
+  ['remote_agent_disabled', '请在被控电脑开启助手远程访问。'],
+  ['remote_agent_unsupported', '被控电脑不支持远程助手，请更新应用。'],
 ])('被控端拒绝访问时显示具体原因且可原地重试：%s', async (code, message) => {
   const { client, request, fail } = fixture()
   fail(code)
@@ -117,7 +117,7 @@ test('资源刷新失败单独重试，保留会话草稿且不重新检查整�
   const { client, request, failResources } = fixture([fileCandidate('ftp')])
   failResources('remote_request_failed')
   render(<RemoteAgentSurface client={client} active />)
-  expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('被控电脑的资源列表暂时不可用。')
+  expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('远端资源加载失败。')
   fireEvent.change(screen.getByRole('textbox', { name: '草稿' }), { target: { value: '尚未发送的消息' } })
   request.mockClear()
   failResources('')
@@ -146,7 +146,7 @@ test('资源瞬时失败自动补读，不闪出警告或丢失会话草稿', as
 test('非法文件身份仍拒绝，修正后可原地恢复资源', async () => {
   const { client, setResources } = fixture([fileCandidate('ftp', ' ')])
   render(<RemoteAgentSurface client={client} active />)
-  expect(await screen.findByRole('alert')).toHaveTextContent('被控电脑的资源列表暂时不可用。')
+  expect(await screen.findByRole('alert')).toHaveTextContent('远端资源加载失败。')
   expect(screen.getByText('资源未就绪')).toBeVisible()
   setResources([fileCandidate('ftp')])
   fireEvent.click(screen.getByRole('button', { name: 'app.retry' }))
@@ -158,7 +158,7 @@ test('会话通知状态失败与资源读取分离，成功刷新资源不会�
   setAgentView.mockResolvedValue({ ok: false, code: 'remote_operation_failed' })
   render(<RemoteAgentSurface client={client} active />)
   expect(await screen.findByText('资源就绪：0 个文件配置，0 个终端')).toBeVisible()
-  expect(await screen.findByRole('alert')).toHaveTextContent('此会话的通知状态更新失败。')
+  expect(await screen.findByRole('alert')).toHaveTextContent('会话通知更新失败。')
   fireEvent.change(screen.getByRole('textbox', { name: '草稿' }), { target: { value: '保留草稿' } })
   request.mockClear()
   setAgentView.mockResolvedValue({ ok: true, value: true })

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Flex, Modal, Select, Table, Typography } from 'antd'
+import { Button, Flex, Modal, Select, Table, Typography } from 'antd'
 import { ArrowUp, Folder } from 'lucide-react'
 import { RemoteClient, type FileEntry, type LocalRoot, type Session } from '#entities/remote-control'
 import { remoteErrorText, type RemoteCopy } from '../model/copy'
+import { RemoteFeedback } from './RemoteFeedback'
 
 interface Props {
   client: RemoteClient; session: Session; roots: LocalRoot[]; copy: RemoteCopy
@@ -48,14 +49,14 @@ export function RemoteTransferDialog({ client, session, roots, copy, upload, pat
   return <Modal title={upload ? copy.uploadHost : copy.downloadHost} open onCancel={close} onOk={() => void start()} confirmLoading={busy} okText={copy.startTransfer} cancelText={copy.cancel} okButtonProps={{ disabled: !root || reading || upload && !selected.length }} width={640}>
     <Flex vertical gap={12}>
       <Typography.Text type="secondary">{copy.executeHost}</Typography.Text>
-      {error ? <Alert type="warning" title={remoteErrorText(copy, error)} /> : null}
-      {!allowed.length ? <Alert type="info" title={copy.noRoots} /> : <>
+      {!allowed.length ? <RemoteFeedback tone="info" message={copy.noRoots} /> : <>
         <Select aria-label={copy.chooseFolder} value={root} onChange={setRoot} disabled={busy} options={allowed.map(value => ({ value: value.id, label: value.name }))} />
         <Flex align="center" gap={12}><Button aria-label={copy.parent} icon={<ArrowUp size={16} />} disabled={reading || path === '.' || busy} onClick={() => void load(path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.')} /><Typography.Text code>{path}</Typography.Text></Flex>
         <Table<FileEntry> rowKey="path" size="small" loading={reading} pagination={false} scroll={{ y: 260 }} dataSource={entries} rowSelection={upload ? { selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: busy || !['file', 'directory'].includes(value.kind) }) } : undefined} columns={[{ title: upload ? copy.chooseSource : copy.chooseFolder, key: 'name', render: (_, value) => value.kind === 'directory' ? <Button type="text" icon={<Folder size={16} />} onClick={() => void load(value.path)}>{value.name}</Button> : <Typography.Text type={upload ? undefined : 'secondary'}>{value.name}</Typography.Text> }]} />
         {cursor ? <Button loading={reading} onClick={() => void load(path, cursor)}>{copy.loadMore}</Button> : null}
         <Flex align="center" justify="space-between"><span>{copy.overwrite}</span><Select aria-label={copy.overwrite} value={overwrite} onChange={setOverwrite} options={[{ value: 'rename', label: copy.autoRename }, { value: 'skip', label: copy.skip }, { value: 'replace', label: copy.replaceFile }]} /></Flex>
       </>}
+      {error ? <RemoteFeedback message={remoteErrorText(copy, error)} closeLabel={copy.close} onClose={() => setError(undefined)} /> : null}
     </Flex>
   </Modal>
 }

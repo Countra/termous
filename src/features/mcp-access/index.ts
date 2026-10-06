@@ -29,4 +29,5 @@ export {
 export { McpApprovalCoordinator } from './ui/McpApprovalCoordinator.tsx'
 export { McpApprovalDetails } from './ui/approval/McpApprovalDetails.tsx'
 export { McpApprovalExpiry } from './ui/approval/McpApprovalExpiry.tsx'
+export { default as mcpApprovalStyles } from './ui/McpApprovalCoordinator.module.scss'
 export { McpSettingsPanel } from './ui/McpSettingsPanel.tsx'

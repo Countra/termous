@@ -2,6 +2,16 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RemoteBootstrap, RemoteWindowBridge } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
+  windowControls: {
+    minimize: () => ipcRenderer.invoke('remote:window-minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('remote:window-toggle-maximize'),
+    isMaximized: () => ipcRenderer.invoke('remote:window-is-maximized'),
+    onMaximizeState: callback => {
+      const listener = (_event: IpcRendererEvent, maximized: boolean) => callback(maximized)
+      ipcRenderer.on('remote:maximize-state', listener)
+      return () => ipcRenderer.removeListener('remote:maximize-state', listener)
+    },
+  },
   setAgentView: (session, id) => ipcRenderer.invoke('remote:agent-view', session, id),
   agentUpload: (data, mime, id) => ipcRenderer.invoke('remote:agent-upload', data, mime, id),
   agentDownload: (content, id) => ipcRenderer.invoke('remote:agent-download', content, id),

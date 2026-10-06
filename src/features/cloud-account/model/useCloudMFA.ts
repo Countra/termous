@@ -31,7 +31,8 @@ export function useCloudMFA(api: CloudGateway, generation: string) {
     const scope = { api, generation, controller: new AbortController(), request: 0 }
     lifetime.current = scope
     latest.current = undefined; setValue(undefined); setError(false)
-    void reload()
+    // 等挂载清理完成后再读取，避免开发模式重放或立即离开页面时先发送再取消。
+    queueMicrotask(() => { if (!scope.controller.signal.aborted) void reload() })
     return () => scope.controller.abort()
   }, [api, generation, reload])
   const refresh = useCallback(() => { void reload() }, [reload])

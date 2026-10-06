@@ -1,0 +1,7 @@
+.unavailable {
+  display: grid;
+  min-height: 100dvh;
+  place-content: center;
+  background: var(--app-bg);
+  padding: 24px;
+}

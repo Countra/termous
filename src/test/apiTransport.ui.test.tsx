@@ -423,6 +423,26 @@ describe('领域 API HTTP transport 合同', () => {
     await writeAssertion
   })
 
+  it.each([
+    ['http:', 'ws:', 'token value &+='],
+    ['https:', 'wss:', 'token value &+='],
+    ['https:', 'wss:', ''],
+  ])('命令任务集合订阅保留查询参数与鉴权（%s，%s，%s）', (httpProtocol, websocketProtocol, apiToken) => {
+    const gateways = createRuntimeGatewaysFromConfig({
+      apiBaseUrl: `${httpProtocol}//core.example.test/base?stale=1#old`,
+      apiToken,
+    })
+    const url = new URL(gateways.commandDispatch.tasksEventsUrl())
+
+    expect(url.protocol).toBe(websocketProtocol)
+    expect(url.host).toBe('core.example.test')
+    expect(url.pathname).toBe('/api/v1/command-dispatch-tasks/events')
+    expect(url.searchParams.get('view')).toBe('collection')
+    expect(url.searchParams.get('token')).toBe(apiToken || null)
+    expect(url.searchParams.has('stale')).toBe(false)
+    expect(url.hash).toBe('')
+  })
+
   it('保持 WebSocket 与静态资源 URL 的协议、鉴权和编码规则', () => {
     const gateways = createRuntimeGatewaysFromConfig({
       apiBaseUrl: 'https://core.example.test/base?stale=1',
