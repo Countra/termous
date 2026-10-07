@@ -71,25 +71,26 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
   const failure = imageError ?? error
   return <AccountSection title={t('cloud.tabs.profile')} icon={<UserRound size={18} />} description={t('cloud.profile.privateHint')}>
     {failure ? <Alert type="warning" showIcon title={t(`cloud.errors.${failure}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
-    {!profile || !draft || !editing ? loading ? <AccountLoading /> : <WorkspaceEmptyState className={shared.empty} icon={<UserRound size={20} />} title={t('cloud.profile.unavailable')} action={<Button onClick={() => void reload()}>{t('cloud.retry')}</Button>} /> : <Form layout="vertical" disabled={loading || imageBusy} onFinish={() => {
+    {!profile || !draft || !editing ? loading ? <AccountLoading /> : <WorkspaceEmptyState className={shared.empty} icon={<UserRound size={20} />} title={t('cloud.profile.unavailable')} action={<Button onClick={() => void reload()}>{t('cloud.retry')}</Button>} /> : <Form className={styles.form} layout="horizontal" labelAlign="left" colon={false} disabled={loading || imageBusy} onFinish={() => {
       // 键盘提交也必须经过相同检查，不能仅依赖保存按钮的禁用状态。
       if (canSave) void replace(() => save({ ...draft, expected_revision: editing.base.revision }), true)
     }}>
-      <div className={styles['avatar-row']}>
-        <Avatar className={styles.avatar} size={72} src={draft.avatar || undefined} icon={<UserRound size={30} />} />
-        <div>
-          <div className={shared.actions}>
-            <Button icon={<Camera size={15} />} loading={imageBusy} onClick={() => input.current?.click()}>{t('cloud.profile.chooseAvatar')}</Button>
-            <Button disabled={!draft.avatar || loading || imageBusy} onClick={() => edit({ avatar: '' })}>{t('cloud.profile.removeAvatar')}</Button>
+      <div className={styles['avatar-row']} role="group" aria-labelledby="cloud-profile-avatar-label">
+        <span id="cloud-profile-avatar-label" className={styles.label}>{t('cloud.profile.avatarLabel')}</span>
+        <div className={styles['avatar-control']}>
+          <Avatar className={styles.avatar} size={56} src={draft.avatar || undefined} icon={<UserRound size={25} />} />
+          <div className={styles['avatar-options']}>
+            <div className={shared.actions}>
+              <Button size="small" icon={<Camera size={14} />} loading={imageBusy} onClick={() => input.current?.click()}>{t('cloud.profile.chooseAvatar')}</Button>
+              <Button size="small" type="text" disabled={!draft.avatar || loading || imageBusy} onClick={() => edit({ avatar: '' })}>{t('cloud.profile.removeAvatar')}</Button>
+            </div>
+            <p className={shared.hint}>{t('cloud.profile.avatarHint')}</p>
           </div>
-          <p className={shared.hint}>{t('cloud.profile.avatarHint')}</p>
+          <input className={styles['file-input']} ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label={t('cloud.profile.chooseAvatar')} onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file) }} />
         </div>
-        <input className={styles['file-input']} ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label={t('cloud.profile.chooseAvatar')} onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void choose(file) }} />
       </div>
-      <div className={styles.fields}>
-        <Form.Item label={t('cloud.profile.name')} htmlFor="cloud-profile-name"><Input id="cloud-profile-name" value={draft.name} count={{ show: true, max: 64, strategy: (value) => [...value].length }} onChange={(event) => edit({ name: event.target.value })} placeholder={email} /></Form.Item>
-        <Form.Item label={t('cloud.profile.organization')} htmlFor="cloud-profile-organization"><Input id="cloud-profile-organization" value={draft.organization} count={{ show: true, max: 100, strategy: (value) => [...value].length }} onChange={(event) => edit({ organization: event.target.value })} /></Form.Item>
-      </div>
+      <Form.Item label={t('cloud.profile.name')} htmlFor="cloud-profile-name"><Input id="cloud-profile-name" value={draft.name} count={{ show: true, max: 64, strategy: (value) => [...value].length }} onChange={(event) => edit({ name: event.target.value })} placeholder={email} /></Form.Item>
+      <Form.Item label={t('cloud.profile.organization')} htmlFor="cloud-profile-organization"><Input id="cloud-profile-organization" value={draft.organization} count={{ show: true, max: 100, strategy: (value) => [...value].length }} onChange={(event) => edit({ organization: event.target.value })} /></Form.Item>
       <Form.Item label={t('cloud.profile.bio')} htmlFor="cloud-profile-bio"><Input.TextArea id="cloud-profile-bio" value={draft.bio} autoSize={{ minRows: 3, maxRows: 6 }} count={{ show: true, max: 200, strategy: (value) => [...value].length }} onChange={(event) => edit({ bio: event.target.value })} /></Form.Item>
       <div className={styles.footer}>
         <span className={`${shared.hint} ${saved && !dirty ? styles.saved : ''}`} role="status">{saved && !dirty ? t('cloud.profile.saved') : dirty ? t('cloud.profile.unsaved') : t('cloud.profile.editHint')}</span>

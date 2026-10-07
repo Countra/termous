@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Alert, Button, Checkbox, Modal, Space, Switch, Tag } from 'antd'
-import { FolderPlus, Monitor, Settings2, Trash2 } from 'lucide-react'
+import { Alert, Button, Space, Tag } from 'antd'
+import { Monitor, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDevice, RemotePolicy } from '#common/contracts'
+import type { RemoteDevice, RemotePolicy, RemoteResult } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
 import { unwrap } from '#entities/remote-control'
 import { remoteCopy, remoteErrorText } from '../model/copy'
+import { RemoteAccessDialog } from './RemoteAccessDialog'
 import styles from './RemoteAccountAccess.module.scss'
 
 interface Props {
@@ -23,76 +24,109 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   const [selected, setSelected] = useState<string[]>([])
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [working, setWorking] = useState<'save' | 'agent' | 'directory'>()
+  const [mustRefresh, setMustRefresh] = useState(false)
+  const [updated, setUpdated] = useState(false)
   const [error, setError] = useState<unknown>()
+  const [connectionError, setConnectionError] = useState<unknown>()
   const lifetime = useRef(0)
+  const editor = useRef(0)
+  const presenceRequest = useRef(0)
+  const pending = useRef(false)
   const load = useCallback(async () => {
     if (!api || !trusted) return
     const scope = lifetime.current
+    const request = ++presenceRequest.current
+    const current = () => scope === lifetime.current && request === presenceRequest.current
     try {
       const values = unwrap(await api.devices(generation))
-      if (scope === lifetime.current) setDevices(values)
-    } catch { if (scope === lifetime.current) setDevices([]) }
+      // 保存后的补读可能与轮询重叠，较早结果不能回写旧在线状态。
+      if (current()) setDevices(values)
+    } catch { if (current()) setDevices([]) }
   }, [api, generation, trusted])
   useEffect(() => {
     const scope = ++lifetime.current
+    ++editor.current
+    pending.current = false
+    setOpen(false); setPolicy(undefined); setHosts([]); setSelected([]); setDevices([])
+    setLoading(false); setWorking(undefined); setError(undefined); setConnectionError(undefined); setMustRefresh(false); setUpdated(false)
     let timer: ReturnType<typeof setTimeout>
     const poll = async () => { if (scope !== lifetime.current) return; if (!document.hidden) await load(); if (scope === lifetime.current) timer = setTimeout(() => void poll(), 15000) }
     void poll()
     return () => { lifetime.current = scope + 1; clearTimeout(timer) }
   }, [load])
   const edit = async () => {
-    if (!api) return
+    if (!api || !trusted || pending.current) return
     const scope = lifetime.current
-    setOpen(true); setBusy(true); setError(undefined)
+    const request = ++editor.current
+    const current = () => scope === lifetime.current && request === editor.current
+    setOpen(true); setLoading(true); setError(undefined); setPolicy(undefined)
+    setHosts([]); setSelected([]); setMustRefresh(false); setUpdated(false)
     try {
       const [policy, hosts] = await Promise.all([api.policy(generation), api.hosts()])
-      if (scope !== lifetime.current) return
+      if (!current()) return
       const value = unwrap(policy)
       const availableHosts = unwrap(hosts)
       const availableIDs = new Set(availableHosts.map(host => host.id))
       setPolicy(value); setEnabled(value.enabled)
       setSelected((value.hosts ?? []).map(item => item.id).filter(id => availableIDs.has(id)))
       setHosts(availableHosts)
-    } catch (reason) { if (scope === lifetime.current) setError(reason) } finally { if (scope === lifetime.current) setBusy(false) }
+    } catch (reason) { if (current()) setError(reason) } finally { if (current()) setLoading(false) }
   }
-  const save = async () => {
-    if (!api || !policy) return
-    const scope = lifetime.current
-    setBusy(true); setError(undefined)
-    try { const next = unwrap(await api.configure(generation, policy.revision, enabled, selected)); if (scope === lifetime.current) { setPolicy(next); setOpen(false); await load() } } catch (reason) { if (scope === lifetime.current) setError(reason) } finally { if (scope === lifetime.current) setBusy(false) }
+  const close = () => {
+    if (pending.current) return
+    ++editor.current
+    setOpen(false); setLoading(false); setError(undefined)
   }
-  const configureAgent = async (value: boolean) => {
-    if (!api || !policy) return
+  const changePolicy = async (operation: 'save' | 'agent' | 'directory', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
+    if (!api || !trusted || !policy || loading || pending.current || mustRefresh) return
     const scope = lifetime.current
-    setBusy(true); setError(undefined)
+    const request = editor.current
+    const current = () => scope === lifetime.current && request === editor.current
+    // 同一修订号只允许一个写入；同步锁也覆盖原生目录选择器尚未返回的阶段。
+    pending.current = true
+    setWorking(operation); setError(undefined); setUpdated(false)
     try {
-      const next = unwrap(await api.configureAgent(generation, policy.revision, value))
-      if (scope === lifetime.current) setPolicy(next)
-    } catch (reason) { if (scope === lifetime.current) setError(reason) }
-    finally { if (scope === lifetime.current) setBusy(false) }
+      const next = unwrap(await action(policy.revision))
+      if (!next || !current()) return
+      setPolicy(next)
+      if (operation === 'save') { setOpen(false); void load() }
+      else setUpdated(true)
+    } catch (reason) {
+      if (current()) {
+        setError(reason)
+        // 修订冲突或结果未确认时先重新读取，避免重放可能已经生效的授权操作。
+        if (reason && typeof reason === 'object' && (('code' in reason && String(reason.code).toLowerCase() === 'remote_policy_changed') || ('uncertain' in reason && reason.uncertain))) setMustRefresh(true)
+      }
+    } finally {
+      if (current()) { pending.current = false; setWorking(undefined) }
+    }
   }
-  const directory = async (write: boolean, id?: string) => {
-    if (!api || !policy) return
+  const connect = async (device: { id: string; name: string }) => {
+    if (!api || !trusted) return
     const scope = lifetime.current
-    setBusy(true); setError(undefined)
-    try {
-      const next = unwrap(id ? await api.removeDirectory(generation, policy.revision, id) : await api.addDirectory(generation, policy.revision, write))
-      if (next && scope === lifetime.current) setPolicy(next)
-    } catch (reason) { if (scope === lifetime.current) setError(reason) } finally { if (scope === lifetime.current) setBusy(false) }
+    setConnectionError(undefined)
+    try { unwrap(await api.open(generation, device.id, device.name)) }
+    catch (reason) {
+      // 连接错误属于设备列表，不能混入授权编辑或后续账号的反馈。
+      if (scope === lifetime.current) setConnectionError(reason)
+    }
   }
   return <>
-    {api && trusted ? <section className={styles.settings}><div><h2><Monitor size={18} />{copy.hostSettings}</h2><p>{copy.settingsHint}</p></div><Button icon={<Settings2 size={15} />} onClick={() => void edit()}>{copy.configure}</Button></section> : null}
+    {api && trusted ? <section className={styles.settings}><div><h2><Monitor size={18} />{copy.hostSettings}</h2><p>{copy.settingsHint}</p></div><Button icon={<Settings2 size={15} />} disabled={loading || !!working} onClick={() => void edit()}>{copy.configure}</Button></section> : null}
     {children(device => {
       const state = devices.find(item => item.id === device.id)
       if (device.id === currentDevice) return null
       const online = state?.online === 'online'
       const available = online && state?.advertisement.host_enabled && state.advertisement.protocol === 'termous-remote-v1'
-      return <Space size="small"><Tag color={online ? 'green' : undefined}>{online ? copy.online : state?.online === 'offline' ? copy.offline : copy.unknown}</Tag>{api ? <Button size="small" icon={<Monitor size={13} />} disabled={!trusted || !available} onClick={() => void api.open(generation, device.id, device.name).then(unwrap).catch(setError)}>{copy.connect}</Button> : null}</Space>
+      return <Space size="small"><Tag className={styles.status} color={online ? 'green' : undefined}>{online ? copy.online : state?.online === 'offline' ? copy.offline : copy.unknown}</Tag>{api ? <Button size="small" icon={<Monitor size={13} />} disabled={!trusted || !available} onClick={() => void connect(device)}>{copy.connect}</Button> : null}</Space>
     })}
-    {error && !open ? <Alert type="warning" title={remoteErrorText(copy, error)} closable onClose={() => setError(undefined)} /> : null}
-    <Modal title={copy.configure} open={open} width={640} onCancel={() => setOpen(false)} onOk={() => void save()} confirmLoading={busy} okText={copy.save} cancelText={copy.cancel} okButtonProps={{ disabled: !policy }}>
-      <div className={styles.form}>{error ? <Alert type="warning" title={remoteErrorText(copy, error)} action={<Button size="small" onClick={() => void edit()}>{copy.refresh}</Button>} /> : null}<p>{copy.settingsHint}</p><Space><Switch checked={enabled} disabled={busy || !policy} onChange={setEnabled} aria-label={copy.hostSettings} /><strong>{copy.hostSettings}</strong></Space><Space><Switch checked={policy?.agent_enabled === true} disabled={busy || !policy} onChange={value => void configureAgent(value)} aria-label={copy.agentPermission} /><strong>{copy.agentPermission}</strong></Space><p>{copy.agentPermissionHint}</p><h3>{copy.allowedHosts}</h3><Checkbox.Group className={styles.choices} value={selected} disabled={busy || !policy} onChange={values => setSelected(values as string[])} options={hosts.map(profile => ({ value: profile.id, label: profile.name }))} /><h3>{copy.allowedFolders}</h3>{(policy?.directories ?? []).map(root => <div key={root.id} className={styles.directory}><div><strong>{root.name}</strong><small>{root.path}</small></div><Tag>{root.write ? `${copy.read} / ${copy.write}` : copy.read}</Tag><Button type="text" danger disabled={busy} icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void directory(false, root.id)} /></div>)}<Space wrap><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(false)}>{copy.addRead}</Button><Button disabled={busy || !policy} icon={<FolderPlus size={15} />} onClick={() => void directory(true)}>{copy.addWrite}</Button></Space></div>
-    </Modal>
+    {connectionError ? <Alert type="warning" title={remoteErrorText(copy, connectionError)} closable onClose={() => setConnectionError(undefined)} /> : null}
+    <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
+      onClose={close} onRefresh={() => void edit()} onEnabled={setEnabled} onSelect={setSelected}
+      onSave={() => { if (api) void changePolicy('save', revision => api.configure(generation, revision, enabled, selected)) }}
+      onAgent={value => { if (api) void changePolicy('agent', revision => api.configureAgent(generation, revision, value)) }}
+      onDirectory={(write, id) => { if (api) void changePolicy('directory', revision => id ? api.removeDirectory(generation, revision, id) : api.addDirectory(generation, revision, write)) }} />
   </>
 }

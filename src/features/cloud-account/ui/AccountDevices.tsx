@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Alert, Button, Checkbox, Form, Modal, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Form, Modal, Table, Tag, Tooltip } from 'antd'
 import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudStatus } from '#common/contracts'
@@ -23,7 +23,7 @@ import styles from './CloudAccount.module.scss'
 interface Props { api: CloudGateway; status: CloudStatus; busy: boolean; target?: CloudAuthorizationTarget; onOpenAuthorization?: (value: CloudAuthorizationTarget) => void; renderDeviceActions?: (device: CloudDevice) => ReactNode; run: <T>(action: () => Promise<T>) => Promise<T | undefined> }
 
 export function AccountDevices({ api, status, busy, run, target, onOpenAuthorization, renderDeviceActions }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [devices, setDevices] = useState<CloudDevice[]>([])
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -94,6 +94,14 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
       else setSwitching({ from: existing, kind })
     } else if (kind === 'recovery') { setReplacementIds([]); setChoosingRecovery(true) } else void create(kind)
   }
+  const requests = <AccountSection key="authorization-requests" title={t('cloud.authorization.requests')} icon={<ShieldCheck size={18} />} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void authorization.reload()}>{t('cloud.refresh')}</Button>}>
+    {outstanding.length ? <div className={styles.list}>{outstanding.map(request => <div className={styles.row} key={request.id}>
+      <div className={styles.identity}><strong>{request.name || t('cloud.currentDevice')}</strong><small>{request.platform} · {new Date(request.created_at).toLocaleString(i18n.resolvedLanguage)}</small></div>
+      <div className={styles.actions}><Tag>{t(`cloud.authorization.states.${request.status}`)}</Tag><Button disabled={busy} onClick={() => select(request)}>{t('cloud.authorization.details')}</Button></div>
+    </div>)}</div> : authorization.loading ? <AccountLoading /> : !authorization.error ? <p className={styles.hint}>{t('cloud.authorization.noRequests')}</p> : null}
+  </AccountSection>
+  // 有待处理申请时优先展示；稳定的 key 保留调整顺序后的节点和键盘焦点。
+  const prioritizeRequests = outstanding.length > 0 || authorization.loading || authorization.error
   return <div className={styles.section}>
     {targetError ? <Alert type="info" showIcon title={t('cloud.authorization.targetUnavailable')} /> : null}
     {authorization.error ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} action={<Button onClick={() => void authorization.reload()}>{t('cloud.retry')}</Button>} /> : null}
@@ -111,19 +119,42 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
     {authorization.security?.keys_verified && !authorization.security.membership_initialized ? <AccountSection title={t('cloud.authorization.initialize')} icon={<ShieldCheck size={18} />} description={t('cloud.authorization.initializeHint')}>
       <Button disabled={initializeBusy || loading || error || authorization.error} onClick={() => { initializeFeedback.reset(); setChecked(devices.filter(d => d.status === 'active').map(d => d.id)); setInitialize(true) }}>{t('cloud.authorization.reviewMembers')}</Button>
     </AccountSection> : null}
-    <AccountSection title={t('cloud.authorization.requests')} icon={<ShieldCheck size={18} />} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void authorization.reload()}>{t('cloud.refresh')}</Button>}>
-      {outstanding.length ? <div className={styles.list}>{outstanding.map(request => <div className={styles.row} key={request.id}>
-        <div className={styles.identity}><strong>{request.name || t('cloud.currentDevice')}</strong><small>{request.platform} · {new Date(request.created_at).toLocaleString()}</small></div>
-        <div className={styles.actions}><Tag>{t(`cloud.authorization.states.${request.status}`)}</Tag><Button disabled={busy} onClick={() => select(request)}>{t('cloud.authorization.details')}</Button></div>
-      </div>)}</div> : authorization.loading ? <AccountLoading /> : <p className={styles.hint}>{t('cloud.authorization.noRequests')}</p>}
-    </AccountSection>
+    {prioritizeRequests ? requests : null}
     <AccountSection title={t('cloud.deviceList')} icon={<Laptop size={18} />} description={t('cloud.deviceListHint')} extra={<Button icon={<RefreshCw size={15} />} loading={loading} disabled={busy || loading} onClick={() => void load()}>{t('cloud.refresh')}</Button>}>
       {error ? <Alert type="warning" showIcon title={t('cloud.devicesLoadFailed')} /> : null}
-      {devices.length ? <div className={styles.list}>{devices.map(device => <div className={styles.row} key={device.id}>
-        <div className={styles['list-identity']}><span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span><div className={styles.identity}><strong>{device.name}</strong><small><Tooltip title={device.id}><span className={styles.identifier}>{device.id}</span></Tooltip></small></div></div>
-        <div className={styles.actions}>{renderDeviceActions?.(device)}<Tag>{t(`cloud.deviceStates.${device.status}`)}</Tag>{device.id === status.device_id ? <span className={styles.hint}>{t('cloud.currentDevice')}</span> : <Button size="small" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}</div>
-      </div>)}</div> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
+      {devices.length ? <Table<CloudDevice> className={styles.table} size="small" rowKey="id" pagination={false} dataSource={devices} scroll={{ x: 840 }} columns={[
+        {
+          title: t('cloud.deviceColumns.name'), key: 'device', width: 280,
+          render: (_, device) => <div className={styles['list-identity']}>
+            <span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span>
+            <div className={styles.identity}>
+              <strong>{device.name}</strong>
+              <small><Tooltip title={device.id}><span className={styles.identifier}>{device.id}</span></Tooltip></small>
+            </div>
+          </div>,
+        },
+        {
+          title: t('cloud.deviceColumns.authorization'), key: 'status', width: 140,
+          render: (_, device) => <Tag className={styles['status-tag']} color={device.status === 'active' ? 'success' : device.status === 'pending' ? 'warning' : undefined}>{t(`cloud.deviceStates.${device.status}`)}</Tag>,
+        },
+        {
+          title: t('cloud.deviceColumns.created'), key: 'created', width: 170,
+          render: (_, device) => {
+            const date = new Date(device.created_at)
+            return <span className={styles['table-date']}>{Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(i18n.resolvedLanguage)}</span>
+          },
+        },
+        {
+          title: t('cloud.deviceColumns.actions'), key: 'actions',
+          render: (_, device) => <div className={styles['device-actions']}>
+            {renderDeviceActions?.(device)}
+            {device.id === status.device_id ? <Tag className={styles['status-tag']}>{t('cloud.currentDevice')}</Tag>
+              : <Button size="small" type="text" danger disabled={busy || device.status !== 'active' || !authorization.security?.membership_initialized || status.device_status !== 'active'} onClick={() => setRevoking(device)}>{t('cloud.revoke')}</Button>}
+          </div>,
+        },
+      ]} /> : loading ? <AccountLoading /> : !error ? <WorkspaceEmptyState className={styles.empty} icon={<Laptop size={20} />} title={t('cloud.noDevices')} /> : null}
     </AccountSection>
+    {!prioritizeRequests ? requests : null}
     {selected ? <AccountAuthorization key={selected.id} api={api} generation={generation} value={selected} mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={changed} /> : null}
     <Modal open={Boolean(switching)} title={t('cloud.authorization.switchTitle')} closable={!busy} mask={{ closable: !busy }} confirmLoading={busy} onCancel={() => setSwitching(undefined)} onOk={async () => {
       if (!switching) return

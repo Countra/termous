@@ -61,16 +61,15 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
 
   return <div className={styles.page}>
     <header className={styles.header}>
-      <h1>{t('nav.account')}</h1>
-      <Button type="text" icon={<LogOut size={15} />} loading={busy} onClick={() => void run(() => api.logout(status.generation))}>{t('cloud.logout')}</Button>
-    </header>
-    <section className={styles.overview} aria-label={t('cloud.accountOverview')}>
       <div className={styles.identity}>
-        <Avatar className={styles.avatar} size={44} src={profile.profile?.avatar || undefined} icon={<UserRound size={22} />} />
-        <div className={styles['identity-text']}><Tooltip title={name}><strong>{name}</strong></Tooltip>{profile.profile?.name && status.email ? <p title={status.email}>{status.email}</p> : <p>{t('cloud.accountConnected')}</p>}</div>
+        <Avatar className={styles.avatar} size={48} src={profile.profile?.avatar || undefined} icon={<UserRound size={24} />} />
+        <div className={styles['identity-text']}><span className={styles.eyebrow}>{t('nav.account')}</span><Tooltip title={name}><h1>{name}</h1></Tooltip><p title={status.email}>{profile.profile?.name && status.email ? status.email : t('cloud.accountConnected')}</p></div>
       </div>
-      <Tag className={styles.trust} icon={status.device_status === 'revoked' ? <ShieldX size={13} /> : <ShieldCheck size={13} />}>{deviceLabel}</Tag>
-    </section>
+      <div className={styles['header-actions']}>
+        <Tag className={styles.trust} icon={status.device_status === 'revoked' ? <ShieldX size={13} /> : <ShieldCheck size={13} />}>{deviceLabel}</Tag>
+        <Button type="text" icon={<LogOut size={15} />} loading={busy} onClick={() => void run(() => api.logout(status.generation))}>{t('cloud.logout')}</Button>
+      </div>
+    </header>
     {feedback}
     {status.error_code === 'login_required' || status.error_code === 'refresh_unconfirmed' ? <Popconfirm title={t('cloud.authorization.emergencyConfirm')} onConfirm={() => run(() => api.emergencyFreeze(status.generation))}><Button danger disabled={busy || status.device_status !== 'active'}>{t('cloud.authorization.emergency')}</Button></Popconfirm> : null}
     <Modal key={`reauth-${status.generation}`} open={reauthGeneration === status.generation} title={t('cloud.reconnectAccount')} footer={null} destroyOnHidden onCancel={() => setReauthGeneration(undefined)}>

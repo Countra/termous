@@ -59,6 +59,49 @@ test('已撤销设备可查看列表，不提供批准新设备的操作', async
   expect(screen.queryByRole('button', { name: '核对设备' })).not.toBeInTheDocument()
 })
 
+test('设备表格保留撤销权限和验证步骤，读取失败时保留已有设备', async () => {
+  const current = { ...status, device_id: 'current' }
+  const overview: CloudSecurityOverview = {
+    account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: false, mfa_enabled: false, mfa_revision: '0', recovery_required: false, recovery_ready: true, personal_recovery_enabled: false, archive_available: false },
+    keys_verified: true, membership_initialized: true,
+    recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace', status: 'disabled', revision: '0', updated_at: '2026-10-07T00:00:00Z' } },
+  }
+  const devices: CloudDevice[] = ['current', 'active', 'pending', 'revoked'].map(id => ({
+    id, user_id: 'fixture-user', name: `合成设备 ${id}`, status: id === 'pending' ? 'pending' : id === 'revoked' ? 'revoked' : 'active', created_at: id === 'revoked' ? '' : '2026-10-07T00:00:00Z', signing_key: '', recipient: '',
+  }))
+  const api = gateway({ getStatus: () => current, security: vi.fn(async () => overview), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), devices: vi.fn(async () => devices), revokeDevice: vi.fn(async () => {}) })
+  render(<AccountDevices api={api} status={current} busy={false} run={run} />)
+  const list = within(screen.getByRole('region', { name: '已登记设备' }))
+  const table = within(await list.findByRole('table'))
+  const rows = table.getAllByRole('row')
+  const row = (id: string) => within(rows.find(item => item.textContent?.includes(`合成设备 ${id}`))!)
+  expect(table.getByRole('columnheader', { name: '授权状态' })).toBeInTheDocument()
+  expect(row('current').queryByRole('button', { name: '撤销' })).not.toBeInTheDocument()
+  const revoke = row('active').getByRole('button', { name: '撤销' })
+  await waitFor(() => expect(revoke).toBeEnabled())
+  expect(row('pending').getByRole('button', { name: '撤销' })).toBeDisabled()
+  expect(row('revoked').getByRole('button', { name: '撤销' })).toBeDisabled()
+  expect(row('revoked').getByText('—')).toBeInTheDocument()
+  fireEvent.click(revoke)
+  const dialog = await screen.findByRole('dialog', { name: '撤销' })
+  expect(within(dialog).getByLabelText('密码')).toBeInTheDocument()
+  expect(api.revokeDevice).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  vi.mocked(api.devices).mockRejectedValueOnce(new Error('network_unavailable'))
+  fireEvent.click(list.getByRole('button', { name: '刷新' }))
+  expect(await list.findByText('设备列表加载失败，请刷新重试。')).toBeInTheDocument()
+  expect(list.getByText('合成设备 active')).toBeInTheDocument()
+  expect(list.queryByText('暂无已登记设备')).not.toBeInTheDocument()
+})
+
+test('授权申请读取失败时显示重试提示，不伪报暂无待处理申请', async () => {
+  const api = gateway({ deviceRequests: vi.fn(async () => { throw new Error('network_unavailable') }) })
+  render(<AccountDevices api={api} status={status} busy={false} run={run} />)
+  expect(await screen.findByText('暂时无法读取授权状态')).toBeInTheDocument()
+  expect(screen.queryByText('暂无待处理申请')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /重\s*试/ })).toBeInTheDocument()
+})
+
 test('撤销后重新登录的待授权设备可主动申请可信批准，无需先开启云端恢复', async () => {
   const pending: CloudStatus = { ...status, device_id: 'retained-device', device_status: 'pending' }
   const overview: CloudSecurityOverview = {

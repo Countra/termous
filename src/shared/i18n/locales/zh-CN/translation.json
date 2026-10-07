@@ -49,7 +49,7 @@
       "keyFile": "个人恢复密钥文件",
       "restartDevices": "原工作区将停止授权 {{count}} 台设备。",
       "personalTitle": "个人恢复密钥",
-      "personalHint": "设备都不可用时，使用独立恢复密钥解密云数据。无需开启 2FA，账号登录仍遵循原有验证要求。",
+      "personalHint": "设备不可用时，使用恢复密钥解密云数据。无需开启二步验证，账号登录仍需验证。",
       "enabled": "已设置",
       "notSet": "未设置",
       "unavailable": "暂不可用",
@@ -72,9 +72,15 @@
       "noOptions": "无法使用这些方式？",
       "restartTitle": "重新开始云同步",
       "restartImpact": "了解影响",
+      "restartReview": "确认切换",
+      "restartEmailTitle": "邮箱确认",
       "restartConfirm": "确认立即重新开始",
-      "restartImmediate": "立即生效，原工作区不会被恢复或覆盖",
-      "restartHint": "本地配置保留。原设备在线权限和其他登录会话将撤销，有数据的旧工作区保留 30 天，仅持有旧密钥时可取回。新工作区仍需设置恢复保障和确认同步差异。",
+      "restartImmediate": "确认切换后立即生效",
+      "restartEffects": {
+        "local": "本地配置保留，旧工作区不会被覆盖。",
+        "access": "原设备在线权限和其他登录会话将撤销。有数据的旧工作区保留 30 天，取回仍需旧密钥。",
+        "next": "新工作区需设置恢复保障，并确认同步差异。"
+      },
       "createRestart": "创建重新开始申请",
       "resumeOperation": "继续上次操作",
       "expired": "申请已过期，请取消后重新发起",
@@ -118,7 +124,7 @@
       "firstTitle": "首次云同步需要恢复保障",
       "firstHint": "请在安全页设置个人恢复密钥，或开启 2FA 云端恢复。您仍可查看差异、登录和使用离线功能。",
       "advancedTitle": "高级操作",
-      "advancedHint": "无法恢复旧数据时，可通过独立邮箱和身份验证建立新的云工作区。"
+      "advancedHint": "旧数据无法恢复时，经邮箱和身份验证建立新工作区。"
     },
     "authorization": {
       "switchTitle": "切换授权方式",
@@ -220,7 +226,6 @@
       "password-reset/confirm": "粘贴重置邮件中的验证串，并设置新密码。"
     },
     "loading": "正在加载…",
-    "accountOverview": "账号概览",
     "accountConnected": "已登录 Termous 账号",
     "unconfiguredTitle": "云服务尚未配置",
     "email": "邮箱",
@@ -248,6 +253,7 @@
       "organization": "公司／组织",
       "bio": "简介",
       "chooseAvatar": "更换头像",
+      "avatarLabel": "头像",
       "removeAvatar": "移除头像",
       "avatarHint": "支持 PNG、JPEG，最大 2 MB，自动居中裁剪为方形。",
       "privateHint": "个人资料由云服务保存，不影响本机配置。",
@@ -401,6 +407,12 @@
       "revision_conflict": "云端出现新修改，请重新同步并处理冲突。"
     },
     "deviceList": "已登记设备",
+    "deviceColumns": {
+      "name": "设备名称",
+      "authorization": "授权状态",
+      "created": "登记时间",
+      "actions": "远控与管理"
+    },
     "deviceListHint": "管理可访问云端配置的设备。",
     "devicesLoadFailed": "设备列表加载失败，请刷新重试。",
     "authorizeDevice": "授权当前设备",
@@ -423,7 +435,7 @@
     "revokeSession": "撤销此登录会话？",
     "revokeSessionHint": "该会话将退出账号。设备已下载的数据不会被删除。",
     "keySafety": "请保留至少一台可信设备",
-    "keySafetyHint": "云数据采用端到端加密。若全部可信设备丢失，当前版本没有云数据恢复入口；重置账号密码也不能解密已有数据。",
+    "keySafetyHint": "请备份个人恢复密钥，或提前开启云端恢复。若所有可信设备和恢复方式均不可用，云数据将无法解密；重置账号密码也无法恢复。",
     "approvalNeeded": "请先在“设备”中完成可信设备授权",
     "autoSync": "自动同步",
     "autoSyncHint": "自动同步后续配置变更",

@@ -1,5 +1,5 @@
 import { Avatar, Button, Dropdown, type MenuProps } from 'antd'
-import { Cloud, LogIn, Monitor, Settings, ShieldCheck, UserRound } from 'lucide-react'
+import { Cloud, Laptop, LogIn, Monitor, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CloudTab } from '#common/contracts'
@@ -31,7 +31,8 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
   const loggedIn = identity?.authenticated === true
   const name = loggedIn ? identity.name || identity.email || t('nav.account') : t('cloud.local')
   const detail = loggedIn ? identity.email : t('cloud.localHint')
-  const avatar = <Avatar size={32} src={loggedIn ? identity.avatar || undefined : undefined} icon={loggedIn ? <UserRound size={17} /> : <Monitor size={17} />} />
+  const avatar = <Avatar size={28} src={loggedIn ? identity.avatar || undefined : undefined} icon={loggedIn ? <UserRound size={16} /> : <Monitor size={16} />} />
+  const summary = <span className={styles.summary}>{avatar}<span className={styles.copy}><strong title={name}>{name}</strong>{detail ? <span title={detail}>{detail}</span> : null}</span></span>
 
   useEffect(() => { setOpen(false) }, [collapsed, identity?.authenticated, identity?.email])
   useEffect(() => {
@@ -41,15 +42,18 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
   }, [])
   useEffect(() => {
     if (!open) return
-    // 自定义摘要位于菜单之前，显式将键盘焦点交给菜单而非不可交互的摘要。
+    // 顶部用户入口与其他菜单项统一使用菜单的键盘导航。
     const frame = requestAnimationFrame(() => popup.current?.querySelector<HTMLElement>('[role="menu"]')?.focus())
     return () => cancelAnimationFrame(frame)
   }, [open])
 
+  const profileItem = { key: 'profile', label: summary, className: styles['identity-item'], 'aria-label': `${name} · ${t('cloud.tabs.profile')}` }
   const items: MenuProps['items'] = loggedIn ? [
-    { key: 'profile', label: t('cloud.tabs.profile'), icon: <UserRound size={16} /> },
+    profileItem,
+    { type: 'divider' },
     { key: 'sync', label: t('cloud.tabs.sync'), icon: <Cloud size={16} /> },
-    { key: 'devices', label: t('cloud.tabs.devices'), icon: <ShieldCheck size={16} /> },
+    { key: 'devices', label: t('cloud.tabs.devices'), icon: <Laptop size={16} /> },
+    { key: 'security', label: t('cloud.tabs.security'), icon: <ShieldCheck size={16} /> },
     { type: 'divider' },
     { key: 'settings', label: t('nav.settings'), icon: <Settings size={16} /> },
   ] : [
@@ -70,18 +74,17 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
     classNames={{ root: `${contextActionMenuPopupClassName} ${styles.popup}` }}
     styles={{ root: { width, minWidth: width, maxWidth: 'calc(100vw - 24px)' } }}
     popupRender={(menu) => <div ref={popup}>
-      <div className={styles.summary}>
-        {avatar}
-        <div className={styles.copy}><strong title={name}>{name}</strong><span title={detail}>{detail}</span></div>
-      </div>
+      {!loggedIn ? <div className={styles['local-summary']}>{summary}</div> : null}
       {menu}
     </div>}
     menu={{
       items,
-      onClick: ({ key }) => {
+      onClick: ({ key, domEvent }) => {
+        // Enter 选中后立即还原焦点，阻止默认动作再次触发账号按钮。
+        if (domEvent.type === 'keydown') domEvent.preventDefault()
         setOpen(false)
         if (key === 'settings') onSettings()
-        else if (key === 'profile' || key === 'sync' || key === 'devices') onAccount(key)
+        else if (key === 'profile' || key === 'sync' || key === 'devices' || key === 'security') onAccount(key)
         trigger.current?.focus({ preventScroll: true })
       },
       onKeyDown: (event) => {

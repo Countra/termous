@@ -1,20 +1,54 @@
+.form {
+  max-width: 960px;
+
+  > :global(.ant-form-item) {
+    margin: 0;
+    border-top: 1px solid var(--border);
+    padding-block: 20px;
+  }
+
+  :global(.ant-form-item-row) {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  :global(.ant-form-item-label) {
+    padding: 0;
+    text-align: left;
+  }
+
+  :global(.ant-form-item-control) {
+    min-width: 0;
+  }
+}
+
 .avatar-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  padding-block: 4px 20px;
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.avatar-control {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 16px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 20px;
+}
+
+.avatar-options {
+  min-width: 0;
 
   p {
     margin: 8px 0 0;
   }
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
 }
 
 .footer {
@@ -26,19 +60,12 @@
   padding-top: 16px;
 }
 
-@media (width <= 680px) {
-  .fields {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-
-  .avatar-row, .footer {
-    flex-wrap: wrap;
-  }
-}
-
 .avatar {
   flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 // AntD 表单显式显示文件输入，局部覆盖后只保留头像按钮入口。
@@ -48,4 +75,22 @@
 
 .footer .saved {
   color: var(--success);
+}
+
+@container (width <= 620px) {
+  .form :global(.ant-form-item-row), .avatar-row {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .footer {
+    flex-wrap: wrap;
+  }
+}
+
+@container (width <= 480px) {
+  .form :global(.ant-form-item-row), .avatar-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }

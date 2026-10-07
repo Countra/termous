@@ -49,7 +49,7 @@
       "keyFile": "Personal recovery key file",
       "restartDevices": "The previous workspace will stop authorizing {{count}} devices.",
       "personalTitle": "Personal recovery key",
-      "personalHint": "Decrypt cloud data with an independent key when your devices are unavailable. 2FA is optional; your account still requires its normal login verification.",
+      "personalHint": "Decrypt cloud data with a recovery key when your devices are unavailable. Two-step verification is optional; account login still requires verification.",
       "enabled": "Configured",
       "notSet": "Not configured",
       "unavailable": "Unavailable",
@@ -72,9 +72,15 @@
       "noOptions": "Unable to use these options?",
       "restartTitle": "Start cloud sync again",
       "restartImpact": "Review impact",
+      "restartReview": "Confirm switch",
+      "restartEmailTitle": "Email confirmation",
       "restartConfirm": "Confirm immediate restart",
-      "restartImmediate": "Takes effect immediately; the old workspace stays separate",
-      "restartHint": "Local configuration is preserved. Old devices and other sessions lose online access. A workspace with data is archived for 30 days and requires its old keys to retrieve. The new workspace still requires safeguards and a sync preview.",
+      "restartImmediate": "Takes effect when you confirm the switch",
+      "restartEffects": {
+        "local": "Local configuration is kept. The old workspace is not overwritten.",
+        "access": "Old devices and other sessions lose online access. A workspace with data is archived for 30 days; retrieval still requires its old keys.",
+        "next": "Set up recovery safeguards and review sync changes in the new workspace."
+      },
       "createRestart": "Create restart request",
       "resumeOperation": "Continue previous operation",
       "expired": "The request expired. Cancel it and start again.",
@@ -118,7 +124,7 @@
       "firstTitle": "Recovery safeguards required for first sync",
       "firstHint": "Set up a personal recovery key or enable 2FA cloud recovery on the Security tab. You can still preview differences, sign in and use offline features.",
       "advancedTitle": "Advanced operations",
-      "advancedHint": "If old data cannot be recovered, create a new cloud workspace through independent email and identity verification."
+      "advancedHint": "If old data is unrecoverable, verify your email and identity to create a new workspace."
     },
     "authorization": {
       "switchTitle": "Change authorization method",
@@ -220,7 +226,6 @@
       "password-reset/confirm": "Paste the token from your reset email and choose a new password."
     },
     "loading": "Loading…",
-    "accountOverview": "Account overview",
     "accountConnected": "Signed in to Termous",
     "unconfiguredTitle": "Cloud service not configured",
     "email": "Email",
@@ -248,6 +253,7 @@
       "organization": "Company / organization",
       "bio": "Bio",
       "chooseAvatar": "Change avatar",
+      "avatarLabel": "Avatar",
       "removeAvatar": "Remove avatar",
       "avatarHint": "PNG or JPEG, up to 2 MB. Automatically cropped to a centered square.",
       "privateHint": "Profile details are stored by the cloud service. Local configuration is unaffected.",
@@ -401,6 +407,12 @@
       "revision_conflict": "Cloud data changed. Sync again and resolve any conflicts."
     },
     "deviceList": "Registered devices",
+    "deviceColumns": {
+      "name": "Device name",
+      "authorization": "Authorization",
+      "created": "Registered",
+      "actions": "Remote access & management"
+    },
     "deviceListHint": "Manage devices with access to your cloud configuration.",
     "devicesLoadFailed": "Could not load devices. Refresh to try again.",
     "authorizeDevice": "Authorize this device",
@@ -423,7 +435,7 @@
     "revokeSession": "Revoke this sign-in session?",
     "revokeSessionHint": "This session will be signed out. Data already downloaded by the device will remain.",
     "keySafety": "Keep at least one trusted device",
-    "keySafetyHint": "Cloud data is end-to-end encrypted. This version has no recovery entry if all trusted devices are lost. Resetting your password cannot decrypt existing data.",
+    "keySafetyHint": "Back up your personal recovery key or enable cloud recovery in advance. If all trusted devices and recovery methods become unavailable, cloud data cannot be decrypted. Resetting your password cannot restore it.",
     "approvalNeeded": "Authorize this device in the Devices tab first",
     "autoSync": "Automatic sync",
     "autoSyncHint": "Automatically sync future changes",

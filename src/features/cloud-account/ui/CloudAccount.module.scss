@@ -1,9 +1,10 @@
 .surface {
+  container-type: inline-size;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface);
-  padding: 16px;
+  padding: 20px;
 }
 
 .section-header {
@@ -12,7 +13,7 @@
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  padding-bottom: 16px;
 }
 
 .section-heading {
@@ -23,8 +24,8 @@
 
   h2 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 720;
+    font-size: 16px;
+    font-weight: 600;
     line-height: 22px;
   }
 
@@ -38,7 +39,12 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  height: 22px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
   color: var(--text-secondary);
 }
 
@@ -46,8 +52,8 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 14px;
-  padding-top: 14px;
+  gap: 18px;
+  padding-top: 18px;
 }
 
 .auth {
@@ -77,7 +83,7 @@
 .section {
   display: grid;
   min-width: 0;
-  gap: 12px;
+  gap: 20px;
 }
 
 .row {
@@ -177,8 +183,10 @@
   grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin: 0;
-  border-block: 1px solid var(--border);
-  padding-block: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 18px;
   font-variant-numeric: tabular-nums;
 
   > div + div {
@@ -193,7 +201,7 @@
 
   dd {
     margin: 8px 0 0;
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 600;
     overflow-wrap: anywhere;
   }
@@ -202,6 +210,61 @@
     font-size: 13px;
     line-height: 23px;
   }
+}
+
+.table {
+  min-width: 0;
+
+  :global(.ant-table) {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+  }
+
+  :global(.ant-table-thead) > tr > th {
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 550;
+  }
+
+  :global(.ant-table-thead) > tr > th,
+  :global(.ant-table-tbody) > tr > td {
+    border-bottom-color: var(--border);
+    padding: 14px 16px;
+  }
+
+  :global(.ant-table-tbody) > tr:last-child > td {
+    border-bottom: 0;
+  }
+
+  :global(.ant-table-thead) > tr > th::before {
+    display: none;
+  }
+
+  :global(.ant-table-tbody) > tr:hover > td {
+    background: var(--row-hover-bg);
+  }
+}
+
+.device-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-date {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-tag:global(.ant-tag) {
+  margin: 0;
+  border-radius: 6px;
+  padding-inline: 7px;
+  font-size: 11px;
 }
 
 .empty {
@@ -233,7 +296,7 @@
   padding-inline: 0;
 }
 
-@media (width <= 680px) {
+@container (width <= 620px) {
   .row, .section-header {
     align-items: flex-start;
     flex-wrap: wrap;

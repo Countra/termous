@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Switch, Tag } from 'antd'
-import { Cloud, ListFilter, RefreshCw } from 'lucide-react'
+import { Cloud, ListFilter, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
@@ -12,6 +12,7 @@ import { AccountSyncPreview } from './AccountSyncPreview'
 import { useCloudSafeguards } from '../model/useCloudSafeguards'
 import { cloudOperationErrorCode } from '../model/useCloudOperationFeedback'
 import styles from './CloudAccount.module.scss'
+import syncStyles from './AccountSync.module.scss'
 
 interface Props {
   api: CloudGateway
@@ -100,7 +101,11 @@ export function AccountSync({ api, status, busy, run, onOpenSecurity }: Props) {
       </div>
     </AccountSection>
     <AccountArchives key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} mfaRevision={safeguards.value?.account.mfa_revision} run={run} />
-    <AccountSection title={t('cloud.safeguards.advancedTitle')} icon={<Cloud size={18} />} description={t('cloud.safeguards.advancedHint')}><AccountWorkspaceRestart key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} mfaRevision={safeguards.value?.account.mfa_revision} run={run} /></AccountSection>
+    <section className={syncStyles.advanced} aria-label={t('cloud.safeguards.advancedTitle')}>
+      <span className={syncStyles.icon} aria-hidden="true"><Settings2 size={18} /></span>
+      <div className={syncStyles.copy}><h2>{t('cloud.safeguards.advancedTitle')}</h2><p>{t('cloud.safeguards.advancedHint')}</p></div>
+      <AccountWorkspaceRestart key={generation} api={api} status={status} busy={busy} mfaEnabled={safeguards.value?.account.mfa_enabled} mfaRevision={safeguards.value?.account.mfa_revision} run={run} />
+    </section>
     <AccountSyncPreview key={`preview-${generation}`} api={api} status={status} open={previewMode !== undefined} enableAutoSync={previewMode === 'enable'} busy={loading} blockingReason={blockingReason} onRetryBlocking={available && safeguards.error ? () => void safeguards.reload() : undefined} settingsUnavailable={settingsUnavailable} run={run} onEnable={enable} onReloadSettings={() => void settings.refresh()} onClose={() => setPreviewMode(undefined)} />
   </div>
 }

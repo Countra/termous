@@ -324,3 +324,43 @@ test('重置实时补读保留同版本确认，版本变化清除确认且不�
   expect(screen.getByRole('checkbox')).not.toBeChecked()
   expect(api.completeRestart).not.toHaveBeenCalled()
 })
+
+test.each(['cancelled', 'expired', 'invalidated'] as const)('已结束的重置申请展示真实状态，允许重新发起但不自动执行：%s', async (endState) => {
+  const { api } = fixture()
+  const ended: CloudWorkspaceRestart = { id: 'restart_ended', status: endState, revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true }
+  api.workspaceRestart = vi.fn(async () => ended)
+  api.createWorkspaceRestart = vi.fn(async (): Promise<CloudWorkspaceRestart> => ({ ...ended, id: 'restart_new', status: 'pending', revision: 1, expires_at: new Date(Date.now() + 600_000).toISOString(), email_sent: false }))
+  api.completeRestart = vi.fn()
+  render(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '重新开始云同步' }))
+  fireEvent.click(screen.getByRole('button', { name: '继续上次操作' }))
+  expect(await screen.findByText(endState === 'cancelled' ? '已取消' : endState === 'expired' ? '已过期' : '已失效')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '取消申请' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '确认立即重新开始' })).not.toBeInTheDocument()
+  const create = await screen.findByRole('button', { name: /创建重新开始申请/ })
+  await waitFor(() => expect(create).toBeEnabled())
+  expect(api.createWorkspaceRestart).not.toHaveBeenCalled()
+  fireEvent.click(create)
+  expect(await screen.findByLabelText('邮件中的确认码')).toHaveValue('')
+  expect(screen.getByRole('button', { name: '验证身份' })).toBeDisabled()
+  expect(api.completeRestart).not.toHaveBeenCalled()
+})
+
+test.each([false, true])('只有本机绑定待完成的已切换申请提供补完操作：%s', async (localPending) => {
+  const { api } = fixture()
+  const completed: CloudWorkspaceRestart = { id: 'restart_completed', status: 'completed', revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true, local_pending: localPending }
+  api.workspaceRestart = vi.fn(async () => completed)
+  api.completeRestart = vi.fn(async () => ({ ...completed, local_pending: false }))
+  render(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled={false} run={run} />)
+  fireEvent.click(screen.getByRole('button', { name: '重新开始云同步' }))
+  fireEvent.click(screen.getByRole('button', { name: '继续上次操作' }))
+  if (localPending) {
+    const finish = await screen.findByRole('button', { name: '继续完成本机绑定' })
+    await waitFor(() => expect(finish).toBeEnabled())
+    fireEvent.click(finish)
+    await waitFor(() => expect(api.completeRestart).toHaveBeenCalledWith('fixture', completed.id, 3))
+  }
+  expect(await screen.findByText('新工作区已建立，请先设置恢复保障')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '继续完成本机绑定' })).not.toBeInTheDocument()
+  expect(api.completeRestart).toHaveBeenCalledTimes(localPending ? 1 : 0)
+})

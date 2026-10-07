@@ -5,9 +5,9 @@
   flex: 1;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   padding: 4px 8px;
   color: var(--text-primary);
   text-align: left;
@@ -54,6 +54,8 @@
   flex-shrink: 0;
   background: var(--surface-subtle);
   color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 9px;
 }
 
 .trigger.collapsed {
@@ -62,7 +64,7 @@
   height: 44px;
   flex: none;
   justify-content: center;
-  padding: 4px;
+  padding: 6px;
 }
 
 .popup:global(.ant-dropdown) {
@@ -80,13 +82,26 @@
     background: transparent;
     box-shadow: none;
   }
+
+  :global(.ant-dropdown-menu-item) {
+    min-height: 36px;
+    margin-block: 2px;
+    border-radius: 7px;
+  }
 }
 
 .summary {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.popup :global(.ant-dropdown-menu-item).identity-item {
+  padding: 10px 12px;
+}
+
+.local-summary {
   margin: 0 4px 4px;
   border-bottom: 1px solid var(--border);
-  padding: 12px 4px 14px;
+  padding: 10px 4px 14px;
 }

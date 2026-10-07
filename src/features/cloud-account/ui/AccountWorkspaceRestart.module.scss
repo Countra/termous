@@ -1,0 +1,123 @@
+.modal {
+  :global(.ant-modal-container) {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--app-bg-elevated);
+  }
+
+  :global(.ant-modal-header) {
+    margin-bottom: 20px;
+    background: transparent;
+  }
+
+  :global(.ant-modal-footer) {
+    margin-top: 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+}
+
+.steps {
+  margin-bottom: 20px;
+}
+
+.body {
+  display: flex;
+  max-height: min(65vh, calc(100dvh - 240px));
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.impact {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 16px;
+
+  > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--warning);
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 22px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 16px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  li + li {
+    margin-top: 4px;
+  }
+}
+
+.toolbar, .email, .footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.toolbar {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.email h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.proof > :global(.ant-form-item):last-child {
+  margin-bottom: 0;
+}
+
+.confirmation {
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 5%, var(--app-bg-elevated));
+  padding: 16px;
+
+  :global(.ant-checkbox-wrapper) {
+    align-items: flex-start;
+    line-height: 1.8;
+  }
+
+  :global(.ant-checkbox) {
+    margin-top: 4px;
+  }
+}
