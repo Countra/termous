@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Alert, Button, Space, Tag } from 'antd'
+import { Button, Space, Tag } from 'antd'
 import { Monitor, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDevice, RemotePolicy, RemoteResult } from '#common/contracts'
@@ -122,7 +123,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
       const available = online && state?.advertisement.host_enabled && state.advertisement.protocol === 'termous-remote-v1'
       return <Space size="small"><Tag className={styles.status} color={online ? 'green' : undefined}>{online ? copy.online : state?.online === 'offline' ? copy.offline : copy.unknown}</Tag>{api ? <Button size="small" icon={<Monitor size={13} />} disabled={!trusted || !available} onClick={() => void connect(device)}>{copy.connect}</Button> : null}</Space>
     })}
-    {connectionError ? <Alert type="warning" title={remoteErrorText(copy, connectionError)} closable onClose={() => setConnectionError(undefined)} /> : null}
+    {connectionError ? <FeedbackMessage type="warning" title={remoteErrorText(copy, connectionError)} onClose={() => setConnectionError(undefined)} /> : null}
     <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
       onClose={close} onRefresh={() => void edit()} onEnabled={setEnabled} onSelect={setSelected}
       onSave={() => { if (api) void changePolicy('save', revision => api.configure(generation, revision, enabled, selected)) }}

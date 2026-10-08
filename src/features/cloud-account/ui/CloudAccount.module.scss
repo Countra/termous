@@ -56,30 +56,6 @@
   padding-top: 18px;
 }
 
-.auth {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.intro {
-  h2 {
-    margin: 0 0 8px;
-    font-size: 22px;
-    font-weight: 720;
-    line-height: 1.35;
-    letter-spacing: -0.4px;
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 1.7;
-  }
-}
-
 .section {
   display: grid;
   min-width: 0;
@@ -277,23 +253,6 @@
 
 .compact-form {
   width: min(100%, 520px);
-}
-
-.auth-links {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-
-  > button {
-    height: auto;
-    padding: 0;
-  }
-}
-
-.back {
-  align-self: flex-start;
-  padding-inline: 0;
 }
 
 @container (width <= 620px) {

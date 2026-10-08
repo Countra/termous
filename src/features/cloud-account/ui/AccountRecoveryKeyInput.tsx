@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Input } from 'antd'
+import { Button, Form, Input } from 'antd'
 import { FileKey, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLOUD_PERSONAL_KEY_FILE_EXTENSION, type CloudRecoveryCredential } from '#common/contracts'
@@ -54,7 +55,7 @@ export function AccountRecoveryKeyInput({ disabled, onRecover }: Props) {
       <strong>{t(reading ? 'cloud.safeguards.checkingKeyFile' : 'cloud.safeguards.chooseKeyFile')}</strong>
       <span>{t('cloud.safeguards.dropKeyFile')}</span>
     </button>
-    {error ? <Alert type="error" showIcon title={t(`cloud.errors.${error}`)} /> : null}
+    {error ? <FeedbackMessage type="error" title={t(`cloud.errors.${error}`)} /> : null}
     <Button type="link" className={styles['key-manual']} disabled={blocked} onClick={() => { if (manual) form.resetFields(); setManual(value => !value) }}>{t('cloud.safeguards.pasteLegacyKey')}</Button>
     <Form form={form} layout="vertical" hidden={!manual} onFinish={async value => {
       const scope = life.current

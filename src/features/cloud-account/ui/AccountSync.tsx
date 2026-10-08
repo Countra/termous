@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Switch, Tag } from 'antd'
+import { Button, Switch, Tag } from 'antd'
 import { Cloud, ListFilter, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudStatus } from '#common/contracts'
@@ -45,6 +46,8 @@ export function AccountSync({ api, status, busy, run, onOpenSecurity }: Props) {
   const safeguardMissing = safeguards.value?.account.recovery_required === true && safeguards.value.account.recovery_ready !== true
   const safeguardUnavailable = safeguardMissing || safeguards.error || safeguards.loading || !safeguards.value
   const settingsUnavailable = !settings.available || !settings.snapshot || settings.snapshot.state.status === 'unavailable'
+  // 首次读取前没有快照属于加载阶段，只有明确失败或不可用状态才发消息。
+  const settingsFailed = settings.error || !settings.available || settings.snapshot?.state.status === 'unavailable'
   const blockingReason = !available ? t('cloud.approvalNeeded')
     : safeguards.error ? t('cloud.safeguards.readFailed')
       : safeguards.loading || !safeguards.value ? t('cloud.loading')
@@ -71,9 +74,9 @@ export function AccountSync({ api, status, busy, run, onOpenSecurity }: Props) {
 
   return <div className={styles.section}>
     <AccountSection title={t('cloud.syncTitle')} icon={<Cloud size={18} />} description={t('cloud.syncHint')} extra={<Tag>{t(`cloud.phases.${status.phase}`)}</Tag>}>
-      {!available ? <Alert type="info" showIcon title={t('cloud.approvalNeeded')} /> : null}
-      {safeguardMissing ? <Alert type="warning" showIcon title={t('cloud.safeguards.firstTitle')} description={t('cloud.safeguards.firstHint')} action={onOpenSecurity ? <Button onClick={onOpenSecurity}>{t('cloud.syncFlow.setupRecovery')}</Button> : undefined} /> : null}
-      {safeguards.error ? <Alert type="warning" showIcon title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void safeguards.reload()}>{t('cloud.retry')}</Button>} /> : null}
+      {!available ? <FeedbackMessage type="info" title={t('cloud.approvalNeeded')} /> : null}
+      {safeguardMissing ? <FeedbackMessage type="warning" title={t('cloud.safeguards.firstTitle')} description={t('cloud.safeguards.firstHint')} action={onOpenSecurity ? <Button onClick={onOpenSecurity}>{t('cloud.syncFlow.setupRecovery')}</Button> : undefined} /> : null}
+      {safeguards.error ? <FeedbackMessage type="warning" title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void safeguards.reload()}>{t('cloud.retry')}</Button>} /> : null}
       <div className={styles.row}>
         <div className={styles.identity}><strong id="cloud-auto-sync">{t('cloud.autoSync')}</strong><small>{t(status.confirmed ? 'cloud.autoSyncHint' : 'cloud.syncFlow.enableHint')}</small></div>
         <Switch aria-labelledby="cloud-auto-sync" checked={automatic} disabled={loading || settingsUnavailable || (!automatic && (!available || safeguardUnavailable))} loading={settings.busy} onChange={(auto_sync) => {
@@ -85,7 +88,7 @@ export function AccountSync({ api, status, busy, run, onOpenSecurity }: Props) {
           })
         }} />
       </div>
-      {settings.error || (!settings.busy && settingsUnavailable) ? <Alert type="error" showIcon title={t(settingsUnavailable ? 'cloud.syncFlow.settingsUnavailable' : 'cloud.settingsFailed')} action={<Button disabled={loading} onClick={() => void settings.refresh()}>{t('cloud.retry')}</Button>} /> : null}
+      {settingsFailed ? <FeedbackMessage type="error" title={t(settingsUnavailable ? 'cloud.syncFlow.settingsUnavailable' : 'cloud.settingsFailed')} action={<Button disabled={loading} onClick={() => void settings.refresh()}>{t('cloud.retry')}</Button>} /> : null}
       <dl className={styles.stats}>
         <div><dt>{t('cloud.lastSuccess')}</dt><dd>{status.last_success ? new Date(status.last_success).toLocaleString() : t('cloud.neverSynced')}</dd></div>
         <div><dt>{t('cloud.pendingChanges')}</dt><dd>{status.pending}</dd></div>

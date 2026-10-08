@@ -1,5 +1,6 @@
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
 import { useState } from 'react'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { ConfigProvider } from 'antd'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudSecurityOverview, CloudStatus } from '#common/contracts'
@@ -52,6 +53,23 @@ function gateway(initialRequests: CloudAuthorization[] = [], initialStatus = sta
 function props(api: ReturnType<typeof gateway>['api'], overrides: Partial<React.ComponentProps<typeof AccountApprovalCoordinator>> = {}) {
   return { api: api as unknown as CloudGateway, status: api.getStatus()!, blocked: false, onClose: vi.fn(), ...overrides }
 }
+
+test('指定申请读取失败使用统一消息，重试保留目标并打开审批详情', async () => {
+  const fixture = gateway()
+  fixture.requests.set('retry-target', request('retry-target'))
+  fixture.api.authorization.mockRejectedValueOnce(new Error('network_unavailable'))
+  const input = props(fixture.api, { target: { kind: 'approval', id: 'retry-target' } })
+  render(<AccountApprovalCoordinator {...input} />)
+  const notice = await screen.findByRole('alert')
+  expect(notice).toHaveTextContent('暂时无法读取授权状态')
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  fireEvent.click(within(notice).getByRole('button', { name: /重\s*试/ }))
+  expect(await screen.findByText('申请设备 retry-target')).toBeInTheDocument()
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  expect(fixture.api.authorization).toHaveBeenCalledTimes(3)
+  expect(input.onClose).not.toHaveBeenCalled()
+  expect(fixture.api.authorizationAction).not.toHaveBeenCalled()
+})
 
 test('实时提示立即打开新申请，安全上下文慢时仍不等待，且保留当前页面草稿', async () => {
   const fixture = gateway()

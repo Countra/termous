@@ -1,5 +1,6 @@
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Modal, Tag } from 'antd'
+import { Button, Form, Modal, Tag } from 'antd'
 import { Cloud, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudMFAProof, CloudStatus } from '#common/contracts'
@@ -41,7 +42,7 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
     if (api.getStatus()?.generation === status.generation) { setSelected(result); await state.reload() }
   })
   return <AccountSection title={t('cloud.authorization.recoveryTitle')} icon={<Cloud size={18} />} description={t('cloud.authorization.recoveryHint')} extra={<Button type="text" icon={<RefreshCw size={15} />} disabled={busy} onClick={() => void state.reload()}>{t('cloud.refresh')}</Button>}>
-    {state.error ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} /> : null}
+    {state.error ? <FeedbackMessage type="warning" title={t('cloud.authorization.readFailed')} /> : null}
     {state.loading ? <AccountLoading /> : null}
     {recovery ? <div className={styles.actions}><Tag>{t(`cloud.authorization.policyStates.${recovery.policy.status}`)}</Tag>{recovery.blocked_until ? <span className={styles.hint}>{t('cloud.authorization.cooldown', { date: new Date(recovery.blocked_until).toLocaleString() })}</span> : null}</div> : null}
     <p className={styles.hint}>{t('cloud.authorization.platformTrust')}</p>
@@ -56,7 +57,7 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
     </div>
     {!state.security?.account.mfa_enabled ? <p className={styles.hint}>{t('cloud.authorization.totpRequired')}</p> : !state.security.membership_initialized ? <p className={styles.hint}>{t('cloud.authorization.initializeHint')}</p> : null}
     {selected ? <AccountAuthorization key={selected.id} api={api} generation={status.generation} value={selected} mfaEnabled={state.security?.account.mfa_enabled} mfaRevision={state.security?.account.mfa_revision} busy={busy} run={run} onClose={() => setSelected(undefined)} onChanged={() => void state.reload()} /> : null}
-    <Modal open={Boolean(decision)} title={t(decision?.rotate ? 'cloud.authorization.disableRotate' : `cloud.authorization.${decision?.action ?? 'disable'}`)} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={() => { feedback.reset(); setDecision(undefined); form.resetFields() }}>
+    <Modal open={Boolean(decision)} title={t(decision?.rotate ? 'cloud.authorization.disableRotate' : `cloud.authorization.${decision?.action ?? 'disable'}`)} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={() => { feedback.reset(); setDecision(undefined); form.resetFields() }}><FeedbackMessageScope active={Boolean(decision)}>
       <p>{t(decision?.stopped ? 'cloud.authorization.rotatePending' : decision?.action === 'disable' ? 'cloud.authorization.disableHint' : 'cloud.authorization.freezeHint')}</p>
       <AccountOperationError code={feedback.errorCode} />
       <Form form={form} layout="vertical" onFinish={proof => void feedback.perform(async current => {
@@ -105,6 +106,6 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
         {!decision?.stopped || !rotationVerified ? <AccountStepUpFields enabled={state.security?.account.mfa_enabled} revision={state.security?.account.mfa_revision} disabled={disabled} /> : null}
         <Button type="primary" danger={decision?.action === 'disable'} htmlType="submit" loading={disabled} disabled={unavailable}>{t(decision?.stopped ? 'cloud.rekeyStart' : decision?.rotate ? 'cloud.authorization.disableRotate' : `cloud.authorization.${decision?.action ?? 'disable'}`)}</Button>
       </Form>
-    </Modal>
+    </FeedbackMessageScope></Modal>
   </AccountSection>
 }

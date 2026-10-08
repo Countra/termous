@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Form } from 'antd'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudMFAProof, CloudMFAStatus, CloudSecurityOverview } from '#common/contracts'
@@ -189,6 +190,6 @@ test('成员初始化等待验证时因子变化，停止旧请求续作并就�
   await act(async () => { f.state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
   await act(async () => { resolve({ verified_until: new Date(Date.now() + 300_000).toISOString() }) })
   expect(initializeMembership).not.toHaveBeenCalled()
-  expect(dialog.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+  expect(screen.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
   expect(dialog.getByLabelText('验证器验证码')).toHaveValue('')
 })

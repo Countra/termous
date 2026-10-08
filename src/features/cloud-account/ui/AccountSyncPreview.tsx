@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Alert, Button, Modal, Space, Table, Tooltip } from 'antd'
+import { Button, Modal, Space, Table, Tooltip } from 'antd'
 import { ArrowDownToLine, ArrowUpFromLine, CheckCheck, GitMerge, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudConflict, CloudPreview, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { cloudOperationErrorCode, useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
 import { AccountLoading } from './AccountSection'
 import { AccountOperationError } from './AccountOperationError'
@@ -74,6 +74,7 @@ export function AccountSyncPreview({ api, status, open, enableAutoSync, busy, bl
     feedback.reset()
     if (life.current) void load(life.current)
   }
+  const retryPrerequisite = blockingReason && onRetryBlocking ? onRetryBlocking : enableAutoSync && settingsUnavailable ? onReloadSettings : undefined
   const confirm = () => void feedback.perform(async current => {
     if (!canConfirm) return
     if (!applied) {
@@ -109,19 +110,19 @@ export function AccountSyncPreview({ api, status, open, enableAutoSync, busy, bl
 
   return <Modal open={open} centered width={640} title={t('cloud.previewTitle')} className={styles.modal} destroyOnHidden closable={!writing} mask={{ closable: !writing }} keyboard={!writing} onCancel={onClose} footer={
     <div className={styles.footer}>
-      <Button type="text" icon={<RefreshCw size={14} />} disabled={writing || loading || applied || status.device_status !== 'active'} onClick={refresh}>{t('cloud.syncFlow.refreshPreview')}</Button>
+      <Button type="text" icon={<RefreshCw size={14} />} disabled={writing || loading || !retryPrerequisite && (applied || status.device_status !== 'active')} onClick={retryPrerequisite ?? refresh}>{t(retryPrerequisite ? 'cloud.retry' : 'cloud.syncFlow.refreshPreview')}</Button>
       <Space><Button disabled={writing} onClick={onClose}>{t('app.cancel')}</Button><Button type="primary" aria-label={confirmLabel} loading={writing} disabled={!canConfirm} onClick={confirm}>{confirmLabel}</Button></Space>
     </div>
-  }>
+  }><FeedbackMessageScope active={open}>
     <div className={styles.body}>
       {enableAutoSync && !applied ? <p className={styles.description}>{t('cloud.syncFlow.previewEnableHint')}</p> : null}
-      {blockingReason ? <Alert type="warning" showIcon title={blockingReason} action={onRetryBlocking ? <Button disabled={writing} onClick={onRetryBlocking}>{t('cloud.retry')}</Button> : undefined} /> : null}
-      {enableAutoSync && settingsUnavailable && !busy ? <Alert type="warning" showIcon title={t('cloud.syncFlow.settingsUnavailable')} action={<Button onClick={onReloadSettings}>{t('cloud.retry')}</Button>} /> : null}
+      {blockingReason && blockingReason !== t('cloud.loading') ? <FeedbackMessage type="warning" title={blockingReason} /> : null}
+      {enableAutoSync && settingsUnavailable && !busy ? <FeedbackMessage type="warning" title={t('cloud.syncFlow.settingsUnavailable')} /> : null}
       <AccountOperationError code={errorCode} />
-      {enableFailed ? <Alert type="warning" showIcon title={t('cloud.syncFlow.enableFailed')} description={t('cloud.syncFlow.enableRetryHint')} /> : null}
+      {enableFailed ? <FeedbackMessage type="warning" title={t('cloud.syncFlow.enableFailed')} description={t('cloud.syncFlow.enableRetryHint')} /> : null}
       {loading ? <AccountLoading label={t('cloud.syncFlow.loadingPreview')} /> : null}
       {preview && !applied ? <>
-        {preview.blocked && conflicts.length === 0 ? <Alert type="warning" showIcon title={t(`cloud.errors.${preview.error_code}`, { defaultValue: t('cloud.previewBlocked') })} /> : null}
+        {preview.blocked && conflicts.length === 0 ? <FeedbackMessage type="warning" title={t(`cloud.errors.${preview.error_code}`, { defaultValue: t('cloud.previewBlocked') })} /> : null}
         {rows.length ? <Table className={styles.table} size="small" rowKey="dataset" pagination={false} dataSource={rows} tableLayout="fixed" columns={[
           { title: t('cloud.dataset'), dataIndex: 'dataset', render: (dataset: string) => t(`cloud.datasets.${dataset}`) },
           ...columns.map(({ key, label, icon }) => ({
@@ -148,5 +149,5 @@ export function AccountSyncPreview({ api, status, open, enableAutoSync, busy, bl
       </> : null}
       <p className={styles.note}><ShieldCheck size={14} aria-hidden="true" />{t('cloud.syncFlow.scopeHint')}</p>
     </div>
-  </Modal>
+  </FeedbackMessageScope></Modal>
 }

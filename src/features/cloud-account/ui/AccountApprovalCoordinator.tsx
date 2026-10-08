@@ -1,5 +1,6 @@
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Modal } from 'antd'
+import { Button } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
@@ -55,11 +56,10 @@ export function AccountApprovalCoordinator({ api, status, blocked, target, onClo
     setSelected(next)
   }, [api, authorization.requests, blocked, busy, generation, selected, status.authenticated, status.device_id, status.device_status, target])
   const close = () => { if (!busy) { setSelected(undefined); setTargetError(false); onClose() } }
-  return <>
+  return <FeedbackMessageScope scope={generation}>
     {selected ? <AccountAuthorization key={`${generation}:${selected.kind}:${selected.id}`} api={api} generation={generation} value={selected}
       mfaEnabled={authorization.security?.account.mfa_enabled} mfaRevision={authorization.security?.account.mfa_revision} open={!blocked} busy={busy} run={run} onClose={close} onChanged={() => void authorization.reload()} /> : null}
-    <Modal open={!blocked && targetError && !selected} title={t('cloud.authorization.approvalTitle')} onCancel={close} footer={<Button onClick={() => setRetry(value => value + 1)}>{t('cloud.retry')}</Button>}>
-      <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} />
-    </Modal>
-  </>
+    {!blocked && targetError && !selected ? <FeedbackMessage type="warning" title={t('cloud.authorization.readFailed')} onClose={close}
+      action={<Button onClick={() => setRetry(value => value + 1)}>{t('cloud.retry')}</Button>} /> : null}
+  </FeedbackMessageScope>
 }

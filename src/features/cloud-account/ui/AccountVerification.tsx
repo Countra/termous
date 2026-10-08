@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Alert, Button, Form } from 'antd'
+import { Button, Form, Tag } from 'antd'
 import { Fingerprint } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudMFAProof, CloudMFAStatus } from '#common/contracts'
@@ -27,7 +27,7 @@ export function AccountVerification({ api, generation, mfa, unavailable, busy, a
   const { expired } = useCloudDeadline(mfa?.verified_until)
   const verified = mfa?.verified_until && !expired
   return <AccountSection title={t('cloud.securityVerification')} icon={<Fingerprint size={18} />} description={t('cloud.reauthenticateHint')}>
-    {verified ? <Alert type="success" title={t('cloud.verified')} description={t('cloud.mfa.verifiedUntil', { time: new Date(mfa.verified_until!).toLocaleTimeString() })} /> : null}
+    {verified ? <div className={styles.actions} role="status"><Tag color="success">{t('cloud.verified')}</Tag><span className={styles.hint}>{t('cloud.mfa.verifiedUntil', { time: new Date(mfa.verified_until!).toLocaleTimeString() })}</span></div> : null}
     <AccountOperationError code={feedback.errorCode} />
     <Form name="cloud-security" className={styles['compact-form']} form={form} layout="vertical" requiredMark={false} disabled={disabled || unavailable} onFinish={(values) => void feedback.perform(async current => {
       if (busy || unavailable || !mfa) return
@@ -46,7 +46,7 @@ export function AccountVerification({ api, generation, mfa, unavailable, busy, a
         throw cause
       } finally { if (current() && startedPolicy === policy.current) form.resetFields() }
     })}>
-      <AccountStepUpFields enabled={mfa?.enabled} revision={mfa?.revision} disabled={disabled || unavailable} autoFocus={false} />
+      {mfa ? <AccountStepUpFields enabled={mfa.enabled} revision={mfa.revision} disabled={disabled || unavailable} autoFocus={false} /> : null}
       <Button type="primary" htmlType="submit" loading={disabled}>{t('cloud.auth.reauthenticate')}</Button>
     </Form>
   </AccountSection>

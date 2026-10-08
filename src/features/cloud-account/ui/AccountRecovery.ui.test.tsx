@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudRecoveryStatus, CloudSecurityOverview, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -48,7 +49,7 @@ test('前段确认后读取期限失败只保留轮换阶段，重试不重复�
   api.mfaStatus.mockRejectedValueOnce(new Error('network_unavailable'))
   render(<AccountRecovery api={api as unknown as CloudGateway} status={status} busy={false} run={run} />)
   const dialog = await open()
-  expect(await dialog.findByText('错误代码：network_unavailable')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：network_unavailable')).toBeInTheDocument()
   expect(api.rekey).not.toHaveBeenCalled()
   expect(api.recoveryPolicy).toHaveBeenCalledOnce()
   const button = dialog.getByRole('button', { name: '开始轮换' })
@@ -77,7 +78,7 @@ test('服务端撤回近期期限时就地补验轮换，不重复停止发放',
   api.rekey.mockRejectedValueOnce(new TermousApiError('reauthentication_required', 'CLOUD_OPERATION_FAILED', 409))
   render(<AccountRecovery api={api as unknown as CloudGateway} status={status} busy={false} run={run} />)
   const dialog = await open()
-  expect(await dialog.findByText('错误代码：reauthentication_required')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：reauthentication_required')).toBeInTheDocument()
   const field = await dialog.findByLabelText('验证器验证码')
   await waitFor(() => expect(field).toBeEnabled())
   fireEvent.change(field, { target: { value: '234567' } })
@@ -99,7 +100,7 @@ test('关闭成功后因子版本变化，旧期限不启动轮换且保留续�
   await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
   expect(dialog.getByLabelText('验证器验证码')).toHaveValue('')
   await act(async () => { resolve({ enabled: true, revision: '1', backup_codes_remaining: 10, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
-  expect(await dialog.findByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
   const resume = await screen.findByRole('button', { name: /开始轮换/ })
   await waitFor(() => expect(resume).not.toHaveClass('ant-btn-loading'))
   expect(resume).toBeEnabled()

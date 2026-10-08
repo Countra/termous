@@ -1,5 +1,6 @@
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Modal, Steps, Tag } from 'antd'
+import { Button, Form, Modal, Steps, Tag } from 'antd'
 import { ClipboardCopy, Download, KeyRound, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLOUD_PERSONAL_KEY_FILE_EXTENSION } from '#common/contracts'
@@ -108,7 +109,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     else if (['invalidated', 'cancelled'].includes(op.status)) throw new Error('authorization_stale')
     else setQueriedPending(true)
   }
-  const feedback = operationError ? <Alert type="error" showIcon title={t(`cloud.errors.${operationError}`, { defaultValue: t('cloud.safeguards.operationFailed') })} description={t('cloud.safeguards.errorCode', { code: operationError })} /> : null
+  const feedback = operationError ? <FeedbackMessage type="error" title={t(`cloud.errors.${operationError}`, { defaultValue: t('cloud.safeguards.operationFailed') })} description={t('cloud.safeguards.errorCode', { code: operationError })} /> : null
   const generate = async (evidence: CloudMFAProof) => {
     if (disabled || security.error || security.loading) return
     const scope = life.current
@@ -137,25 +138,25 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
     } catch { if (current(scope) && request === wizardRun.current) setExportError(true) } finally { if (url) { const downloaded = url; setTimeout(() => URL.revokeObjectURL(downloaded), 1000) } }
   }
   return <AccountSection title={t('cloud.safeguards.personalTitle')} icon={<KeyRound size={18} />} description={t('cloud.safeguards.personalHint')} extra={<Tag>{t(security.loading ? 'cloud.loading' : security.error ? 'cloud.safeguards.unavailable' : enabled ? 'cloud.safeguards.enabled' : 'cloud.safeguards.notSet')}</Tag>}>
-    {security.error ? <Alert type="warning" showIcon title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void security.reload()}>{t('cloud.retry')}</Button>} /> : null}
-    {!security.value?.membership_initialized && !security.error ? <Alert type="info" showIcon title={t('cloud.safeguards.initializeFirst')} /> : null}
+    {security.error ? <FeedbackMessage type="warning" title={t('cloud.safeguards.readFailed')} action={<Button onClick={() => void security.reload()}>{t('cloud.retry')}</Button>} /> : null}
+    {security.value && !security.value.membership_initialized && !security.error ? <FeedbackMessage type="info" title={t('cloud.safeguards.initializeFirst')} /> : null}
     <div className={styles.actions}>
       <Button type={enabled ? 'default' : 'primary'} disabled={disabled || security.loading || security.error || !security.value?.keys_verified || !security.value.membership_initialized} onClick={() => start(false)}>{t(enabled ? 'cloud.safeguards.replaceKey' : 'cloud.safeguards.setupKey')}</Button>
       {enabled ? <Button icon={<RefreshCw size={14} />} disabled={disabled || security.loading || security.error} onClick={() => start(true)}>{t('cloud.safeguards.replaceAndRotate')}</Button> : null}
     </div>
-    <Modal open={open} title={t(enabled ? 'cloud.safeguards.replaceKey' : 'cloud.safeguards.setupKey')} footer={null} destroyOnHidden onCancel={close}>
+    <Modal open={open} title={t(enabled ? 'cloud.safeguards.replaceKey' : 'cloud.safeguards.setupKey')} footer={null} destroyOnHidden onCancel={close}><FeedbackMessageScope active={open}>
       <div className={styles.wizard}>
         <Steps size="small" current={stage} items={['verifyIdentity', 'saveKey'].map(key => ({ title: t(`cloud.safeguards.${key}`) }))} />
         {feedback}
-        {queriedPending ? <Alert type="info" showIcon title={t('cloud.safeguards.setupPending')} /> : null}
-        {enabled ? <Alert type="warning" showIcon title={t('cloud.safeguards.replaceWarning')} /> : null}
+        {queriedPending ? <FeedbackMessage type="info" title={t('cloud.safeguards.setupPending')} /> : null}
+        {enabled ? <p>{t('cloud.safeguards.replaceWarning')}</p> : null}
         {stage === 0 ? <Form form={proof} layout="vertical" onFinish={value => perform(() => generate(value))}>
           <AccountStepUpFields enabled={security.value?.account.mfa_enabled} revision={security.value?.account.mfa_revision} disabled={disabled || security.error} />
           <div className={styles.actions}><Button type="primary" htmlType="submit" loading={disabled} disabled={security.error || security.loading}>{t('cloud.safeguards.generate')}</Button><Button disabled={disabled} onClick={() => perform(async () => { await api.cancelPersonalRecovery(status.generation, 'setup', 'current') })}>{t('cloud.safeguards.cancelPrevious')}</Button><Button disabled={disabled} onClick={() => perform(queryResult)}>{t('cloud.safeguards.queryResult')}</Button></div>
         </Form> : null}
         {stage === 1 && setup ? <>
-          <Alert type="warning" showIcon title={t('cloud.safeguards.saveWarning')} description={t('cloud.safeguards.saveHint')} />
-          {exportError ? <Alert type="error" title={t('cloud.mfa.exportFailed')} /> : null}
+          <p>{t('cloud.safeguards.saveWarning')} {t('cloud.safeguards.saveHint')}</p>
+          {exportError ? <FeedbackMessage type="error" title={t('cloud.mfa.exportFailed')} /> : null}
           <div className={styles['key-file']}>
             <Download size={24} aria-hidden />
             <div><strong>{t('cloud.safeguards.keyFile')}</strong><p>{t('cloud.safeguards.keyFileHint')}</p></div>
@@ -165,8 +166,8 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
           <div className={styles.actions}><Button type="primary" loading={disabled} onClick={() => perform(() => complete(setup.id, true))}>{t('cloud.safeguards.savedActivate')}</Button><Button disabled={disabled} onClick={() => perform(queryResult)}>{t('cloud.safeguards.queryResult')}</Button></div>
         </> : null}
       </div>
-    </Modal>
-    <Modal open={rotationPending} title={t('cloud.safeguards.rotateAfterReplace')} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={() => { setRotationPending(false); setOperationError(undefined); proof.resetFields() }}>
+    </FeedbackMessageScope></Modal>
+    <Modal open={rotationPending} title={t('cloud.safeguards.rotateAfterReplace')} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={() => { setRotationPending(false); setOperationError(undefined); proof.resetFields() }}><FeedbackMessageScope active={rotationPending}>
       <p>{t('cloud.safeguards.rotateAfterReplaceHint')}</p>
       {feedback}
       <Form form={proof} layout="vertical" onFinish={evidence => perform(async () => {
@@ -191,6 +192,6 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         {!rotationVerified ? <AccountStepUpFields enabled={security.value?.account.mfa_enabled} revision={security.value?.account.mfa_revision} disabled={disabled} /> : null}
         <Button type="primary" htmlType="submit" loading={disabled} disabled={security.loading || security.error}>{t('cloud.rekeyStart')}</Button>
       </Form>
-    </Modal>
+    </FeedbackMessageScope></Modal>
   </AccountSection>
 }

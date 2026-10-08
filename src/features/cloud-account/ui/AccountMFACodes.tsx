@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useState } from 'react'
-import { Alert, Button, Checkbox } from 'antd'
+import { Button, Checkbox } from 'antd'
 import { ClipboardCopy, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styles from './AccountMFA.module.scss'
@@ -23,9 +24,9 @@ export function AccountMFACodes({ codes, onDone }: { codes: string[]; onDone: ()
     } catch { setError(true) } finally { if (url) URL.revokeObjectURL(url) }
   }
   return <div className={styles['backup-stage']}>
-    <Alert type="warning" showIcon title={t('cloud.mfa.saveCodes')} description={t('cloud.mfa.saveCodesHint')} />
+    <p>{t('cloud.mfa.saveCodesHint')}</p>
     <ol className={styles.codes} aria-label={t('cloud.mfa.backupCodes')}>{codes.map((code) => <li key={code}><code>{code}</code></li>)}</ol>
-    {error ? <Alert type="error" showIcon title={t('cloud.mfa.exportFailed')} /> : null}
+    {error ? <FeedbackMessage type="error" title={t('cloud.mfa.exportFailed')} /> : null}
     <div className={styles.actions}>
       <Button icon={<ClipboardCopy size={14} />} onClick={() => void copy()}>{t(copied ? 'cloud.mfa.copied' : 'cloud.copy')}</Button>
       <Button icon={<Download size={14} />} onClick={download}>{t('cloud.mfa.downloadCodes')}</Button>

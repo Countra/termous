@@ -1,5 +1,6 @@
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
 import { StrictMode } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { changeLanguage } from '#shared/i18n'
 import type { CloudGateway } from '#entities/cloud'

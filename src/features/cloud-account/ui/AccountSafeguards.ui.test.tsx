@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudPersonalRecoverySetup, CloudSecurityOverview, CloudStatus, CloudWorkspaceRestart } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -50,15 +51,14 @@ test('下载保存 Core 文件原文，使用专用后缀且不增加分组考�
   } finally { click.mockRestore(); vi.unstubAllGlobals() }
 })
 
-test('保存确认失败时，在弹窗内显示具体错误并保留密钥', async () => {
+test('保存确认失败时，通过统一消息显示具体错误并保留密钥', async () => {
   const { api, setup } = fixture()
   vi.mocked(api.confirmPersonalRecovery).mockRejectedValueOnce(new TermousApiError('membership_conflict', 'CLOUD_OPERATION_FAILED', 409))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await enterSaveStep()
   fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
-  const dialog = within(screen.getByRole('dialog'))
-  expect(await dialog.findByText('操作版本已变化，请查询最新结果后继续。')).toBeInTheDocument()
-  expect(dialog.getByText('错误代码：membership_conflict')).toBeInTheDocument()
+  expect(await screen.findByText('操作版本已变化，请查询最新结果后继续。')).toBeInTheDocument()
+  expect(screen.getByText('错误代码：membership_conflict')).toBeInTheDocument()
   expect(api.confirmPersonalRecovery).toHaveBeenCalledExactlyOnceWith('fixture', setup.id, true)
 })
 
@@ -88,7 +88,7 @@ test('查询未完成申请只提示当前状态，不代替用户再次确认',
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await enterSaveStep()
   fireEvent.click(screen.getByRole('button', { name: '查询操作状态' }))
-  expect(await within(screen.getByRole('dialog')).findByText('恢复密钥尚未启用。保存后点击“已保存，启用”；过期后可取消并重新验证身份。')).toBeInTheDocument()
+  expect(await screen.findByText('恢复密钥尚未启用。保存后点击“已保存，启用”；过期后可取消并重新验证身份。')).toBeInTheDocument()
   expect(api.confirmPersonalRecovery).not.toHaveBeenCalled()
 })
 
@@ -134,7 +134,7 @@ test('未知异常正文不进入弹窗的错误代码区域', async () => {
   await enterSaveStep()
   fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
   const dialog = within(screen.getByRole('dialog'))
-  expect(await dialog.findByText('错误代码：local_failed')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：local_failed')).toBeInTheDocument()
   expect(dialog.queryByText(/SyntheticSecretDoNotDisplay/)).not.toBeInTheDocument()
 })
 
@@ -225,7 +225,7 @@ test('更换完成后的旧验证状态不能越过新的因子版本启动轮�
   await act(async () => { resolve({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
   const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
   const dialog = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
-  expect(dialog.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
+  expect(screen.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
   expect(dialog.getByLabelText('验证器验证码')).toHaveValue('')
   expect(api.rekey).not.toHaveBeenCalled()
   expect(api.setupPersonalRecovery).toHaveBeenCalledOnce()

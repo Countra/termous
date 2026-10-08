@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form, Modal, Steps, Tag } from 'antd'
+import { Button, Form, Modal, Steps, Tag } from 'antd'
 import { RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudMFAProof, CloudMFASetup, CloudMFAStatus } from '#common/contracts'
@@ -84,10 +85,10 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
   }
   const update = (next: CloudMFAStatus) => { accept(next); setOperationStatus({ enabled: next.enabled, revision: next.revision }); onChanged() }
   const title = codes ? t('cloud.mfa.saveCodes') : action === 'disable' ? t('cloud.mfa.disable') : action === 'regenerate' ? t('cloud.mfa.regenerate') : t(operationStatus?.enabled ? 'cloud.mfa.replace' : 'cloud.mfa.enable')
-  const feedback = operationError || uncertain ? <Alert type="warning" showIcon title={t(uncertain ? 'cloud.mfa.outcomeUncertain' : `cloud.errors.${operationError}`, { defaultValue: t('cloud.operationFailed') })} description={uncertain ? t('cloud.mfa.outcomeUncertainHint') : undefined} /> : null
+  const feedback = operationError || uncertain ? <FeedbackMessage type="warning" title={t(uncertain ? 'cloud.mfa.outcomeUncertain' : `cloud.errors.${operationError}`, { defaultValue: t('cloud.operationFailed') })} description={uncertain ? t('cloud.mfa.outcomeUncertainHint') : undefined} /> : null
 
   return <AccountSection title={t('cloud.mfa.title')} icon={<ShieldCheck size={18} />} description={t('cloud.mfa.hint')} extra={<Button size="small" type="text" aria-label={t('cloud.mfa.refresh')} icon={<RefreshCw size={15} />} loading={loading} disabled={disabled || loading} onClick={() => void reload()}>{t('cloud.mfa.refresh')}</Button>}>
-    {error ? <Alert type="warning" showIcon title={t('cloud.mfa.loadFailed')} /> : null}
+    {error ? <FeedbackMessage type="warning" title={t('cloud.mfa.loadFailed')} /> : null}
     {!open ? feedback : null}
     {!value && loading ? <AccountLoading label={t('cloud.mfa.loading')} /> : value ? <div className={styles.summary}>
       <div className={styles['summary-text']}>

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudDevice, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Alert, Button, Checkbox, Form, Modal, Table, Tag, Tooltip } from 'antd'
+import { Button, Checkbox, Form, Modal, Table, Tag, Tooltip } from 'antd'
 import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudStatus } from '#common/contracts'
 import type { CloudGateway } from '#entities/cloud'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
 import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
@@ -103,8 +103,8 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
   // 有待处理申请时优先展示；稳定的 key 保留调整顺序后的节点和键盘焦点。
   const prioritizeRequests = outstanding.length > 0 || authorization.loading || authorization.error
   return <div className={styles.section}>
-    {targetError ? <Alert type="info" showIcon title={t('cloud.authorization.targetUnavailable')} /> : null}
-    {authorization.error ? <Alert type="warning" showIcon title={t('cloud.authorization.readFailed')} action={<Button onClick={() => void authorization.reload()}>{t('cloud.retry')}</Button>} /> : null}
+    {targetError ? <FeedbackMessage type="info" title={t('cloud.authorization.targetUnavailable')} /> : null}
+    {authorization.error ? <FeedbackMessage type="warning" title={t('cloud.authorization.readFailed')} action={<Button onClick={() => void authorization.reload()}>{t('cloud.retry')}</Button>} /> : null}
     {status.device_status === 'pending' ? <AccountSection title={t('cloud.authorizeDevice')} icon={<ShieldCheck size={18} />} description={t('cloud.authorization.chooseHint')}>
       <div className={styles.actions}>
         <Button type="primary" disabled={busy || authorization.error || authorization.loading} onClick={() => begin('approval')}>{t('cloud.authorization.useTrusted')}</Button>
@@ -121,7 +121,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
     </AccountSection> : null}
     {prioritizeRequests ? requests : null}
     <AccountSection title={t('cloud.deviceList')} icon={<Laptop size={18} />} description={t('cloud.deviceListHint')} extra={<Button icon={<RefreshCw size={15} />} loading={loading} disabled={busy || loading} onClick={() => void load()}>{t('cloud.refresh')}</Button>}>
-      {error ? <Alert type="warning" showIcon title={t('cloud.devicesLoadFailed')} /> : null}
+      {error ? <FeedbackMessage type="warning" title={t('cloud.devicesLoadFailed')} /> : null}
       {devices.length ? <Table<CloudDevice> className={styles.table} size="small" rowKey="id" pagination={false} dataSource={devices} scroll={{ x: 840 }} columns={[
         {
           title: t('cloud.deviceColumns.name'), key: 'device', width: 280,
@@ -166,7 +166,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
       <p>{t('cloud.safeguards.replaceDevicesHint')}</p>
       <Checkbox.Group aria-label={t('cloud.safeguards.replaceDevices')} value={replacementIds} onChange={values => setReplacementIds(values as string[])} options={devices.filter(device => device.status === 'active').map(device => ({ label: device.name, value: device.id }))} />
     </Modal>
-    <Modal open={initialize} title={t('cloud.authorization.initialize')} footer={null} destroyOnHidden closable={!initializeBusy} mask={{ closable: !initializeBusy }} keyboard={!initializeBusy} onCancel={() => { initializeFeedback.reset(); setInitialize(false); proof.resetFields() }}>
+    <Modal open={initialize} title={t('cloud.authorization.initialize')} footer={null} destroyOnHidden closable={!initializeBusy} mask={{ closable: !initializeBusy }} keyboard={!initializeBusy} onCancel={() => { initializeFeedback.reset(); setInitialize(false); proof.resetFields() }}><FeedbackMessageScope active={initialize}>
       <p>{t('cloud.authorization.initializeHint')}</p><Checkbox.Group disabled={initializeBusy} value={checked} onChange={values => setChecked(values as string[])} options={devices.filter(d => d.status === 'active').map(d => ({ label: `${d.name} · ${d.id}`, value: d.id, disabled: d.id === status.device_id }))} />
       <AccountOperationError code={initializeFeedback.errorCode} />
       <Form form={proof} layout="vertical" onFinish={evidence => void initializeFeedback.perform(async current => {
@@ -184,7 +184,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
         <AccountStepUpFields enabled={authorization.security?.account.mfa_enabled} revision={authorization.security?.account.mfa_revision} disabled={initializeBusy} />
         <Button type="primary" htmlType="submit" loading={initializeBusy} disabled={!checked.includes(status.device_id ?? '') || authorization.error || authorization.security?.account.mfa_enabled === undefined}>{t('cloud.mfa.confirm')}</Button>
       </Form>
-    </Modal>
+    </FeedbackMessageScope></Modal>
     {revoking ? <AccountStepUpDialog key={`${generation}:${revoking.id}`} api={api} generation={generation} title={t('cloud.revoke')} description={t('cloud.revokeHint')} danger busy={busy} run={run}
       mfa={mfa.value} unavailable={mfa.loading || mfa.error || !mfa.value} accept={mfa.accept} reload={mfa.reload} onUncertain={changed} onClose={() => setRevoking(undefined)}
       action={async () => { await api.revokeDevice(generation, revoking.id); changed() }} /> : null}

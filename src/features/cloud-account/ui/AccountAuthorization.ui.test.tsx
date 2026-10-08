@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudAuthorization } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -50,7 +51,7 @@ test('验证响应失败后清空密码和验证码，不自动重放一次性�
   fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
   await waitFor(() => expect(api.authorizationAction).toHaveBeenCalledTimes(1))
   await waitFor(() => expect(screen.getByLabelText('验证器验证码')).toHaveValue(''))
-  expect(screen.getByRole('alert')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toBeInTheDocument()
   expect(api.authorizationAction).toHaveBeenCalledTimes(1)
 })
 
@@ -201,7 +202,7 @@ test('请求与审批两端默认展示同一配对码，批准后保持一致�
   approver.authorization.mockResolvedValue(approved)
   fireEvent.change(within(approveDialog).getByLabelText('验证器验证码'), { target: { value: '123456' } })
   fireEvent.click(within(approveDialog).getByRole('button', { name: '确认授权' }))
-  await within(approveDialog).findByText('已授权')
+  await screen.findByText('已授权')
   expect(code(approveDialog)).toBe(initial.pairing_code)
   expect(approver.authorizationAction).toHaveBeenCalledOnce()
   approver.unmount()
@@ -213,7 +214,7 @@ test('请求与审批两端默认展示同一配对码，批准后保持一致�
   requester.authorization.mockResolvedValue({ ...approved, allowed_actions: ['claim'] })
   await act(async () => { requester.publish() })
   expect(code(requestDialog)).toBe(initial.pairing_code)
-  expect(within(requestDialog).getByText('正在完成本机授权…')).toBeInTheDocument()
+  expect(screen.getByText('正在完成本机授权…')).toBeInTheDocument()
   expect(requester.authorizationAction).not.toHaveBeenCalled()
 })
 

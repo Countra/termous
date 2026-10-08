@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudLoginResult, CloudMFACodes, CloudMFAStatus, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -220,7 +221,7 @@ test('近期验证按服务端期限显示，二步验证开启后仅提交第�
   const section = within(screen.getByRole('region', { name: '敏感操作验证' }))
   fireEvent.change(section.getByLabelText('验证器验证码'), { target: { value: '123456' } })
   fireEvent.click(section.getByRole('button', { name: '验证身份' }))
-  await section.findByText('身份已验证')
+  await screen.findByText('身份已验证')
   expect(api.reauthenticate).toHaveBeenCalledWith('fixture', { method: 'totp', code: '123456' })
   expect(section.queryByLabelText('密码')).not.toBeInTheDocument()
   expect(section.getByLabelText('验证器验证码')).toHaveValue('')
@@ -299,7 +300,7 @@ test('过期近期验证不显示有效，响应丢失只读取权威状态且�
   const section = within(screen.getByRole('region', { name: '敏感操作验证' }))
   fireEvent.change(section.getByLabelText('密码'), { target: { value: 'synthetic-password' } })
   fireEvent.click(section.getByRole('button', { name: '验证身份' }))
-  await section.findByText('身份已验证')
+  await screen.findByText('身份已验证')
   expect(api.reauthenticate).toHaveBeenCalledTimes(1)
   expect(api.mfaStatus).toHaveBeenCalledTimes(2)
   expect(section.getByLabelText('密码')).toHaveValue('')
@@ -419,13 +420,13 @@ test('备用码近期验证后补读余量，读取失败保留验证成功且�
   fireEvent.change(await section.findByLabelText('备用码'), { target: { value: 'synthetic-backup-one' } })
   fireEvent.click(section.getByRole('button', { name: '验证身份' }))
   await waitFor(() => expect(api.mfaStatus).toHaveBeenCalledTimes(2))
-  await section.findByText('身份已验证')
+  await screen.findByText('身份已验证')
   expect(screen.getByText('剩余 9 个备用码')).toBeInTheDocument()
   fireEvent.click(section.getByRole('button', { name: '改用备用码' }))
   fireEvent.change(await section.findByLabelText('备用码'), { target: { value: 'synthetic-backup-two' } })
   fireEvent.click(section.getByRole('button', { name: '验证身份' }))
   await screen.findByText('无法读取二步验证状态，请刷新重试。')
-  expect(section.getByText('身份已验证')).toBeInTheDocument()
+  expect(screen.getByText('身份已验证')).toBeInTheDocument()
   expect(api.reauthenticate).toHaveBeenCalledTimes(2)
   expect(api.mfaStatus).toHaveBeenCalledTimes(3)
 })

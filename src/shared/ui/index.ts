@@ -27,6 +27,7 @@ export { FilterPopover, type FilterPopoverProps } from './FilterPopover'
 export { ManagementFilterTabs } from './ManagementFilterTabs'
 export { McpIcon, type McpIconProps } from './McpIcon'
 export { termousNotificationClassName } from './notificationStyles'
+export { FeedbackMessage, FeedbackMessageScope } from './FeedbackMessage'
 export {
   ProfileEditorField,
   ProfileEditorFieldFeedback,

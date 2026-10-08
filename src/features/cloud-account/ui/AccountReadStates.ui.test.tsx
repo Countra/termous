@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudAuthorization, CloudDevice, CloudRekeyStatus, CloudSecurityOverview, CloudSession, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -14,6 +15,19 @@ function gateway(overrides: Partial<CloudGateway> = {}) {
   state.accept(status)
   return { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => []), sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })), ...overrides } as CloudGateway
 }
+
+test('二步验证状态尚未返回时不发读取失败消息，真正失败才提示', async () => {
+  let reject!: (cause: Error) => void
+  const api = gateway({ mfaStatus: () => new Promise((_, failed) => { reject = failed }) })
+  render(<AccountSecurity api={api} status={status} busy={false} run={run} />)
+  await screen.findByText('当前没有进行中的密钥轮换。')
+  expect(screen.queryByText('无法读取二步验证状态，请刷新重试。')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '验证身份' })).toBeDisabled()
+  await act(async () => { reject(new Error('network_unavailable')) })
+  expect(await screen.findByText('无法读取二步验证状态，请刷新重试。')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '验证身份' })).toBeDisabled()
+})
 
 test('设备、会话和轮换分别显示加载状态，完成读取后才显示空态', async () => {
   let devices!: (value: CloudDevice[]) => void
@@ -89,7 +103,7 @@ test('设备表格保留撤销权限和验证步骤，读取失败时保留已�
   fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
   vi.mocked(api.devices).mockRejectedValueOnce(new Error('network_unavailable'))
   fireEvent.click(list.getByRole('button', { name: '刷新' }))
-  expect(await list.findByText('设备列表加载失败，请刷新重试。')).toBeInTheDocument()
+  expect(await screen.findByText('设备列表加载失败，请刷新重试。')).toBeInTheDocument()
   expect(list.getByText('合成设备 active')).toBeInTheDocument()
   expect(list.queryByText('暂无已登记设备')).not.toBeInTheDocument()
 })

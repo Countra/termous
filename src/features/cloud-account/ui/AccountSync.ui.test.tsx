@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { ConfigProvider } from 'antd'
 import type { CloudPreview, CloudStatus, CloudSecurityOverview, SettingsSnapshot } from '#common/contracts'
@@ -7,6 +8,7 @@ import { SettingsGatewayContext, SettingsModuleStore, type SettingsGateway } fro
 import { changeLanguage } from '#shared/i18n'
 import { TermousApiError } from '#shared/api'
 import { AccountSync } from './AccountSync'
+import { AccountSyncPreview } from './AccountSyncPreview'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const status: CloudStatus = { revision: 1, generation: 'fixture', authenticated: true, configured: true, phase: 'ready', device_status: 'active', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
@@ -31,6 +33,22 @@ async function openPreview() {
   fireEvent.click(screen.getByRole('button', { name: '预览同步' }))
   return within(await screen.findByRole('dialog', { name: '同步预览' }))
 }
+
+test('首次设置读取尚未完成时不把加载阶段提示为错误', async () => {
+  const f = setup()
+  const read = f.settings.readModule
+  let finish!: () => Promise<void>
+  vi.mocked(f.settings.readModule).mockImplementationOnce((...args) => new Promise((resolve, reject) => {
+    finish = async () => { try { resolve(await read(...args)) } catch (cause) { reject(cause) } }
+  }))
+  render(f.view())
+  expect(screen.queryByText('同步设置暂不可用，请重试')).not.toBeInTheDocument()
+  expect(screen.getByRole('switch', { name: '自动同步' })).toBeDisabled()
+  await act(async () => { await finish() })
+  await waitFor(() => expect(screen.getByRole('switch', { name: '自动同步' })).toBeEnabled())
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(f.api.confirm).not.toHaveBeenCalled()
+})
 
 test('首次打开自动同步直接预览，只需在同一弹窗确认一次', async () => {
   const f = setup()
@@ -66,12 +84,12 @@ test('已确认的设备可以直接开关自动同步和立即同步，不强�
   expect(f.api.confirm).not.toHaveBeenCalled()
 })
 
-test('预览与冲突完整读取前不能确认，失败在弹窗内展示并可重试', async () => {
+test('预览与冲突完整读取前不能确认，失败通过统一消息展示并可重试', async () => {
   const f = setup()
   vi.mocked(f.api.conflicts).mockRejectedValueOnce(new Error('network_unavailable'))
   render(f.view())
   const dialog = await openPreview()
-  expect(await dialog.findByText('暂时无法连接云服务，请稍后重试。')).toBeInTheDocument()
+  expect(await screen.findByText('暂时无法连接云服务，请稍后重试。')).toBeInTheDocument()
   expect(dialog.getByRole('button', { name: '确认同步' })).toBeDisabled()
   fireEvent.click(dialog.getByRole('button', { name: '重新预览' }))
   await waitFor(() => expect(dialog.getByRole('button', { name: '确认同步' })).toBeEnabled())
@@ -125,13 +143,37 @@ test('同步成功但开启设置失败时，重试只保存设置，不重复�
   const dialog = await openPreview()
   await waitFor(() => expect(dialog.getByRole('button', { name: '确认同步' })).toBeEnabled())
   fireEvent.click(dialog.getByRole('button', { name: '确认同步' }))
-  expect(await dialog.findByText('已同步，自动同步未开启')).toBeInTheDocument()
+  expect(await screen.findByText('已同步，自动同步未开启')).toBeInTheDocument()
   const retry = dialog.getByRole('button', { name: '开启自动同步' })
   await waitFor(() => expect(retry).toBeEnabled())
   fireEvent.click(retry)
   await waitFor(() => expect(screen.getByRole('switch')).toBeChecked())
   expect(f.api.confirm).toHaveBeenCalledTimes(1)
   expect(f.settings.updateModule).toHaveBeenCalledTimes(2)
+})
+
+test('同步已应用后设置变为不可用，弹窗仍可补读设置且不重复提交同步', async () => {
+  const f = setup()
+  const onEnable = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+  const onReloadSettings = vi.fn(), onClose = vi.fn()
+  const view = (settingsUnavailable: boolean) => <AccountSyncPreview api={f.api} status={status} open enableAutoSync busy={false} settingsUnavailable={settingsUnavailable} run={run} onEnable={onEnable} onReloadSettings={onReloadSettings} onClose={onClose} />
+  const rendered = render(view(false))
+  const dialog = within(await screen.findByRole('dialog'))
+  await waitFor(() => expect(dialog.getByRole('button', { name: '确认同步' })).toBeEnabled())
+  fireEvent.click(dialog.getByRole('button', { name: '确认同步' }))
+  await screen.findByText('已同步，自动同步未开启')
+  rendered.rerender(view(true))
+  const reload = dialog.getByRole('button', { name: /重\s*试/ })
+  expect(reload).toBeEnabled()
+  expect(dialog.getByRole('button', { name: '开启自动同步' })).toBeDisabled()
+  fireEvent.click(reload)
+  expect(onReloadSettings).toHaveBeenCalledTimes(1)
+  rendered.rerender(view(false))
+  fireEvent.click(dialog.getByRole('button', { name: '开启自动同步' }))
+  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  expect(f.api.confirm).toHaveBeenCalledTimes(1)
+  expect(f.api.preview).toHaveBeenCalledTimes(1)
+  expect(onEnable).toHaveBeenCalledTimes(2)
 })
 
 test('已确认设备的手动预览只同步本次变更，不擅自开启自动同步', async () => {
@@ -185,7 +227,7 @@ test('确认失败后必须重新预览，不能重复提交失效的预览', as
   const confirm = dialog.getByRole('button', { name: '确认同步' })
   await waitFor(() => expect(confirm).toBeEnabled())
   fireEvent.click(confirm)
-  expect(await dialog.findByText('账号状态已变化，请重新操作。')).toBeInTheDocument()
+  expect(await screen.findByText('账号状态已变化，请重新操作。')).toBeInTheDocument()
   await waitFor(() => expect(dialog.getByRole('button', { name: '重新预览' })).toBeEnabled())
   expect(confirm).toBeDisabled()
   vi.mocked(f.api.preview).mockResolvedValue({ ...preview, id: 'preview-next' })
@@ -203,28 +245,28 @@ test('确认响应代次异常时明确提示，不能默默结束操作或继�
   const confirm = dialog.getByRole('button', { name: '确认同步' })
   await waitFor(() => expect(confirm).toBeEnabled())
   fireEvent.click(confirm)
-  expect(await dialog.findByText('云服务返回了无效的验证信息，请刷新后重试。')).toBeInTheDocument()
+  expect(await screen.findByText('云服务返回了无效的验证信息，请刷新后重试。')).toBeInTheDocument()
   expect(f.settings.updateModule).not.toHaveBeenCalled()
 })
 
-test('恢复保障读取失败可以在预览弹窗内重试', async () => {
+test('恢复保障读取失败可以通过统一消息重试', async () => {
   const f = setup()
   vi.mocked(f.api.security).mockRejectedValueOnce(new Error('network_unavailable'))
   render(f.view())
   const dialog = await openPreview()
-  expect(await dialog.findByText('无法读取恢复保障，请重试')).toBeInTheDocument()
+  expect(await screen.findByText('无法读取恢复保障，请重试')).toBeInTheDocument()
   expect(dialog.getByRole('button', { name: '确认同步' })).toBeDisabled()
   fireEvent.click(dialog.getByRole('button', { name: /重\s*试/ }))
   await waitFor(() => expect(dialog.getByRole('button', { name: '确认同步' })).toBeEnabled())
   expect(f.api.security).toHaveBeenCalledTimes(2)
 })
 
-test('首次预览中设置不可用时在弹窗内提示，重试读取后允许确认', async () => {
+test('首次预览中设置不可用时通过统一消息提示，重试读取后允许确认', async () => {
   const f = setup()
   vi.mocked(f.settings.readModule).mockRejectedValueOnce(new Error('network_unavailable'))
   render(f.view())
   const dialog = await openPreview()
-  expect(await dialog.findByText('同步设置暂不可用，请重试')).toBeInTheDocument()
+  expect(await screen.findByText('同步设置暂不可用，请重试')).toBeInTheDocument()
   expect(dialog.getByRole('button', { name: '确认同步' })).toBeDisabled()
   fireEvent.click(dialog.getByRole('button', { name: /重\s*试/ }))
   await waitFor(() => expect(dialog.getByRole('button', { name: '确认同步' })).toBeEnabled())

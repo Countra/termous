@@ -1,5 +1,6 @@
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useId, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Form, Input, Modal, Steps } from 'antd'
+import { Button, Checkbox, Form, Input, Modal, Steps } from 'antd'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudMFAProof, CloudStatus, CloudWorkspaceRestart } from '#common/contracts'
@@ -46,7 +47,7 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, mfaRevi
         {op?.status === 'pending' && !expired ? <Button type="primary" htmlType="submit" form={formId} loading={inactive} disabled={!op.email_sent || mfaEnabled === undefined}>{t('cloud.safeguards.verifyIdentity')}</Button> : null}
         {op?.status === 'verified' || op?.status === 'completed' && op.local_pending ? <Button type="primary" danger={op.status !== 'completed'} loading={inactive} disabled={inactive || (op.status !== 'completed' && (!accepted || expired))} onClick={() => void feedback.perform(async current => { const result = await api.completeRestart(status.generation, op.id, op.revision); if (current()) { setOp(result); setAccepted(false) } })}>{t(op.status === 'completed' ? 'cloud.safeguards.finishLocal' : 'cloud.safeguards.restartConfirm')}</Button> : null}
       </div>
-    </div>}>
+    </div>}><FeedbackMessageScope active={open}>
       <Steps className={styles.steps} current={stage} status={op?.status === 'completed' ? 'finish' : undefined} size="small" items={['restartImpact', 'verifyIdentity', 'restartReview'].map(key => ({ title: t(`cloud.safeguards.${key}`) }))} />
       <div className={styles.body}>
         {stage !== 1 ? <div className={styles.impact} role="note">
@@ -59,7 +60,7 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, mfaRevi
             {op.source_device_count !== undefined ? <p>{t('cloud.safeguards.restartDevices', { count: op.source_device_count })}</p> : null}
             <div className={styles.actions}><Button size="small" type="text" disabled={inactive} onClick={() => void feedback.perform(current => read(current))}>{t('cloud.safeguards.queryResult')}</Button>{op.status !== 'completed' && !terminal ? <Button size="small" type="text" disabled={inactive} onClick={() => void feedback.perform(async current => { const result = await api.cancelRestart(status.generation, op.id, op.revision); if (current() && result.status === 'cancelled') { setOp(undefined); setAccepted(false); proof.resetFields() } })}>{t('cloud.safeguards.cancelOperation')}</Button> : null}</div>
           </div>
-          {terminal ? <Alert type="warning" title={t(`cloud.authorization.states.${op.status}`)} /> : expired ? <Alert type="warning" title={t('cloud.safeguards.expired')} /> : null}
+          {terminal ? <FeedbackMessage type="warning" title={t(`cloud.authorization.states.${op.status}`)} /> : expired ? <FeedbackMessage type="warning" title={t('cloud.safeguards.expired')} /> : null}
           {op.status === 'pending' && !expired ? <>
             <div className={styles.email}><h3>{t('cloud.safeguards.restartEmailTitle')}</h3><Button size="small" disabled={inactive} onClick={() => void feedback.perform(async current => { const value = await api.sendRestartEmail(status.generation, op.id, op.revision); if (current()) setOp(value) })}>{t(op.email_sent ? 'cloud.safeguards.resendEmail' : 'cloud.safeguards.sendEmail')}</Button></div>
             <Form id={formId} className={styles.proof} form={proof} layout="vertical" onFinish={evidence => void feedback.perform(async current => {
@@ -77,10 +78,10 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, mfaRevi
             </Form>
           </> : null}
           {op.status === 'verified' || op.status === 'completed' ? <>
-            {op.status === 'completed' ? <Alert type={op.local_pending ? 'warning' : 'success'} title={t(op.local_pending ? 'cloud.safeguards.localPending' : 'cloud.safeguards.restartDone')} /> : <div className={styles.confirmation}><Checkbox disabled={inactive} checked={accepted} onChange={event => setAccepted(event.target.checked)}>{t('cloud.safeguards.restartAccept')}</Checkbox></div>}
+            {op.status === 'completed' ? <FeedbackMessage type={op.local_pending ? 'warning' : 'success'} title={t(op.local_pending ? 'cloud.safeguards.localPending' : 'cloud.safeguards.restartDone')} /> : <div className={styles.confirmation}><Checkbox disabled={inactive} checked={accepted} onChange={event => setAccepted(event.target.checked)}>{t('cloud.safeguards.restartAccept')}</Checkbox></div>}
           </> : null}
         </> : null}
       </div>
-    </Modal>
+    </FeedbackMessageScope></Modal>
   </>
 }

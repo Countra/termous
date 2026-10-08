@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Avatar, Button, Form, Input, Popconfirm } from 'antd'
+import { Avatar, Button, Form, Input, Popconfirm } from 'antd'
 import { Camera, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudProfile, CloudProfileFields, CloudProfilePatch } from '#common/contracts'
 import { prepareAvatar } from '../model/avatar'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { WorkspaceEmptyState, FeedbackMessage } from '#shared/ui'
 import { AccountLoading, AccountSection } from './AccountSection'
 import styles from './AccountProfile.module.scss'
 import shared from './CloudAccount.module.scss'
@@ -70,7 +70,7 @@ export function AccountProfile({ profile, email, loading, error, reload, save }:
   }
   const failure = imageError ?? error
   return <AccountSection title={t('cloud.tabs.profile')} icon={<UserRound size={18} />} description={t('cloud.profile.privateHint')}>
-    {failure ? <Alert type="warning" showIcon title={t(`cloud.errors.${failure}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
+    {failure ? <FeedbackMessage type="warning" title={t(`cloud.errors.${failure}`, { defaultValue: t('cloud.operationFailed') })} /> : null}
     {!profile || !draft || !editing ? loading ? <AccountLoading /> : <WorkspaceEmptyState className={shared.empty} icon={<UserRound size={20} />} title={t('cloud.profile.unavailable')} action={<Button onClick={() => void reload()}>{t('cloud.retry')}</Button>} /> : <Form className={styles.form} layout="horizontal" labelAlign="left" colon={false} disabled={loading || imageBusy} onFinish={() => {
       // 键盘提交也必须经过相同检查，不能仅依赖保存按钮的禁用状态。
       if (canSave) void replace(() => save({ ...draft, expected_revision: editing.base.revision }), true)

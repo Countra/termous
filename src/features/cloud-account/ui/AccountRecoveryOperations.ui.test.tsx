@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudArchive, CloudArchivePreview, CloudStatus, CloudWorkspaceRestart } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -29,7 +30,7 @@ async function openArchive() {
   fireEvent.submit(screen.getByLabelText('个人恢复密钥').closest('form')!)
 }
 
-test('个人恢复失败在弹窗内显示安全错误码并清除密钥输入', async () => {
+test('个人恢复失败通过统一消息显示安全错误码并清除密钥输入', async () => {
   const { api } = fixture()
   api.recoverPersonal = vi.fn(async () => { throw new TermousApiError('membership_conflict', 'CLOUD_OPERATION_FAILED', 409) })
   render(<AccountPersonalAuthorize api={api} status={status} devices={[]} enabled busy={false} disabled={false} run={run} onChanged={vi.fn()} />)
@@ -38,7 +39,7 @@ test('个人恢复失败在弹窗内显示安全错误码并清除密钥输入',
   const dialog = within(screen.getByRole('dialog'))
   fireEvent.change(dialog.getByLabelText('个人恢复密钥'), { target: { value: 'synthetic-recovery-key' } })
   fireEvent.submit(dialog.getByLabelText('个人恢复密钥').closest('form')!)
-  expect(await dialog.findByText('错误代码：membership_conflict')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：membership_conflict')).toBeInTheDocument()
   expect(dialog.getByLabelText('个人恢复密钥')).toHaveValue('')
 })
 
@@ -56,16 +57,16 @@ test('个人恢复处理中拦截重复提交和关闭', async () => {
   await waitFor(() => expect(api.recoverPersonal).toHaveBeenCalledOnce())
   expect(dialog.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   await act(async () => { reject(new Error('network_unavailable')) })
-  expect(await dialog.findByText('错误代码：network_unavailable')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：network_unavailable')).toBeInTheDocument()
 })
 
-test('归档预览失败在弹窗内反馈且不保留恢复秘密', async () => {
+test('归档预览失败通过统一消息反馈且不保留恢复秘密', async () => {
   const { api } = fixture()
   vi.mocked(api.previewArchive).mockRejectedValueOnce(new TermousApiError('archive_expired', 'CLOUD_OPERATION_FAILED', 410))
   render(<AccountArchives api={api} status={status} busy={false} mfaEnabled={false} run={run} />)
   await openArchive()
   const dialog = within(screen.getByRole('dialog'))
-  expect(await dialog.findByText('错误代码：archive_expired')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：archive_expired')).toBeInTheDocument()
   expect(dialog.getByLabelText('个人恢复密钥')).toHaveValue('')
   expect(api.applyArchive).not.toHaveBeenCalled()
 })
@@ -80,7 +81,7 @@ test('归档应用失败保留冲突选择，重试不重复获取快照', async
   fireEvent.click(local)
   const apply = dialog.getByRole('button', { name: '确认取回并暂停自动同步' })
   fireEvent.click(apply)
-  expect(await dialog.findByText('错误代码：membership_conflict')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：membership_conflict')).toBeInTheDocument()
   expect(local).toBeChecked()
   fireEvent.click(apply)
   await waitFor(() => expect(api.applyArchive).toHaveBeenCalledTimes(2))
@@ -165,7 +166,7 @@ test('重新开始申请失败就地反馈，异常正文不进入弹窗', async
   fireEvent.click(screen.getByRole('button', { name: '重新开始云同步' }))
   fireEvent.click(screen.getByRole('button', { name: '创建重新开始申请' }))
   const dialog = within(screen.getByRole('dialog'))
-  expect(await dialog.findByText('错误代码：local_failed')).toBeInTheDocument()
+  expect(await screen.findByText('错误代码：local_failed')).toBeInTheDocument()
   expect(dialog.queryByText('synthetic secret in arbitrary error')).not.toBeInTheDocument()
   await waitFor(() => expect(dialog.getByRole('button', { name: /创建重新开始申请/ })).toBeEnabled())
 })

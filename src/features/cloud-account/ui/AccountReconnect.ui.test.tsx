@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, screen, waitFor } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { CloudDevice, CloudSession, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
@@ -30,12 +31,14 @@ test('重连自动恢复设备、会话和轮换状态且不执行授权写操�
   vi.mocked(api.sessions).mockRejectedValueOnce(new Error('network_unavailable'))
   vi.mocked(api.rekeyStatus).mockRejectedValueOnce(new Error('network_unavailable'))
   render(<><AccountDevices api={api} status={ready} busy={false} run={run} /><AccountSecurity api={api} status={ready} busy={false} run={run} /></>)
-  await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(5))
+  expect(await screen.findByText('设备列表加载失败，请刷新重试。')).toBeInTheDocument()
+  expect(await screen.findByText('登录会话加载失败，请刷新重试。')).toBeInTheDocument()
+  expect(await screen.findByText('密钥轮换状态加载失败，请刷新重试。')).toBeInTheDocument()
   act(reconnect)
   expect(await screen.findByText('设备已更新', { selector: 'strong' })).toBeInTheDocument()
   expect(await screen.findByText('会话已更新', { selector: 'strong' })).toBeInTheDocument()
   expect(await screen.findByText(new RegExp('2 / 5'))).toBeInTheDocument()
-  expect(screen.getAllByRole('alert')).toHaveLength(2)
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   expect(api.devices).toHaveBeenCalledTimes(2)
   expect(api.sessions).toHaveBeenCalledTimes(2)
   expect(api.rekeyStatus).toHaveBeenCalledTimes(2)
@@ -63,8 +66,8 @@ test('会话刷新成功不能掩盖轮换读取失败，下一次恢复分别�
   vi.mocked(api.rekeyStatus).mockRejectedValueOnce(new Error('network_unavailable'))
   render(<AccountSecurity api={api} status={ready} busy={false} run={run} />)
   await screen.findByText('会话已更新', { selector: 'strong' })
-  await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(3))
+  expect(await screen.findByText('密钥轮换状态加载失败，请刷新重试。')).toBeInTheDocument()
   act(reconnect)
   await screen.findByText(new RegExp('2 / 5'))
-  expect(screen.getAllByRole('alert')).toHaveLength(2)
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
 })

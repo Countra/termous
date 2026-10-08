@@ -365,16 +365,6 @@
 .scope dt { color: var(--text-secondary); }
 .scope dd { color: var(--text-primary); }
 
-.feedback {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 6px;
-  margin-top: 12px;
-  color: var(--success);
-  font-size: 12px;
-}
-
 .footer {
   justify-content: space-between;
   flex-wrap: wrap;

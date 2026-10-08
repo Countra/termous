@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { changeLanguage } from '#shared/i18n'
 import type { CloudProfile } from '#common/contracts'

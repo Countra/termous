@@ -1,5 +1,6 @@
+import { FeedbackMessage } from '#shared/ui'
 import { useEffect } from 'react'
-import { Alert, Form, Input } from 'antd'
+import { Form, Input } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { CloudMFAProof } from '#common/contracts'
 import { AccountMFAFields } from './AccountMFAFields'
@@ -15,7 +16,7 @@ export function AccountStepUpFields({ enabled, revision, disabled, totpOnly = fa
     form.setFieldsValue({ password: undefined, code: undefined, method: 'totp' })
     return () => form.setFieldsValue({ password: undefined, code: undefined, method: undefined })
   }, [enabled, revision, totpOnly, form])
-  if (enabled === undefined || totpOnly && !enabled) return <Alert type="warning" showIcon title={t('cloud.mfa.loadFailed')} />
+  if (enabled === undefined || totpOnly && !enabled) return <FeedbackMessage type="warning" title={t('cloud.mfa.loadFailed')} />
   return enabled ? <>
     <Form.Item name="method" hidden><Input /></Form.Item>
     <AccountMFAFields method={method} methods={totpOnly ? ['totp'] : undefined} disabled={disabled} autoFocus={autoFocus} onMethodChange={next => form.setFieldsValue({ method: next, code: undefined })} />

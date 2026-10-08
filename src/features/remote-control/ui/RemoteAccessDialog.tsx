@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Skeleton, Switch, Tabs, Tag } from 'antd'
-import { Bot, Check, Folder, FolderPlus, Monitor, Search, Server, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
+import { Button, Checkbox, Input, Modal, Popconfirm, Skeleton, Switch, Tabs, Tag } from 'antd'
+import { Bot, Folder, FolderPlus, Monitor, Search, Server, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import type { RemotePolicy } from '#common/contracts'
-import { termousPopconfirmProps, WorkspaceEmptyState } from '#shared/ui'
+import { termousPopconfirmProps, WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { type RemoteCopy, remoteErrorText } from '../model/copy'
 import styles from './RemoteAccessDialog.module.scss'
 
@@ -105,19 +105,19 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, enable
     title={<div className={styles.title}><span className={styles['title-icon']}><Settings2 size={19} aria-hidden="true" /></span><div><strong>{copy.configure}</strong><p><ShieldCheck size={13} aria-hidden="true" />{copy.accessHint}</p></div></div>}
     footer={<div className={styles.footer}>
       <span className={`${styles['footer-hint']} ${dirty ? styles.pending : ''}`}>{dirty ? copy.pendingHosts : copy.hostSaveHint}</span>
-      <div className={styles['footer-actions']}><Button disabled={!!working} onClick={onClose}>{copy.close}</Button><Button type="primary" loading={working === 'save'} disabled={inactive} onClick={onSave}>{copy.saveHosts}</Button></div>
-    </div>}>
+      <div className={styles['footer-actions']}>{policy && error ? <Button disabled={!!working} onClick={onRefresh}>{copy.refresh}</Button> : null}<Button disabled={!!working} onClick={onClose}>{copy.close}</Button><Button type="primary" loading={working === 'save'} disabled={inactive} onClick={onSave}>{copy.saveHosts}</Button></div>
+    </div>}><FeedbackMessageScope active={open}>
     <div className={styles.body}>
-      {loading ? <div className={styles.loading} role="status" aria-label={copy.accessLoading}><Skeleton active paragraph={{ rows: 5 }} /></div> : !policy ? <WorkspaceEmptyState icon={<Settings2 size={18} />} tone="warning" title={copy.accessReadFailed} description={remoteErrorText(copy, error)} action={<Button onClick={onRefresh}>{copy.refresh}</Button>} /> : <>
+      {error && !loading ? <FeedbackMessage type="warning" title={policy ? remoteErrorText(copy, error) : copy.accessReadFailed} description={!policy ? remoteErrorText(copy, error) : undefined} /> : null}
+      {loading ? <div className={styles.loading} role="status" aria-label={copy.accessLoading}><Skeleton active paragraph={{ rows: 5 }} /></div> : !policy ? <WorkspaceEmptyState icon={<Settings2 size={18} />} title={copy.configure} action={<Button onClick={onRefresh}>{copy.refresh}</Button>} /> : <>
         <div className={styles['remote-control']}><Monitor size={20} aria-hidden="true" /><div><h3>{copy.hostSettings}</h3><p>{copy.accessSwitchHint}</p></div><Switch checked={enabled} disabled={inactive} onChange={onEnabled} aria-label={copy.hostSettings} /></div>
-        {error ? <Alert type="warning" showIcon title={remoteErrorText(copy, error)} action={<Button size="small" disabled={!!working} onClick={onRefresh}>{copy.refresh}</Button>} /> : null}
         <Tabs className={styles.tabs} defaultActiveKey="hosts" animated={false} items={[
           { key: 'hosts', label: label(<Server size={15} aria-hidden="true" />, copy.hostConnections, selected.length), children: hostPanel },
           { key: 'folders', label: label(<Folder size={15} aria-hidden="true" />, copy.allowedFolders, directories.length), children: directoryPanel },
           { key: 'agent', label: label(<Bot size={15} aria-hidden="true" />, copy.agent), children: agentPanel },
         ]} />
-        {updated && !error ? <span className={styles.feedback} role="status"><Check size={14} aria-hidden="true" />{copy.accessUpdated}</span> : null}
+        {updated && !error ? <FeedbackMessage type="success" title={copy.accessUpdated} /> : null}
       </>}
     </div>
-  </Modal>
+  </FeedbackMessageScope></Modal>
 }

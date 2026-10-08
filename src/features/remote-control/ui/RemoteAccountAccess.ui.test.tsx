@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { ConfigProvider } from 'antd'
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { RemoteDevice, RemoteLauncher, RemotePolicy, RemoteResult } from '#common/contracts'
@@ -239,7 +240,7 @@ test('连接失败在设备列表反馈，不能污染授权弹窗或随关闭�
   await act(async () => { opening.resolve({ ok: false, code: 'remote_signaling_unavailable' }) })
   expect(screen.getByRole('alert')).toHaveTextContent('远控服务不可达')
   expect(within(screen.getByRole('dialog')).queryByRole('alert')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '关闭' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.getByRole('alert')).toHaveTextContent('远控服务不可达')
 })

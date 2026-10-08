@@ -7,11 +7,22 @@
   backdrop-filter: blur(18px);
 }
 
+.notice :global(.ant-notification-notice-title),
 .notice :global(.ant-notification-notice-message) {
   color: var(--text-primary);
   font-weight: 700;
 }
 
 .notice :global(.ant-notification-notice-description) {
+  color: var(--text-secondary);
+}
+
+.notice :global(.ant-notification-notice-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notice :global(.ant-notification-notice-close) {
   color: var(--text-secondary);
 }
