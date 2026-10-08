@@ -1,4 +1,5 @@
 export { RemoteClient, RemoteError, unwrap } from './model/client'
+export { RemoteHostIcons } from './model/hostIcons'
 export { retryRemoteRead, isTransientRemoteReadError } from './model/readRetry'
 export { create } from '@bufbuild/protobuf'
 export { SessionRequestSchema, FileRequestSchema, FileLocationSchema } from '@termous/remote-protocol'

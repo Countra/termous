@@ -1,6 +1,6 @@
 const transientCodes = new Set([
   'remote_recovering', 'remote_request_timeout', 'remote_capacity_exceeded',
-  'remote_signaling_unavailable', 'remote_request_failed',
+  'remote_signaling_unavailable', 'remote_request_failed', 'remote_send_failed',
 ])
 
 export function isTransientRemoteReadError(error: unknown) {

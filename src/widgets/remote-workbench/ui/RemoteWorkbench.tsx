@@ -201,7 +201,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
         <Input className={resourceStyles.search} prefix={<Search size={14} />} placeholder={copy.search} aria-label={copy.search} value={filter} onChange={event => setFilter(event.target.value)} allowClear />
         <div className={resourceStyles['sidebar-scroll']}>
           <div className={resourceStyles['section-title']}><span>{copy.hosts}<small>{inventory?.hosts.length ?? 0}</small></span><Tooltip title={copy.refresh}><Button type="text" size="small" disabled={!client || closed} icon={<RefreshCw size={13} className={refreshing ? resourceStyles.refreshing : undefined} />} aria-label={copy.refresh} aria-busy={refreshing} onClick={() => void refresh()} /></Tooltip></div>
-          <RemoteHostList hosts={inventory?.hosts ?? []} filter={filter} disabled={busy || !ready} copy={copy} create={(id, kind) => void create(id, kind)} />
+          <RemoteHostList hosts={inventory?.hosts ?? []} icons={client?.hostIcons} filter={filter} disabled={busy || !ready} copy={copy} create={(id, kind) => void create(id, kind)} />
           <div className={resourceStyles['section-title']}><span>{copy.existingSessions}<small>{sessions.length}</small></span></div>
           <div className={resourceStyles.resources}>
             {sessions.map(session => <div className={`${resourceStyles['session-row']} ${!overview && !agentSelected && selected === session.id ? resourceStyles.active : ''}`} key={session.id}>

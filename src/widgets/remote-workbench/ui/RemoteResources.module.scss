@@ -264,6 +264,14 @@
   color: var(--accent);
 }
 
+.host-image {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
 .files-icon { color: var(--warning); }
 
 .connection-arrow {

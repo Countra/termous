@@ -1,6 +1,7 @@
 import { create, fromBinary, fromJson, toBinary, toJson, type MessageInitShape } from '@bufbuild/protobuf'
 import { EnvelopeSchema, RequestSchema, ResponseSchema, StreamFrameSchema, type Event, type StreamFrame } from '@termous/remote-protocol'
 import type { RemoteConnection, RemoteResult, RemoteWindowBridge, RemoteLocalSelection } from '#common/contracts'
+import { RemoteHostIcons } from './hostIcons'
 
 export class RemoteError extends Error {
   constructor(readonly code: string, readonly uncertain = false) { super(code) }
@@ -11,6 +12,11 @@ export function unwrap<T>(value: RemoteResult<T>): T {
 }
 
 export class RemoteClient {
+  readonly hostIcons = new RemoteHostIcons(async value => {
+    const response = await this.request({ operation: { case: 'hostIcon', value } })
+    if (response.result.case !== 'hostIcon') throw new RemoteError('remote_host_icon_invalid')
+    return response.result.value
+  })
   private streams = new Map<string, (frame: StreamFrame) => Promise<void> | void>()
   private events = new Set<(event: Event) => void>()
   private stop?: () => void
@@ -47,5 +53,5 @@ export class RemoteClient {
   async send(input: MessageInitShape<typeof StreamFrameSchema>) {
     unwrap(await this.bridge.send(toBinary(StreamFrameSchema, create(StreamFrameSchema, input)), this.connection.id))
   }
-  dispose() { this.stop?.(); this.stop = undefined; this.streams.clear(); this.events.clear() }
+  dispose() { this.hostIcons.dispose(); this.stop?.(); this.stop = undefined; this.streams.clear(); this.events.clear() }
 }

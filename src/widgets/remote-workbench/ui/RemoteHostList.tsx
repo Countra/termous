@@ -1,19 +1,21 @@
 import { useId, useState } from 'react'
 import { Button, Empty, Tag, Tooltip } from 'antd'
-import { ArrowUpRight, ChevronDown, ChevronRight, Folder, Server, Terminal } from 'lucide-react'
-import type { Host } from '#entities/remote-control'
+import { ArrowUpRight, ChevronDown, ChevronRight, Folder, Terminal } from 'lucide-react'
+import type { Host, RemoteHostIcons } from '#entities/remote-control'
 import type { RemoteCopy } from '#features/remote-control'
+import { RemoteHostIcon } from './RemoteHostIcon'
 import styles from './RemoteResources.module.scss'
 
 interface Props {
   hosts: Host[]
+  icons?: RemoteHostIcons
   filter: string
   disabled: boolean
   copy: RemoteCopy
   create(id: string, kind: 'ssh' | 'files'): void
 }
 
-export function RemoteHostList({ hosts, filter, disabled, copy, create }: Props) {
+export function RemoteHostList({ hosts, icons, filter, disabled, copy, create }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const listId = useId()
   const query = filter.trim().toLowerCase()
@@ -30,7 +32,7 @@ export function RemoteHostList({ hosts, filter, disabled, copy, create }: Props)
         const next = new Set(previous)
         if (next.has(host.id)) next.delete(host.id); else next.add(host.id)
         return next
-      })}><span className={styles['host-icon']}><Server size={15} /></span><strong title={host.name}>{host.name}</strong><small>{host.connections.length}</small>{!query && collapsed.has(host.id) ? <ChevronRight className={styles['host-arrow']} size={13} /> : <ChevronDown className={styles['host-arrow']} size={13} />}</button>
+      })}><RemoteHostIcon hostId={host.id} iconId={host.iconId} icons={icons} /><strong title={host.name}>{host.name}</strong><small>{host.connections.length}</small>{!query && collapsed.has(host.id) ? <ChevronRight className={styles['host-arrow']} size={13} /> : <ChevronDown className={styles['host-arrow']} size={13} />}</button>
       <div id={`${listId}-${host.id}`} className={styles['host-connections']} hidden={!query && collapsed.has(host.id)}>{host.connections.map(profile => {
         const kind = profile.kind === 'ssh' ? 'ssh' : 'files'
         const action = kind === 'ssh' ? copy.newTerminal : copy.newFiles
