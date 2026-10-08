@@ -1,5 +1,5 @@
 import { Popover } from 'antd'
-import { Bot, CopyPlus, Folder, MonitorUp, RefreshCw } from 'lucide-react'
+import { Bot, CopyPlus, Folder, Monitor, RefreshCw } from 'lucide-react'
 import { startTransition, useEffect, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
@@ -143,7 +143,7 @@ export function FileSessionTab({
             }}
             onAuxClick={(event) => onAuxClose(event, fileSession.id)}
             icon={sessionIcon}
-            sourceIndicator={externalOrigin === 'remote' ? <MonitorUp size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
+            sourceIndicator={externalOrigin === 'remote' ? <Monitor size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
             label={label}
             status={fileSession.status}
             statusLabel={statusLabel}

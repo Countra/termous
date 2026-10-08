@@ -10,6 +10,16 @@ const item: NotificationMessage = { id: 'one', sequence: 1, kind: 'file', outcom
 function props(): NotificationCenterProps {
   return { state: { items: [item], watermark: 1, unread: 1, connected: true, loaded: true, error: false }, open: true, filter: 'all', selected: null, unavailable: false, busy: false, error: false, onOpen: vi.fn(), onFilter: vi.fn(), onView: vi.fn(), onReadAll: vi.fn(), onClearRead: vi.fn(), onDismiss: vi.fn() }
 }
+test.each([1, 12, 128])('点击 %s 条未读角标打开消息中心一次，不自动标记已读', (unread) => {
+  const input = props()
+  input.state.unread = unread
+  render(<NotificationCenter {...input} open={false} />)
+  fireEvent.click(screen.getByTitle(String(unread)))
+  expect(input.onOpen).toHaveBeenCalledExactlyOnceWith(true)
+  expect(input.onReadAll).not.toHaveBeenCalled()
+  expect(input.onView).not.toHaveBeenCalled()
+})
+
 test('打开抽屉不自动已读；保留部分完成摘要并支持独立移除', () => {
   const input = props()
   render(<NotificationCenter {...input} />)

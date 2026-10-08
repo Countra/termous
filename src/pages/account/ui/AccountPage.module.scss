@@ -6,7 +6,7 @@
   min-width: 0;
   overflow: hidden;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   max-width: 1160px;
   margin-inline: auto;
 }
@@ -17,12 +17,12 @@
   gap: 20px;
   flex-shrink: 0;
   justify-content: space-between;
-  padding: 8px 4px 4px;
+  padding: 8px 4px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -0.4px;
@@ -32,7 +32,7 @@
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -47,18 +47,11 @@
   }
 
   p {
-    margin: 4px 0 0;
+    margin: 3px 0 0;
     color: var(--text-muted);
     font-size: 12px;
+    line-height: 1.5;
   }
-}
-
-.eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
 }
 
 .header-actions {
@@ -148,8 +141,9 @@
 
 @media (width <= 760px) {
   .header {
-    align-items: flex-start;
-    flex-wrap: wrap;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .header-actions {

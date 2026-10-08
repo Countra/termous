@@ -16,7 +16,7 @@ import {
   FolderOpen,
   Loader2,
   MoreHorizontal,
-  MonitorUp,
+  Monitor,
   RefreshCw,
   RotateCcw,
   Trash2,
@@ -595,7 +595,7 @@ function TransferRow({
             {originLabel ? (
               <Tooltip title={originLabel}>
                 <span className="transfer-origin-indicator" role="img" aria-label={originLabel}>
-                  {origin === 'remote' ? <MonitorUp size={12} strokeWidth={2} aria-hidden="true" /> : <Bot size={12} strokeWidth={2} aria-hidden="true" />}
+                  {origin === 'remote' ? <Monitor size={12} strokeWidth={2} aria-hidden="true" /> : <Bot size={12} strokeWidth={2} aria-hidden="true" />}
                 </span>
               </Tooltip>
             ) : null}

@@ -1,5 +1,5 @@
 import { Button, Progress, Tooltip } from 'antd'
-import { Bot, Copy, DownloadCloud, MonitorUp, RotateCcw, UploadCloud, X } from 'lucide-react'
+import { Bot, Copy, DownloadCloud, Monitor, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveTransferOrigin } from '#entities/file'
 import type { FileTransferGateway } from '#features/files'
@@ -125,7 +125,7 @@ export function WorkbenchTransferBar({
                 role="img"
                 aria-label={t(`files.transferOrigin.${origin}`)}
               >
-                {origin === 'remote' ? <MonitorUp size={9} strokeWidth={2.2} aria-hidden="true" /> : <Bot size={9} strokeWidth={2.2} aria-hidden="true" />}
+                {origin === 'remote' ? <Monitor size={9} strokeWidth={2.2} aria-hidden="true" /> : <Bot size={9} strokeWidth={2.2} aria-hidden="true" />}
               </span>
             </Tooltip>
           ))}

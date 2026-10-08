@@ -1,3 +1,32 @@
+.trigger:global(.ant-badge) {
+  --notification-count-size: 18px;
+
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+.indicator:global(.ant-badge-count) {
+  min-width: var(--notification-count-size);
+  height: var(--notification-count-size);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--chrome-bg);
+  padding-inline: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--notification-count-size);
+}
+
+// 数字滚动层与角标等高，避免小号尺寸裁切字形或让切换动画错位。
+.indicator:global(.ant-badge-count.ant-scroll-number) :global(.ant-scroll-number-only) {
+  height: var(--notification-count-size);
+}
+
 .bell:global(.ant-btn) {
   display: inline-flex;
   align-items: center;

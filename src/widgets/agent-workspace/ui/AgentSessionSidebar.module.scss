@@ -163,6 +163,27 @@
   color: var(--text-muted);
 }
 
+.session-origin {
+  display: inline-flex;
+  width: 14px;
+  height: 18px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--accent) 58%, var(--text-muted));
+  opacity: 0.72;
+
+  :global(:root[data-theme="light"]) & {
+    color: color-mix(in srgb, var(--accent) 70%, var(--text-secondary));
+    opacity: 0.82;
+  }
+}
+
+.session-row.is-selected .session-origin {
+  color: color-mix(in srgb, var(--accent) 92%, var(--text-primary));
+  opacity: 1;
+}
+
 .session-meta,
 .session-model {
   display: flex;

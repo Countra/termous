@@ -35,10 +35,10 @@ export function NotificationCenter(props: NotificationCenterProps) {
   const emptyTitle = !state.items.length ? 'notifications.empty' : unread ? 'notifications.emptyUnread' : 'notifications.emptyFiltered'
   return <>
     <Tooltip title={t('notifications.title')}>
-      <Badge count={state.unread} size="small" overflowCount={99} offset={[-2, 2]}>
-        <Button ref={trigger} type="text" className={styles.bell} aria-label={t('notifications.title')} aria-expanded={open}
-          icon={<Bell size={18} aria-hidden="true" />} onClick={() => props.onOpen(true)} />
-      </Badge>
+      <Button ref={trigger} type="text" className={styles.bell} aria-label={t('notifications.title')} aria-expanded={open}
+        icon={<Badge count={state.unread} overflowCount={99} offset={[-5, 8]} classNames={{ root: styles.trigger, indicator: styles.indicator }}>
+          <Bell size={18} aria-hidden="true" />
+        </Badge>} onClick={() => props.onOpen(true)} />
     </Tooltip>
     <Drawer
       title={<span className={styles.heading}><Bell size={17} aria-hidden="true" /><span>{t('notifications.title')}</span>

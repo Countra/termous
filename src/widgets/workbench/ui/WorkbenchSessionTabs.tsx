@@ -4,7 +4,7 @@ import {
   Bot,
   CopyPlus,
   Layers,
-  MonitorUp,
+  Monitor,
   RefreshCw,
   Search,
   SquareTerminal,
@@ -208,7 +208,7 @@ export function WorkbenchSessionTabs({
                     }}
                     onAuxClick={(event) => onAuxClose(event, session.id)}
                     icon={sessionIcon}
-                    sourceIndicator={externalOrigin === 'remote' ? <MonitorUp size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
+                    sourceIndicator={externalOrigin === 'remote' ? <Monitor size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
                     label={title}
                     status={session.status}
                     statusLabel={statusLabel}

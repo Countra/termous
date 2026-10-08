@@ -60,7 +60,7 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
     <header className={styles.header}>
       <div className={styles.identity}>
         <Avatar className={styles.avatar} size={48} src={profile.profile?.avatar || undefined} icon={<UserRound size={24} />} />
-        <div className={styles['identity-text']}><span className={styles.eyebrow}>{t('nav.account')}</span><Tooltip title={name}><h1>{name}</h1></Tooltip><p title={status.email}>{profile.profile?.name && status.email ? status.email : t('cloud.accountConnected')}</p></div>
+        <div className={styles['identity-text']}><Tooltip title={name}><h1>{name}</h1></Tooltip><p title={status.email}>{profile.profile?.name && status.email ? status.email : t('cloud.accountConnected')}</p></div>
       </div>
       <div className={styles['header-actions']}>
         <Tag className={styles.trust} icon={status.device_status === 'revoked' ? <ShieldX size={13} /> : <ShieldCheck size={13} />}>{deviceLabel}</Tag>
