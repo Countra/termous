@@ -1,9 +1,9 @@
-import { Avatar, Button, Dropdown, type MenuProps } from 'antd'
+import { Avatar, Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { Cloud, Laptop, LogIn, Monitor, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CloudTab } from '#common/contracts'
-import { contextActionMenuPopupClassName } from '#shared/ui'
+import { contextActionMenuPopupClassName, uiStyles } from '#shared/ui'
 import styles from './SidebarAccountMenu.module.scss'
 
 export interface SidebarAccountIdentity {
@@ -62,43 +62,46 @@ export function SidebarAccountMenu({ identity, collapsed, active, getPopupWidth,
     { key: 'settings', label: t('nav.settings'), icon: <Settings size={16} /> },
   ]
 
-  return <Dropdown
-    autoFocus
-    trigger={['click']}
-    placement="topLeft"
-    open={open}
-    onOpenChange={(next) => {
-      if (next) setWidth(collapsed ? 236 : getPopupWidth?.() || trigger.current?.getBoundingClientRect().width || 216)
-      setOpen(next)
-    }}
-    classNames={{ root: `${contextActionMenuPopupClassName} ${styles.popup}` }}
-    styles={{ root: { width, minWidth: width, maxWidth: 'calc(100vw - 24px)' } }}
-    popupRender={(menu) => <div ref={popup}>
-      {!loggedIn ? <div className={styles['local-summary']}>{summary}</div> : null}
-      {menu}
-    </div>}
-    menu={{
-      items,
-      onClick: ({ key, domEvent }) => {
-        // Enter 选中后立即还原焦点，阻止默认动作再次触发账号按钮。
-        if (domEvent.type === 'keydown') domEvent.preventDefault()
-        setOpen(false)
-        if (key === 'settings') onSettings()
-        else if (key === 'profile' || key === 'sync' || key === 'devices' || key === 'security') onAccount(key)
-        trigger.current?.focus({ preventScroll: true })
-      },
-      onKeyDown: (event) => {
-        if (event.key === 'Escape') {
+  return <Tooltip title={name} open={open ? false : undefined} placement={collapsed ? 'right' : 'top'}
+    classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }} destroyOnHidden>
+    <Dropdown
+      autoFocus
+      trigger={['click']}
+      placement="topLeft"
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setWidth(collapsed ? 236 : getPopupWidth?.() || trigger.current?.getBoundingClientRect().width || 216)
+        setOpen(next)
+      }}
+      classNames={{ root: `${contextActionMenuPopupClassName} ${styles.popup}` }}
+      styles={{ root: { width, minWidth: width, maxWidth: 'calc(100vw - 24px)' } }}
+      popupRender={(menu) => <div ref={popup}>
+        {!loggedIn ? <div className={styles['local-summary']}>{summary}</div> : null}
+        {menu}
+      </div>}
+      menu={{
+        items,
+        onClick: ({ key, domEvent }) => {
+          // Enter 选中后立即还原焦点，阻止默认动作再次触发账号按钮。
+          if (domEvent.type === 'keydown') domEvent.preventDefault()
           setOpen(false)
-          queueMicrotask(() => trigger.current?.focus({ preventScroll: true }))
-        }
-      },
-    }}
-  >
-    <Button ref={trigger} type="text" className={`${styles.trigger} ${collapsed ? styles.collapsed : ''} ${active ? styles.active : ''}`}
-      title={collapsed ? name : undefined} aria-label={t('cloud.accountMenu', { name })} aria-haspopup="menu" aria-expanded={open}>
-      {avatar}
-      {!collapsed ? <span className={styles.copy}><strong title={name}>{name}</strong></span> : null}
-    </Button>
-  </Dropdown>
+          if (key === 'settings') onSettings()
+          else if (key === 'profile' || key === 'sync' || key === 'devices' || key === 'security') onAccount(key)
+          trigger.current?.focus({ preventScroll: true })
+        },
+        onKeyDown: (event) => {
+          if (event.key === 'Escape') {
+            setOpen(false)
+            queueMicrotask(() => trigger.current?.focus({ preventScroll: true }))
+          }
+        },
+      }}
+    >
+      <Button ref={trigger} type="text" className={`${styles.trigger} ${collapsed ? styles.collapsed : ''} ${active ? styles.active : ''}`}
+        aria-label={t('cloud.accountMenu', { name })} aria-haspopup="menu" aria-expanded={open}>
+        {avatar}
+        {!collapsed ? <span className={styles.copy}><strong>{name}</strong></span> : null}
+      </Button>
+    </Dropdown>
+  </Tooltip>
 }

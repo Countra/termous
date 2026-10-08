@@ -6,6 +6,21 @@ import { SidebarAccountMenu } from './SidebarAccountMenu'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
 
+test.each([false, true])('用户入口折叠状态 %s 使用统一用户名提示，打开菜单后收起提示', async (collapsed) => {
+  const user = userEvent.setup()
+  render(<SidebarAccountMenu identity={{ authenticated: true, name: 'Synthetic' }} collapsed={collapsed} active={false} onAccount={vi.fn()} onSettings={vi.fn()} />)
+  const trigger = screen.getByRole('button', { name: 'Synthetic · 账号与设置' })
+  expect(trigger).not.toHaveAttribute('title')
+  await user.hover(trigger)
+  const tooltip = await screen.findByRole('tooltip')
+  expect(tooltip).toHaveTextContent('Synthetic')
+  expect(tooltip.closest('.ant-tooltip')).toHaveClass('termous-tooltip')
+  await user.click(trigger)
+  expect(await screen.findByRole('menu')).toBeInTheDocument()
+  // jsdom 不派发动画结束事件，需要等待 Antd 的关闭动画兜底计时。
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument(), { timeout: 1800 })
+})
+
 test('本地入口菜单使用底栏完整宽度，提供登录和设置', async () => {
   const onSettings = vi.fn()
   render(<SidebarAccountMenu collapsed={false} active={false} getPopupWidth={() => 214} onAccount={vi.fn()} onSettings={onSettings} />)
