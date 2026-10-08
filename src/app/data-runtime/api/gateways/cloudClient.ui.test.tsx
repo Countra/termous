@@ -4,6 +4,16 @@ import { CloudClient } from './cloudClient'
 
 afterEach(() => vi.unstubAllGlobals())
 
+test('本机改名接口携带账号代次和名称版本，不允许指定其他设备', async () => {
+  const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => Response.json({ id: 'current', user_id: 'owner', name: '我的电脑', name_revision: '1', signing_key: 'key', recipient: 'recipient', status: 'pending', created_at: '2026-10-08T00:00:00Z' }))
+  vi.stubGlobal('fetch', fetch)
+  const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
+  const result = await api.updateDeviceName('account', '我的电脑', '0')
+  expect(result.name_revision).toBe('1')
+  expect(String(fetch.mock.calls[0]?.[0])).toBe('http://127.0.0.1:8122/api/v1/cloud/devices/current/name')
+  expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: 'PATCH', body: JSON.stringify({ generation: 'account', name: '我的电脑', expected_revision: '0' }) })
+})
+
 function securityResponse(contract: string) {
   return { account: { contract, managed_recovery: false, mfa_enabled: true, mfa_revision: '1' },
     recovery: { policy: { workspace_id: 'workspace_fixture', status: 'disabled', revision: '0', updated_at: '2026-10-02T00:00:00Z' }, available: false },

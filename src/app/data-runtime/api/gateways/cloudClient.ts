@@ -70,6 +70,9 @@ export class CloudClient extends TermousApiTransport implements CloudGateway {
   updateProfile(generation: string, patch: CloudProfilePatch, signal?: AbortSignal) {
     return this.request('/api/v1/cloud/profile', { method: 'PATCH', body: { ...patch, generation }, signal, timeoutMs: 125_000 }).then(decodeCloudProfile)
   }
+  updateDeviceName(generation: string, name: string, expectedRevision: string) {
+    return this.request('/api/v1/cloud/devices/current/name', { method: 'PATCH', body: { generation, name, expected_revision: expectedRevision }, timeoutMs: 125_000 }).then(decodeCloudDevice)
+  }
   private readonly state = new CloudState()
   getStatus = this.state.snapshot
   subscribeStatus = this.state.subscribe

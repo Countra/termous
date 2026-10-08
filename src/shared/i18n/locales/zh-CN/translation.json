@@ -401,6 +401,7 @@
       "CLOUD_RESPONSE_INVALID": "云服务返回了无效的验证信息，请刷新后重试。",
       "CLOUD_STALE": "账号状态已变化，请重新操作。",
       "profile_conflict": "资料已在其他端修改。当前草稿已保留，请重新载入最新资料后再编辑。",
+      "device_name_conflict": "设备名称已变化。当前草稿已保留，请载入最新名称后再编辑。",
       "profile_invalid": "请检查资料长度及特殊字符。",
       "avatar_invalid": "请选择有效的 PNG 或 JPEG 图片。",
       "avatar_file_size": "头像文件不能超过 2 MB。",
@@ -435,6 +436,15 @@
       "actions": "远控与管理"
     },
     "deviceListHint": "管理可访问云端配置的设备。",
+    "deviceName": {
+      "edit": "编辑名称",
+      "title": "重命名设备",
+      "label": "设备名称",
+      "invalid": "请输入 1–100 个字符，不能包含控制字符。",
+      "reload": "载入最新名称",
+      "save": "保存名称",
+      "cancel": "取消"
+    },
     "devicesLoadFailed": "设备列表加载失败，请刷新重试。",
     "authorizeDevice": "授权当前设备",
     "noDevices": "暂无已登记设备",

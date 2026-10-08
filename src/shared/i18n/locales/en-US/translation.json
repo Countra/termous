@@ -401,6 +401,7 @@
       "CLOUD_RESPONSE_INVALID": "Invalid verification response. Refresh and try again.",
       "CLOUD_STALE": "Account state changed. Try again.",
       "profile_conflict": "Your profile changed on another device. Your draft is preserved. Reload the latest profile before editing again.",
+      "device_name_conflict": "The device name changed. Your draft is preserved. Load the latest name before editing again.",
       "profile_invalid": "Check the field lengths and special characters.",
       "avatar_invalid": "Choose a valid PNG or JPEG image.",
       "avatar_file_size": "Avatar files must be no larger than 2 MB.",
@@ -435,6 +436,15 @@
       "actions": "Remote access & management"
     },
     "deviceListHint": "Manage devices with access to your cloud configuration.",
+    "deviceName": {
+      "edit": "Edit name",
+      "title": "Rename device",
+      "label": "Device name",
+      "invalid": "Enter 1–100 characters without control characters.",
+      "reload": "Load latest name",
+      "save": "Save name",
+      "cancel": "Cancel"
+    },
     "devicesLoadFailed": "Could not load devices. Refresh to try again.",
     "authorizeDevice": "Authorize this device",
     "noDevices": "No registered devices",

@@ -10,6 +10,7 @@ import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
 import { useCloudMFA } from '../model/useCloudMFA'
 import { AccountAuthorization } from './AccountAuthorization'
+import { AccountDeviceName } from './AccountDeviceName'
 import { AccountPersonalAuthorize } from './AccountPersonalAuthorize'
 import { AccountWorkspaceRestart } from './AccountWorkspaceRestart'
 import { AccountStepUpFields } from './AccountStepUpFields'
@@ -128,7 +129,9 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
           render: (_, device) => <div className={styles['list-identity']}>
             <span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span>
             <div className={styles.identity}>
-              <strong>{device.name}</strong>
+              {device.id === status.device_id
+                ? <AccountDeviceName api={api} generation={generation} device={device} busy={busy} run={run} onChanged={() => void load()} />
+                : <Tooltip title={device.name}><strong>{device.name}</strong></Tooltip>}
               <small><Tooltip title={device.id}><span className={styles.identifier}>{device.id}</span></Tooltip></small>
             </div>
           </div>,

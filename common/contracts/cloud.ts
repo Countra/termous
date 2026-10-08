@@ -44,6 +44,7 @@ export interface CloudDevice {
   id: string
   user_id: string
   name: string
+  name_revision?: string
   signing_key: string
   recipient: string
   status: 'pending' | 'active' | 'revoked'

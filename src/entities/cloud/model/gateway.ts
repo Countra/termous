@@ -55,6 +55,7 @@ export interface CloudGateway {
   mfaDisable(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFAStatus>
   mfaRegenerate(generation: string, revision: string, proof: CloudMFAProof): Promise<CloudMFACodes>
   devices(): Promise<CloudDevice[]>
+  updateDeviceName(generation: string, name: string, expectedRevision: string): Promise<CloudDevice>
   sessions(): Promise<CloudSession[]>
   revokeDevice(generation: string, id: string): Promise<void>
   revokeSession(generation: string, id: string): Promise<void>

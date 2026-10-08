@@ -3,9 +3,18 @@ import test from 'node:test'
 import type { CloudStatus, CloudAccountChange } from '#common/contracts'
 import { CloudState } from './state.ts'
 import { decodeCloudStatus, decodeCloudEvent } from './decode.ts'
-import { decodeCloudProfile } from './decode.ts'
+import { decodeCloudProfile, decodeCloudDevice } from './decode.ts'
 
 const status: CloudStatus = { generation: 'a', revision: 1, configured: true, authenticated: false, phase: 'signed_out', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
+
+test('设备名称版本兼容旧只读响应，拒绝负数、溢出和非规范版本', () => {
+  const device = { id: 'device', user_id: 'owner', name: '我的电脑', signing_key: 'public', recipient: 'public', status: 'active', created_at: '2026-10-08T00:00:00Z' }
+  assert.equal(decodeCloudDevice(device).name_revision, undefined)
+  assert.equal(decodeCloudDevice({ ...device, name_revision: '0' }).name_revision, '0')
+  for (const revision of [null, 1, '-1', '01', '', '9223372036854775808']) {
+    assert.throws(() => decodeCloudDevice({ ...device, name_revision: revision }))
+  }
+})
 
 test('个人资料拒绝外部头像地址与非法版本', () => {
   const profile = { user_id: 'synthetic', name: '', bio: '', organization: '', avatar: '', revision: '0', updated_at: null }
