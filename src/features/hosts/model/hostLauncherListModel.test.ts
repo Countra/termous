@@ -13,7 +13,6 @@ import {
   latencyLevel,
   latencySignalLabel,
   reachabilityTooltip,
-  type LauncherPlatformFilter,
 } from './hostLauncherListModel.ts'
 
 test('搜索词使用 AND 语义并与平台、分组、认证和标签筛选叠加', () => {
@@ -56,9 +55,19 @@ test('搜索词使用 AND 语义并与平台、分组、认证和标签筛选叠
 
   assert.deepEqual(result.map((item) => item.id), ['alpha'])
   assert.deepEqual(
-    filterHosts([alpha], new Map(), {}, '', 'all', 'windows' as LauncherPlatformFilter, 'all', 'all', []),
+    filterHosts([alpha], new Map(), {}, '', 'all', 'windows', 'all', 'all', []),
     [],
   )
+})
+
+test('Windows 平台筛选保留对应资产，Linux 与全部平台行为不变', () => {
+  const source = [host({ id: 'linux-host' }), host({ id: 'windows-host', platform: 'windows' })]
+  for (const [platform, ids] of [
+    ['windows', ['windows-host']], ['linux', ['linux-host']], ['all', ['linux-host', 'windows-host']],
+  ] as const) {
+    const result = filterHosts(source, new Map(), {}, '', 'all', platform, 'all', 'all', [])
+    assert.deepEqual(result.map((item) => item.id).sort(), [...ids])
+  }
 })
 
 test('在线筛选同时保留 online 和 checking 状态', () => {

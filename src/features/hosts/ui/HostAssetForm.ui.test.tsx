@@ -33,6 +33,17 @@ const draft: HostAssetInput = {
 }
 
 describe('HostAssetForm', () => {
+  it('平台选择保存 Windows，并在再次编辑时保留选中值', () => {
+    const onChange = vi.fn()
+    const props = { data, draft, disabled: false, getHostIconUrl: () => '', onChange, onCreateGroup: vi.fn(), onManageIcons: vi.fn() }
+    const view = render(<HostAssetForm {...props} />)
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'hosts.platform.label' }))
+    fireEvent.click(screen.getByText('hosts.platform.windows'))
+    expect(onChange).toHaveBeenCalledWith({ ...draft, platform: 'windows' })
+    view.rerender(<HostAssetForm {...props} draft={{ ...draft, platform: 'windows' }} />)
+    expect(screen.getByRole('combobox', { name: 'hosts.platform.label' }).closest('.ant-select')).toHaveTextContent('hosts.platform.windows')
+  })
+
   it('异步创建分组只更新最新草稿的分组字段', async () => {
     let resolve!: (group: { id: string; name: string }) => void
     const pending = new Promise<{ id: string; name: string }>((done) => { resolve = done })

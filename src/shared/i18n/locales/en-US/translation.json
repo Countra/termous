@@ -1511,6 +1511,7 @@
     "rdp": {
       "openWindow": "Open another viewer",
       "retained": "Retained sessions", "closeViewer": "Close viewer and keep session", "rememberCertificate": "Remember this certificate on this device",
+      "rememberCertificateHint": "Trust applies only to this session by default. Remembering verifies the same certificate automatically; a changed certificate requires confirmation.",
       "protocol": "Desktop protocol", "route": "Connection", "direct": "Direct", "tunnel": "SSH tunnel", "target": "Target address", "port": "Port",
       "serverName": "Server name (certificate and authentication)", "username": "Username", "domain": "Domain (optional)", "width": "Desktop width", "height": "Desktop height",
       "audio": "Play audio locally", "viewOnly": "View only by default", "display": "Display mode", "fit": "Fit window", "resize": "Resize remote desktop", "actual": "Original size",
@@ -1666,15 +1667,21 @@
       "sendQueue": "Pending outbound"
     },
     "preparingViewer": "Preparing the remote desktop data channel.",
-    "credentialsTitle": "VNC authentication",
-    "credentialsHint": "Credentials stay only in the current viewer memory and are not saved after closing the session.",
+    "credentialsTitle": "{{protocol}} authentication",
+    "credentialsHint": "These credentials are used for this connection and are not automatically saved to the credential store.",
     "credentials": {
       "username": "Username",
       "password": "Password",
       "target": "Target"
     },
-    "verifyServerTitle": "Verify VNC server identity",
-    "verifyServerHint": "Compare this fingerprint through a trusted channel. Termous remembers it only for this session.",
+    "verifyServerTitle": "Verify {{protocol}} server identity",
+    "verifyServerHint": "Compare the server fingerprint through a trusted channel before continuing.",
+    "serverAddress": "Server address",
+    "certificateSubject": "Certificate subject",
+    "certificateServerName": "Verified name",
+    "sessionTrustHint": "This verification applies only to the current session.",
+    "fingerprintCopied": "Copied",
+    "copyFingerprintFailed": "Could not copy the fingerprint",
     "verificationType": "Verification type",
     "trustAndContinue": "Verify and continue",
     "rejectServer": "Reject connection",
@@ -1684,7 +1691,7 @@
       "security_failure": "VNC authentication failed.",
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
       "server_identity_unverifiable": "Could not verify the VNC service identity.",
-      "server_identity_rejected": "The VNC service identity was rejected.",
+      "server_identity_rejected": "The remote desktop server identity was rejected.",
       "clipboard_too_large": "Clipboard text cannot exceed 256 KiB."
     },
     "status": {
@@ -3255,7 +3262,8 @@
     },
     "platform": {
       "label": "Platform",
-      "linux": "Linux"
+      "linux": "Linux",
+      "windows": "Windows"
     },
     "password": "Password",
     "privateKey": "Private key",

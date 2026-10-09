@@ -112,7 +112,7 @@ export function WorkbenchConnectionOverview({
         </div>
         <div>
           <dt>{t('hosts.platform.label')}</dt>
-          <dd>{host.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
+          <dd>{t(`hosts.platform.${host.platform}`, { defaultValue: t('fields.none') })}</dd>
         </div>
         <div>
           <dt>{t('hosts.group')}</dt>

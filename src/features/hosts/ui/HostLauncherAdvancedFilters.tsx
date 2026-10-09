@@ -74,6 +74,7 @@ export function HostLauncherAdvancedFilters({
               options={[
                 { value: 'all', label: t('workbench.hostLauncher.platformAll') },
                 { value: 'linux', label: t('hosts.platform.linux') },
+                { value: 'windows', label: t('hosts.platform.windows') },
               ]}
             />
           </label>

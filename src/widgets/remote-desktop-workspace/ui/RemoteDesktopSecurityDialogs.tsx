@@ -1,4 +1,4 @@
-import { App as AntdApp, Checkbox, Form, Input, Modal } from 'antd'
+import { App as AntdApp, Form, Input, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
@@ -8,6 +8,8 @@ import {
 } from '#features/remote-desktop'
 import { termousNotificationClassName } from '#shared/ui'
 import styles from './RemoteDesktopWorkspace.module.scss'
+
+export { RemoteDesktopServerVerificationDialog } from './RemoteDesktopServerVerificationDialog'
 
 export function RemoteDesktopCredentialDialog({ session }: { session: RemoteDesktopSession }) {
   const { t } = useTranslation()
@@ -35,7 +37,7 @@ export function RemoteDesktopCredentialDialog({ session }: { session: RemoteDesk
       state.credentialFields.map((field) => [field.id, values[field.id] ?? '']),
     ) as RemoteDesktopCredentials
     void Promise.resolve(runtime.submitCredentials(session.id, credentials)).catch((error) => {
-      notification.error({ title: t('remoteDesktop.credentialsTitle'), description: publicError(error), className: termousNotificationClassName })
+      notification.error({ title: t('remoteDesktop.credentialsTitle', { protocol: session.protocol.toUpperCase() }), description: publicError(error), className: termousNotificationClassName })
     })
     setValues({})
   }
@@ -45,7 +47,7 @@ export function RemoteDesktopCredentialDialog({ session }: { session: RemoteDesk
       open={open}
       centered
       width={440}
-      title={t('remoteDesktop.credentialsTitle')}
+      title={t('remoteDesktop.credentialsTitle', { protocol: session.protocol.toUpperCase() })}
       okText={t('app.connect')}
       cancelText={t('remoteDesktop.disconnect')}
       okButtonProps={{ disabled: missingRequiredValue }}
@@ -85,57 +87,6 @@ export function RemoteDesktopCredentialDialog({ session }: { session: RemoteDesk
           </Form.Item>
         ))}
       </Form>
-    </Modal>
-  )
-}
-
-export function RemoteDesktopServerVerificationDialog({
-  session,
-}: {
-  session: RemoteDesktopSession
-}) {
-  const { t } = useTranslation()
-  const { notification } = AntdApp.useApp()
-  const runtime = useRemoteDesktopRuntime()
-  const verification = runtime.viewerStates[session.id]?.verification
-  const [remember, setRemember] = useState(false)
-  return (
-    <Modal
-      open={Boolean(verification)}
-      centered
-      width={520}
-      title={t('remoteDesktop.verifyServerTitle')}
-      okText={t('remoteDesktop.trustAndContinue')}
-      cancelText={t('remoteDesktop.rejectServer')}
-      okButtonProps={{ danger: false }}
-      cancelButtonProps={{ danger: true }}
-      onOk={async () => {
-        try { await runtime.approveServer(session.id, remember) }
-        catch (error) {
-          notification.error({ title: t('remoteDesktop.verifyServerTitle'), description: publicError(error), className: termousNotificationClassName })
-          throw error
-        }
-      }}
-      afterClose={() => setRemember(false)}
-      onCancel={() => {
-        void runtime.rejectServer(session.id).catch((error) => {
-          notification.error({
-            title: t('remoteDesktop.disconnectFailed'),
-            description: publicError(error),
-            className: termousNotificationClassName,
-          })
-        })
-      }}
-      closable={false}
-      mask={{ closable: false }}
-    >
-      <p className={styles['dialog-hint']}>{t('remoteDesktop.verifyServerHint')}</p>
-      <dl className={styles.fingerprint}>
-        {session.certificate ? <div><dt>{session.certificate.server_name}</dt><dd>{session.certificate.subject}</dd></div> : null}
-        <div><dt>{t('remoteDesktop.verificationType')}</dt><dd>{verification?.type}</dd></div>
-        <div><dt>{t('hostKey.fingerprint')}</dt><dd>{verification?.fingerprint}</dd></div>
-      </dl>
-      {session.protocol === 'rdp' ? <Checkbox checked={remember} onChange={(event) => setRemember(event.target.checked)}>{t('remoteDesktop.rdp.rememberCertificate')}</Checkbox> : null}
     </Modal>
   )
 }

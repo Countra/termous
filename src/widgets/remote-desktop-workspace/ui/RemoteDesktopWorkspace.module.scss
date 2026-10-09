@@ -386,44 +386,6 @@
   line-height: 19px;
 }
 
-.fingerprint {
-  display: grid;
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.fingerprint > div {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  border-bottom: 1px solid var(--border);
-}
-
-.fingerprint > div:last-child {
-  border-bottom: 0;
-}
-
-.fingerprint dt,
-.fingerprint dd {
-  margin: 0;
-  padding: 9px 11px;
-}
-
-.fingerprint dt {
-  background: var(--surface-subtle);
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.fingerprint dd {
-  overflow: auto hidden;
-  color: var(--text-primary);
-  font-family: var(--terminal-font-family);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 @keyframes remote-desktop-pulse {
   0%, 100% {
     border-color: rgb(255 255 255 / 9%);

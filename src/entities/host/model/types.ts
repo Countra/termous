@@ -1,6 +1,6 @@
 export type AuthMethod = 'password' | 'private_key'
 
-export type HostPlatform = 'linux'
+export type HostPlatform = 'linux' | 'windows'
 
 export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offline' | 'unavailable'
 

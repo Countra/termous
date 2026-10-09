@@ -1509,6 +1509,7 @@
     "rdp": {
       "openWindow": "在新窗口观看",
       "retained": "保留的会话", "closeViewer": "关闭观看并保留会话", "rememberCertificate": "在此设备上记住此证书",
+      "rememberCertificateHint": "默认仅本次会话信任。记住后，相同证书将自动验证；证书变更时需重新确认。",
       "protocol": "桌面协议", "route": "连接方式", "direct": "直连", "tunnel": "SSH 隧道", "target": "目标地址", "port": "端口",
       "serverName": "服务器名称（证书与认证）", "username": "用户名", "domain": "域（可选）", "width": "桌面宽度", "height": "桌面高度",
       "audio": "本机播放声音", "viewOnly": "默认只读", "display": "显示模式", "fit": "适应窗口", "resize": "调整远端分辨率", "actual": "原始大小",
@@ -1664,15 +1665,21 @@
       "sendQueue": "待发送数据"
     },
     "preparingViewer": "正在准备远程桌面数据通道。",
-    "credentialsTitle": "VNC 身份验证",
-    "credentialsHint": "认证信息仅保留在当前查看器内存中，关闭会话后不会保存。",
+    "credentialsTitle": "{{protocol}} 身份验证",
+    "credentialsHint": "本次输入仅用于连接认证，不会自动保存到凭据库。",
     "credentials": {
       "username": "用户名",
       "password": "密码",
       "target": "目标"
     },
-    "verifyServerTitle": "确认 VNC 服务身份",
-    "verifyServerHint": "请通过可信渠道核对指纹。Termous 仅在当前会话内记住本次确认。",
+    "verifyServerTitle": "验证 {{protocol}} 服务器身份",
+    "verifyServerHint": "请通过可信渠道核对服务器指纹，确认一致后继续连接。",
+    "serverAddress": "服务器地址",
+    "certificateSubject": "证书主体",
+    "certificateServerName": "验证名称",
+    "sessionTrustHint": "本次确认仅在当前会话中有效。",
+    "fingerprintCopied": "已复制",
+    "copyFingerprintFailed": "复制指纹失败",
     "verificationType": "验证类型",
     "trustAndContinue": "确认并继续",
     "rejectServer": "拒绝连接",
@@ -1682,7 +1689,7 @@
       "security_failure": "VNC 身份验证失败。",
       "server_identity_missing": "VNC 服务未提供可验证的身份信息。",
       "server_identity_unverifiable": "无法验证 VNC 服务身份。",
-      "server_identity_rejected": "已拒绝该 VNC 服务身份。",
+      "server_identity_rejected": "已拒绝该远程桌面服务器身份。",
       "clipboard_too_large": "剪贴板文本不能超过 256 KiB。"
     },
     "status": {
@@ -3245,7 +3252,8 @@
     },
     "platform": {
       "label": "平台",
-      "linux": "Linux"
+      "linux": "Linux",
+      "windows": "Windows"
     },
     "password": "密码",
     "privateKey": "私钥",

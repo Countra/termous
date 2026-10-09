@@ -923,6 +923,165 @@ test('关闭请求失败时保留现有 Viewer 和会话', async () => {
   expect(view.getByTestId('close-session')).toBeInTheDocument()
 })
 
+test('RDP 拒绝证书后，迟到快照和关闭事件不会恢复验证弹窗，新代次仍可验证', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const deletion = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn(() => deletion.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('test-fingerprint'))
+  let rejection!: Promise<void>
+  act(() => { rejection = runtime.rejectServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  for (const status of ['waiting_host_trust', 'stopping', 'failed'] as const) {
+    act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, status, phase: status, updated_at: `2026-08-23T12:00:0${status === 'waiting_host_trust' ? 1 : status === 'stopping' ? 2 : 3}Z` } }))
+    expect(runtime.sessions[0].status).toBe(status)
+    expect(runtime.viewerStates[session.id].verification).toBeNull()
+  }
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  await act(async () => { deletion.resolve(); await rejection })
+  expect(runtime.sessions).toHaveLength(0)
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, connection_generation: 2, updated_at: '2026-08-23T12:00:04Z' } }))
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('test-fingerprint'))
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  expect(api.deleteRemoteDesktopSession).toHaveBeenCalledTimes(1)
+})
+
+test('旧 RDP 证书确认的迟到响应不能清除新挑战', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session: RemoteDesktopSession = {
+    ...rdpSecuritySession(),
+    certificate: { challenge_id: 'challenge-one', server_name: '192.0.2.22', fingerprint: 'first-fingerprint', subject: 'CN=test' },
+  }
+  const approval = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn(() => approval.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('first-fingerprint'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.approveServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: {
+    ...session, updated_at: '2026-08-23T12:00:01Z',
+    certificate: { ...session.certificate!, challenge_id: 'challenge-two', fingerprint: 'second-fingerprint' },
+  } }))
+  expect(runtime.viewerStates[session.id].verification?.fingerprint).toBe('second-fingerprint')
+  await act(async () => { approval.resolve(); await response })
+  expect(runtime.viewerStates[session.id].verification?.fingerprint).toBe('second-fingerprint')
+})
+
+test.each(['failed', 'stopping', 'credentials', 'removed'] as const)('证书确认迟到返回不覆盖后续 %s 状态', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const approval = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn(() => approval.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.approveServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit(next === 'removed'
+    ? { type: 'removed', session: { id: session.id } }
+    : { type: 'upsert', session: {
+      ...session, certificate: undefined, credentials_required: next === 'credentials',
+      status: next === 'credentials' ? 'connecting' : next,
+      phase: next === 'credentials' ? 'resolving_auth' : next,
+      updated_at: '2026-08-23T12:00:01Z',
+    } }))
+  const expected = next === 'removed' ? undefined : next === 'credentials' ? 'credentials_required' : 'disconnected'
+  expect(runtime.viewerStates[session.id]?.connection).toBe(expected)
+  await act(async () => { approval.resolve(); await response })
+  expect(runtime.viewerStates[session.id]?.connection).toBe(expected)
+})
+
+test.each(['challenge', 'generation'] as const)('已确认挑战抑制重复快照，但 %s 变化仍需确认', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await runtime.approveServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: {
+    ...session, connection_generation: next === 'generation' ? 2 : 1,
+    certificate: { ...session.certificate!, challenge_id: next === 'challenge' ? 'next-challenge' : session.certificate!.challenge_id },
+    updated_at: '2026-08-23T12:00:01Z',
+  } }))
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+})
+
+test('RDP 确认失败后保留挑战并允许重试，失败不会被视为已确认', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn().mockRejectedValueOnce(new Error('synthetic approval failure')).mockResolvedValueOnce(undefined)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await expect(runtime.approveServer(session.id)).rejects.toThrow('synthetic approval failure') })
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+  await act(async () => { await runtime.approveServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  expect(api.resolveRemoteDesktopCertificate).toHaveBeenCalledTimes(2)
+})
+
+test('拒绝时关闭失败仍阻止旧挑战，可重新关闭会话', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn().mockRejectedValueOnce(new Error('synthetic close failure')).mockResolvedValueOnce(undefined)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await expect(runtime.rejectServer(session.id)).rejects.toThrow('synthetic close failure') })
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  expect(runtime.viewerStates[session.id].connection).toBe('security_failed')
+  await act(async () => { await runtime.closeSession(session.id) })
+  expect(runtime.sessions).toHaveLength(0)
+})
+
+test('拒绝请求的迟到响应不移除新代次会话', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const deletion = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn(() => deletion.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  let response!: Promise<void>
+  act(() => { response = runtime.rejectServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, connection_generation: 2 } }))
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  await act(async () => { deletion.resolve(); await response })
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+})
+
+function rdpSecuritySession(): RemoteDesktopSession {
+  return {
+    ...remoteDesktopSession(), protocol: 'rdp', status: 'waiting_host_trust', phase: 'waiting_host_trust',
+    rdp: { target_host: '192.0.2.22', port: 3389, server_name: '192.0.2.22', username: 'test-user', domain: '', width: 1920, height: 1080, audio: true, default_view_only: false, default_display_mode: 'fit' },
+    certificate: { challenge_id: 'challenge-one', server_name: '192.0.2.22', fingerprint: 'test-fingerprint', subject: 'CN=test' },
+  }
+}
+
 function ViewerHarness() {
   const runtime = useRemoteDesktopRuntime()
   const session = runtime.sessions[0]

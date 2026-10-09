@@ -170,7 +170,7 @@ export function HostLauncherDetail({
       </div>
       <dl className="host-launcher-detail-grid">
         <DetailItem icon={<Globe2 size={14} />} label={t('hosts.address')} value={selectedProfileDetails?.endpoint || t('fields.none')} />
-        <DetailItem icon={<Server size={14} />} label={t('hosts.platform.label')} value={t('hosts.platform.linux')} />
+        <DetailItem icon={<Server size={14} />} label={t('hosts.platform.label')} value={t(`hosts.platform.${selectedHost.platform}`)} />
         <DetailItem icon={<UserRound size={14} />} label={t('hosts.note')} value={selectedHost.note || t('fields.none')} />
         <DetailItem
           icon={<Tags size={14} />}
