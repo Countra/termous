@@ -231,12 +231,12 @@ if ($phase -in @("all", "prepare")) {
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir
   Enable-MingwIfAvailable
-  if (-not (Test-Path -LiteralPath (Join-Path $rdpDir "3rd/install/build-manifest.txt") -PathType Leaf)) {
-    throw "The pinned static RDP SDK is missing. Build termous-rdp/3rd first; this script does not install MSYS2 tools."
-  }
-  Invoke-Native -Name "Build Termous RDP" -FilePath "go" -Arguments @(
-    "build", "-trimpath", "-o", $rdpExe, "./cmd/termous-rdp"
+  # 复用 RDP 构建入口，统一执行 SDK 校验、工具链检查和静态库缓存失效处理。
+  $rdpMsys2Root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Get-Command gcc).Source))
+  Invoke-Native -Name "Build Termous RDP" -FilePath (Join-Path $rdpDir "scripts/build.ps1") -Arguments @(
+    "build", "-Msys2Root", $rdpMsys2Root
   ) -WorkingDirectory $rdpDir
+  Copy-Item -LiteralPath (Join-Path $rdpDir "build/termous-rdp.exe") -Destination $rdpExe -Force
   # 显式 SDK 配置优先，其次保留调用方 CPATH，仅未配置时使用仓库头文件。
   if (-not [string]::IsNullOrWhiteSpace($env:TERMOUS_WINFSP_INCLUDE) -or [string]::IsNullOrWhiteSpace($env:CPATH)) {
     $mountInclude = Resolve-ExistingDirectory `
