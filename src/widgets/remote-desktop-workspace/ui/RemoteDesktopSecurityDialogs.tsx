@@ -1,4 +1,4 @@
-import { App as AntdApp, Form, Input, Modal } from 'antd'
+import { App as AntdApp, Checkbox, Form, Input, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
@@ -34,7 +34,9 @@ export function RemoteDesktopCredentialDialog({ session }: { session: RemoteDesk
     const credentials = Object.fromEntries(
       state.credentialFields.map((field) => [field.id, values[field.id] ?? '']),
     ) as RemoteDesktopCredentials
-    runtime.submitCredentials(session.id, credentials)
+    void Promise.resolve(runtime.submitCredentials(session.id, credentials)).catch((error) => {
+      notification.error({ title: t('remoteDesktop.credentialsTitle'), description: publicError(error), className: termousNotificationClassName })
+    })
     setValues({})
   }
 
@@ -96,6 +98,7 @@ export function RemoteDesktopServerVerificationDialog({
   const { notification } = AntdApp.useApp()
   const runtime = useRemoteDesktopRuntime()
   const verification = runtime.viewerStates[session.id]?.verification
+  const [remember, setRemember] = useState(false)
   return (
     <Modal
       open={Boolean(verification)}
@@ -106,7 +109,14 @@ export function RemoteDesktopServerVerificationDialog({
       cancelText={t('remoteDesktop.rejectServer')}
       okButtonProps={{ danger: false }}
       cancelButtonProps={{ danger: true }}
-      onOk={() => runtime.approveServer(session.id)}
+      onOk={async () => {
+        try { await runtime.approveServer(session.id, remember) }
+        catch (error) {
+          notification.error({ title: t('remoteDesktop.verifyServerTitle'), description: publicError(error), className: termousNotificationClassName })
+          throw error
+        }
+      }}
+      afterClose={() => setRemember(false)}
       onCancel={() => {
         void runtime.rejectServer(session.id).catch((error) => {
           notification.error({
@@ -121,9 +131,11 @@ export function RemoteDesktopServerVerificationDialog({
     >
       <p className={styles['dialog-hint']}>{t('remoteDesktop.verifyServerHint')}</p>
       <dl className={styles.fingerprint}>
+        {session.certificate ? <div><dt>{session.certificate.server_name}</dt><dd>{session.certificate.subject}</dd></div> : null}
         <div><dt>{t('remoteDesktop.verificationType')}</dt><dd>{verification?.type}</dd></div>
         <div><dt>{t('hostKey.fingerprint')}</dt><dd>{verification?.fingerprint}</dd></div>
       </dl>
+      {session.protocol === 'rdp' ? <Checkbox checked={remember} onChange={(event) => setRemember(event.target.checked)}>{t('remoteDesktop.rdp.rememberCertificate')}</Checkbox> : null}
     </Modal>
   )
 }

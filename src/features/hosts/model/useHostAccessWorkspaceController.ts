@@ -34,17 +34,17 @@ import {
 } from '#features/host-access'
 import {
   createVNCTargetAuthDraft,
-  createVNCAccessProfileDraft,
+  createRemoteDesktopAccessProfileDraft,
   isVNCTargetAuthDraftDirty,
-  normalizeVNCAccessProfileDraft,
+  normalizeRemoteDesktopAccessProfileDraft,
   persistVNCProfile,
   validateVNCTargetAuthDraft,
-  validateVNCAccessProfileDraft,
+  validateRemoteDesktopAccessProfileDraft,
   VNCTargetAuthPersistenceError,
-  vncAccessProfileDraftsEqual,
-  vncAccessProfileToDraft,
+  remoteDesktopAccessProfileDraftsEqual,
+  remoteDesktopAccessProfileToDraft,
   type VNCTargetAuthDraft,
-  type VNCAccessProfileDraft,
+  type RemoteDesktopAccessProfileDraft,
 } from '#features/manage-remote-desktop'
 
 export type HostDetailView = 'asset' | 'access'
@@ -96,8 +96,8 @@ export function useHostAccessWorkspaceController({
   const initialFileDraft = useMemo(() => createFileDraft(hostId, []), [hostId])
   const [fileDraft, setFileDraft] = useState<FileAccessProfileEditorDraft>(initialFileDraft)
   const [fileBaseline, setFileBaseline] = useState<FileAccessProfileEditorDraft>(initialFileDraft)
-  const [vncDraft, setVNCDraft] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
-  const [vncBaseline, setVNCBaseline] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
+  const [vncDraft, setVNCDraft] = useState<RemoteDesktopAccessProfileDraft>(() => createRemoteDesktopAccessProfileDraft())
+  const [vncBaseline, setVNCBaseline] = useState<RemoteDesktopAccessProfileDraft>(() => createRemoteDesktopAccessProfileDraft())
   const [vncTargetAuthDraft, setVNCTargetAuthDraft] = useState<VNCTargetAuthDraft>(
     createVNCTargetAuthDraft,
   )
@@ -140,7 +140,7 @@ export function useHostAccessWorkspaceController({
     if (!editor) return false
     if (editor.kind === 'ssh') return !sshAccessProfileDraftsEqual(sshDraft, sshBaseline)
     if (editor.kind === 'file') return !fileAccessProfileEditorDraftsEqual(fileDraft, fileBaseline)
-    return !vncAccessProfileDraftsEqual(vncDraft, vncBaseline)
+    return !remoteDesktopAccessProfileDraftsEqual(vncDraft, vncBaseline)
       || isVNCTargetAuthDraftDirty(vncTargetAuthDraft)
   }, [editor, fileBaseline, fileDraft, sshBaseline, sshDraft, vncBaseline, vncDraft, vncTargetAuthDraft])
   const dirty = assetDirty || profileDirty
@@ -157,7 +157,7 @@ export function useHostAccessWorkspaceController({
   const fileErrors = useMemo<FileAccessProfileEditorErrors>(() => (
     fileEditorDefinition?.validate(fileDraft, catalogState.catalog?.ssh ?? []) ?? {}
   ), [catalogState.catalog?.ssh, fileDraft, fileEditorDefinition])
-  const vncErrors = useMemo(() => validateVNCAccessProfileDraft(
+  const vncErrors = useMemo(() => validateRemoteDesktopAccessProfileDraft(
     vncDraft,
     new Set(catalogState.catalog?.ssh.map((profile) => profile.id) ?? []),
   ), [catalogState.catalog?.ssh, vncDraft])
@@ -250,8 +250,8 @@ export function useHostAccessWorkspaceController({
         return
       }
       const next = source
-        ? vncAccessProfileToDraft(source)
-        : createVNCAccessProfileDraft(defaultSSH?.id ?? '')
+        ? remoteDesktopAccessProfileToDraft(source)
+        : createRemoteDesktopAccessProfileDraft(defaultSSH?.id ?? '')
       setVNCDraft(next)
       setVNCBaseline(next)
       setVNCPersistedProfile(source ?? null)
@@ -337,7 +337,7 @@ export function useHostAccessWorkspaceController({
   }, [reloadCatalog, toPublicError])
 
   const acceptPersistedVNCProfile = useCallback((profile: RemoteDesktopAccessProfile) => {
-    const savedDraft = vncAccessProfileToDraft(profile)
+    const savedDraft = remoteDesktopAccessProfileToDraft(profile)
     setVNCDraft(savedDraft)
     setVNCBaseline(savedDraft)
     setVNCPersistedProfile(profile)
@@ -405,8 +405,8 @@ export function useHostAccessWorkspaceController({
     }
     if (Object.values(vncErrors).some(Boolean) || vncTargetAuthError) return
     await execute(async () => {
-      const input = normalizeVNCAccessProfileDraft(hostId, vncDraft)
-      const metadataDirty = !vncAccessProfileDraftsEqual(vncDraft, vncBaseline)
+      const input = normalizeRemoteDesktopAccessProfileDraft(hostId, vncDraft)
+      const metadataDirty = !remoteDesktopAccessProfileDraftsEqual(vncDraft, vncBaseline)
       const existingProfile = editor.mode === 'create'
         ? null
         : vncPersistedProfile
@@ -433,7 +433,7 @@ export function useHostAccessWorkspaceController({
         }
         if (error.metadataSaved) {
           throw Object.assign(
-            new Error(t('remoteDesktop.targetAuth.profileSavedCredentialFailed', {
+            new Error(t(input.protocol === 'rdp' ? 'remoteDesktop.rdp.targetAuth.profileSavedCredentialFailed' : 'remoteDesktop.targetAuth.profileSavedCredentialFailed', {
               error: toPublicError(error.cause),
             })),
             { cause: error },

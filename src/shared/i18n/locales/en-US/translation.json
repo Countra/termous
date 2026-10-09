@@ -1508,15 +1508,41 @@
     }
   },
   "remoteDesktop": {
+    "rdp": {
+      "openWindow": "Open another viewer",
+      "retained": "Retained sessions", "closeViewer": "Close viewer and keep session", "rememberCertificate": "Remember this certificate on this device",
+      "protocol": "Desktop protocol", "route": "Connection", "direct": "Direct", "tunnel": "SSH tunnel", "target": "Target address", "port": "Port",
+      "serverName": "Server name (certificate and authentication)", "username": "Username", "domain": "Domain (optional)", "width": "Desktop width", "height": "Desktop height",
+      "audio": "Play audio locally", "viewOnly": "View only by default", "display": "Display mode", "fit": "Fit window", "resize": "Resize remote desktop", "actual": "Original size",
+      "required": "Enter a valid value", "targetInvalid": "Enter a valid target; direct connections require an IP address", "portInvalid": "Enter an integer from 1 to 65535", "sizeInvalid": "Use even dimensions from 200 to 8192, with at most 16M pixels",
+      "hostInvalid": "Enter a valid hostname or IP address without a scheme, path, or port.",
+      "accountInvalid": "Use at most 256 bytes without newlines or null characters.",
+      "noSSH": "Add an SSH profile to this host to enable SSH tunneling.",
+      "tunnelTargetPlaceholder": "For example: 127.0.0.1 or a hostname reachable from the SSH host",
+      "serverNameHint": "Optional; defaults to the target address. For tunneled connections, use the Windows server's actual name for certificate verification and sign-in.",
+      "displayHint": "Width and height set the initial desktop size. Follow window adjusts the remote resolution after you gain control.",
+      "audioHint": "Play sound on this computer once, shared by all viewer windows.",
+      "viewOnlyHint": "Open new viewers without control. Request control when you need to interact.",
+      "targetAuth": {
+        "password": "RDP password",
+        "savedHint": "Use the saved password to sign in to the Windows account.",
+        "removePendingHint": "Saving this profile will remove the saved RDP password.",
+        "profileSavedCredentialFailed": "The profile was saved, but its RDP password was not updated: {{error}}",
+        "errors": {
+          "required": "Enter the RDP password.",
+          "too_large": "The RDP password must not exceed 4096 bytes."
+        }
+      }
+    },
     "launcherTitle": "Connect Remote Desktop",
-    "launcherDescription": "Reach a VNC service through an SSH tunnel or a direct network connection.",
+    "launcherDescription": "Reach a VNC or RDP desktop through an SSH tunnel or a direct network connection.",
     "profiles": "Remote desktop profiles",
     "searchProfiles": "Search profiles or hosts",
     "noProfiles": "No matching remote desktop profile",
     "noProfilesHint": "Adjust the search terms or clear the search to view every profile.",
     "clearSearch": "Clear search",
     "emptyProfilesTitle": "No remote desktop profiles yet",
-    "emptyProfilesDescription": "Create a VNC profile to connect through an SSH tunnel or target IP.",
+    "emptyProfilesDescription": "Create a remote desktop profile to connect through an SSH tunnel or target IP.",
     "emptyProfilesNoHostsDescription": "Add a host before creating a remote desktop profile for it.",
     "newProfile": "New profile",
     "editProfile": "Edit profile",
@@ -1603,7 +1629,7 @@
     "scrollTabsLeft": "Scroll remote desktop sessions left",
     "scrollTabsRight": "Scroll remote desktop sessions right",
     "emptyTitle": "No remote desktop connected",
-    "emptyDescription": "Choose a VNC profile to open a remote desktop through its configured connection method.",
+    "emptyDescription": "Choose a remote desktop profile to connect through its configured connection method.",
     "disconnect": "Disconnect",
     "disconnectTitle": "Disconnect remote desktop?",
     "disconnectDescription": "This closes the viewer and current connection for “{{name}}”.",
@@ -1639,7 +1665,7 @@
       "sent": "Total sent",
       "sendQueue": "Pending outbound"
     },
-    "preparingViewer": "Preparing the VNC data channel.",
+    "preparingViewer": "Preparing the remote desktop data channel.",
     "credentialsTitle": "VNC authentication",
     "credentialsHint": "Credentials stay only in the current viewer memory and are not saved after closing the session.",
     "credentials": {
@@ -1653,7 +1679,7 @@
     "trustAndContinue": "Verify and continue",
     "rejectServer": "Reject connection",
     "viewerErrors": {
-      "stream_disconnected": "The VNC data channel disconnected unexpectedly.",
+      "stream_disconnected": "The remote desktop data channel disconnected unexpectedly.",
       "attach_failed": "Could not attach the remote desktop viewer.",
       "security_failure": "VNC authentication failed.",
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
@@ -4904,6 +4930,15 @@
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
+    "tabRemoteDesktop": "Remote desktop",
+    "rdpSettings": "RDP settings",
+    "rdpUnattendedTimeout": "Session retention period",
+    "rdpUnattendedTimeoutHint": "Starts when all session windows close. On expiry, the connection closes and resources are released. Reattaching cancels the timer; minimizing or switching tabs keeps the connection active.",
+    "rdpUnattendedMinutes": "minutes",
+    "rdpUnattendedRange": "1–30 minutes; default: 10. Press Enter or leave the field to save. Changes do not reset the timer.",
+    "connectionSaveFailed": "Failed to save connection settings. Please try again.",
+    "rdpUnattendedInvalid": "Enter a whole number from 1 to 30 minutes.",
+    "rdpUnattendedSaveFailed": "Could not save. Please try again.",
     "tabMount": "Mounts",
     "tabAudit": "Audit",
     "audit": {

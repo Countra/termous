@@ -31,7 +31,7 @@ function moduleId(value: unknown): SettingsModuleId {
   return value as SettingsModuleId
 }
 function schemaVersion(id: SettingsModuleId, value: unknown): number {
-  if (value === 1 || id === 'agent' && value === 2) return value
+  if (value === 1 || (id === 'agent' || id === 'connection') && value === 2) return value
   throw new Error('SETTINGS_UNSUPPORTED_VERSION')
 }
 export function decodeSettingsSnapshot(input: unknown, expected?: SettingsModuleId): SettingsSnapshot {

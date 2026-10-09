@@ -1,4 +1,8 @@
 export type {
+  RdpProfileSettings,
+  RdpAttachment,
+  RdpRemoteDesktopAccessProfile,
+  RdpRemoteDesktopAccessProfileInput,
   RemoteDesktopAttachTicket,
   RemoteDesktopAccessProfile,
   RemoteDesktopAccessProfileInput,

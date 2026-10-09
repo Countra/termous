@@ -35,8 +35,8 @@ test('首次实例确认丢弃身份尚未确认时发出的模块读取', async
 
 test('连续修改连接策略保留先前确认的其他开关，补全按字段提交', async () => {
   const initial: SettingsSnapshot = {
-    id: 'connection', schema_version: 1, revision: 1,
-    value: { ssh_keepalive_enabled: false, forward_auto_reconnect_enabled: false, remote_desktop_auto_reconnect_enabled: true },
+    id: 'connection', schema_version: 2, revision: 1,
+    value: { ssh_keepalive_enabled: false, forward_auto_reconnect_enabled: false, remote_desktop_auto_reconnect_enabled: true, rdp_unattended_timeout_minutes: 20 },
     state: { status: 'applied' },
   }
   const first = { ...initial, revision: 2, value: { ...initial.value, ssh_keepalive_enabled: true } }
@@ -46,8 +46,8 @@ test('连续修改连接策略保留先前确认的其他开关，补全按字�
     .mockResolvedValueOnce(Response.json(initial))
     .mockReturnValueOnce(pending)
     .mockResolvedValueOnce(Response.json({ ...first, revision: 3, value: { ...first.value, forward_auto_reconnect_enabled: true } }))
-    .mockResolvedValueOnce(Response.json({ ...initial, id: 'completion', value: { enabled: true, ai_enabled: false, providers: { history: true } } }))
-    .mockResolvedValueOnce(Response.json({ ...initial, id: 'completion', revision: 2, value: { enabled: true, ai_enabled: false, providers: { history: false } } }))
+    .mockResolvedValueOnce(Response.json({ ...initial, id: 'completion', schema_version: 1, value: { enabled: true, ai_enabled: false, providers: { history: true } } }))
+    .mockResolvedValueOnce(Response.json({ ...initial, id: 'completion', schema_version: 1, revision: 2, value: { enabled: true, ai_enabled: false, providers: { history: false } } }))
   vi.stubGlobal('fetch', fetchMock)
   const client = createRuntimeGatewaysFromConfig({ apiBaseUrl: 'http://127.0.0.1:8122', apiToken: 'fixture-token' }).settings
   const keepalive = client.updateConnectionSettings({ ssh_keepalive_enabled: true })

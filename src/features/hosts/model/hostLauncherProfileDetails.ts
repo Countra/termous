@@ -95,9 +95,9 @@ export function resolveHostLauncherProfileDetails(
     remoteDesktop: desktopProfile ? {
       description: desktopProfile.description.trim(),
       targetCredential,
-      shared: desktopProfile.vnc.shared,
-      viewOnly: desktopProfile.vnc.default_view_only,
-      displayMode: desktopProfile.vnc.default_display_mode,
+      shared: desktopProfile.protocol === 'rdp' || desktopProfile.vnc.shared,
+      viewOnly: desktopProfile.protocol === 'rdp' ? desktopProfile.rdp.default_view_only : desktopProfile.vnc.default_view_only,
+      displayMode: desktopProfile.protocol === 'rdp' ? desktopProfile.rdp.default_display_mode : desktopProfile.vnc.default_display_mode,
     } : null,
   }
 }

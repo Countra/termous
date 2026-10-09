@@ -1,5 +1,6 @@
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
+import { DesktopWindows } from './desktopWindow'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
 import { settingsIPCChannels } from '#common/contracts'
@@ -1761,6 +1762,15 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  const desktopWindows = new DesktopWindows({
+    trusted: isTrustedMainIPCEvent,
+    config: () => coreProcess.initialize(),
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    preload: path.join(__dirname, 'desktop-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+  })
+  app.once('before-quit', () => desktopWindows.close())
   remoteControlRuntime = new RemoteControlRuntime({
     core: new RemoteCore(() => coreProcess.initialize()),
     trusted: isTrustedMainIPCEvent,

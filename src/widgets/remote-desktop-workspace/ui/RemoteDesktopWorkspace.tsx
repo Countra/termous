@@ -31,6 +31,7 @@ import type {
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
+import { getTermousBridge } from '#shared/bridge'
 import {
   ConnectionActionButton,
   SessionNewTabButton,
@@ -57,7 +58,7 @@ import styles from './RemoteDesktopWorkspace.module.scss'
 export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
 
 export interface RemoteDesktopWorkspaceProps {
-  onOpenConnectionLauncher: () => void
+  onOpenConnectionLauncher?: () => void
 }
 
 export function RemoteDesktopWorkspace({
@@ -186,20 +187,20 @@ export function RemoteDesktopWorkspace({
             scrollLeftLabel={t('remoteDesktop.scrollTabsLeft')}
             scrollRightLabel={t('remoteDesktop.scrollTabsRight')}
             tabsClassName={styles['session-tabs']}
-            trailing={(
+            trailing={onOpenConnectionLauncher ? (
               <SessionNewTabButton
                 label={t('remoteDesktop.newConnection')}
                 onClick={onOpenConnectionLauncher}
               />
-            )}
+            ) : undefined}
           >
-            {runtime.sessions.length === 0 ? (
+            {runtime.sessions.filter((session) => !runtime.hiddenSessionIds.includes(session.id)).length === 0 ? (
               <SessionTabButton
                 empty
                 icon={<MonitorPlay size={18} />}
                 label={t('app.noSessions')}
               />
-            ) : runtime.sessions.map((session) => (
+            ) : runtime.sessions.filter((session) => !runtime.hiddenSessionIds.includes(session.id)).map((session) => (
                 <SessionTabButton
                   key={session.id}
                   data-session-tab-id={session.id}
@@ -210,13 +211,19 @@ export function RemoteDesktopWorkspace({
                   label={session.profile_name}
                   status={tabStatus(session)}
                   statusLabel={t(`remoteDesktop.status.${session.status}`)}
-                  closeLabel={t('remoteDesktop.disconnect')}
+                  closeLabel={t(session.protocol === 'rdp' ? 'remoteDesktop.rdp.closeViewer' : 'remoteDesktop.disconnect')}
                   tooltipTitle={`${session.profile_name} · ${session.host_name}`}
                   onClick={() => runtime.selectSession(session.id)}
-                  onClose={() => closeSession(session)}
+                  onClose={() => session.protocol === 'rdp' ? runtime.closeViewer(session.id) : closeSession(session)}
                 />
               ))}
           </SessionTabStrip>
+          {activeSession?.protocol === 'rdp' && getTermousBridge()?.desktopWindow ? <Button size="small" onClick={() => {
+            void getTermousBridge()?.desktopWindow?.open(activeSession.id).catch((error) => notification.error({ title: t('remoteDesktop.rdp.openWindow'), description: publicError(error) }))
+          }}>{t('remoteDesktop.rdp.openWindow')}</Button> : null}
+          {runtime.hiddenSessionIds.length > 0 ? <Dropdown menu={{ items: runtime.sessions.filter((session) => runtime.hiddenSessionIds.includes(session.id)).map((session) => ({ key: session.id, label: session.profile_name })), onClick: ({ key }) => runtime.selectSession(key) }}>
+            <Button size="small" icon={<MonitorPlay size={14} />}>{t('remoteDesktop.rdp.retained')}</Button>
+          </Dropdown> : null}
         </header>
         {activeSession ? (
           <RemoteDesktopToolbar
@@ -251,7 +258,7 @@ export function RemoteDesktopWorkspace({
             icon={<MonitorPlay size={20} aria-hidden="true" />}
             title={t('remoteDesktop.emptyTitle')}
             description={t('remoteDesktop.emptyDescription')}
-            action={(
+            action={onOpenConnectionLauncher ? (
               <ConnectionActionButton
                 className={styles['empty-action']}
                 icon={<Plus size={16} />}
@@ -259,7 +266,7 @@ export function RemoteDesktopWorkspace({
               >
                 {t('remoteDesktop.newConnection')}
               </ConnectionActionButton>
-            )}
+            ) : undefined}
           />
         </main>
       )}

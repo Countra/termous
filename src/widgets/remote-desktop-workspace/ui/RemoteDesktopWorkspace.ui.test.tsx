@@ -11,6 +11,8 @@ import {
 const runtimeMock = vi.hoisted(() => ({
   value: {
     sessions: [] as RemoteDesktopSession[],
+    hiddenSessionIds: [] as string[],
+    closeViewer: vi.fn(),
     activeSessionId: null as string | null,
     viewerStates: {} as Record<string, {
       connection: string

@@ -213,6 +213,9 @@ export async function validatePackageArtifacts({
   }
   for (const corePath of corePaths) {
     await assertFile(corePath, `包内 Core ${coreName}`)
+    if (normalizedPlatform === 'win32') {
+      await assertFile(path.join(path.dirname(corePath), 'termous-rdp.exe'), 'Packaged RDP worker')
+    }
   }
   const packagedResources = packagedResourcesDirectory(
     root,
@@ -230,6 +233,11 @@ export async function validatePackageArtifacts({
     const noticePath = path.join(packagedApplication, ...relativePath.split('/'))
     await assertFile(noticePath, `包内第三方声明 ${relativePath}`)
     thirdPartyNoticePaths.push(noticePath)
+  }
+  if (normalizedPlatform === 'win32') {
+    for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {
+      await assertFile(path.join(packagedApplication, 'licenses', 'rdp', `${library}-LICENSE.txt`), `RDP license: ${library}`)
+    }
   }
 
   return {

@@ -112,7 +112,8 @@
       "to": ".",
       "filter": [
         "termous-core.exe",
-        "termous-core"
+        "termous-core",
+        "termous-rdp.exe"
       ]
     }
   ],
@@ -139,6 +140,13 @@
     "sign": false
   },
   "win": {
+    "extraFiles": [
+      {
+        "from": "../termous-rdp/licenses",
+        "to": "licenses/rdp",
+        "filter": ["*-LICENSE.txt"]
+      }
+    ],
     "icon": "build/icon.ico",
     "target": [
       {

@@ -12,6 +12,7 @@ const settings: ConnectionSettingsValue = {
   ssh_keepalive_enabled: false,
   forward_auto_reconnect_enabled: false,
   remote_desktop_auto_reconnect_enabled: true,
+  rdp_unattended_timeout_minutes: 10,
 }
 
 test('连接可靠性开关只提交变动字段，避免覆盖其他待保存开关', async () => {
@@ -51,6 +52,19 @@ test('全局操作繁忙时禁用连接可靠性开关', () => {
   expect(screen.getByRole('switch', { name: 'settings.sshKeepalive' })).toBeDisabled()
   expect(screen.getByRole('switch', { name: 'settings.forwardAutoReconnect' })).toBeDisabled()
   expect(screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' })).toBeDisabled()
+})
+
+test('连接设置保存失败显示错误并保留已确认的开关值', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn().mockRejectedValueOnce(new Error('fixture')).mockResolvedValue(undefined)
+  render(<ConnectionSettings value={settings} disabled={false} onChange={onChange} />)
+  const control = screen.getByRole('switch', { name: 'settings.sshKeepalive' })
+  await user.click(control)
+  expect(await screen.findByRole('alert')).toHaveTextContent('settings.connectionSaveFailed')
+  expect(control).not.toBeChecked()
+  await user.click(control)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(onChange).toHaveBeenCalledTimes(2)
 })
 
 test('连接可靠性开关关联各自的行为说明', () => {

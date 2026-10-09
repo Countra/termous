@@ -3,6 +3,7 @@ import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopProtocol,
   RemoteDesktopSession,
+  RdpAttachment,
 } from '#entities/remote-desktop'
 
 export type RemoteDesktopViewerConnectionState =
@@ -92,6 +93,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
+  onControlChanged?: (owned: boolean) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
   onCredentialsRequired: (fields: RemoteDesktopCredentialField[]) => void
@@ -117,6 +119,8 @@ export interface RemoteDesktopViewerHandle {
 }
 
 export interface RemoteDesktopViewerCreateOptions {
+  attachment?: RdpAttachment
+  takeControl?: (subscriptionId: string) => Promise<void>
   target: HTMLElement
   url: string
   session: RemoteDesktopSession

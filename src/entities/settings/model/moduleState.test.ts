@@ -4,6 +4,11 @@ import type { SettingsModuleId, SettingsSnapshot } from '../../../../common/cont
 import { SettingsModuleStore, decodeSettingsCatalogue, decodeSettingsSnapshot } from './moduleState.ts'
 
 const snapshot = (id: SettingsModuleId, revision = 1, value = { enabled: true }): SettingsSnapshot => ({ id, schema_version: 1, revision, value, state: { status: 'applied' } })
+
+test('连接模块支持旧版本和 RDP 回收设置版本，拒绝未来版本', () => {
+  for (const version of [1, 2]) assert.equal(decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: version }).schema_version, version)
+  assert.throws(() => decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: 3 }), /SETTINGS_UNSUPPORTED_VERSION/)
+})
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (cause: unknown) => void

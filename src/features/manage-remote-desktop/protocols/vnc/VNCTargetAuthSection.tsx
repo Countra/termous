@@ -8,7 +8,7 @@ import {
   TriangleAlert,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ProfileEditorSectionHeading } from '#shared/ui'
 import type {
@@ -19,6 +19,8 @@ import styles from './VNCTargetAuthSection.module.scss'
 import segmentedStyles from './VNCProfileSegmented.module.scss'
 
 interface VNCTargetAuthSectionProps {
+  protocol?: 'vnc' | 'rdp'
+  children?: ReactNode
   hasSavedAuth: boolean
   draft: VNCTargetAuthDraft
   error?: VNCTargetAuthDraftError
@@ -29,6 +31,8 @@ interface VNCTargetAuthSectionProps {
 type TargetAuthMode = 'prompt' | 'saved'
 
 export function VNCTargetAuthSection({
+  protocol = 'vnc',
+  children,
   hasSavedAuth,
   draft,
   error,
@@ -36,6 +40,7 @@ export function VNCTargetAuthSection({
   onChange,
 }: VNCTargetAuthSectionProps) {
   const { t } = useTranslation()
+  const authKey = protocol === 'rdp' ? 'remoteDesktop.rdp.targetAuth' : 'remoteDesktop.targetAuth'
   const titleId = useId()
   const passwordDescriptionId = useId()
   const modeControlRef = useRef<HTMLDivElement>(null)
@@ -83,6 +88,7 @@ export function VNCTargetAuthSection({
           title={t('remoteDesktop.targetAuth.title')}
         />
 
+        {children}
         <div className={styles['auth-layout']}>
           <div className={styles['mode-setting']}>
             <span className={styles['mode-label']}>{t('remoteDesktop.targetAuth.mode')}</span>
@@ -115,12 +121,12 @@ export function VNCTargetAuthSection({
             {editingPassword ? (
               <div className={styles.editor}>
                 <label className={styles.field} data-invalid={error ? 'true' : 'false'}>
-                  <span>{t('remoteDesktop.targetAuth.password')}</span>
+                  <span>{t(`${authKey}.password`)}</span>
                   <Input.Password
                     value={draft.password}
                     autoFocus
                     autoComplete="new-password"
-                    aria-label={t('remoteDesktop.targetAuth.password')}
+                    aria-label={t(`${authKey}.password`)}
                     aria-describedby={passwordDescriptionId}
                     aria-invalid={error ? true : undefined}
                     spellCheck={false}
@@ -136,7 +142,7 @@ export function VNCTargetAuthSection({
                     role={error ? 'alert' : undefined}
                   >
                     {t(error
-                      ? `remoteDesktop.targetAuth.errors.${error}`
+                      ? `${authKey}.errors.${error}`
                       : 'remoteDesktop.targetAuth.passwordHint')}
                   </small>
                 </label>
@@ -168,9 +174,9 @@ export function VNCTargetAuthSection({
                         ? 'remoteDesktop.targetAuth.saved'
                         : 'remoteDesktop.targetAuth.notSaved')}</strong>
                     <small>{t(removing
-                      ? 'remoteDesktop.targetAuth.removePendingHint'
+                      ? `${authKey}.removePendingHint`
                       : hasSavedAuth
-                        ? 'remoteDesktop.targetAuth.savedHint'
+                        ? `${authKey}.savedHint`
                         : 'remoteDesktop.targetAuth.notSavedHint')}</small>
                   </span>
                 </span>

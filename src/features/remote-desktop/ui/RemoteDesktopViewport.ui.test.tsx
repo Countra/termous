@@ -35,6 +35,8 @@ function runtimeValue(
 ): RemoteDesktopRuntimeValue {
   return {
     sessions: [],
+    hiddenSessionIds: [],
+    closeViewer: vi.fn(),
     activeSessionId: null,
     viewerStates: {},
     selectSession: vi.fn(),

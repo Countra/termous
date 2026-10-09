@@ -22,6 +22,7 @@ import { McpSettingsPanel } from '#features/mcp-access'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
+  RemoteDesktopSettings,
   GeneralSettings,
   NotificationSettings,
   MountSettings,
@@ -155,6 +156,11 @@ export function SettingsPage({
           disabled={actionBusy}
           onChange={onConnectionSettingsChange}
         />
+      </div>
+    ),
+    'remote-desktop': (
+      <div className={styles['tab-scroll']}>
+        <RemoteDesktopSettings value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
       </div>
     ),
     mount: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,

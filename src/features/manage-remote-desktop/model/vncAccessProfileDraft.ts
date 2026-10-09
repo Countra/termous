@@ -2,13 +2,14 @@ import {
   isRemoteDesktopLoopbackAddress,
   isValidRemoteDesktopIPAddress,
   normalizeRemoteDesktopIPAddress,
-  type RemoteDesktopAccessProfile,
-  type RemoteDesktopAccessProfileInput,
+  type VncRemoteDesktopAccessProfile,
+  type VncRemoteDesktopAccessProfileInput,
   type RemoteDesktopRoute,
   type VncProfileSettings,
 } from '#entities/remote-desktop'
 
 export interface VNCAccessProfileDraft {
+  protocol?: 'vnc'
   name: string
   description: string
   route: RemoteDesktopRoute
@@ -45,7 +46,7 @@ export function createVNCAccessProfileDraft(defaultSSHProfileId = ''): VNCAccess
 }
 
 export function vncAccessProfileToDraft(
-  profile: RemoteDesktopAccessProfile,
+  profile: VncRemoteDesktopAccessProfile,
 ): VNCAccessProfileDraft {
   return {
     name: profile.name,
@@ -59,7 +60,7 @@ export function vncAccessProfileToDraft(
 export function normalizeVNCAccessProfileDraft(
   hostId: string,
   draft: VNCAccessProfileDraft,
-): RemoteDesktopAccessProfileInput {
+): VncRemoteDesktopAccessProfileInput {
   const normalized = normalizeDraftValues(draft)
   const common = {
     host_id: hostId,

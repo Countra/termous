@@ -1,8 +1,15 @@
 import type {
   RemoteDesktopAccessProfile,
   RemoteDesktopAccessProfileInput,
+  VncRemoteDesktopAccessProfile,
+  VncRemoteDesktopAccessProfileInput,
+  RdpRemoteDesktopAccessProfile,
+  RdpRemoteDesktopAccessProfileInput,
 } from './types.ts'
 
+export function remoteDesktopAccessProfileToInput(profile: VncRemoteDesktopAccessProfile): VncRemoteDesktopAccessProfileInput
+export function remoteDesktopAccessProfileToInput(profile: RdpRemoteDesktopAccessProfile): RdpRemoteDesktopAccessProfileInput
+export function remoteDesktopAccessProfileToInput(profile: RemoteDesktopAccessProfile): RemoteDesktopAccessProfileInput
 export function remoteDesktopAccessProfileToInput(
   profile: RemoteDesktopAccessProfile,
 ): RemoteDesktopAccessProfileInput {
@@ -10,9 +17,9 @@ export function remoteDesktopAccessProfileToInput(
     host_id: profile.host_id,
     name: profile.name,
     description: profile.description,
-    protocol: profile.protocol,
-    protocol_config_version: profile.protocol_config_version,
-    vnc: { ...profile.vnc },
+    ...(profile.protocol === 'rdp'
+      ? { protocol: 'rdp' as const, protocol_config_version: 1 as const, rdp: { ...profile.rdp } }
+      : { protocol: 'vnc' as const, protocol_config_version: 1 as const, vnc: { ...profile.vnc } }),
   }
   return profile.route === 'ssh_tunnel'
     ? {

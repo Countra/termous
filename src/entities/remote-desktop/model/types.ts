@@ -1,4 +1,4 @@
-export type RemoteDesktopProtocol = 'vnc'
+export type RemoteDesktopProtocol = 'vnc' | 'rdp'
 
 export type RemoteDesktopRoute = 'ssh_tunnel' | 'direct'
 
@@ -40,6 +40,27 @@ export interface RemoteDesktopTargetAuthSummary {
   updated_at: string
 }
 
+export interface RdpProfileSettings {
+  target_host: string
+  port: number
+  server_name: string
+  username: string
+  domain: string
+  width: number
+  height: number
+  audio: boolean
+  default_view_only: boolean
+  default_display_mode: RemoteDesktopDisplayMode
+}
+
+export interface RdpAttachment {
+  subscription_id: string
+  control_url: string
+  display_url: string
+  control_ticket: string
+  display_ticket: string
+}
+
 interface RemoteDesktopAccessProfileBase {
   id: string
   host_id: string
@@ -76,7 +97,11 @@ export type VncRemoteDesktopAccessProfile = RemoteDesktopAccessProfileBase
     vnc: VncProfileSettings
   }
 
-export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile
+export type RdpRemoteDesktopAccessProfile = RemoteDesktopAccessProfileBase
+  & RemoteDesktopRouteConfiguration
+  & { protocol: 'rdp'; protocol_config_version: 1; rdp: RdpProfileSettings }
+
+export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile | RdpRemoteDesktopAccessProfile
 
 interface VncRemoteDesktopAccessProfileInputBase {
   host_id: string
@@ -90,7 +115,8 @@ interface VncRemoteDesktopAccessProfileInputBase {
 export type VncRemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInputBase
   & RemoteDesktopRouteConfiguration
 
-export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput
+export type RdpRemoteDesktopAccessProfileInput = Pick<RdpRemoteDesktopAccessProfile, 'host_id' | 'name' | 'description' | 'protocol' | 'protocol_config_version' | 'rdp'> & RemoteDesktopRouteConfiguration
+export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput | RdpRemoteDesktopAccessProfileInput
 
 interface RemoteDesktopSessionBase {
   id: string
@@ -102,6 +128,10 @@ interface RemoteDesktopSessionBase {
   protocol: RemoteDesktopProtocol
   protocol_config_version: number
   vnc: VncProfileSettings
+  rdp?: RdpProfileSettings
+  viewer_count?: number
+  certificate?: { challenge_id: string; server_name: string; fingerprint: string; subject: string }
+  credentials_required?: boolean
   status: RemoteDesktopSessionStatus
   phase: RemoteDesktopSessionPhase
   status_message?: string
@@ -123,6 +153,7 @@ export type RemoteDesktopSession = RemoteDesktopSessionBase & (
 )
 
 export interface RemoteDesktopAttachTicket {
+  rdp?: RdpAttachment
   ticket: string
   credential_ticket: string
   expires_at: string

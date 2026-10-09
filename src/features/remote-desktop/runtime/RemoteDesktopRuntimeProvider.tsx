@@ -42,6 +42,7 @@ interface RemoteDesktopRuntimeProviderProps {
   children: ReactNode
   onSessionCountChange?: (count: number) => void
   onSessionsChange?: (sessions: RemoteDesktopSession[]) => void
+  sessionId?: string
 }
 
 export function RemoteDesktopRuntimeProvider({
@@ -52,8 +53,11 @@ export function RemoteDesktopRuntimeProvider({
   children,
   onSessionCountChange,
   onSessionsChange,
+  sessionId,
 }: RemoteDesktopRuntimeProviderProps) {
   const [sessions, setSessions] = useState<RemoteDesktopSession[]>([])
+  const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([])
+  const hiddenSessionIdsRef = useRef(new Set<string>())
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [viewerStates, setViewerStates] = useState<Record<string, RemoteDesktopViewerState>>({})
   const sessionsRef = useRef(new Map<string, RemoteDesktopSession>())
@@ -98,7 +102,7 @@ export function RemoteDesktopRuntimeProvider({
   }
 
   const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
-    const normalized = sortSessions(nextSessions)
+    const normalized = sortSessions(sessionId ? nextSessions.filter((session) => session.id === sessionId) : nextSessions)
     const previousSessions = sessionsRef.current
     const generationChanged = lifecycleRef.current?.reconcileSessions(
       previousSessions,
@@ -106,6 +110,8 @@ export function RemoteDesktopRuntimeProvider({
     ) ?? new Set<string>()
     sessionsRef.current = new Map(normalized.map((session) => [session.id, session]))
     const nextIds = new Set(sessionsRef.current.keys())
+    hiddenSessionIdsRef.current = new Set([...hiddenSessionIdsRef.current].filter((id) => nextIds.has(id)))
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
 
     setViewerStates((current) => {
       const next: Record<string, RemoteDesktopViewerState> = {}
@@ -138,15 +144,26 @@ export function RemoteDesktopRuntimeProvider({
             errorCode: '',
           }
         }
+        if (session.protocol === 'rdp' && session.certificate) {
+          next[session.id] = { ...next[session.id], connection: 'verifying_server', verification: { type: 'RDP TLS', fingerprint: session.certificate.fingerprint } }
+        } else if (session.protocol === 'rdp' && next[session.id].connection === 'verifying_server') {
+          next[session.id] = { ...next[session.id], connection: 'connecting', verification: null }
+        }
+        if (session.protocol === 'rdp' && session.credentials_required) {
+          next[session.id] = { ...next[session.id], connection: 'credentials_required', credentialFields: [{ id: 'password', kind: 'secret', required: true }] }
+        } else if (session.protocol === 'rdp' && next[session.id].connection === 'credentials_required') {
+          next[session.id] = { ...next[session.id], connection: 'connecting', credentialFields: [] }
+        }
       }
       viewerStatesRef.current = next
       return next
     })
     setSessions(normalized)
     setActiveSessionId((current) => (
-      current && nextIds.has(current) ? current : normalized[0]?.id ?? null
+      current && nextIds.has(current) && !hiddenSessionIdsRef.current.has(current)
+        ? current : normalized.find((session) => !hiddenSessionIdsRef.current.has(session.id))?.id ?? null
     ))
-  }, [])
+  }, [sessionId])
 
   const upsertSession = useCallback((next: RemoteDesktopSession) => {
     if (!shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
@@ -214,12 +231,28 @@ export function RemoteDesktopRuntimeProvider({
     onSessionsChange?.(sessions)
   }, [onSessionCountChange, onSessionsChange, sessions])
 
+  const selectSession = useCallback((sessionId: string) => {
+    hiddenSessionIdsRef.current.delete(sessionId)
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
+    setActiveSessionId(sessionId)
+  }, [])
+
+  const closeViewer = useCallback((sessionId: string) => {
+    hiddenSessionIdsRef.current.add(sessionId)
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
+    lifecycleRef.current?.disposeViewer(sessionId, true)
+    setActiveSessionId((current) => current === sessionId
+      ? [...sessionsRef.current.values()].find((session) => !hiddenSessionIdsRef.current.has(session.id))?.id ?? null : current)
+  }, [])
+
   const createSession = useCallback(async (profileId: string) => {
+    const existing = [...sessionsRef.current.values()].find((s) => s.protocol === 'rdp' && s.profile_id === profileId && s.status !== 'stopping')
+    if (existing) { selectSession(existing.id); return existing }
     const session = await apiRef.current.createRemoteDesktopSession(profileId)
     upsertSession(session)
     setActiveSessionId(session.id)
     return session
-  }, [upsertSession])
+  }, [selectSession, upsertSession])
 
   const closeSession = useCallback(async (sessionId: string) => {
     await apiRef.current.deleteRemoteDesktopSession(sessionId)
@@ -263,7 +296,13 @@ export function RemoteDesktopRuntimeProvider({
     commitViewerState(sessionId, { viewOnly })
   }, [commitViewerState])
 
-  const submitCredentials = useCallback((sessionId: string, credentials: RemoteDesktopCredentials) => {
+  const submitCredentials = useCallback(async (sessionId: string, credentials: RemoteDesktopCredentials) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (session?.protocol === 'rdp' && session.credentials_required) {
+      await apiRef.current.supplyRemoteDesktopCredentials(sessionId, session.connection_generation, credentials.password ?? '')
+      commitViewerState(sessionId, { connection: 'connecting', credentialFields: [] })
+      return
+    }
     if (!lifecycleRef.current?.submitCredentials(sessionId, credentials)) {
       return
     }
@@ -274,7 +313,13 @@ export function RemoteDesktopRuntimeProvider({
     })
   }, [commitViewerState])
 
-  const approveServer = useCallback((sessionId: string) => {
+  const approveServer = useCallback(async (sessionId: string, remember = false) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (session?.protocol === 'rdp' && session.certificate) {
+      await apiRef.current.resolveRemoteDesktopCertificate(sessionId, session.connection_generation, session.certificate.challenge_id, true, remember)
+      commitViewerState(sessionId, { connection: 'connecting', verification: null })
+      return
+    }
     const verification = viewerStatesRef.current[sessionId]?.verification
     if (!verification || !lifecycleRef.current?.approveServer(sessionId, verification.fingerprint)) {
       return
@@ -312,9 +357,11 @@ export function RemoteDesktopRuntimeProvider({
 
   const value = useMemo(() => ({
     sessions,
+    hiddenSessionIds,
+    closeViewer,
     activeSessionId,
     viewerStates,
-    selectSession: setActiveSessionId,
+    selectSession,
     createSession,
     closeSession,
     reconnectSession,
@@ -329,6 +376,9 @@ export function RemoteDesktopRuntimeProvider({
     sendCtrlAltDel,
     sendClipboard,
   }), [
+    hiddenSessionIds,
+    closeViewer,
+    selectSession,
     activeSessionId,
     approveServer,
     blurViewer,

@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  desktopWindow?: { open: (sessionId: string) => Promise<void> }
   remoteControl?: import('./remote-control').RemoteLauncher
   notifications?: import('./notification').NotificationBridge
   settings?: DesktopSettingsBridge

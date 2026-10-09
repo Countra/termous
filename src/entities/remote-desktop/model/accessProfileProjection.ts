@@ -26,6 +26,7 @@ export interface RemoteDesktopAccessProfileProjection {
 
 const technologyDescriptors = {
   vnc: { id: 'vnc', label: 'VNC' },
+  rdp: { id: 'rdp', label: 'RDP' },
 } satisfies Record<RemoteDesktopProtocol, RemoteDesktopTechnologyDescriptor>
 
 type RemoteDesktopProfileProjectors = {
@@ -35,6 +36,14 @@ type RemoteDesktopProfileProjectors = {
 }
 
 const profileProjectors = {
+  rdp: (profile) => ({
+    profileId: profile.id, hostId: profile.host_id, name: profile.name,
+    technology: technologyDescriptors.rdp,
+    endpoint: formatHostPort(profile.rdp.target_host, profile.rdp.port),
+    route: profile.route,
+    routeDependency: profile.route === 'ssh_tunnel' ? { kind: 'ssh_profile', profileId: profile.ssh_profile_id } : null,
+    isDefault: profile.is_default, sortOrder: profile.sort_order,
+  }),
   vnc: (profile) => ({
     profileId: profile.id,
     hostId: profile.host_id,

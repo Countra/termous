@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Bot, ClipboardList, DatabaseBackup, HardDrive, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, ClipboardList, DatabaseBackup, HardDrive, Keyboard, MonitorPlay, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { McpIcon } from '#shared/ui'
 import type { SettingsModuleId } from '#common/contracts'
 
@@ -16,6 +16,7 @@ export const settingsPages = [
   { id: 'general', title: 'settings.tabGeneral', icon: Settings2, modules: ['language', 'appearance', 'window', 'login_item', 'notifications'] },
   { id: 'terminal', title: 'settings.tabTerminal', icon: SquareTerminal, modules: ['terminal', 'completion', 'terminal_local'], tour: 'settings-terminal-tab' },
   { id: 'connection', title: 'settings.tabConnection', icon: Network, modules: ['connection'] },
+  { id: 'remote-desktop', title: 'settings.tabRemoteDesktop', icon: MonitorPlay, modules: ['connection'] },
   { id: 'mount', title: 'settings.tabMount', icon: HardDrive, modules: ['mount'], tour: 'settings-mount-tab' },
   { id: 'shortcuts', title: 'settings.tabShortcuts', icon: Keyboard, modules: ['shortcuts'] },
   { id: 'agent', title: 'settings.tabAgent', icon: Bot, modules: ['agent'], tour: 'settings-agent-tab' },

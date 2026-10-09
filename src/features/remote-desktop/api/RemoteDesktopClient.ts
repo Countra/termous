@@ -9,6 +9,22 @@ import { TermousApiTransport } from '#shared/api'
 import type { RemoteDesktopGateway } from './remoteDesktopGateway.ts'
 
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
+  supplyRemoteDesktopCredentials(id: string, generation: number, password: string) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/credentials`, {
+      method: 'POST', body: { expected_connection_generation: generation, password },
+    })
+  }
+  resolveRemoteDesktopCertificate(id: string, generation: number, challengeId: string, accept: boolean, remember: boolean) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/certificate`, {
+      method: 'POST', body: { expected_connection_generation: generation, challenge_id: challengeId, accept, remember },
+    })
+  }
+
+  takeRemoteDesktopControl(id: string, generation: number, subscriptionId: string) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/control`, {
+      method: 'POST', body: { expected_connection_generation: generation, subscription_id: subscriptionId },
+    })
+  }
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
   }
@@ -94,7 +110,10 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
       `/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/attach-tickets`,
       {
         method: 'POST',
-        body: { expected_connection_generation: expectedConnectionGeneration },
+        body: {
+          expected_connection_generation: expectedConnectionGeneration,
+          ...(window.location.protocol === 'file:' ? { viewer_origin: 'null' } : {}),
+        },
       },
     )
   }

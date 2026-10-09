@@ -2,7 +2,7 @@ import type { ConnectionProxy } from '#entities/connection-proxy'
 import type { CredentialView } from '#entities/credential'
 import type { HostAssetInput } from '#entities/host-asset'
 import type { SSHAccessProfile, SSHAccessProfileDraft } from '#entities/ssh-access-profile'
-import type { VNCAccessProfileDraft, VNCTargetAuthDraft } from '#features/manage-remote-desktop'
+import type { RemoteDesktopAccessProfileDraft, VNCTargetAuthDraft } from '#features/manage-remote-desktop'
 
 export type HostCreationConnectionKind = 'ssh' | 'file' | 'remote_desktop'
 
@@ -16,7 +16,7 @@ export interface HostCreationSSH {
 
 export interface HostCreationDesktop {
   id: string
-  draft: VNCAccessProfileDraft
+  draft: RemoteDesktopAccessProfileDraft
   targetAuthDraft: VNCTargetAuthDraft
   isDefault: boolean
 }

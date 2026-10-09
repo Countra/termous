@@ -1004,6 +1004,9 @@ function remoteDesktopGateway(
 ): RemoteDesktopGateway {
   return {
     remoteDesktopProfiles: vi.fn(async () => []),
+    resolveRemoteDesktopCertificate: vi.fn(async () => undefined),
+    takeRemoteDesktopControl: vi.fn(async () => undefined),
+    supplyRemoteDesktopCredentials: vi.fn(async () => undefined),
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
     deleteRemoteDesktopProfile: vi.fn(),

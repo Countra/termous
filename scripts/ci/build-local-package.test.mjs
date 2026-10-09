@@ -565,6 +565,14 @@ async function writeCompleteFixture({
     'fixture-core',
   )
   const applicationDirectory = path.dirname(resourcesDirectory)
+  if (platform === 'win32') {
+    await writeFile(path.join(resourcesDirectory, 'termous-rdp.exe'), 'fixture-rdp')
+    const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
+    await mkdir(rdpLicenses, { recursive: true })
+    for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {
+      await writeFile(path.join(rdpLicenses, `${library}-LICENSE.txt`), 'fixture-license')
+    }
+  }
   for (const relativePath of packagedThirdPartyFiles) {
     const targetPath = path.join(applicationDirectory, ...relativePath.split('/'))
     await mkdir(path.dirname(targetPath), { recursive: true })

@@ -2,12 +2,18 @@ import type {
   TermousBridge,
   TermousUpdateWindowBridge,
   RemoteWindowBridge,
+  DesktopWindowBridge,
 } from '#common/contracts'
 
 type BridgeWindow = Window & {
   termous?: TermousBridge
   termousUpdate?: TermousUpdateWindowBridge
   termousRemote?: RemoteWindowBridge
+  termousDesktop?: DesktopWindowBridge
+}
+
+export function getDesktopWindowBridge(): DesktopWindowBridge | null {
+  return typeof window === 'undefined' ? null : (window as BridgeWindow).termousDesktop ?? null
 }
 
 export function getRemoteWindowBridge(): RemoteWindowBridge | null {

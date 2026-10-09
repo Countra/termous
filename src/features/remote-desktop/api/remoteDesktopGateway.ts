@@ -6,6 +6,9 @@ import type {
 } from '#entities/remote-desktop'
 
 export interface RemoteDesktopGateway {
+  supplyRemoteDesktopCredentials: (id: string, generation: number, password: string) => Promise<void>
+  resolveRemoteDesktopCertificate: (id: string, generation: number, challengeId: string, accept: boolean, remember: boolean) => Promise<void>
+  takeRemoteDesktopControl: (id: string, generation: number, subscriptionId: string) => Promise<void>
   remoteDesktopProfiles: () => Promise<RemoteDesktopAccessProfile[]>
   createRemoteDesktopProfile: (
     input: RemoteDesktopAccessProfileInput,

@@ -51,6 +51,7 @@ vi.mock('#features/settings', () => ({
     </div>
   },
   MountSettings: () => <div data-testid="mount-settings" />,
+  RemoteDesktopSettings: () => <div data-testid="remote-desktop-settings" />,
   NotificationSettings: () => <div data-testid="notification-settings" />,
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
@@ -229,6 +230,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
         ssh_keepalive_enabled: false,
         forward_auto_reconnect_enabled: false,
         remote_desktop_auto_reconnect_enabled: true,
+        rdp_unattended_timeout_minutes: 10,
       }}
       shortcutSettings={{ schema_version: 1, overrides: {} }}
       windowSettings={{ close_behavior: 'exit' }}
@@ -284,16 +286,17 @@ describe('设置页面装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('提供十个页签并保持通用设置默认页签和命令委托', async () => {
+  it('提供十一个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(10)
+    expect(tabs).toHaveLength(11)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
       'settings.tabConnection',
+      'settings.tabRemoteDesktop',
       'settings.tabMount',
       'settings.tabShortcuts',
       'settings.tabAgent',
@@ -387,6 +390,7 @@ describe('设置页面装配合同', () => {
       ssh_keepalive_enabled: true,
       forward_auto_reconnect_enabled: false,
       remote_desktop_auto_reconnect_enabled: true,
+      rdp_unattended_timeout_minutes: 10,
     })
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabShortcuts' }))
@@ -401,6 +405,9 @@ describe('设置页面装配合同', () => {
     await user.click(screen.getByRole('tab', { name: 'settings.tabAgent' }))
     expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
     expect(childState.agentSetupGateway).toBe(handlers.agentSetupGateway)
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabRemoteDesktop' }))
+    expect(screen.getByTestId('remote-desktop-settings')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabMcp' }))
     expect(screen.getByTestId('mcp-settings')).toBeInTheDocument()

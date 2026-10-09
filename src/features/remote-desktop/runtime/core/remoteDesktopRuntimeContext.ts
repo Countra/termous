@@ -10,6 +10,8 @@ import type {
 
 export interface RemoteDesktopRuntimeValue {
   sessions: RemoteDesktopSession[]
+  hiddenSessionIds: string[]
+  closeViewer: (sessionId: string) => void
   activeSessionId: string | null
   viewerStates: Record<string, RemoteDesktopViewerState>
   selectSession: (sessionId: string) => void
@@ -21,8 +23,8 @@ export interface RemoteDesktopRuntimeValue {
   setViewOnly: (sessionId: string, value: boolean) => void
   focusViewer: (sessionId: string) => void
   blurViewer: (sessionId: string) => void
-  submitCredentials: (sessionId: string, credentials: RemoteDesktopCredentials) => void
-  approveServer: (sessionId: string) => void
+  submitCredentials: (sessionId: string, credentials: RemoteDesktopCredentials) => void | Promise<void>
+  approveServer: (sessionId: string, remember?: boolean) => void | Promise<void>
   rejectServer: (sessionId: string) => Promise<void>
   sendCtrlAltDel: (sessionId: string) => void
   sendClipboard: (sessionId: string, text: string) => void

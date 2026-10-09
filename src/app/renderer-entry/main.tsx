@@ -30,6 +30,7 @@ void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.lo
   main: () => import('#app/main'),
   update: () => import('#app/update-surface'),
   remote: () => import('#app/remote-surface'),
+  desktop: () => import('#app/desktop-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(
     <React.StrictMode>

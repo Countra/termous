@@ -28,6 +28,7 @@ test('surface 分流只调用目标模块加载器', async () => {
       return 'update'
     },
     remote: async () => { calls.push('remote'); return 'remote' },
+    desktop: async () => { calls.push('desktop'); return 'desktop' },
   })
 
   assert.equal(result, 'update')
@@ -76,6 +77,7 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
     main: '#app/main',
     update: '#app/update-surface',
     remote: '#app/remote-surface',
+    desktop: '#app/desktop-surface',
   })
 })
 

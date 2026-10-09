@@ -1,6 +1,29 @@
 Termous Third-Party Notices
 ===========================
 
+Windows RDP 静态运行库
+----------------------
+
+termous-rdp.exe 静态链接以下组件，许可原文随 Windows 包放在 licenses/rdp：
+
+- FreeRDP / WinPR 3.32.1 — Apache-2.0，FreeRDP-LICENSE.txt
+  https://github.com/FreeRDP/FreeRDP
+- OpenSSL 3.5.9 — Apache-2.0，OpenSSL-LICENSE.txt
+  https://github.com/openssl/openssl
+- OpenH264 2.6.0 — BSD-2-Clause，OpenH264-LICENSE.txt
+  https://github.com/cisco/openh264
+- zlib 1.3.2 — Zlib，zlib-LICENSE.txt
+  https://github.com/madler/zlib
+- libyuv 快照 eeb06a6451ba2e21f8ff272c7b42fc62b9faecc5 — BSD-3-Clause，libyuv-LICENSE.txt
+  https://chromium.googlesource.com/libyuv/libyuv
+
+源码版本和固定提交见 termous-rdp/3rd/dependencies.lock.tsv。
+OpenH264 从源码静态构建；没有使用 Cisco 发布的预编译二进制。
+静态 GCC libgcc/libstdc++ 使用 GPL-3.0-or-later WITH GCC-exception-3.1，
+许可见 GCC-GPLv3-LICENSE.txt 和 GCC-Runtime-Exception-LICENSE.txt。
+静态 MinGW winpthreads 的许可见 MinGW-winpthreads-LICENSE.txt。
+这些编译器运行库许可同样位于 licenses/rdp，原文来自构建使用的 MSYS2 包。
+
 WinFsp Windows 构建头文件 2.1.25156
 ----------------------------------
 

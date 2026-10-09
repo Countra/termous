@@ -20,7 +20,7 @@ import {
   useSSHProfileReachability,
 } from '#features/host-access'
 import { FileAccessProfileEditor } from '#features/manage-file-access'
-import { VNCProfileEditor } from '#features/manage-remote-desktop'
+import { RemoteDesktopProfileEditor } from '#features/manage-remote-desktop'
 import { SSHProfileEditor } from '#features/manage-ssh-access'
 import {
   ConfirmDialog,
@@ -214,7 +214,7 @@ export function HostAccessWorkspace({
           onSave={() => void controller.saveProfile()}
           onDelete={profile ? () => controller.setDeleteTarget({ kind: 'remote_desktop', profileId: profile.id }) : undefined}
         >
-          <VNCProfileEditor
+          <RemoteDesktopProfileEditor
             draft={controller.vncDraft}
             errors={controller.vncErrors}
             submitted={controller.profileValidationVisible}

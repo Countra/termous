@@ -37,6 +37,7 @@ interface RemoteDesktopViewerLifecycleOptions {
     | 'createRemoteDesktopAttachTicket'
     | 'consumeRemoteDesktopTargetAuth'
     | 'remoteDesktopStreamUrl'
+    | 'takeRemoteDesktopControl'
   >
   protocolRegistry: RemoteDesktopProtocolRegistry
   routeRegistry: RemoteDesktopRouteRegistry
@@ -349,12 +350,19 @@ export class RemoteDesktopViewerLifecycle {
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
       target: entry.container,
-      url: api.remoteDesktopStreamUrl(ticket),
+      url: ticket.rdp ? '' : api.remoteDesktopStreamUrl(ticket),
+      attachment: ticket.rdp,
+      takeControl: (subscriptionId) => api.takeRemoteDesktopControl(entry.sessionId, expectedGeneration, subscriptionId),
       session: latestSession,
       profile,
       state,
       credentials: entry.credentials ?? undefined,
       events: {
+        onControlChanged: (owned) => {
+          if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
+            this.options.commitViewerState(entry.sessionId, { viewOnly: !owned })
+          }
+        },
         onConnected: () => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
             entry.connectedGeneration = expectedGeneration
@@ -499,7 +507,7 @@ export class RemoteDesktopViewerLifecycle {
       entry.viewport
       && !entry.viewer
       && !entry.attachPromise
-      && (session.status === 'ready' || session.status === 'reattach_wait')
+      && (session.status === 'ready' || session.status === 'reattach_wait' || (session.protocol === 'rdp' && session.status === 'streaming'))
       && entry.blockedAttachGeneration !== session.connection_generation
       && !(
         session.status === 'ready'

@@ -1,4 +1,4 @@
-import type { RemoteDesktopAccessProfileInput } from '#entities/remote-desktop'
+import type { VncRemoteDesktopAccessProfileInput, RdpRemoteDesktopAccessProfileInput } from '#entities/remote-desktop'
 import type { SSHAccessProfileInput } from '#entities/ssh-access-profile'
 import type { HostAssetInput } from './types.ts'
 
@@ -10,7 +10,7 @@ export interface HostProvisionSSHInput extends SSHAccessProfileInput {
   file_is_default: boolean
 }
 
-export interface HostProvisionDesktopInput extends Omit<RemoteDesktopAccessProfileInput, 'host_id' | 'ssh_profile_id'> {
+export type HostProvisionDesktopInput = (Omit<VncRemoteDesktopAccessProfileInput, 'host_id' | 'ssh_profile_id'> | Omit<RdpRemoteDesktopAccessProfileInput, 'host_id' | 'ssh_profile_id'>) & {
   draft_id: string
   ssh_draft_id?: string
   target_auth_password?: string

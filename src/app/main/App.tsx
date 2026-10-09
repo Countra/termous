@@ -1003,6 +1003,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       await actions.setConnectionSettings(connectionSettings)
     } catch (actionError) {
       showActionError(actionError)
+      throw actionError
     }
   }
 
