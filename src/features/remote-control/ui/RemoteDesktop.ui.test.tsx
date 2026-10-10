@@ -11,8 +11,8 @@ import { RemoteDesktop } from './RemoteDesktop'
 
 function WithoutMotion({ children }: PropsWithChildren) { return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> }
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, start: vi.fn(), close: vi.fn() }))
-beforeEach(() => { fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined) })
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn() }))
+beforeEach(() => { fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset() })
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 vi.mock('@termous/remote-protocol/desktop', () => ({
   RemoteDesktopSession: class {
@@ -28,9 +28,39 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
       return Promise.resolve()
     }
     close() { return fixture.close() }
-    input() {}
+    input = fixture.input
+    display = fixture.display
   },
 }))
+
+test('全屏与窗口尺寸切换只调整显示，不重建媒体或改变目标分辨率', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const fullscreen = Object.getOwnPropertyDescriptor(Element.prototype, 'requestFullscreen')
+  const requestFullscreen = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(Element.prototype, 'requestFullscreen', { configurable: true, value: requestFullscreen })
+  try {
+    render(<RemoteDesktop client={{} as RemoteClient} session={session} active />, { wrapper: WithoutMotion })
+    await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+    for (let i = 0; i < 3; i++) {
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: '全屏' })))
+      fireEvent(window, new Event('resize'))
+      fireEvent(document, new Event('fullscreenchange'))
+    }
+    expect(requestFullscreen).toHaveBeenCalledTimes(3)
+    expect(fixture.start).toHaveBeenCalledTimes(1)
+    expect(fixture.close).not.toHaveBeenCalled()
+    expect(fixture.input).not.toHaveBeenCalled()
+    act(() => fixture.events?.status('recovering'))
+    expect(screen.getByRole('status')).toHaveTextContent('正在恢复桌面连接')
+    expect(screen.getByRole('button', { name: '键盘' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '重新加入' })).not.toBeInTheDocument()
+    act(() => fixture.events?.status('viewing'))
+    expect(fixture.start).toHaveBeenCalledTimes(1)
+  } finally {
+    if (fullscreen) Object.defineProperty(Element.prototype, 'requestFullscreen', fullscreen)
+    else Reflect.deleteProperty(Element.prototype, 'requestFullscreen')
+  }
+})
 
 test('父连接失效后立即禁用桌面操作，不等待旧控制租约过期', async () => {
   const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
@@ -72,4 +102,16 @@ test('连接结束立即撤销尚未回答的证书挑战', async () => {
   act(() => fixture.events?.status('closed', 'desktop_disconnected'))
   await expect(reply).resolves.toEqual({ accept: false })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('桌面网络配置错误展示具体原因和错误码，且不回显任意异常正文', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  render(<RemoteDesktop client={{} as RemoteClient} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalled())
+  act(() => fixture.events?.status('closed', 'desktop_ice_invalid'))
+  expect(screen.getByText('桌面网络配置无效，请检查 STUN/TURN 设置。')).toBeInTheDocument()
+  expect(screen.getByText('desktop_ice_invalid')).toBeInTheDocument()
+  act(() => fixture.events?.status('closed', 'invalid turn:private.invalid credential=synthetic'))
+  expect(screen.queryByText(/credential=synthetic/)).not.toBeInTheDocument()
+  expect(screen.getByText('desktop_operation_failed')).toBeInTheDocument()
 })

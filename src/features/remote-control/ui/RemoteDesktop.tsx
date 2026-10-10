@@ -6,7 +6,7 @@ import { RemoteDesktopSession, type DesktopSessionEvents, type DesktopState } fr
 import type { RemoteClient, Session } from '#entities/remote-control'
 import { termousPopconfirmProps } from '#shared/ui'
 import { bindDesktopInput } from '../model/desktopInput'
-import { desktopCopy } from '../model/desktopCopy'
+import { desktopCopy, desktopErrorText } from '../model/desktopCopy'
 import styles from './RemoteDesktop.module.scss'
 import { DesktopCursorOverlay } from './DesktopCursorOverlay'
 import { type CursorState, updateCursor } from '../model/desktopCursor'
@@ -64,8 +64,9 @@ export function RemoteDesktop({ client, session, active }: { client: RemoteClien
   }
   const answer = (accept: boolean) => { const respond = reply.current; reply.current = undefined; setChallenge(undefined); respond?.({ accept, password, username }); setPassword(''); setUsername('') }
   const owned = running && phase === 'viewing' && runtime.current?.owned === true
-  const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : copy.connecting
-  const errorText = error.includes('uncertain') ? copy.uncertain : error === 'desktop_control_locked' ? copy.controlConflict : error.includes('unsupported') ? copy.unavailable : copy.failed
+  const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : copy.connecting
+  const errorText = desktopErrorText(error, copy)
+  const errorCode = /^(?:desktop|remote|rdp)_[a-z0-9_]{1,80}$/.test(error) ? error : 'desktop_operation_failed'
   const certificate = challenge && (challenge.kind === 'certificate' || challenge.kind === 'vnc_certificate' || challenge.kind === 'ssh_certificate')
   return <div className={styles.desktop} ref={root}>
     <div className={styles.toolbar}>
@@ -88,7 +89,7 @@ export function RemoteDesktop({ client, session, active }: { client: RemoteClien
         {running && phase !== 'closed' ? <Spin /> : <Monitor size={28} />}
         <strong>{!joined ? copy.vncJoin : status}</strong>
         {!joined ? <><p>{copy.vncHint}</p><Button type="primary" onClick={() => setJoined(true)}>{copy.vncJoin}</Button></> : null}
-        {phase === 'closed' ? <><p>{errorText}</p><Button icon={<RotateCcw size={14} />} onClick={() => setAttempt(value => value + 1)}>{copy.retry}</Button>{error === 'desktop_control_locked' ? <Popconfirm {...termousPopconfirmProps} title={copy.replace} description={copy.replaceHint} onConfirm={() => { replaceNext.current = true; setAttempt(value => value + 1) }}><Button>{copy.replace}</Button></Popconfirm> : null}</> : null}
+        {phase === 'closed' ? <><p>{errorText}<br /><code>{errorCode}</code></p><Button icon={<RotateCcw size={14} />} onClick={() => setAttempt(value => value + 1)}>{copy.retry}</Button>{error === 'desktop_control_locked' ? <Popconfirm {...termousPopconfirmProps} title={copy.replace} description={copy.replaceHint} onConfirm={() => { replaceNext.current = true; setAttempt(value => value + 1) }}><Button>{copy.replace}</Button></Popconfirm> : null}</> : null}
       </div> : null}
     </div>
     <footer className={styles.footer}><span>{copy.target} {state?.width ? `${state.width} × ${state.height}` : '—'}</span><span>{copy.video} · {path}</span></footer>
