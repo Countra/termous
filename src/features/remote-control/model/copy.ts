@@ -1,6 +1,10 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
+  desktopUnsupported: 'This desktop protocol is unsupported. Update both devices.',
+  desktop: 'Desktop', newDesktop: 'Open desktop', desktopAccess: 'Desktop access', saveDesktops: 'Save desktop access',
+  desktopAccessHint: 'Save host access first, then select individual desktop connections. Existing host grants do not enable desktop access.',
+  desktopCredentialHint: 'VNC access grants full interaction and permits the controlling device to use the saved VNC password for this connection. RDP passwords stay on this computer.',
   title: 'Remote control',
   overview: 'Overview', resources: 'Resources', showSidebar: 'Show resources', hideSidebar: 'Hide resources',
   workspaceTitle: 'Remote workspace', workspaceHint: 'Open a connection or continue a session.',
@@ -85,6 +89,9 @@ const en = {
   emptyDirectory: 'This folder is empty', operationPending: 'File operation started', shellNotice: 'Commands use the selected account permissions.',
 }
 const zh: typeof en = {
+  desktop: '远程桌面', newDesktop: '打开桌面', desktopAccess: '桌面访问', saveDesktops: '保存桌面授权',
+  desktopAccessHint: '先保存主机授权，再单独选择桌面配置。已有主机授权不会自动开放桌面访问。',
+  desktopCredentialHint: 'VNC 授权包含完整交互，并允许控制端在本次连接中使用已保存的 VNC 密码。RDP 密码始终保留在被控端。',
   title: '远程控制',
   overview: '概览', resources: '资源', showSidebar: '展开资源栏', hideSidebar: '收起资源栏',
   workspaceTitle: '远程工作台', workspaceHint: '打开连接，或继续已有会话。',
@@ -102,6 +109,7 @@ const zh: typeof en = {
   taskCenter: '任务与传输', activeTasks: '进行中',
   agentDisabled: '请在被控电脑开启助手远程访问。',
   agentUnsupported: '被控电脑不支持远程助手，请更新应用。',
+  desktopUnsupported: '当前版本不支持此桌面协议，请更新双方应用。',
   agentRestarted: '远端助手已重启，请重新连接。',
   agentChecking: '正在检查助手访问权限',
   agentResourcesUnavailable: '远端资源加载失败。',
@@ -177,6 +185,7 @@ export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   if (code === 'agent_revision_conflict' || code === 'revision_conflict' || code === 'mcp_conflict') return copy.contentChanged
   if (code === 'remote_agent_disabled') return copy.agentDisabled
   if (code === 'remote_agent_unsupported') return copy.agentUnsupported
+  if (code === 'desktop_capability_unsupported' || code === 'remote_desktop_unsupported') return copy.desktopUnsupported
   if (code === 'remote_agent_restarted') return copy.agentRestarted
   if (code === 'remote_profile_changed') return copy.changedProfile
   if (code === 'remote_signaling_unavailable') return copy.signalingUnavailable

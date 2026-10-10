@@ -121,6 +121,7 @@ export type RdpRemoteDesktopAccessProfileInput = Pick<RdpRemoteDesktopAccessProf
 export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput | RdpRemoteDesktopAccessProfileInput
 
 interface RemoteDesktopSessionBase {
+  remote_viewer?: { attachment_id: string; device_id: string; generation: number; phase: string }
   desktop?: DesktopState
   id: string
   profile_id: string

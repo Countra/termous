@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RemoteBootstrap, RemoteWindowBridge } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
+  desktopICE: id => ipcRenderer.invoke('remote:desktop-ice', id),
   windowControls: {
     minimize: () => ipcRenderer.invoke('remote:window-minimize'),
     toggleMaximize: () => ipcRenderer.invoke('remote:window-toggle-maximize'),

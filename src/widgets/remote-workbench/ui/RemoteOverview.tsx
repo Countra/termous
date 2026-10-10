@@ -13,21 +13,21 @@ interface Props {
   disabled: boolean
   name(session: Session): string
   open(session: Session): void
-  create(id: string, kind: 'ssh' | 'files'): void
+  create(id: string, kind: 'ssh' | 'files' | 'desktop'): void
   showResources(): void
   openAgent?: () => void
 }
 
 export function RemoteOverview({ inventory, copy, deviceName, filter, disabled, name, open, create, showResources, openAgent }: Props) {
-  const [kind, setKind] = useState<'ssh' | 'files'>('ssh')
+  const [kind, setKind] = useState<'ssh' | 'files' | 'desktop'>('ssh')
   const query = filter.trim().toLowerCase()
   const connections = (inventory?.hosts ?? []).flatMap(host => host.connections
-    .filter(profile => (profile.kind === 'ssh' || profile.kind === 'files') &&
-      `${host.name} ${profile.name} ${profile.kind} ${profile.engine} ${profile.kind === 'ssh' ? copy.terminal : copy.files}`.toLowerCase().includes(query))
+    .filter(profile => (profile.kind === 'ssh' || profile.kind === 'files' || profile.kind === 'desktop') &&
+      `${host.name} ${profile.name} ${profile.kind} ${profile.engine} ${profile.kind === 'desktop' ? copy.desktop : profile.kind === 'ssh' ? copy.terminal : copy.files}`.toLowerCase().includes(query))
     .map(profile => ({ host, profile })))
   const visible = connections.filter(item => item.profile.kind === kind)
   const sessions = (inventory?.sessions ?? []).filter(session =>
-    `${name(session)} ${session.kind} ${session.engine} ${session.kind === 'ssh' ? copy.terminal : copy.files} ${inventory?.hosts.find(host => host.id === session.hostId)?.name ?? ''}`.toLowerCase().includes(query))
+    `${name(session)} ${session.kind} ${session.engine} ${session.kind === 'desktop' ? copy.desktop : session.kind === 'ssh' ? copy.terminal : copy.files} ${inventory?.hosts.find(host => host.id === session.hostId)?.name ?? ''}`.toLowerCase().includes(query))
 
   return <div className={styles.overview}>
     <div className={styles.content}>
@@ -42,8 +42,8 @@ export function RemoteOverview({ inventory, copy, deviceName, filter, disabled, 
         <div className={styles['session-list']}>
           {sessions.slice(0, 4).map(session => <button key={session.id} className={styles.session} disabled={disabled}
             aria-label={`${copy.openSession} · ${name(session)}`} onClick={() => open(session)}>
-            <span className={styles['resource-icon']}>{session.kind === 'ssh' ? <Terminal size={18} /> : <Folder size={18} />}</span>
-            <span className={styles['resource-name']}><strong>{name(session)}</strong><small>{session.kind === 'ssh' ? copy.terminal : copy.files}<span className={`${styles.dot} ${session.state === 'connected' ? styles.online : ''}`} />{session.state === 'connected' ? copy.connected : session.state === 'connecting' ? copy.connecting : copy.disconnected}</small></span>
+            <span className={styles['resource-icon']}>{session.kind === 'desktop' ? <Monitor size={18} /> : session.kind === 'ssh' ? <Terminal size={18} /> : <Folder size={18} />}</span>
+            <span className={styles['resource-name']}><strong>{name(session)}</strong><small>{session.kind === 'desktop' ? copy.desktop : session.kind === 'ssh' ? copy.terminal : copy.files}<span className={`${styles.dot} ${['connected', 'ready', 'streaming', 'reattach_wait'].includes(session.state) ? styles.online : ''}`} />{['connected', 'ready', 'streaming', 'reattach_wait'].includes(session.state) ? copy.connected : ['connecting', 'reconnecting'].includes(session.state) ? copy.connecting : copy.disconnected}</small></span>
             <ArrowRight size={15} className={styles.arrow} />
           </button>)}
         </div>
@@ -54,15 +54,16 @@ export function RemoteOverview({ inventory, copy, deviceName, filter, disabled, 
           <h2>{copy.startConnection}</h2>
           <div className={styles.switcher} role="group" aria-label={copy.startConnection}>
             <button aria-label={copy.terminal} aria-pressed={kind === 'ssh'} onClick={() => setKind('ssh')}><Terminal size={14} />{copy.terminal}<span aria-hidden="true">{connections.filter(item => item.profile.kind === 'ssh').length}</span></button>
+            <button aria-label={copy.desktop} aria-pressed={kind === 'desktop'} onClick={() => setKind('desktop')}><Monitor size={14} />{copy.desktop}<span aria-hidden="true">{connections.filter(item => item.profile.kind === 'desktop').length}</span></button>
             <button aria-label={copy.files} aria-pressed={kind === 'files'} onClick={() => setKind('files')}><Folder size={14} />{copy.files}<span aria-hidden="true">{connections.filter(item => item.profile.kind === 'files').length}</span></button>
           </div>
         </div>
         {visible.length ? <div className={styles['connection-list']}>
           {visible.slice(0, 6).map(({ host, profile }) => <button key={`${profile.kind}:${profile.id}`} className={styles.connection}
-            disabled={disabled || !profile.available} title={profile.available ? undefined : copy.changedProfile}
-            aria-label={`${profile.kind === 'ssh' ? copy.newTerminal : copy.newFiles} · ${host.name} · ${profile.name}`}
-            onClick={() => create(profile.id, profile.kind === 'ssh' ? 'ssh' : 'files')}>
-            <span className={styles['resource-icon']}>{profile.kind === 'ssh' ? <Terminal size={18} /> : <Folder size={18} />}</span>
+            disabled={disabled || !profile.available} title={profile.available ? undefined : profile.reason === 'desktop_capability_unsupported' ? copy.desktopUnsupported : copy.changedProfile}
+            aria-label={`${profile.kind === 'desktop' ? copy.newDesktop : profile.kind === 'ssh' ? copy.newTerminal : copy.newFiles} · ${host.name} · ${profile.name}`}
+            onClick={() => create(profile.id, profile.kind === 'desktop' ? 'desktop' : profile.kind === 'ssh' ? 'ssh' : 'files')}>
+            <span className={styles['resource-icon']}>{profile.kind === 'desktop' ? <Monitor size={18} /> : profile.kind === 'ssh' ? <Terminal size={18} /> : <Folder size={18} />}</span>
             <span className={styles['resource-name']}><strong>{profile.name}</strong><small>{host.name}</small></span>
             <span className={styles.engine}>{profile.kind === 'ssh' ? 'SSH' : profile.engine.toUpperCase()}</span>
             <ArrowRight size={15} className={styles.arrow} />

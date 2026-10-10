@@ -21,7 +21,7 @@ export interface RemoteDevice {
 export interface RemotePolicy {
   revision: number; enabled: boolean
   agent_enabled?: boolean
-  hosts: { id: string }[]
+  hosts: { id: string; connections?: { id: string; kind: string }[] }[]
   directories: { id: string; name: string; path: string; read: boolean; write: boolean }[]
 }
 export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
@@ -50,11 +50,14 @@ export interface RemoteLauncher {
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
   configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
+  configureDesktops?(generation: string, revision: number, profiles: string[]): Promise<RemoteResult<RemotePolicy>>
+  desktopProfiles?(): Promise<RemoteResult<{ id: string; host_id: string; name: string; protocol: string }[]>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
   windowControls?: {
     minimize(): Promise<RemoteResult<boolean>>
     toggleMaximize(): Promise<RemoteResult<boolean>>

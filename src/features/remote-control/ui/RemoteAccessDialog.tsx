@@ -12,9 +12,13 @@ interface Props {
   policy?: RemotePolicy
   hosts: { id: string; name: string }[]
   selected: string[]
+  desktops?: { id: string; host_id: string; name: string; protocol: string }[]
+  selectedDesktops?: string[]
+  onSelectDesktops?(value: string[]): void
+  onDesktops?(): void
   enabled: boolean
   loading: boolean
-  working?: 'save' | 'agent' | 'directory'
+  working?: 'save' | 'agent' | 'directory' | 'desktop'
   error?: unknown
   mustRefresh: boolean
   updated: boolean
@@ -27,7 +31,7 @@ interface Props {
   onDirectory(write: boolean, id?: string): void
 }
 
-export function RemoteAccessDialog({ open, copy, policy, hosts, selected, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
+export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], onSelectDesktops, onDesktops, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
   const [query, setQuery] = useState('')
   useEffect(() => { if (!open) setQuery('') }, [open])
   const inactive = loading || !!working || !policy || mustRefresh
@@ -46,6 +50,18 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, enable
   const savedHosts = new Set(policy?.hosts.map(host => host.id).filter(id => hosts.some(host => host.id === id)))
   const dirty = !!policy && (enabled !== policy.enabled || savedHosts.size !== selected.length || selected.some(id => !savedHosts.has(id)))
   const label = (icon: ReactNode, text: string, count?: number) => <span className={styles['tab-label']}>{icon}{text}{count !== undefined ? <span className={styles.count}>{count}</span> : null}</span>
+
+  const availableDesktops = desktops.filter(profile => savedHosts.has(profile.host_id))
+  const desktopPanel = <section className={styles.panel} aria-label={copy.desktopAccess}>
+    <p className={styles.hint}>{copy.desktopAccessHint}</p>
+    <p className={styles.hint}>{copy.desktopCredentialHint}</p>
+    {availableDesktops.length === 0 ? <WorkspaceEmptyState icon={<Monitor size={18} />} title={copy.noConnections} description={copy.desktopAccessHint} /> : <div className={styles['host-list']}>
+      {availableDesktops.map(profile => <Checkbox key={profile.id} className={styles['host-choice']} disabled={inactive || dirty} checked={selectedDesktops.includes(profile.id)} onChange={event => onSelectDesktops?.(event.target.checked ? [...selectedDesktops, profile.id] : selectedDesktops.filter(id => id !== profile.id))}>
+        <span className={styles['host-name']}><Monitor size={16} /><span>{hosts.find(host => host.id === profile.host_id)?.name} · {profile.name}</span><Tag>{profile.protocol.toUpperCase()}</Tag></span>
+      </Checkbox>)}
+    </div>}
+    <Button type="primary" disabled={inactive || dirty} loading={working === 'desktop'} onClick={onDesktops}>{copy.saveDesktops}</Button>
+  </section>
 
   const hostPanel = <section className={styles.panel} aria-label={copy.hostConnections}>
     <p className={styles.hint}>{copy.hostsHint}</p>
@@ -114,6 +130,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, enable
         <Tabs className={styles.tabs} defaultActiveKey="hosts" animated={false} items={[
           { key: 'hosts', label: label(<Server size={15} aria-hidden="true" />, copy.hostConnections, selected.length), children: hostPanel },
           { key: 'folders', label: label(<Folder size={15} aria-hidden="true" />, copy.allowedFolders, directories.length), children: directoryPanel },
+          ...(onDesktops ? [{ key: 'desktops', label: label(<Monitor size={15} />, copy.desktopAccess, selectedDesktops.length), children: desktopPanel }] : []),
           { key: 'agent', label: label(<Bot size={15} aria-hidden="true" />, copy.agent), children: agentPanel },
         ]} />
         {updated && !error ? <FeedbackMessage type="success" title={copy.accessUpdated} /> : null}

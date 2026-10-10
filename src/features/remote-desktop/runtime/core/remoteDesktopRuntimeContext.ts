@@ -21,6 +21,7 @@ export interface RemoteDesktopRuntimeValue {
   registerViewport: (sessionId: string, host: HTMLDivElement) => () => void
   setDisplayMode: (sessionId: string, mode: RemoteDesktopDisplayMode) => void
   setViewOnly: (sessionId: string, value: boolean) => void
+  reclaimRemoteViewer?: (sessionId: string) => Promise<void>
   focusViewer: (sessionId: string) => void
   blurViewer: (sessionId: string) => void
   submitCredentials: (sessionId: string, credentials: RemoteDesktopCredentials) => void | Promise<void>

@@ -60,6 +60,7 @@ export class VncViewerAdapter {
   private readonly rfb: InstanceType<typeof import('@novnc/novnc')['default']>
   private readonly listeners: Array<[NoVncEventName, EventListener]> = []
   private disposed = false
+  private disconnectRequested = false
   private readonly executionAbort = new AbortController()
   private executionConnection?: VncExecutionConnection
   private execution?: VncDesktopExecution
@@ -167,8 +168,14 @@ export class VncViewerAdapter {
 
   disconnect() {
     if (!this.disposed) {
-      this.rfb.disconnect()
+      this.stopRfb()
     }
+  }
+
+  private stopRfb() {
+    if (this.disconnectRequested) return
+    this.disconnectRequested = true
+    this.rfb.disconnect()
   }
 
   dispose() {
@@ -182,7 +189,7 @@ export class VncViewerAdapter {
     }
     this.listeners.length = 0
     try {
-      this.rfb.disconnect()
+      this.stopRfb()
     } finally {
       this.transportMetrics.close()
     }
@@ -193,7 +200,7 @@ export class VncViewerAdapter {
       this.transportMetrics.markConnected()
       this.events.onConnected()
     })
-    this.listen('disconnect', (event) => { this.executionAbort.abort(); this.events.onDisconnected(event.detail.clean === true) })
+    this.listen('disconnect', (event) => { this.disconnectRequested = true; this.executionAbort.abort(); this.events.onDisconnected(event.detail.clean === true) })
     this.listen('credentialsrequired', (event) => {
       const types = (event.detail.types ?? []).filter(isCredentialType)
       this.events.onCredentialsRequired(types)

@@ -10,4 +10,4 @@ minimumReleaseAgeExclude:
 overrides:
   '@codemirror/state': 6.7.1
 patchedDependencies:
-  '@novnc/novnc@1.7.0': patches/@novnc__novnc@1.7.0.patch
+  '@novnc/novnc@1.7.0': ../termous-remote/patches/@novnc__novnc@1.7.0.patch

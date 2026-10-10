@@ -134,7 +134,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true)
   }
   const openAgent = () => { setAgentOpened(true); setAgentSelected(true); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
-  const create = async (profileId: string, kind: 'ssh' | 'files') => {
+  const create = async (profileId: string, kind: 'ssh' | 'files' | 'desktop') => {
     if (!client || liveClient.current !== client || busy || closed || connecting) return
     setBusy(true); setError(undefined)
     try {
@@ -160,7 +160,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     } catch (reason) { if (liveClient.current === client) setError(reason) }
   }
   const name = (session: Session) => inventory?.hosts.flatMap(host => host.connections).find(profile => profile.kind === session.kind && profile.id === session.profileId)?.name || session.name || session.id
-  const sessions = (inventory?.sessions ?? []).filter(item => `${name(item)} ${item.kind} ${item.engine} ${item.kind === 'ssh' ? copy.terminal : copy.files} ${inventory?.hosts.find(host => host.id === item.hostId)?.name ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase()))
+  const sessions = (inventory?.sessions ?? []).filter(item => `${name(item)} ${item.kind} ${item.engine} ${item.kind === 'desktop' ? copy.desktop : item.kind === 'ssh' ? copy.terminal : copy.files} ${inventory?.hosts.find(host => host.id === item.hostId)?.name ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase()))
   const stats = connection?.stats
   const path = closed ? copy.disconnected : connection?.state === 'recovering' ? copy.recovering : stats?.path === 'relay' ? copy.relay : stats?.path === 'direct' ? copy.direct : connecting ? copy.connecting : copy.connected
   const ready = !closed && !connecting && connection?.state === 'connected'
@@ -208,8 +208,8 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
               <button className={resourceStyles.session} disabled={!ready}
                 aria-label={name(session)} aria-current={!overview && !agentSelected && selected === session.id ? 'page' : undefined}
                 title={`${name(session)} · ${session.origin === 'remote' ? copy.remoteSession : copy.localSession}`} onClick={() => open(session)}>
-                <span className={`${resourceStyles['resource-icon']} ${session.kind === 'files' ? resourceStyles['files-icon'] : ''}`}>{session.kind === 'ssh' ? <Terminal size={16} /> : <Folder size={16} />}</span>
-                <span className={resourceStyles['session-copy']}><strong>{name(session)}</strong><small><span>{inventory?.hosts.find(host => host.id === session.hostId)?.name || (session.kind === 'ssh' ? copy.terminal : copy.files)}</span><Circle size={5} fill="currentColor" className={session.state === 'connected' ? styles.online : styles.offline} />{session.state === 'connected' ? copy.connected : copy.disconnected}</small></span>
+                <span className={`${resourceStyles['resource-icon']} ${session.kind === 'files' ? resourceStyles['files-icon'] : ''}`}>{session.kind === 'desktop' ? <Monitor size={16} /> : session.kind === 'ssh' ? <Terminal size={16} /> : <Folder size={16} />}</span>
+                <span className={resourceStyles['session-copy']}><strong>{name(session)}</strong><small><span>{inventory?.hosts.find(host => host.id === session.hostId)?.name || (session.kind === 'desktop' ? copy.desktop : session.kind === 'ssh' ? copy.terminal : copy.files)}</span><Circle size={5} fill="currentColor" className={['connected', 'ready', 'streaming', 'reattach_wait'].includes(session.state) ? styles.online : styles.offline} />{['connected', 'ready', 'streaming', 'reattach_wait'].includes(session.state) ? copy.connected : copy.disconnected}</small></span>
               </button>
               <Popconfirm title={copy.closeSession} description={copy.closeSessionHint} okText={copy.confirm} cancelText={copy.cancel} onConfirm={() => endSession(session)}>
                 <Tooltip title={copy.closeSession}><Button className={resourceStyles['end-session']} type="text" size="small" disabled={!ready} icon={<X size={13} />} aria-label={`${copy.closeSession} · ${name(session)}`} /></Tooltip>
@@ -230,7 +230,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
           <Button type="primary" icon={<RefreshCw size={15} />} loading={refreshing} onClick={() => void refresh()}>{copy.refresh}</Button>
         </div> : !overview && tabs.length ?
           <RemoteSessionPanels onQuote={inventory?.agentEnabled && renderAgent ? (session, text) => { setQuote({ key: Date.now(), text, sessionId: session.id, capturedAt: new Date().toISOString() }); openAgent() } : undefined}
-            key={connection?.id} client={client} tabs={tabs} selected={selected} inventory={inventory} localTasks={localTasks} copy={copy} theme={bootstrap.theme} name={name}
+            key={connection?.id} connected={ready} client={client} tabs={tabs} selected={selected} inventory={inventory} localTasks={localTasks} copy={copy} theme={bootstrap.theme} name={name}
             select={setSelected} close={id => { const remaining = tabs.filter(tab => tab.id !== id); setTabs(remaining); if (id === selected) setSelected(remaining[remaining.length - 1]?.id ?? ''); if (!remaining.length) setOverview(true) }} changed={() => void refresh()} /> :
           <RemoteOverview inventory={inventory} copy={copy} deviceName={bootstrap.deviceName} filter={filter} disabled={busy || !ready} name={name} open={open}
             create={(id, kind) => void create(id, kind)} showResources={() => setSidebarCollapsed(false)} openAgent={renderAgent ? openAgent : undefined} />}

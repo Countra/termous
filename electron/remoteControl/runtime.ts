@@ -119,6 +119,20 @@ export class RemoteControlRuntime {
       const { entry, base } = await this.active(event, id)
       return this.agentContent.upload(base, entry.bootstrap.generation, data, mime)
     }))
+    ipcMain.handle('remote:desktop-ice', (event, id: string) => result(async () => {
+      const { entry, base } = await this.active(event, id)
+      return (await this.options.core.request<{ ice_servers: RTCIceServer[] }>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })).ice_servers
+    }))
+    ipcMain.handle('remote:configure-desktops', (event, generation: string, revision: number, profiles: unknown) => result(async () => {
+      this.main(event, generation)
+      if (!Number.isSafeInteger(revision) || revision < 0 || !Array.isArray(profiles) || profiles.length > 256 || !profiles.every(validId)) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request<RemotePolicy>('/remote-control/desktop-policy', { generation, revision, profile_ids: profiles }, 'PUT')
+    }))
+    ipcMain.handle('remote:desktop-profiles', event => result(async () => {
+      this.main(event)
+      const profiles = await this.options.core.request<{ id: string; host_id: string; name: string; protocol: string }[]>('/remote-desktop-profiles')
+      return profiles.map(({ id, host_id, name, protocol }) => ({ id, host_id, name, protocol }))
+    }))
     ipcMain.handle('remote:agent-download', (event, content: unknown, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
       return this.agentContent.download(base, entry.bootstrap.generation, content)

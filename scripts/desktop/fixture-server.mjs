@@ -1,4 +1,5 @@
 import { createServer } from 'vite'
+import react from '@vitejs/plugin-react'
 import { createServer as createTCPServer } from 'node:net'
 import { WebSocketServer } from 'ws'
 import { deflateSync } from 'node:zlib'
@@ -7,9 +8,9 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const events = []
 const sockets = new WebSocketServer({ host: '127.0.0.1', port: 5192 })
-const vite = await createServer({ configFile: false, root, cacheDir: fileURLToPath(new URL('../../../TEMP/vite', import.meta.url)), plugins: [{ name: 'desktop-fixture', configureServer(server) {
+const vite = await createServer({ configFile: false, root, cacheDir: fileURLToPath(new URL('../../../TEMP/vite', import.meta.url)), plugins: [react(), { name: 'desktop-fixture', configureServer(server) {
   server.middlewares.use('/__fixture/events', (_req, res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(events)) })
-} }], server: { host: '127.0.0.1', port: 5191, strictPort: true, hmr: false, proxy: { '/api': { target: 'http://127.0.0.1:5193', ws: true } } } })
+} }], server: { host: '127.0.0.1', port: 5191, strictPort: true, hmr: false, proxy: { '/api': { target: 'http://127.0.0.1:5193', ws: true }, '/fixture': { target: 'http://127.0.0.1:5195' } } } })
 await vite.listen()
 
 function crc32(bytes) {

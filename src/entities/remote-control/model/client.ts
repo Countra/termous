@@ -2,6 +2,7 @@ import { create, fromBinary, fromJson, toBinary, toJson, type MessageInitShape }
 import { EnvelopeSchema, RequestSchema, ResponseSchema, StreamFrameSchema, type Event, type StreamFrame } from '@termous/remote-protocol'
 import type { RemoteConnection, RemoteResult, RemoteWindowBridge, RemoteLocalSelection } from '#common/contracts'
 import { RemoteHostIcons } from './hostIcons'
+import { DesktopRequestSchema } from '@termous/remote-protocol/desktop-protocol'
 
 export class RemoteError extends Error {
   constructor(readonly code: string, readonly uncertain = false) { super(code) }
@@ -39,6 +40,15 @@ export class RemoteClient {
     const response = fromJson(ResponseSchema, value)
     if (response.error) throw new RemoteError(response.error.code, response.error.uncertain)
     return response
+  }
+  async desktop(input: MessageInitShape<typeof DesktopRequestSchema>) {
+    const response = await this.request({ operation: { case: 'desktop', value: input } })
+    if (response.result.case !== 'desktop') throw new RemoteError('remote_desktop_unsupported')
+    return response.result.value
+  }
+  async desktopICE() {
+    if (!this.bridge.desktopICE) throw new RemoteError('remote_desktop_unsupported')
+    return unwrap(await this.bridge.desktopICE(this.connection.id))
   }
   stream(id: string, callback: (frame: StreamFrame) => Promise<void> | void) {
     this.streams.set(id, callback)

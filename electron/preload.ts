@@ -122,6 +122,8 @@ const bridge = {
   remoteControl: {
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
     configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),
+    configureDesktops: (generation, revision, profiles) => ipcRenderer.invoke('remote:configure-desktops', generation, revision, profiles),
+    desktopProfiles: () => ipcRenderer.invoke('remote:desktop-profiles'),
     open: (generation, id, name) => ipcRenderer.invoke('remote:open', generation, id, name),
     devices: generation => ipcRenderer.invoke('remote:devices', generation),
     policy: generation => ipcRenderer.invoke('remote:policy', generation),

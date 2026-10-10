@@ -26,6 +26,21 @@ test('快捷连接保留多引擎配置身份并拒绝打开失效授权', () =>
   expect(screen.queryByRole('button', { name: 'Open files · Storage · Documents' })).not.toBeInTheDocument()
 })
 
+test('桌面概览正确显示观看状态及版本不支持原因', () => {
+  const copy = remoteCopy('en-US')
+  const inventory = create(InventorySchema, {
+    hosts: [{ id: 'host', name: 'Desktop host', connections: [{ id: 'rdp', name: 'Windows', kind: 'desktop', engine: 'rdp', available: false, reason: 'desktop_capability_unsupported' }] }],
+    sessions: [{ id: 'desktop', kind: 'desktop', engine: 'vnc', state: 'streaming', name: 'Desktop' }],
+  })
+  render(<RemoteOverview inventory={inventory} copy={copy} deviceName="Host" filter="" disabled={false}
+    name={session => session.name} open={vi.fn()} create={vi.fn()} showResources={vi.fn()} />)
+  expect(screen.getByRole('button', { name: 'View session · Desktop' })).toHaveTextContent(copy.connected)
+  fireEvent.click(screen.getByRole('button', { name: 'Desktop' }))
+  const unavailable = screen.getByRole('button', { name: 'Open desktop · Desktop host · Windows' })
+  expect(unavailable).toBeDisabled()
+  expect(unavailable).toHaveAttribute('title', copy.desktopUnsupported)
+})
+
 test('已有会话可按所属主机和文件引擎搜索，搜索忽略首尾空格', () => {
   const inventory = create(InventorySchema, {
     hosts: [{ id: 'host', name: 'Storage' }],

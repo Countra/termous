@@ -273,6 +273,25 @@ describe('VNC Viewer Adapter', () => {
     expect(events.onMetrics).not.toHaveBeenCalled()
   })
 
+  it.each([true, false])('连接结束后释放不再次断开 noVNC（自然结束：%s）', async (natural) => {
+    const events = viewerEvents()
+    const adapter = await VncViewerAdapter.create({
+      target: document.createElement('div'),
+      url: 'ws://127.0.0.1:8122/stream',
+      shared: true,
+      viewOnly: false,
+      displayMode: 'fit',
+      events,
+    })
+    const rfb = latestRfb()
+    if (natural) rfb.dispatchEvent(new CustomEvent('disconnect', { detail: { clean: true } }))
+    else adapter.disconnect()
+    adapter.disconnect()
+    adapter.dispose()
+    expect(rfb.disconnect).toHaveBeenCalledTimes(natural ? 0 : 1)
+    expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1)
+  })
+
   it('释放操作幂等，并解绑所有 noVNC 事件', async () => {
     const events = viewerEvents()
     const adapter = await VncViewerAdapter.create({

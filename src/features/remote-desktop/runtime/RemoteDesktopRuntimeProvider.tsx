@@ -314,6 +314,13 @@ export function RemoteDesktopRuntimeProvider({
     commitViewerState(sessionId, { viewOnly })
   }, [commitViewerState])
 
+  const reclaimRemoteViewer = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (!session || !apiRef.current.execution) return
+    await apiRef.current.execution.reclaim(sessionId, session.connection_generation, false)
+    reconcileSessions(await apiRef.current.remoteDesktopSessions())
+  }, [reconcileSessions])
+
   const submitCredentials = useCallback(async (sessionId: string, credentials: RemoteDesktopCredentials) => {
     const session = sessionsRef.current.get(sessionId)
     if (session?.protocol === 'rdp' && session.credentials_required) {
@@ -403,6 +410,7 @@ export function RemoteDesktopRuntimeProvider({
     registerViewport,
     setDisplayMode,
     setViewOnly,
+    reclaimRemoteViewer,
     focusViewer,
     blurViewer,
     submitCredentials,
@@ -428,6 +436,7 @@ export function RemoteDesktopRuntimeProvider({
     sessions,
     setDisplayMode,
     setViewOnly,
+    reclaimRemoteViewer,
     submitCredentials,
     viewerStates,
   ])

@@ -22,11 +22,13 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   const [devices, setDevices] = useState<RemoteDevice[]>([])
   const [policy, setPolicy] = useState<RemotePolicy>()
   const [hosts, setHosts] = useState<{ id: string; name: string }[]>([])
+  const [desktops, setDesktops] = useState<{ id: string; host_id: string; name: string; protocol: string }[]>([])
+  const [selectedDesktops, setSelectedDesktops] = useState<string[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [working, setWorking] = useState<'save' | 'agent' | 'directory'>()
+  const [working, setWorking] = useState<'save' | 'agent' | 'directory' | 'desktop'>()
   const [mustRefresh, setMustRefresh] = useState(false)
   const [updated, setUpdated] = useState(false)
   const [error, setError] = useState<unknown>()
@@ -51,6 +53,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     ++editor.current
     pending.current = false
     setOpen(false); setPolicy(undefined); setHosts([]); setSelected([]); setDevices([])
+    setDesktops([]); setSelectedDesktops([])
     setLoading(false); setWorking(undefined); setError(undefined); setConnectionError(undefined); setMustRefresh(false); setUpdated(false)
     let timer: ReturnType<typeof setTimeout>
     const poll = async () => { if (scope !== lifetime.current) return; if (!document.hidden) await load(); if (scope === lifetime.current) timer = setTimeout(() => void poll(), 15000) }
@@ -65,7 +68,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     setOpen(true); setLoading(true); setError(undefined); setPolicy(undefined)
     setHosts([]); setSelected([]); setMustRefresh(false); setUpdated(false)
     try {
-      const [policy, hosts] = await Promise.all([api.policy(generation), api.hosts()])
+      const [policy, hosts, profiles] = await Promise.all([api.policy(generation), api.hosts(), api.desktopProfiles?.()])
       if (!current()) return
       const value = unwrap(policy)
       const availableHosts = unwrap(hosts)
@@ -73,6 +76,8 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
       setPolicy(value); setEnabled(value.enabled)
       setSelected((value.hosts ?? []).map(item => item.id).filter(id => availableIDs.has(id)))
       setHosts(availableHosts)
+      setDesktops(profiles ? unwrap(profiles) : [])
+      setSelectedDesktops((value.hosts ?? []).flatMap(host => (host.connections ?? []).filter(item => item.kind === 'desktop').map(item => item.id)))
     } catch (reason) { if (current()) setError(reason) } finally { if (current()) setLoading(false) }
   }
   const close = () => {
@@ -80,7 +85,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     ++editor.current
     setOpen(false); setLoading(false); setError(undefined)
   }
-  const changePolicy = async (operation: 'save' | 'agent' | 'directory', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
+  const changePolicy = async (operation: 'save' | 'agent' | 'directory' | 'desktop', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
     if (!api || !trusted || !policy || loading || pending.current || mustRefresh) return
     const scope = lifetime.current
     const request = editor.current
@@ -92,6 +97,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
       const next = unwrap(await action(policy.revision))
       if (!next || !current()) return
       setPolicy(next)
+      setSelectedDesktops((next.hosts ?? []).flatMap(host => (host.connections ?? []).filter(item => item.kind === 'desktop').map(item => item.id)))
       if (operation === 'save') { setOpen(false); void load() }
       else setUpdated(true)
     } catch (reason) {
@@ -125,6 +131,8 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     })}
     {connectionError ? <FeedbackMessage type="warning" title={remoteErrorText(copy, connectionError)} onClose={() => setConnectionError(undefined)} /> : null}
     <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
+      desktops={desktops} selectedDesktops={selectedDesktops} onSelectDesktops={setSelectedDesktops}
+      onDesktops={api?.configureDesktops ? () => void changePolicy('desktop', revision => api.configureDesktops!(generation, revision, selectedDesktops)) : undefined}
       onClose={close} onRefresh={() => void edit()} onEnabled={setEnabled} onSelect={setSelected}
       onSave={() => { if (api) void changePolicy('save', revision => api.configure(generation, revision, enabled, selected)) }}
       onAgent={value => { if (api) void changePolicy('agent', revision => api.configureAgent(generation, revision, value)) }}
