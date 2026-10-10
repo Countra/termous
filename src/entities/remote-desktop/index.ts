@@ -38,3 +38,4 @@ export type {
   RemoteDesktopAccessProfileProjection,
   RemoteDesktopTechnologyDescriptor,
 } from './model/accessProfileProjection.ts'
+export type { DesktopControl, DesktopState, DesktopRegion, DesktopScreenshotRequest, DesktopSnapshotMetadata, DesktopOperation, DesktopInput } from './model/desktop.ts'

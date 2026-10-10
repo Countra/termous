@@ -9,6 +9,20 @@ import { TermousApiTransport } from '#shared/api'
 import type { RemoteDesktopGateway } from './remoteDesktopGateway.ts'
 
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
+  readonly execution = {
+    connect: async (id: string, generation: number, readOnly: boolean) => {
+      const value = await this.request<{ path: string; ticket: string }>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/executor-ticket`, {
+        method: 'POST', body: { expected_connection_generation: generation, read_only: readOnly, ...(window.location.protocol === 'file:' ? { viewer_origin: 'null' } : {}) },
+      })
+      const url = new URL(value.path, this.config.apiBaseUrl)
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      url.search = ''
+      return { url: url.toString(), ticket: value.ticket }
+    },
+    reclaim: (id: string, generation: number, readOnly: boolean) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/reclaim`, {
+      method: 'POST', body: { expected_connection_generation: generation, read_only: readOnly },
+    }),
+  }
   supplyRemoteDesktopCredentials(id: string, generation: number, password: string) {
     return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/credentials`, {
       method: 'POST', body: { expected_connection_generation: generation, password },

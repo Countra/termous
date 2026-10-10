@@ -7,6 +7,9 @@ settings:
 overrides:
   '@codemirror/state': 6.7.1
 
+patchedDependencies:
+  '@novnc/novnc@1.7.0': d75d65d69ec3b9f44d4f1ac89460dc52e8b5b6d271ea23c4c9b0daccbe105d8e
+
 importers:
 
   .:
@@ -43,7 +46,7 @@ importers:
         version: 2.0.0
       '@novnc/novnc':
         specifier: 1.7.0
-        version: 1.7.0
+        version: 1.7.0(patch_hash=d75d65d69ec3b9f44d4f1ac89460dc52e8b5b6d271ea23c4c9b0daccbe105d8e)
       '@termous/remote-protocol':
         specifier: link:../termous-remote
         version: link:../termous-remote
@@ -5598,7 +5601,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@novnc/novnc@1.7.0': {}
+  '@novnc/novnc@1.7.0(patch_hash=d75d65d69ec3b9f44d4f1ac89460dc52e8b5b6d271ea23c4c9b0daccbe105d8e)': {}
 
   '@oxc-project/types@0.139.0': {}
 

@@ -116,7 +116,7 @@ export class TermousApiTransport {
     }
   }
 
-  protected async requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  protected async requestBlob(path: string, options: RequestOptions & { onHeaders?: (headers: Headers) => void } = {}): Promise<Blob> {
     const controller = new AbortController()
     let timedOut = false
     const timeout = window.setTimeout(() => {
@@ -133,14 +133,17 @@ export class TermousApiTransport {
       const response = await fetch(new URL(path, this.config.apiBaseUrl), {
         method: options.method ?? 'GET',
         headers: {
+          ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...(this.config.apiToken ? { 'X-Termous-Token': this.config.apiToken } : {}),
         },
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
         signal: controller.signal,
       })
       if (!response.ok) {
         throw await this.toError(response)
       }
       // 正文读取也属于请求生命周期，结束前不能清除超时和调用方取消监听。
+      options.onHeaders?.(response.headers)
       return await response.blob()
     } catch (error) {
       if (error instanceof TermousApiError) {

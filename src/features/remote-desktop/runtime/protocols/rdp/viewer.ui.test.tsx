@@ -47,8 +47,8 @@ function options(): RemoteDesktopViewerCreateOptions {
   const target = document.createElement('div')
   document.body.appendChild(target)
   return {
-    target, url: '', state: { ...emptyRemoteDesktopViewerState },
-    attachment: { subscription_id: 'viewer', control_url: 'ws://127.0.0.1:1234/control', display_url: 'ws://127.0.0.1:1234/display', control_ticket: 'control', display_ticket: 'display' },
+    target, state: { ...emptyRemoteDesktopViewerState },
+    transport: { kind: 'rdp-pixels', attachment: { subscription_id: 'viewer', control_url: 'ws://127.0.0.1:1234/control', display_url: 'ws://127.0.0.1:1234/display', control_ticket: 'control', display_ticket: 'display' } },
     session: {
       id: 'session', profile_id: 'profile', profile_name: 'Desktop', host_id: 'host', host_name: 'Host',
       route: 'direct', route_config_version: 1, protocol: 'rdp', protocol_config_version: 1,

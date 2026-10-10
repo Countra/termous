@@ -1,3 +1,5 @@
+import type { DesktopState } from './desktop.ts'
+
 export type RemoteDesktopProtocol = 'vnc' | 'rdp'
 
 export type RemoteDesktopRoute = 'ssh_tunnel' | 'direct'
@@ -119,6 +121,7 @@ export type RdpRemoteDesktopAccessProfileInput = Pick<RdpRemoteDesktopAccessProf
 export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput | RdpRemoteDesktopAccessProfileInput
 
 interface RemoteDesktopSessionBase {
+  desktop?: DesktopState
   id: string
   profile_id: string
   profile_name: string

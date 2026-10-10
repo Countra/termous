@@ -7,6 +7,8 @@ import type {
   RemoteDesktopViewerErrorCode,
 } from '../../core/viewerContracts.ts'
 import { VncTransportMetrics } from './vncTransportMetrics.ts'
+import { VncDesktopExecution } from './desktopExecution.ts'
+import { connectVncExecution, type VncExecutionConnection } from './executionBridge.ts'
 
 export type VncCredentialType = 'username' | 'password' | 'target'
 export type VncCredentials = Partial<Record<VncCredentialType, string>>
@@ -42,6 +44,9 @@ interface NoVncEventMap {
 type NoVncEventName = keyof NoVncEventMap
 
 export interface CreateVncViewerAdapterOptions {
+  execution?: VncExecutionConnection
+  generation?: number
+  onControlChanged?: (owned: boolean) => void
   target: HTMLElement
   url: string
   shared: boolean
@@ -55,6 +60,9 @@ export class VncViewerAdapter {
   private readonly rfb: InstanceType<typeof import('@novnc/novnc')['default']>
   private readonly listeners: Array<[NoVncEventName, EventListener]> = []
   private disposed = false
+  private readonly executionAbort = new AbortController()
+  private executionConnection?: VncExecutionConnection
+  private execution?: VncDesktopExecution
 
   private constructor(
     rfb: InstanceType<typeof import('@novnc/novnc')['default']>,
@@ -85,6 +93,14 @@ export class VncViewerAdapter {
     rfb.qualityLevel = 6
     rfb.compressionLevel = 2
     const adapter = new VncViewerAdapter(rfb, transportMetrics, options.events)
+    if (options.execution) {
+      adapter.executionConnection = options.execution
+      adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => options.onControlChanged?.(owned))
+      rfb.addEventListener('connect', () => {
+        void connectVncExecution(options.execution!, adapter.execution!, adapter.executionAbort.signal, () => adapter.disconnect(), options.viewOnly)
+          .catch(() => { if (!adapter.disposed) adapter.disconnect() })
+      }, { once: true, signal: adapter.executionAbort.signal })
+    }
     adapter.setDisplayMode(options.displayMode)
     return adapter
   }
@@ -108,7 +124,9 @@ export class VncViewerAdapter {
   }
 
   setViewOnly(value: boolean) {
-    this.rfb.viewOnly = value
+    if (this.executionConnection) {
+      void this.executionConnection.reclaim(value).catch(() => this.disconnect())
+    } else this.rfb.viewOnly = value
   }
 
   setViewportActive(active: boolean, mode: RemoteDesktopDisplayMode) {
@@ -138,10 +156,12 @@ export class VncViewerAdapter {
   }
 
   sendCtrlAltDel() {
+    if (this.execution && this.execution.describe().control?.owner !== 'local-viewer') return
     this.rfb.sendCtrlAltDel()
   }
 
   sendClipboard(text: string) {
+    if (this.execution && this.execution.describe().control?.owner !== 'local-viewer') return
     this.rfb.clipboardPasteFrom(text)
   }
 
@@ -156,6 +176,7 @@ export class VncViewerAdapter {
       return
     }
     this.disposed = true
+    this.executionAbort.abort()
     for (const [name, listener] of this.listeners) {
       this.rfb.removeEventListener(name, listener)
     }
@@ -172,7 +193,7 @@ export class VncViewerAdapter {
       this.transportMetrics.markConnected()
       this.events.onConnected()
     })
-    this.listen('disconnect', (event) => this.events.onDisconnected(event.detail.clean === true))
+    this.listen('disconnect', (event) => { this.executionAbort.abort(); this.events.onDisconnected(event.detail.clean === true) })
     this.listen('credentialsrequired', (event) => {
       const types = (event.detail.types ?? []).filter(isCredentialType)
       this.events.onCredentialsRequired(types)

@@ -5,6 +5,10 @@ import type {
   RemoteDesktopSession,
   RdpAttachment,
 } from '#entities/remote-desktop'
+export interface DesktopExecutionConnection {
+  connect: (readOnly: boolean) => Promise<{ url: string; ticket: string }>
+  reclaim: (readOnly: boolean) => Promise<void>
+}
 
 export type RemoteDesktopViewerConnectionState =
   | 'idle'
@@ -38,6 +42,7 @@ export type RemoteDesktopViewerErrorCode =
   | ''
 
 export interface RemoteDesktopViewerState {
+  controlOwned?: boolean
   connection: RemoteDesktopViewerConnectionState
   credentialFields: RemoteDesktopCredentialField[]
   verification: { type: string; fingerprint: string } | null
@@ -119,10 +124,9 @@ export interface RemoteDesktopViewerHandle {
 }
 
 export interface RemoteDesktopViewerCreateOptions {
-  attachment?: RdpAttachment
+  transport: { kind: 'rfb'; url: string; execution?: DesktopExecutionConnection } | { kind: 'rdp-pixels'; attachment: RdpAttachment }
   takeControl?: (subscriptionId: string) => Promise<void>
   target: HTMLElement
-  url: string
   session: RemoteDesktopSession
   profile?: RemoteDesktopAccessProfile
   state: RemoteDesktopViewerState

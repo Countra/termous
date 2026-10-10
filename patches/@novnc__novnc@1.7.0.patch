@@ -1,0 +1,154 @@
+diff --git a/core/rfb.js b/core/rfb.js
+index 80011e4a10203806f14df1ffc3b8425861a965a7..d365200beb402399d20c2f735cac26484ff99aeb 100644
+--- a/core/rfb.js
++++ b/core/rfb.js
+@@ -294,6 +294,11 @@ export default class RFB extends EventTargetMixin {
+         this.focusOnClick = true;
+ 
+         this._viewOnly = false;
++        this._localInputEnabled = true;
++        this._desktopEpoch = 0;
++        this._desktopSequence = 0;
++        this._desktopCapturedAt = 0;
++        this._captureWaiters = new Set();
+         this._clipViewport = false;
+         this._clippingViewport = false;
+         this._scaleViewport = false;
+@@ -315,7 +320,7 @@ export default class RFB extends EventTargetMixin {
+             this._rfbConnectionState === "connected") {
+             if (viewOnly) {
+                 this._keyboard.ungrab();
+-            } else {
++            } else if (this._localInputEnabled) {
+                 this._keyboard.grab();
+             }
+         }
+@@ -323,6 +328,50 @@ export default class RFB extends EventTargetMixin {
+ 
+     get capabilities() { return this._capabilities; }
+ 
++    // 人工事件捕获与协议输入分开，程序接管不依赖伪造 DOM 事件。
++    set localInputEnabled(value) {
++        if (!value && this._localInputEnabled) {
++            this._keyboard.ungrab();
++            clearTimeout(this._mouseMoveTimer);
++            this._mouseMoveTimer = null;
++            this._mouseButtonMask = 0;
++            if (this._rfbConnectionState === 'connected') {
++                this._sendMouse(this._mousePos.x, this._mousePos.y, 0);
++            }
++        }
++        this._localInputEnabled = Boolean(value);
++        if (value && !this._viewOnly && this._rfbConnectionState === 'connected') this._keyboard.grab();
++    }
++
++    get desktopState() {
++        return { width: this._fbWidth, height: this._fbHeight,
++                 displayEpoch: this._desktopEpoch, sequence: this._desktopCapturedAt ? this._desktopSequence : 0,
++                 capturedAt: this._desktopCapturedAt };
++    }
++
++    sendPointer(x, y, mask) {
++        if (this._rfbConnectionState !== 'connected' || this._viewOnly) throw new Error('desktop_not_ready');
++        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= this._fbWidth || y >= this._fbHeight || !Number.isInteger(mask) || mask < 0 || mask > 255) throw new Error('desktop_invalid_request');
++        // 使用远端绝对像素，不能再次应用视口偏移。
++        RFB.messages.pointerEvent(this._sock, x, y, mask);
++    }
++
++    captureDesktop(afterSequence = 0, signal) {
++        if (signal?.aborted) return Promise.reject(signal.reason);
++        return new Promise((resolve, reject) => {
++            const abort = () => { this._captureWaiters.delete(finish); reject(signal.reason); };
++            const finish = () => {
++                if (!this._desktopCapturedAt || this._desktopSequence <= afterSequence) return;
++                this._captureWaiters.delete(finish);
++                signal?.removeEventListener('abort', abort);
++                try { resolve({ ...this.desktopState, image: this.getImageData() }); } catch (error) { reject(error); }
++            };
++            this._captureWaiters.add(finish);
++            signal?.addEventListener('abort', abort, { once: true });
++            if (!this._flushing && !this._display.pending() && this._FBU.rects === 0) finish();
++        });
++    }
++
+     get clippingViewport() { return this._clippingViewport; }
+     _setClippingViewport(on) {
+         if (on === this._clippingViewport) {
+@@ -786,6 +835,7 @@ export default class RFB extends EventTargetMixin {
+     // Requests a change of remote desktop size. This message is an extension
+     // and may only be sent if we have received an ExtendedDesktopSize message
+     _requestRemoteResize() {
++        if (!this._localInputEnabled) return;
+         if (!this._resizeSession) {
+             return;
+         }
+@@ -1019,6 +1069,7 @@ export default class RFB extends EventTargetMixin {
+     }
+ 
+     _handleKeyEvent(keysym, code, down, numlock, capslock) {
++        if (!this._localInputEnabled) return;
+         // If remote state of capslock is known, and it doesn't match the local led state of
+         // the keyboard, we send a capslock keypress first to bring it into sync.
+         // If we just pressed CapsLock, or we toggled it remotely due to it being out of sync
+@@ -1081,6 +1132,7 @@ export default class RFB extends EventTargetMixin {
+     }
+ 
+     _handleMouse(ev) {
++        if (!this._localInputEnabled) return;
+         /*
+          * We don't check connection status or viewOnly here as the
+          * mouse events might be used to control the viewport
+@@ -1224,6 +1276,7 @@ export default class RFB extends EventTargetMixin {
+     }
+ 
+     _handleWheel(ev) {
++        if (!this._localInputEnabled) return;
+         if (this._rfbConnectionState !== 'connected') { return; }
+         if (this._viewOnly) { return; } // View only, skip mouse events
+ 
+@@ -1317,6 +1370,7 @@ export default class RFB extends EventTargetMixin {
+     }
+ 
+     _handleGesture(ev) {
++        if (!this._localInputEnabled) return;
+         let magnitude;
+ 
+         let pos = clientToElement(ev.detail.clientX, ev.detail.clientY,
+@@ -2208,7 +2262,7 @@ export default class RFB extends EventTargetMixin {
+         this._setDesktopName(name);
+         this._resize(width, height);
+ 
+-        if (!this._viewOnly) { this._keyboard.grab(); }
++        if (!this._viewOnly && this._localInputEnabled) { this._keyboard.grab(); }
+ 
+         this._fbDepth = 24;
+ 
+@@ -2660,6 +2714,16 @@ export default class RFB extends EventTargetMixin {
+ 
+         this._display.flip();
+ 
++        // 固定更新边界后再接受下一批 RFB，异步图片解码不能与截图交错。
++        this._flushing = true;
++        this._display.flush().then(() => {
++            this._desktopSequence++;
++            this._desktopCapturedAt = Date.now();
++            for (const finish of this._captureWaiters) finish();
++            this.dispatchEvent(new CustomEvent('desktopframe', { detail: this.desktopState }));
++            this._flushing = false;
++            if (this._rfbConnectionState === 'connected' && !this._sock.rQwait('message', 1)) this._handleMessage();
++        });
+         return true;  // We finished this FBU
+     }
+ 
+@@ -3001,6 +3065,11 @@ export default class RFB extends EventTargetMixin {
+ 
+     // Handle resize-messages from the server
+     _resize(width, height) {
++        if (width !== this._fbWidth || height !== this._fbHeight) {
++            this._desktopEpoch++;
++            // 序号跨尺寸保持递增；新尺寸的首帧完成前不暴露有效画面。
++            this._desktopCapturedAt = 0;
++        }
+         this._fbWidth = width;
+         this._fbHeight = height;
+ 

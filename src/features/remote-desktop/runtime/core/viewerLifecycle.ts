@@ -38,6 +38,7 @@ interface RemoteDesktopViewerLifecycleOptions {
     | 'consumeRemoteDesktopTargetAuth'
     | 'remoteDesktopStreamUrl'
     | 'takeRemoteDesktopControl'
+    | 'execution'
   >
   protocolRegistry: RemoteDesktopProtocolRegistry
   routeRegistry: RemoteDesktopRouteRegistry
@@ -350,8 +351,13 @@ export class RemoteDesktopViewerLifecycle {
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
       target: entry.container,
-      url: ticket.rdp ? '' : api.remoteDesktopStreamUrl(ticket),
-      attachment: ticket.rdp,
+      transport: ticket.rdp ? { kind: 'rdp-pixels', attachment: ticket.rdp } : {
+        kind: 'rfb', url: api.remoteDesktopStreamUrl(ticket),
+        execution: api.execution ? {
+          connect: (readOnly) => api.execution!.connect(entry.sessionId, expectedGeneration, readOnly),
+          reclaim: (readOnly) => api.execution!.reclaim(entry.sessionId, expectedGeneration, readOnly),
+        } : undefined,
+      },
       takeControl: (subscriptionId) => api.takeRemoteDesktopControl(entry.sessionId, expectedGeneration, subscriptionId),
       session: latestSession,
       profile,
@@ -360,7 +366,7 @@ export class RemoteDesktopViewerLifecycle {
       events: {
         onControlChanged: (owned) => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
-            this.options.commitViewerState(entry.sessionId, { viewOnly: !owned })
+            this.options.commitViewerState(entry.sessionId, { controlOwned: owned })
           }
         },
         onConnected: () => {

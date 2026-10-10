@@ -1634,6 +1634,7 @@
     "disconnectDescription": "将关闭“{{name}}”的查看器与当前连接。",
     "disconnectFailed": "远程桌面断开失败",
     "disableInput": "禁用本地输入",
+    "reclaimControl": "收回控制",
     "sendClipboard": "将本机剪贴板发送到远端",
     "receiveClipboard": "将远端剪贴板复制到本机",
     "clipboardSent": "剪贴板已发送",

@@ -9,3 +9,5 @@ minimumReleaseAgeExclude:
   - electron@43.1.1
 overrides:
   '@codemirror/state': 6.7.1
+patchedDependencies:
+  '@novnc/novnc@1.7.0': patches/@novnc__novnc@1.7.0.patch

@@ -32,6 +32,11 @@ declare module '@novnc/novnc' {
     scaleViewport: boolean
     showDotCursor: boolean
     viewOnly: boolean
+    localInputEnabled: boolean
+    readonly desktopState: { width: number; height: number; displayEpoch: number; sequence: number; capturedAt: number }
+    captureDesktop(afterSequence?: number, signal?: AbortSignal): Promise<{ width: number; height: number; displayEpoch: number; sequence: number; capturedAt: number; image: ImageData }>
+    sendPointer(x: number, y: number, mask: number): void
+    sendKey(keysym: number, code?: string, down?: boolean): void
 
     approveServer(): void
     blur(): void

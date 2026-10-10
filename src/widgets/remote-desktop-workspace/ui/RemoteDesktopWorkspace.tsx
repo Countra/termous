@@ -102,7 +102,7 @@ export function RemoteDesktopWorkspace({
   }
 
   const sendClipboard = async () => {
-    if (!activeSession || viewerState?.viewOnly) return
+    if (!activeSession || viewerState?.viewOnly || viewerState?.controlOwned === false) return
     try {
       runtime.sendClipboard(activeSession.id, await readClipboardText())
       notification.success({ title: t('remoteDesktop.clipboardSent'), duration: 2, className: termousNotificationClassName })
@@ -313,10 +313,11 @@ function RemoteDesktopToolbar({
   const { t } = useTranslation()
   const connected = viewerState?.connection === 'connected'
   const viewOnly = viewerState?.viewOnly ?? false
+  const inputDisabled = viewOnly || viewerState?.controlOwned === false
   const compactItems: MenuProps['items'] = [
-    { key: 'send-clipboard', icon: <ClipboardPaste size={15} />, label: t('remoteDesktop.sendClipboard'), disabled: !connected || viewOnly },
+    { key: 'send-clipboard', icon: <ClipboardPaste size={15} />, label: t('remoteDesktop.sendClipboard'), disabled: !connected || inputDisabled },
     { key: 'receive-clipboard', icon: <ClipboardCopy size={15} />, label: t('remoteDesktop.receiveClipboard'), disabled: !viewerState?.remoteClipboard },
-    { key: 'cad', icon: <Keyboard size={15} />, label: t('remoteDesktop.ctrlAltDel'), disabled: !connected || viewOnly },
+    { key: 'cad', icon: <Keyboard size={15} />, label: t('remoteDesktop.ctrlAltDel'), disabled: !connected || inputDisabled },
     {
       key: 'fullscreen',
       icon: fullscreen ? <Minimize2 size={15} /> : <Expand size={15} />,
@@ -346,6 +347,9 @@ function RemoteDesktopToolbar({
         <Switch size="small" checked={viewOnly} onChange={onViewOnly} />
         <span>{t('remoteDesktop.disableInput')}</span>
       </label>
+      {connected && viewerState?.controlOwned === false && !viewOnly ? (
+        <Button size="small" onClick={() => onViewOnly(false)}>{t('remoteDesktop.reclaimControl')}</Button>
+      ) : null}
       <div className={styles['toolbar-spacer']} />
       {fullscreen ? (
         <ToolbarButton
@@ -356,9 +360,9 @@ function RemoteDesktopToolbar({
         />
       ) : null}
       <span className={styles['secondary-tools']}>
-        <ToolbarButton title={t('remoteDesktop.sendClipboard')} icon={<ClipboardPaste size={16} />} disabled={!connected || viewOnly} onClick={onSendClipboard} />
+        <ToolbarButton title={t('remoteDesktop.sendClipboard')} icon={<ClipboardPaste size={16} />} disabled={!connected || inputDisabled} onClick={onSendClipboard} />
         <ToolbarButton title={t('remoteDesktop.receiveClipboard')} icon={<ClipboardCopy size={16} />} disabled={!viewerState?.remoteClipboard} onClick={onReceiveClipboard} />
-        <ToolbarButton title={t('remoteDesktop.ctrlAltDel')} icon={<Keyboard size={16} />} disabled={!connected || viewOnly} onClick={onCtrlAltDel} />
+        <ToolbarButton title={t('remoteDesktop.ctrlAltDel')} icon={<Keyboard size={16} />} disabled={!connected || inputDisabled} onClick={onCtrlAltDel} />
         <ToolbarButton
           title={t(fullscreen ? 'remoteDesktop.exitFullscreen' : 'remoteDesktop.fullscreen')}
           icon={fullscreen ? <Minimize2 size={16} /> : <Expand size={16} />}

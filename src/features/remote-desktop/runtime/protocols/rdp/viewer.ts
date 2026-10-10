@@ -4,7 +4,7 @@ import type { RemoteDesktopViewerCreateOptions, RemoteDesktopViewerHandle } from
 import { scanCodes } from './keyboard.ts'
 
 export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): RemoteDesktopViewerHandle {
-  const attachment = options.attachment
+  const attachment = options.transport.kind === 'rdp-pixels' ? options.transport.attachment : undefined
   if (!attachment || !options.session.rdp) throw new Error('RDP_ATTACHMENT_REQUIRED')
   for (const endpoint of [attachment.control_url, attachment.display_url]) {
     const url = new URL(endpoint)
@@ -33,6 +33,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   let disposed = false
   let connected = false
   let owned = false
+  let localReadOnly = options.state.viewOnly
   let controlKnown = false
   let connectedAt: number | null = null
   let controlReceived = 0
@@ -68,7 +69,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     control.send(data)
   }
   function input(operation: MessageInitShape<typeof InputSchema>['operation']) {
-    if (!owned || disposed) return
+    if (!owned || localReadOnly || disposed) return
     send({ case: 'input', value: { sessionGeneration: generation, controlGeneration, sequence: ++sequence, operation } })
   }
   function flushMotion() {
@@ -124,7 +125,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     options.target.appendChild(keyboard)
     control.onopen = () => {
       send({ case: 'authenticate', value: { ticket: attachment.control_ticket } })
-      send({ case: 'viewport', value: { active: active && !document.hidden } })
+      send({ case: 'viewport', value: { active: active && !document.hidden, readOnly: localReadOnly } })
     }
     control.onerror = disconnected
     control.onclose = disconnected
@@ -252,6 +253,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     setViewOnly(value) {
       if (value) { releasePressed(); if (owned) send({ case: 'control', value: { action: 'release', generation: controlGeneration } }) }
       else void options.takeControl?.(attachment.subscription_id).catch(disconnected)
+      localReadOnly = value
+      send({ case: 'viewport', value: { active: active && !document.hidden, readOnly: value } })
     },
     setViewportActive(value, displayMode) { active = value; mode = displayMode; if (!value) releasePressed(); send({ case: 'viewport', value: { active: active && !document.hidden } }); layout() },
     focus() { keyboard.focus({ preventScroll: true }) }, blur() { keyboard.blur() },

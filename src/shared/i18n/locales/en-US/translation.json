@@ -1636,6 +1636,7 @@
     "disconnectDescription": "This closes the viewer and current connection for “{{name}}”.",
     "disconnectFailed": "Could not disconnect the remote desktop",
     "disableInput": "Disable local input",
+    "reclaimControl": "Reclaim control",
     "sendClipboard": "Send local clipboard to remote",
     "receiveClipboard": "Copy remote clipboard locally",
     "clipboardSent": "Clipboard sent",
