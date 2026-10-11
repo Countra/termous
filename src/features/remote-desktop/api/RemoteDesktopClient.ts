@@ -7,8 +7,10 @@ import type {
 } from '#entities/remote-desktop'
 import { TermousApiTransport } from '#shared/api'
 import type { RemoteDesktopGateway } from './remoteDesktopGateway.ts'
+import { DesktopFilesClient } from './DesktopFilesClient.ts'
 
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
+  readonly desktopFiles: DesktopFilesClient
   readonly execution = {
     connect: async (id: string, generation: number, readOnly: boolean) => {
       const value = await this.request<{ path: string; ticket: string }>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/executor-ticket`, {
@@ -41,6 +43,12 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
   }
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
+    this.desktopFiles = new DesktopFilesClient(config)
+  }
+
+  override updateConfig(config: Partial<AppConfig>) {
+    super.updateConfig(config)
+    this.desktopFiles.updateConfig(config)
   }
 
   remoteDesktopProfiles() {

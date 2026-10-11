@@ -9,13 +9,17 @@ import { remoteErrorText, type RemoteCopy } from '../model/copy'
 import styles from './RemoteFiles.module.scss'
 import { RemoteFeedback, RemoteFeedbackStack } from './RemoteFeedback'
 
-interface Props { client: RemoteClient; session: Session; copy: RemoteCopy; roots: LocalRoot[]; operations: FileOperation[]; transfers?: Transfer[]; localTasks?: RemoteLocalTask[]; changed: () => void }
+interface Props { client: RemoteClient; session?: Session; copy: RemoteCopy; roots: LocalRoot[]; operations: FileOperation[]; transfers?: Transfer[]; localTasks?: RemoteLocalTask[]; changed: () => void; exchange?: { id: string; resourceGeneration: bigint; state?: string } }
 const join = (parent: string, name: string) => `${parent === '/' ? '' : parent}/${name}`
 const parentPath = (value: string) => value.replace(/\/?[^/]+\/?$/, '') || '/'
 
-export function RemoteFiles({ client, session, copy, roots, operations, transfers = [], localTasks = [], changed }: Props) {
+export function RemoteFiles({ client, session, copy, roots, operations, transfers = [], localTasks = [], changed, exchange }: Props) {
   const { modal } = App.useApp()
-  const can = (capability: string) => session.capabilities.includes(capability)
+  const retained = exchange?.state === 'retained'
+  const can = (capability: string) => exchange ? (retained ? ['transfer'] : ['transfer', 'transfer_receive', 'entry_create', 'entry_mutate', 'planned_delete']).includes(capability) : session?.capabilities.includes(capability) === true
+  const resourceID = exchange?.id ?? session?.id ?? ''
+  const resourceGeneration = exchange?.resourceGeneration ?? session?.generation ?? 0n
+  const locationKind = exchange ? 'desktop_exchange' : 'files'
   const [path, setPath] = useState('/')
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [cursor, setCursor] = useState('')
@@ -31,7 +35,7 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
   const [selecting, setSelecting] = useState(false)
   const [overwrite, setOverwrite] = useState<'rename' | 'skip' | 'replace'>('rename')
   const sequence = useRef(0)
-  const location = useCallback((target: string) => ({ kind: 'files', resourceId: session.id, generation: session.generation, path: target }), [session.id, session.generation])
+  const location = useCallback((target: string) => ({ kind: locationKind, resourceId: resourceID, generation: resourceGeneration, path: target, retained }), [locationKind, resourceID, resourceGeneration, retained])
 
   const load = useCallback(async (directory: string, next = '') => {
     const request = ++sequence.current
@@ -47,9 +51,9 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
   const cancelReads = useCallback(() => { sequence.current++ }, [])
   useEffect(() => { void load('/'); return cancelReads }, [load, cancelReads])
   const completed = [
-    ...operations.filter(task => task.sessionId === session.id && ['completed', 'failed', 'cancelled', 'uncertain'].includes(task.state)).map(task => `${task.id}:${task.state}`),
-    ...transfers.filter(task => task.state === 'completed' && task.target?.kind === 'files' && task.target.resourceId === session.id).map(task => `transfer:${task.id}`),
-    ...localTasks.filter(task => task.state === 'completed' && task.direction === 'upload' && task.session_id === session.id).map(task => `local:${task.id}`),
+    ...operations.filter(task => task.sessionId === session?.id && ['completed', 'failed', 'cancelled', 'uncertain'].includes(task.state)).map(task => `${task.id}:${task.state}`),
+    ...transfers.filter(task => task.state === 'completed' && task.target?.kind === locationKind && task.target.resourceId === resourceID).map(task => `transfer:${task.id}`),
+    ...localTasks.filter(task => task.state === 'completed' && task.direction === 'upload' && task.session_id === resourceID).map(task => `local:${task.id}`),
   ].sort().join('|')
   const previousCompleted = useRef(completed)
   useEffect(() => {
@@ -82,7 +86,7 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
       modal.confirm({ title: copy.deleteTitle, content: <><p>{copy.deleteHint}</p><code>{entry.path}</code></>, okText: copy.remove, cancelText: copy.cancel, okButtonProps: { danger: true }, onOk: async () => {
         try {
           await client.request({ operation: { case: 'file', value: { operationId: crypto.randomUUID(), action: 'delete', location: location(entry.path), recursive: true, expectedVersion: token } } })
-          setOperationPending(true)
+          setOperationPending(!exchange)
           changed()
           await load(path)
         } catch (reason) { setError(reason); throw reason }
@@ -96,7 +100,7 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
     setSelecting(true)
     try {
       const target = location(direction === 'upload' ? path : selectedEntries[0]!.path)
-      await client.selectTransfer({ direction, directory, overwrite, name: selectedEntries[0]?.name, location: { ...target, generation: target.generation.toString() }, locations: direction === 'download' ? selectedEntries.map(entry => ({ ...location(entry.path), generation: session.generation.toString() })) : undefined })
+      await client.selectTransfer({ direction, directory, overwrite, name: selectedEntries[0]?.name, location: { ...target, generation: target.generation.toString() }, locations: direction === 'download' ? selectedEntries.map(entry => ({ ...location(entry.path), generation: resourceGeneration.toString() })) : undefined })
       changed()
     } catch (reason) { setError(reason) } finally { setSelecting(false) }
   }
@@ -110,16 +114,17 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
           <Tooltip title={!selectedEntries.length ? copy.transferHint : copy.downloadDevice}><Button size="small" icon={<Download size={14} />} disabled={selecting || !selectedEntries.length || !can('transfer')} onClick={() => void selectTransfer('download')}>{copy.downloadDevice}</Button></Tooltip>
         </Flex>
       </div>
-      <div className={styles['transfer-group']} role="group" aria-label={copy.hostFiles}>
+      {!exchange && <div className={styles['transfer-group']} role="group" aria-label={copy.hostFiles}>
         <span className={styles['transfer-source']}><Monitor size={15} />{copy.hostFiles}</span>
         <Flex className={styles['transfer-actions']} gap={6} wrap align="center">
           <Button size="small" icon={<Upload size={14} />} disabled={!can('transfer_receive')} onClick={() => setTransfer('upload')}>{copy.uploadHost}</Button>
           <Button size="small" icon={<Download size={14} />} disabled={!selected.length || !can('transfer')} onClick={() => setTransfer('download')}>{copy.downloadHost}</Button>
         </Flex>
       </div>
+      }
       <div className={styles['transfer-options']}><span>{copy.overwrite}</span><Select size="small" aria-label={copy.overwrite} value={overwrite} onChange={setOverwrite} options={[{ value: 'rename', label: copy.autoRename }, { value: 'skip', label: copy.skip }, { value: 'replace', label: copy.replaceFile }]} /></div>
     </div>
-    {transfer ? <RemoteTransferDialog client={client} session={session} copy={copy} roots={roots} upload={transfer === 'upload'} paths={selected} directory={path} close={() => setTransfer(undefined)} changed={changed} /> : null}
+    {transfer && session && !exchange ? <RemoteTransferDialog client={client} session={session} copy={copy} roots={roots} upload={transfer === 'upload'} paths={selected} directory={path} close={() => setTransfer(undefined)} changed={changed} /> : null}
     <div className={styles.toolbar}><Space><Button icon={<ArrowUp size={16} />} aria-label={copy.parent} disabled={loading || path === '/'} onClick={() => void load(path === '.' ? '..' : parentPath(path))} /><Breadcrumb items={[{ title: <button className={styles.crumb} onClick={() => void load('/')}>/</button> }, ...parts.map((part, index) => ({ title: <button className={styles.crumb} onClick={() => void load(`${path.startsWith('/') ? '/' : ''}${parts.slice(0, index + 1).join('/')}`)}>{part}</button> }))]} /></Space><Space><Button disabled={!can('entry_create')} icon={<FolderPlus size={16} />} onClick={() => { setName(''); setEditing({ kind: 'mkdir' }) }}>{copy.newFolder}</Button><Button icon={<RefreshCw size={15} />} aria-label={copy.refresh} loading={loading} onClick={() => void load(path)} /></Space></div>
     <div className={styles.table}><Table<FileEntry> rowKey="path" dataSource={entries} scroll={{ x: 580 }} rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: !['file', 'directory'].includes(value.kind) }) }} loading={loading} pagination={false} size="small" locale={{ emptyText: copy.emptyDirectory }} onRow={entry => ({ onDoubleClick: () => { if (entry.kind === 'directory') void load(entry.path) } })} columns={[
       { title: copy.name, dataIndex: 'name', render: (_, entry) => <button className={styles.entry} onClick={() => entry.kind === 'directory' ? void load(entry.path) : setDetails(entry)}>{entry.kind === 'directory' ? <Folder size={17} /> : entry.kind === 'symlink' ? <Link size={16} /> : <File size={16} />}<span>{entry.name}</span></button> },

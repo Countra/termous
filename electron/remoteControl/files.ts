@@ -13,7 +13,7 @@ export class RemoteLocalTransfers {
     if (this.selecting) throw new RemoteCoreError('remote_transfer_busy')
     if (!input || !['upload', 'download'].includes(input.direction) || !['rename', 'skip', 'replace'].includes(input.overwrite) || JSON.stringify(input).length > 256 * 1024) throw new RemoteCoreError('remote_invalid_request')
     const location = fromJson(FileLocationSchema, input.location)
-    if (location.kind !== 'files' || !validId(location.resourceId) || location.generation === 0n || !location.path || location.path.length > 4096) throw new RemoteCoreError('remote_invalid_request')
+    if (!['files', 'desktop_exchange'].includes(location.kind) || !validId(location.resourceId) || location.generation === 0n || !location.path || location.path.length > 4096) throw new RemoteCoreError('remote_invalid_request')
     if (input.direction === 'download' && (typeof input.name !== 'string' || !input.name || input.name.length > 255 || ['.', '..'].includes(input.name) || /[/\\:\0]/.test(input.name))) throw new RemoteCoreError('remote_invalid_request')
     if (input.locations && (!Array.isArray(input.locations) || input.locations.length > 128)) throw new RemoteCoreError('remote_invalid_request')
     const locations = input.locations?.map(value => fromJson(FileLocationSchema, value))

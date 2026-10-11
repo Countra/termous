@@ -42,6 +42,7 @@ export type RemoteDesktopViewerErrorCode =
   | ''
 
 export interface RemoteDesktopViewerState {
+  controlLease?: { id: string; generation: number } | null
   controlOwned?: boolean
   connection: RemoteDesktopViewerConnectionState
   credentialFields: RemoteDesktopCredentialField[]
@@ -98,7 +99,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
-  onControlChanged?: (owned: boolean) => void
+  onControlChanged?: (owned: boolean, lease?: { id: string; generation: number } | null) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
   onCredentialsRequired: (fields: RemoteDesktopCredentialField[]) => void

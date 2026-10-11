@@ -240,6 +240,9 @@ export interface FileSession {
 }
 
 export interface TransferTask {
+  desktop_session_id?: string
+  desktop_exchange_id?: string
+  desktop_resource_generation?: number
   id: string
   origin?: TransferOrigin
   host_id?: string

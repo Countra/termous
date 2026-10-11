@@ -1,4 +1,5 @@
 import type { AppConfig, AppLanguage, AppTheme } from './application'
+import type { FilePickerOptions } from './bridge'
 
 export interface DesktopWindowBootstrap {
   config: AppConfig
@@ -8,6 +9,7 @@ export interface DesktopWindowBootstrap {
 }
 
 export interface DesktopWindowBridge {
+  pickPaths?: (options: FilePickerOptions) => Promise<string[]>
   bootstrap: () => Promise<DesktopWindowBootstrap>
   close: () => Promise<void>
 }

@@ -1,6 +1,18 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
+  desktopExchange: 'RDP file exchange', desktopExchangeHint: 'Allow transfers through a dedicated exchange folder. Personal mapped folders and local file clipboard are suspended during remote access.',
+  desktopExchangeUsage: 'Files are placed in the exchange folder. Copy them to the target disk from the remote desktop.',
+  retry: 'Retry', desktopFilesPreparing: 'Preparing file exchange…',
+  desktopFilesDenied: 'Please enable “RDP file exchange” for this RDP connection on the controlled computer. Desktop access alone does not grant file access.',
+  desktopFilesUnsupported: 'RDP file exchange is unavailable. Check both app versions and whether the target allows drive redirection.',
+  desktopFilesStale: 'This file entry has expired. Reopen file exchange to verify access again.',
+  desktopFilesBusy: 'File access is switching or busy. Try again shortly.',
+  desktopFilesStorage: 'The exchange folder could not be prepared. Check available disk space and app data directory permissions on the controlled computer.',
+  desktopFilesMapping: 'The exchange folder could not be mapped. Check whether the target allows drive redirection, then try again.',
+  desktopFilesPathLong: 'The local exchange path exceeds the RDP path limit.',
+  desktopFilesExpired: 'These retained files have expired and can no longer be downloaded.',
+  retainedFiles: 'Retained desktop files', retainedFilesHint: 'Completed files remain available for 24 hours after access ends. Downloads require the original device and current file permission.',
   desktopUnsupported: 'This desktop protocol is unsupported. Update both devices.',
   desktop: 'Desktop', newDesktop: 'Open desktop', desktopAccess: 'Desktop access', saveDesktops: 'Save desktop access',
   desktopAccessHint: 'Save host access first, then select individual desktop connections. Existing host grants do not enable desktop access.',
@@ -89,6 +101,18 @@ const en = {
   emptyDirectory: 'This folder is empty', operationPending: 'File operation started', shellNotice: 'Commands use the selected account permissions.',
 }
 const zh: typeof en = {
+  desktopExchange: 'RDP 文件交换', desktopExchangeHint: '允许通过专属交换区传输文件。远控期间暂停个人目录映射及本机文件剪贴板发布。',
+  desktopExchangeUsage: '文件先放入交换区，再在目标桌面中复制到目标磁盘。',
+  retry: '重试', desktopFilesPreparing: '正在准备文件交换区…',
+  desktopFilesDenied: '请在被控电脑为此 RDP 配置开启“RDP 文件交换”授权。桌面观看授权不会自动开放文件访问。',
+  desktopFilesUnsupported: '当前无法使用 RDP 文件交换，请检查双方应用版本，以及目标是否允许驱动器重定向。',
+  desktopFilesStale: '当前文件入口已失效，请重新打开文件交换区以核验访问权限。',
+  desktopFilesBusy: '文件入口正在切换或暂忙，请稍后重试。',
+  desktopFilesStorage: '无法准备交换目录，请检查被控电脑的剩余磁盘空间及应用数据目录权限。',
+  desktopFilesMapping: '交换目录映射失败，请检查目标是否允许驱动器重定向后重试。',
+  desktopFilesPathLong: '本机交换目录路径超出 RDP 支持的长度。',
+  desktopFilesExpired: '保留文件已到期，无法继续领取。',
+  retainedFiles: '待领取桌面文件', retainedFilesHint: '入口结束后保留已完成文件 24 小时。领取时仍需使用原设备并保有文件授权。',
   desktop: '远程桌面', newDesktop: '打开桌面', desktopAccess: '桌面访问', saveDesktops: '保存桌面授权',
   desktopAccessHint: '先保存主机授权，再单独选择桌面配置。已有主机授权不会自动开放桌面访问。',
   desktopCredentialHint: 'VNC 授权包含完整交互，并允许控制端在本次连接中使用已保存的 VNC 密码。RDP 密码始终保留在被控端。',
@@ -181,6 +205,14 @@ export type RemoteCopy = typeof en
 export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code).toLowerCase() : ''
   if (error && typeof error === 'object' && 'uncertain' in error && error.uncertain) return copy.uncertain
+  if (code === 'desktop_files_unauthorized') return copy.desktopFilesDenied
+  if (['desktop_files_unsupported', 'remote_desktop_files_unsupported'].includes(code)) return copy.desktopFilesUnsupported
+  if (code === 'desktop_files_stale') return copy.desktopFilesStale
+  if (['desktop_files_revoking', 'desktop_busy'].includes(code)) return copy.desktopFilesBusy
+  if (code === 'desktop_files_storage_failed') return copy.desktopFilesStorage
+  if (code === 'desktop_directory_operation_failed') return copy.desktopFilesMapping
+  if (code === 'desktop_directory_path_too_long') return copy.desktopFilesPathLong
+  if (code === 'desktop_files_expired') return copy.desktopFilesExpired
   if (code === 'remote_policy_changed') return copy.policyChanged
   if (code === 'agent_revision_conflict' || code === 'revision_conflict' || code === 'mcp_conflict') return copy.contentChanged
   if (code === 'remote_agent_disabled') return copy.agentDisabled

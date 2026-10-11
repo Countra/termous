@@ -3,6 +3,7 @@ import { Button, Dropdown, Input, Modal, Popconfirm, Select, Spin, Tag, Tooltip 
 import { Clipboard, Keyboard, Maximize, Monitor, RotateCcw, ShieldCheck, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { RemoteDesktopSession, type DesktopSessionEvents, type DesktopState } from '@termous/remote-protocol/desktop'
+import type { RemoteLocalTask } from '#common/contracts'
 import type { RemoteClient, Session } from '#entities/remote-control'
 import { termousPopconfirmProps } from '#shared/ui'
 import { bindDesktopInput } from '../model/desktopInput'
@@ -10,11 +11,12 @@ import { desktopCopy, desktopErrorText } from '../model/desktopCopy'
 import styles from './RemoteDesktop.module.scss'
 import { DesktopCursorOverlay } from './DesktopCursorOverlay'
 import { type CursorState, updateCursor } from '../model/desktopCursor'
+import { RemoteDesktopFiles } from './RemoteDesktopFiles'
 
 type Challenge = Parameters<DesktopSessionEvents['challenge']>[0]
 type Reply = Awaited<ReturnType<DesktopSessionEvents['challenge']>>
 
-export function RemoteDesktop({ client, session, active }: { client: RemoteClient; session: Session; active: boolean }) {
+export function RemoteDesktop({ client, session, active, localTasks = [], changed = () => {} }: { client: RemoteClient; session: Session; active: boolean; localTasks?: RemoteLocalTask[]; changed?: () => void }) {
   const { i18n } = useTranslation()
   const copy = desktopCopy(i18n.language?.startsWith('zh') ?? false)
   const root = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null), video = useRef<HTMLVideoElement>(null)
@@ -72,6 +74,7 @@ export function RemoteDesktop({ client, session, active }: { client: RemoteClien
     <div className={styles.toolbar}>
       <div className={styles.identity}><Monitor size={15} /><Tag>{session.engine.toUpperCase()}</Tag><span role="status">{status}</span></div>
       <div className={styles.actions}>
+        {session.engine === 'rdp' ? <RemoteDesktopFiles key={`${session.id}:${session.generation}`} client={client} session={session} desktop={runtime.current} available={active && phase === 'viewing'} localTasks={localTasks} changed={changed} getContainer={() => root.current!} /> : null}
         <Button size="small" disabled={phase !== 'viewing' || working} loading={working} onClick={() => void act(() => owned ? runtime.current!.release() : runtime.current!.acquire(true))}>{owned ? copy.release : copy.take}</Button>
         <Select size="small" value={fit ? 'fit' : 'actual'} aria-label={copy.fit} options={[{ value: 'fit', label: copy.fit }, { value: 'actual', label: copy.actual }]} onChange={mode => { setFit(mode === 'fit'); runtime.current?.display(mode === 'fit') }} />
         <Tooltip title={copy.keyboard}><Button size="small" type="text" disabled={!owned} icon={<Keyboard size={16} />} aria-label={copy.keyboard} onClick={() => { setText(''); setTool('text') }} /></Tooltip>

@@ -50,7 +50,7 @@ export interface RemoteLauncher {
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
   configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
-  configureDesktops?(generation: string, revision: number, profiles: string[]): Promise<RemoteResult<RemotePolicy>>
+  configureDesktops?(generation: string, revision: number, profiles: string[], exchangeProfiles?: string[]): Promise<RemoteResult<RemotePolicy>>
   desktopProfiles?(): Promise<RemoteResult<{ id: string; host_id: string; name: string; protocol: string }[]>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>

@@ -14,6 +14,8 @@ interface Props {
   selected: string[]
   desktops?: { id: string; host_id: string; name: string; protocol: string }[]
   selectedDesktops?: string[]
+  selectedExchanges?: string[]
+  onSelectExchanges?(value: string[]): void
   onSelectDesktops?(value: string[]): void
   onDesktops?(): void
   enabled: boolean
@@ -31,7 +33,7 @@ interface Props {
   onDirectory(write: boolean, id?: string): void
 }
 
-export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], onSelectDesktops, onDesktops, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
+export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], selectedExchanges = [], onSelectExchanges, onSelectDesktops, onDesktops, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
   const [query, setQuery] = useState('')
   useEffect(() => { if (!open) setQuery('') }, [open])
   const inactive = loading || !!working || !policy || mustRefresh
@@ -55,10 +57,11 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
   const desktopPanel = <section className={styles.panel} aria-label={copy.desktopAccess}>
     <p className={styles.hint}>{copy.desktopAccessHint}</p>
     <p className={styles.hint}>{copy.desktopCredentialHint}</p>
+    <p className={styles.hint}>{copy.desktopExchangeHint}</p>
     {availableDesktops.length === 0 ? <WorkspaceEmptyState icon={<Monitor size={18} />} title={copy.noConnections} description={copy.desktopAccessHint} /> : <div className={styles['host-list']}>
-      {availableDesktops.map(profile => <Checkbox key={profile.id} className={styles['host-choice']} disabled={inactive || dirty} checked={selectedDesktops.includes(profile.id)} onChange={event => onSelectDesktops?.(event.target.checked ? [...selectedDesktops, profile.id] : selectedDesktops.filter(id => id !== profile.id))}>
+      {availableDesktops.map(profile => <div key={profile.id}><Checkbox className={styles['host-choice']} disabled={inactive || dirty} checked={selectedDesktops.includes(profile.id)} onChange={event => onSelectDesktops?.(event.target.checked ? [...selectedDesktops, profile.id] : selectedDesktops.filter(id => id !== profile.id))}>
         <span className={styles['host-name']}><Monitor size={16} /><span>{hosts.find(host => host.id === profile.host_id)?.name} · {profile.name}</span><Tag>{profile.protocol.toUpperCase()}</Tag></span>
-      </Checkbox>)}
+      </Checkbox>{profile.protocol === 'rdp' ? <Checkbox className={styles['host-choice']} disabled={inactive || dirty || !selectedDesktops.includes(profile.id)} checked={selectedExchanges.includes(profile.id)} onChange={event => onSelectExchanges?.(event.target.checked ? [...selectedExchanges, profile.id] : selectedExchanges.filter(id => id !== profile.id))}>{copy.desktopExchange}</Checkbox> : null}</div>)}
     </div>}
     <Button type="primary" disabled={inactive || dirty} loading={working === 'desktop'} onClick={onDesktops}>{copy.saveDesktops}</Button>
   </section>

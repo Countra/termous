@@ -3,7 +3,7 @@ import { Button, ConfigProvider, Descriptions, Input, Popconfirm, Spin, Tooltip 
 import { ArrowDown, ArrowUp, Bot, Circle, CircleAlert, Folder, LayoutDashboard, Monitor, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, Terminal, Unplug, X } from 'lucide-react'
 import type { RemoteAgentQuote, RemoteBootstrap, RemoteConnection, RemoteWindowBridge, RemoteLocalTask } from '#common/contracts'
 import { RemoteClient, RemoteError, unwrap, retryRemoteRead, isTransientRemoteReadError, type Inventory, type Session } from '#entities/remote-control'
-import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, remoteCopy, remoteErrorText } from '#features/remote-control'
+import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, RemoteRetainedFiles, remoteCopy, remoteErrorText } from '#features/remote-control'
 import { formatBytes } from '#shared/format'
 import { customSelectStyles, featureSidePanelStyles, FilterPopover, uiStyles } from '#shared/ui'
 import styles from './RemoteWorkbench.module.scss'
@@ -183,6 +183,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
         icon={sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />} onClick={() => setSidebarCollapsed(value => !value)} /></Tooltip>
       <div className={styles.identity}><span className={styles['device-icon']}><Monitor size={19} /></span><div><strong title={bootstrap.deviceName}>{bootstrap.deviceName}</strong><small>{copy.title}</small></div></div>
       <div className={styles['header-actions']}>
+        {client && ready ? <RemoteRetainedFiles client={client} copy={copy} localTasks={localTasks} changed={() => void refresh()} /> : null}
         <FilterPopover title={copy.details} content={<div className={styles.details}>{details}</div>}>
           <button className={styles['connection-status']} aria-label={copy.details}><span className={`${styles.dot} ${statusClass}`} /><span role="status">{path}</span>{ready && stats?.path ? <span className={styles.latency}>{Math.round(stats.rtt_ms)} ms</span> : null}</button>
         </FilterPopover>

@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron'
 import type { AppConfig, AppLanguage, AppTheme } from '#common/contracts'
 
 interface Options {
@@ -62,6 +62,21 @@ export class DesktopWindows {
     ipcMain.handle('desktop:close', event => {
       this.own(event)
       BrowserWindow.fromWebContents(event.sender)?.close()
+    })
+    ipcMain.handle('desktop:pick-paths', async (event, input: unknown) => {
+      this.own(event)
+      if (!input || typeof input !== 'object') throw new Error('desktop_picker_invalid')
+      const { mode, multiple } = input as { mode?: unknown; multiple?: unknown }
+      if (!['files', 'directories', 'files-and-directories'].includes(String(mode)) || typeof multiple !== 'boolean') throw new Error('desktop_picker_invalid')
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) throw new Error('desktop_sender_not_allowed')
+      const properties: NonNullable<OpenDialogOptions['properties']> = []
+      if (mode !== 'directories') properties.push('openFile')
+      if (mode !== 'files') properties.push('openDirectory')
+      if (multiple) properties.push('multiSelections')
+      const result = await dialog.showOpenDialog(window, { properties })
+      this.own(event)
+      return result.canceled ? [] : result.filePaths
     })
   }
 

@@ -398,6 +398,7 @@ export function RemoteDesktopRuntimeProvider({
   }, [])
 
   const value = useMemo(() => ({
+    desktopFiles: api.desktopFiles,
     sessions,
     hiddenSessionIds,
     closeViewer,
@@ -419,6 +420,7 @@ export function RemoteDesktopRuntimeProvider({
     sendCtrlAltDel,
     sendClipboard,
   }), [
+    api.desktopFiles,
     hiddenSessionIds,
     closeViewer,
     selectSession,

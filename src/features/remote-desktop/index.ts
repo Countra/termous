@@ -1,5 +1,7 @@
 export { RemoteDesktopClient } from './api/RemoteDesktopClient.ts'
 export { DesktopOperationsClient } from './api/DesktopOperationsClient.ts'
+export { DesktopFilesClient } from './api/DesktopFilesClient.ts'
+export type { DesktopFilesGateway } from './api/DesktopFilesClient.ts'
 export type { RemoteDesktopGateway } from './api/remoteDesktopGateway.ts'
 export { RemoteDesktopRuntimeProvider } from './runtime/RemoteDesktopRuntimeProvider.tsx'
 export { useRemoteDesktopRuntime } from './runtime/core/remoteDesktopRuntimeContext.ts'

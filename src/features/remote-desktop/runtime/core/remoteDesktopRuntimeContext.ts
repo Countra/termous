@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
 import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopSession,
@@ -9,6 +10,7 @@ import type {
 } from './viewerContracts.ts'
 
 export interface RemoteDesktopRuntimeValue {
+  desktopFiles?: DesktopFilesGateway
   sessions: RemoteDesktopSession[]
   hiddenSessionIds: string[]
   closeViewer: (sessionId: string) => void

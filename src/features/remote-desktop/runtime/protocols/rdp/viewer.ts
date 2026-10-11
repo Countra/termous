@@ -138,7 +138,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
         if (payload.case === 'session') {
           const state = payload.value
           if (state.sessionGeneration !== generation || state.sessionId !== options.session.id) throw new Error('RDP_SESSION_MISMATCH')
-          if (state.control?.generation !== controlGeneration) {
+          const controlChanged = state.control?.generation !== controlGeneration
+          if (controlChanged) {
             controlGeneration = state.control?.generation ?? 0n
             sequence = 0n
             keys.clear()
@@ -146,7 +147,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
             motion = undefined
           }
           const nextOwned = state.control?.subscriptionId === attachment.subscription_id
-          if (!controlKnown || nextOwned !== owned) { controlKnown = true; owned = nextOwned; options.events.onControlChanged?.(owned) }
+          if (!controlKnown || nextOwned !== owned || controlChanged) { controlKnown = true; owned = nextOwned; options.events.onControlChanged?.(owned, owned ? { id: attachment.subscription_id, generation: Number(controlGeneration) } : null) }
           resizeAvailable = state.resizeAvailable
           layout()
           if (state.state === 'failed' || state.state === 'closed') disconnected()

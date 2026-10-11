@@ -46,3 +46,31 @@ test('上传完成时正在切换目录，刷新等待导航结束且不会退�
   await act(async () => { complete(create(ResponseSchema, { result: { case: 'directory', value: { entries: [] } } })) })
   await waitFor(() => expect(directories).toEqual(['/', '/src', '/src']))
 })
+
+test('留存交换区脱离桌面会话浏览，只提供领取并保留资源代次', async () => {
+  const client = new RemoteClient({} as ConstructorParameters<typeof RemoteClient>[0], {} as RemoteConnection)
+  const request = vi.spyOn(client, 'request').mockResolvedValue(create(ResponseSchema, { result: { case: 'directory', value: { entries: [{ name: '完成.txt', path: '/完成.txt', kind: 'file' }] } } }))
+  const copy = remoteCopy('zh-CN')
+  render(<App><RemoteFiles client={client} exchange={{ id: 'retained', resourceGeneration: 8n, state: 'retained' }} copy={copy} roots={[]} operations={[]} changed={vi.fn()} /></App>)
+  await screen.findByRole('button', { name: '完成.txt' })
+  expect(request).toHaveBeenCalledWith({ operation: { case: 'file', value: { action: 'list', location: { kind: 'desktop_exchange', resourceId: 'retained', generation: 8n, path: '/', retained: true }, cursor: '' } } })
+  expect(screen.getByRole('button', { name: copy.newFolder })).toBeDisabled()
+  expect(screen.getByRole('button', { name: copy.rename })).toBeDisabled()
+  expect(screen.getByRole('button', { name: copy.remove })).toBeDisabled()
+})
+
+test('交换区重新绑定后，忽略旧代次目录结果', async () => {
+  const client = new RemoteClient({} as ConstructorParameters<typeof RemoteClient>[0], {} as RemoteConnection)
+  let finish!: (value: Response) => void
+  vi.spyOn(client, 'request').mockImplementation(async input => {
+    const generation = input.operation?.case === 'file' ? input.operation.value.location?.generation : 0n
+    if (generation === 1n) return new Promise<Response>(resolve => { finish = resolve })
+    return create(ResponseSchema, { result: { case: 'directory', value: { entries: [{ name: '当前.txt', path: '/当前.txt', kind: 'file' }] } } })
+  })
+  const props = { client, copy: remoteCopy('zh-CN'), roots: [], operations: [], changed: vi.fn() }
+  const view = render(<App><RemoteFiles {...props} exchange={{ id: 'exchange', resourceGeneration: 1n }} /></App>)
+  await act(async () => { view.rerender(<App><RemoteFiles {...props} exchange={{ id: 'exchange', resourceGeneration: 2n }} /></App>) })
+  await screen.findByRole('button', { name: '当前.txt' })
+  await act(async () => { finish(create(ResponseSchema, { result: { case: 'directory', value: { entries: [{ name: '过期.txt', path: '/过期.txt', kind: 'file' }] } } })) })
+  expect(screen.queryByRole('button', { name: '过期.txt' })).not.toBeInTheDocument()
+})

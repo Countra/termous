@@ -377,9 +377,9 @@ export class RemoteDesktopViewerLifecycle {
       state,
       credentials: entry.credentials ?? undefined,
       events: {
-        onControlChanged: (owned) => {
+        onControlChanged: (owned, lease) => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
-            this.options.commitViewerState(entry.sessionId, { controlOwned: owned })
+            this.options.commitViewerState(entry.sessionId, { controlOwned: owned, controlLease: lease ?? null })
           }
         },
         onConnected: () => {

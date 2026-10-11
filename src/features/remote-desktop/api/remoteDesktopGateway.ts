@@ -4,8 +4,10 @@ import type {
   RemoteDesktopAccessProfileInput,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
+import type { DesktopFilesGateway } from './DesktopFilesClient.ts'
 
 export interface RemoteDesktopRuntimeGateway {
+  desktopFiles?: DesktopFilesGateway
   execution?: {
     connect: (id: string, generation: number, readOnly: boolean) => Promise<{ url: string; ticket: string }>
     reclaim: (id: string, generation: number, readOnly: boolean) => Promise<void>

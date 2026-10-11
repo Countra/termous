@@ -123,10 +123,11 @@ export class RemoteControlRuntime {
       const { entry, base } = await this.active(event, id)
       return (await this.options.core.request<{ ice_servers: RTCIceServer[] }>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })).ice_servers
     }))
-    ipcMain.handle('remote:configure-desktops', (event, generation: string, revision: number, profiles: unknown) => result(async () => {
+    ipcMain.handle('remote:configure-desktops', (event, generation: string, revision: number, profiles: unknown, exchangeProfiles: unknown) => result(async () => {
       this.main(event, generation)
       if (!Number.isSafeInteger(revision) || revision < 0 || !Array.isArray(profiles) || profiles.length > 256 || !profiles.every(validId)) throw new RemoteCoreError('remote_invalid_request')
-      return this.options.core.request<RemotePolicy>('/remote-control/desktop-policy', { generation, revision, profile_ids: profiles }, 'PUT')
+      if (exchangeProfiles !== undefined && (!Array.isArray(exchangeProfiles) || exchangeProfiles.length > 256 || !exchangeProfiles.every(validId))) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request<RemotePolicy>('/remote-control/desktop-policy', { generation, revision, profile_ids: profiles, exchange_profile_ids: exchangeProfiles }, 'PUT')
     }))
     ipcMain.handle('remote:desktop-profiles', event => result(async () => {
       this.main(event)

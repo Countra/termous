@@ -1,0 +1,355 @@
+.root {
+  -webkit-app-region: no-drag;
+}
+
+.panel:global(.ant-drawer-section) {
+  max-width: 100vw;
+  color: var(--text-primary);
+  border-inline-start: 1px solid var(--border);
+
+  // 抽屉覆盖动态桌面画面，必须使用不透明底色，避免后面的内容干扰阅读。
+  background: var(--app-bg-elevated);
+  container-type: inline-size;
+}
+
+.header:global(.ant-drawer-header) {
+  border-color: var(--border);
+  padding: 16px 18px;
+  background: transparent;
+}
+
+.heading,
+.context,
+.path,
+.entry,
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.body:global(.ant-drawer-body) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 16px 18px 0;
+}
+
+.body > :global(.ant-alert) {
+  flex: 0 0 auto;
+  max-height: 30%;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.context {
+  justify-content: space-between;
+  flex: 0 0 auto;
+}
+
+.context > strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conflict-field {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.conflict-select {
+  width: 170px;
+}
+
+.tabs:global(.ant-tabs) {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.tabs :global(.ant-tabs-nav) {
+  flex: 0 0 auto;
+  margin: 0 0 14px;
+}
+
+.tabs :global(.ant-tabs-nav)::before {
+  border-color: var(--border);
+}
+
+.tabs :global(.ant-tabs-tab) {
+  padding-block: 9px;
+  font-size: 12px;
+}
+
+.tabs :global(.ant-tabs-body-holder) {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabs :global(.ant-tabs-body),
+.tabs :global(.ant-tabs-content) {
+  height: 100%;
+  min-height: 0;
+}
+
+.tabs :global(.ant-tabs-content) {
+  overflow: hidden auto;
+  padding-bottom: 16px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.section,
+.browser {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.section > :global(.ant-btn) {
+  justify-self: start;
+}
+
+.actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions :global(.ant-btn) {
+  max-width: 100%;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.target-path {
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--app-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.path {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  background: var(--app-bg);
+}
+
+.path code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entries {
+  max-height: 45vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overscroll-behavior: contain;
+}
+
+.entry {
+  min-height: 42px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.entry:last-child {
+  border-bottom: 0;
+}
+
+.entry > svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.entry > :global(.ant-checkbox-wrapper),
+.entry > :global(.ant-btn) {
+  flex-shrink: 0;
+}
+
+.entry:hover,
+.entry:focus-within {
+  background: var(--row-hover-bg);
+}
+
+.filename {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.filename:not(:disabled) {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.filename:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.size {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mapping {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.mapping-title {
+  display: flex;
+  min-width: 0;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mapping-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mapping-title :global(.ant-tag) {
+  flex-shrink: 0;
+  margin-inline-end: 0;
+}
+
+.mapping > strong {
+  overflow-wrap: anywhere;
+}
+
+.mapping code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.empty {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.footer {
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.footer :global(.ant-btn) {
+  flex-shrink: 0;
+}
+
+// 复用文件任务样式；窄抽屉按自身宽度排版，不依赖主窗口的媒体查询。
+.tasks {
+  display: flex;
+  min-width: 0;
+  min-height: 240px;
+  height: 100%;
+  flex-direction: column;
+}
+
+.tasks :global(.transfer-command-bar) {
+  min-height: 41px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 0 8px;
+}
+
+.tasks :global(.transfer-filter-tabs button) {
+  padding-inline: 8px;
+}
+
+.tasks :global(.transfer-command-status) {
+  margin-inline-start: auto;
+}
+
+.tasks :global(.transfer-list) {
+  padding: 0 0 12px;
+}
+
+.tasks :global(.transfer-row) {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px 10px;
+}
+
+.tasks :global(.transfer-progress-block) {
+  grid-column: 2 / 4;
+  grid-row: 2;
+}
+
+.tasks :global(.transfer-actions) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+@container (inline-size <= 440px) {
+  .context {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .conflict-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .conflict-select {
+    width: min(170px, 60%);
+  }
+
+  .entry {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+}

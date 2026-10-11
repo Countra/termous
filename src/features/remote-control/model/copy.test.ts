@@ -22,6 +22,15 @@ test('远控连接错误区分网络、认证、信任、限流与目标状态',
       ['REMOTE_FILE_FORBIDDEN', copy.denied],
       ['AGENT_REVISION_CONFLICT', copy.contentChanged],
       ['MCP_CONFLICT', copy.contentChanged],
+      ['desktop_files_unauthorized', copy.desktopFilesDenied],
+      ['desktop_files_unsupported', copy.desktopFilesUnsupported],
+      ['desktop_files_stale', copy.desktopFilesStale],
+      ['desktop_files_revoking', copy.desktopFilesBusy],
+      ['desktop_busy', copy.desktopFilesBusy],
+      ['desktop_files_storage_failed', copy.desktopFilesStorage],
+      ['desktop_directory_operation_failed', copy.desktopFilesMapping],
+      ['desktop_directory_path_too_long', copy.desktopFilesPathLong],
+      ['desktop_files_expired', copy.desktopFilesExpired],
     ]) {
       assert.equal(remoteErrorText(copy, { code }), expected, `${language}: ${code}`)
     }

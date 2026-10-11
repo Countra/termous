@@ -11,6 +11,7 @@ import {
   ClipboardCopy,
   ClipboardPaste,
   Expand,
+  FolderOpen,
   Keyboard,
   Maximize2,
   Minimize2,
@@ -24,7 +25,7 @@ import {
   Scan,
   Unplug,
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   RemoteDesktopDisplayMode,
@@ -54,6 +55,7 @@ import {
   RemoteDesktopServerVerificationDialog,
 } from './RemoteDesktopSecurityDialogs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
+import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
 
 export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
 
@@ -67,6 +69,7 @@ export function RemoteDesktopWorkspace({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const runtime = useRemoteDesktopRuntime()
+  const [filesOpen, setFilesOpen] = useState(false)
   const wasFullscreenRef = useRef(false)
   const activeSession = runtime.sessions.find((session) => session.id === runtime.activeSessionId) ?? null
   const viewerState = activeSession ? runtime.viewerStates[activeSession.id] : undefined
@@ -218,6 +221,7 @@ export function RemoteDesktopWorkspace({
                 />
               ))}
           </SessionTabStrip>
+          {runtime.desktopFiles && <Button size="small" icon={<FolderOpen size={14} />} aria-expanded={filesOpen} onClick={() => setFilesOpen(true)}>{t('remoteDesktop.files.title')}</Button>}
           {activeSession?.protocol === 'rdp' && getTermousBridge()?.desktopWindow ? <Button size="small" onClick={() => {
             void getTermousBridge()?.desktopWindow?.open(activeSession.id).catch((error) => notification.error({ title: t('remoteDesktop.rdp.openWindow'), description: publicError(error) }))
           }}>{t('remoteDesktop.rdp.openWindow')}</Button> : null}
@@ -274,6 +278,7 @@ export function RemoteDesktopWorkspace({
       {activeSession && viewerState ? (
         <RemoteDesktopCredentialDialog session={activeSession} />
       ) : null}
+      {filesOpen && runtime.desktopFiles && <DesktopFilesPanel key={`${activeSession?.id ?? ''}:${activeSession?.connection_generation ?? 0}`} api={runtime.desktopFiles} session={activeSession} viewer={viewerState} onClose={() => setFilesOpen(false)} />}
       {activeSession && viewerState?.verification ? (
         <RemoteDesktopServerVerificationDialog session={activeSession} />
       ) : null}
