@@ -1,0 +1,70 @@
+.icon,
+.pending-icon {
+  color: var(--accent);
+}
+
+.pending-icon {
+  animation: clipboard-spin 1s linear infinite;
+}
+
+.content {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+
+  p {
+    margin: 0;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+}
+
+.names {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.selection {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.count {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.transfer {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes clipboard-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-icon { animation: none; }
+}

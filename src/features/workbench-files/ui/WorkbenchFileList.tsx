@@ -17,6 +17,8 @@ import styles from './WorkbenchFileList.module.scss'
 const scopedClassName = (className: string) => `${className} ${styles[className]}`
 
 interface WorkbenchFileListProps {
+  onPaste?: () => void
+  onCopyToSystem?: (paths: string[]) => void
   entries: RemoteFileEntry[]
   selectedPaths: string[]
   listingPath: string
@@ -49,6 +51,8 @@ interface FileNameTooltipState {
 
 export function WorkbenchFileList({
   entries,
+  onCopyToSystem,
+  onPaste,
   selectedPaths,
   listingPath,
   loading,
@@ -215,6 +219,8 @@ export function WorkbenchFileList({
   }
 
   const shortcutStateRef = useRef({
+    onPaste,
+    onCopyToSystem,
     interactionLocked,
     entries,
     focusedPath,
@@ -223,6 +229,8 @@ export function WorkbenchFileList({
     hideNameTooltip,
   })
   shortcutStateRef.current = {
+    onPaste,
+    onCopyToSystem,
     interactionLocked,
     entries,
     focusedPath,
@@ -264,7 +272,24 @@ export function WorkbenchFileList({
         return 'handled'
       },
     )
+    const disposeCopy = shortcutRuntime.registerHandler(shortcutContextId, 'files.copy_to_system', () => {
+      const current = shortcutStateRef.current
+      if (current.interactionLocked || !current.onCopyToSystem) return 'fallthrough'
+      const paths = [...current.selectedPathSet]
+      const selected = paths.length ? paths : current.focusedPath ? [current.focusedPath] : []
+      if (!selected.length) return 'fallthrough'
+      current.onCopyToSystem(selected)
+      return 'handled'
+    })
+    const disposePaste = shortcutRuntime.registerHandler(shortcutContextId, 'files.paste', () => {
+      const current = shortcutStateRef.current
+      if (current.interactionLocked || !current.onPaste) return 'fallthrough'
+      current.onPaste()
+      return 'handled'
+    })
     return () => {
+      disposePaste()
+      disposeCopy()
       disposeHandler()
       disposeContext()
     }

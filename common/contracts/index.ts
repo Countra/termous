@@ -142,3 +142,5 @@ export * from './cloud.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'
 export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboardState, SystemFileSelection } from './desktop-files'
+
+export type { FileClipboardImport, FileClipboardImportRequest, FileSystemClipboardBridge, FileSystemClipboardRequest, FileSystemClipboardState } from "./file-system-clipboard"

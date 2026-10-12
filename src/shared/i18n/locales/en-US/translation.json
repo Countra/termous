@@ -3805,6 +3805,47 @@
     }
   },
   "files": {
+    "systemClipboard": {
+      "itemCount": "{{count}} items",
+      "pasteFailed": "Could not paste files",
+      "pasteEmpty": "Copy files or folders in File Explorer first",
+      "task": "System copy",
+      "provided": "File contents read",
+      "copy": "Copy to system clipboard",
+      "preparing": "Preparing to copy",
+      "preparingHint": "Preparing the files for pasting.",
+      "ready": "{{count}} items copied",
+      "readyHint": "Paste in File Explorer. Keep the file connection open until finished.",
+      "receiving": "Copying to this device",
+      "receivingHint": "Wait for File Explorer to finish pasting.",
+      "progress": "Read {{current}} / {{total}}",
+      "cancelling": "Cancelling copy",
+      "cancellingHint": "Ending this copy. Please wait.",
+      "replaced": "Clipboard updated",
+      "replacedHint": "Copy these files again if you still need to paste them.",
+      "stopped": "Copy cancelled",
+      "stoppedHint": "Files already pasted will not be deleted.",
+      "cleanup_pending": "Could not cancel",
+      "failed": "Copy incomplete",
+      "retryHint": "Select the files and copy again.",
+      "cancel": "Cancel copy",
+      "retryCancel": "Retry cancellation",
+      "errors": {
+        "FILE_CLIPBOARD_CANCEL_FAILED": "Unable to cancel right now. Try again.",
+        "FILE_CLIPBOARD_CLEANUP_FAILED": "Cancellation is incomplete. Try again.",
+        "FILE_CLIPBOARD_CHANGED": "The clipboard changed. Copy the files again.",
+        "FILE_CLIPBOARD_STALE": "Reconnect the file list, then copy these files again.",
+        "FILE_CLIPBOARD_SOURCE_CHANGED": "The file changed. Copy it again.",
+        "FILE_CLIPBOARD_UNSUPPORTED": "This system or file connection does not support this action.",
+        "FILE_CLIPBOARD_NO_SPACE": "Not enough disk space on this device. Free some space and try again.",
+        "FILE_CLIPBOARD_LIMIT": "The selection exceeds copy limits. Copy smaller batches.",
+        "FILE_CLIPBOARD_NAME_INVALID": "File names or paths do not meet Windows requirements.",
+        "FILE_CLIPBOARD_ENTRY_UNSUPPORTED": "Links and special files cannot be copied. Select regular files or folders.",
+        "FILE_CLIPBOARD_PASTE_EXTERNAL": "Paste in File Explorer. To copy between file lists, use Copy in the menu.",
+        "FILE_CLIPBOARD_TIMEOUT": "Reading timed out. Check the connection and copy again."
+      }
+    },
+
     "tabMenu": {
       "duplicateFailed": "Could not duplicate the file session",
       "restartFailed": "Could not restart the file session"
@@ -5276,6 +5317,14 @@
         "terminal_session_reconnect": {
           "name": "Reconnect session",
           "description": "Reconnects the current disconnected SSH session."
+        },
+        "files_paste": {
+          "name": "Paste files",
+          "description": "Upload files from the system clipboard to this folder, or paste files copied in the app."
+        },
+        "files_copy_to_system": {
+          "name": "Copy to system clipboard",
+          "description": "Copy selected files for pasting in File Explorer."
         },
         "files_select_all": {
           "name": "Select all files",

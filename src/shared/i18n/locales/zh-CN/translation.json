@@ -3793,6 +3793,47 @@
     }
   },
   "files": {
+    "systemClipboard": {
+      "itemCount": "共 {{count}} 项",
+      "pasteFailed": "粘贴失败",
+      "pasteEmpty": "请先在资源管理器中复制文件或文件夹",
+      "task": "系统复制",
+      "provided": "文件内容已读取",
+      "copy": "复制到系统剪贴板",
+      "preparing": "正在准备复制",
+      "preparingHint": "正在整理文件，稍后即可粘贴。",
+      "ready": "已复制 {{count}} 项",
+      "readyHint": "请在资源管理器中粘贴。完成前请保持文件连接开启。",
+      "receiving": "正在复制到本机",
+      "receivingHint": "请等待资源管理器完成粘贴。",
+      "progress": "已读取 {{current}} / {{total}}",
+      "cancelling": "正在取消复制",
+      "cancellingHint": "正在结束本次复制，请稍候。",
+      "replaced": "剪贴板内容已更新",
+      "replacedHint": "需要粘贴这些文件时，请重新复制。",
+      "stopped": "已取消复制",
+      "stoppedHint": "已粘贴的文件不会被删除。",
+      "cleanup_pending": "取消未完成",
+      "failed": "复制未完成",
+      "retryHint": "请重新选择文件并复制。",
+      "cancel": "取消复制",
+      "retryCancel": "重试取消",
+      "errors": {
+        "FILE_CLIPBOARD_CANCEL_FAILED": "暂时无法取消，请重试。",
+        "FILE_CLIPBOARD_CLEANUP_FAILED": "取消尚未完成，请重试。",
+        "FILE_CLIPBOARD_CHANGED": "剪贴板内容已更新，请重新复制。",
+        "FILE_CLIPBOARD_STALE": "请重新连接文件列表，再复制这些文件。",
+        "FILE_CLIPBOARD_SOURCE_CHANGED": "文件已发生变化，请重新复制。",
+        "FILE_CLIPBOARD_UNSUPPORTED": "当前系统或文件连接不支持此操作。",
+        "FILE_CLIPBOARD_NO_SPACE": "本机磁盘空间不足，请清理后重试。",
+        "FILE_CLIPBOARD_LIMIT": "所选文件超出复制限制，请分批复制。",
+        "FILE_CLIPBOARD_NAME_INVALID": "文件名称或路径不符合 Windows 要求。",
+        "FILE_CLIPBOARD_ENTRY_UNSUPPORTED": "无法复制链接或特殊文件，请选择普通文件或文件夹。",
+        "FILE_CLIPBOARD_PASTE_EXTERNAL": "请在资源管理器中粘贴。在文件列表间操作，请使用菜单中的“复制”。",
+        "FILE_CLIPBOARD_TIMEOUT": "读取超时，请检查连接后重新复制。"
+      }
+    },
+
     "tabMenu": {
       "duplicateFailed": "复制文件会话失败",
       "restartFailed": "重启文件会话失败"
@@ -5251,6 +5292,14 @@
         "terminal_session_reconnect": {
           "name": "重新连接会话",
           "description": "重新连接当前已断开的 SSH 会话。"
+        },
+        "files_paste": {
+          "name": "粘贴文件",
+          "description": "将系统复制的文件上传到当前目录，或粘贴应用内复制的文件。"
+        },
+        "files_copy_to_system": {
+          "name": "复制到系统剪贴板",
+          "description": "将文件列表的选择复制为可在系统资源管理器中粘贴的文件。"
         },
         "files_select_all": {
           "name": "全选文件",

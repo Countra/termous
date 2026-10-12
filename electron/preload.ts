@@ -101,6 +101,7 @@ function parseFileUriText(text: string) {
 
 function readClipboardFilePaths() {
   const formats = clipboard.availableFormats()
+  if (formats.includes("Termous.DesktopFilePublication.v1")) return []
   const paths: string[] = []
   if (formats.includes('FileNameW')) {
     paths.push(...parseWindowsFileNameBuffer(clipboard.readBuffer('FileNameW')))
@@ -119,6 +120,12 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  fileSystemClipboard: {
+    importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
+    status: () => ipcRenderer.invoke('file-system-clipboard:status'),
+    copy: (request) => ipcRenderer.invoke('file-system-clipboard:copy', request),
+    revoke: (id) => ipcRenderer.invoke('file-system-clipboard:revoke', id),
+  },
   desktopFiles: createDesktopFileBridge(),
   desktopWindow: { open: (sessionId) => ipcRenderer.invoke('desktop:open', sessionId) },
   remoteControl: {

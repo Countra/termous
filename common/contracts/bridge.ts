@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  fileSystemClipboard?: import("./file-system-clipboard").FileSystemClipboardBridge
   desktopFiles?: import('./desktop-files').DesktopFileBridge
   desktopWindow?: { open: (sessionId: string) => Promise<void> }
   remoteControl?: import('./remote-control').RemoteLauncher

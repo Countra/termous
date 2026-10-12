@@ -50,11 +50,13 @@ createFileSessionUploadTransfer(
   overwritePolicy: OverwritePolicy = 'rename',
   overwriteItemIds: string[] = [],
   overwriteConfirmations: UploadOverwriteConfirmation[] = [],
+  expectedConnectionGeneration?: number,
 ) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
       body: {
         file_session_id: fileSessionId,
+        expected_connection_generation: expectedConnectionGeneration,
         local_grant_id: localGrantId,
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,

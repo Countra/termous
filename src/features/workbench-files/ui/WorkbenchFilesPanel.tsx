@@ -16,6 +16,7 @@ import {
   ChevronRight,
   CircleAlert,
   Clipboard,
+  ClipboardCopy,
   ExternalLink,
   FolderInput,
   FolderOpen,
@@ -41,9 +42,11 @@ import {
   type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useShortcutRuntime } from '#entities/shortcuts'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import type { FileGateway } from '#features/files'
+import { captureFileClipboard, isFileClipboardCurrent, readClipboardUpload, useFileSystemClipboard, type FileClipboardStamp, type FileGateway } from '#features/files'
+import { TermousApiError } from '#shared/api'
 import {
   createUploadWithConflictDecision,
   RemoteCopyModal,
@@ -168,6 +171,7 @@ interface WorkbenchFilesData {
 }
 
 interface RemoteClipboard {
+  systemStamp: FileClipboardStamp
   mode: 'copy' | 'cut'
   hostId: string
   paths: string[]
@@ -291,6 +295,10 @@ function WorkbenchFilesPanelContent({
     : null
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
+  const systemClipboard = useFileSystemClipboard(() => setRemoteClipboard(null))
+  const pastePendingRef = useRef(false)
+  const [pastePending, setPastePending] = useState(false)
+  const { labels: shortcutLabels } = useShortcutRuntime()
   const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
@@ -933,8 +941,8 @@ function WorkbenchFilesPanelContent({
 
   const uploadPaths = async (source: LocalGrantSource, paths: string[], targetPath?: string) => {
     const requestSession = fileSessionRef.current
-    if (!requestSession?.id || requestSession.status !== 'connected' || paths.length === 0) {
-      return
+    if (!requestSession?.id || requestSession.status !== 'connected' || source !== 'clipboard' && paths.length === 0) {
+      return false
     }
     const fileSessionId = requestSession.id
     const connectionGeneration = requestSession.connection_generation ?? 0
@@ -948,11 +956,13 @@ function WorkbenchFilesPanelContent({
     }
 
     try {
+      const selection = source === 'clipboard' ? await readClipboardUpload(requestSession) : null
+      if (source === 'clipboard' && !selection) return false
       const task = await createUploadWithConflictDecision({
         source,
-        paths,
+        paths: selection?.paths ?? paths,
         targetPath: remoteDir,
-        createGrant: api.createLocalFileGrant,
+        createGrant: selection?.createGrant ?? api.createLocalFileGrant,
         releaseGrant: api.releaseLocalFileGrant,
         stat: (path) => api.statFileSessionFile(fileSessionId, path),
         requestPolicy: uploadConflictDecision.requestPolicy,
@@ -964,10 +974,11 @@ function WorkbenchFilesPanelContent({
           'rename',
           overwriteItemIds,
           overwriteConfirmations,
+          connectionGeneration,
         ),
       })
       if (!task) {
-        return
+        return true
       }
       uploadRefreshTasksRef.current.set(task.id, {
         fileSessionId,
@@ -979,9 +990,12 @@ function WorkbenchFilesPanelContent({
         duration: 2,
         className: termousNotificationClassName,
       })
-    } catch {
-      notifyFailure()
+    } catch (error) {
+      if (error instanceof TermousApiError && error.code.startsWith('FILE_CLIPBOARD_')) {
+        notification.error({ title: t('files.systemClipboard.pasteFailed'), description: t(`files.systemClipboard.errors.${error.code}`, { defaultValue: t('files.operationFailed') }), className: termousNotificationClassName })
+      } else notifyFailure()
     }
+    return true
   }
 
   const downloadPaths = async (paths: string[]) => {
@@ -1077,7 +1091,12 @@ function WorkbenchFilesPanelContent({
   })
 
   const menuFor = (entry: RemoteFileEntry): MenuProps => ({
-    items: buildRemoteFileActionMenu(entry, t, { includeAdvancedRename: false }),
+    items: buildRemoteFileActionMenu(entry, t, {
+      includeAdvancedRename: false,
+      systemCopy: systemClipboard.enabled,
+      systemCopyUnavailable: systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED'),
+      systemCopyShortcut: shortcutLabels.get('files.copy_to_system')?.[0],
+    }),
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
       const selectedPaths = files.viewState?.selectedPaths ?? []
@@ -1155,17 +1174,18 @@ function WorkbenchFilesPanelContent({
         })
       }
       const handlers: RemoteFileActionHandlers = {
+        copyToSystem: () => { if (files.fileSession) void systemClipboard.copy(files.fileSession, actionPaths) },
         openFile: (target) => void openEntry(target),
         download: (target) => void downloadPaths([target.path]),
         sendToHost: openRemoteCopy,
         copy: (target) => {
           if (files.fileSession) {
-            setRemoteClipboard({ mode: 'copy', hostId: files.fileSession.host_id, paths: [target.path] })
+            setRemoteClipboard({ mode: 'copy', hostId: files.fileSession.host_id, paths: [target.path], systemStamp: captureFileClipboard() })
           }
         },
         cut: (target) => {
           if (files.fileSession) {
-            setRemoteClipboard({ mode: 'cut', hostId: files.fileSession.host_id, paths: [target.path] })
+            setRemoteClipboard({ mode: 'cut', hostId: files.fileSession.host_id, paths: [target.path], systemStamp: captureFileClipboard() })
           }
         },
         copyAbsolutePath: () => void runAction(
@@ -1182,25 +1202,32 @@ function WorkbenchFilesPanelContent({
   })
 
   const paste = async () => {
-    if (!files.fileSession?.id) {
-      return
-    }
-    const targetPath = currentPath
-    if (remoteClipboard?.hostId === files.fileSession.host_id) {
-      await runAction(async () => {
-        if (remoteClipboard.mode === 'cut') {
-          await api.moveFileSessionFiles(files.fileSession!.id, remoteClipboard.paths, targetPath, 'rename')
-          setRemoteClipboard(null)
-        } else {
-          await api.copyFileSessionFiles(files.fileSession!.id, remoteClipboard.paths, targetPath, 'rename')
-        }
-        await files.loadDirectory(targetPath)
-      }, t('files.operationDone'))
-      return
-    }
-    const filesBridge = getTermousBridge()?.files
-    const localPaths = await filesBridge?.readClipboardFilePaths()
-    await uploadPaths('clipboard', localPaths ?? [])
+    if (pastePendingRef.current || directoryNavigationLocked || !files.fileSession?.id) return
+    pastePendingRef.current = true
+    setPastePending(true)
+    try {
+      const targetPath = currentPath
+      const targetSession = files.fileSession
+      const useInternal = remoteClipboard && await isFileClipboardCurrent(remoteClipboard.systemStamp)
+      if (fileSessionRef.current?.id !== targetSession.id || fileSessionRef.current.status !== 'connected' || fileSessionRef.current.connection_generation !== targetSession.connection_generation) return
+      if (useInternal && remoteClipboard?.hostId === targetSession.host_id) {
+        await runAction(async () => {
+          if (remoteClipboard.mode === 'cut') {
+            await api.moveFileSessionFiles(targetSession.id, remoteClipboard.paths, targetPath, 'rename')
+            setRemoteClipboard(null)
+          } else {
+            await api.copyFileSessionFiles(targetSession.id, remoteClipboard.paths, targetPath, 'rename')
+          }
+          await files.loadDirectory(targetPath)
+        }, t('files.operationDone'))
+        return
+      }
+      if (remoteClipboard && !useInternal) setRemoteClipboard(current => current === remoteClipboard ? null : current)
+      if (await uploadPaths('clipboard', [], targetPath)) return
+      notification.info({ title: t('files.systemClipboard.pasteEmpty'), className: termousNotificationClassName })
+    } catch (error) {
+      notification.error({ title: t('files.systemClipboard.pasteFailed'), description: error instanceof TermousApiError ? t(`files.systemClipboard.errors.${error.code}`, { defaultValue: t('files.operationFailed') }) : t('files.operationFailed'), className: termousNotificationClassName })
+    } finally { pastePendingRef.current = false; setPastePending(false) }
   }
 
   const uploadPickedFiles = async () => {
@@ -1606,6 +1633,21 @@ function WorkbenchFilesPanelContent({
               onClick={createDirectory}
             />
           </Tooltip>
+          {systemClipboard.enabled && (
+            <Tooltip title={!systemClipboard.available
+              ? t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED')
+              : [t('files.systemClipboard.copy'), shortcutLabels.get('files.copy_to_system')?.[0]].filter(Boolean).join(' · ')}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<ClipboardCopy size={14} />}
+                aria-label={t('files.systemClipboard.copy')}
+                disabled={!systemClipboard.available || systemClipboard.cancelling || !files.connected || !files.viewState?.selectedPaths.length || systemClipboard.state.phase === 'preparing'}
+                onClick={() => { if (files.fileSession) void systemClipboard.copy(files.fileSession, files.viewState?.selectedPaths ?? []) }}
+              />
+            </Tooltip>
+          )}
           <Tooltip title={t('files.paste')}>
             <Button
               type="text"
@@ -1614,6 +1656,7 @@ function WorkbenchFilesPanelContent({
               icon={<Clipboard size={15} />}
               disabled={directoryNavigationLocked}
               onClick={() => void paste()}
+              loading={pastePending}
             />
           </Tooltip>
           <Tooltip title={followTooltip}>
@@ -1785,6 +1828,9 @@ function WorkbenchFilesPanelContent({
         )}
       </div>
       <WorkbenchFileList
+        onCopyToSystem={systemClipboard.enabled
+          ? paths => { if (files.fileSession) void systemClipboard.copy(files.fileSession, paths) }
+          : undefined}
         entries={files.entries}
         selectedPaths={files.viewState?.selectedPaths ?? []}
         listingPath={normalizeRemotePath(files.viewState?.listing?.path || currentPath)}
@@ -1795,6 +1841,7 @@ function WorkbenchFilesPanelContent({
         interactionDisabled={!files.connected}
         pendingPath={pendingDirectoryPath}
         listRef={files.listRef}
+        onPaste={() => void paste()}
         menuFor={menuFor}
         onSelectPaths={files.setSelectedPaths}
         onOpen={openEntry}

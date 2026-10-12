@@ -75,7 +75,7 @@ export function WorkbenchTransferBar({
     ? t('workbench.files.activeTransfers', { count: summary.activeCount })
     : task.status === 'failed'
       ? t('workbench.files.transferFailed')
-      : t(`files.transferType.${task.type}`)
+      : task.clipboard_publication_id ? t('files.systemClipboard.task') : t(`files.transferType.${task.type}`)
   const description = task.status === 'failed'
     ? task.error_message || t('workbench.files.transferFailed')
     : summary.indeterminate

@@ -240,6 +240,7 @@ export interface FileSession {
 }
 
 export interface TransferTask {
+  clipboard_publication_id?: string
   desktop_session_id?: string
   desktop_exchange_id?: string
   desktop_resource_generation?: number

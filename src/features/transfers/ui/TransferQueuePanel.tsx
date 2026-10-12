@@ -481,6 +481,10 @@ function TransferRow({
   }, [focused, onFocused])
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
+  const systemCopy = !!task.clipboard_publication_id
+  const statusLabel = systemCopy && task.status === 'completed'
+    ? t('files.systemClipboard.provided')
+    : t(`files.transferStatus.${task.status}`)
   const isUpload = task.type.startsWith('upload')
   const isDownload = task.type.startsWith('download')
   const canDelete = isClearableTransferTask(task)
@@ -584,7 +588,7 @@ function TransferRow({
         tabIndex={-1}
         className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
-        aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
+        aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${statusLabel}`}
         data-transfer-origin={originLabel ? origin : undefined}
       >
         <span className="transfer-kind-icon">
@@ -618,7 +622,7 @@ function TransferRow({
           ) : null}
           <Tooltip title={task.target_path}>
             <span className="transfer-subline">
-              <span>{t(`files.transferType.${task.type}`)} · {task.target_path}</span>
+              <span>{systemCopy ? t('files.systemClipboard.task') : t(`files.transferType.${task.type}`)}{task.target_path ? ` · ${task.target_path}` : ''}</span>
               {hostLabel ? <em>{hostLabel}</em> : null}
             </span>
           </Tooltip>
@@ -635,7 +639,7 @@ function TransferRow({
           <div className="transfer-state-line">
             <span className="transfer-state-label">
               <i aria-hidden="true" />
-              {t(`files.transferStatus.${task.status}`)}
+              {statusLabel}
               {phaseLabel ? <em className="transfer-phase-label">{phaseLabel}</em> : null}
             </span>
             {(isActive || task.status === 'completed') && !indeterminate ? <b>{progress}%</b> : null}
@@ -643,7 +647,7 @@ function TransferRow({
           <div
             className={`transfer-progress-line ${indeterminate ? 'is-indeterminate' : ''}`}
             role="progressbar"
-            aria-label={`${currentName}: ${t(`files.transferStatus.${task.status}`)}`}
+            aria-label={`${currentName}: ${statusLabel}`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={indeterminate ? undefined : progress}

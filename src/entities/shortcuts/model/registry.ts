@@ -64,6 +64,8 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = Object.free
   action('terminal.search.open', 'terminal', 'terminal.active', []),
   action('terminal.select_all', 'terminal', 'terminal.active', []),
   action('terminal.session.reconnect', 'terminal', 'terminal.disconnected', []),
+  action('files.copy_to_system', 'files', 'files.list', [chord('KeyC', 'c', ['primary'])]),
+  action('files.paste', 'files', 'files.list', [chord('KeyV', 'v', ['primary'])]),
   action('files.select_all', 'files', 'files.standalone', [
     chord('KeyA', 'a', ['primary']),
   ]),

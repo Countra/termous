@@ -1,3 +1,4 @@
+import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DesktopWindows } from './desktopWindow'
@@ -1772,6 +1773,13 @@ async function initializeApplication() {
     devURL: VITE_DEV_SERVER_URL,
   })
   app.once('before-quit', () => desktopWindows.close())
+  registerFileSystemClipboardIPC({
+    ipc: ipcMain,
+    core: new RemoteCore(() => coreProcess.initialize()),
+    trusted: isTrustedMainIPCEvent,
+    focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(),
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
   registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: (event, id) => isTrustedMainIPCEvent(event) || desktopWindows.accepts(event, id), focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
   remoteControlRuntime = new RemoteControlRuntime({
     core: new RemoteCore(() => coreProcess.initialize()),

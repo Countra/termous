@@ -30,6 +30,7 @@ import {
   type HostProvisionGateway,
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
+import { FileSystemClipboardNotification } from '#features/files'
 import { ProductTourController, type ProductTourStep } from '#features/product-tour'
 import { MountsPage } from '#pages/mounts'
 import { useMountManagement } from './model/useMountManagement'
@@ -1311,6 +1312,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   return (
     <ShortcutRuntimeProvider settings={data.settings.shortcuts}>
+      {apiReady && !coreFatal && <FileSystemClipboardNotification />}
       <ShortcutWindowAdapter handlers={{
         'app.host_launcher.open': () => {
           if (actionBusy) {

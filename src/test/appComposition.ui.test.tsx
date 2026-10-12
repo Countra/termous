@@ -15,6 +15,8 @@ const testState = vi.hoisted(() => {
     settingsGateway: { getModule: () => undefined, readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: () => () => {} },
     action,
     notifications: {
+      open: vi.fn(),
+      destroy: vi.fn(),
       error: vi.fn(),
       success: vi.fn(),
       warning: vi.fn(),

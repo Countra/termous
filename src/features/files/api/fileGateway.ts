@@ -148,6 +148,7 @@ export interface FileTransferGateway {
     overwritePolicy?: OverwritePolicy,
     overwriteItemIds?: string[],
     overwriteConfirmations?: UploadOverwriteConfirmation[],
+    expectedConnectionGeneration?: number,
   ) => Promise<TransferTask>
   createFileSessionDownloadTransfer: (
     fileSessionId: string,

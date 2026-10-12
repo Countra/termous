@@ -13,6 +13,7 @@ const icons: Record<RemoteFileActionKey, ReactNode> = {
   openFile: <Eye size={14} />,
   download: <Download size={14} />,
   sendToHost: <Send size={14} />,
+  copyToSystem: <ClipboardCopy size={14} />,
   copy: <Copy size={14} />,
   cut: <Scissors size={14} />,
   copyAbsolutePath: <ClipboardCopy size={14} />,
@@ -26,6 +27,7 @@ const translationKeys: Record<RemoteFileActionKey, string> = {
   openFile: 'files.openFile',
   download: 'files.download',
   sendToHost: 'files.remoteCopy.action',
+  copyToSystem: 'files.systemClipboard.copy',
   copy: 'files.copy',
   cut: 'files.cut',
   copyAbsolutePath: 'files.copyAbsolutePath',
@@ -44,8 +46,11 @@ export function buildRemoteFileActionMenu(
     const item: NonNullable<MenuProps['items']>[number] = {
       key: action.key,
       danger: action.danger,
+      disabled: action.key === 'copyToSystem' && !!options.systemCopyUnavailable,
       icon: icons[action.key],
-      label: t(translationKeys[action.key]),
+      label: action.key === 'copyToSystem'
+        ? <span title={options.systemCopyUnavailable}>{[t(translationKeys[action.key]), options.systemCopyShortcut].filter(Boolean).join('  ')}</span>
+        : t(translationKeys[action.key]),
     }
     return action.dividerBefore
       ? [{ type: 'divider' as const }, item]

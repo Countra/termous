@@ -269,6 +269,7 @@ function createFileGateway(
       overwritePolicy,
       overwriteItemIds,
       overwriteConfirmations,
+      expectedConnectionGeneration,
     ) => transfers.createFileSessionUploadTransfer(
       fileSessionId,
       localGrantId,
@@ -276,6 +277,7 @@ function createFileGateway(
       overwritePolicy,
       overwriteItemIds,
       overwriteConfirmations,
+      expectedConnectionGeneration,
     ),
     createFileSessionDownloadTransfer: (
       fileSessionId,
