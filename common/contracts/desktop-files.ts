@@ -21,7 +21,7 @@ export interface SystemFileSelection {
   grant?: { id: string; items: { name: string; kind: string; size: number }[] }
 }
 export interface DesktopFileBridge {
-  configure: (context: SystemFileClipboardContext, enabled: boolean, focused: boolean, action?: 'set' | 'detach') => Promise<RemoteResult<SystemFileClipboardState>>
+  configure: (context: SystemFileClipboardContext, focused: boolean, action?: 'detach') => Promise<RemoteResult<SystemFileClipboardState>>
   importClipboard: (context: SystemFileClipboardContext) => Promise<RemoteResult<SystemFileSelection>>
   consumeDrop: (context: SystemFileClipboardContext) => Promise<RemoteResult<SystemFileSelection>>
   releaseSelection: (grantId: string) => Promise<RemoteResult<void>>

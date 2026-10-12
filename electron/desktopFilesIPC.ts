@@ -40,7 +40,7 @@ export function registerDesktopFilesIPC(options: {
         event.sender.removeListener('did-start-navigation', navigation)
         event.sender.removeListener('render-process-gone', cleanup)
         syncBackground(event.sender)
-        for (const entry of registered.values()) { entry.closed = true; void serial(entry, () => update(entry, entry.context, false, false, 'detach')).catch(() => options.warn('desktop_clipboard_disable_failed')) }
+        for (const entry of registered.values()) { entry.closed = true; void serial(entry, () => update(entry, entry.context, false, 'detach')).catch(() => options.warn('desktop_clipboard_disable_failed')) }
         for (const [id, owner] of grants) if (owner === event.sender.id) { grants.delete(id); void release(id).catch(() => options.warn('desktop_clipboard_grant_release_failed')) }
       }
       const navigation = (_event: unknown, _url: string, inPlace: boolean, mainFrame: boolean) => { if (!inPlace && mainFrame) cleanup() }
@@ -56,8 +56,8 @@ export function registerDesktopFilesIPC(options: {
     }
     return entry
   }
-  const body = (entry: Registration, context: SystemFileClipboardContext, enabled: boolean, focused: boolean) => ({ generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, window_id: entry.id, enabled, focused })
-  const update = (entry: Registration, context: SystemFileClipboardContext, enabled: boolean, focused: boolean, action?: 'set' | 'detach') => options.core.request<SystemFileClipboardState>(`/remote-desktop-sessions/${context.sessionId}/system-file-clipboard`, { ...body(entry, context, enabled, focused), action })
+  const body = (entry: Registration, context: SystemFileClipboardContext, focused: boolean) => ({ generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, window_id: entry.id, focused })
+  const update = (entry: Registration, context: SystemFileClipboardContext, focused: boolean, action?: 'detach') => options.core.request<SystemFileClipboardState>(`/remote-desktop-sessions/${context.sessionId}/system-file-clipboard`, { ...body(entry, context, focused), action })
   const release = (id: string) => options.core.request(`/local-file-grants/${id}`, undefined, 'DELETE')
   const serial = <T>(entry: Registration, operation: () => Promise<T>) => {
     const pending = entry.pending.then(operation)
@@ -71,19 +71,23 @@ export function registerDesktopFilesIPC(options: {
     try { verify(event, entry, context); grants.set(id, event.sender.id) }
     catch (error) { try { await release(id) } catch { options.warn('desktop_clipboard_grant_release_failed') }; throw error }
   }
-  options.ipc.handle('desktop-files:configure', (event, context: unknown, enabled: unknown, focused: unknown, action?: unknown) => result(async () => {
+  options.ipc.handle('desktop-files:configure', (event, context: unknown, focused: unknown, action?: unknown) => result(async () => {
     const entry = validate(event, context)
-    if (typeof enabled !== 'boolean' || typeof focused !== 'boolean') throw new RemoteCoreError('desktop_invalid')
-    if (action !== undefined && action !== 'set' && action !== 'detach') throw new RemoteCoreError('desktop_invalid')
+    if (typeof focused !== 'boolean') throw new RemoteCoreError('desktop_invalid')
+    if (action !== undefined && action !== 'detach') throw new RemoteCoreError('desktop_invalid')
     const snapshot = { ...(context as SystemFileClipboardContext) }
     return serial(entry, async () => {
       verify(event, entry, snapshot)
       entry.context = snapshot
-      const state = await update(entry, snapshot, enabled, focused && options.focused(event), action)
-      verify(event, entry, snapshot)
-      entry.enabled = state.enabled
-      syncBackground(event.sender)
-      return state
+      try {
+        const state = await update(entry, snapshot, focused && options.focused(event), action)
+        verify(event, entry, snapshot)
+        entry.enabled = state.enabled
+        return state
+      } catch (error) {
+        entry.enabled = false
+        throw error
+      } finally { syncBackground(event.sender) }
     })
   }))
   options.ipc.handle('desktop-files:import', (event, context: unknown) => result(async () => {
@@ -92,7 +96,7 @@ export function registerDesktopFilesIPC(options: {
     return serial(entry, async () => {
       verify(event, entry, snapshot)
       if (!entry.enabled || !options.focused(event) || JSON.stringify(entry.context) !== JSON.stringify(snapshot)) throw new RemoteCoreError('desktop_control_stale')
-      const selection = await options.core.request<SystemFileSelection>(`/remote-desktop-sessions/${snapshot.sessionId}/system-file-clipboard/import`, body(entry, snapshot, true, true))
+      const selection = await options.core.request<SystemFileSelection>(`/remote-desktop-sessions/${snapshot.sessionId}/system-file-clipboard/import`, body(entry, snapshot, true))
       if (selection.grant?.id) await keepGrant(event, entry, snapshot, selection.grant.id)
       else verify(event, entry, snapshot)
       return selection

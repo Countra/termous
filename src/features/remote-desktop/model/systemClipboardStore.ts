@@ -1,7 +1,7 @@
 import type { SystemFileClipboardState } from '#common/contracts'
 
 export interface DesktopSystemClipboardState extends SystemFileClipboardState { busy: boolean; dragging?: boolean; notice?: 'prepared' | 'failed' }
-interface Entry { state: DesktopSystemClipboardState; listeners: Set<() => void>; toggle?: (enabled: boolean) => Promise<void> }
+interface Entry { state: DesktopSystemClipboardState; listeners: Set<() => void>; owner?: symbol }
 const empty: DesktopSystemClipboardState = Object.freeze({ supported: false, enabled: false, files: [], busy: false })
 const entries = new Map<string, Entry>()
 export const systemClipboardStore = {
@@ -17,17 +17,17 @@ export const systemClipboardStore = {
     entry.state = { ...entry.state, ...patch }; entries.set(id, entry)
     for (const listener of entry.listeners) listener()
   },
-  bind(id: string, toggle: (enabled: boolean) => Promise<void>) {
+  bind(id: string) {
     const entry = entries.get(id) ?? { state: empty, listeners: new Set() }
-    entry.toggle = toggle; entries.set(id, entry)
+    const owner = Symbol()
+    entry.owner = owner; entries.set(id, entry)
     return () => {
-      if (entry.toggle === toggle) {
-        entry.toggle = undefined
+      if (entry.owner === owner) {
+        entry.owner = undefined
         entry.state = empty
         for (const listener of entry.listeners) listener()
         if (!entry.listeners.size) entries.delete(id)
       }
     }
   },
-  async toggle(id: string, enabled: boolean) { await entries.get(id)?.toggle?.(enabled) },
 }

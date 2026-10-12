@@ -7,11 +7,11 @@ afterEach(() => vi.unstubAllGlobals())
 function catalogue(status: 'applied' | 'unavailable' = 'applied') {
   return {
     instance_id: 'core-settings-fixture',
-    modules: ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp', 'cloud', 'desktop_files'].map(id => {
+    modules: ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp', 'cloud', 'desktop_files', 'desktop_clipboard'].map(id => {
       const schema_version = id === 'agent' || id === 'connection' ? 2 : 1
-      const value = id === 'desktop_files' ? { mappings: [] } : id === 'language' ? { language: 'en-US' } : id === 'connection' ? { rdp_unattended_timeout_minutes: 15 } : {}
+      const value = id === 'desktop_clipboard' ? { enabled: true } : id === 'desktop_files' ? { mappings: [] } : id === 'language' ? { language: 'en-US' } : id === 'connection' ? { rdp_unattended_timeout_minutes: 15 } : {}
       return { id, schema_version, backup: ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window'].includes(id) ? 'include' : 'exclude', apply: id === 'mount' ? 'restart' : 'immediate',
-        snapshot: { id, schema_version, revision: 1, value, state: { status: id === 'desktop_files' ? status : 'applied' } } }
+        snapshot: { id, schema_version, revision: 1, value, state: { status: id === 'desktop_files' || id === 'desktop_clipboard' ? status : 'applied' } } }
     }),
   }
 }
@@ -24,6 +24,7 @@ test.each(['applied', 'unavailable'] as const)('启动通过真实设置 Gateway
   expect(settings.language).toBe('en-US')
   expect(settings.connection.rdp_unattended_timeout_minutes).toBe(15)
   expect(api.getModule('desktop_files')).toMatchObject({ id: 'desktop_files', value: { mappings: [] }, state: { status } })
+  expect(api.getModule('desktop_clipboard')).toMatchObject({ id: 'desktop_clipboard', value: { enabled: true }, state: { status } })
   expect(fetch).toHaveBeenCalledTimes(1)
   expect(String(fetch.mock.calls[0]?.[0])).toBe('http://127.0.0.1:8122/api/v1/settings')
 })

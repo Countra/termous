@@ -16,7 +16,7 @@ export function createDesktopFileBridge(): DesktopFileBridge {
     dropped = { paths: [...new Set(paths)], at: Date.now(), session }
   }, true)
   return {
-    configure: (context, enabled, focused, action) => ipcRenderer.invoke('desktop-files:configure', context, enabled, focused, action),
+    configure: (context, focused, action) => ipcRenderer.invoke('desktop-files:configure', context, focused, action),
     importClipboard: context => ipcRenderer.invoke('desktop-files:import', context),
     consumeDrop: (context: SystemFileClipboardContext) => {
       const selection = dropped

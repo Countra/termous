@@ -1,4 +1,4 @@
-import { Alert, Button, Popconfirm, Switch } from 'antd'
+import { Alert, Button, Tag } from 'antd'
 import { ArrowDownToLine, ArrowUpFromLine, ClipboardCopy, ClipboardPaste, Folder, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -79,9 +79,7 @@ export function DesktopFileClipboard({ api, session, viewer, operations, overwri
     {!permitted && <p className={styles.note}>{t('remoteDesktop.files.controllerRequired')}</p>}
     {system.supported && operations.state?.capabilities.file_clipboard_read && <div className={styles['system-clipboard']}>
       <div><strong>{t('remoteDesktop.files.systemClipboard')}</strong><p>{t('remoteDesktop.files.systemClipboardHint')}</p></div>
-      <Popconfirm title={t('remoteDesktop.files.systemClipboard')} description={t('remoteDesktop.files.systemClipboardConfirm')} disabled={system.enabled || !permitted} onConfirm={() => system.toggle(true)}>
-        <Switch aria-label={t('remoteDesktop.files.systemClipboard')} checked={system.enabled} disabled={!permitted && !system.enabled} onChange={value => { if (!value) void system.toggle(false) }} />
-      </Popconfirm>
+      <Tag color={system.enabled ? 'success' : undefined}>{t(`remoteDesktop.files.${system.enabled ? 'systemClipboardEnabled' : 'systemClipboardInactive'}`)}</Tag>
     </div>}
     {system.error_code && <Alert type="error" showIcon title={t(`remoteDesktop.files.errors.${system.error_code}`, { defaultValue: t('remoteDesktop.files.systemClipboardFailed') })} description={<code>{system.error_code}</code>} />}
     <div className={styles['clipboard-directions']}>

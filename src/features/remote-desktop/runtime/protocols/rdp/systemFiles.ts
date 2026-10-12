@@ -12,53 +12,57 @@ export function createRdpSystemFiles(options: {
   let revision = 0, applied = -1
   let configuring: Promise<void> | undefined
   let registered: SystemFileClipboardContext | undefined
-  let lastContext: SystemFileClipboardContext | undefined
-  let togglePending = false
+  let operationError: string | undefined
   let prepared: { sequence: number; context: string; content: number } | undefined
   const update = (patch: Parameters<typeof systemClipboardStore.update>[1]) => { if (!disposed) systemClipboardStore.update(options.id, patch) }
-  function configure(): Promise<void> {
+  function configure(invalidate = true): Promise<void> {
+    // 心跳只补充状态；只有控制、焦点等主动变更才淘汰正在返回的快照。
+    if (!invalidate && configuring) return configuring
+    if (!options.context() || disposed) enabled = false
     revision++
     if (configuring) return configuring
     configuring = (async () => {
       while (applied !== revision) {
-        const current = revision, context = options.context(), requested = enabled && !disposed
-        const action = togglePending ? 'set' as const : undefined
-        togglePending = false
+        const current = revision, context = options.context()
         applied = current
         if (!bridge) break
         try {
           if (!context || disposed) {
-            if (!disposed && action === 'set' && !requested && lastContext) { const result = await bridge.configure(lastContext, false, false, 'set'); if (!result.ok) update({ error_code: result.code }) }
+            enabled = false
+            update({ enabled: false })
             if (registered) {
               const old = registered; registered = undefined
-              const result = await bridge.configure(old, false, false, 'detach'); if (!result.ok) update({ error_code: result.code })
+              const result = await bridge.configure(old, false, 'detach'); if (!result.ok) update({ error_code: operationError ?? result.code })
             }
             continue
           }
           registered = { ...context }
-          lastContext = registered
-          const result = await bridge.configure(context, requested, options.focused(), action)
+          const result = await bridge.configure(context, options.focused())
           if (current !== revision || disposed) continue
-          if (!result.ok) { enabled = false; update({ enabled: false, error_code: result.code, ...(result.code === 'desktop_files_unsupported' ? { supported: false } : {}) }) }
+          if (!result.ok) {
+            enabled = false
+            // 自动启用等待桌面和文件通道就绪；显式文件操作的错误仍由 prepare 展示。
+            if (result.code === 'desktop_not_ready') update({ enabled: false, error_code: operationError })
+            else update({ enabled: false, error_code: operationError ?? result.code, ...(result.code === 'desktop_files_unsupported' ? { supported: false } : {}) })
+          }
           else {
             enabled = result.value.supported && result.value.enabled
-            const error = !requested ? systemClipboardStore.get(options.id).error_code : result.value.error_code
+            const error = operationError ?? result.value.error_code
             update({ ...result.value, publication_id: result.value.publication_id, content_generation: result.value.content_generation, task_id: result.value.task_id, enabled, error_code: error })
           }
-        } catch { enabled = false; update({ enabled: false, error_code: 'desktop_system_clipboard_failed' }) }
+        } catch { enabled = false; update({ enabled: false, error_code: operationError ?? 'desktop_system_clipboard_failed' }) }
       }
     })().finally(() => { configuring = undefined })
     return configuring
   }
-  const unbind = systemClipboardStore.bind(options.id, async value => {
-    enabled = value; togglePending = true; update({ enabled, error_code: '' }); await configure()
-  })
+  const unbind = systemClipboardStore.bind(options.id)
   update({ supported: !!bridge && !!options.api, enabled: false })
-  const timer = setInterval(() => void configure(), 1000)
+  const timer = setInterval(() => void configure(false), 1000)
+  function operationFailed(code: string) { operationError = code; update({ error_code: code, notice: 'failed' }) }
   async function prepare(drop: boolean) {
     const context = options.context(), api = options.api
     if (!context || !bridge || !api || disposed || busy || !drop && !enabled) return
-    busy = true; update({ busy: true, error_code: '', notice: undefined })
+    busy = true; operationError = undefined; update({ busy: true, error_code: '', notice: undefined })
     const epoch = options.inputEpoch()
     let grant: string | undefined
     let taskId: string | undefined
@@ -100,17 +104,17 @@ export function createRdpSystemFiles(options: {
       const latest = options.context()
       if (!drop && enabled && options.focused() && epoch === options.inputEpoch() && latest?.controlGeneration === context.controlGeneration && latest.subscriptionId === context.subscriptionId) options.paste()
       else update({ notice: 'prepared' })
-    } catch (error) { update({ error_code: error instanceof Error ? error.message : 'desktop_system_clipboard_failed', notice: 'failed' }) }
+    } catch (error) { operationFailed(error instanceof Error ? error.message : 'desktop_system_clipboard_failed') }
     finally {
-      if (taskId) { try { await api.cancelTask(taskId) } catch { update({ error_code: 'desktop_system_clipboard_failed' }) } }
-      if (grant) { try { const result = await bridge.releaseSelection(grant); if (!result.ok) update({ error_code: result.code }) } catch { update({ error_code: 'desktop_system_clipboard_failed' }) } }
+      if (taskId) { try { await api.cancelTask(taskId) } catch { operationFailed('desktop_system_clipboard_failed') } }
+      if (grant) { try { const result = await bridge.releaseSelection(grant); if (!result.ok) operationFailed(result.code) } catch { operationFailed('desktop_system_clipboard_failed') } }
       busy = false; update({ busy: false })
     }
   }
   return {
     interceptPaste: () => enabled && !!bridge && !!options.api,
     prepare,
-    changed: () => { void configure() },
+    changed: () => configure(),
     drag: (dragging: boolean) => update({ dragging }),
     dispose() {
       disposed = true; clearInterval(timer); unbind(); void configure()

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { ConnectionSettings, ConnectionSettingsPatch } from '#common/contracts'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './RemoteDesktopSettings.module.scss'
+import { SystemClipboardSetting } from './SystemClipboardSetting'
 
 interface RemoteDesktopSettingsProps {
   value: ConnectionSettings
@@ -56,6 +57,7 @@ export function RemoteDesktopSettings({ value, disabled, onChange }: RemoteDeskt
         <MonitorPlay size={18} aria-hidden="true" />
         <h2>{t('settings.rdpSettings')}</h2>
       </div>
+      <SystemClipboardSetting disabled={disabled} />
       <div className={styles.row}>
         <Timer size={18} className={styles.icon} aria-hidden="true" />
         <div className={styles.copy}>
