@@ -5,6 +5,7 @@ import type {
   RemoteDesktopSession,
   RdpAttachment,
 } from '#entities/remote-desktop'
+import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
 export interface DesktopExecutionConnection {
   connect: (readOnly: boolean) => Promise<{ url: string; ticket: string }>
   reclaim: (readOnly: boolean) => Promise<void>
@@ -125,6 +126,7 @@ export interface RemoteDesktopViewerHandle {
 }
 
 export interface RemoteDesktopViewerCreateOptions {
+  desktopFiles?: DesktopFilesGateway
   transport: { kind: 'rfb'; url: string; execution?: DesktopExecutionConnection } | { kind: 'rdp-pixels'; attachment: RdpAttachment }
   takeControl?: (subscriptionId: string) => Promise<void>
   target: HTMLElement

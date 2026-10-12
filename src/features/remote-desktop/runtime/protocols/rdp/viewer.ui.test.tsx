@@ -1,8 +1,11 @@
-import { create, toBinary } from '@bufbuild/protobuf'
-import { ServerMessageSchema } from '@termous/rdp-protocol'
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
+import { ClientMessageSchema, ServerMessageSchema } from '@termous/rdp-protocol'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { emptyRemoteDesktopViewerState, type RemoteDesktopViewerCreateOptions } from '../../core/viewerContracts'
 import { createRdpViewer } from './viewer'
+
+const files = vi.hoisted(() => ({ intercept: false, prepare: vi.fn() }))
+vi.mock('./systemFiles.ts', () => ({ createRdpSystemFiles: () => ({ interceptPaste: () => files.intercept, prepare: files.prepare, changed: vi.fn(), drag: vi.fn(), dispose: vi.fn() }) }))
 
 class Socket {
   static OPEN = 1
@@ -27,6 +30,8 @@ class PixelWorker {
 }
 
 beforeEach(() => {
+	files.intercept = false
+	files.prepare.mockReset()
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', Socket)
   vi.stubGlobal('Worker', PixelWorker)
@@ -106,4 +111,23 @@ test('控制连接构造失败会释放 Worker，不遗留 DOM', () => {
   expect(() => createRdpViewer(config)).toThrow('fixture socket')
   expect(PixelWorker.instances[0].terminate).toHaveBeenCalledTimes(1)
   expect(config.target.children).toHaveLength(0)
+})
+
+test('系统文件粘贴先释放已发送的 Ctrl，截获 V 和重复按键，不遗留松键或自动重发', () => {
+  const config = options()
+  const viewer = createRdpViewer(config)
+  const socket = Socket.instances[0]
+  socket.onmessage?.({ data: Uint8Array.from(toBinary(ServerMessageSchema, create(ServerMessageSchema, { payload: { case: 'session', value: {
+    sessionId: 'session', sessionGeneration: 1n, state: 'ready', control: { subscriptionId: 'viewer', generation: 1n },
+  } } }))).buffer })
+  files.intercept = true
+  const keyboard = config.target.querySelector('textarea')!
+  for (const [type, code, repeat] of [['keydown', 'ControlLeft', false], ['keydown', 'KeyV', false], ['keydown', 'KeyV', true], ['keyup', 'KeyV', false], ['keyup', 'ControlLeft', false]] as const) {
+    keyboard.dispatchEvent(new KeyboardEvent(type, { code, key: code === 'KeyV' ? 'v' : 'Control', ctrlKey: true, repeat, cancelable: true }))
+  }
+  const keys = socket.send.mock.calls.map(([bytes]) => fromBinary(ClientMessageSchema, bytes).payload).flatMap(payload => payload.case === 'input' && payload.value.operation.case === 'key' ? [payload.value.operation.value] : [])
+  expect(keys.map(key => [key.scancode, key.down])).toEqual([[0x1d, true], [0x1d, false]])
+  expect(files.prepare).toHaveBeenCalledExactlyOnceWith(false)
+  expect(config.events.onDisconnected).not.toHaveBeenCalled()
+  viewer.dispose()
 })

@@ -92,4 +92,10 @@ export class DesktopWindows {
     for (const window of this.entries.keys()) window.destroy()
     this.entries.clear()
   }
+
+  accepts(event: IpcMainInvokeEvent, sessionId: string): boolean {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const entry = window ? this.entries.get(window) : undefined
+    return !!entry && entry.sessionId === sessionId && event.senderFrame === event.sender.mainFrame && event.senderFrame?.url === entry.url
+  }
 }

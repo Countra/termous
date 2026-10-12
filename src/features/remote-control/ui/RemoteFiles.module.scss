@@ -99,6 +99,73 @@
   outline-offset: 2px;
 }
 
+// 桌面交换区使用独立的工作区排版，不改变普通远控文件浏览器。
+.exchange .transfer-toolbar {
+  border: 0;
+  border-radius: 8px;
+  background: var(--app-bg);
+}
+.exchange .toolbar { padding: 10px 0; }
+
+.exchange .table {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--app-bg);
+}
+
+.exchange .entry {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.exchange .entry > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exchange .table :global(.ant-table) {
+  background: transparent;
+  font-size: 12px;
+}
+
+.exchange .table :global(.ant-table-thead) > tr > th {
+  background: var(--app-bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.exchange .table :global(.ant-table-tbody) > tr > td {
+  padding: 10px 8px;
+  border-color: var(--border);
+}
+
+.exchange-search {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.exchange-search > :global(.ant-input-affix-wrapper) { background: var(--input-bg); }
+
+.exchange-search > span {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 620px) {
+  .exchange .modified { display: none; }
+}
+
 @container (max-width: 740px) {
   .transfer-toolbar { grid-template-columns: minmax(0, 1fr); }
 

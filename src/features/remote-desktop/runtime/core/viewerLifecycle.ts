@@ -39,6 +39,7 @@ interface RemoteDesktopViewerLifecycleOptions {
     | 'remoteDesktopStreamUrl'
     | 'takeRemoteDesktopControl'
     | 'execution'
+    | 'desktopFiles'
   >
   protocolRegistry: RemoteDesktopProtocolRegistry
   routeRegistry: RemoteDesktopRouteRegistry
@@ -363,6 +364,7 @@ export class RemoteDesktopViewerLifecycle {
     entry.targetAuth.reset(entry.savedCredentialRejected ? '' : ticket.credential_ticket)
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
+      desktopFiles: api.desktopFiles,
       target: entry.container,
       transport: ticket.rdp ? { kind: 'rdp-pixels', attachment: ticket.rdp } : {
         kind: 'rfb', url: api.remoteDesktopStreamUrl(ticket),

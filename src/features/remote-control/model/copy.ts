@@ -3,6 +3,7 @@ import type { AppLanguage } from '#common/contracts'
 const en = {
   desktopExchange: 'RDP file exchange', desktopExchangeHint: 'Allow transfers through a dedicated exchange folder. Personal mapped folders and local file clipboard are suspended during remote access.',
   desktopExchangeUsage: 'Files are placed in the exchange folder. Copy them to the target disk from the remote desktop.',
+  desktopTargetLocation: 'Open in the target Windows desktop', desktopFileSearch: 'Search this folder', desktopSelected: 'selected', desktopEntries: 'items',
   retry: 'Retry', desktopFilesPreparing: 'Preparing file exchange…',
   desktopFilesDenied: 'Please enable “RDP file exchange” for this RDP connection on the controlled computer. Desktop access alone does not grant file access.',
   desktopFilesUnsupported: 'RDP file exchange is unavailable. Check both app versions and whether the target allows drive redirection.',
@@ -103,6 +104,7 @@ const en = {
 const zh: typeof en = {
   desktopExchange: 'RDP 文件交换', desktopExchangeHint: '允许通过专属交换区传输文件。远控期间暂停个人目录映射及本机文件剪贴板发布。',
   desktopExchangeUsage: '文件先放入交换区，再在目标桌面中复制到目标磁盘。',
+  desktopTargetLocation: '在目标 Windows 中访问', desktopFileSearch: '搜索此目录的文件', desktopSelected: '项已选择', desktopEntries: '个条目',
   retry: '重试', desktopFilesPreparing: '正在准备文件交换区…',
   desktopFilesDenied: '请在被控电脑为此 RDP 配置开启“RDP 文件交换”授权。桌面观看授权不会自动开放文件访问。',
   desktopFilesUnsupported: '当前无法使用 RDP 文件交换，请检查双方应用版本，以及目标是否允许驱动器重定向。',

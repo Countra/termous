@@ -24,6 +24,7 @@ import type {
 } from '#common/contracts'
 import { agentRuntimeIPCChannels } from './agent/ipc.ts'
 import { settingsIPCChannels, skillInstallIPCChannels } from '#common/contracts'
+import { createDesktopFileBridge } from './desktopFilesPreload'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -118,6 +119,7 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  desktopFiles: createDesktopFileBridge(),
   desktopWindow: { open: (sessionId) => ipcRenderer.invoke('desktop:open', sessionId) },
   remoteControl: {
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),

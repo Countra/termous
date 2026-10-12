@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import type { DesktopFileClipboard as ClipboardState, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { DesktopFilesGateway, RemoteDesktopViewerState } from '#features/remote-desktop'
@@ -16,7 +16,7 @@ const state: ClipboardState = { available: true, published: true, serving: false
 function props(clipboard: DesktopFilesGateway['clipboard']) {
   return {
     api: { clipboard } as DesktopFilesGateway, session, viewer,
-    operations: { busy: false, run: vi.fn(), withGrant: vi.fn() } as unknown as ReturnType<typeof useDesktopFiles>,
+    operations: { tasks: [], busy: false, run: vi.fn(), withGrant: vi.fn() } as unknown as ReturnType<typeof useDesktopFiles>,
     overwrite: 'rename' as const,
   }
 }
@@ -51,4 +51,21 @@ test('控制权丢失立即禁用所有操作，迟到的发布响应不恢复�
   }
   expect(clipboard.mock.calls[0]![2]!.aborted).toBe(true)
   expect(screen.queryByText('remoteDesktop.files.clipboardWaiting')).not.toBeInTheDocument()
+})
+
+test('目标内容换代后停用旧清单，不能继续提交接收', async () => {
+  let latest = { ...state, files: [{ index: 0, name: '目标文件.txt', directory: false, size: 4 }], total_files: 1 }
+  const clipboard = vi.fn<DesktopFilesGateway['clipboard']>().mockImplementation(async () => latest)
+  const input = props(clipboard)
+  input.api.requestClipboard = vi.fn().mockResolvedValue({ id: 'list', state: 'completed', completed_bytes: 0, completed_files: 0 })
+  vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
+  render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.readClipboard' }))
+  await screen.findByRole('button', { name: '目标文件.txt' })
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.receive' })).toBeEnabled()
+  latest = { ...latest, content_generation: 9 }
+  await waitFor(() => expect(screen.getByText('remoteDesktop.files.clipboardChanged')).toBeVisible(), { timeout: 2500 })
+  expect(screen.queryByRole('button', { name: '目标文件.txt' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.receive' })).toBeDisabled()
 })

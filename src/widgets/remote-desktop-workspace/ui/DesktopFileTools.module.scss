@@ -1,0 +1,293 @@
+.share {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--app-bg);
+}
+
+.share > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.share > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.share span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.share code {
+  color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.toolbar {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.path {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.path > :global(.ant-breadcrumb) {
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+}
+.path :global(.ant-breadcrumb) ol { flex-wrap: nowrap; }
+
+.path :global(.ant-breadcrumb) button {
+  border: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.path :global(.ant-breadcrumb) button:hover { color: var(--accent); }
+.path :global(.ant-breadcrumb) button:focus-visible { outline: 2px solid var(--accent); }
+.browser { gap: 0; }
+.browser > .toolbar { margin-bottom: 12px; }
+.browser > .note { padding-top: 4px; }
+
+.browser > :global(.ant-alert) {
+  margin-block: 8px;
+  flex-shrink: 0;
+}
+
+.empty {
+  display: flex;
+  min-height: 240px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.empty > svg {
+  margin-bottom: 8px;
+  color: var(--accent);
+  stroke-width: 1.5;
+}
+
+.empty h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.empty p {
+  max-width: 360px;
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.mapping-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.mapping {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--app-bg);
+}
+
+.mapping-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.mapping-title > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.mapping-title strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.mapping-title span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.mapping-title :global(.ant-tag) {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.mapping-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mapping-footer :global(.ant-checkbox-wrapper) {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.mapping code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.paused-exchange {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--surface-subtle);
+  font-size: 12px;
+}
+
+.retained-picker {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.retained-picker > :global(.ant-select) {
+  min-width: 0;
+  flex: 1;
+}
+
+.retained-meta {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.retained-meta :global(.ant-tag) { margin: 0; }
+
+.clipboard-directions {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.clipboard-direction {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--app-bg);
+}
+
+.clipboard-direction h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.clipboard-direction h4 > svg { color: var(--accent); }
+
+.clipboard-direction p {
+  flex: 1;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.clipboard-status {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.clipboard-status span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.clipboard-status > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.clipboard-status strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.clipboard-save {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+}

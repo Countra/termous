@@ -34,7 +34,7 @@ export interface DesktopFileEntry {
 }
 
 export interface DesktopFilesState {
-  capabilities: { directory_mapping: boolean; exchange: boolean; file_clipboard: boolean; reason?: string }
+  capabilities: { directory_mapping: boolean; exchange: boolean; file_clipboard: boolean; file_clipboard_read?: boolean; reason?: string }
   mappings: DesktopDirectoryMapping[]
   exchanges: DesktopExchange[]
 }

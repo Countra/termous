@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { App, Breadcrumb, Button, Descriptions, Flex, Input, Modal, Select, Space, Table, Tooltip } from 'antd'
-import { ArrowUp, Download, File, Folder, FolderPlus, FolderUp, Info, Laptop, Link, Monitor, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { ArrowUp, Download, File, Folder, FolderPlus, FolderUp, Info, Laptop, Link, Monitor, Pencil, RefreshCw, Search, Trash2, Upload } from 'lucide-react'
 import { RemoteClient, type FileEntry, type FileOperation, type LocalRoot, type Session, type Transfer } from '#entities/remote-control'
 import type { RemoteLocalTask } from '#common/contracts'
 import { formatBytes } from '#shared/format'
@@ -34,7 +34,9 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
   const [transfer, setTransfer] = useState<'upload' | 'download'>()
   const [selecting, setSelecting] = useState(false)
   const [overwrite, setOverwrite] = useState<'rename' | 'skip' | 'replace'>('rename')
+  const [search, setSearch] = useState('')
   const sequence = useRef(0)
+  const currentDirectory = useRef('/')
   const location = useCallback((target: string) => ({ kind: locationKind, resourceId: resourceID, generation: resourceGeneration, path: target, retained }), [locationKind, resourceID, resourceGeneration, retained])
 
   const load = useCallback(async (directory: string, next = '') => {
@@ -44,10 +46,12 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
       const response = await client.request({ operation: { case: 'file', value: { action: 'list', location: location(directory), cursor: next } } })
       if (request !== sequence.current || response.result.case !== 'directory') return
       const page = response.result.value
+      if (locationKind === 'desktop_exchange' && currentDirectory.current !== directory) setSearch('')
+      currentDirectory.current = directory
       setEntries(previous => next ? [...previous, ...page.entries] : page.entries)
       setCursor(page.nextCursor); setPath(directory); if (!next) setSelected([])
     } catch (reason) { if (request === sequence.current) setError(reason) } finally { if (request === sequence.current) setLoading(false) }
-  }, [client, location])
+  }, [client, location, locationKind])
   const cancelReads = useCallback(() => { sequence.current++ }, [])
   useEffect(() => { void load('/'); return cancelReads }, [load, cancelReads])
   const completed = [
@@ -95,6 +99,10 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
   }
   const parts = path.split('/').filter(Boolean)
   const selectedEntries = entries.filter(entry => selected.includes(entry.path))
+  const displayEntries = exchange ? entries.filter(entry => entry.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => {
+    if ((a.kind === 'directory') !== (b.kind === 'directory')) return a.kind === 'directory' ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { numeric: true })
+  }) : entries
   const selectTransfer = async (direction: 'upload' | 'download', directory = false) => {
     if (selecting || direction === 'download' && !selectedEntries.length) return
     setSelecting(true)
@@ -104,7 +112,7 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
       changed()
     } catch (reason) { setError(reason) } finally { setSelecting(false) }
   }
-  return <div className={styles.files}>
+  return <div className={`${styles.files} ${exchange ? styles.exchange : ''}`}>
     <div className={styles['transfer-toolbar']}>
       <div className={styles['transfer-group']} role="group" aria-label={copy.deviceFiles}>
         <span className={styles['transfer-source']}><Laptop size={15} />{copy.deviceFiles}</span>
@@ -126,11 +134,12 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
     </div>
     {transfer && session && !exchange ? <RemoteTransferDialog client={client} session={session} copy={copy} roots={roots} upload={transfer === 'upload'} paths={selected} directory={path} close={() => setTransfer(undefined)} changed={changed} /> : null}
     <div className={styles.toolbar}><Space><Button icon={<ArrowUp size={16} />} aria-label={copy.parent} disabled={loading || path === '/'} onClick={() => void load(path === '.' ? '..' : parentPath(path))} /><Breadcrumb items={[{ title: <button className={styles.crumb} onClick={() => void load('/')}>/</button> }, ...parts.map((part, index) => ({ title: <button className={styles.crumb} onClick={() => void load(`${path.startsWith('/') ? '/' : ''}${parts.slice(0, index + 1).join('/')}`)}>{part}</button> }))]} /></Space><Space><Button disabled={!can('entry_create')} icon={<FolderPlus size={16} />} onClick={() => { setName(''); setEditing({ kind: 'mkdir' }) }}>{copy.newFolder}</Button><Button icon={<RefreshCw size={15} />} aria-label={copy.refresh} loading={loading} onClick={() => void load(path)} /></Space></div>
-    <div className={styles.table}><Table<FileEntry> rowKey="path" dataSource={entries} scroll={{ x: 580 }} rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: !['file', 'directory'].includes(value.kind) }) }} loading={loading} pagination={false} size="small" locale={{ emptyText: copy.emptyDirectory }} onRow={entry => ({ onDoubleClick: () => { if (entry.kind === 'directory') void load(entry.path) } })} columns={[
+    {exchange && <div className={styles['exchange-search']}><Input prefix={<Search size={15} />} allowClear aria-label={copy.desktopFileSearch} placeholder={copy.desktopFileSearch} value={search} onChange={event => setSearch(event.target.value)} /><span>{selected.length ? `${selected.length} ${copy.desktopSelected}` : `${entries.length} ${copy.desktopEntries}`}</span></div>}
+    <div className={styles.table}><Table<FileEntry> rowKey="path" dataSource={displayEntries} tableLayout={exchange ? 'fixed' : undefined} scroll={exchange ? undefined : { x: 580 }} rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: loading || !['file', 'directory'].includes(value.kind) }) }} loading={loading} pagination={false} size={exchange ? 'middle' : 'small'} locale={{ emptyText: search && exchange ? copy.noResults : copy.emptyDirectory }} onRow={entry => ({ onDoubleClick: () => { if (entry.kind === 'directory') void load(entry.path) } })} columns={[
       { title: copy.name, dataIndex: 'name', render: (_, entry) => <button className={styles.entry} onClick={() => entry.kind === 'directory' ? void load(entry.path) : setDetails(entry)}>{entry.kind === 'directory' ? <Folder size={17} /> : entry.kind === 'symlink' ? <Link size={16} /> : <File size={16} />}<span>{entry.name}</span></button> },
       { title: copy.size, width: 90, render: (_, entry) => entry.kind === 'directory' ? '—' : formatBytes(Number(entry.size)) },
-      { title: copy.modified, width: 175, render: (_, entry) => Number(entry.modifiedUnixMs) > 0 ? new Date(Number(entry.modifiedUnixMs)).toLocaleString() : '—' },
-      { title: '', width: 124, render: (_, entry) => <Space size={0}><Tooltip title={copy.properties}><Button type="text" icon={<Info size={15} />} aria-label={copy.properties} onClick={() => setDetails(entry)} /></Tooltip><Tooltip title={copy.rename}><Button disabled={!can('entry_mutate')} type="text" icon={<Pencil size={15} />} aria-label={copy.rename} onClick={() => { setName(entry.name); setEditing({ kind: 'rename', entry }) }} /></Tooltip><Tooltip title={copy.remove}><Button disabled={!can('planned_delete')} type="text" danger icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void remove(entry)} /></Tooltip></Space> },
+      { title: copy.modified, width: exchange ? 144 : 175, responsive: exchange ? ['md'] : undefined, className: styles.modified, render: (_, entry) => Number(entry.modifiedUnixMs) > 0 ? new Date(Number(entry.modifiedUnixMs)).toLocaleString() : '—' },
+      { title: '', width: exchange ? 96 : 124, render: (_, entry) => <Space size={0}><Tooltip title={copy.properties}><Button size={exchange ? 'small' : undefined} type="text" icon={<Info size={15} />} aria-label={copy.properties} onClick={() => setDetails(entry)} /></Tooltip><Tooltip title={copy.rename}><Button size={exchange ? 'small' : undefined} disabled={!can('entry_mutate') || loading} type="text" icon={<Pencil size={15} />} aria-label={copy.rename} onClick={() => { setName(entry.name); setEditing({ kind: 'rename', entry }) }} /></Tooltip><Tooltip title={copy.remove}><Button size={exchange ? 'small' : undefined} disabled={!can('planned_delete') || loading} type="text" danger icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void remove(entry)} /></Tooltip></Space> },
     ]} />{cursor ? <Button block loading={loading} onClick={() => void load(path, cursor)}>{copy.loadMore}</Button> : null}</div>
     <RemoteFeedbackStack>
       {error && !editing ? <RemoteFeedback message={remoteErrorText(copy, error)} closeLabel={copy.close} onClose={() => setError(undefined)} /> : null}

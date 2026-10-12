@@ -9,6 +9,7 @@ export interface DesktopWindowBootstrap {
 }
 
 export interface DesktopWindowBridge {
+  desktopFiles?: import('./desktop-files').DesktopFileBridge
   pickPaths?: (options: FilePickerOptions) => Promise<string[]>
   bootstrap: () => Promise<DesktopWindowBootstrap>
   close: () => Promise<void>

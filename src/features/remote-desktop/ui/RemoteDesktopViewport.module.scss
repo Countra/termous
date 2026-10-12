@@ -16,7 +16,39 @@
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  background: var(--bg-primary);
+  background: var(--app-bg-elevated);
   color: var(--text-primary);
   z-index: 2;
+}
+
+.drop, .file-status {
+  position: absolute;
+  z-index: 3;
+  padding: 12px 18px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.drop {
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  opacity: .94;
+}
+
+.file-status {
+  right: 16px;
+  bottom: 16px;
+  max-width: min(480px, calc(100% - 32px));
+  border-radius: 6px;
+
+  code {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-secondary);
+  }
 }

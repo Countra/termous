@@ -1,6 +1,7 @@
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DesktopWindows } from './desktopWindow'
+import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
 import { settingsIPCChannels } from '#common/contracts'
@@ -1771,6 +1772,7 @@ async function initializeApplication() {
     devURL: VITE_DEV_SERVER_URL,
   })
   app.once('before-quit', () => desktopWindows.close())
+  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: (event, id) => isTrustedMainIPCEvent(event) || desktopWindows.accepts(event, id), focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
   remoteControlRuntime = new RemoteControlRuntime({
     core: new RemoteCore(() => coreProcess.initialize()),
     trusted: isTrustedMainIPCEvent,

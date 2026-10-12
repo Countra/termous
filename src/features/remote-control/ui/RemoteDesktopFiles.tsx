@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Drawer, Spin, Tooltip } from 'antd'
-import { FolderOpen, RefreshCw } from 'lucide-react'
+import { Button, Drawer, Skeleton, Tooltip, Typography } from 'antd'
+import { FolderOpen, Monitor, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { DesktopExchange, RemoteDesktopSession } from '@termous/remote-protocol/desktop'
 import type { RemoteLocalTask } from '#common/contracts'
@@ -59,13 +59,12 @@ export function RemoteDesktopFiles({ client, session, desktop, available, localT
 
   return <>
     <Tooltip title={copy.desktopExchange}><Button size="small" type="text" disabled={!available || !desktop || loading} icon={<FolderOpen size={16} />} aria-label={copy.desktopExchange} onClick={() => void load()} /></Tooltip>
-    <Drawer title={copy.desktopExchange} open={open && available} onClose={() => setOpen(false)} size="min(760px, 100vw)" destroyOnHidden getContainer={getContainer} classNames={{ section: styles.panel, body: styles.body }}>
-      <p className={styles.hint}>{copy.desktopExchangeUsage}</p>
-      {loading ? <div className={styles.loading} role="status"><Spin size="small" /><span>{copy.desktopFilesPreparing}</span></div> : error ? <>
+    <Drawer title={<div className={styles.heading}><FolderOpen size={20} /><div><strong>{copy.desktopExchange}</strong><span>{copy.desktopExchangeUsage}</span></div></div>} open={open && available} onClose={() => setOpen(false)} size="min(860px, 100vw)" destroyOnHidden closable={{ placement: 'end', 'aria-label': copy.close }} getContainer={getContainer} classNames={{ section: styles.panel, body: styles.body, header: styles.header }}>
+      {loading ? <div className={styles.loading} role="status"><span>{copy.desktopFilesPreparing}</span><Skeleton active paragraph={{ rows: 7 }} title={false} /></div> : error ? <div className={styles.error}>
         <RemoteFeedback message={remoteErrorText(copy, error)} action={<Button size="small" icon={<RefreshCw size={14} />} onClick={() => void load()}>{copy.retry}</Button>} />
         <code className={styles.code}>{error.code}</code>
-      </> : exchange ? <>
-        <code className={styles.path}>{exchange.targetPath}</code>
+      </div> : exchange ? <>
+        <div className={styles.path}><Monitor size={18} /><div><span>{copy.desktopTargetLocation}</span><Typography.Text copyable={{ text: exchange.targetPath }}>{exchange.targetPath}</Typography.Text></div></div>
         <RemoteFiles key={`${exchange.id}:${exchange.resourceGeneration}`} client={client} session={session} exchange={exchange} copy={copy} roots={[]} operations={[]} localTasks={localTasks} changed={changed} />
       </> : null}
     </Drawer>

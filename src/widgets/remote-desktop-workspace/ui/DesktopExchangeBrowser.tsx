@@ -1,13 +1,13 @@
-import { Alert, Button, Checkbox, Empty, Form, Input, Modal, Popconfirm, Spin } from 'antd'
-import { ArrowUp, Download, File, Folder, FolderPlus, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Alert, App, Breadcrumb, Button, Dropdown, Form, Input, Modal, Tooltip } from 'antd'
+import { ArrowUp, Download, Folder, FolderPlus, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DesktopExchange, DesktopFileEntry } from '#entities/remote-desktop'
 import type { OverwritePolicy } from '#entities/file'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
-import { formatBytes } from '#shared/format'
-import { confirmDialogStyles, termousPopconfirmProps } from '#shared/ui'
+import { confirmDialogStyles, contextActionMenuPopupClassName } from '#shared/ui'
 import type { useDesktopFiles } from '../model/useDesktopFiles.ts'
+import { DesktopFileList } from './DesktopFileList'
 import styles from './DesktopFilesPanel.module.scss'
 
 interface Props {
@@ -16,10 +16,12 @@ interface Props {
   retained?: boolean
   operations: ReturnType<typeof useDesktopFiles>
   overwrite: OverwritePolicy
+  blocked?: boolean
 }
 
-export function DesktopExchangeBrowser({ api, exchange, retained = false, operations, overwrite }: Props) {
+export function DesktopExchangeBrowser({ api, exchange, retained = false, operations, overwrite, blocked = false }: Props) {
   const { t } = useTranslation()
+  const { modal } = App.useApp()
   const [path, setPath] = useState('/')
   const [revision, setRevision] = useState(0)
   const [editing, setEditing] = useState<{ entry?: DesktopFileEntry; path: string; name: string }>()
@@ -33,8 +35,10 @@ export function DesktopExchangeBrowser({ api, exchange, retained = false, operat
   const loading = listing?.query !== query
   const error = !loading && listing?.error === true
   const entries = !loading && !error ? listing?.entries ?? [] : []
+  const byPath = new Map(entries.map(entry => [entry.path, entry]))
   const selected = !loading && !error && selection?.query === query ? selection.paths : []
-  const disabled = operations.busy || loading || error
+  const expired = !!exchange.expires_at && Date.parse(exchange.expires_at) <= Date.now()
+  const disabled = operations.busy || loading || error || blocked || expired
   useEffect(() => {
     const abort = new AbortController()
     void api.entries({ id: query.id, resource_generation: query.resource_generation }, query.path, query.retained, abort.signal).then(entries => {
@@ -62,29 +66,39 @@ export function DesktopExchangeBrowser({ api, exchange, retained = false, operat
     setEditing(undefined)
     refresh()
   }
+  const remove = (entry: DesktopFileEntry) => modal.confirm({
+    title: t('remoteDesktop.files.deleteConfirm'), content: entry.name, centered: true,
+    className: confirmDialogStyles.modal, rootClassName: confirmDialogStyles['modal-root'],
+    okText: t('remoteDesktop.files.delete'), cancelText: t('app.cancel'), okButtonProps: { danger: true },
+    onOk: () => operations.run(async () => { await api.mutate(exchange, 'remove', entry.path, entry.version); refresh() }),
+  })
+  const parts = path.split('/').filter(Boolean)
   return <div className={styles.browser}>
+    <div className={styles.toolbar}>
+      <div className={styles.actions}>
+        {!retained && <><Button type="primary" icon={<Upload size={15} />} disabled={disabled} onClick={() => transfer('upload')}>{t('remoteDesktop.files.upload')}</Button>
+          <Tooltip title={t('remoteDesktop.files.uploadFolder')}><Button icon={<Folder size={15} />} aria-label={t('remoteDesktop.files.uploadFolder')} disabled={disabled} onClick={() => transfer('upload', true)} /></Tooltip>
+          <Tooltip title={t('remoteDesktop.files.newFolder')}><Button icon={<FolderPlus size={15} />} aria-label={t('remoteDesktop.files.newFolder')} disabled={disabled} onClick={() => nameDialog()} /></Tooltip></>}
+      </div>
+      <Button icon={<Download size={15} />} disabled={!selected.length || disabled} onClick={() => transfer('download')}>{t('remoteDesktop.files.saveSelected')}</Button>
+    </div>
     <div className={styles.path}>
       <Button type="text" size="small" icon={<ArrowUp size={16} />} aria-label={t('remoteDesktop.files.parent')} disabled={path === '/'} onClick={() => setPath(path.slice(0, path.lastIndexOf('/')) || '/')} />
-      <code title={path}>{path}</code><Button type="text" size="small" icon={<RefreshCw size={15} />} aria-label={t('remoteDesktop.files.refresh')} onClick={refresh} />
+      <Breadcrumb items={[{ title: <button onClick={() => setPath('/')}>{t(`remoteDesktop.files.${retained ? 'retained' : 'exchange'}`)}</button> }, ...parts.map((part, index) => ({ title: <button onClick={() => setPath(`/${parts.slice(0, index + 1).join('/')}`)}>{part}</button> }))]} />
+      <Tooltip title={t('remoteDesktop.files.refresh')}><Button type="text" size="small" icon={<RefreshCw size={15} />} aria-label={t('remoteDesktop.files.refresh')} disabled={loading} onClick={refresh} /></Tooltip>
     </div>
-    <div className={styles.actions}>
-      {!retained && <><Button size="small" icon={<Upload size={14} />} disabled={disabled} onClick={() => transfer('upload')}>{t('remoteDesktop.files.upload')}</Button>
-        <Button size="small" icon={<Folder size={14} />} disabled={disabled} onClick={() => transfer('upload', true)}>{t('remoteDesktop.files.uploadFolder')}</Button>
-        <Button size="small" icon={<FolderPlus size={14} />} disabled={disabled} onClick={() => nameDialog()}>{t('remoteDesktop.files.newFolder')}</Button></>}
-      <Button size="small" icon={<Download size={14} />} disabled={!selected.length || disabled} onClick={() => transfer('download')}>{t('remoteDesktop.files.saveSelected')}</Button>
-    </div>
-    <div className={styles.entries} aria-label={t('remoteDesktop.files.entries')} aria-busy={loading}>
-      {loading ? <Spin /> : error ? <Alert type="error" showIcon title={t('remoteDesktop.files.readFailed')} /> : entries.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('remoteDesktop.files.empty')} /> : entries.map(entry => <div className={styles.entry} key={entry.path}>
-        <Checkbox aria-label={t('remoteDesktop.files.select', { name: entry.name })} checked={selected.includes(entry.path)} disabled={!['file', 'directory'].includes(entry.kind)} onChange={event => setSelection({ query, paths: event.target.checked ? [...selected, entry.path] : selected.filter(path => path !== entry.path) })} />
-        {entry.kind === 'directory' ? <Folder size={17} /> : <File size={17} />}
-        <button className={styles.filename} title={entry.name} disabled={entry.kind !== 'directory'} onClick={() => setPath(entry.path)}>{entry.name}</button>
-        <span className={styles.size}>{entry.kind === 'file' ? formatBytes(entry.size) : ''}</span>
-        {!retained && <><Button size="small" type="text" icon={<Pencil size={13} />} disabled={operations.busy} aria-label={t('remoteDesktop.files.rename')} onClick={() => nameDialog(entry)} />
-          <Popconfirm {...termousPopconfirmProps} title={t('remoteDesktop.files.deleteConfirm')} onConfirm={() => operations.run(async () => { await api.mutate(exchange, 'remove', entry.path, entry.version); refresh() })}>
-            <Button size="small" type="text" danger icon={<Trash2 size={13} />} disabled={operations.busy} aria-label={t('remoteDesktop.files.delete')} />
-          </Popconfirm></>}
-      </div>)}
-    </div>
+    {error && <Alert type="error" showIcon title={t('remoteDesktop.files.readFailed')} action={<Button size="small" onClick={refresh}>{t('remoteDesktop.files.refresh')}</Button>} />}
+    {expired && <Alert type="warning" showIcon title={t('remoteDesktop.files.errors.desktop_files_expired')} />}
+    <DesktopFileList key={path} entries={entries} selected={selected} onSelect={paths => setSelection({ query, paths })} onOpenDirectory={setPath} loading={loading} disabled={disabled}
+      actions={!retained ? item => {
+        const entry = byPath.get(item.path)!
+        return <Dropdown trigger={['click']} classNames={{ root: contextActionMenuPopupClassName }} menu={{ items: [
+          { key: 'rename', icon: <Pencil size={14} />, label: t('remoteDesktop.files.rename'), disabled },
+          { key: 'delete', icon: <Trash2 size={14} />, label: t('remoteDesktop.files.delete'), danger: true, disabled },
+        ], onClick: ({ key }) => key === 'rename' ? nameDialog(entry) : remove(entry) }}>
+          <Button type="text" size="small" icon={<MoreHorizontal size={16} />} aria-label={t('remoteDesktop.files.fileActions', { name: entry.name })} disabled={disabled} />
+        </Dropdown>
+      } : undefined} />
     <p className={styles.note}>{t(`remoteDesktop.files.${retained ? 'claimNote' : 'snapshotNote'}`)}</p>
     <Modal open={!!editing} title={t(`remoteDesktop.files.${editing?.entry ? 'rename' : 'newFolder'}`)} centered destroyOnHidden
       className={confirmDialogStyles.modal} rootClassName={confirmDialogStyles['modal-root']}
