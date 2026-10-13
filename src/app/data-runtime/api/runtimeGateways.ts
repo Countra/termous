@@ -12,6 +12,8 @@ import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
 import { RemoteDesktopClient, type RemoteDesktopGateway } from '#features/remote-desktop'
+import { WorkflowClient } from '#features/desktop-workflows'
+import type { WorkflowGateway } from '#entities/desktop-workflow'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
@@ -79,6 +81,7 @@ export interface RuntimeGateways {
   readonly commandDispatch: CommandDispatchGateway
   readonly mcpAccess: McpAccessGateway
   readonly remoteDesktop: RemoteDesktopGateway
+  readonly desktopWorkflow: WorkflowGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -116,6 +119,7 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    desktopWorkflow: new WorkflowClient(config),
     cloud: new CloudClient(config),
     invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),
     notifications,

@@ -266,6 +266,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
   const [snippetsDirty, setSnippetsDirty] = useState(false)
+  const [workflowDirty, setWorkflowDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const smoothScroll = useSettingsModule('terminal_local', { gateway: localSettingsGateway })
@@ -341,7 +342,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [gateways.cloud])
   useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
-  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty }, [hostsDirty, vaultDirty, snippetsDirty])
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowDirty }, [hostsDirty, vaultDirty, snippetsDirty, workflowDirty])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
     if (target.kind === 'remote_agent') {
       const generation = gateways.cloud.getStatus()?.generation
@@ -405,13 +406,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (nextPage !== 'agent') {
       clearAgentLaunchIntent()
     }
-    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty)) {
+    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty) || (page === 'remote-desktop' && workflowDirty)) {
       setPendingPage(nextPage)
       return
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty])
+  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowDirty])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -1653,6 +1654,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'remote-desktop' ? (
                         <RemoteDesktopPage
+                          workflow={gateways.desktopWorkflow}
+                          profiles={data.remoteDesktopProfiles}
+                          onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
                         />
                       ) : null}
@@ -1704,9 +1708,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             </CommandDispatchRuntimeProvider>
       <ConfirmDialog
         open={Boolean(pendingPage)}
-        title={t(page === 'hosts' ? 'hosts.unsavedTitle' : 'vault.unsavedTitle')}
-        description={t(page === 'hosts' ? 'hosts.leaveUnsavedDescription' : 'vault.unsavedDescription')}
-        confirmLabel={t(page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
+        title={t(page === 'remote-desktop' ? 'desktopWorkflow.unsavedTitle' : page === 'hosts' ? 'hosts.unsavedTitle' : 'vault.unsavedTitle')}
+        description={t(page === 'remote-desktop' ? 'desktopWorkflow.unsavedDescription' : page === 'hosts' ? 'hosts.leaveUnsavedDescription' : 'vault.unsavedDescription')}
+        confirmLabel={t(page === 'remote-desktop' ? 'desktopWorkflow.discard' : page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
         cancelLabel={t('app.cancel')}
         danger
         onCancel={() => {
@@ -1723,6 +1727,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             setHostsDirty(false)
           } else if (page === 'vault') {
             setVaultDirty(false)
+          } else if (page === 'remote-desktop') {
+            setWorkflowDirty(false)
           }
           if (nextPage) {
             setPage(nextPage)
