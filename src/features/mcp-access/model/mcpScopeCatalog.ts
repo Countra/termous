@@ -35,7 +35,6 @@ export interface McpScopeCatalogEntry {
 }
 
 export const mcpScopeGroups: readonly McpScopeGroup[] = [
-  { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
   { key: 'hosts', scopes: ['hosts:read', 'hosts:probe'] },
   { key: 'sessions', scopes: ['sessions:read', 'sessions:connect', 'sessions:close'] },
   { key: 'commands', scopes: ['commands:execute', 'commands:read', 'commands:interrupt'] },
@@ -53,6 +52,7 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
       'files:cancel',
     ],
   },
+  { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
   { key: 'system', scopes: ['system:read'] },
   { key: 'processes', scopes: ['processes:read', 'processes:terminate'] },
   { key: 'services', scopes: ['services:read', 'services:manage'] },
