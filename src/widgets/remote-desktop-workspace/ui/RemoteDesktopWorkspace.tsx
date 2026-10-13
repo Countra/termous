@@ -50,15 +50,9 @@ import {
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
 import { RemoteDesktopConnectionQuality } from './RemoteDesktopConnectionQuality.tsx'
-import {
-  RemoteDesktopCredentialDialog,
-  RemoteDesktopServerVerificationDialog,
-} from './RemoteDesktopSecurityDialogs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
-
-export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
 
 export interface RemoteDesktopWorkspaceProps {
   onOpenConnectionLauncher?: () => void
@@ -277,13 +271,7 @@ export function RemoteDesktopWorkspace({
         </main>
       )}
 
-      {activeSession && viewerState ? (
-        <RemoteDesktopCredentialDialog session={activeSession} />
-      ) : null}
       {filesOpen && runtime.desktopFiles && <DesktopFilesPanel key={`${activeSession?.id ?? ''}:${activeSession?.connection_generation ?? 0}`} api={runtime.desktopFiles} session={activeSession} viewer={viewerState} onClose={() => setFilesOpen(false)} />}
-      {activeSession && viewerState?.verification ? (
-        <RemoteDesktopServerVerificationDialog session={activeSession} />
-      ) : null}
     </section>
   )
 }

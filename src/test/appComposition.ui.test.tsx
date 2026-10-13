@@ -208,6 +208,10 @@ vi.mock('#features/remote-desktop', () => ({
   useRemoteDesktopRuntime: () => ({ createSession: vi.fn() }),
 }))
 
+vi.mock('#widgets/remote-desktop-workspace', () => ({
+  RemoteDesktopConnectionCoordinator: () => <div data-testid="desktop-connection-coordinator" />,
+}))
+
 vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
@@ -867,6 +871,17 @@ describe('应用运行时组合合同', () => {
     }
 
     expect(actualOrder).toEqual(expectedOrder)
+  })
+
+  it('桌面连接确认始终挂在全局运行时中，切换页面不重建确认入口', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const coordinator = screen.getByTestId('desktop-connection-coordinator')
+    expect(coordinator.closest('[data-provider="remote-desktop"]')).not.toBeNull()
+    for (const page of ['agent', 'settings', 'remote-desktop', 'workbench']) {
+      await user.click(screen.getByRole('button', { name: page }))
+      expect(screen.getAllByTestId('desktop-connection-coordinator')).toEqual([coordinator])
+    }
   })
 
   it('只向各页面和工作区传递声明的数据视图', async () => {

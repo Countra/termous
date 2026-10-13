@@ -8,7 +8,7 @@ import { writeClipboardText } from '#shared/clipboard'
 import { termousNotificationClassName } from '#shared/ui'
 import styles from './RemoteDesktopServerVerificationDialog.module.scss'
 
-export function RemoteDesktopServerVerificationDialog({ session }: { session: RemoteDesktopSession }) {
+export function RemoteDesktopServerVerificationDialog({ session, visible = true }: { session: RemoteDesktopSession; visible?: boolean }) {
   const runtime = useRemoteDesktopRuntime()
   const state = runtime.viewerStates[session.id]
   if (state?.connection !== 'verifying_server' || !state.verification) return null
@@ -17,6 +17,7 @@ export function RemoteDesktopServerVerificationDialog({ session }: { session: Re
     <ServerVerificationPrompt
       key={`${session.id}:${session.connection_generation}:${session.certificate?.challenge_id ?? state.verification.fingerprint}`}
       session={session}
+      visible={visible}
       verification={state.verification}
       onApprove={(remember) => runtime.approveServer(session.id, remember)}
       onReject={() => runtime.rejectServer(session.id)}
@@ -24,8 +25,9 @@ export function RemoteDesktopServerVerificationDialog({ session }: { session: Re
   )
 }
 
-function ServerVerificationPrompt({ session, verification, onApprove, onReject }: {
+function ServerVerificationPrompt({ session, visible, verification, onApprove, onReject }: {
   session: RemoteDesktopSession
+  visible: boolean
   verification: { type: string; fingerprint: string }
   onApprove: (remember: boolean) => void | Promise<void>
   onReject: () => Promise<void>
@@ -75,9 +77,10 @@ function ServerVerificationPrompt({ session, verification, onApprove, onReject }
 
   return (
     <Modal
-      open
+      open={visible}
       centered
       width={560}
+      zIndex={3950}
       title={<span className={styles.title}><Fingerprint size={20} aria-hidden="true" />{title}</span>}
       okText={t('remoteDesktop.trustAndContinue')}
       cancelText={t('remoteDesktop.rejectServer')}

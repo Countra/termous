@@ -325,7 +325,15 @@ export function RemoteDesktopRuntimeProvider({
     const session = sessionsRef.current.get(sessionId)
     if (session?.protocol === 'rdp' && session.credentials_required) {
       await apiRef.current.supplyRemoteDesktopCredentials(sessionId, session.connection_generation, credentials.password ?? '')
-      commitViewerState(sessionId, { connection: 'connecting', credentialFields: [] })
+      setViewerStates((states) => {
+        const current = sessionsRef.current.get(sessionId)
+        const previous = states[sessionId]
+        // 凭据响应不能复活已关闭会话，也不能覆盖新连接或后续证书确认。
+        if (current?.connection_generation !== session.connection_generation
+          || current.status === 'stopping' || current.status === 'failed' || current.status === 'reconnecting'
+          || previous?.connection !== 'credentials_required') return states
+        return { ...states, [sessionId]: { ...previous, connection: 'connecting', credentialFields: [] } }
+      })
       return
     }
     if (!lifecycleRef.current?.submitCredentials(sessionId, credentials)) {

@@ -54,6 +54,7 @@ import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider, type TerminalAIReferenceSelection } from '#features/terminal'
 import { RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
+import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
 import {
@@ -308,6 +309,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [productTourRequestKey, setProductTourRequestKey] = useState(0)
   const [productTourActive, setProductTourActive] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
+  const [desktopConnectionBlocking, setDesktopConnectionBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
   const [agentRuntimeSummary, setAgentRuntimeSummary] = useState({
     agentRunCount: 0,
@@ -1255,6 +1257,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
+    || hostKeyApprovalBlocking
+    || desktopConnectionBlocking
     || actionBusy
     || hostSaving
     || Boolean(pendingPage)
@@ -1692,8 +1696,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onRemoteDesktopConnected={() => setPage('remote-desktop')}
                       onRemoteDesktopConnectionError={showActionError}
                     />
+                    <RemoteDesktopConnectionCoordinator blocked={hostKeyApprovalBlocking} onBlockingChange={setDesktopConnectionBlocking} />
                   </RemoteDesktopRuntimeProvider>
-                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} preferredApprovalId={notificationApprovalId} />
+                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking || desktopConnectionBlocking} preferredApprovalId={notificationApprovalId} />
                 </GlobalFileSearchRuntimeProvider>
               </McpAccessRuntimeProvider>
             </CommandDispatchRuntimeProvider>
@@ -1731,7 +1736,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onBlockingChange={setHostKeyApprovalBlocking}
       />
       {apiReady && !coreFatal && cloudStatus?.authenticated ? <AccountApprovalCoordinator key={cloudStatus.generation} api={gateways.cloud} status={cloudStatus}
-        blocked={hostKeyApprovalBlocking} target={authorizationTarget} onClose={() => setAccountAuthorization(undefined)} /> : null}
+        blocked={hostKeyApprovalBlocking || desktopConnectionBlocking} target={authorizationTarget} onClose={() => setAccountAuthorization(undefined)} /> : null}
       <CoreFatalDialog key={coreFatal?.code ?? 'none'} fatal={coreFatal} />
           </TerminalRuntimeProvider>
         </TransferRuntimeProvider>

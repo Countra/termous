@@ -3,10 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
-import {
-  RemoteDesktopCredentialDialog,
-  RemoteDesktopWorkspace,
-} from './RemoteDesktopWorkspace'
+import { RemoteDesktopWorkspace } from './RemoteDesktopWorkspace'
+import { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs'
 
 const runtimeMock = vi.hoisted(() => ({
   value: {

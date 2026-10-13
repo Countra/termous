@@ -4,7 +4,7 @@ import type { DesktopWindowBootstrap } from '#common/contracts'
 import { getDesktopWindowBridge } from '#shared/bridge'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { RemoteDesktopClient, RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
-import { RemoteDesktopWorkspace } from '#widgets/remote-desktop-workspace'
+import { RemoteDesktopConnectionCoordinator, RemoteDesktopWorkspace } from '#widgets/remote-desktop-workspace'
 import styles from './DesktopWindowRoot.module.scss'
 
 export default function DesktopWindowRoot() {
@@ -25,6 +25,7 @@ export default function DesktopWindowRoot() {
       : runtime ? <main className={styles.surface}>
         <RemoteDesktopRuntimeProvider api={runtime.api} enabled profiles={[]} initialSessions={[]} sessionId={runtime.bootstrap.sessionId}>
           <RemoteDesktopWorkspace />
+          <RemoteDesktopConnectionCoordinator />
         </RemoteDesktopRuntimeProvider>
       </main> : <Spin fullscreen />}
   </TermousUiProvider>

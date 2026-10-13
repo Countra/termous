@@ -1,4 +1,5 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import { afterEach, expect, test, vi } from 'vitest'
 import type {
   RemoteDesktopAccessProfile,
@@ -11,6 +12,7 @@ import { useRemoteDesktopConnectionMetrics } from './core/connectionMetricsStore
 import { useRemoteDesktopRuntime } from './core/remoteDesktopRuntimeContext'
 import { RemoteDesktopTargetAuthController } from './core/targetAuthController.ts'
 import { RemoteDesktopRuntimeProvider } from './RemoteDesktopRuntimeProvider'
+import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
 
 const adapterCreate = vi.hoisted(() => vi.fn())
 const adapterPrepare = vi.hoisted(() => vi.fn())
@@ -1072,6 +1074,55 @@ test('拒绝请求的迟到响应不移除新代次会话', async () => {
   await act(async () => { deletion.resolve(); await response })
   expect(runtime.sessions[0].connection_generation).toBe(2)
   expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+})
+
+test('事件流收到后台证书挑战时无需观看页面即可确认，不创建观看 Ticket', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.remoteDesktopSessions = vi.fn(async () => [])
+  render(<ConfigProvider theme={{ token: { motion: false } }}><AntdApp>
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[]}>
+      <RemoteDesktopConnectionCoordinator />
+    </RemoteDesktopRuntimeProvider>
+  </AntdApp></ConfigProvider>)
+  await waitFor(() => expect(api.remoteDesktopSessions).toHaveBeenCalled())
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session }))
+  const dialog = await screen.findByRole('dialog')
+  expect(dialog).toHaveTextContent('test-fingerprint')
+  expect(api.resolveRemoteDesktopCertificate).not.toHaveBeenCalled()
+  fireEvent.click(dialog.querySelector<HTMLButtonElement>('.ant-btn-primary')!)
+  await waitFor(() => expect(api.resolveRemoteDesktopCertificate).toHaveBeenCalledExactlyOnceWith(session.id, session.connection_generation, 'challenge-one', true, false))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(api.createRemoteDesktopAttachTicket).not.toHaveBeenCalled()
+})
+
+test.each(['generation', 'certificate', 'failed', 'stopping', 'removed'] as const)('凭据迟到响应不覆盖 %s 生命周期', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session: RemoteDesktopSession = { ...rdpSecuritySession(), status: 'connecting', phase: 'resolving_auth', certificate: undefined, credentials_required: true }
+  const submission = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.supplyRemoteDesktopCredentials = vi.fn(() => submission.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('credentials_required'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.submitCredentials(session.id, { password: 'synthetic-password' }) })
+  act(() => MockWebSocket.instances[0].emit(next === 'removed'
+    ? { type: 'removed', session: { id: session.id } }
+    : { type: 'upsert', session: {
+      ...(next === 'certificate' ? rdpSecuritySession() : session),
+      status: next === 'failed' || next === 'stopping' ? next : next === 'certificate' ? 'waiting_host_trust' : 'connecting',
+      connection_generation: next === 'generation' ? 2 : 1,
+      updated_at: '2026-08-23T12:00:01Z',
+    } }))
+  const state = runtime.viewerStates[session.id]
+  await act(async () => { submission.resolve(); await response })
+  expect(runtime.viewerStates[session.id]).toEqual(state)
+  expect(api.supplyRemoteDesktopCredentials).toHaveBeenCalledExactlyOnceWith(session.id, 1, 'synthetic-password')
 })
 
 function rdpSecuritySession(): RemoteDesktopSession {
