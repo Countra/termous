@@ -10,6 +10,10 @@ import type { RemoteDesktopGateway } from './remoteDesktopGateway.ts'
 import { DesktopFilesClient } from './DesktopFilesClient.ts'
 
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
+  readonly automation = {
+    show: (id: string, generation: number, host: string) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/show`, { method: 'POST', body: { expected_connection_generation: generation, host_id: host } }),
+    reclaim: (id: string, generation: number) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/reclaim`, { method: 'POST', body: { expected_connection_generation: generation } }),
+  }
   readonly desktopFiles: DesktopFilesClient
   readonly execution = {
     connect: async (id: string, generation: number, readOnly: boolean) => {

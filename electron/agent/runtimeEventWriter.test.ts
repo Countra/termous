@@ -19,6 +19,18 @@ const start: AgentWorkerStartMessage = {
   skills: testAgentSkillBundle(),
 }
 
+test('大截图单独发送，普通批次保持原预算与顺序', async () => {
+  const core = new RecordingCore()
+  const writer = new RuntimeEventWriter({ core, start, runtimeBearer: 'fixture', initialSequence: 0, onFailure: error => assert.fail(String(error)), flushDelayMs: 60_000 })
+  writer.push('status', { status: { status: 'running' } })
+  const image = Buffer.alloc(8 * 1024 * 1024).toString('base64')
+  writer.push('message_part', { message_part: { kind: 'tool_result', content: { tool_result: { content: [{ type: 'image', mimeType: 'image/png', data: image }] } } } })
+  writer.push('status', { status: { status: 'completed' } })
+  await writer.flush()
+  assert.deepEqual(core.batches.map(batch => batch.map(event => event.sequence)), [[1], [2], [3]])
+  assert.equal(JSON.stringify(core.batches[1]).includes(image), true)
+})
+
 class RecordingCore implements WorkerCoreClientPort {
   async appendAuditEvents() {}
   readonly batches: RuntimeEventInput[][] = []

@@ -73,6 +73,12 @@ function rfbConnection(ws) {
           events.push({ kind: 'key', down: message[1] === 1, keysym })
           // F8 在协议夹具中触发尺寸变化，不依赖真实桌面或系统显示设置。
           if (keysym === 0xffc5 && message[1] === 1) ws.send(Buffer.concat([Buffer.from([0, 0, 0, 2]), rectangle(0, 0, 400, 300, -223, Buffer.alloc(0)), rectangle(0, 0, 400, 300, 0, Buffer.alloc(400 * 300 * 4))]))
+          if ((keysym === 0xffc6 || keysym === 0xffc7) && message[1] === 1) {
+            const width = keysym === 0xffc6 ? 1920 : 3840, height = keysym === 0xffc6 ? 1080 : 2160
+            const pixels = Buffer.alloc(width * height * 4)
+            for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) pixels.writeUInt32LE(((x % 251) << shifts[0]) | ((y % 251) << shifts[1]) | (((x + y) % 251) << shifts[2]), (y * width + x) * 4)
+            ws.send(Buffer.concat([Buffer.from([0, 0, 0, 2]), rectangle(0, 0, width, height, -223, Buffer.alloc(0)), rectangle(0, 0, width, height, 0, pixels)]))
+          }
         }
         if (type === 5) { events.push({ kind: 'pointer', buttons: message[1], x: message.readUInt16BE(2), y: message.readUInt16BE(4) }); if (message[1] === 1) { const pixel = Buffer.alloc(4); pixel.writeUInt32LE(255 << shifts[0]); ws.send(Buffer.concat([Buffer.from([0, 0, 0, 1]), rectangle(0, 0, 1, 1, 0, pixel)])) } }
       }

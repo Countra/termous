@@ -2,6 +2,7 @@ import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DesktopWindows } from './desktopWindow'
+import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
@@ -1773,6 +1774,16 @@ async function initializeApplication() {
     devURL: VITE_DEV_SERVER_URL,
   })
   app.once('before-quit', () => desktopWindows.close())
+  const desktopAutomation = new DesktopAutomationRuntime({
+    config: () => coreProcess.initialize(),
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    preload: path.join(__dirname, 'desktop-automation-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
+  void desktopAutomation.start()
+  app.once('before-quit', () => desktopAutomation.close())
   registerFileSystemClipboardIPC({
     ipc: ipcMain,
     core: new RemoteCore(() => coreProcess.initialize()),

@@ -15,7 +15,7 @@ import styles from '../McpApprovalCoordinator.module.scss'
 
 export function RemoteOpsApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
-  const resourceKind = operation.domain === 'docker' ? operation.resource_kind : undefined
+  const resourceKind = operation.domain === 'docker' && (operation.resource_kind === 'images' || operation.resource_kind === 'volumes' || operation.resource_kind === 'networks') ? operation.resource_kind : undefined
   const Icon = resourceKind
     ? dockerResourceIcons[resourceKind]
     : remoteOpsDomainIcons[operation.domain ?? ''] ?? ServerCog

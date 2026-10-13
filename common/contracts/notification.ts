@@ -184,7 +184,7 @@ export function notificationText(message: NotificationMessage, language: string)
     success: ['已完成', 'completed'], failed: ['失败', 'failed'], partial: ['部分完成', 'partially completed'], uncertain: ['结果待确认', 'result uncertain'], attention: ['待审批', 'awaiting approval'],
   }
   if (message.kind === 'approval') {
-    const kinds: Record<string, [string, string]> = { command: ['命令', 'Command'], files: ['文件操作', 'File operation'], remoteops: ['远程管理操作', 'Remote management'], forwarding: ['端口转发', 'Port forwarding'], snippet: ['命令片段', 'Snippet'] }
+    const kinds: Record<string, [string, string]> = { desktop: ['桌面控制', 'Desktop control'], command: ['命令', 'Command'], files: ['文件操作', 'File operation'], remoteops: ['远程管理操作', 'Remote management'], forwarding: ['端口转发', 'Port forwarding'], snippet: ['命令片段', 'Snippet'] }
     const kind = kinds[message.operation] ?? ['操作', 'Operation']
     const subject = message.source_name || (zh ? 'AI 助手' : 'AI assistant')
     return { title: zh ? `有${kind[0]}待审批` : `${kind[1]} awaiting approval`, subject, summary: '', body: subject }

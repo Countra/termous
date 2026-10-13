@@ -5,11 +5,12 @@ import { ForwardingApprovalRenderer } from './ForwardingApprovalRenderer'
 import { RemoteOpsApprovalRenderer } from './RemoteOpsApprovalRenderer'
 import { SnippetApprovalRenderer } from './SnippetApprovalRenderer'
 import { FilesApprovalRenderer } from './FilesApprovalRenderer'
+import { DesktopApprovalRenderer } from './DesktopApprovalRenderer'
 
 export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
   return (
     <>
-      {approval.kind === 'files' ? (
+      {approval.kind === 'desktop' ? <DesktopApprovalRenderer operation={approval.operation} /> : approval.kind === 'files' ? (
         <FilesApprovalRenderer operation={approval.operation} />
       ) : approval.kind === 'remoteops' ? (
         <RemoteOpsApprovalRenderer operation={approval.operation} />

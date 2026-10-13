@@ -56,6 +56,7 @@ import {
 } from './RemoteDesktopSecurityDialogs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
+import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 
 export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
 
@@ -213,7 +214,7 @@ export function RemoteDesktopWorkspace({
                   icon={<MonitorPlay size={16} />}
                   label={session.profile_name}
                   status={tabStatus(session)}
-                  statusLabel={t(`remoteDesktop.status.${session.status}`)}
+                  statusLabel={session.automation ? t('remoteDesktop.automation.active') : t(`remoteDesktop.status.${session.status}`)}
                   closeLabel={t(session.protocol === 'rdp' ? 'remoteDesktop.rdp.closeViewer' : 'remoteDesktop.disconnect')}
                   tooltipTitle={`${session.profile_name} · ${session.host_name}`}
                   onClick={() => runtime.selectSession(session.id)}
@@ -250,8 +251,9 @@ export function RemoteDesktopWorkspace({
       {activeSession ? (
         <>
           <main className={styles.viewer}>
+            <DesktopAutomationStatus key={activeSession.id} session={activeSession} />
             <RemoteDesktopViewport sessionId={activeSession.id} />
-            <ViewerOverlay session={activeSession} viewerState={viewerState} />
+            {!activeSession.automation_host_id && <ViewerOverlay session={activeSession} viewerState={viewerState} />}
           </main>
           <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} />
         </>

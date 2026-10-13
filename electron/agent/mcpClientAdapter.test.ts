@@ -8,6 +8,17 @@ import {
   mapMCPTools,
 } from './mcpClientAdapter.ts'
 
+test('桌面截图同时投影图片和坐标说明，结构化结果不丢失', async () => {
+  const result: CallToolResult = { content: [
+    { type: 'image', mimeType: 'image/png', data: 'fixture-png' },
+    { type: 'text', text: 'screenshot_id=shot-1, width=800, height=600' },
+  ], structuredContent: { capture: { screenshot_id: 'shot-1', metadata: { width: 800, height: 600 } } } }
+  const mapped = mapMCPTools([{ name: 'termous.desktops.capture', inputSchema: { type: 'object', properties: {} } }], async () => result)
+  const executed = await mapped.tools[0]!.execute('capture', {})
+  assert.deepEqual(executed.content, [{ type: 'image', mimeType: 'image/png', data: 'fixture-png' }, { type: 'text', text: 'screenshot_id=shot-1, width=800, height=600' }])
+  assert.deepEqual((executed.details as { result: CallToolResult }).result.structuredContent, result.structuredContent)
+})
+
 test('MCP Tool 动态映射名称和错误详情', async () => {
   const definitions = Array.from({ length: 2 }, (_, index): MCPTool => ({
     name: `termous.test_${index}.run`,

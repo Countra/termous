@@ -185,6 +185,12 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     steeringMode: 'one-at-a-time',
     followUpMode: 'one-at-a-time',
     toolExecution: 'sequential',
+    beforeToolCall: async ({ toolCall }) => {
+      if (!model.input.includes('image') && options.mcp.originalName(toolCall.name) === 'termous.desktops.capture') {
+        return { block: true, reason: 'AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED：当前模型不支持图片，请切换支持图片的模型后使用桌面截图。' }
+      }
+      return undefined
+    },
     afterToolCall: async ({ result }) => {
       if (isMCPToolDetails(result.details) && result.details.result.isError === true) {
         return { isError: true }

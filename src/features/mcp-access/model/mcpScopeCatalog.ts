@@ -6,6 +6,7 @@ import {
 } from '#entities/mcp-access'
 
 export type McpScopeGroupKey =
+  | 'desktops'
   | 'hosts'
   | 'sessions'
   | 'commands'
@@ -34,6 +35,7 @@ export interface McpScopeCatalogEntry {
 }
 
 export const mcpScopeGroups: readonly McpScopeGroup[] = [
+  { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
   { key: 'hosts', scopes: ['hosts:read', 'hosts:probe'] },
   { key: 'sessions', scopes: ['sessions:read', 'sessions:connect', 'sessions:close'] },
   { key: 'commands', scopes: ['commands:execute', 'commands:read', 'commands:interrupt'] },
@@ -83,7 +85,7 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     descriptionKey: `settings.mcp.scopeDescription.${key}`,
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
-    destructive: scope === 'sessions:close' || scope === 'files:delete'
+    destructive: scope === 'sessions:close' || scope === 'files:delete' || scope === 'desktops:close' || scope === 'desktops:control'
       || scope === 'docker:images:manage' || scope === 'docker:volumes:manage' || scope === 'docker:networks:manage',
   }
 })

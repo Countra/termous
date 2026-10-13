@@ -7,6 +7,10 @@ import type {
 import type { DesktopFilesGateway } from './DesktopFilesClient.ts'
 
 export interface RemoteDesktopRuntimeGateway {
+  automation?: {
+    show(id: string, generation: number, host: string): Promise<void>
+    reclaim(id: string, generation: number): Promise<void>
+  }
   desktopFiles?: DesktopFilesGateway
   execution?: {
     connect: (id: string, generation: number, readOnly: boolean) => Promise<{ url: string; ticket: string }>

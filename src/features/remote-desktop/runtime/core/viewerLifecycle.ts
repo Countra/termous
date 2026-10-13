@@ -88,7 +88,7 @@ export class RemoteDesktopViewerLifecycle {
     for (const session of nextSessions) {
       const previous = previousSessions.get(session.id)
       const entry = this.entries.get(session.id)
-      if (entry && session.protocol === 'vnc' && (session.remote_viewer || previous?.remote_viewer)) {
+      if (entry && session.protocol === 'vnc' && (session.remote_viewer || previous?.remote_viewer || session.automation_host_id || previous?.automation_host_id)) {
         // 预留阶段仍保留原画面，切换后移除本机执行端；归还只恢复已有窗口。
         if (session.remote_viewer?.phase !== 'preparing') {
           const viewer = entry.viewer
@@ -526,7 +526,7 @@ export class RemoteDesktopViewerLifecycle {
   private canStartAttach(session: RemoteDesktopSession, entry: ViewerEntry) {
     return Boolean(
       entry.viewport
-      && !(session.protocol === 'vnc' && session.remote_viewer)
+      && !(session.protocol === 'vnc' && (session.remote_viewer || session.automation_host_id))
       && !entry.viewer
       && !entry.attachPromise
       && (session.status === 'ready' || session.status === 'reattach_wait' || (session.protocol === 'rdp' && session.status === 'streaming'))
@@ -545,7 +545,7 @@ export class RemoteDesktopViewerLifecycle {
       && entry.connectionGeneration === generation
       && entry.blockedAttachGeneration !== generation
       && session?.connection_generation === generation
-      && !(session.protocol === 'vnc' && session.remote_viewer)
+      && !(session.protocol === 'vnc' && (session.remote_viewer || session.automation_host_id))
       && session.status !== 'failed'
       && session.status !== 'stopping'
   }

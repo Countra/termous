@@ -8,6 +8,7 @@ import type {
 
 const maxEventBatchSize = 64
 const maxEventRequestBytes = 768 * 1024
+const maxImageEventRequestBytes = 12 * 1024 * 1024
 const maxCoalescedDeltaBytes = 240 * 1024
 const defaultFlushDelayMs = 64
 
@@ -83,7 +84,8 @@ export class RuntimeEventWriter {
       payload,
     }
     const serializedBytes = runtimeEventBytes(event)
-    if (this.requestEnvelopeBytes + serializedBytes > maxEventRequestBytes) {
+    const limit = isImageResult(event) ? maxImageEventRequestBytes : maxEventRequestBytes
+    if (this.requestEnvelopeBytes + serializedBytes > limit) {
       throw new Error('AGENT_RUNTIME_EVENT_TOO_LARGE')
     }
     this.sequence = event.sequence
@@ -270,6 +272,14 @@ export class RuntimeEventWriter {
       throw this.failure
     }
   }
+}
+
+function isImageResult(event: RuntimeEventInput) {
+  if (event.kind !== 'message_part') return false
+  const part = event.payload.message_part as { kind?: string; content?: { tool_result?: { content?: unknown } } } | undefined
+  const content = part?.content?.tool_result?.content
+  return part?.kind === 'tool_result' && Array.isArray(content)
+    && content.some(block => block?.type === 'image' && typeof block.data === 'string')
 }
 
 function messageDeltaPayload(payload: Record<string, unknown>) {

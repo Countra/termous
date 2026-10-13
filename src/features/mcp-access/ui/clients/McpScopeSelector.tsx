@@ -11,6 +11,7 @@ import {
   ListChecks,
   ListX,
   Network,
+  Monitor,
   RotateCcw,
   Server,
   ServerCog,
@@ -40,6 +41,7 @@ interface McpScopeSelectorProps {
 }
 
 const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
+  desktops: Monitor,
   hosts: Server,
   sessions: KeyRound,
   commands: TerminalSquare,

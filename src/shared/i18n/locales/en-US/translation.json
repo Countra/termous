@@ -1508,6 +1508,27 @@
     }
   },
   "remoteDesktop": {
+    "automation": {
+      "hostHint": "Hosted view · Closing this window hides it; automation continues",
+      "hostFailed": "Executor ended. Attach again and request control.",
+      "view": "View desktop",
+      "credentials": "VNC credentials",
+      "verify": "Verify VNC server identity",
+      "trustOnce": "Trust this time",
+      "actionFailed": "Action failed. Check desktop status before retrying.",
+      "controlling": "Automation in control · {{name}} · releases in {{seconds}}s",
+      "observing": "Automation observing · Desktop is hosted in a separate window",
+      "reclaim": "Reclaim control",
+      "active": "Automation in control",
+      "target": "Target",
+      "protocol": "Protocol",
+      "connection": "Connection",
+      "duration": "Authorization",
+      "limits": "Up to 30 minutes; released after 15 minutes without a successful capture or input",
+      "takeoverApproval": "Take over current control; VNC will switch its viewing endpoint",
+      "controlApproval": "Allow pointer, keyboard and target text clipboard operations on this connection",
+      "shares": "Automation can access personal mappings and exchange areas currently visible to the target. It does not read the local system clipboard. Reclaim control at any time from the desktop page."
+    },
     "files": {
       "title": "Files",
       "workspaceTitle": "Desktop files",
@@ -5873,6 +5894,11 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "desktops_read": "Read desktops",
+        "desktops_connect": "Connect desktops",
+        "desktops_capture": "Capture desktops",
+        "desktops_control": "Control desktops",
+        "desktops_close": "Close owned desktops",
         "hosts_read": "Read hosts",
         "hosts_probe": "Probe host reachability",
         "sessions_read": "Read SSH sessions",
@@ -5911,6 +5937,11 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "desktops_read": "Read session summaries, readiness and automation status.",
+        "desktops_connect": "Create connections using saved RDP or VNC profiles.",
+        "desktops_capture": "Observe and capture; does not grant input control.",
+        "desktops_control": "Request a bounded control grant; capture permission is also required.",
+        "desktops_close": "Close only connections created by this caller with no other users.",
         "docker_images_read": "Read image lists, tags, sizes, and platform details.",
         "docker_images_manage": "Tag or remove images without force; each request requires approval by default.",
         "docker_volumes_read": "Read volume lists, drivers, and mountpoints.",
@@ -5949,6 +5980,7 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "desktops": "Remote desktops",
         "hosts": "Hosts and discovery",
         "sessions": "SSH sessions",
         "commands": "Session command console",
@@ -5962,6 +5994,7 @@
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "desktops": "RDP / VNC observation and bounded automation control",
         "hosts": "View saved hosts and network reachability",
         "sessions": "View or control SSH connections in Termous",
         "commands": "Run commands and read their results",

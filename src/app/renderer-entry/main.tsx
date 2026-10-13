@@ -31,6 +31,7 @@ void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.lo
   update: () => import('#app/update-surface'),
   remote: () => import('#app/remote-surface'),
   desktop: () => import('#app/desktop-surface'),
+  'desktop-automation': () => import('#app/desktop-automation-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(
     <React.StrictMode>

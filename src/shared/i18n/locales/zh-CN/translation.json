@@ -1506,6 +1506,27 @@
     }
   },
   "remoteDesktop": {
+    "automation": {
+      "hostHint": "托管画面 · 关闭此窗口仅隐藏，自动化继续运行",
+      "hostFailed": "执行端已结束，请重新附着后再申请控制",
+      "view": "查看画面",
+      "credentials": "输入 VNC 认证信息",
+      "verify": "确认 VNC 服务器身份",
+      "trustOnce": "仅本次信任",
+      "actionFailed": "操作未完成，请检查桌面状态后重试",
+      "controlling": "自动化控制中 · {{name}} · {{seconds}} 秒后释放",
+      "observing": "自动化观察中 · 画面由独立窗口托管",
+      "reclaim": "收回控制",
+      "active": "自动化控制中",
+      "target": "目标",
+      "protocol": "协议",
+      "connection": "连接标识",
+      "duration": "授权期限",
+      "limits": "最长 30 分钟；连续 15 分钟无有效截图或输入时释放",
+      "takeoverApproval": "允许接管当前控制者；VNC 将切换观看入口",
+      "controlApproval": "允许在此连接中执行鼠标、键盘与目标文本剪贴板操作",
+      "shares": "自动化可以访问目标当前可见的个人映射和交换区；不会读取本机系统剪贴板。可随时在桌面页收回控制。"
+    },
     "files": {
       "title": "文件",
       "workspaceTitle": "桌面文件",
@@ -5848,6 +5869,11 @@
         "disabled": "已停用"
       },
       "scope": {
+        "desktops_read": "查看桌面状态",
+        "desktops_connect": "创建桌面连接",
+        "desktops_capture": "截取桌面画面",
+        "desktops_control": "控制远程桌面",
+        "desktops_close": "关闭自己的桌面连接",
         "hosts_read": "读取主机",
         "hosts_probe": "检测主机可达性",
         "sessions_read": "读取 SSH 会话",
@@ -5886,6 +5912,11 @@
         "snippets_write": "管理代码片段"
       },
       "scopeDescription": {
+        "desktops_read": "读取脱敏会话、就绪状态及自动化占用信息。",
+        "desktops_connect": "使用已保存的 RDP 或 VNC 配置创建连接。",
+        "desktops_capture": "观察与截图；不隐含鼠标键盘控制权。",
+        "desktops_control": "申请有限期控制授权；同时需要截图权限。",
+        "desktops_close": "只关闭本客户端创建且没有其他使用者的连接。",
         "docker_images_read": "读取镜像列表、标签、大小和平台信息。",
         "docker_images_manage": "设置镜像标签或非强制删除镜像；默认需逐次批准。",
         "docker_volumes_read": "读取数据卷列表、驱动和挂载位置。",
@@ -5924,6 +5955,7 @@
         "snippets_write": "新增、修改、删除或调整代码片段及分组顺序；默认需逐次批准。"
       },
       "permissionGroup": {
+        "desktops": "远程桌面",
         "hosts": "主机与发现",
         "sessions": "SSH 会话",
         "commands": "会话命令台",
@@ -5937,6 +5969,7 @@
         "snippets": "代码片段"
       },
       "permissionGroupHint": {
+        "desktops": "RDP / VNC 画面观察与有限期自动化控制",
         "hosts": "查看已保存主机与网络可达性",
         "sessions": "查看或控制 Termous 中的 SSH 连接",
         "commands": "执行命令并读取结果",

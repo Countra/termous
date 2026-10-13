@@ -1157,6 +1157,37 @@ function SessionMutationHarness() {
   )
 }
 
+test('托管 VNC 期间不竞争挂接，结束后仅恢复已有观看入口', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const original = viewerAdapter()
+  adapterCreate.mockResolvedValueOnce(original).mockResolvedValue(viewerAdapter())
+  const ticket = vi.fn(async () => ({ ticket: 'ticket', credential_ticket: '', expires_at: '2026-08-23T12:00:30Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream' }))
+  render(<RemoteDesktopRuntimeProvider api={remoteDesktopGateway(session, ticket)} enabled profiles={[]} initialSessions={[session]}><ViewerHarness /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  const socket = MockWebSocket.instances[0]
+  act(() => socket.emit({ type: 'upsert', session: { ...session, automation_host_id: 'host', status: 'streaming' } }))
+  await waitFor(() => expect(original.dispose).toHaveBeenCalledOnce())
+  expect(ticket).toHaveBeenCalledTimes(1)
+  act(() => socket.emit({ type: 'upsert', session: { ...session, status: 'reattach_wait' } }))
+  await waitFor(() => expect(ticket).toHaveBeenCalledTimes(2))
+})
+
+test('VNC 托管预留使迟到创建结果失效，不能覆盖新执行端', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const pending = deferred<ReturnType<typeof viewerAdapter>>()
+  adapterCreate.mockReturnValue(pending.promise)
+  const ticket = vi.fn(async () => ({ ticket: 'ticket', credential_ticket: '', expires_at: '2026-08-23T12:00:30Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream' }))
+  render(<RemoteDesktopRuntimeProvider api={remoteDesktopGateway(session, ticket)} enabled profiles={[]} initialSessions={[session]}><ViewerHarness /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, automation_host_id: 'host' } }))
+  const late = viewerAdapter()
+  await act(async () => pending.resolve(late))
+  await waitFor(() => expect(late.dispose).toHaveBeenCalledOnce())
+  expect(ticket).toHaveBeenCalledTimes(1)
+})
+
 function remoteDesktopGateway(
   session: RemoteDesktopSession,
   createRemoteDesktopAttachTicket: RemoteDesktopGateway['createRemoteDesktopAttachTicket'],

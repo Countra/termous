@@ -26,6 +26,7 @@ export default defineConfig({
           'update-preload': path.join(__dirname, 'electron/update-preload.ts'),
           'remote-preload': path.join(__dirname, 'electron/remote-preload.ts'),
           'desktop-preload': path.join(__dirname, 'electron/desktop-preload.ts'),
+          'desktop-automation-preload': path.join(__dirname, 'electron/desktop-automation-preload.ts'),
           'startup-preload': path.join(__dirname, 'electron/startup-preload.ts'),
         },
         vite: {

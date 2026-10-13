@@ -44,6 +44,8 @@ interface NoVncEventMap {
 type NoVncEventName = keyof NoVncEventMap
 
 export interface CreateVncViewerAdapterOptions {
+  signal?: AbortSignal
+  awaitFirstFrame?: boolean
   execution?: VncExecutionConnection
   generation?: number
   onControlChanged?: (owned: boolean) => void
@@ -76,6 +78,8 @@ export class VncViewerAdapter {
 
   static async create(options: CreateVncViewerAdapterOptions) {
     const { default: RFB } = await prepareVncViewerAdapter()
+    // React 重挂载或入口关闭后，不得消耗上一代的一次性连接票据。
+    options.signal?.throwIfAborted()
     const transportMetrics = new VncTransportMetrics(options.url, options.events.onMetrics)
     let rfb: InstanceType<typeof RFB>
     try {
@@ -97,10 +101,18 @@ export class VncViewerAdapter {
     if (options.execution) {
       adapter.executionConnection = options.execution
       adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => options.onControlChanged?.(owned))
-      rfb.addEventListener('connect', () => {
+      const startExecution = () => {
         void connectVncExecution(options.execution!, adapter.execution!, adapter.executionAbort.signal, () => adapter.disconnect(), options.viewOnly)
           .catch(() => { if (!adapter.disposed) adapter.disconnect() })
-      }, { once: true, signal: adapter.executionAbort.signal })
+      }
+      if (options.awaitFirstFrame) {
+        const onFrame = () => {
+          if (!rfb.desktopState.sequence) return
+          rfb.removeEventListener('desktopframe', onFrame)
+          startExecution()
+        }
+        rfb.addEventListener('desktopframe', onFrame, { signal: adapter.executionAbort.signal })
+      } else rfb.addEventListener('connect', startExecution, { once: true, signal: adapter.executionAbort.signal })
     }
     adapter.setDisplayMode(options.displayMode)
     return adapter

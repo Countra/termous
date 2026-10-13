@@ -28,6 +28,7 @@ test('surface 分流只调用目标模块加载器', async () => {
       return 'update'
     },
     remote: async () => { calls.push('remote'); return 'remote' },
+    'desktop-automation': async () => 'desktop-automation',
     desktop: async () => { calls.push('desktop'); return 'desktop' },
   })
 

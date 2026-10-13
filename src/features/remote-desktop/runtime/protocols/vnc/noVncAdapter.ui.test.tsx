@@ -109,6 +109,14 @@ afterEach(() => {
 })
 
 describe('VNC Viewer Adapter', () => {
+  it('准备期间入口取消不消耗票据或创建 RFB', async () => {
+    const abort = new AbortController()
+    const pending = VncViewerAdapter.create({ signal: abort.signal, target: document.createElement('div'), url: 'ws://127.0.0.1:8122/once', shared: true, viewOnly: true, displayMode: 'fit', events: viewerEvents() })
+    abort.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(noVncMock.constructorCalls).toHaveLength(0)
+    expect(MockWebSocket.instances).toHaveLength(0)
+  })
   it('使用 binary 子协议创建 noVNC，并映射显示与输入控制', async () => {
     const target = document.createElement('div')
     const events = viewerEvents()

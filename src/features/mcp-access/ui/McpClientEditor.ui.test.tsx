@@ -123,8 +123,8 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.crontab/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.forwarding/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.snippets/ })).toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(14)
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/36')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(15)
+    expect(screen.getByText('settings.mcp.selectedPermissions:2/41')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -158,7 +158,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).toBeChecked()
     expect(scopeCheckbox('hosts_probe')).toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:3/36')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:3/41')).toBeInTheDocument()
 
     const clearHosts = groupToggle('hosts')
     expect(clearHosts).toHaveAccessibleName(
@@ -170,7 +170,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).not.toBeChecked()
     expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:1/36')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.selectedPermissions:1/41')).toBeInTheDocument()
     expect(groupToggle('hosts')).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -279,14 +279,14 @@ describe('McpClientEditor', () => {
     renderEditor()
 
     expect(approvalBypassSwitch()).not.toBeChecked()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(14)
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(15)
     expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
 
     await user.click(approvalBypassSwitch())
 
     expect(approvalBypassSwitch()).toBeChecked()
     expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(14)
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(15)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')
@@ -307,7 +307,7 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(6)
+    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(8)
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
     await user.click(scopeCheckbox('sessions_close'))
     const alert = screen.getByRole('alert')

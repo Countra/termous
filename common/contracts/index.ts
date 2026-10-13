@@ -138,6 +138,7 @@ export type {
 } from './bridge'
 
 export * from './settings-center.ts'
+export type { DesktopAutomationHost, DesktopAutomationBootstrap, DesktopAutomationBridge } from './desktop-automation'
 export * from './cloud.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'

@@ -231,6 +231,27 @@ test('MCP 审批协议解码文件管理批量重命名映射', () => {
   ])
 })
 
+test('MCP 桌面审批接受 30 分钟授权并拒绝不匹配的期限', () => {
+  const decode = (timeout: unknown) => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1,
+    items: [{
+      ...approvalFixture('pending'), kind: 'desktop',
+      session_ids: undefined, targets: undefined,
+      operation: {
+        domain: 'desktop', action: 'control.acquire', resource_id: 'desktop-1',
+        resource_kind: 'rdp', mode: 'observe_to_control', timeout_seconds: timeout,
+      },
+    }],
+  }).items[0]
+  const approval = decode(1800)
+  assert.equal(approval?.kind, 'desktop')
+  assert.equal(approval?.operation?.timeout_seconds, 1800)
+  assert.deepEqual(approval?.session_ids, [])
+  for (const timeout of [undefined, 0, 900, 3600, '1800']) {
+    assert.throws(() => decode(timeout), /桌面审批范围无效/)
+  }
+})
+
 test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
   const snapshot = decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',

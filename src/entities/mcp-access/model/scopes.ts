@@ -1,4 +1,9 @@
 export const mcpScopes = [
+  'desktops:read',
+  'desktops:connect',
+  'desktops:capture',
+  'desktops:control',
+  'desktops:close',
   'hosts:read',
   'hosts:probe',
   'sessions:read',
@@ -42,6 +47,7 @@ export type McpScope = (typeof mcpScopes)[number]
 export const defaultMcpScopes: McpScope[] = ['hosts:read', 'sessions:read']
 
 export const approvalRequiredScopes: readonly McpScope[] = [
+  'desktops:control',
   'commands:execute',
   'files:write',
   'files:delete',

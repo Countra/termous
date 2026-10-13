@@ -10,6 +10,7 @@ import type {
 } from './viewerContracts.ts'
 
 export interface RemoteDesktopRuntimeValue {
+  automation?: import('../../api/remoteDesktopGateway.ts').RemoteDesktopRuntimeGateway['automation']
   desktopFiles?: DesktopFilesGateway
   sessions: RemoteDesktopSession[]
   hiddenSessionIds: string[]

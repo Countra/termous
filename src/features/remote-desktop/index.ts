@@ -1,4 +1,5 @@
 export { RemoteDesktopClient } from './api/RemoteDesktopClient.ts'
+export { HostedVncViewer } from './ui/HostedVncViewer.tsx'
 export { DesktopOperationsClient } from './api/DesktopOperationsClient.ts'
 export { DesktopFilesClient } from './api/DesktopFilesClient.ts'
 export type { DesktopFilesGateway } from './api/DesktopFilesClient.ts'

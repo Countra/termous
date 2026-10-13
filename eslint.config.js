@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint'
 
 export default defineConfig([
   {
-    ignores: ['dist/**', 'dist-electron/**', 'release/**'],
+    ignores: ['dist/**', 'dist-electron/**', 'release/**', 'build/desktop-automation-fixture/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
