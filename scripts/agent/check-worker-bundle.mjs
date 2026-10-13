@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
-// pi 0.87.1 的完整依赖闭包约 1301 KiB，按 64 KiB 档位留出余量；Provider 白名单仍独立检查。
+// pi 1.2.0 的完整依赖闭包约 1282 KiB，按 64 KiB 档位留出余量；Provider 白名单仍独立检查。
 export const maximumAgentWorkerBundleBytes = 1344 * 1024
 
 const requiredProviderAdapters = Object.freeze([
@@ -30,20 +30,16 @@ const forbiddenProviderSources = Object.freeze([
 ])
 
 const allowedRuntimePackages = new Set([
-  '@earendil-works/chord',
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
   '@earendil-works/pi-telemetry',
   '@modelcontextprotocol/client',
   '@modelcontextprotocol/core',
-  'diff',
   'eventsource-parser',
   'openai',
   'partial-json',
   'pkce-challenge',
   'typebox',
-  // pi-agent-core 的公开入口保留了 Harness YAML 模块的初始化副作用。
-  'yaml',
   'zod',
 ])
 

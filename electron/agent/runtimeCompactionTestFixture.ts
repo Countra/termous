@@ -52,13 +52,14 @@ export function compactionTestAssistant(text: string, tokens = 0): AssistantMess
 }
 
 export function compactionTestHistory(): AgentMessage[] {
+  // 每条历史约 1000 个估算 Token，确保夹具切在轮次边界，单独验证分段摘要的用例不依赖此夹具。
   return [
-    compactionTestUser('old-user-1 ' + 'a'.repeat(4000)),
-    compactionTestAssistant('old-assistant-1 ' + 'b'.repeat(4000)),
-    compactionTestUser('old-user-2 ' + 'c'.repeat(4000)),
-    compactionTestAssistant('old-assistant-2 ' + 'd'.repeat(4000)),
-    compactionTestUser('recent-user ' + 'e'.repeat(4000)),
-    compactionTestAssistant('recent-assistant ' + 'f'.repeat(4000), 7000),
+    compactionTestUser('old-user-1 ' + 'a'.repeat(3500)),
+    compactionTestAssistant('old-assistant-1 ' + 'b'.repeat(3500)),
+    compactionTestUser('old-user-2 ' + 'c'.repeat(3500)),
+    compactionTestAssistant('old-assistant-2 ' + 'd'.repeat(3500)),
+    compactionTestUser('recent-user ' + 'e'.repeat(3500)),
+    compactionTestAssistant('recent-assistant ' + 'f'.repeat(3500), 7000),
     compactionTestUser('继续当前任务'),
   ]
 }

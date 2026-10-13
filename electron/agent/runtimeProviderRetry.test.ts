@@ -62,7 +62,7 @@ for (const detail of [
   })
 }
 
-for (const detail of ['520 Cloudflare upstream error', 'We are currently experiencing high demand.']) {
+for (const detail of ['520 Cloudflare upstream error', 'We are currently experiencing high demand.', 'The upstream provider returned an error']) {
   test(`新版 pi 暂态错误保持有界退避：${detail}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     const completed = compactionTestAssistant('恢复完成', 20)

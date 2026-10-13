@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { estimateContextTokens } from '@earendil-works/pi-agent-core'
+import { estimateRuntimeContextTokens as estimateContextTokens } from './runtimeContextTokens.ts'
 import { normalizeContext, type AssistantMessage, type Tool } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
@@ -88,16 +88,16 @@ test('原生用量异常时回退前一个有效基准和增量，全部失效�
       const message = { ...base, usage: { ...valid, [field]: invalid } }
       const original = structuredClone(message)
       assert.equal(hasValidRuntimeProviderTokens(message.usage), false, `${field}: ${String(invalid)}`)
-      assert.equal(runtimeCompactionEstimate([...raw, message], model, 100), 195)
-      assert.equal(runtimeCompactionEstimate([raw[raw.length - 1]!, message], model, 100), 102)
+      assert.equal(runtimeCompactionEstimate([...raw, message], model, 100), 199)
+      assert.equal(runtimeCompactionEstimate([raw[raw.length - 1]!, message], model, 100), 104)
       assert.deepEqual(message, original)
     }
   }
   const sumOverflow = { ...base, usage: { ...valid, input: Number.MAX_SAFE_INTEGER, totalTokens: 0 } }
   assert.equal(hasValidRuntimeProviderTokens(sumOverflow.usage), false)
-  assert.equal(runtimeCompactionEstimate([...raw, sumOverflow], model, 100), 195)
+  assert.equal(runtimeCompactionEstimate([...raw, sumOverflow], model, 100), 199)
   for (const stopReason of ['error', 'aborted'] as const) {
-    assert.equal(runtimeCompactionEstimate([...raw, { ...base, usage: valid, stopReason }], model, 100), 195)
+    assert.equal(runtimeCompactionEstimate([...raw, { ...base, usage: valid, stopReason }], model, 100), 199)
   }
 })
 
@@ -116,18 +116,18 @@ for (const apiMode of ['chat_completions', 'responses'] as const) {
     assert.equal(runtimeProviderUsage(message, 'agp_fractional', fingerprint), undefined)
     const harness = createCompactionTestHarness({ model, systemPrompt: '系统提示' })
     await harness.controller.observeContext([...raw, message])
-    assert.equal(harness.contexts[harness.contexts.length - 1]!.estimated_tokens, 195)
+    assert.equal(harness.contexts[harness.contexts.length - 1]!.estimated_tokens, 199)
     assert.ok(harness.contexts.every((value) => Number.isSafeInteger(value.estimated_tokens)))
     assert.equal(harness.requests.length, 0)
     assert.equal(harness.controller.failure(), undefined)
     const projected = await harness.controller.transformContext([...raw, message])
     harness.controller.beforeProviderRequest()
-    assert.equal(runtimeCompactionEstimate(projected, model, 1), 195)
+    assert.equal(runtimeCompactionEstimate(projected, model, 1), 199)
     assert.equal(message.usage.totalTokens, 70010.5)
 
     const uncalibrated = createCompactionTestHarness({ model, systemPrompt: '系统提示' })
     await uncalibrated.controller.observeContext([raw[raw.length - 1]!, message])
-    assert.equal(uncalibrated.contexts[0]!.estimated_tokens, 3)
+    assert.equal(uncalibrated.contexts[0]!.estimated_tokens, 6)
   })
 }
 
@@ -171,7 +171,7 @@ test('同一 assistant 的多段历史仅精确恢复尾 part 锚点，工具结
   const estimate = estimateContextTokens(messages)
   assert.equal(estimate.lastUsageIndex, 3)
   // 第二个结果 4 字符、追加指令 8 字符、新输入 4 字符；第一个工具结果已包含在 Provider 基准中。
-  assert.equal(estimate.tokens, 190 + 1 + 2 + 1)
+  assert.equal(estimate.tokens, 190 + 2 + 3 + 2)
   const toolResults = messages.filter((message) => message.role === 'toolResult')
   assert.deepEqual(toolResults.map(({ toolCallId }) => toolCallId), ['call-1', 'call-2'])
   assert.ok(toolResults.every((message) => !message.isError))
@@ -219,10 +219,10 @@ test('指纹失配之后的新匹配锚点可恢复，后续输入继续按 pi �
   const messages = hydrateRuntimeMessages(bootstrap, createRuntimeModel(bootstrap), fingerprint)
   assert.deepEqual(messages.filter((message) => message.role === 'assistant').map((message) => message.usage.totalTokens), [0, 0, 300])
   assert.equal(estimateContextTokens(messages).lastUsageIndex, 5)
-  assert.equal(estimateContextTokens(messages).tokens, 301)
+  assert.equal(estimateContextTokens(messages).tokens, 302)
 })
 
-test('恢复真实用量后新输入越过默认 80% 门禁，首次主请求前完成官方压缩', async () => {
+test('恢复真实用量后新输入越过默认 80% 门禁，首次主请求前完成压缩', async () => {
   const bootstrap = historyBootstrap()
   const oldText = '历史正文'.repeat(1000)
   const newText = '本轮新输入：' + '新'.repeat(50000)

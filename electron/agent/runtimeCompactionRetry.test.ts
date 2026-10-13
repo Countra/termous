@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { getCurrentTools } from '@earendil-works/pi-ai'
-import { createRuntimeCompactionModels } from './runtimeCompactionSummary.ts'
+import { createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
 import { runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { compactionTestAssistant, compactionTestModel, compactionTestStream } from './runtimeCompactionTestFixture.ts'
 import type { RuntimeRetryActivity } from './runtimeProviderRetry.ts'
@@ -14,7 +14,7 @@ test('摘要重试分别累计失败和完成用量，最终原生 usage 只属�
   const activities: RuntimeRetryActivity[] = []
   const usages: RuntimeUsage[] = []
   const completed = compactionTestAssistant('## Goal\n保留任务。', 29)
-  const summary = createRuntimeCompactionModels(compactionTestStream(async (context, options) => {
+  const summary = createRuntimeCompactionRequest(compactionTestStream(async (context, options) => {
     assert.equal(options?.signal, abort.signal)
     assert.equal(getCurrentTools(context.messages).length, 0)
     return requests++ === 0
@@ -22,7 +22,7 @@ test('摘要重试分别累计失败和完成用量，最终原生 usage 只属�
       : completed
   }), (usage) => { usages.push(usage) }, undefined, [], (activity) => { activities.push(activity) })
   const abort = new AbortController()
-  const task = summary.models.completeSimple(compactionTestModel, { messages: [] }, { signal: abort.signal })
+  const task = summary.complete(compactionTestModel, { messages: [] }, { signal: abort.signal })
   await setImmediate()
   assert.equal(activities[0]?.delay_ms, 3000)
   t.mock.timers.tick(3000)
@@ -44,11 +44,11 @@ test('摘要退避取消保留耗用且不重复统计，不再请求 Provider',
   const activities: RuntimeRetryActivity[] = []
   const usages: RuntimeUsage[] = []
   const abort = new AbortController()
-  const summary = createRuntimeCompactionModels(compactionTestStream(async () => {
+  const summary = createRuntimeCompactionRequest(compactionTestStream(async () => {
     requests += 1
     return { ...compactionTestAssistant('', 17), stopReason: 'error', errorMessage: '503 summary unavailable' }
   }), (usage) => { usages.push(usage) }, undefined, [], (activity) => { activities.push(activity) })
-  const task = summary.models.completeSimple(compactionTestModel, { messages: [] }, { signal: abort.signal })
+  const task = summary.complete(compactionTestModel, { messages: [] }, { signal: abort.signal })
   const rejected = assert.rejects(task, /AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED/u)
   await setImmediate()
   abort.abort()
@@ -64,11 +64,11 @@ test('摘要有正文后断流重试至上限，错误原文脱敏且所有尝�
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let requests = 0
   const activities: RuntimeRetryActivity[] = []
-  const summary = createRuntimeCompactionModels(compactionTestStream(async () => {
+  const summary = createRuntimeCompactionRequest(compactionTestStream(async () => {
     requests += 1
     return { ...compactionTestAssistant('部分摘要', 31), stopReason: 'error', errorMessage: '503 original-summary-error private-summary-key' }
   }), undefined, undefined, ['private-summary-key'], (activity) => { activities.push(activity) })
-  const rejected = assert.rejects(summary.models.completeSimple(compactionTestModel, { messages: [] }), (error: unknown) => {
+  const rejected = assert.rejects(summary.complete(compactionTestModel, { messages: [] }), (error: unknown) => {
     assert.ok(error instanceof Error && 'detail' in error)
     assert.match(String(error.detail), /503 original-summary-error/u)
     assert.doesNotMatch(String(error.detail), /private-summary-key/u)
@@ -90,11 +90,11 @@ test('摘要 length 与无效成功响应仍由原有校验拒绝，不启动重
     compactionTestAssistant('', 5),
   ]) {
     let requests = 0
-    const summary = createRuntimeCompactionModels(compactionTestStream(async () => {
+    const summary = createRuntimeCompactionRequest(compactionTestStream(async () => {
       requests += 1
       return message
     }))
-    await assert.rejects(summary.models.completeSimple(compactionTestModel, { messages: [] }), /COMPRESSION_(TRUNCATED|INVALID)/u)
+    await assert.rejects(summary.complete(compactionTestModel, { messages: [] }), /COMPRESSION_(TRUNCATED|INVALID)/u)
     assert.equal(requests, 1)
     assert.equal(summary.usage().total_tokens, 5)
   }
@@ -105,11 +105,11 @@ test('摘要最终失败与最后重试原文相同，不拼接 stop reason、�
   const rawError = '503 original summary error\n\tupstream timeout summary-private-key'
   const activities: RuntimeRetryActivity[] = []
   let requests = 0
-  const summary = createRuntimeCompactionModels(compactionTestStream(async () => ({
+  const summary = createRuntimeCompactionRequest(compactionTestStream(async () => ({
     ...compactionTestAssistant(requests++ === 0 ? '' : '部分摘要', 13),
     stopReason: 'error', errorMessage: rawError, rawStopReason: 'server_error',
   })), undefined, undefined, ['summary-private-key'], (activity) => { activities.push(activity) })
-  const task = summary.models.completeSimple(compactionTestModel, { messages: [] })
+  const task = summary.complete(compactionTestModel, { messages: [] })
   const rejected = assert.rejects(task, (error: unknown) => {
     assert.ok(error instanceof Error && 'detail' in error && 'code' in error)
     const expected = '503 original summary error\n\tupstream timeout [已隐藏]'

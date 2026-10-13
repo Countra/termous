@@ -1,5 +1,5 @@
 import type { StreamFn } from '@earendil-works/pi-agent-core'
-import { createModels, type AssistantMessage } from '@earendil-works/pi-ai'
+import type { Api, AssistantMessage, Context, Model, SimpleStreamOptions } from '@earendil-works/pi-ai'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { runtimeProviderFailure } from './runtimeProviderFailure.ts'
 import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './runtimeProviderRetry.ts'
@@ -36,14 +36,13 @@ export class RuntimeCompactionError extends Error {
   }
 }
 
-export function createRuntimeCompactionModels(
+export function createRuntimeCompactionRequest(
   streamFn: StreamFn,
   onUsage?: (usage: RuntimeUsage) => Promise<void> | void,
   instructions = runtimeCompactionSummaryInstructions,
   providerErrorSecrets: readonly string[] = [],
   onRetry?: (activity: RuntimeRetryActivity) => Promise<void> | void,
 ) {
-  const models = createModels()
   let usage = emptyRuntimeUsage()
   const recordUsage = async (increment: RuntimeUsage) => {
     usage = addRuntimeUsage(usage, increment)
@@ -52,8 +51,7 @@ export function createRuntimeCompactionModels(
   const retryStreamFn = createRuntimeRetryStreamFunction(streamFn, {
     providerErrorSecrets, onActivity: onRetry, onDiscardedUsage: recordUsage,
   })
-  // 只适配官方算法使用的请求边界，不引入 Provider 注册和第二套认证逻辑。
-  models.completeSimple = async (model, context, options) => {
+  const complete = async (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => {
     throwIfRuntimeCompactionAborted(options?.signal)
     let response: AssistantMessage
     try {
@@ -78,7 +76,7 @@ export function createRuntimeCompactionModels(
         response.errorMessage || response.rawStopReason, providerErrorSecrets,
       )
     }
-    // 官方 core 接受 length，业务持久化前必须排除被截断的摘要。
+    // 业务持久化前必须排除达到输出上限而被截断的摘要。
     if (response.stopReason === 'length') {
       throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_TRUNCATED')
     }
@@ -89,7 +87,7 @@ export function createRuntimeCompactionModels(
     assertRuntimeCompactionSummary(text)
     return response
   }
-  return { models, usage: () => ({ ...usage }) }
+  return { complete, usage: () => ({ ...usage }) }
 }
 
 function runtimeCompactionProviderError(error: unknown, secrets: readonly string[]) {

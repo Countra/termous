@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { prepareCompaction, type AgentMessage } from '@earendil-works/pi-agent-core'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { prepareRuntimeCompaction } from './runtimeCompactionPreparation.ts'
 import {
   runtimeCompactionBudget,
   runtimeCompactionCalibratedSettings,
-  runtimeCompactionEntries,
   runtimeCompactionEstimate,
 } from './runtimeCompactionPolicy.ts'
 import {
@@ -18,7 +18,7 @@ import {
 const model = { ...compactionTestModel, contextWindow: 101072, maxTokens: 4096 }
 const systemPrompt = '系统要求'.repeat(1000)
 
-test('中文历史已达真实用量阈值时校准官方切点，不再误判没有可压缩前缀', async () => {
+test('中文历史已达真实用量阈值时校准切点，不再误判没有可压缩前缀', async () => {
   const raw: AgentMessage[] = []
   for (let index = 0; index < 6; index += 1) {
     raw.push(compactionTestUser('中文任务'.repeat(1000)))
@@ -76,7 +76,7 @@ test('原始工具结果触发校准后仍保留完整调用配对和近期结�
 })
 
 test('固定开销参与尺度换算，不把系统和工具成本全部归入短历史', async () => {
-  const fixedPrompt = 's'.repeat(192000)
+  const fixedPrompt = 's'.repeat(168000)
   const raw = [compactionTestUser('h'.repeat(4000)), compactionTestAssistant('', 50702)]
   const budget = runtimeCompactionBudget(model, 50, fixedPrompt, [])
   const calibrated = runtimeCompactionCalibratedSettings(raw, model, budget)
@@ -98,7 +98,7 @@ test('只使用有效 usage 锚点校准近期预算，不改变新增消息和�
   assert.ok(settings)
   const extended = [...raw, compactionTestUser('新增消息'.repeat(2000))]
   assert.deepEqual(runtimeCompactionCalibratedSettings(extended, model, budget), settings)
-  assert.equal(runtimeCompactionEstimate(extended, model, budget.fixedTokens), 52702)
+  assert.equal(runtimeCompactionEstimate(extended, model, budget.fixedTokens), 52988)
 
   for (const patch of [
     { model: 'previous-model' },
@@ -109,7 +109,7 @@ test('只使用有效 usage 锚点校准近期预算，不改变新增消息和�
   ]) {
     const stale = [raw[0]!, { ...compactionTestAssistant('', 50702), ...patch }]
     assert.equal(runtimeCompactionCalibratedSettings(stale, model, budget), undefined)
-    assert.equal(runtimeCompactionEstimate(stale, model, budget.fixedTokens), 2000)
+    assert.equal(runtimeCompactionEstimate(stale, model, budget.fixedTokens), 2286)
   }
   const withoutUsage = [compactionTestUser('h'.repeat(220000))]
   assert.equal(runtimeCompactionCalibratedSettings(withoutUsage, model, budget), undefined)
@@ -131,8 +131,7 @@ test('校准不强迫单条消息产生切点，也不触发低于门禁的手�
 
 function assertNoDefaultPrefix(raw: AgentMessage[]) {
   const budget = runtimeCompactionBudget(model, 50, systemPrompt, [])
-  const result = prepareCompaction(runtimeCompactionEntries(raw, undefined), budget.settings)
-  if (!result.ok) throw result.error
-  assert.ok(result.value)
-  assert.equal(result.value.messagesToSummarize.length + result.value.turnPrefixMessages.length, 0)
+  const result = prepareRuntimeCompaction(raw, undefined, budget.settings)
+  assert.ok(result)
+  assert.equal(result.messagesToSummarize.length + result.turnPrefixMessages.length, 0)
 }

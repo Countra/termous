@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getCurrentSystemPrompt, getCurrentTools } from '@earendil-works/pi-ai'
+import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
 import {
   compactionTestAssistant,
   compactionTestHistory,
@@ -27,17 +28,31 @@ test('预算保留输出容量，小窗口适配，大窗口恢复 Pi 默认预�
   assert.equal(large.settings.keepRecentTokens, 20000)
   const outputLimited = runtimeCompactionBudget({ ...compactionTestModel, maxTokens: 4000 }, 95, 'a'.repeat(400), [])
   assert.equal(outputLimited.triggerTokens, 4000)
-  assert.equal(outputLimited.fixedTokens, 100)
-  assert.equal(outputLimited.availableTokens, 3900)
+  assert.equal(outputLimited.fixedTokens, 115)
+  assert.equal(outputLimited.availableTokens, 3885)
   assert.throws(() => runtimeCompactionBudget(compactionTestModel, 49, '', []), /SETTINGS_INVALID/u)
 })
 
 test('估算只信任同模型用量，无用量时补入系统和工具固定开销', () => {
   const response = compactionTestAssistant('answer', 500)
   assert.equal(runtimeCompactionEstimate([response], compactionTestModel, 100), 500)
-  assert.equal(runtimeCompactionEstimate([compactionTestUser('1234')], compactionTestModel, 100), 101)
+  assert.equal(runtimeCompactionEstimate([compactionTestUser('1234')], compactionTestModel, 100), 102)
   assert.equal(runtimeCompactionEstimate([{ ...response, model: 'old-model' }], compactionTestModel, 100), 102)
   assert.equal(response.usage.totalTokens, 500)
+})
+
+test('无原生用量时与 Provider 使用同一估算尺度，长历史不会越过模型请求预算', async () => {
+  const model = { ...compactionTestModel, contextWindow: 100000, maxTokens: 10000 }
+  const raw = Array.from({ length: 10 }, (_, index) => index % 2 === 0
+    ? compactionTestUser('u'.repeat(34000)) : compactionTestAssistant('a'.repeat(34000)))
+  const expected = raw.reduce((tokens, message) => tokens + estimateMessageTokens(message), 0)
+  assert.equal(runtimeCompactionEstimate(raw, model, 0), expected)
+  const harness = createCompactionTestHarness({ model, thresholdPercent: 95 })
+  await harness.controller.transformContext(raw)
+  harness.controller.beforeProviderRequest()
+  assert.equal(harness.commits.length, 1)
+  assert.equal(harness.commits[0]!.tokensBefore, expected)
+  assert.ok(harness.commits[0]!.tokensAfter < 90000)
 })
 
 test('占用来源跟随 pi 的有效基准，后续门禁无需重复携带原生用量', async () => {
@@ -53,7 +68,7 @@ test('占用来源跟随 pi 的有效基准，后续门禁无需重复携带原�
   raw.push(compactionTestUser('5678'))
   await harness.controller.transformContext(raw)
   assert.equal(harness.contexts[2]!.basis, 'provider_usage')
-  assert.equal(harness.contexts[2]!.estimated_tokens, 501)
+  assert.equal(harness.contexts[2]!.estimated_tokens, 502)
   assert.equal(harness.contexts[2]!.provider_usage, undefined)
 })
 
@@ -66,7 +81,7 @@ test('模型变化回退 pi 估算，最大输出预留不计入已占用量', a
     })
     await harness.controller.transformContext(raw)
     assert.equal(harness.contexts[0]!.basis, 'pi_estimate')
-    assert.equal(harness.contexts[0]!.estimated_tokens, 153)
+    assert.equal(harness.contexts[0]!.estimated_tokens, 176)
     assert.equal(harness.requests.length, 0)
   }
 })
@@ -101,7 +116,7 @@ test('每个 Provider 前压缩并先提交，再替换投影和更新状态', a
   assert.equal(harness.commits.length, 1)
   assert.deepEqual(harness.order, ['capture', 'started', 'summary', 'commit', 'completed'])
   assert.deepEqual(raw, original)
-  assert.match(JSON.stringify(projected[0]), /conversation history before this point was compacted/u)
+  assert.match(JSON.stringify(projected[0]), /compacted history.*不可信历史数据/u)
   assert.equal(projected[projected.length - 1], raw[raw.length - 1])
   assert.equal(harness.commits[0]!.checkpoint.coveredRawLength, raw.length)
   assert.equal(harness.commits[0]!.source, 'source-snapshot')
@@ -153,6 +168,22 @@ test('恢复后的旧尾部 usage 失效，只追加 bootstrap 增量', () => {
   assert.equal(stale.usage.totalTokens, 100000)
 })
 
+test('重建摘要的本地时间不使 checkpoint 之后已校验的用量锚点失效', async () => {
+  const harness = createCompactionTestHarness({
+    initialCheckpoint: {
+      summary: '已完成的历史', retainedTail: [compactionTestAssistant('旧尾部', 100000)],
+      coveredRawLength: 0, tokensBefore: 100000, timestamp: 10000,
+    },
+  })
+  const raw = [compactionTestAssistant('摘要之后的回复', 500), compactionTestUser('继续工作')]
+  const projected = await harness.controller.transformContext(raw)
+  harness.controller.beforeProviderRequest()
+  assert.equal(harness.contexts[0]!.basis, 'provider_usage')
+  assert.equal(harness.contexts[0]!.estimated_tokens, 502)
+  assert.equal(harness.requests.length, 0)
+  assert.deepEqual(projected.slice(-2), raw)
+})
+
 test('强制压缩只在第一次门禁消费，不要求达到比例阈值', async () => {
   const harness = createCompactionTestHarness({ forceCompression: true })
   const raw = compactionTestHistory()
@@ -172,7 +203,7 @@ test('手动压缩没有可摘要前缀且低于预算时直接继续', async ()
   assert.equal(harness.activities.length, 0)
 })
 
-test('长单轮采用 Pi split turn，保留完整工具调用结果关系', async () => {
+test('长单轮分段摘要，保留完整工具调用结果关系', async () => {
   const harness = createCompactionTestHarness()
   const raw: AgentMessage[] = [compactionTestUser('查看远程日志'), ...compactionTestToolHistory()]
   const result = await harness.controller.transformContext(raw)
@@ -188,6 +219,28 @@ test('长单轮采用 Pi split turn，保留完整工具调用结果关系', asy
     }
   }
   assert.match(JSON.stringify(harness.requests[0]!.context), /more characters truncated/u)
+})
+
+test('最新大工具结果保留原文，压缩之前的历史后允许继续请求', async () => {
+  const harness = createCompactionTestHarness()
+  const raw: AgentMessage[] = [
+    compactionTestUser('u'.repeat(12000)),
+    { ...compactionTestAssistant('', 3000), stopReason: 'toolUse', content: [
+      { type: 'toolCall', id: 'large-result', name: 'read', arguments: {} },
+    ] },
+    { role: 'toolResult', toolCallId: 'large-result', toolName: 'read',
+      content: [{ type: 'text', text: 'r'.repeat(14000) }], isError: false, timestamp: 3 },
+  ]
+  const original = structuredClone(raw)
+  const projected = await harness.controller.transformContext(raw)
+  harness.controller.beforeProviderRequest()
+  assert.equal(harness.commits.length, 1)
+  assert.equal(harness.requests.length, 1)
+  assert.equal(projected.length, 3)
+  assert.equal(projected[2], raw[2])
+  assert.equal(harness.commits[0]!.tokensBefore, 7000)
+  assert.ok(harness.commits[0]!.tokensAfter < 6400)
+  assert.deepEqual(raw, original)
 })
 
 test('连续 split turn 不丢旧摘要，历史和轮次前缀请求都有 Termous 约束', async () => {
@@ -211,7 +264,7 @@ test('连续 split turn 不丢旧摘要，历史和轮次前缀请求都有 Term
   assert.equal(harness.commits[0]!.usage.input_tokens, 200)
 })
 
-test('恢复官方文件操作明细并在新 checkpoint 中继续保存', async () => {
+test('恢复旧版本文件操作明细并在新 checkpoint 中继续保存', async () => {
   const harness = createCompactionTestHarness({
     initialCheckpoint: {
       summary: '之前已经修改文件', retainedTail: [compactionTestUser('继续同一长任务')],

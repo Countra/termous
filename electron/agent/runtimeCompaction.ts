@@ -1,11 +1,5 @@
 import {
-  BACKGROUND_CONTEXT,
-  compact,
-  createCompactionSummaryMessage,
-  prepareCompaction,
-  withAbortSignal,
   type AgentMessage,
-  type CompactionPreparation,
   type StreamFn,
   type ThinkingLevel,
 } from '@earendil-works/pi-agent-core'
@@ -13,20 +7,22 @@ import type { Api, Model, Tool } from '@earendil-works/pi-ai'
 import type { RuntimeUsage } from './runtimeUsage.ts'
 import type { RuntimeProviderUsage } from './runtimeProviderUsage.ts'
 import type { RuntimeRetryActivity } from './runtimeProviderRetry.ts'
+import { prepareRuntimeCompaction } from './runtimeCompactionPreparation.ts'
+import type { RuntimeCompactionPreparation } from './runtimeCompactionTypes.ts'
+import { generateRuntimeCompaction } from './runtimeCompactionGeneration.ts'
 import {
   clearRuntimeCompactionUsage,
   cloneRuntimeCompactionCheckpoint,
   runtimeCompactionAssessment,
   runtimeCompactionBudget,
   runtimeCompactionCalibratedSettings,
-  runtimeCompactionEntries,
   runtimeCompactionEstimate,
   runtimeCompactionProjection,
   type RuntimeCompactionCheckpoint,
 } from './runtimeCompactionPolicy.ts'
 import {
   assertRuntimeCompactionSummary,
-  createRuntimeCompactionModels,
+  createRuntimeCompactionRequest,
   RuntimeCompactionError,
   throwIfRuntimeCompactionAborted,
   toRuntimeCompactionError,
@@ -107,7 +103,7 @@ export function createRuntimeCompactionController<TSource>(
   let forceCompression = options.forceCompression === true
 
   const publishContext = async (
-    messages: AgentMessage[], preparation?: CompactionPreparation, providerUsage?: RuntimeProviderUsage,
+    messages: AgentMessage[], preparation?: RuntimeCompactionPreparation, providerUsage?: RuntimeProviderUsage,
   ) => {
     const { tokens, basis } = runtimeCompactionAssessment(messages, options.model, budget.fixedTokens)
     const compressionAvailable = hasCompactionCapacity && hasRuntimeCompactionPrefix(preparation)
@@ -130,18 +126,15 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
-    const entries = runtimeCompactionEntries(raw, checkpoint)
-    let prepared = prepareCompaction(entries, budget.settings)
-    if (!prepared.ok) throw prepared.error
-    if (!hasRuntimeCompactionPrefix(prepared.value)) {
+    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings)
+    if (!hasRuntimeCompactionPrefix(prepared)) {
       const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
       if (calibratedSettings) {
-        // 仅补救用量已过门禁但字符估算尚无切点的情况，边界仍由官方算法决定。
-        prepared = prepareCompaction(entries, calibratedSettings)
-        if (!prepared.ok) throw prepared.error
+        // 仅补救用量已过门禁但字符估算尚无切点的情况，仍保持完整工具调用边界。
+        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings)
       }
     }
-    return prepared.value
+    return prepared
   }
 
   const transformContext = async (raw: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]> => {
@@ -168,26 +161,19 @@ export function createRuntimeCompactionController<TSource>(
       throwIfRuntimeCompactionAborted(signal)
       started = true
       await options.onActivity({ status: 'started', reason, tokensBefore })
-      const summary = createRuntimeCompactionModels(options.streamFn, options.onUsage, undefined, options.providerErrorSecrets, options.onRetry)
-      // 连续 split turn 的空历史分支会遗漏 previousSummary，作为官方摘要消息补回输入。
-      preserveRuntimeCompactionPreviousSummary(preparation)
-      preparation.tokensBefore = tokensBefore
-      const result = await compact(
-        preparation, summary.models, options.model, undefined,
-        options.thinkingLevel, undefined, undefined,
-        signal ? withAbortSignal(signal, BACKGROUND_CONTEXT) : BACKGROUND_CONTEXT,
+      const summary = createRuntimeCompactionRequest(options.streamFn, options.onUsage, undefined, options.providerErrorSecrets, options.onRetry)
+      const result = await generateRuntimeCompaction(
+        preparation, summary.complete, options.model, options.thinkingLevel, signal,
       )
-      if (!result.ok) throw result.error
       throwIfRuntimeCompactionAborted(signal)
-      assertRuntimeCompactionSummary(result.value.summary)
+      assertRuntimeCompactionSummary(result)
       const candidate: RuntimeCompactionCheckpoint = {
-        summary: result.value.summary.trim(),
-        retainedTail: result.value.retainedTail.map(clearRuntimeCompactionUsage),
+        summary: result.trim(),
+        retainedTail: preparation.retainedTail.map(clearRuntimeCompactionUsage),
         coveredRawLength: raw.length,
         tokensBefore,
         timestamp: (options.now ?? Date.now)(),
-        ...(result.value.details && typeof result.value.details === 'object' && !Array.isArray(result.value.details)
-          ? { details: result.value.details } : {}),
+        ...(checkpoint?.details ? { details: { ...checkpoint.details } } : {}),
       }
       const nextProjection = runtimeCompactionProjection(raw, candidate)
       const tokensAfter = runtimeCompactionEstimate(nextProjection, options.model, budget.fixedTokens)
@@ -244,17 +230,7 @@ export function createRuntimeCompactionController<TSource>(
   }
 }
 
-function hasRuntimeCompactionPrefix(preparation: CompactionPreparation | undefined): preparation is CompactionPreparation {
+function hasRuntimeCompactionPrefix(preparation: RuntimeCompactionPreparation | undefined): preparation is RuntimeCompactionPreparation {
   return preparation !== undefined
     && (preparation.messagesToSummarize.length > 0 || preparation.turnPrefixMessages.length > 0)
-}
-
-function preserveRuntimeCompactionPreviousSummary(preparation: CompactionPreparation) {
-  if (preparation.isSplitTurn && preparation.messagesToSummarize.length === 0 && preparation.previousSummary) {
-    preparation.messagesToSummarize = [createCompactionSummaryMessage(
-      preparation.previousSummary,
-      preparation.tokensBefore,
-      0,
-    )]
-  }
 }
