@@ -89,6 +89,10 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 - `TermousApiError` 保持单一实现，避免破坏 `instanceof` 判断。
 - 托管 Core 的启动状态由主进程保存，启动窗口只负责展示；数据库状态不得通过解析日志文字或提前调用业务 HTTP 接口推断。
 - AI 模型请求重试由 Worker 统一执行，Renderer 仅展示 Core 保存的活动。
+- 工具图片正文随工具结果消息持久化；Core 展示投影返回原始内容索引、MIME 和大小，文本仍遵守脱敏与截断限制。Renderer 通过认证只读接口按会话、消息、片段、版本及索引加载图片，不从文本摘要还原 Base64。工具图片默认随详情折叠，展开时才挂载和读取；结论中的有效引用直接显示紧凑缩略图。
+- Worker 为本地 Agent 结果追加 `termous-image://tool/` 引用，不修改 MCP 原始结果。模型请求保持独立图片内容块；压缩摘要只保留引用及含义，checkpoint 用来源引用和 SHA-256 代替重复图片正文。显示图片不增加附件副本或改变会话数据的回收规则。
+- 回答中的图片引用只解析当前会话截至该消息的工具图片，不访问模型给出的任意网络地址、本地路径或 data URL。`shared/ui` 的 `ImageThumbnail` 和 `ImagePreview` 统一服务工具图片、正文引用及发送附件，负责延迟加载、取消、Blob URL 回收和大图缩放；业务层负责资源归属、数据校验和读取授权。
+- Markdown 图片渲染器保持稳定，通过组件上下文读取会话资源。流式文字和资源目录更新保留已有图片节点及预览状态；图片来源或版本变化时才重新挂载，避免重复读取和意外关闭大图。
 - pi 的 `TranscriptContext` 只在 Worker 模型请求边界组装：系统提示和工具声明取自当前 Run 的可信配置，压缩、用量估算与 Core 快照只处理业务历史，避免重复计量或恢复旧系统约束。
 - pi-ai 与 pi-agent-core 固定使用同一发布版本（当前 1.2.0），只依赖公开的 Agent 和 Provider API。新版移除实验性 Harness 后，Worker 的 `runtimeContextTokens`、`runtimeCompactionPreparation`、`runtimeCompactionGeneration` 分别负责用量估算、完整工具调用边界切分及摘要生成；不引入 Pi CLI、第三方会话目录或另一套凭据管理。
 - 压缩继续先由 Core 原子提交 checkpoint，再替换请求投影；旧摘要、近期尾部和用量恢复合同保持兼容。摘要请求省略思考正文与图片正文，保留可见回复、调用标识、参数和结果状态。消息估算复用 pi-ai 的公开接口，与 Provider 请求保持同一尺度；协议中的 `pi_estimate` 仍表示估算值。真实 Provider 用量优先，是否失效由模型身份、上下文指纹和 checkpoint 边界判断，不依赖重建摘要的本地时间戳。
@@ -142,6 +146,10 @@ node scripts/architecture/check.mjs --report-json
 ```
 
 该命令只输出报告，不修改 allowlist。
+
+## 远程桌面连接确认
+
+`RemoteDesktopConnectionCoordinator` 在主窗口及独立桌面窗口的 `RemoteDesktopRuntimeProvider` 内全局挂载，复用运行时会话订阅，统一呈现证书确认和凭据输入。提示不依赖页面、活动标签或观看入口；多个请求逐个处理，身份绑定会话、连接代次及挑战。SSH 主机密钥确认优先，桌面确认期间暂缓 MCP／账号审批和产品导览。工作区不再单独挂载确认弹窗；展示提示不会创建观看连接或自动批准身份。
 
 ## 统一设置中心
 

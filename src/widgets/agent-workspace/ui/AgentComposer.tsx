@@ -340,7 +340,7 @@ export const AgentComposer = memo(function AgentComposer({
                       <button
                         type="button"
                         className={styles['attachment-thumbnail']}
-                        disabled={disabled || item.phase !== 'ready' || !item.attachment}
+                        disabled={disabled || item.phase === 'deleting'}
                         aria-label={t('agent.attachments.previewName', { name: item.name })}
                         title={item.name}
                         onClick={() => onPreviewAttachment(item)}

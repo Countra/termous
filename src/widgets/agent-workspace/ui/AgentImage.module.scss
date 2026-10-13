@@ -1,0 +1,77 @@
+.image {
+  display: inline-block;
+  width: min(100%, 16rem);
+  margin: 4px 0;
+  vertical-align: top;
+}
+
+.card {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: zoom-in;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  transition: border-color 140ms ease;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.card .media {
+  --image-thumbnail-width: 100%;
+  --image-thumbnail-height: auto;
+
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+
+.caption {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}

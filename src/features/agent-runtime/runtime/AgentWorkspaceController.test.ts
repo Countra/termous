@@ -2505,6 +2505,7 @@ class FakeGateway implements AgentWorkspaceGateway {
   async uploadAttachment(): Promise<never> { throw new Error('not implemented') }
   async attachment(): Promise<never> { throw new Error('not implemented') }
   async attachmentContent(): Promise<Blob> { throw new Error('not implemented') }
+  async toolImageContent(): Promise<Blob> { throw new Error('not implemented') }
   async deleteAttachment() {}
   messages(sessionId: string, options: AgentMessageListOptions = {}) {
     if (options.signal && !this.messageSignals.includes(options.signal)) this.messageSignals.push(options.signal)

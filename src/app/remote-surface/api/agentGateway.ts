@@ -22,6 +22,7 @@ export function createRemoteAgentGateway(client: RemoteClient) {
       signal?.throwIfAborted()
       return new Blob([new Uint8Array(data)])
     },
+    toolImageContent: async () => { throw new RemoteError('remote_operation_unsupported') },
     uploadAttachment: async (sessionId, file, signal, origin) => {
       signal?.throwIfAborted()
       if (file.size > 10 << 20 || !file.size) throw new RemoteError('remote_invalid')

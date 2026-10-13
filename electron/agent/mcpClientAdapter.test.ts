@@ -15,8 +15,32 @@ test('桌面截图同时投影图片和坐标说明，结构化结果不丢失',
   ], structuredContent: { capture: { screenshot_id: 'shot-1', metadata: { width: 800, height: 600 } } } }
   const mapped = mapMCPTools([{ name: 'termous.desktops.capture', inputSchema: { type: 'object', properties: {} } }], async () => result)
   const executed = await mapped.tools[0]!.execute('capture', {})
-  assert.deepEqual(executed.content, [{ type: 'image', mimeType: 'image/png', data: 'fixture-png' }, { type: 'text', text: 'screenshot_id=shot-1, width=800, height=600' }])
+  assert.deepEqual(executed.content.slice(0, 2), result.content)
+  assert.equal(executed.content.length, 3)
+  assert.equal(result.content.length, 2)
+  const references = executed.content[2]
+  assert.ok(references?.type === 'text')
+  assert.match(references.text, /termous-image:\/\/tool\/capture\/0/)
+  assert.match(references.text, /!\[图片说明\]/)
+  assert.doesNotMatch(references.text, /fixture-png/)
   assert.deepEqual((executed.details as { result: CallToolResult }).result.structuredContent, result.structuredContent)
+})
+
+test('图片引用沿用混合内容原始索引，并转义 Markdown 括号', async () => {
+  const result: CallToolResult = { content: [
+    { type: 'text', text: '坐标说明' },
+    { type: 'image', mimeType: 'image/png', data: 'png' },
+    { type: 'resource_link', uri: 'file:///unavailable', name: 'source' },
+    { type: 'image', mimeType: 'image/jpeg', data: 'jpeg' },
+  ] }
+  const original = structuredClone(result)
+  const mapped = mapMCPTools([{ name: 'capture', inputSchema: { type: 'object' } }], async () => result)
+  const executed = await mapped.tools[0]!.execute('call(1)/x', {})
+  const references = executed.content[4]
+  assert.ok(references?.type === 'text')
+  assert.match(references.text, /termous-image:\/\/tool\/call%281%29%2Fx\/1/)
+  assert.match(references.text, /termous-image:\/\/tool\/call%281%29%2Fx\/3/)
+  assert.deepEqual(result, original)
 })
 
 test('MCP Tool 动态映射名称和错误详情', async () => {

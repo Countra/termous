@@ -1,5 +1,6 @@
 import type {
   AgentAttachment,
+  AgentToolImageSource,
   AgentCompactionActivity,
   AgentRetryActivity,
   AgentResponseFailure,
@@ -145,7 +146,17 @@ export interface AgentWorkspaceToolPart {
   duration_ms?: number
   summary?: string
   detail?: string
+  images?: AgentWorkspaceImage[]
 }
+
+export interface AgentWorkspaceImage extends AgentToolImageSource {
+  id: string
+  reference: string
+  mime_type: string
+  size_bytes: number
+}
+
+export type AgentImageLoader = (image: AgentWorkspaceImage, signal?: AbortSignal) => Promise<Blob>
 
 export type AgentWorkspaceMessagePart =
   | AgentWorkspaceTextPart
@@ -311,6 +322,7 @@ export interface AgentWorkspaceProps {
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
   onSend: (message: string, attachmentIds: string[]) => Promise<void>
   onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>
   onBeginQueuedTurnEdit: (turnId: string) => Promise<void>

@@ -1,8 +1,8 @@
 .thumbnail {
   position: relative;
   display: inline-grid;
-  width: var(--agent-attachment-thumbnail-width, 88px);
-  height: var(--agent-attachment-thumbnail-height, 66px);
+  width: var(--image-thumbnail-width, 88px);
+  height: var(--image-thumbnail-height, 66px);
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
@@ -27,13 +27,16 @@
   width: 100%;
   height: 100%;
   place-items: center;
+  align-content: center;
+  gap: 6px;
   background:
     linear-gradient(110deg, transparent 34%, color-mix(in srgb, var(--text-primary) 4%, transparent) 48%, transparent 62%);
   background-size: 220% 100%;
+  font-size: 11px;
 }
 
 .thumbnail[data-state='loading'] .placeholder {
-  animation: agent-attachment-thumbnail-shimmer 1.35s ease-in-out infinite;
+  animation: image-thumbnail-shimmer 1.35s ease-in-out infinite;
 }
 
 .thumbnail[data-state='failed'] {
@@ -42,15 +45,15 @@
 }
 
 .spinner {
-  animation: agent-attachment-thumbnail-spin 0.9s linear infinite;
+  animation: image-thumbnail-spin 0.9s linear infinite;
 }
 
-@keyframes agent-attachment-thumbnail-shimmer {
+@keyframes image-thumbnail-shimmer {
   from { background-position: 100% 0; }
   to { background-position: -100% 0; }
 }
 
-@keyframes agent-attachment-thumbnail-spin {
+@keyframes image-thumbnail-spin {
   to { transform: rotate(360deg); }
 }
 

@@ -1,7 +1,9 @@
 import { Alert, Modal, Spin } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentAttachment } from '#entities/agent'
+import { isAgentDisplayImageMIMEType } from '#common/contracts'
+import { ImagePreview } from '#shared/ui'
 import styles from './AgentAttachmentPreview.module.scss'
 
 export function AgentAttachmentPreview({
@@ -16,7 +18,33 @@ export function AgentAttachmentPreview({
   onLoad: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
 }) {
   const { t } = useTranslation()
-  const [content, setContent] = useState<{ text?: string; imageUrl?: string }>()
+  const imageSource = useMemo(() => {
+    if (local && !local.origin && isAgentDisplayImageMIMEType(local.file.type)) {
+      return { id: crypto.randomUUID(), title: local.file.name, load: async () => local.file }
+    }
+    if (!local && attachment?.kind === 'image') {
+      return { id: `${attachment.id}:${attachment.revision}`, title: attachment.original_name,
+        load: (signal: AbortSignal) => onLoad(attachment, signal) }
+    }
+    return undefined
+  }, [attachment, local, onLoad])
+  if (imageSource) return <ImagePreview source={imageSource} onClose={onClose} />
+  if (!attachment && !local) return null
+  const origin = local?.origin ?? attachment?.origin
+  const title = origin ? t('agent.attachments.terminalReference', { host: origin.host_name }) : local?.file.name ?? attachment?.original_name
+  return <TextAttachmentPreview key={attachment ? `${attachment.id}:${attachment.revision}` : title}
+    attachment={attachment} local={local} title={title} onClose={onClose} onLoad={onLoad} />
+}
+
+function TextAttachmentPreview({ attachment, local, title, onClose, onLoad }: {
+  attachment?: AgentAttachment
+  local?: { file: File }
+  title?: string
+  onClose: () => void
+  onLoad: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+}) {
+  const { t } = useTranslation()
+  const [content, setContent] = useState<string>()
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -26,29 +54,22 @@ export function AgentAttachmentPreview({
       return undefined
     }
     const controller = new AbortController()
-    let imageUrl: string | undefined
     setContent(undefined)
     setFailed(false)
-    void (local ? Promise.resolve(local.file) : onLoad(attachment!, controller.signal)).then(async (blob) => {
+    void Promise.resolve().then(() => {
+      controller.signal.throwIfAborted()
+      return local ? local.file : onLoad(attachment!, controller.signal)
+    }).then(async (blob) => {
       if (controller.signal.aborted) return
-      if (attachment?.kind === 'image' && !local) {
-        imageUrl = URL.createObjectURL(blob)
-        setContent({ imageUrl })
-        return
-      }
       const text = await blob.text()
-      if (!controller.signal.aborted) setContent({ text })
+      if (!controller.signal.aborted) setContent(text)
     }).catch(() => {
       if (!controller.signal.aborted) setFailed(true)
     })
     return () => {
       controller.abort()
-      if (imageUrl) URL.revokeObjectURL(imageUrl)
     }
   }, [attachment, local, onLoad])
-
-  const origin = local?.origin ?? attachment?.origin
-  const title = origin ? t('agent.attachments.terminalReference', { host: origin.host_name }) : local?.file.name ?? attachment?.original_name
 
   return (
     <Modal
@@ -63,9 +84,8 @@ export function AgentAttachmentPreview({
     >
       <div className={styles.preview}>
         {failed ? <Alert type="error" showIcon title={t('agent.attachments.previewFailed')} /> : null}
-        {!failed && !content ? <Spin size="small" /> : null}
-        {content?.imageUrl ? <img src={content.imageUrl} alt={attachment?.original_name ?? ''} /> : null}
-        {content?.text !== undefined ? <pre>{content.text}</pre> : null}
+        {!failed && content === undefined ? <Spin size="small" /> : null}
+        {content !== undefined ? <pre>{content}</pre> : null}
       </div>
     </Modal>
   )

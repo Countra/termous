@@ -1,10 +1,11 @@
 import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { memo, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   isActiveAgentRun,
   type AgentWorkspaceMessage,
+  type AgentImageLoader,
   type AgentWorkspaceRunStatus,
 } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
@@ -18,6 +19,7 @@ import { AgentRetryActivity } from './AgentRetryActivity.tsx'
 import { AgentMessageFailure, AgentResponseFailure } from './AgentMessageFailure.tsx'
 import { AgentMessageActions } from './AgentMessageActions.tsx'
 import { AgentMessageResources } from './AgentMessageResources.tsx'
+import { agentMessageImageCatalogs } from '../model/agentImageResources.ts'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
@@ -28,6 +30,7 @@ interface AgentConversationProps {
   showTurnTokenUsage?: boolean
   onPreviewAttachment?: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
 }
 
 const ignoreAttachmentPreview = () => undefined
@@ -44,6 +47,7 @@ function AgentConversationSession({
   showTurnTokenUsage = true,
   onPreviewAttachment = ignoreAttachmentPreview,
   onLoadAttachmentContent,
+  onLoadToolImage,
 }: AgentConversationProps) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -101,6 +105,7 @@ function AgentConversationSession({
             showTurnTokenUsage={showTurnTokenUsage}
             onPreviewAttachment={onPreviewAttachment}
             onLoadAttachmentContent={onLoadAttachmentContent}
+            onLoadToolImage={onLoadToolImage}
           />
         )}
       </div>
@@ -131,20 +136,23 @@ const AgentMessageStack = memo(function AgentMessageStack({
   showTurnTokenUsage,
   onPreviewAttachment,
   onLoadAttachmentContent,
+  onLoadToolImage,
 }: {
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   showTurnTokenUsage: boolean
   onPreviewAttachment: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
 }) {
   const { t } = useTranslation()
   const assistantPlaceholderId = currentAssistantPlaceholderId(messages)
+  const messagesWithImages = useMemo(() => agentMessageImageCatalogs(messages), [messages])
   const hasAssistantPlaceholder = assistantPlaceholderId !== undefined
   const assistantPlaceholderStatus = isActiveAgentRun(runStatus) ? runStatus : undefined
   return (
     <div className={styles['message-stack']}>
-      {messages.map((message) => (
+      {messagesWithImages.map(({ message, images }) => (
         <article key={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
           <header>
             <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
@@ -177,8 +185,8 @@ const AgentMessageStack = memo(function AgentMessageStack({
               </div>
             ) : null}
             {message.parts.map((part) => {
-              if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
-              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
+              if (part.kind === 'text') return <AgentMarkdown key={part.id} images={message.role === 'assistant' ? images : undefined} onLoadToolImage={onLoadToolImage}>{part.text}</AgentMarkdown>
+              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} onLoadToolImage={onLoadToolImage} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
               if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />
               if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} hideError={
@@ -262,7 +270,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
       return `${part.id}:${activity.status}:${activity.tokens_before}:${activity.tokens_after ?? ''}:${activity.context_window_tokens ?? ''}:${activity.duration_ms ?? ''}`
     }
     if (part.kind === 'tool') {
-      return `${part.id}:${part.status}:${part.duration_ms ?? ''}:${part.summary?.length ?? 0}:${part.detail?.length ?? 0}`
+      return `${part.id}:${part.status}:${part.duration_ms ?? ''}:${part.summary?.length ?? 0}:${part.detail?.length ?? 0}:${part.images?.length ?? 0}`
     }
     return `${part.id}:${part.kind}:${part.text.length}:${part.kind === 'reasoning' && part.streaming ? 1 : 0}`
   }).join(',')

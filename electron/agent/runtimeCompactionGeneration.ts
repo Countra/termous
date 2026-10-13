@@ -1,5 +1,6 @@
 import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai'
+import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
 import type { RuntimeCompactionPreparation } from './runtimeCompactionTypes.ts'
 import { RuntimeCompactionError, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
 
@@ -60,6 +61,14 @@ export function serializeRuntimeConversation(messages: AgentMessage[]): string {
     } else if (text) output.push(`[${message.role}]: ${text}`)
     if (Array.isArray(message.content) && message.content.some((block) => block.type === 'image')) {
       output.push('[图片正文省略；原始图片仍在消息记录中]')
+      if (message.role === 'toolResult') {
+        const references = message.content.flatMap((block, index) => {
+          const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+            ? agentToolImageReference(message.toolCallId, index) : undefined
+          return reference ? [reference] : []
+        })
+        if (references.length) output.push(`可在回答中用 Markdown 展示的原图引用：\n${references.join('\n')}`)
+      }
     }
     if (message.role === 'assistant') {
       // 与新版 pi 一致，摘要不重复发送思考正文；工具调用和可见回复仍参与摘要。

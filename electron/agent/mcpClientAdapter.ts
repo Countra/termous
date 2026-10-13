@@ -8,6 +8,7 @@ import {
 import type { TSchema } from 'typebox'
 import { Compile } from 'typebox/compile'
 import { encodeMCPToolName } from './toolNameCodec.ts'
+import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
 
 export const agentMCPProtocolVersion = '2025-11-25'
 
@@ -147,7 +148,7 @@ export function mapMCPTools(
           toolCallID,
         )
         return {
-          content: projectMCPContent(result),
+          content: projectMCPContent(result, toolCallID),
           details: {
             kind: 'mcp',
             originalToolName: definition.name,
@@ -245,7 +246,7 @@ function requestURL(input: RequestInfo | URL) {
   return new URL(input.url)
 }
 
-function projectMCPContent(result: CallToolResult) {
+function projectMCPContent(result: CallToolResult, toolCallID: string) {
   const content: AgentToolResult<unknown>['content'] = []
   for (const block of result.content) {
     if (block.type === 'text') {
@@ -255,6 +256,18 @@ function projectMCPContent(result: CallToolResult) {
     } else {
       content.push({ type: 'text', text: JSON.stringify(block) })
     }
+  }
+  const imageReferences = content.flatMap((block, index) => {
+    const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+      ? agentToolImageReference(toolCallID, index) : undefined
+    return reference ? [reference] : []
+  })
+  if (imageReferences.length > 0) {
+    // 仅在本地 Agent 结果中追加引用说明，保留 MCP 原始结果和内容索引，正文不写入 Markdown。
+    content.push({ type: 'text', text: [
+      '以上图片的会话内引用（与图片顺序一致）：', ...imageReferences,
+      '需要在回答或结论中展示图片时，使用 ![图片说明](对应引用)。直接引用已有图片，不重抄图片数据，不将引用作为工具参数。',
+    ].join('\n') })
   }
   if (content.length === 0 && result.structuredContent !== undefined) {
     content.push({ type: 'text', text: JSON.stringify(result.structuredContent) })

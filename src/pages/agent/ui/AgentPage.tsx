@@ -502,6 +502,10 @@ export function AgentPage({
     ),
     [gateway],
   )
+  const loadToolImage = useCallback(
+    (image: import('#entities/agent').AgentToolImageSource, signal?: AbortSignal) => gateway.toolImageContent(image, signal),
+    [gateway],
+  )
   const draftAttachments = useAgentDraftAttachments({
     gateway,
     ensureSession: ensureAttachmentSession,
@@ -1337,6 +1341,7 @@ export function AgentPage({
           ? queuedTurnEditAttachments.retry
           : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
+        onLoadToolImage={loadToolImage}
         onExecuteSlashCommand={executeSlashCommand}
         onCancelProfileConnection={async () => selected
           ? profileConnection.coordinator.cancel(selected.id)
@@ -1560,6 +1565,7 @@ export function AgentPage({
         onReload={archives.reload}
         onReloadPreview={archives.reloadPreview}
         onLoadAttachmentContent={loadAttachmentContent}
+        onLoadToolImage={loadToolImage}
         onRestore={async (session) => {
           const selection = controller.getSnapshot()
           try {

@@ -414,6 +414,21 @@ export interface AgentToolResultPart {
   tool_name: string
   content: AgentJsonValue
   is_error: boolean
+  images?: AgentToolImageMetadata[]
+}
+
+export interface AgentToolImageMetadata {
+  content_index: number
+  mime_type: string
+  size_bytes: number
+}
+
+export interface AgentToolImageSource {
+  session_id: string
+  message_id: string
+  part_id: string
+  content_index: number
+  revision: number
 }
 
 export interface AgentResponseFailure {

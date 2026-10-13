@@ -13,6 +13,8 @@ import { AgentSessionSidebar } from './AgentSessionSidebar.tsx'
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader.tsx'
 import styles from './AgentWorkspace.module.scss'
 
+const unavailableToolImage = async (): Promise<Blob> => { throw new Error('AGENT_IMAGE_UNAVAILABLE') }
+
 export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t } = useTranslation()
   const workspaceRef = useRef<HTMLDivElement>(null)
@@ -31,6 +33,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const onRemoveAttachment = useStableEventHandler(props.onRemoveAttachment)
   const onRetryAttachment = useStableEventHandler(props.onRetryAttachment)
   const onLoadAttachmentContent = useStableEventHandler(props.onLoadAttachmentContent)
+  const onLoadToolImage = useStableEventHandler(props.onLoadToolImage ?? unavailableToolImage)
   const onSend = useStableEventHandler(props.onSend)
   const onQueueTurn = useStableEventHandler(props.onQueueTurn)
   const onQueuedTurnEditChange = useStableEventHandler(props.onQueuedTurnEditChange)
@@ -51,11 +54,15 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const onReplaceResourceBinding = useStableEventHandler(props.onReplaceResourceBinding)
   const onRemoveResourceBinding = useStableEventHandler(props.onRemoveResourceBinding)
   const onPreviewDraftAttachment = useCallback((item: AgentWorkspaceProps['draft_attachments'][number]) => {
-    if (item.origin) {
+    if (item.origin || !item.attachment) {
       setPreviewAttachment(undefined)
       setPreviewLocalAttachment(item)
     } else if (item.attachment) onPreviewAttachment(item.attachment)
   }, [onPreviewAttachment])
+  useEffect(() => {
+    setPreviewAttachment(undefined)
+    setPreviewLocalAttachment(undefined)
+  }, [props.selected_session_id])
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
   const inputHistory = useMemo(() => agentComposerInputHistory(props.messages, props.queued_turns), [props.messages, props.queued_turns])
   const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
@@ -146,6 +153,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           showTurnTokenUsage={props.show_turn_token_usage}
           onPreviewAttachment={onPreviewAttachment}
           onLoadAttachmentContent={onLoadAttachmentContent}
+          onLoadToolImage={onLoadToolImage}
         />
         <AgentComposer
           focusKey={props.composerFocusKey}

@@ -102,6 +102,8 @@ export {
   type AgentToolCallPart,
   type AgentToolEventData,
   type AgentToolResultPart,
+  type AgentToolImageMetadata,
+  type AgentToolImageSource,
   type AgentUsage,
 } from './model/types.ts'
 export {

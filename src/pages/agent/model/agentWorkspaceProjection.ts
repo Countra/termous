@@ -12,6 +12,7 @@ import type {
 } from '#entities/agent'
 import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal, mergeAgentRetryActivity } from '#entities/agent'
 import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/contracts'
+import { projectAgentToolImages } from './agentToolImages.ts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
@@ -134,7 +135,7 @@ export function projectAgentMessages(
       part.kind === 'text' && part.resources !== undefined
     )) : undefined
     const parts = interleaveActivities(
-      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
+      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents, message.session_id),
       message,
       messageEvents,
     )
@@ -289,6 +290,7 @@ function projectMessageParts(
   finalizedParts: ReadonlySet<string>,
   run: AgentRun | undefined,
   events: AgentRunEvent[],
+  sessionID: string,
 ): AgentWorkspaceMessage['parts'] {
   const results = new Map(parts
     .filter((part): part is Extract<AgentMessagePart, { kind: 'tool_result' }> => part.kind === 'tool_result')
@@ -307,7 +309,7 @@ function projectMessageParts(
         kind: 'reasoning' as const,
         text: part.text,
         streaming: streaming && !failure && !finalizedParts.has(messagePartKey(part.message_id, part.id)),
-      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events)
+      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events, sessionID)
     return failure?.error_message && failedAttemptEnds.get(failure.attempt_id) === part.id
       ? [projected, { id: `response-failure:${failure.attempt_id}`, kind: 'response_failure', failure, after_part_sequence: part.sequence }]
       : [projected]
@@ -323,6 +325,7 @@ function projectToolPart(
   result: Extract<AgentMessagePart, { kind: 'tool_result' }> | undefined,
   run: AgentRun | undefined,
   events: AgentRunEvent[],
+  sessionID: string,
 ): AgentWorkspaceToolPart {
   const toolEvents = events.filter((event) => (
     !call.response_failure && 'tool' in event.payload && event.payload.tool.tool_call_id === call.tool_call.tool_call_id
@@ -340,6 +343,7 @@ function projectToolPart(
     name: canonicalizeMcpFileToolName(call.tool_call.tool_name),
     status,
     duration_ms: duration,
+    ...(result ? { images: projectAgentToolImages(sessionID, result) } : {}),
     detail: boundedToolDetail({
       arguments: redactJson(call.tool_call.arguments),
       ...(result ? { result: redactJson(result.tool_result.content) } : {}),
@@ -351,6 +355,10 @@ function redactJson(value: unknown, depth = 0): unknown {
   if (depth > 8) return '[truncated]'
   if (Array.isArray(value)) return value.slice(0, 64).map((item) => redactJson(item, depth + 1))
   if (!value || typeof value !== 'object') return value
+  const block = value as Record<string, unknown>
+  if ((block.type === 'image' || block.type === 'audio') && typeof block.data === 'string') {
+    return { type: block.type, mimeType: block.mimeType, data: '[二进制内容已省略]' }
+  }
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).slice(0, 128).map(([key, item]) => [
     key,
     sensitiveKey.test(key) ? '[redacted]' : redactJson(item, depth + 1),

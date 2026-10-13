@@ -1,4 +1,17 @@
 {
+  "imagePreview": {
+    "title": "Image preview",
+    "controls": "Image controls",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fit": "Fit to window",
+    "actualSize": "Actual size",
+    "canvas": "Image viewing area",
+    "failed": "Unable to display this image",
+    "retry": "Reload",
+    "loading": "Loading image",
+    "hint": "Scroll to explore when zoomed in · Esc to close"
+  },
   "cloud": {
     "qr": {
       "password": "Password",
@@ -1486,6 +1499,12 @@
     },
     "markdown": {
       "remoteImageBlocked": "Remote image blocked"
+    },
+    "images": {
+      "toolResults": "Images returned by the tool",
+      "result": "Image {{index}}",
+      "expand": "View full size",
+      "unavailable": "This image is not in the current conversation"
     },
     "readiness": {
       "remoteDescription": "Configure the AI assistant on the controlled computer.",

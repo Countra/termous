@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentAttachment, AgentSession, AgentSessionGroup } from '#entities/agent'
 import { contextActionMenuPopupClassName } from '#shared/ui'
-import type { AgentWorkspaceMessage } from '../model/types.ts'
+import type { AgentImageLoader, AgentWorkspaceMessage } from '../model/types.ts'
 import { AgentAttachmentPreview } from './AgentAttachmentPreview.tsx'
 import { AgentConversation } from './AgentConversation.tsx'
 import { AgentArchiveSessionList } from './AgentArchiveSessionList.tsx'
@@ -31,6 +31,7 @@ export interface AgentArchiveManagerProps {
   onRestore: (session: AgentSession) => Promise<boolean | void>
   onDelete: (session: AgentSession) => Promise<boolean | void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
 }
 
 export function AgentArchiveManager(props: AgentArchiveManagerProps) {
@@ -55,7 +56,7 @@ export function AgentArchiveManager(props: AgentArchiveManagerProps) {
 function ArchiveContents({
   sessions, groups, query, listLoading, listError, selectedSession, messages,
   previewLoading, previewError, pendingIds, showTurnTokenUsage, onQueryChange, onSelect,
-  onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent,
+  onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent, onLoadToolImage,
 }: AgentArchiveManagerProps) {
   const { t } = useTranslation()
   const [previewAttachment, setPreviewAttachment] = useState<AgentAttachment>()
@@ -158,6 +159,7 @@ function ArchiveContents({
                     showTurnTokenUsage={showTurnTokenUsage}
                     onPreviewAttachment={setPreviewAttachment}
                     onLoadAttachmentContent={onLoadAttachmentContent}
+                    onLoadToolImage={onLoadToolImage}
                   />
                 )}
               </div>

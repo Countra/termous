@@ -1,0 +1,97 @@
+.modal :global(.ant-modal-title) {
+  padding-right: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.dimensions {
+  flex: 1;
+  min-width: 90px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.scale {
+  min-width: 52px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.viewport {
+  position: relative;
+  height: min(70vh, 800px);
+  min-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  overscroll-behavior: contain;
+}
+
+.viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.canvas {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  place-items: center;
+}
+
+.canvas img {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.canvas[data-fit='true'] {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas[data-fit='true'] img {
+  max-width: 100%;
+  max-height: min(70vh - 2px, 798px);
+}
+
+.status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.hint {
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+}

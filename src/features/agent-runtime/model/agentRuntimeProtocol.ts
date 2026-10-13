@@ -1,4 +1,4 @@
-import { isAgentTerminalReferenceOrigin } from '#common/contracts'
+import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -281,7 +281,22 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     tool_name: utf8(body.tool_name, 'Agent Tool 名称无效', 256),
     content: jsonValue(body.content),
     is_error: bool(body.is_error, 'Agent Tool 结果状态无效'),
+    ...(body.images === undefined ? {} : { images: decodeToolImages(body.images) }),
   } }
+}
+
+function decodeToolImages(value: unknown) {
+  const images = array(value, 'Agent 工具图片列表无效').map((item: unknown) => {
+    const source = record(item, 'Agent 工具图片元数据无效')
+    const size = positiveInteger(source.size_bytes, 'Agent 工具图片大小无效')
+    if (!isAgentDisplayImageMIMEType(source.mime_type) || size > 10 * 1024 * 1024) {
+      throw new AgentRuntimeProtocolError('Agent 工具图片格式或大小无效')
+    }
+    return { content_index: nonNegativeInteger(source.content_index, 'Agent 工具图片索引无效'),
+      mime_type: source.mime_type, size_bytes: size }
+  })
+  ascending(images.map((image) => image.content_index), 'Agent 工具图片索引重复或无序')
+  return images
 }
 
 export function decodeAgentMessage(value: unknown): AgentMessage {

@@ -19,6 +19,7 @@ export type {
   AgentWorkspaceSlashExecution,
   AgentWorkspaceSSHProfileAssociationMode,
   AgentWorkspaceToolPart,
+  AgentWorkspaceImage,
   AgentWorkspaceUsageState,
 } from './model/types.ts'
 export type { AgentSlashCapture } from './model/agentSlashCommands.ts'

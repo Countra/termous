@@ -101,3 +101,16 @@ test('摘要排除思考和图片正文，保留可见内容、工具身份和�
   }
   assert.deepEqual(messages, original)
 })
+
+test('长工具结果截断后仍保留图片引用，摘要不复制图片正文', () => {
+  const text = serializeRuntimeConversation([{
+    role: 'toolResult', toolCallId: 'capture-1', toolName: 'capture', isError: false, timestamp: 1,
+    content: [
+      { type: 'text', text: 'x'.repeat(3000) },
+      { type: 'image', data: 'private-image-body', mimeType: 'image/png' },
+    ],
+  }])
+  assert.match(text, /termous-image:\/\/tool\/capture-1\/1/)
+  assert.match(text, /truncated/)
+  assert.doesNotMatch(text, /private-image-body/)
+})

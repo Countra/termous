@@ -3,6 +3,13 @@
   color: var(--text-secondary);
 }
 
+.images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 8px 25px;
+}
+
 .tool-row summary {
   display: grid;
   min-height: 34px;

@@ -1,5 +1,6 @@
 import type {
   AgentAttachment,
+  AgentToolImageSource,
   AgentMcpPolicy,
   AgentMessagePage,
   AgentQueueState,
@@ -84,6 +85,7 @@ export interface AgentWorkspaceGateway {
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   queuedTurns(sessionId: string, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<AgentQueuedTurnPage>

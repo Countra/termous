@@ -9,13 +9,6 @@
   background: var(--surface-subtle);
 }
 
-.preview img {
-  display: block;
-  max-width: 100%;
-  max-height: min(64vh, 680px);
-  object-fit: contain;
-}
-
 .preview pre {
   width: 100%;
   min-height: 220px;

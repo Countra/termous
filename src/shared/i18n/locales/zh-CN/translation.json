@@ -1,4 +1,17 @@
 {
+  "imagePreview": {
+    "title": "图片预览",
+    "controls": "图片查看工具",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "fit": "适应窗口",
+    "actualSize": "原始尺寸",
+    "canvas": "图片查看区域",
+    "failed": "图片暂时无法显示",
+    "retry": "重新加载",
+    "loading": "正在加载图片",
+    "hint": "放大后可滚动查看 · Esc 关闭"
+  },
   "cloud": {
     "qr": {
       "password": "密码登录",
@@ -1484,6 +1497,12 @@
     },
     "markdown": {
       "remoteImageBlocked": "远程图片已阻止"
+    },
+    "images": {
+      "toolResults": "工具返回的图片",
+      "result": "图片 {{index}}",
+      "expand": "查看大图",
+      "unavailable": "此图片不在当前会话记录中"
     },
     "readiness": {
       "remoteDescription": "请在被控电脑完成 AI 助手配置。",

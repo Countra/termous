@@ -145,3 +145,4 @@ export * from './cloud-recovery.ts'
 export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboardState, SystemFileSelection } from './desktop-files'
 
 export type { FileClipboardImport, FileClipboardImportRequest, FileSystemClipboardBridge, FileSystemClipboardRequest, FileSystemClipboardState } from "./file-system-clipboard"
+export { agentToolImageReference, isAgentToolImageReference, isAgentDisplayImageMIMEType } from './agent-images.ts'
