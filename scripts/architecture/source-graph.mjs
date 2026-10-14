@@ -35,6 +35,7 @@ export function relativeProjectPath(projectRoot, value) {
 export function isTestSource(projectRoot, filePath) {
   const relative = relativeProjectPath(projectRoot, filePath)
   return relative.startsWith('src/test/')
+    || relative.startsWith('electron/agent/test-support/')
     || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(relative)
 }
 
@@ -244,7 +245,7 @@ function readModule(projectRoot, filePath) {
       && node.moduleReference.expression
       && ts.isStringLiteralLike(node.moduleReference.expression)
     ) {
-      addImport(node.moduleReference.expression.text, 'static')
+      addImport(node.moduleReference.expression.text, node.isTypeOnly ? 'type' : 'static')
     } else if (
       ts.isCallExpression(node)
       && node.arguments.length >= 1

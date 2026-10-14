@@ -1,7 +1,7 @@
 import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from '#common/contracts'
-import { isRecord } from '../agent/protocol.ts'
-import { isRuntimeModelSnapshot, type RuntimeModelSnapshot } from '../agent/workerCoreClient.ts'
-import type { RuntimeUsage } from '../agent/runtimeUsage.ts'
+import { isRecord } from '../agent/contracts/validation.ts'
+import { isRuntimeModelSnapshot, type RuntimeModelSnapshot } from '../agent/contracts/modelSnapshot.ts'
+import type { RuntimeUsage } from '../agent/provider/index.ts'
 
 export interface TerminalCompletionBootstrap {
   request_id: string

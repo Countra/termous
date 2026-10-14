@@ -7,7 +7,7 @@ const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
   ? 'electron/updateSimulationMain.ts'
   : {
       main: 'electron/main.ts',
-      'agent-worker': 'electron/agent/worker.ts',
+      'agent-worker': 'electron/agent/worker/worker.ts',
       'terminal-completion-worker': 'electron/terminalCompletion/worker.ts',
     }
 

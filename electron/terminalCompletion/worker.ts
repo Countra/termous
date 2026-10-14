@@ -1,6 +1,6 @@
 import { generateTerminalCommand } from './generate.ts'
 import { isTerminalCompletionStart } from './protocol.ts'
-import { isRecord } from '../agent/protocol.ts'
+import { isRecord } from '../agent/contracts/validation.ts'
 
 const parentPort = process.parentPort
 if (!parentPort) throw new Error('TERMINAL_AI_PARENT_PORT_UNAVAILABLE')

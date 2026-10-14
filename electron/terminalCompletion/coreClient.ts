@@ -1,7 +1,7 @@
 import type { TerminalAICompletionRequest } from '#common/contracts'
 import type { CoreRuntimeConfig } from '../coreProcess.ts'
-import { AgentCoreRuntimeError, validateCoreBaseURL, type AgentSupervisorLease } from '../agent/coreRuntimeClient.ts'
-import { isRecord } from '../agent/protocol.ts'
+import { AgentCoreRuntimeError, validateCoreBaseURL, type AgentSupervisorLease } from '../agent/contracts/supervisorCore.ts'
+import { isRecord } from '../agent/contracts/validation.ts'
 import { isTerminalCompletionBootstrap } from './protocol.ts'
 
 interface TerminalCompletionCoreOptions {

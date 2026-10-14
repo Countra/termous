@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import type { AgentWorkerProcess } from '../agent/workerProcess.ts'
+import type { AgentWorkerProcess } from '../agent/contracts/workerProcess.ts'
 import { TerminalCompletionRuntime } from './runtime.ts'
 import { completionFailure } from './protocol.ts'
 import { completionTestBootstrap, completionTestRequest } from './testFixture.ts'
-import { emptyRuntimeUsage } from '../agent/runtimeUsage.ts'
+import { emptyRuntimeUsage } from '../agent/provider/runtimeUsage.ts'
 
 test('bootstrap 与 Worker 全流程受一个期限约束，超时后迟到准备结果不能启动进程', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })

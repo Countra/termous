@@ -1,6 +1,6 @@
 import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, expect, test, vi } from 'vitest'
+import { beforeAll, expect, onTestFinished, test, vi } from 'vitest'
 import type { CloudAuthorization, CloudDevice, CloudRekeyStatus, CloudSecurityOverview, CloudSession, CloudStatus } from '#common/contracts'
 import { CloudState, type CloudGateway } from '#entities/cloud'
 import { changeLanguage } from '#shared/i18n'
@@ -74,6 +74,10 @@ test('已撤销设备可查看列表，不提供批准新设备的操作', async
 })
 
 test('设备表格保留撤销权限和验证步骤，读取失败时保留已有设备', async () => {
+  // @rc-component/util 在 test 环境将所有标题 ID 固定为 test-id，隐藏的重命名弹窗会抢占撤销标题。
+  // 此用例使用真实 React useId 路径，仍校验撤销弹窗的可访问名称和密码验证。
+  vi.stubEnv('NODE_ENV', 'development')
+  onTestFinished(() => { vi.unstubAllEnvs() })
   const current = { ...status, device_id: 'current' }
   const overview: CloudSecurityOverview = {
     account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: false, mfa_enabled: false, mfa_revision: '0', recovery_required: false, recovery_ready: true, personal_recovery_enabled: false, archive_available: false },

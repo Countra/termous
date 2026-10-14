@@ -80,6 +80,8 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 ## 运行时不变量
 
+Electron Agent 的模块归属、进程边界和外部入口见 [Electron Agent 架构](./electron-agent-architecture.md)。
+
 结构迁移必须保持以下合同：
 
 - Provider 顺序为 `TermousUi -> Update -> Shortcut -> FilesWorkspace -> Transfer -> Terminal -> CommandDispatch -> McpAccess -> AppShell`。

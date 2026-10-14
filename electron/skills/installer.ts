@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto'
 import fs, { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { SkillInstallClient, SkillInstallPlan, SkillInstallPolicy, SkillInstallResult } from '#common/contracts'
-import type { AgentSkillBundleSourcePort } from '../agent/skillBundleSource.ts'
-import type { AgentSkillBundleSnapshot } from '../agent/skillBundle.ts'
-import { resolveAgentSkillManifestResourcePath } from '../agent/skillBundleManifest.ts'
+import type { AgentSkillBundleSourcePort } from '../agent/skills/index.ts'
+import type { AgentSkillBundleSnapshot } from '../agent/contracts/skillBundle.ts'
+import { resolveAgentSkillManifestResourcePath } from '../agent/skills/index.ts'
 import { canonicalBase, checkDirectory, entryStat, pathsOverlap, prepareTarget, resolveSkillInstallDirectory, SkillInstallFailure, skillInstallError } from './installPaths.ts'
 
 interface PendingInstall {

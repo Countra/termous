@@ -1,9 +1,7 @@
 import type { TerminalAICompletionRequest, TerminalAICompletionResult } from '#common/contracts'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction } from '../agent/runtimeProviderAdapter.ts'
-import { runtimeProviderFailure } from '../agent/runtimeProviderFailure.ts'
-import { isRecord } from '../agent/protocol.ts'
-import { projectPiUsage, type RuntimeUsage } from '../agent/runtimeUsage.ts'
+import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction, runtimeProviderFailure, projectPiUsage, type RuntimeUsage } from '../agent/provider/index.ts'
+import { isRecord } from '../agent/contracts/validation.ts'
 import { completionFailure, terminalCompletionTimeoutMs, validText, type TerminalCompletionBootstrap } from './protocol.ts'
 
 const systemPrompt = [

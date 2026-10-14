@@ -48,6 +48,111 @@ function violationsFor(t, files, options) {
   return collectArchitectureViolations(createFixture(t, files, options))
 }
 
+test('Agent 分层和外部公共入口允许合法的宿主、Worker 与终端补全依赖', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/contracts/model.ts': "import type { Model } from 'provider-types'\nexport type Snapshot = Model\n",
+    'electron/agent/contracts/ipcChannels.ts': 'export const channels = {}\n',
+    'electron/agent/provider/model.ts': "import type { Snapshot } from '../contracts/model.ts'\nexport type Model = Snapshot\n",
+    'electron/agent/provider/index.ts': "export type { Model } from './model.ts'\n",
+    'electron/agent/tools/discovery.ts': 'export const discover = true\n',
+    'electron/agent/runtime/agent.ts': "import { discover } from '../tools/discovery.ts'\nexport const agent = discover\n",
+    'electron/agent/worker/worker.ts': "import { agent } from '../runtime/agent.ts'\nexport const worker = agent\n",
+    'electron/agent/skills/source.ts': 'export const skills = true\n',
+    'electron/agent/skills/index.ts': "export { skills } from './source.ts'\n",
+    'electron/agent/host/supervisor.ts': "import { skills } from '../skills/source.ts'\nexport const host = skills\n",
+    'electron/agent/host/index.ts': "export { host } from './supervisor.ts'\n",
+    'electron/main.ts': "import { host } from './agent/host/index.ts'\nexport const main = host\n",
+    'electron/preload.ts': "import { channels } from './agent/contracts/ipcChannels.ts'\nexport const preload = channels\n",
+    'electron/terminalCompletion/generate.ts': "import type { Model } from '../agent/provider/index.ts'\nexport type Completion = Model\n",
+    'electron/skills/installer.ts': "import { skills } from '../agent/skills/index.ts'\nexport const installer = skills\n",
+  })
+  assert.deepEqual(violations, [])
+})
+
+for (const [kind, statement] of [
+  ['static', "import { value } from '../host/host.ts'\nexport const result = value\n"],
+  ['type', "import type { Value } from '../host/host.ts'\nexport type Result = Value\n"],
+  ['type-query', "export type Result = import('../host/host.ts').Value\n"],
+  ['import-equals', "import Host = require('../host/host.ts')\nexport const result = Host.value\n"],
+  ['type-import-equals', "import type Host = require('../host/host.ts')\nexport type Result = Host.Value\n"],
+  ['reexport', "export { value } from '../host/host.ts'\n"],
+  ['dynamic', "export const result = import('../host/host.ts')\n"],
+  ['require', "export const result = require('../host/host.ts')\n"],
+]) {
+  test(`Agent ${kind} 不能绕过 Worker 与宿主的进程边界`, (t) => {
+    const violations = violationsFor(t, {
+      'electron/agent/host/host.ts': 'export const value = true\nexport type Value = boolean\n',
+      'electron/agent/worker/worker.ts': statement,
+    })
+    assert.ok(violations.some((item) => item.rule === 'agent-module-direction'))
+  })
+}
+
+test('Agent 低层模块不能通过类型、动态导入或回导外部模块依赖上层实现', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/runtime/agent.ts': 'export interface Runtime {}\n',
+    'electron/agent/contracts/bootstrap.ts': "import type { Runtime } from '../runtime/agent.ts'\nexport type Bootstrap = Runtime\n",
+    'electron/agent/provider/model.ts': "export const model = import('../runtime/agent.ts')\n",
+    'electron/agent/tools/discovery.ts': "export const discovery = import('../../main.ts')\n",
+    'electron/main.ts': 'export const app = true\n',
+  })
+  assert.equal(violations.filter((item) => item.rule === 'agent-module-direction').length, 2)
+  assert.ok(violations.some((item) => item.rule === 'agent-external-dependency'))
+})
+
+test('Agent 外部调用不能穿透实现文件，Preload 只能读取 IPC 通道合同', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/worker/client.ts': 'export interface Model {}\n',
+    'electron/agent/contracts/protocol.ts': 'export interface Protocol {}\n',
+    'electron/agent/host/index.ts': 'export const host = true\n',
+    'electron/terminalCompletion/protocol.ts': "import type { Model } from '../agent/worker/client.ts'\nexport type Snapshot = Model\n",
+    'electron/terminalCompletion/runtime.ts': "export { host } from '../agent/host/index.ts'\n",
+    'electron/preload.ts': "import type { Protocol } from './agent/contracts/protocol.ts'\nexport type Bridge = Protocol\n",
+  })
+  assert.equal(violations.filter((item) => item.rule === 'agent-public-entry').length, 3)
+})
+
+test('Agent 公共入口不得重新导出测试夹具，模块内部不能回导自身入口', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/test-support/fixture.ts': 'export const fixture = true\n',
+    'electron/agent/provider/index.ts': "export { fixture } from '../test-support/fixture.ts'\n",
+    'electron/agent/provider/model.ts': "export { fixture } from './index.ts'\n",
+  })
+  assert.ok(violations.some((item) => item.rule === 'production-test-import'))
+  assert.ok(violations.some((item) => item.rule === 'agent-internal-public-entry'))
+  assert.ok(!violations.some((item) => item.rule === 'agent-module-location'))
+})
+
+test('Agent 合同禁止运行时 SDK 和文件系统依赖，Worker 禁止加载 Electron 主进程 API', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/contracts/invalid.ts': "import fs from 'node:fs'\nimport { Agent } from '@earendil-works/pi-agent-core'\nexport const invalid = [fs, Agent]\n",
+    'electron/agent/contracts/snapshot.ts': "import { createHash } from 'node:crypto'\nimport type { AgentMessage } from '@earendil-works/pi-agent-core'\nexport const hash = createHash\nexport type Message = AgentMessage\n",
+    'electron/agent/worker/worker.ts': "import { app } from 'electron'\nexport const worker = app\n",
+  })
+  assert.equal(violations.filter((item) => item.rule === 'agent-contract-runtime-import').length, 2)
+  assert.ok(violations.some((item) => item.rule === 'agent-electron-runtime-import'))
+})
+
+test('Agent 合同允许 require 形式的纯类型别名，但仍拒绝同形式的运行时 SDK', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/contracts/types.ts': "import type SDK = require('provider-types')\nexport type Model = SDK.Model\n",
+    'electron/agent/contracts/runtime.ts': "import SDK = require('provider-sdk')\nexport const runtime = SDK\n",
+  })
+  assert.deepEqual(violations.filter((item) => item.rule === 'agent-contract-runtime-import'), [
+    { rule: 'agent-contract-runtime-import', source: 'electron/agent/contracts/runtime.ts', specifier: 'provider-sdk', kind: 'static' },
+  ])
+})
+
+test('Agent 根目录新增总入口和路径大小写错误会被拒绝', (t) => {
+  const violations = violationsFor(t, {
+    'electron/agent/index.ts': 'export const all = true\n',
+    'electron/agent/contracts/model.ts': 'export const model = true\n',
+    'electron/agent/provider/provider.ts': "import { model } from '../contracts/Model.ts'\nexport const provider = model\n",
+  })
+  assert.ok(violations.some((item) => item.rule === 'agent-module-location'))
+  assert.ok(violations.some((item) => item.rule === 'import-path-case'))
+})
+
 test('受管源码根中的符号链接不能绕过架构检查', (t) => {
   const projectRoot = createFixture(t, {
     'common/contracts/index.ts': 'export const contract = true\n',

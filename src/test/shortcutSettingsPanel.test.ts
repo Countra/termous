@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   createShortcutChord,
   getShortcutAction,
+  SHORTCUT_ACTIONS,
 } from '#entities/shortcuts'
 import {
   buildShortcutSettingsRows,
@@ -23,14 +24,17 @@ const defaultSettings: ShortcutSettings = {
 
 test('快捷键设置行稳定按目录分组并区分默认未绑定与主动取消', () => {
   const defaultRows = buildShortcutSettingsRows(defaultSettings, 'win32')
-  assert.equal(defaultRows.length, 16)
+  assert.deepEqual(
+    defaultRows.map(({ definition }) => definition.id),
+    SHORTCUT_ACTIONS.map(({ id }) => id),
+  )
   assert.deepEqual(
     groupShortcutSettingsRows(defaultRows).map(({ group, rows }) => [group, rows.length]),
     [
       ['global', 1],
       ['terminal', 5],
       ['completion', 5],
-      ['files', 4],
+      ['files', 6],
       ['editor', 1],
     ],
   )

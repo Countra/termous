@@ -25,7 +25,7 @@ test('空名称不提交，保存裁剪首尾空白并保留名称版本', async
   render(<AccountDeviceName api={api} generation="account" device={device} busy={false} run={run} onChanged={onChanged} />)
   fireEvent.click(screen.getByRole('button', { name: '编辑名称' }))
   const input = await screen.findByLabelText('设备名称')
-  expect(screen.getByRole('button', { name: '保存名称' })).toBeDisabled()
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存名称' })).toBeDisabled())
   fireEvent.change(input, { target: { value: '　 ' } })
   fireEvent.click(screen.getByRole('button', { name: '保存名称' }))
   await screen.findByText('请输入 1–100 个字符，不能包含控制字符。')

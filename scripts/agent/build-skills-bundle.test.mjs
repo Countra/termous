@@ -5,9 +5,9 @@ import path from 'node:path'
 import test from 'node:test'
 import { prepareAgentSkillsBundle } from './build-skills-bundle.mjs'
 import { parseAgentSkillsManifest, validateAgentSkillsBundleDirectory } from './validate-skills-bundle.mjs'
-import { AgentSkillBundleSource } from '../../electron/agent/skillBundleSource.ts'
-import { calculateAgentSkillBundleFingerprint, createAgentSkillBundleSnapshot } from '../../electron/agent/skillBundle.ts'
-import { parseAgentSkillProductionManifest } from '../../electron/agent/skillBundleManifest.ts'
+import { AgentSkillBundleSource } from '../../electron/agent/skills/skillBundleSource.ts'
+import { calculateAgentSkillBundleFingerprint, createAgentSkillBundleSnapshot } from '../../electron/agent/contracts/skillBundle.ts'
+import { parseAgentSkillProductionManifest } from '../../electron/agent/skills/skillBundleManifest.ts'
 import { SkillInstaller } from '../../electron/skills/installer.ts'
 
 test('生产构建复制允许资源并生成稳定 manifest', async () => {

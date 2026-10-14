@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { agentRuntimeProtocolVersion } from '../../common/contracts/agent-runtime.ts'
-import { WorkerCoreClient } from '../../electron/agent/workerCoreClient.ts'
-import { AgentWorkerRuntime } from '../../electron/agent/workerRuntime.ts'
-import { createPiAgent } from '../../electron/agent/piAgentAdapter.ts'
-import { testAgentSkillBundle } from '../../electron/agent/skillBundleTestFixture.ts'
+import { WorkerCoreClient } from '../../electron/agent/worker/workerCoreClient.ts'
+import { AgentWorkerRuntime } from '../../electron/agent/worker/workerRuntime.ts'
+import { createPiAgent } from '../../electron/agent/runtime/piAgentAdapter.ts'
+import { testAgentSkillBundle } from '../../electron/agent/test-support/skillBundleTestFixture.ts'
 import { isTerminalCompletionBootstrap } from '../../electron/terminalCompletion/protocol.ts'
 
 // 由后端测试通过标准输入提供真实 HTTP 投影；所有网络边界使用本地合成响应。

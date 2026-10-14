@@ -3,7 +3,7 @@ import fs, { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'n
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { testAgentSkillBundle } from '../agent/skillBundleTestFixture.ts'
+import { testAgentSkillBundle } from '../agent/test-support/skillBundleTestFixture.ts'
 import { AppExitCoordinator } from '../appExitCoordinator.ts'
 import { SkillInstaller } from './installer.ts'
 import { resolveSkillInstallDirectory } from './installPaths.ts'

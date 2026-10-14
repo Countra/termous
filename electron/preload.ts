@@ -22,7 +22,7 @@ import type {
   UpdateRuntimeSummaryReportContext,
   UpdateSnapshot,
 } from '#common/contracts'
-import { agentRuntimeIPCChannels } from './agent/ipc.ts'
+import { agentRuntimeIPCChannels } from './agent/contracts/ipcChannels.ts'
 import { settingsIPCChannels, skillInstallIPCChannels } from '#common/contracts'
 import { createDesktopFileBridge } from './desktopFilesPreload'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
