@@ -1,3 +1,4 @@
+export { defaultExecutionBudget, isExecutionBudget, maxAgentMessageRequestUsage, type ExecutionBudget, type ExecutionLimits } from './agent-execution.ts'
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
 export type { RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
 export type { DesktopWindowBootstrap, DesktopWindowBridge } from './desktop-window'

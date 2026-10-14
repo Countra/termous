@@ -20,6 +20,7 @@ import type {
 export interface AgentSetupGateway {
   settings(signal?: AbortSignal): Promise<AgentSettings>
   updateSettings(input: {
+    execution_budget?: import('#common/contracts').ExecutionBudget
     default_model_id: string
     default_reasoning_level: AgentReasoningLevel
     global_context_window_tokens: number

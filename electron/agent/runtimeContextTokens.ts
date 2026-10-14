@@ -1,7 +1,14 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { estimatedImageTokens, runtimeImageDimensions } from './runtimeImageDimensions.ts'
 import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
 
-export { estimateMessageTokens as estimateRuntimeMessageTokens }
+export function estimateRuntimeMessageTokens(message: AgentMessage) {
+  if ((message.role !== 'user' && message.role !== 'toolResult') || typeof message.content === 'string') return estimateMessageTokens(message)
+  const images = message.content.filter((part) => part.type === 'image')
+  if (!images.length) return estimateMessageTokens(message)
+  return estimateMessageTokens({ ...message, content: message.content.filter((part) => part.type !== 'image') })
+    + images.reduce((sum, image) => sum + estimatedImageTokens(runtimeImageDimensions(image.data)), 0)
+}
 
 // 消息估算与 Provider 保持一致；用量有效性由调用方按模型身份和 checkpoint 边界确定。
 // 恢复后的摘要时间是本地重建时间，不能按时间戳否定已验证的历史用量。
@@ -16,7 +23,7 @@ export function estimateRuntimeContextTokens(messages: AgentMessage[]) {
         return { tokens: usageTokens + trailingTokens, usageTokens, trailingTokens, lastUsageIndex: index }
       }
     }
-    trailingTokens += estimateMessageTokens(message)
+    trailingTokens += estimateRuntimeMessageTokens(message)
   }
   return { tokens: trailingTokens, usageTokens: 0, trailingTokens, lastUsageIndex: null }
 }

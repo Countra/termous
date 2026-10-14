@@ -1,3 +1,4 @@
+import { maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   compareAgentSessionOrder,
   isAgentRunActive,
@@ -137,7 +138,9 @@ export function replaceAgentMessages(
     // 消息页与 Run 独立读取，迟到的旧列表不能抹掉已经确认的终态元数据。
     const preferred = previous?.turn_usage && !message.turn_usage && previous.revision >= message.revision ? previous : message
     const snapshot = previous ? retainResponseFailureParts(preferred, preferred === message ? previous : message) : preferred
-    return previous?.retries?.length ? { ...snapshot, retries: preferMessage(previous, message).retries } : snapshot
+    if (!previous) return snapshot
+    const merged = preferMessage(previous, message)
+    return { ...snapshot, retries: merged.retries, request_usage: merged.request_usage }
   })
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
   let overlays = current.run_part_overlays
@@ -403,11 +406,19 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
       ),
     }
   }
+  const retainedEvents = [...(current.run_events[event.run_id] ?? []), event]
+  if (event.kind === 'request_usage') {
+    // 保留足够的水合回放窗口，长任务不在事件缓存中另存一份无限统计历史。
+    let remaining = maxAgentMessageRequestUsage
+    for (let i = retainedEvents.length - 1; i >= 0; i--) {
+      if (retainedEvents[i]!.kind === 'request_usage' && --remaining < 0) retainedEvents.splice(i, 1)
+    }
+  }
   const state = applyRunEventToMessages({
     ...stateWithCursor,
     run_events: {
       ...current.run_events,
-      [event.run_id]: [...(current.run_events[event.run_id] ?? []), event],
+      [event.run_id]: retainedEvents,
     },
   }, run, event)
   return {
@@ -417,6 +428,13 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
 }
 
 function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, event: AgentRunEvent): AgentWorkspaceState {
+  if (event.kind === 'request_usage') {
+    const messages = current.messages[run.session_id]
+    if (!messages) return current
+    return { ...current, messages: { ...current.messages, [run.session_id]: messages.map((message) => message.id !== run.assistant_message_id ? message : {
+      ...message, request_usage: [...(message.request_usage ?? []).filter((v) => v.request_index !== event.payload.request_usage.request_index), event.payload.request_usage].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage),
+    }) } }
+  }
   if (event.kind === 'context_usage') {
     if (!current.sessions.some(({ id }) => id === run.session_id)) return current
     // 旧任务的事件补拉仍需推进游标，但不能覆盖同会话后续任务的实时占用。
@@ -607,10 +625,11 @@ function preferMessage(left: AgentMessage, right: AgentMessage) {
   const snapshot = left.revision > right.revision
     || (left.revision === right.revision && (left.turn_usage !== undefined || right.turn_usage === undefined)) ? left : right
   const preferred = retainResponseFailureParts(snapshot, snapshot === left ? right : left)
-  if (!left.retries?.length && !right.retries?.length) return preferred
   const retries = new Map((left.retries ?? []).map((activity) => [activity.retry_id, activity]))
   for (const activity of right.retries ?? []) retries.set(activity.retry_id, mergeAgentRetryActivity(retries.get(activity.retry_id), activity))
-  return { ...preferred, retries: [...retries.values()] }
+  const requests = new Map((left.request_usage ?? []).map((usage) => [usage.request_index, usage]))
+  for (const usage of right.request_usage ?? []) requests.set(usage.request_index, usage)
+  return { ...preferred, ...(retries.size ? { retries: [...retries.values()] } : {}), ...(requests.size ? { request_usage: [...requests.values()].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage) } : {}) }
 }
 
 function retainResponseFailureParts(preferred: AgentMessage, other: AgentMessage): AgentMessage {
@@ -632,7 +651,7 @@ function replayRuntimeMessageProjection(current: AgentWorkspaceState, sessionId:
     if (run.session_id !== sessionId) continue
     for (const event of current.run_events[run.id] ?? []) {
       state = applyRunEventToMessages(state, run, event)
-      if (event.kind === 'compaction' || event.kind === 'retry') state = applyAgentContextEvent(state, run, event)
+      if (event.kind === 'compaction' || event.kind === 'retry' || event.kind === 'request_usage') state = applyAgentContextEvent(state, run, event)
     }
     for (const part of Object.values(current.run_part_overlays[run.id] ?? {})) {
       state = applyPartOverlayToMessages(state, run, part)

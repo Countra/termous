@@ -7,7 +7,7 @@ import {
   type AssistantMessageEvent,
 } from '@earendil-works/pi-ai'
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream'
-import { runtimeProviderFailure, sanitizeRuntimeProviderError } from './runtimeProviderFailure.ts'
+import { runtimeProviderFailure, runtimeProviderRetryDetail, sanitizeRuntimeProviderError } from './runtimeProviderFailure.ts'
 import { projectPiUsage, type RuntimeUsage } from './runtimeUsage.ts'
 import type { RuntimeRetryEvent } from './workerCoreClient.ts'
 
@@ -184,10 +184,15 @@ export function createRuntimeRetryStreamFunction(
       const message = await stream.result()
       previous = message
       previousAccounted = false
-      // 鉴权失败可能附带暂时故障提示，须先排除，避免官方文本匹配误把确定性错误纳入重试。
+      // 确定性错误可能附带上游故障提示，须先排除，避免文本分类误触发重试。
       if (message.stopReason === 'error' && (isContextOverflow(message)
-        || runtimeProviderFailure(message.errorMessage).code === 'AGENT_MODEL_AUTH_FAILED')) {
+        || ['AGENT_MODEL_AUTH_FAILED', 'AGENT_MODEL_CONTENT_FILTERED'].includes(runtimeProviderFailure(message.errorMessage).code)
+        || /\b(?:400|404|405|413|415|422)\b|invalid_request_error/iu.test(message.errorMessage ?? ''))) {
         throw new RuntimeTerminalAssistantError(message)
+      }
+      if (message.stopReason === 'error') {
+        const detail = runtimeProviderRetryDetail(message.errorMessage)
+        if (detail !== message.errorMessage) return { ...message, errorMessage: detail }
       }
       return message
     }
@@ -204,7 +209,7 @@ export function createRuntimeRetryStreamFunction(
       try {
         message = await retryAssistantCall(produce, retryPolicy, retrySignal, {
           onRetryScheduled: async (_nextAttempt, _maximum, delayMs, detail) => {
-            errorMessage = detail
+            errorMessage = previous?.errorMessage ?? detail
             if (options.onFailedAttempt && previous) {
               // 摘要仅消费 result，没有增量消费者；只有普通回答的历史投影需要等待消费屏障。
               if (await output.drain(signal)) {
@@ -233,6 +238,8 @@ export function createRuntimeRetryStreamFunction(
         }
         message = error.message
       }
+      // 分类别名不得进入持久化、失败投影或重试 UI，最终失败仍返回供应商原始消息。
+      if (message.stopReason === 'error' && previous) message = previous
       if (message.stopReason === 'aborted' && previousArchived) message = cancelledMessage()
       if (message.stopReason === 'pending') {
         await publish('failed')

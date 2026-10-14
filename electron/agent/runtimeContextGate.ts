@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentTool, StreamFn } from '@earendil-works/pi-agent-core'
+import type { AgentMessage, AgentTool, StreamFn } from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import type { PiEventBridge } from './piEventBridge.ts'
 import { createRuntimeCompactionController } from './runtimeCompaction.ts'
@@ -25,6 +25,8 @@ interface RuntimeContextGateOptions {
   events: RuntimeEventWriter
   commitCheckpoint(input: RuntimeCheckpointInput, signal?: AbortSignal): Promise<RuntimeCheckpointResult>
   now?: () => number
+  projectMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
+  retainToolCall?(messages: AgentMessage[]): string | undefined
 }
 
 interface CompactionSource {
@@ -57,6 +59,8 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     streamFn: options.streamFn,
     providerErrorSecrets: options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : [],
     initialCheckpoint: checkpoint,
+    projectMessages: options.projectMessages,
+    retainToolCall: options.retainToolCall,
     now,
     captureSource: async () => {
       await options.events.flush()

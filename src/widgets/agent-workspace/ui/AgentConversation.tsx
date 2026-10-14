@@ -234,7 +234,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
             && message.status !== 'streaming'
             && message.usage
             && message.usage.total_tokens > 0 ? (
-            <AgentTurnUsage usage={message.usage} />
+            <AgentTurnUsage usage={message.usage} requests={message.request_usage} />
           ) : null}
         </article>
       ))}

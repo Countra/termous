@@ -99,6 +99,13 @@ export class PiEventBridge {
     }
   }
 
+  stopLocally(failure: { code: string; message: string }) {
+    if (this.runOutcome === 'failed') return
+    this.runOutcome = 'failed'
+    this.pushMessagePart(this.newPartID(), 'text', { text: { text: failure.message } })
+    this.writer.push('error', { error: failure })
+  }
+
   outcome() {
     return this.runOutcome
   }

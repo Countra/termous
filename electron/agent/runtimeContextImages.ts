@@ -32,6 +32,12 @@ export class RuntimeContextImages {
     this.registerToolContent(partID, message.content)
   }
 
+  reference(mimeType: string, data: string): RuntimeContextImageReference {
+    const source = this.sources.get(sourceKey(mimeType, imageHash(data)))
+    if (!source) throw new Error('AGENT_CONTEXT_IMAGE_SOURCE_MISSING')
+    return { ...source }
+  }
+
   serialize(messages: AgentMessage[]): unknown[] {
     return messages.map((message) => {
       if (message.role !== 'user' && message.role !== 'toolResult') return structuredClone(message)

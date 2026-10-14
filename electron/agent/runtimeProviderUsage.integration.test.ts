@@ -1,3 +1,4 @@
+import { withToolDiscovery } from './runtimeDiscoveryTestFixture.ts'
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
@@ -271,6 +272,7 @@ async function executeFixture(
     commitCheckpoint: async () => { throw new Error('未到阈值不应压缩') },
     fetch: async () => { requests += 1; return providerResponse(bootstrap.model.snapshot.api_mode, tokens) },
     ...overrides,
+    ...(overrides.fetch && overrides.mcp ? { fetch: withToolDiscovery(overrides.fetch, overrides.mcp.tools.map((tool) => tool.name)) } : {}),
   })
   try {
     const outcome = await agent.continue()

@@ -167,6 +167,7 @@ export type AgentWorkspaceMessagePart =
   | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
+  request_usage?: import('#entities/agent').AgentRequestUsage[]
   id: string
   role: 'user' | 'assistant'
   status: 'streaming' | 'completed' | 'failed' | 'interrupted' | 'interrupted_by_steer'

@@ -1,3 +1,4 @@
+import { isExecutionBudget, type ExecutionBudget } from '#common/contracts'
 import { isRuntimeDesktopBinding, type RuntimeDesktopResourceBinding } from './runtimeDesktopBinding.ts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import type { RuntimeAuditEvent } from './runtimeAuditWriter.ts'
@@ -32,6 +33,7 @@ export type AgentRunStatus =
   | 'interrupted'
 
 export interface RuntimeModelSnapshot {
+  execution_budget?: ExecutionBudget
   api_mode: 'responses' | 'chat_completions'
   base_url: string
   model_id: string
@@ -139,6 +141,7 @@ export interface RuntimeContextBootstrap {
   warning: boolean
   provider_usage_supported?: boolean
   context_assessment_supported?: boolean
+  request_usage_supported?: boolean
   checkpoint?: RuntimeContextCheckpoint
 }
 
@@ -150,6 +153,7 @@ export type RuntimeEventKind =
   | 'tool_completed'
   | 'tool_failed'
   | 'usage'
+  | 'request_usage'
   | 'error'
   | 'retry'
   | 'compaction'
@@ -190,6 +194,7 @@ export interface RuntimeSteerResult {
 }
 
 export interface WorkerCoreClientPort {
+  readHistoryImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('./runtimeCheckpoint.ts').RuntimeContextImageReference, signal?: AbortSignal): Promise<{ data: string; mime_type: string }>
   appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal): Promise<void>
   bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal): Promise<RuntimeBootstrap>
   appendEvents(
@@ -319,6 +324,15 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
       message_id: value.message_id,
       part_id: value.part_id,
     }
+  }
+
+  async readHistoryImage(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('./runtimeCheckpoint.ts').RuntimeContextImageReference, signal?: AbortSignal) {
+    const value = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-images`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, reference }),
+    }, runtimeBearer, signal)
+    if (!isRecord(value) || typeof value.data !== 'string' || typeof value.mime_type !== 'string'
+      || value.mime_type !== reference.mime_type || value.data.length > 12 * 1024 * 1024) throw new WorkerCoreError('AGENT_RUNTIME_IMAGE_INVALID')
+    return { data: value.data, mime_type: value.mime_type }
   }
 
   async commitCheckpoint(
@@ -599,6 +613,7 @@ function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBoots
     && Number(value.estimated_tokens) >= 0
     && typeof value.warning === 'boolean'
     && (value.provider_usage_supported === undefined || typeof value.provider_usage_supported === 'boolean')
+    && (value.request_usage_supported === undefined || typeof value.request_usage_supported === 'boolean')
     && (value.context_assessment_supported === undefined || typeof value.context_assessment_supported === 'boolean')
     && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
 }
@@ -661,6 +676,7 @@ export function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSna
     && Number(value.max_output_tokens) <= Number(value.context_window_tokens)
     && typeof value.supports_images === 'boolean'
     && (value.force_context_compression === undefined || typeof value.force_context_compression === 'boolean')
+    && (value.execution_budget === undefined || isExecutionBudget(value.execution_budget))
     && (value.context_compaction_threshold_percent === undefined
       || (Number.isInteger(value.context_compaction_threshold_percent)
         && Number(value.context_compaction_threshold_percent) >= 50

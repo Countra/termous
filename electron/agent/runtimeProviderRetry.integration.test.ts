@@ -11,8 +11,11 @@ import { createRuntimeRetryStreamFunction, type RuntimeRetryActivity } from './r
 import { runtimeProviderUsage } from './runtimeProviderUsage.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
 
-for (const api of ['openai-responses', 'openai-completions'] as const) {
-  test(`真实 ${api} 解析内存响应，503 后重试仅完成一个 Assistant 并保留上下文基准`, async (t) => {
+for (const [api, failure] of [
+  ['openai-responses', 'http503'], ['openai-responses', 'upstream_stream'],
+  ['openai-completions', 'http503'], ['openai-completions', 'upstream_stream'],
+] as const) {
+  test(`真实 ${api} 解析 ${failure}，重试仅完成一个 Assistant 并保留上下文基准`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     const model = { ...compactionTestModel, api }
     const events: Array<{ kind: RuntimeEventKind; payload: Record<string, unknown> }> = []
@@ -27,6 +30,12 @@ for (const api of ['openai-responses', 'openai-completions'] as const) {
     const providerFetch = createRestrictedProviderFetch(model.baseUrl, true, async (_input, init) => {
       requests += 1
       requestBodies.push(JSON.parse(String(init?.body)))
+      if (requests === 1 && failure === 'upstream_stream') {
+        const error = { code: 'upstream_error', type: 'upstream_error', message: 'Upstream request failed' }
+        const data = api === 'openai-responses'
+          ? { type: 'response.failed', response: { id: 'failed', status: 'failed', error } } : { error }
+        return new Response(`data: ${JSON.stringify(data)}\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+      }
       if (requests === 1) return new Response(JSON.stringify({ error: { message: 'fixture temporary upstream failure' } }), {
         status: 503, headers: { 'content-type': 'application/json' },
       })

@@ -5578,6 +5578,28 @@
         "validation": "Enter a whole percentage from 50 to 95."
       },
       "concurrency": {"title": "Concurrent AI sessions", "description": "Default: 4. Choose 1–8. Lowering the limit does not stop running tasks."},
+      "executionLimits": {
+        "title": "Execution budget",
+        "description": "Off by default for long, complex tasks. Enable limits on requests, tokens and repeated attempts per run. Changes apply to newly created runs; turning this off preserves your limits.",
+        "toggle": "Enable execution budget",
+        "validation": "Enter a whole number from {{min}} to {{max}}.",
+        "model_requests": {
+          "title": "Model requests per run",
+          "description": "Includes response rounds, retries and compaction. Stops new requests at the limit."
+        },
+        "total_tokens": {
+          "title": "Cumulative tokens per run",
+          "description": "Includes cache tokens, separate from session totals. One in-flight request may exceed the budget."
+        },
+        "consecutive_failures": {
+          "title": "Repeated failure limit",
+          "description": "Stops after consecutive failures of the same operation kind on the same resource."
+        },
+        "selection_attempts": {
+          "title": "Selection attempts per desktop flow",
+          "description": "New request IDs and captures do not reset the selection limit."
+        }
+      },
       "profileBinding": {
         "title": "SSH Profile association",
         "description": "When off, only associate the Profile so the AI assistant can create an SSH session on demand. When on, connect immediately during association.",
@@ -5585,6 +5607,7 @@
         "immediate": "Connect now",
         "onDemand": "On demand"
       },
+      "requestMetrics": {"title": "Model request details", "note": "Showing the latest {{limit}} requests; cumulative usage includes all requests. Schema tokens are estimates; image dimensions are not billed tokens.", "request": "Request", "tools": "Tools", "schema": "Schema estimate", "images": "Images", "tokens": "Tokens", "duration": "Duration", "response": "Response", "compaction": "Compaction", "status": "Status", "completed": "Completed", "failed": "Failed", "cancelled": "Cancelled"},
       "turnUsage": {
         "title": "Per-turn token usage",
         "description": "Show total, input, output, and cache usage below each AI assistant response.",

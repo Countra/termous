@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import type { AgentReadinessComponent } from '#entities/agent'
 import { ConfirmDialog } from '#shared/ui'
 import type { AgentSetupController } from '../model/useAgentSetupController.ts'
+import { AgentExecutionBudgetSettings } from './AgentExecutionBudgetSettings.tsx'
 import { AgentGlobalModelDefaults } from './AgentGlobalModelDefaults.tsx'
 import styles from './AgentSetup.module.scss'
 
@@ -153,6 +154,8 @@ export function AgentRuntimeSettings({
           </section>
         </div>
       </section>
+
+      <AgentExecutionBudgetSettings runtime={runtime} />
 
       <ConfirmDialog
         open={confirmBypass}

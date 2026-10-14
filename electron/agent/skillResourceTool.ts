@@ -12,13 +12,14 @@ export interface SkillResourceToolDetails {
   size: number
 }
 
-export function createSkillResourceTool(snapshot: AgentSkillBundleSnapshot): AgentTool {
+export function createSkillResourceTool(snapshot: AgentSkillBundleSnapshot, isPresent?: (content: string) => boolean, onRead?: (content: string) => unknown): AgentTool {
   const resources = new Map(snapshot.resources.map((resource) => [resource.uri, resource]))
   return {
     name: readSkillResourceToolName,
     label: '读取 Skill 资源',
-    description: '按 skill:// 地址读取当前 Run 快照内的 Skill 文档。',
+    description: '按 skill:// 地址读取当前 Run 快照内的文档；读取不执行业务操作。读完按说明使用实际工具，未加载的操作用 discover_tools 搜索，不要重复读文档代替执行。',
     parameters: Type.Object({
+      refresh: Type.Optional(Type.Boolean({ description: '显式重读全文；默认避免重复返回仍在上下文中的正文' })),
       uri: Type.String({
         description: 'Skill Catalog 中提供的完整 skill:// 资源地址',
         minLength: 1,
@@ -38,8 +39,12 @@ export function createSkillResourceTool(snapshot: AgentSkillBundleSnapshot): Age
       if (!resource) {
         throw new Error('AGENT_SKILL_RESOURCE_NOT_FOUND')
       }
+      const available = onRead?.(resource.content)
       return {
-        content: [{ type: 'text', text: resource.content }],
+        content: [
+          { type: 'text', text: (parameters as { refresh?: boolean }).refresh !== true && isPresent?.(resource.content) ? `该资源全文仍在当前上下文中：${resource.uri}。请执行文档中的下一步业务操作；缺少准确工具时调用 discover_tools。refresh 只重读相同文档，不会执行或恢复任务。` : resource.content },
+          ...(available ? [{ type: 'text' as const, text: JSON.stringify({ tool_navigation: { available_next_turn: available, guidance: '这些已授权工具将在下一轮可用；请按实际目标执行，读取 Skill 本身不会完成操作。' } }) }] : []),
+        ],
         details: {
           kind: 'skill_resource',
           uri: resource.uri,
@@ -62,7 +67,7 @@ export function isSkillResourceToolDetails(value: unknown): value is SkillResour
 
 export function skillCatalogPrompt(snapshot: AgentSkillBundleSnapshot) {
   const catalog = snapshot.catalog
-    .map((skill) => `- ${skill.name}: ${skill.description}（${skill.entry_uri}）`)
+    .map((skill) => `- ${skill.name}: ${skill.description.slice(0, 100)}（${skill.entry_uri}）`)
     .join('\n')
   return [
     '可用 Skill Catalog：',

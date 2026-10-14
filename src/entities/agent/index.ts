@@ -28,6 +28,7 @@ export {
   type AgentCompactionData,
   type AgentRetryActivity,
   type AgentRetryData,
+  type AgentRequestUsage,
   type AgentContextUsageData,
   type AgentContextUsageBasis,
   type AgentContextCompressionStatus,

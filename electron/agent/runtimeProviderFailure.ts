@@ -7,8 +7,13 @@ const failureRules = [
   ['AGENT_MODEL_TIMEOUT', /timed?\s*out|timeout|ETIMEDOUT|\b(?:408|504)\b/iu, '模型请求超时'],
   ['AGENT_MODEL_CONTENT_FILTERED', /content[_ -]?filter|content[_ -]?policy|safety.{0,20}(?:block|filter)/iu, '模型服务未返回内容：触发内容限制'],
   ['AGENT_MODEL_STREAM_INTERRUPTED', /stream.{0,100}(?:ended|closed|interrupt)|terminal response event|stop reason|unexpected (?:end|eof)|ECONNRESET|socket hang up|connection error|fetch failed|terminated/iu, '模型响应连接中断，未收到完整结束事件'],
-  ['AGENT_MODEL_PROVIDER_FAILED', /\b5\d\d\b|server[_ -]?error|internal[_ -]?(?:server[_ -]?)?error|service unavailable|overloaded/iu, '模型服务端处理失败'],
+  ['AGENT_MODEL_PROVIDER_FAILED', /\b5\d\d\b|server[_ -]?error|upstream[_ -]error|upstream request failed|internal[_ -]?(?:server[_ -]?)?error|service unavailable|overloaded/iu, '模型服务端处理失败'],
 ] as const
+
+// pi 1.2 的暂态分类未覆盖部分兼容网关用语；只向分类器提供等价名称，诊断与消息始终保留原文。
+export function runtimeProviderRetryDetail(message: string | undefined) {
+  return message?.replace(/\bupstream[_ -]error\b|\bupstream request failed\b/giu, 'server_error')
+}
 
 export function runtimeProviderFailure(message: string | undefined, secrets: readonly string[] = []) {
   const source = message ?? ''

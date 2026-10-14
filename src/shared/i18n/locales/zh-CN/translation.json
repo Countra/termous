@@ -5553,6 +5553,28 @@
         "validation": "请输入 50 至 95 的整数百分比。"
       },
       "concurrency": {"title": "同时运行的 AI 会话", "description": "默认 4 个，可设为 1–8 个。降低上限不会中断正在运行的任务。"},
+      "executionLimits": {
+        "title": "执行预算",
+        "description": "默认关闭，允许长时间复杂任务。开启后按单次任务限制请求、Token 和重复尝试；设置只对之后创建的任务生效，关闭时保留限额。",
+        "toggle": "启用执行预算",
+        "validation": "请输入 {{min}} 至 {{max}} 的整数。",
+        "model_requests": {
+          "title": "单次任务模型请求上限",
+          "description": "包含工具轮次、失败重试和上下文压缩；达到上限后停止新请求。"
+        },
+        "total_tokens": {
+          "title": "单次任务累计 Token 上限",
+          "description": "包含缓存 Token，与会话累计分开。按请求边界检查，允许一个在途请求超出预算。"
+        },
+        "consecutive_failures": {
+          "title": "连续同类失败上限",
+          "description": "同一资源的同类操作连续失败达到次数后停止，避免反复猜测参数。"
+        },
+        "selection_attempts": {
+          "title": "同一桌面选区流程尝试上限",
+          "description": "更换请求标识或重新截图不会重置尝试次数。"
+        }
+      },
       "profileBinding": {
         "title": "SSH Profile 关联方式",
         "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
@@ -5560,6 +5582,7 @@
         "immediate": "立即连接",
         "onDemand": "按需连接"
       },
+      "requestMetrics": {"title": "模型请求明细", "note": "每次实际请求分别统计，当前展示最近 {{limit}} 条；累计用量包含全部请求。工具 Token 为估算，图片尺寸不等于计费 Token。", "request": "请求", "tools": "工具", "schema": "Schema 估算", "images": "图片", "tokens": "Token", "duration": "耗时", "response": "回答", "compaction": "压缩", "status": "状态", "completed": "完成", "failed": "失败", "cancelled": "取消"},
       "turnUsage": {
         "title": "每轮 Token 用量",
         "description": "在每次 AI 助手回复末尾显示本轮的总量、输入、输出和缓存用量。",

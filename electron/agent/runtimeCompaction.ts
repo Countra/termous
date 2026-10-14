@@ -68,6 +68,8 @@ export interface RuntimeCompactionOptions<TSource> {
   providerErrorSecrets?: readonly string[]
   thinkingLevel?: ThinkingLevel
   initialCheckpoint?: RuntimeCompactionCheckpoint
+  projectMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
+  retainToolCall?(messages: AgentMessage[]): string | undefined
   captureSource(signal?: AbortSignal): Promise<TSource>
   commit(candidate: RuntimeCompactionCommit<TSource>, signal?: AbortSignal): Promise<void>
   onActivity(activity: RuntimeCompactionActivity): Promise<void> | void
@@ -78,6 +80,8 @@ export interface RuntimeCompactionOptions<TSource> {
 }
 
 export interface RuntimeCompactionController {
+  updateTools(tools: Tool[], messages: AgentMessage[]): void
+  invalidateUsage(messages: AgentMessage[]): void
   transformContext(messages: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]>
   observeContext(messages: AgentMessage[], providerUsage?: RuntimeProviderUsage): Promise<void>
   beforeProviderRequest(): void
@@ -88,19 +92,28 @@ export interface RuntimeCompactionController {
 export function createRuntimeCompactionController<TSource>(
   options: RuntimeCompactionOptions<TSource>,
 ): RuntimeCompactionController {
-  const budget = runtimeCompactionBudget(
+  let budget = runtimeCompactionBudget(
     options.model,
     options.thresholdPercent ?? 80,
     options.systemPrompt,
     options.tools,
   )
-  const hasCompactionCapacity = budget.availableTokens > 0
+  let hasCompactionCapacity = budget.availableTokens > 0
     && budget.settings.reserveTokens > 0 && budget.settings.keepRecentTokens > 0
   let checkpoint = options.initialCheckpoint && cloneRuntimeCompactionCheckpoint(options.initialCheckpoint)
   let gateFailure: RuntimeCompactionError | undefined
   let activeSignal: AbortSignal | undefined
   let lastContextUsage: string | undefined
   let forceCompression = options.forceCompression === true
+
+  const ignoredUsage = new WeakSet<AgentMessage>()
+  const invalidateUsage = (messages: AgentMessage[]) => {
+    for (const message of messages) ignoredUsage.add(message)
+    if (checkpoint) checkpoint.retainedTail = checkpoint.retainedTail.map(clearRuntimeCompactionUsage)
+    lastContextUsage = undefined
+  }
+  const validUsage = (messages: AgentMessage[]) => messages.map((message) => ignoredUsage.has(message) ? clearRuntimeCompactionUsage(message) : message)
+  const project = (messages: AgentMessage[], commit: boolean) => validUsage(options.projectMessages?.(messages, commit) ?? messages)
 
   const publishContext = async (
     messages: AgentMessage[], preparation?: RuntimeCompactionPreparation, providerUsage?: RuntimeProviderUsage,
@@ -126,12 +139,12 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
-    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings)
+    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => project(messages, false), options.retainToolCall)
     if (!hasRuntimeCompactionPrefix(prepared)) {
       const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
       if (calibratedSettings) {
         // 仅补救用量已过门禁但字符估算尚无切点的情况，仍保持完整工具调用边界。
-        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings)
+        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => project(messages, false), options.retainToolCall)
       }
     }
     return prepared
@@ -139,12 +152,13 @@ export function createRuntimeCompactionController<TSource>(
 
   const transformContext = async (raw: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]> => {
     activeSignal = signal
+    raw = validUsage(raw)
     let projected = raw.slice()
     let started = false
     const reason = forceCompression ? 'manual' : 'threshold'
     let tokensBefore: number | undefined
     try {
-      projected = runtimeCompactionProjection(raw, checkpoint)
+      projected = project(runtimeCompactionProjection(raw, checkpoint), true)
       if (gateFailure) return projected
       throwIfRuntimeCompactionAborted(signal)
       const preparation = prepareContext(raw, projected)
@@ -175,7 +189,7 @@ export function createRuntimeCompactionController<TSource>(
         timestamp: (options.now ?? Date.now)(),
         ...(checkpoint?.details ? { details: { ...checkpoint.details } } : {}),
       }
-      const nextProjection = runtimeCompactionProjection(raw, candidate)
+      const nextProjection = project(runtimeCompactionProjection(raw, candidate), false)
       const tokensAfter = runtimeCompactionEstimate(nextProjection, options.model, budget.fixedTokens)
       if (tokensAfter >= budget.triggerTokens || tokensAfter >= tokensBefore) {
         throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_INSUFFICIENT')
@@ -188,7 +202,7 @@ export function createRuntimeCompactionController<TSource>(
       }
       // Core 已原子提交摘要和完成活动，此后才改变本地投影，禁止提前裁剪历史。
       checkpoint = cloneRuntimeCompactionCheckpoint(candidate)
-      projected = nextProjection
+      projected = project(nextProjection, true)
       started = false
       await options.onActivity({ status: 'completed', reason, tokensBefore, tokensAfter })
       await publishContext(projected, prepareContext(raw, projected))
@@ -214,10 +228,16 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   return {
+    invalidateUsage,
+    updateTools: (tools, messages) => {
+      budget = runtimeCompactionBudget(options.model, options.thresholdPercent ?? 80, options.systemPrompt, tools)
+      hasCompactionCapacity = budget.availableTokens > 0 && budget.settings.reserveTokens > 0 && budget.settings.keepRecentTokens > 0
+      invalidateUsage(messages)
+    },
     transformContext,
     observeContext: async (raw, providerUsage) => {
       if (gateFailure) return
-      const projected = runtimeCompactionProjection(raw, checkpoint)
+      const projected = project(runtimeCompactionProjection(validUsage(raw), checkpoint), true)
       // 回复结束时只刷新窗口占用；压缩仍由下一次 Provider 请求前的唯一门禁执行。
       await publishContext(projected, prepareContext(raw, projected), providerUsage)
     },

@@ -1,4 +1,4 @@
-import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin } from '#common/contracts'
+import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -385,6 +385,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     parts,
     attachments,
     turn_usage: turnUsage,
+    ...(source.request_usage === undefined ? {} : { request_usage: array(source.request_usage, '请求用量记录无效', maxAgentMessageRequestUsage).map(decodeRequestUsage) }),
     ...(compactions ? { compactions } : {}),
     ...(retries ? { retries } : {}),
   }
@@ -494,6 +495,24 @@ export function decodeAgentRun(value: unknown): AgentRun {
   }
 }
 
+function decodeRequestUsage(value: unknown): import('#entities/agent').AgentRequestUsage {
+  const source = record(value, '请求用量无效')
+  return {
+    ...(source.error_code === undefined ? {} : { error_code: identifier(source.error_code, '请求错误码无效', 64) }),
+    request_index: positiveInteger(source.request_index, '请求序号无效'),
+    purpose: enumValue(source.purpose, ['response', 'compaction'] as const, '请求用途无效'),
+    tool_count: nonNegativeInteger(source.tool_count, '工具数量无效'),
+    schema_bytes: nonNegativeInteger(source.schema_bytes, '工具 Schema 大小无效'),
+    schema_tokens_estimate: nonNegativeInteger(source.schema_tokens_estimate, '工具用量估算无效'),
+    images: array(source.images ?? [], '请求图片尺寸无效', 256).map((value) => {
+      const image = record(value, '请求图片尺寸无效')
+      return { width: nonNegativeInteger(image.width, '图片宽度无效'), height: nonNegativeInteger(image.height, '图片高度无效') }
+    }),
+    usage: decodeUsage(source.usage), duration_ms: nonNegativeInteger(source.duration_ms, '请求耗时无效'),
+    outcome: enumValue(source.outcome, ['completed', 'failed', 'cancelled'] as const, '请求状态无效'),
+  }
+}
+
 export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   const source = record(value, 'Agent Run Event 响应无效')
   const kind = enumValue<AgentRunEventKind>(source.kind, agentRunEventKinds, 'Agent Run Event 类型无效')
@@ -506,12 +525,14 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage', 'request_usage']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
   }
   switch (kind) {
+    case 'request_usage':
+      return { ...base, kind, payload: { request_usage: decodeRequestUsage(payload.request_usage) } }
     case 'retry':
       return { ...base, kind, payload: { retry: decodeRetryData(payload.retry) } }
     case 'compaction':

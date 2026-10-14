@@ -175,6 +175,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
   ), [execute, gateway])
 
   const updateSettings = useCallback((patch: {
+    execution_budget?: import('#common/contracts').ExecutionBudget
     default_model_id?: string
     default_reasoning_level?: AgentReasoningLevel
     global_context_window_tokens?: number
@@ -203,6 +204,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
             ?? currentSettings.global_max_output_tokens,
           context_compaction_threshold_percent: patch.context_compaction_threshold_percent
             ?? currentSettings.context_compaction_threshold_percent,
+          execution_budget: patch.execution_budget ?? currentSettings.execution_budget,
           max_concurrent_runs: patch.max_concurrent_runs ?? currentSettings.max_concurrent_runs,
           connect_ssh_profile_on_bind: patch.connect_ssh_profile_on_bind
             ?? currentSettings.connect_ssh_profile_on_bind,

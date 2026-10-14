@@ -11,6 +11,7 @@ export const agentReadinessComponentStates = ['ready', 'missing', 'outdated', 'u
 export type AgentReadinessComponentState = (typeof agentReadinessComponentStates)[number]
 
 export interface AgentSettings {
+  execution_budget?: import('#common/contracts').ExecutionBudget
   default_model_id?: string
   default_reasoning_level: AgentReasoningLevel
   global_context_window_tokens: number
@@ -461,7 +462,21 @@ export type AgentMessagePart = {
   | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
 )
 
+export interface AgentRequestUsage {
+  error_code?: string
+  request_index: number
+  purpose: 'response' | 'compaction'
+  tool_count: number
+  schema_bytes: number
+  schema_tokens_estimate: number
+  images: { width: number; height: number }[]
+  usage: AgentUsage
+  duration_ms: number
+  outcome: 'completed' | 'failed' | 'cancelled'
+}
+
 export interface AgentMessage {
+  request_usage?: AgentRequestUsage[]
   id: string
   session_id: string
   role: AgentMessageRole
@@ -684,6 +699,7 @@ export const agentRunEventKinds = [
   'compaction',
   'retry',
   'context_usage',
+  'request_usage',
   'error',
 ] as const
 export type AgentRunEventKind = (typeof agentRunEventKinds)[number]
@@ -730,6 +746,7 @@ export type AgentRunEvent =
   | AgentRunEventBase<'steer_applied', {
       steer_applied: { message_id: string; part_id: string }
     }>
+  | AgentRunEventBase<'request_usage', { request_usage: AgentRequestUsage }>
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
   | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
   | AgentRunEventBase<'retry', { retry: AgentRetryData }>

@@ -6,13 +6,16 @@ export function prepareRuntimeCompaction(
   raw: AgentMessage[],
   checkpoint: RuntimeCompactionCheckpoint | undefined,
   settings: RuntimeCompactionSettings,
+  project?: (messages: AgentMessage[]) => AgentMessage[],
+  retainToolCall?: (messages: AgentMessage[]) => string | undefined,
 ): RuntimeCompactionPreparation | undefined {
   const covered = checkpoint?.coveredRawLength ?? 0
   if (!Number.isSafeInteger(covered) || covered < 0 || covered > raw.length) {
     throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_BOUNDARY_INVALID')
   }
   if (covered === raw.length) return undefined
-  const messages = [...(checkpoint?.retainedTail ?? []), ...raw.slice(covered)]
+  const combined = [...(checkpoint?.retainedTail ?? []), ...raw.slice(covered)]
+  const messages = project ? project(combined) : combined
   const cuts: number[] = []
   const pendingCalls = new Set<string>()
   for (let index = 0; index < messages.length; index += 1) {
@@ -32,6 +35,12 @@ export function prepareRuntimeCompaction(
       cut = cuts.find((candidate) => candidate >= index) ?? cuts[cuts.length - 1] ?? 0
       break
     }
+  }
+  const retainedCall = retainToolCall?.(messages)
+  const retainedIndex = retainedCall ? messages.findIndex((message) => message.role === 'toolResult' && message.toolCallId === retainedCall) : -1
+  if (retainedIndex >= 0) {
+    const safeCut = [...cuts].reverse().find((candidate) => candidate <= retainedIndex) ?? 0
+    cut = Math.min(cut, safeCut)
   }
   let turnStart = cut
   if (messages[cut]?.role !== 'user') {

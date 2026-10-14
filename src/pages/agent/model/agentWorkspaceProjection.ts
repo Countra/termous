@@ -152,6 +152,7 @@ export function projectAgentMessages(
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
       resources: resourcePart?.resources,
+      request_usage: message.request_usage,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
       duration_ms: message.role === 'assistant' && !streaming && (!messageRun || isAgentRunTerminal(messageRun.status))
         ? runDuration(messageRun?.started_at, messageRun?.completed_at)

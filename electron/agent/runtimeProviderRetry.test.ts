@@ -43,6 +43,18 @@ test('三次额外请求耗尽仅输出最后原始失败消息和终态', async
   assert.equal(fixture.activities[fixture.activities.length - 1]?.error_message, '503 exact final failure')
 })
 
+test('网关错误耗尽后返回原始对象，分类用别名不进入终态或历史', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const detail = 'upstream_error: Upstream request failed'
+  const messages = Array.from({ length: 4 }, (_, index) => failed(index + 1, detail))
+  const fixture = createFixture(messages)
+  const task = fixture.run()
+  await advance(t, fixture, [3000, 6000, 12000])
+  assert.equal((await task).message, messages[3])
+  assert.ok(fixture.activities.every((activity) => activity.error_message === detail))
+  assert.ok(fixture.failures.every((message) => message.errorMessage === detail))
+})
+
 for (const detail of [
   '401 Incorrect API key', 'insufficient_quota', 'context_length_exceeded',
   '401 authentication failed: upstream server error; try your request again',
@@ -50,6 +62,10 @@ for (const detail of [
   '403 Forbidden: permission denied by rate limit policy; please retry your request',
   'maximum context length is 50000 tokens', 'unsupported schema',
   'Prompt too long', '400 (no body)', '413 status code (no body)',
+  '401 upstream_error: Upstream request failed',
+  '400 invalid_request_error: upstream_error',
+  'upstream_error: insufficient_quota',
+  'upstream_error: content_filter',
 ]) {
   test(`确定性错误直接失败：${detail}`, async () => {
     const message = failed(10, detail)
@@ -62,7 +78,7 @@ for (const detail of [
   })
 }
 
-for (const detail of ['520 Cloudflare upstream error', 'We are currently experiencing high demand.', 'The upstream provider returned an error']) {
+for (const detail of ['upstream_error: Upstream request failed', 'Upstream request failed', '520 Cloudflare upstream error', 'We are currently experiencing high demand.', 'The upstream provider returned an error']) {
   test(`新版 pi 暂态错误保持有界退避：${detail}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     const completed = compactionTestAssistant('恢复完成', 20)
@@ -71,6 +87,8 @@ for (const detail of ['520 Cloudflare upstream error', 'We are currently experie
     await advance(t, fixture, [3000])
     assert.equal((await task).message, completed)
     assert.equal(fixture.requests(), 2)
+    assert.equal(fixture.activities[0]?.error_message, detail)
+    assert.equal(fixture.failures[0]?.errorMessage, detail)
     assert.deepEqual(fixture.activities.map(({ status }) => status), ['waiting', 'requesting', 'completed'])
   })
 }

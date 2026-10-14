@@ -1,10 +1,10 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { canonicalizeMcpFileToolName } from '#common/contracts'
-import { readSkillResourceToolName } from './skillBundle.ts'
+import { localToolNames } from './runtimeLocalTools.ts'
 import { decodeMCPToolName, encodeMCPToolName } from './toolNameCodec.ts'
 
 export function runtimeToolName(name: string) {
-  if (name === readSkillResourceToolName) return name
+  if (localToolNames.has(name)) return name
   return encodeMCPToolName(canonicalizeMcpFileToolName(decodeMCPToolName(name) ?? name))
 }
 

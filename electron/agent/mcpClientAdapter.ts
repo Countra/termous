@@ -19,6 +19,7 @@ const maximumEncodedToolNameLength = 64
 const visualDesktopTools = new Set([
   'termous.desktops.capture',
   'termous.desktop_workflows.captures.create',
+  'termous.desktop_workflows.captures.view',
   'termous.desktop_workflows.templates.preview',
   'termous.desktop_workflows.templates.get',
   'termous.desktop_workflows.templates.match',
@@ -34,6 +35,7 @@ export interface MCPToolDetails {
   kind: 'mcp'
   originalToolName: string
   result: CallToolResult
+  readOnly?: boolean
 }
 
 export interface AgentMCPConnection {
@@ -175,6 +177,7 @@ export function mapMCPTools(
             kind: 'mcp',
             originalToolName: definition.name,
             result,
+            ...(definition.annotations?.readOnlyHint === true ? { readOnly: true } : {}),
           } satisfies MCPToolDetails,
         } satisfies AgentToolResult<MCPToolDetails>
       },

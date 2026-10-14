@@ -165,6 +165,10 @@ export class AgentWorkerRuntime {
         mcp: this.mcp,
         events: this.events,
         skills: start.skills,
+        readHistoryImage: (reference, signal) => {
+          if (!this.core.readHistoryImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
+          return this.core.readHistoryImage(start, bootstrap.runtime_bearer, reference, signal)
+        },
         commitCheckpoint: (input, signal) => this.core.commitCheckpoint(
           start, bootstrap.runtime_bearer, input, signal,
         ),

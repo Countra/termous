@@ -1,9 +1,10 @@
+import { withToolDiscovery } from './runtimeDiscoveryTestFixture.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { RuntimeBootstrap, RuntimeEventInput } from './workerCoreClient.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
-import { agentRuntimeProtocolVersion } from '#common/contracts'
+import { agentRuntimeProtocolVersion, defaultExecutionBudget } from '#common/contracts'
 import {
   chatMaxTokensField,
   createPiAgent,
@@ -138,6 +139,21 @@ test('未绑定资源的普通 AI 助手系统提示不伪造可信资源块', (
   assert.match(prompt, /你是 Termous 内置 AI 助手。/u)
   assert.doesNotMatch(prompt, /Termous 内置 Agent/u)
   assert.doesNotMatch(prompt, /TERMOUS_VERIFIED_RESOURCE/u)
+})
+
+test('运行提示使用当前快照预算，旧快照默认不设累计限额', () => {
+  const bootstrap = runtimeBootstrap()
+  const defaults = createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle())
+  assert.match(defaults, /未启用/u)
+  assert.doesNotMatch(defaults, /模型请求 60 次/u)
+  bootstrap.model.snapshot.execution_budget = {
+    enabled: true, limits: { consecutive_failures: 2, selection_attempts: 4, model_requests: 30, total_tokens: 250000 },
+  }
+  const custom = createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle())
+  assert.match(custom, /模型请求 30 次/u)
+  assert.match(custom, /累计 250000 Token/u)
+  assert.match(custom, /同类连续失败 2 次、同一桌面选区流程尝试 4 次/u)
+  assert.doesNotMatch(custom, /累计 500000 Token/u)
 })
 
 test('历史 assistant 按 tool_result 边界拆分并恢复原 MCP 名称', () => {
@@ -378,7 +394,7 @@ for (const [history, apiMode] of [
       bootstrap, events: writer, skills: testAgentSkillBundle(),
       mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
       commitCheckpoint: async () => { throw new Error('短上下文不应重新压缩') },
-      fetch: async (_input, init) => {
+      fetch: withToolDiscovery(async (_input, init) => {
         requests++
         const body = JSON.parse(String(init?.body))
         const requestMessages = body.messages ?? body.input
@@ -428,7 +444,7 @@ for (const [history, apiMode] of [
         const chunk = { id: `chatcmpl_${requests}`, object: 'chat.completion.chunk', created: 1, model: 'test-model',
           choices: [{ index: 0, delta, finish_reason: requests < 3 ? 'tool_calls' : 'stop' }] }
         return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'Content-Type': 'text/event-stream' } })
-      },
+      }, mapped.tools.map((tool) => tool.name)),
     })
     try {
       assert.equal(await agent.continue(), 'completed')
@@ -437,7 +453,7 @@ for (const [history, apiMode] of [
       assert.deepEqual(calls, [{ session_ids: ['ses_new'], command: 'ls /root', client_request_id: 'new_operation' }])
       assert.deepEqual(bootstrap, original)
       assert.equal(events.filter((event) => event.kind === 'tool_failed').length, 1)
-      assert.equal(events.filter((event) => event.kind === 'tool_completed').length, 1)
+      assert.equal(events.filter((event) => event.kind === 'tool_completed').length, 2)
     } finally {
       agent.close()
       await writer.close()
@@ -1011,6 +1027,85 @@ test('pi 异步占用回调失败时等待通知和取消，不产生未处理�
   ))
   assert.equal(received, failure)
   assert.equal(aborted, true)
+})
+
+for (const mode of ['bounded', 'unbounded', 'uncertain', 'cancelled'] as const) test(`真实 pi 工具调用组边界：${mode}`, async () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.model.snapshot.execution_budget = { ...defaultExecutionBudget, enabled: mode === 'bounded' || mode === 'cancelled' }
+  bootstrap.model.snapshot.context_window_tokens = 128000
+  bootstrap.messages = [runtimeUserMessage([], { text: '测试失败边界' })]
+  bootstrap.context.request_usage_supported = true
+  const events: RuntimeEventInput[] = []
+  let dispatched = 0
+  const mapped = mapMCPTools([{ name: 'termous.desktops.pointer.click', inputSchema: { type: 'object', properties: {}, additionalProperties: false } }], async () => {
+    dispatched++
+    if (mode === 'cancelled' && dispatched === 3) agent.abort()
+    if (mode === 'uncertain') return { isError: true, content: [{ type: 'text', text: '{"error":{"code":"desktop_input_uncertain"}}' }] }
+    return { isError: true, content: [{ type: 'text', text: '{"error":{"code":"desktop_invalid","diagnostic":{"reason":"out_of_bounds"}}}' }] }
+  })
+  const writer = new RuntimeEventWriter({ start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() }, runtimeBearer: bootstrap.runtime_bearer, initialSequence: 1, onFailure: (error) => { throw error }, core: {
+    bootstrap: async () => bootstrap, appendAuditEvents: async () => {}, appendEvents: async (_start, _bearer, batch) => { events.push(...batch); return batch[batch.length - 1]!.sequence }, appendSteer: async () => { throw new Error('不应追加指令') }, commitCheckpoint: async () => { throw new Error('不应压缩') },
+  } })
+  let requests = 0
+  const agent = createPiAgent({ bootstrap, events: writer, skills: testAgentSkillBundle(), mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} }, commitCheckpoint: async () => { throw new Error('不应压缩') }, fetch: withToolDiscovery(async () => {
+    requests++
+    if (mode === 'unbounded' && requests === 2) return completionFixture({ content: '已完成' })
+    assert.equal(requests, 1)
+    const chunk = { id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'test-model', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: Array.from({ length: 4 }, (_, index) => ({ index, id: `click${index}`, type: 'function', function: { name: mapped.tools[0]!.name, arguments: '{}' } })) }, finish_reason: 'tool_calls' }] }
+    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+  }, ['termous.desktops.pointer.click']) })
+  try {
+    assert.equal(await agent.continue(), mode === 'unbounded' ? 'completed' : mode === 'cancelled' ? 'cancelled' : 'failed')
+    await writer.flush()
+    assert.equal(dispatched, mode === 'uncertain' ? 1 : mode === 'unbounded' ? 4 : 3)
+    assert.equal(events.filter((event) => event.kind === 'request_usage').length, mode === 'unbounded' ? 3 : 2)
+    const errors = JSON.stringify(events.filter((event) => event.kind === 'error'))
+    if (mode === 'bounded') assert.match(errors, /AGENT_RUNTIME_NO_PROGRESS/u)
+    if (mode === 'uncertain') assert.match(errors, /AGENT_RUNTIME_INPUT_UNCERTAIN/u)
+    if (mode === 'cancelled' || mode === 'unbounded') assert.doesNotMatch(errors, /AGENT_RUNTIME_NO_PROGRESS/u)
+  } finally { agent.close(); await writer.close() }
+})
+
+function completionFixture(delta: Record<string, unknown>, tokens = 100) {
+  const chunk = { id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'test-model', choices: [{ index: 0, delta: { role: 'assistant', ...delta }, finish_reason: delta.tool_calls ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: tokens - 10, completion_tokens: 10, total_tokens: tokens } }
+  return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+}
+
+for (const mode of ['final', 'tool', 'request'] as const) test(`真实 pi 预算请求边界：${mode}`, async () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.model.snapshot.context_window_tokens = 128000
+  bootstrap.model.snapshot.execution_budget = { enabled: true, limits: { ...defaultExecutionBudget.limits, total_tokens: 10000, model_requests: mode === 'request' ? 1 : 60 } }
+  bootstrap.context.request_usage_supported = true
+  bootstrap.messages = [runtimeUserMessage([], { text: '预算边界' })]
+  const events: RuntimeEventInput[] = []
+  let dispatched = 0
+  let requests = 0
+  const mapped = mapMCPTools([{ name: 'termous.hosts.list', inputSchema: { type: 'object', properties: {} } }], async () => {
+    dispatched++
+    return { content: [{ type: 'text', text: '完成' }] }
+  })
+  const writer = new RuntimeEventWriter({ start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() }, runtimeBearer: bootstrap.runtime_bearer, initialSequence: 1, onFailure: (error) => { throw error }, core: {
+    bootstrap: async () => bootstrap, appendAuditEvents: async () => {}, appendEvents: async (_start, _bearer, batch) => { events.push(...batch); return batch[batch.length - 1]!.sequence }, appendSteer: async () => { throw new Error('不应追加指令') }, commitCheckpoint: async () => { throw new Error('不应压缩') },
+  } })
+  const agent = createPiAgent({ bootstrap, events: writer, skills: testAgentSkillBundle(), mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} }, commitCheckpoint: async () => { throw new Error('不应压缩') }, fetch: async () => {
+    requests++
+    assert.ok(requests <= 2)
+    if (requests === 1 && mode !== 'final') return completionFixture({ tool_calls: [{ index: 0, id: 'discover', type: 'function', function: { name: 'discover_tools', arguments: JSON.stringify({ query: '工具', names: ['termous.hosts.list'] }) } }] })
+    if (mode === 'request') assert.fail('本地请求上限未阻止第二次网络请求')
+    return completionFixture(mode === 'final' ? { content: '已完成答案' } : { tool_calls: [{ index: 0, id: 'list', type: 'function', function: { name: mapped.tools[0]!.name, arguments: '{}' } }] }, 11000)
+  } })
+  try {
+    assert.equal(await agent.continue(), mode === 'final' ? 'completed' : 'failed')
+    await writer.flush()
+    assert.equal(dispatched, 0)
+    assert.equal(requests, mode === 'tool' ? 2 : 1)
+    const errors = JSON.stringify(events.filter((event) => event.kind === 'error'))
+    if (mode === 'final') {
+      assert.equal(errors, '[]')
+      assert.match(JSON.stringify(events.filter((event) => event.kind === 'request_usage')), /11000/u)
+    } else assert.match(errors, mode === 'tool' ? /AGENT_RUNTIME_TOKEN_LIMIT/u : /AGENT_RUNTIME_REQUEST_LIMIT/u)
+    assert.equal(events.filter((event) => event.kind === 'retry').length, 0)
+  } finally { agent.close(); await writer.close() }
 })
 
 function runtimeBootstrap(): RuntimeBootstrap {
