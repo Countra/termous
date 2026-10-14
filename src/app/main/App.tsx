@@ -15,6 +15,7 @@ import { AgentPage } from '#pages/agent'
 import { AuditPage } from '#pages/audit'
 import { projectAgentDesktopReferences } from './model/agentDesktopReferences.ts'
 import { useAgentWorkflowReferences } from './model/useAgentWorkflowReferences.ts'
+import { useStorageStatus } from './model/useStorageStatus.ts'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -158,6 +159,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { notification } = AntdApp.useApp()
   const { gateways, runtimeConfigReady, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
   const mounts = useMountManagement(gateways.mounts, apiReady)
+  useStorageStatus(gateways.runtime, apiReady)
   const hostIconSHAByID = useMemo(
     () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
     [data.hostIcons],

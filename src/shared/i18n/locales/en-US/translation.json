@@ -1,4 +1,15 @@
 {
+  "storageStatus": {
+    "title": "Local storage unavailable",
+    "unavailable": "{{modules}} is currently unavailable. Existing data has not been replaced with empty data. Check startup diagnostics and restart after resolving the issue. Codes: {{codes}}",
+    "checkFailed": "Could not read local storage status. Check the Core connection and startup diagnostics.",
+    "domains": {
+      "core": "Configuration",
+      "agent": "AI assistant",
+      "workflows": "Desktop workflows",
+      "audit": "Audit"
+    }
+  },
   "imagePreview": {
     "title": "Image preview",
     "controls": "Image controls",

@@ -1,4 +1,15 @@
 {
+  "storageStatus": {
+    "title": "部分本机存储不可用",
+    "unavailable": "{{modules}} 暂时无法使用，已有数据不会被替换为空数据。请检查启动诊断并在修复后重启。错误码：{{codes}}",
+    "checkFailed": "无法读取本机存储状态，请检查 Core 连接和启动诊断。",
+    "domains": {
+      "core": "配置",
+      "agent": "AI 助手",
+      "workflows": "桌面脚本",
+      "audit": "审计"
+    }
+  },
   "imagePreview": {
     "title": "图片预览",
     "controls": "图片查看工具",

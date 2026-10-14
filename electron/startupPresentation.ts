@@ -14,6 +14,7 @@ export interface StartupPresentationView {
   presentationId: number
   phase: StartupPresentationPhase
   database: CoreStartupSnapshot['database']
+  databases?: CoreStartupSnapshot['databases']
   failure: CoreStartupSnapshot['failure']
   attention: CoreStartupSnapshot['attention']
   windowVisible: boolean
@@ -168,7 +169,8 @@ export class StartupPresentation {
         if (this.runningPresentedAt === null || now < this.runningPresentedAt + databaseRunningMinimumMs) {
           phase = 'database-running'
           if (this.runningPresentedAt !== null) deadline = this.runningPresentedAt + databaseRunningMinimumMs
-        } else if (database.status === 'running') {
+        } else if (database.status === 'running' || snapshot.phase === 'database') {
+          // 单个库完成仍需等待协调器结束所有准备操作，不能提前显示整体完成。
           phase = 'database-running'
         } else if (this.completedPresentedAt === null || now < this.completedPresentedAt + databaseCompletedMinimumMs) {
           phase = 'database-completed'
@@ -201,6 +203,7 @@ export class StartupPresentation {
       presentationId: this.view.presentationId + (stageChanged ? 1 : 0),
       phase,
       database: snapshot?.database ?? null,
+      databases: snapshot?.databases,
       failure: snapshot?.failure ?? this.rendererFailure,
       attention: snapshot?.attention ?? null,
       windowVisible: this.visible,

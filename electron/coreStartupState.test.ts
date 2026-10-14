@@ -76,7 +76,20 @@ test('明确数据库失败保留原因与确认版本，通用退出错误和�
   assert.equal(state.getSnapshot().phase, 'failed')
 })
 
-test('换端口保留已完成迁移摘要且不短暂显示可重试的失败', () => {
+test('单库完成不放行服务，领域故障在完整快照中保留到就绪', () => {
+  const { state } = createState()
+  const core = { id: '1-51', domain: 'core', role: 'live', status: 'completed', confirmedVersion: 51 } as const
+  const agent = { id: '2-2', domain: 'agent', role: 'live', status: 'failed', targetVersion: 2, code: 'DB_MIGRATION_FAILED' } as const
+  state.accept(event(1, { database: core, databases: [core] }), 100)
+  assert.equal(state.getSnapshot().phase, 'database')
+  state.accept(event(2, { phase: 'services', database: agent, databases: [core, agent] }), 200)
+  state.ready(300)
+  assert.equal(state.getSnapshot().phase, 'ready')
+  assert.equal(state.getSnapshot().failure, null)
+  assert.deepEqual(state.getSnapshot().databases, [core, agent])
+})
+
+test('换端口不短暂显示可重试失败，新实例重新确认各库版本', () => {
   const { state } = createState()
   const database = { status: 'completed', operation: 'upgrade', confirmedVersion: 37 } as const
   state.accept(event(1, { phase: 'services', database }), 100)
@@ -87,7 +100,7 @@ test('换端口保留已完成迁移摘要且不短暂显示可重试的失败',
   state.bindPID(456)
   assert.equal(state.getPendingFailure(), null)
   state.accept(event(1, { instanceId: 'instance-2', pid: 456, database: { status: 'unchanged' } }), 400)
-  assert.deepEqual(state.getSnapshot().database, database)
+  assert.deepEqual(state.getSnapshot().database, { status: 'unchanged' })
 })
 
 test('恢复重启创建全新状态但 revision 全局递增，外部 Core 不伪造迁移状态', () => {

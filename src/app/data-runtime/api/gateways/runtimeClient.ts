@@ -1,5 +1,5 @@
 import type { AppConfig } from '#common/contracts';
-import type { CoreRuntimeInfo } from "../../model/runtimeTypes";
+import type { CoreRuntimeInfo, StorageStatus } from "../../model/runtimeTypes";
 import { TermousApiTransport } from '#shared/api';
 
 export class RuntimeClient extends TermousApiTransport {
@@ -7,7 +7,11 @@ export class RuntimeClient extends TermousApiTransport {
     super(config)
   }
 
-health() {
+  storageStatus(signal?: AbortSignal) {
+    return this.request<StorageStatus>('/api/v1/storage/status', { signal })
+  }
+
+  health() {
     return this.request<{ status: string }>('/api/v1/healthz')
   }
 

@@ -15,6 +15,18 @@ const event: CoreStartupEvent = {
 }
 const line = (value: unknown) => `${coreStartupPrefix}${JSON.stringify(value)}`
 
+test('多库失败事实允许协调器降级，不混用主库和领域版本', () => {
+  const databases = [
+    { id: '1-51', domain: 'core', role: 'live', status: 'completed', confirmedVersion: 51 },
+    { id: '2-2', domain: 'agent', role: 'live', status: 'failed', targetVersion: 2, confirmedVersion: 1, code: 'DB_MIGRATION_FAILED' },
+    { id: '3-2', domain: 'workflows', role: 'live', status: 'completed', confirmedVersion: 2 },
+  ]
+  const value = { ...event, phase: 'services', database: databases[2], databases }
+  assert.deepEqual(parseCoreStartupEvent(line(value)), value)
+  assert.equal(parseCoreStartupEvent(line({ ...value, databases: [databases[0], databases[0]] })), null)
+  assert.equal(parseCoreStartupEvent(line({ ...value, databases: [{ ...databases[0], domain: 'unknown' }] })), null)
+})
+
 test('启动事件跨 UTF-8 字节拆包及多行读取仍保留具体中文原因', () => {
   const events: CoreStartupEvent[] = []
   const parser = new CoreStartupEventParser((item) => events.push(item))

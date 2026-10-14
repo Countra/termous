@@ -12,6 +12,7 @@ const testState = vi.hoisted(() => {
       subscribeStatus: () => () => {},
       eventsUrl: () => 'ws://127.0.0.1/cloud/events',
     },
+    runtime: { storageStatus: vi.fn(async () => ({ databases: [{ domain: 'core', status: 'ready', version: 51 }] })) },
     settingsGateway: { getModule: () => undefined, readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: () => () => {} },
     action,
     notifications: {
@@ -731,6 +732,7 @@ vi.mock('#app/data-runtime', () => ({
   localSettingsGateway: { getModule: () => undefined, readModule: async () => ({ id: 'terminal_local', schema_version: 1, revision: 1, value: { ssh_smooth_scroll: false }, state: { status: 'applied' } }), updateModule: vi.fn(), subscribeSettings: () => () => {} },
   useTermousData: () => ({
     gateways: {
+      runtime: testState.runtime,
       cloud: testState.cloud,
       settings: testState.settingsGateway,
       forwards: {},
