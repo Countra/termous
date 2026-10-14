@@ -9,6 +9,8 @@ import { ScreenshotEditor } from './ScreenshotEditor'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 class SocketFixture {
+  static current: SocketFixture
+  constructor() { SocketFixture.current = this }
   onopen?: () => void; onclose?: () => void; onmessage?: () => void
   close() {}
 }
@@ -18,6 +20,25 @@ function gateway(): WorkflowGateway {
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 
 describe('桌面脚本手动管理', () => {
+  it('外部保存新版本时保留本地草稿，加载前仍要求确认', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const script: Script = { id: 'script', name: '原脚本', description: '', tags: [], revision: 1, created_at: '', updated_at: '' }
+    vi.mocked(api.list).mockResolvedValue([script])
+    vi.mocked(api.get).mockResolvedValue({ script, version: { script_id: 'script', number: 1, created_at: '', definition: { schema_version: 1, parameters: [], steps: [] } } })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} view="scripts" onViewChange={() => undefined} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    fireEvent.click(await screen.findByRole('button', { name: /原脚本/ }))
+    const input = await screen.findByRole('textbox', { name: 'desktopWorkflow.scriptName' })
+    fireEvent.change(input, { target: { value: '未保存草稿' } })
+    vi.mocked(api.list).mockResolvedValue([{ ...script, revision: 2, name: 'MCP 更新' }])
+    act(() => SocketFixture.current.onmessage?.())
+    expect(await screen.findByText('desktopWorkflow.externalUpdate')).toBeVisible()
+    expect(input).toHaveValue('未保存草稿')
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.loadLatest' }))
+    await waitFor(() => expect(screen.getByText('desktopWorkflow.unsavedDescription')).toBeVisible())
+    expect(api.get).toHaveBeenCalledTimes(1)
+    view.unmount(); vi.unstubAllGlobals()
+  })
   it('保存期间完成的模板上传保留为未保存修改，不被旧请求覆盖', async () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway(); const dirty = vi.fn()

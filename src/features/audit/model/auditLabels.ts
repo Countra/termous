@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 
-export const auditScopes = ['hosts', 'sessions', 'files', 'commands', 'forwarding', 'snippets', 'remoteops', 'skills', 'agent', 'access', 'unknown']
+export const auditScopes = ['hosts', 'sessions', 'files', 'commands', 'forwarding', 'snippets', 'remoteops', 'desktops', 'desktop_workflows', 'skills', 'agent', 'access', 'unknown']
 
 // 未登记操作保留原始标识，避免把新事件误映射为已有操作。
 export function auditActionLabel(t: TFunction, action: string): string {

@@ -12,6 +12,8 @@ import { RunReport } from './RunReport'
 import { ScreenshotEditor } from './ScreenshotEditor'
 import { StepProperties } from './StepProperties'
 import { StepTree } from './StepTree'
+import { WorkflowOrigin } from './WorkflowOrigin'
+import { workflowAuthor } from '../model/author'
 import styles from './WorkflowWorkspace.module.scss'
 
 export interface WorkflowWorkspaceProps {
@@ -102,15 +104,18 @@ export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewCha
   }
   const started = (run: Run) => { setRunDialog(undefined); setSelectedRun(run.id); onViewChange('runs'); void data.reload() }
   const properties = step && <StepProperties step={step} parameters={draft?.definition.parameters ?? []} onChange={changeStep} />
+  const latest = data.scripts.find((item) => item.id === draft?.script?.id)
+  const externallyUpdated = !!draft?.script && !!latest && latest.revision > draft.script.revision
   const filtered = data.scripts.filter((item) => `${item.name} ${item.description} ${(item.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
   return <div ref={root} className={styles.workspace}>
     {view === 'scripts' ? <>
       <aside className={styles.catalog}>
         <div className={styles.toolbar}><Input.Search placeholder={t('desktopWorkflow.search')} value={search} onChange={(e) => setSearch(e.target.value)} /><Button disabled={busy} onClick={create}>{t('desktopWorkflow.create')}</Button></div>
-        <div className={styles.scroll}>{filtered.map((item) => <button key={item.id} className={`${styles['catalog-item']} ${draft?.script?.id === item.id ? styles.selected : ''}`} disabled={busy} onClick={() => guard(() => void load(item.id))}><strong>{item.name}</strong><span className={styles.hint}>v{item.revision}{item.tags?.length ? ` · ${item.tags.join(' / ')}` : ''}</span></button>)}</div>
+        <div className={styles.scroll}>{filtered.map((item) => <button key={item.id} className={`${styles['catalog-item']} ${draft?.script?.id === item.id ? styles.selected : ''}`} disabled={busy} onClick={() => guard(() => void load(item.id))}><strong className={styles['script-title']}><WorkflowOrigin author={item.creator} />{item.name}</strong><span className={styles.hint}>v{item.revision}{item.tags?.length ? ` · ${item.tags.join(' / ')}` : ''}</span></button>)}</div>
       </aside>
       <main className={styles.editor}>
         {(error ?? data.error) != null && <Alert type="error" title={workflowError(error ?? data.error, t)} closable onClose={() => setError(undefined)} />}
+        {externallyUpdated && <Alert type="info" title={t('desktopWorkflow.externalUpdate')} description={t('desktopWorkflow.externalUpdateHint')} action={<Button size="small" disabled={busy} onClick={() => guard(() => void load(draft!.script!.id))}>{t('desktopWorkflow.loadLatest')}</Button>} />}
         {draft ? <>
           <header className={styles['editor-header']}>
             <Input aria-label={t('desktopWorkflow.scriptName')} maxLength={120} value={draft.name} disabled={busy} onChange={(e) => change({ name: e.target.value })} />
@@ -149,6 +154,6 @@ export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewCha
       <RunReport gateway={gateway} id={selectedRun} revision={data.revision} onView={onViewDesktop} />
     </>}
     <Drawer open={narrow && propertiesOpen && !busy} title={t('desktopWorkflow.properties')} onClose={() => setPropertiesOpen(false)} size={340}>{properties}</Drawer>
-    <Modal open={!!versions} title={t('desktopWorkflow.history')} footer={null} onCancel={() => setVersions(undefined)}><div className={styles['version-list']}>{versions?.map((version) => <div key={version.number}><strong>v{version.number}</strong><span>{new Date(version.created_at).toLocaleString()}</span><Button disabled={busy || version.number === draft?.script?.revision} onClick={() => restore(version.number)}>{t('desktopWorkflow.restore')}</Button></div>)}</div></Modal>
+    <Modal open={!!versions} title={t('desktopWorkflow.history')} footer={null} onCancel={() => setVersions(undefined)}><div className={styles['version-list']}>{versions?.map((version) => <div key={version.number}><strong>v{version.number}</strong><span>{workflowAuthor(version.author, t)} · {new Date(version.created_at).toLocaleString()}</span><Button disabled={busy || version.number === draft?.script?.revision} onClick={() => restore(version.number)}>{t('desktopWorkflow.restore')}</Button></div>)}</div></Modal>
   </div>
 }

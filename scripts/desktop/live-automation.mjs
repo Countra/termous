@@ -8,6 +8,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 async function main() {
   // 此入口只连接显式启动的真实目标夹具；操作由本地队列逐项提交，图片保存在 TEMP。
   const root = fileURLToPath(new URL('../../', import.meta.url))
+  const workflows = process.env.TERMOUS_DESKTOP_WORKFLOW_FIXTURE === '1'
   const output = path.resolve(root, '../TEMP/runtime/desktop-mcp/live')
   await mkdir(output, { recursive: true })
   const queue = path.join(output, 'commands.json')
@@ -53,7 +54,8 @@ async function main() {
     if (grant) await call('control.release', { attachment_id: attachment.id, grant_id: grant.id }).catch(error => { clean = false; console.error(String(error)) })
     if (attachment) await call('detach', { attachment_id: attachment.id }).catch(error => { clean = false; console.error(String(error)) })
     if (desktop) await call('close', { session_id: desktop.id, connection_generation: desktop.connection_generation }).catch(error => { clean = false; console.error(String(error)) })
-    await client.close().catch(() => {})
+    await transport.terminateSession().catch(error => { clean = false; console.error(String(error)) })
+    await client.close().catch(error => { clean = false; console.error(String(error)) })
     runtime.close()
     const success = passed && clean && !operationFailed
     const report = { passed: success, finishedAt: new Date().toISOString(), protocol: desktop?.protocol, operations }
@@ -75,13 +77,15 @@ async function main() {
       attachment = (await call('get', { attachment_id: attachment.id, wait_ms: 10000 })).structuredContent.attachment
     }
     if (attachment.state !== 'ready') throw new Error(JSON.stringify(attachment))
-    grant = (await call('control.acquire', { attachment_id: attachment.id })).structuredContent.control.attachment?.grant
-    if (!grant) throw new Error('control approval did not produce a grant')
+    if (!workflows) {
+      grant = (await call('control.acquire', { attachment_id: attachment.id })).structuredContent.control.attachment?.grant
+      if (!grant) throw new Error('control approval did not produce a grant')
+    }
     await capture()
-    console.log(JSON.stringify({ phase: 'ready', protocol: target.protocol }))
+    console.log(JSON.stringify({ phase: 'ready', protocol: target.protocol, attachment: attachment.id }))
     let consumed = 0
     // 人工解锁与逐帧核对也需要时间；仍由业务授权独立限制控制期限。
-    const deadline = Date.now() + 15 * 60_000
+    const deadline = Date.now() + 30 * 60_000
     while (!closing && Date.now() < deadline) {
       try {
         const requests = JSON.parse(await readFile(queue, 'utf8'))
@@ -90,6 +94,21 @@ async function main() {
         consumed++
         if (request.tool === 'finish') { await finish(request.passed === true); break }
         if (request.tool === 'capture') { await capture(request.args); continue }
+        if (workflows && request.tool.startsWith('workflows.')) {
+          const name = request.tool.slice('workflows.'.length)
+          const result = await client.callTool({ name: `termous.desktop_workflows.${name}`, arguments: request.args ?? {} })
+          operations.push({ tool: request.tool, state: result.isError ? 'error' : 'accepted' })
+          if (result.isError) throw new Error(JSON.stringify(result.structuredContent ?? result.content))
+          const images = []
+          for (const [index, content] of result.content.entries()) {
+            if (content.type !== 'image') continue
+            const filename = path.join(output, `workflow-${Date.now()}-${index}.png`)
+            await writeFile(filename, Buffer.from(content.data, 'base64'))
+            images.push(filename)
+          }
+          console.log(JSON.stringify({ tool: request.tool, result: result.structuredContent, images }))
+          continue
+        }
         if (request.tool === 'control.acquire') {
           const result = await call('control.acquire', { attachment_id: attachment.id, ...request.args })
           grant = result.structuredContent.control.attachment?.grant
@@ -97,7 +116,8 @@ async function main() {
           console.log(JSON.stringify({ tool: request.tool, granted: true }))
           continue
         }
-        const result = await call(request.tool, { attachment_id: attachment.id, grant_id: grant.id, ...(request.tool.startsWith('pointer.') ? { screenshot_id: screenshot.screenshot_id } : {}), ...request.args })
+        const result = await call(request.tool, { attachment_id: attachment.id, grant_id: grant?.id, ...(request.tool.startsWith('pointer.') ? { screenshot_id: screenshot.screenshot_id } : {}), ...request.args })
+        if (request.tool === 'control.release') grant = undefined
         console.log(JSON.stringify({ tool: request.tool, result: result.structuredContent ?? result.content }))
       } catch (error) { operationFailed = true; console.error(String(error)) }
     }

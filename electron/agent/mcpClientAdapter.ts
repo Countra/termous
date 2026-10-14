@@ -16,6 +16,20 @@ const mcpConnectTimeoutMs = 15_000
 const mcpToolTimeoutMs = 10 * 60_000
 const maximumEncodedToolNameLength = 64
 
+const visualDesktopTools = new Set([
+  'termous.desktops.capture',
+  'termous.desktop_workflows.captures.create',
+  'termous.desktop_workflows.templates.preview',
+  'termous.desktop_workflows.templates.get',
+  'termous.desktop_workflows.templates.match',
+  'termous.desktop_workflows.templates.confirm',
+  'termous.desktop_workflows.assets.get',
+])
+
+export function requiresDesktopImages(name: string | null): boolean {
+  return name !== null && visualDesktopTools.has(name)
+}
+
 export interface MCPToolDetails {
   kind: 'mcp'
   originalToolName: string
@@ -68,6 +82,12 @@ export async function connectAgentMCP(
     maxStepUpRetries: 0,
   })
 
+  let closing: Promise<void> | undefined
+  const close = () => closing ??= (async () => {
+    // 正常退出与初始化失败共用回收路径；SDK close 本身只关闭传输。
+    try { await transport.terminateSession() } finally { await client.close() }
+  })()
+
   try {
     await client.connect(transport, {
       signal: options.signal,
@@ -96,12 +116,14 @@ export async function connectAgentMCP(
     return {
       tools: mapped.tools,
       originalName: (encodedName) => mapped.originalNames.get(encodedName) ?? null,
-      close: async () => {
-        await client.close()
-      },
+      close,
     }
   } catch (error) {
-    await client.close().catch(() => undefined)
+    try {
+      await close()
+    } catch (cleanupError) {
+      throw Object.assign(new Error('AGENT_MCP_INITIALIZATION_CLEANUP_FAILED'), { cause: error, cleanupError })
+    }
     throw error
   }
 }
@@ -198,8 +220,11 @@ export function createExactEndpointFetch(
       || target.password) {
       throw new Error('AGENT_MCP_ENDPOINT_VIOLATION')
     }
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
     return await fetchImplementation(input, {
       ...init,
+      ...(method.toUpperCase() === 'DELETE' ? { signal: AbortSignal.any([AbortSignal.timeout(5_000), ...(signal ? [signal] : [])]) } : {}),
       cache: 'no-store',
       redirect: 'manual',
     })

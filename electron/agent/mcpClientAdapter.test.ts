@@ -6,7 +6,39 @@ import {
   createExactEndpointFetch,
   createSerialToolInvoker,
   mapMCPTools,
+  requiresDesktopImages,
 } from './mcpClientAdapter.ts'
+
+test('桌面脚本递归 Schema 可映射，双图预览保留顺序与引用', async () => {
+  const result: CallToolResult = { content: [
+    { type: 'image', mimeType: 'image/png', data: 'template-png' },
+    { type: 'image', mimeType: 'image/png', data: 'context-png' },
+    { type: 'text', text: '图片 1：原像素模板；图片 2：选区上下文。' },
+  ], structuredContent: { preview: { preview_id: 'preview', width: 24, height: 24 } } }
+  const mapped = mapMCPTools([{ name: 'termous.desktop_workflows.templates.preview', inputSchema: {
+    type: 'object', properties: { steps: { type: 'array', items: { $ref: '#/$defs/step' } } },
+    $defs: { step: { type: 'object', properties: {
+      id: { type: 'string' }, steps: { type: 'array', items: { $ref: '#/$defs/step' } },
+    }, required: ['id'] } },
+  } }], async () => result)
+  const executed = await mapped.tools[0]!.execute('preview', { steps: [{ id: 'parent', steps: [{ id: 'child' }] }] })
+  assert.deepEqual(executed.content.slice(0, 3), result.content)
+  const references = executed.content[3]
+  assert.ok(references?.type === 'text')
+  assert.match(references.text, /termous-image:\/\/tool\/preview\/0/)
+  assert.match(references.text, /termous-image:\/\/tool\/preview\/1/)
+  assert.doesNotMatch(references.text, /template-png|context-png/)
+})
+
+test('无图像模型拒绝模板预览和确认，但允许已有脚本管理', () => {
+  for (const operation of ['captures.create', 'templates.preview', 'templates.get', 'templates.match', 'templates.confirm', 'assets.get']) {
+    assert.equal(requiresDesktopImages(`termous.desktop_workflows.${operation}`), true)
+  }
+  for (const operation of ['list', 'get', 'update', 'runs.start', 'runs.get']) {
+    assert.equal(requiresDesktopImages(`termous.desktop_workflows.${operation}`), false)
+  }
+  assert.equal(requiresDesktopImages(null), false)
+})
 
 test('桌面截图同时投影图片和坐标说明，结构化结果不丢失', async () => {
   const result: CallToolResult = { content: [
@@ -78,6 +110,7 @@ test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页�
   } }]
   const methods: string[] = []
   const cursors: unknown[] = []
+  let terminations = 0
   const connection = await connectAgentMCP({
     coreBaseURL: 'http://127.0.0.1:52000', endpoint: '/mcp',
     bearerToken: 'fixture-token', protocolVersion: '2025-11-25',
@@ -85,7 +118,11 @@ test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页�
       const request = new Request(input, init)
       assert.equal(request.headers.get('Authorization'), 'Bearer fixture-token')
       if (request.method === 'GET') return new Response(null, { status: 405 })
-      if (request.method === 'DELETE') return new Response(null, { status: 200 })
+      if (request.method === 'DELETE') {
+        assert.equal(request.headers.get('Mcp-Session-Id'), 'fixture-sdk-session')
+        terminations++
+        return new Response(null, { status: 200 })
+      }
       const rpc = await request.json() as { id?: number; method: string; params?: Record<string, unknown> }
       methods.push(rpc.method)
       if (rpc.id === undefined) return new Response(null, { status: 202 })
@@ -103,7 +140,7 @@ test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页�
         assert.deepEqual(rpc.params, { name: secondPage[0]!.name, arguments: { paths: ['/fixture.txt'] }, _meta: { 'termous/tool-call-id': 'fixture-call' } })
         result = { content: [{ type: 'text', text: '预览完成' }] }
       }
-      return Response.json({ jsonrpc: '2.0', id: rpc.id, result })
+      return Response.json({ jsonrpc: '2.0', id: rpc.id, result }, { headers: { 'Mcp-Session-Id': 'fixture-sdk-session' } })
     },
   })
   try {
@@ -115,7 +152,8 @@ test('MCP 连接使用 SDK 汇总动态分页目录，并可调用最后一页�
     assert.deepEqual(result.content, [{ type: 'text', text: '预览完成' }])
     assert.equal(methods.filter((method) => method === 'tools/call').length, 1)
   } finally {
-    await connection.close()
+    await Promise.all([connection.close(), connection.close()])
+    assert.equal(terminations, 1)
   }
 })
 
@@ -123,6 +161,7 @@ test('MCP 动态目录读取后续分页时取消会中止 HTTP 且不继续请�
   const controller = new AbortController()
   let secondPageSignal: AbortSignal | undefined
   let pageCount = 0
+  let terminations = 0
   let notifySecondPage: () => void = () => undefined
   const secondPageStarted = new Promise<void>((resolve) => { notifySecondPage = resolve })
   const connection = connectAgentMCP({
@@ -131,6 +170,12 @@ test('MCP 动态目录读取后续分页时取消会中止 HTTP 且不继续请�
     fetch: async (input, init) => {
       const request = new Request(input, init)
       if (request.method === 'GET') return new Response(null, { status: 405 })
+      if (request.method === 'DELETE') {
+        assert.equal(request.headers.get('Mcp-Session-Id'), 'cancelled-sdk-session')
+        assert.equal(request.signal.aborted, false)
+        terminations++
+        return new Response(null, { status: 200 })
+      }
       const rpc = await request.json() as { id?: number; method: string; params?: Record<string, unknown> }
       if (rpc.id === undefined) return new Response(null, { status: 202 })
       let result: unknown
@@ -150,7 +195,7 @@ test('MCP 动态目录读取后续分页时取消会中止 HTTP 且不继续请�
         result = { tools: [{ name: 'termous.hosts.list', inputSchema: { type: 'object', properties: {} } }],
           nextCursor: 'next-page' }
       }
-      return Response.json({ jsonrpc: '2.0', id: rpc.id, result })
+      return Response.json({ jsonrpc: '2.0', id: rpc.id, result }, { headers: { 'Mcp-Session-Id': 'cancelled-sdk-session' } })
     },
   })
   const rejected = assert.rejects(connection)
@@ -160,6 +205,7 @@ test('MCP 动态目录读取后续分页时取消会中止 HTTP 且不继续请�
     await rejected
     assert.equal(secondPageSignal?.aborted, true)
     assert.equal(pageCount, 2)
+    assert.equal(terminations, 1)
   } finally {
     controller.abort()
     await rejected

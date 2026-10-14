@@ -604,6 +604,24 @@ function approvalSnapshotFixture(state: string) {
   }
 }
 
+test('桌面脚本审批固定版本和实际目标，不借用 SSH 字段', () => {
+  const operation = { domain: 'desktop_workflow', action: 'run', script_id: 'script', script_version: 2,
+    run_id: 'run', resource_id: 'desktop', resource_kind: 'vnc', mode: 'takeover',
+    lifecycle: 'existing_connection', timeout_seconds: 1800 }
+  const decode = (op: Record<string, unknown>) => decodeMcpApprovalSnapshot({
+    instance_id: 'fixture', revision: 1, items: [{ ...approvalFixture('pending'), kind: 'desktop_workflow',
+      session_ids: [], targets: [], operation: op }],
+  }).items[0]!
+  const approval = decode(operation)
+  assert.equal(approval.kind, 'desktop_workflow')
+  assert.equal(approval.operation?.script_version, 2)
+  assert.equal(approval.command, '')
+  for (const changed of [{ script_version: 0 }, { run_id: '' }, { resource_kind: 'ssh' }, { timeout_seconds: 3600 }, { lifecycle: 'unknown' }]) {
+    assert.throws(() => decode({ ...operation, ...changed }))
+  }
+  assert.equal(decode({ action: 'delete', script_id: 'script', script_version: 2 }).operation?.action, 'delete')
+})
+
 function approvalFixture(state: string) {
   return {
     id: 'approval-1',

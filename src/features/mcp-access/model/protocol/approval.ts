@@ -35,6 +35,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_update',
 ])
 const approvalKinds = new Set<McpApprovalKind>([
+  'desktop_workflow',
   'desktop',
   'command',
   'files',
@@ -158,6 +159,7 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     }
   }
   if (normalizedKind === 'desktop') return { ...common, kind: 'desktop', command: '', operation: operation! }
+  if (normalizedKind === 'desktop_workflow') return { ...common, kind: 'desktop_workflow', command: '', operation: operation! }
   if (normalizedKind === 'snippet') {
     return {
       ...common,
@@ -183,7 +185,7 @@ function decodeMcpApprovalOperation(
   const resourceKind = operation.resource_kind === undefined
     ? undefined
     : requireString(operation.resource_kind, 'MCP 审批资源类型无效')
-  if (resourceKind && !(kind === 'desktop' ? ['rdp', 'vnc'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
+  if (resourceKind && !(['desktop', 'desktop_workflow'].includes(kind) ? ['rdp', 'vnc'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
     throw new McpAccessProtocolError('MCP 审批资源类型无效')
   }
   if (kind === 'desktop') {
@@ -193,6 +195,19 @@ function decodeMcpApprovalOperation(
     }
   }
   const internal = optionalBoolean(operation.internal, 'MCP Docker 内部网络标识无效')
+  if (kind === 'desktop_workflow') {
+    requireString(operation.script_id, 'MCP 脚本审批目标缺失')
+    if (requireNonNegativeInteger(operation.script_version, 'MCP 脚本审批版本无效') < 1 || !['run', 'delete'].includes(action)) {
+      throw new McpAccessProtocolError('MCP 脚本审批范围无效')
+    }
+    if (action === 'run') {
+      requireString(operation.run_id, 'MCP 脚本审批运行缺失')
+      requireString(operation.resource_id, 'MCP 脚本审批连接缺失')
+      if (!resourceKind || operation.timeout_seconds !== 1800 || !['observe_to_control', 'takeover'].includes(String(operation.mode)) || !['keep_connection', 'close_owned', 'existing_connection'].includes(String(operation.lifecycle))) {
+        throw new McpAccessProtocolError('MCP 脚本运行授权范围无效')
+      }
+    }
+  }
   if (kind === 'remoteops' && operation.domain === 'docker' && resourceKind
     && (state === 'pending' || state === 'dispatching')) {
     const actions = resourceKind === 'images'
@@ -249,6 +264,9 @@ function decodeMcpApprovalOperation(
   }
   return {
     action,
+    script_id: optionalString(operation.script_id),
+    script_version: optionalNonNegativeInteger(operation.script_version, 'MCP 脚本审批版本无效'),
+    run_id: optionalString(operation.run_id),
     domain: kind === 'remoteops'
       ? requireString(operation.domain, 'MCP 远程运维审批领域缺失')
       : optionalString(operation.domain),
@@ -321,6 +339,7 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
 }
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
+  desktop_workflow: 'MCP 桌面脚本审批操作缺失',
   desktop: 'MCP 桌面控制审批操作缺失',
   files: 'MCP 文件管理审批操作缺失',
   remoteops: 'MCP 远程运维审批操作缺失',

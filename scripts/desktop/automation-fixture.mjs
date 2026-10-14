@@ -5,12 +5,14 @@ import path from 'node:path'
 import ts from 'typescript'
 import { app, BrowserWindow, nativeImage } from 'electron'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { verifyWorkflowMCP } from './workflow-mcp-fixture.mjs'
 
 async function main() {
   // 仅连接本机合成 RFB 和内存 Core 夹具；不读取用户配置，不调用真实远端。
   const root = fileURLToPath(new URL('../../', import.meta.url))
   const output = path.join(root, 'build', 'desktop-automation-fixture')
   const packaged = process.env.TERMOUS_DESKTOP_PACKAGED_FIXTURE === '1'
+  const workflows = process.env.TERMOUS_DESKTOP_WORKFLOW_FIXTURE === '1'
   await mkdir(output, { recursive: true })
   for (const [source, name, module] of [['electron/desktopAutomation/runtime.ts', 'runtime.mjs', ts.ModuleKind.ESNext], ['electron/desktop-automation-preload.ts', 'preload.cjs', ts.ModuleKind.CommonJS]]) {
     const compiled = ts.transpileModule(await readFile(path.join(root, source), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module } })
@@ -53,7 +55,7 @@ async function main() {
     await runtime.start()
     await client.connect(transport)
     const tools = await client.listTools()
-    assert.equal(tools.tools.length, 19)
+    assert.equal(tools.tools.length, workflows ? 41 : 19)
     const { session } = (await mutate('connect', { profile_id: 'fixture' })).structuredContent
     let current
     for (let i = 0; i < 100; i++) { current = (await call('get', { session_id: session.id })).structuredContent.session; if (current.status === 'ready') break; await delay(100) }
@@ -81,6 +83,7 @@ async function main() {
     assert.equal(window.isVisible(), false)
     await capture()
     await mutate('control.release', { attachment_id: attachment.id, grant_id: grant.id })
+    if (workflows) console.log(JSON.stringify({ workflow: await verifyWorkflowMCP(client, attachment, current) }))
     const soakSeconds = Math.max(0, Math.min(1800, Number(process.env.TERMOUS_DESKTOP_SOAK_SECONDS ?? 0)))
     const deadline = Date.now() + soakSeconds * 1000
     while (Date.now() < deadline) {

@@ -112,6 +112,18 @@
   padding: 8px;
 }
 
+.script-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.origin-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
 .editor-grid[data-narrow] {
   grid-template-columns: 200px minmax(180px, 1fr);
 }

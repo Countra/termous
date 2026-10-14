@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { Run, StepResult, WorkflowGateway } from '#entities/desktop-workflow'
 import { ImagePreview, ImageThumbnail, type ImagePreviewSource } from '#shared/ui'
 import { isRunActive, wasRequestRejected, workflowError } from '../model/messages'
+import { workflowAuthor } from '../model/author'
 import styles from './WorkflowWorkspace.module.scss'
 
 export function RunReport({ gateway, id, revision, onView }: { gateway: WorkflowGateway; id?: string; revision: number; onView: (session: string) => void | Promise<void> }) {
@@ -37,7 +38,7 @@ export function RunReport({ gateway, id, revision, onView }: { gateway: Workflow
     {error != null && <Alert type="error" title={workflowError(error, t)} />}
     {run ? <>
       <header className={styles['report-header']}>
-        <div><h3>{run.name} <span className={styles.hint}>v{run.version}</span></h3><p>{run.target_name || '—'} · {run.protocol?.toUpperCase() || '—'}</p></div>
+        <div><h3>{run.name} <span className={styles.hint}>v{run.version}</span></h3><p>{run.target_name || '—'} · {run.protocol?.toUpperCase() || '—'}</p><p className={styles.hint}>{t('desktopWorkflow.initiator', { name: workflowAuthor(run.initiator, t) })}</p></div>
         <Tag>{t(`desktopWorkflow.states.${run.state}`)}</Tag>
         {run.session_id && <Button onClick={() => { void Promise.resolve().then(() => onView(run.session_id!)).catch(setError) }}>{t('desktopWorkflow.viewDesktop')}</Button>}
       </header>

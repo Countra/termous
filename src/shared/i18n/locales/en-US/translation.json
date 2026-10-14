@@ -671,6 +671,8 @@
     "scopes": {
       "hosts": "Hosts",
       "sessions": "SSH sessions",
+      "desktops": "Remote desktops",
+      "desktop_workflows": "Desktop scripts",
       "files": "Files",
       "commands": "Commands",
       "forwarding": "Port forwarding",
@@ -5913,6 +5915,10 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "desktop_workflows_read": "Read scripts",
+        "desktop_workflows_write": "Edit scripts",
+        "desktop_workflows_run": "Run scripts",
+        "desktop_workflows_delete": "Delete scripts",
         "desktops_read": "Desktop status",
         "desktops_connect": "Connect desktop",
         "desktops_capture": "Capture desktop",
@@ -5956,6 +5962,10 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "desktop_workflows_read": "Read local scripts, versions and reports.",
+        "desktop_workflows_write": "Edit scripts and templates without approval.",
+        "desktop_workflows_run": "Run a pinned version; control your own runs.",
+        "desktop_workflows_delete": "Delete scripts and retain existing reports.",
         "desktops_read": "Read session summaries, readiness and automation status.",
         "desktops_connect": "Create connections using saved RDP or VNC profiles.",
         "desktops_capture": "Observe and capture; does not grant input control.",
@@ -5999,6 +6009,7 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "desktop_workflows": "Desktop scripts",
         "desktops": "Remote desktops",
         "hosts": "Hosts and discovery",
         "sessions": "SSH sessions",
@@ -6013,6 +6024,7 @@
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "desktop_workflows": "Script management, image templates and bounded runs",
         "desktops": "RDP / VNC observation and bounded automation control",
         "hosts": "View saved hosts and network reachability",
         "sessions": "View or control SSH connections in Termous",

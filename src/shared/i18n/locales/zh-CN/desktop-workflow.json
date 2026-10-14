@@ -1,4 +1,10 @@
 {
+  "origin": {"app":"本机用户","agent":"AI 助手","mcp":"MCP · {{name}}","createdBy":"{{name}}创建"},
+  "externalUpdate": "脚本已有新版本",
+  "externalUpdateHint": "当前草稿已保留。加载新版本前会确认未保存的修改。",
+  "loadLatest": "加载新版本",
+  "initiator": "发起者：{{name}}",
+  "approval": {"version":"固定版本","connectionEnd":"结束后连接","close_owned":"关闭本次独占连接","keep_connection":"保留连接","existing_connection":"保留已有连接","run":"执行桌面脚本","takeover":"接管并执行脚本","runHint":"批准后执行以上固定版本，不逐步确认。运行可访问目标已有共享资源；调用方结束时取消。"},
   "desktops": "桌面",
   "scripts": "脚本",
   "runs": "运行记录",
@@ -221,6 +227,7 @@
     "boolean": "布尔值"
   },
   "phases": {
+    "waiting_approval": "等待审批",
     "connecting": "建立连接",
     "attaching": "准备执行端",
     "waiting_user_action": "等待连接确认",

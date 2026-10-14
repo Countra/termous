@@ -13,7 +13,7 @@ import {
   type ToolResultMessage,
 } from '@earendil-works/pi-ai'
 import type { AgentMCPConnection } from './mcpClientAdapter.ts'
-import { isMCPToolDetails } from './mcpClientAdapter.ts'
+import { isMCPToolDetails, requiresDesktopImages } from './mcpClientAdapter.ts'
 import { PiEventBridge, type PiRunOutcome } from './piEventBridge.ts'
 import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 import {
@@ -186,8 +186,8 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     followUpMode: 'one-at-a-time',
     toolExecution: 'sequential',
     beforeToolCall: async ({ toolCall }) => {
-      if (!model.input.includes('image') && options.mcp.originalName(toolCall.name) === 'termous.desktops.capture') {
-        return { block: true, reason: 'AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED：当前模型不支持图片，请切换支持图片的模型后使用桌面截图。' }
+      if (!model.input.includes('image') && requiresDesktopImages(options.mcp.originalName(toolCall.name))) {
+        return { block: true, reason: 'AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED：当前模型不支持图片，可管理已有脚本；请切换支持图片的模型后截图、查看或确认图像模板。' }
       }
       return undefined
     },

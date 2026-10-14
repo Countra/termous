@@ -6,11 +6,12 @@ import { RemoteOpsApprovalRenderer } from './RemoteOpsApprovalRenderer'
 import { SnippetApprovalRenderer } from './SnippetApprovalRenderer'
 import { FilesApprovalRenderer } from './FilesApprovalRenderer'
 import { DesktopApprovalRenderer } from './DesktopApprovalRenderer'
+import { WorkflowApprovalRenderer } from './WorkflowApprovalRenderer'
 
 export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
   return (
     <>
-      {approval.kind === 'desktop' ? <DesktopApprovalRenderer operation={approval.operation} /> : approval.kind === 'files' ? (
+      {approval.kind === 'desktop_workflow' ? <WorkflowApprovalRenderer operation={approval.operation} /> : approval.kind === 'desktop' ? <DesktopApprovalRenderer operation={approval.operation} /> : approval.kind === 'files' ? (
         <FilesApprovalRenderer operation={approval.operation} />
       ) : approval.kind === 'remoteops' ? (
         <RemoteOpsApprovalRenderer operation={approval.operation} />

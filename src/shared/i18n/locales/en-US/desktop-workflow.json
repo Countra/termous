@@ -1,4 +1,10 @@
 {
+  "origin": {"app":"Local user","agent":"AI assistant","mcp":"MCP · {{name}}","createdBy":"Created by {{name}}"},
+  "externalUpdate": "A newer version is available",
+  "externalUpdateHint": "Your draft is preserved. Unsaved changes are confirmed before loading.",
+  "loadLatest": "Load latest",
+  "initiator": "Started by: {{name}}",
+  "approval": {"version":"Pinned version","connectionEnd":"Connection after run","close_owned":"Close this exclusively owned connection","keep_connection":"Keep connection","existing_connection":"Keep existing connection","run":"Run desktop script","takeover":"Take over and run","runHint":"Approval applies to this version without confirming each step. The run can access existing shared resources and is cancelled when its caller ends."},
   "desktops": "Desktops",
   "scripts": "Scripts",
   "runs": "Runs",
@@ -221,6 +227,7 @@
     "boolean": "Boolean"
   },
   "phases": {
+    "waiting_approval": "Waiting for approval",
     "connecting": "Connecting",
     "attaching": "Preparing executor",
     "waiting_user_action": "Waiting for connection confirmation",

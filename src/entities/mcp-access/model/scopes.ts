@@ -4,6 +4,10 @@ export const mcpScopes = [
   'desktops:capture',
   'desktops:control',
   'desktops:close',
+  'desktop_workflows:read',
+  'desktop_workflows:write',
+  'desktop_workflows:run',
+  'desktop_workflows:delete',
   'hosts:read',
   'hosts:probe',
   'sessions:read',
@@ -48,6 +52,8 @@ export const defaultMcpScopes: McpScope[] = ['hosts:read', 'sessions:read']
 
 export const approvalRequiredScopes: readonly McpScope[] = [
   'desktops:control',
+  'desktop_workflows:run',
+  'desktop_workflows:delete',
   'commands:execute',
   'files:write',
   'files:delete',

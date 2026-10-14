@@ -36,12 +36,14 @@ export interface Parameter {
   sensitive?: boolean; default?: string | number | boolean
 }
 export interface Definition { schema_version: 1; parameters: Parameter[]; steps: Step[] }
-export interface Script { id: string; name: string; description: string; tags: string[]; revision: number; created_at: string; updated_at: string }
-export interface Version { script_id: string; number: number; definition: Definition; created_at: string }
+export interface Author { origin: 'app' | 'mcp'; client_id?: string; client_name?: string; client_source?: 'external' | 'builtin_agent' }
+export interface Script { origin?: 'app' | 'mcp'; creator?: Author; id: string; name: string; description: string; tags: string[]; revision: number; created_at: string; updated_at: string }
+export interface Version { author?: Author; name?: string; description?: string; tags?: string[]; script_id: string; number: number; definition: Definition; created_at: string }
 export interface SaveInput { expected_revision: number; name: string; description: string; tags: string[]; definition: Definition }
 export interface Diagnostic { step_id?: string; field: string; code: string }
 export interface Asset { id: string; run_id?: string; sha256: string; width: number; height: number; size: number; created_at: string }
 export interface Run {
+	 origin?: 'app' | 'mcp'; initiator?: Author
   id: string; script_id: string; version: number; name: string; state: string; phase: string
   session_id?: string; target_name?: string; protocol?: string; step_id?: string
   executed: number; assertions: number; revision: number; error_code?: string; cleanup_error?: string

@@ -7,6 +7,7 @@ import {
 
 export type McpScopeGroupKey =
   | 'desktops'
+  | 'desktop_workflows'
   | 'hosts'
   | 'sessions'
   | 'commands'
@@ -53,6 +54,7 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
     ],
   },
   { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
+  { key: 'desktop_workflows', scopes: ['desktop_workflows:read', 'desktop_workflows:write', 'desktop_workflows:run', 'desktop_workflows:delete'] },
   { key: 'system', scopes: ['system:read'] },
   { key: 'processes', scopes: ['processes:read', 'processes:terminate'] },
   { key: 'services', scopes: ['services:read', 'services:manage'] },
@@ -86,6 +88,7 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
     destructive: scope === 'sessions:close' || scope === 'files:delete' || scope === 'desktops:close' || scope === 'desktops:control'
+      || scope === 'desktop_workflows:run' || scope === 'desktop_workflows:delete'
       || scope === 'docker:images:manage' || scope === 'docker:volumes:manage' || scope === 'docker:networks:manage',
   }
 })
