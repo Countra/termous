@@ -29,7 +29,7 @@ export async function loadAgentResources(t: RemoteAgentTransport, signal: AbortS
         result.catalog.session.ssh.push({ ...resource, kind: 'ssh_session', resource_kind: 'ssh', id: binding.session_id, profile_id: binding.ssh_profile_id, profile_name: candidate.name })
       } else if (binding.kind === 'ssh_profile') {
         result.catalog.profile.ssh.push({ ...common, id: binding.ssh_profile_id, kind: 'ssh_profile', resource_kind: 'ssh', ssh_profile_id: binding.ssh_profile_id, profile_id: binding.ssh_profile_id, profile_name: binding.ssh_profile_name, sort_order: result.catalog.profile.ssh.length })
-      } else {
+      } else if (binding.kind === 'file_profile') {
         result.files.push({ ...common, file_access_profile_id: binding.file_access_profile_id, file_access_profile_name: binding.file_access_profile_name, ssh_profile_id: binding.ssh_profile_id, engine: binding.engine })
         result.catalog.profile.file.push({ ...common, id: binding.file_access_profile_id, kind: 'file_profile', resource_kind: 'file', file_access_profile_id: binding.file_access_profile_id, profile_id: binding.file_access_profile_id, profile_name: binding.file_access_profile_name, sort_order: result.catalog.profile.file.length })
       }

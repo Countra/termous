@@ -202,6 +202,23 @@ test('bootstrap 冻结双资源，拒绝重复类型和原文件会话 ID，并�
   )
 })
 
+test('bootstrap 同时冻结四个引用槽位，并拒绝桌面 Profile 与会话同时占位', async () => {
+  const ssh = runtimeResourceBinding()
+  const file = { kind: 'file_profile', file_access_profile_id: 'file', file_access_profile_name: '文件',
+    host_id: 'host', host_name: '主机', ssh_profile_id: 'ssh', engine: 'sftp', bound_at: ssh.bound_at }
+  const profile = { kind: 'desktop_profile', desktop_profile_id: 'desktop_profile', desktop_profile_name: '桌面',
+    host_id: 'host', host_name: '主机', protocol: 'rdp', bound_at: ssh.bound_at }
+  const workflow = { kind: 'desktop_workflow', workflow_id: 'workflow', workflow_name: '检查', workflow_version: 4, host_name: '', bound_at: ssh.bound_at }
+  const bootstrap = (bindings: unknown[]) => new WorkerCoreClient({ fetch: async () => Response.json({
+    ...bootstrapResponse(), session: { ...bootstrapResponse().session, resource_bindings: bindings },
+  }) }).bootstrap(start)
+  const result = await bootstrap([workflow, profile, file, ssh])
+  assert.deepEqual(result.session.resource_bindings, [ssh, file, profile, workflow])
+  assert.equal(Object.isFrozen(result.session.resource_bindings?.[3]), true)
+  await assert.rejects(bootstrap([profile, { ...profile, kind: 'desktop_session', session_id: 'desktop', connection_generation: 1 }]), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+  await assert.rejects(bootstrap([{ ...profile, workflow_id: 'mixed' }]), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+})
+
 test('bootstrap 严格校验推理控制、支持档位及本次 Run 档位', async () => {
   const unsupportedRunResponse = bootstrapResponse()
   unsupportedRunResponse.run.reasoning_level = 'high'

@@ -1,9 +1,12 @@
+import { runtimeDesktopIdentity } from './runtimeDesktopBinding.ts'
+import { bindRuntimeDesktopTools } from './runtimeDesktopRouting.ts'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { isMCPToolDetails, type AgentMCPConnection } from './mcpClientAdapter.ts'
 import { isRecord } from './protocol.ts'
 import type { RuntimeResourceBinding, RuntimeSSHProfileBinding } from './workerCoreClient.ts'
 
 export function runtimeResourceIdentity(binding: RuntimeResourceBinding) {
+  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') return runtimeDesktopIdentity(binding)
   // 只投影经过 Core 校验的路由身份，不把展示名称或历史内容提升为系统指令。
   return {
     binding_mode: 'exact', host_id: binding.host_id, kind: binding.kind,
@@ -36,9 +39,8 @@ function sshSelector(name: string): SSHSelector | undefined {
 
 export function bindRuntimeResourceTools(mcp: AgentMCPConnection, bindings: RuntimeResourceBinding[] = []): AgentTool[] {
   const binding = bindings.find((resource) => resource.kind === 'ssh_session' || resource.kind === 'ssh_profile')
-  if (!binding) return mcp.tools
-  if (binding.kind === 'ssh_profile') return bindRuntimeSSHProfileTools(mcp, binding)
-  return bindRuntimeSSHSessionTools(mcp, binding)
+  const tools = !binding ? mcp.tools : binding.kind === 'ssh_profile' ? bindRuntimeSSHProfileTools(mcp, binding) : bindRuntimeSSHSessionTools(mcp, binding)
+  return bindRuntimeDesktopTools({ ...mcp, tools }, bindings)
 }
 
 function bindRuntimeSSHSessionTools(

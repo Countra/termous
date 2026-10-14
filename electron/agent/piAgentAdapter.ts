@@ -1,3 +1,4 @@
+import { runtimeDesktopRules } from './runtimeDesktopBinding.ts'
 import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction, type RuntimeModel } from './runtimeProviderAdapter.ts'
 export { createRestrictedProviderFetch, createRuntimeStreamFunction, createRuntimeStreamOptions, chatMaxTokensField } from './runtimeProviderAdapter.ts'
 export type { RuntimeModel } from './runtimeProviderAdapter.ts'
@@ -267,7 +268,7 @@ export function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding) {
     '[TERMOUS_VERIFIED_RESOURCE]',
     JSON.stringify(resource),
     '[/TERMOUS_VERIFIED_RESOURCE]',
-    ...(binding.kind === 'ssh_session'
+    ...(binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' ? runtimeDesktopRules(binding) : binding.kind === 'ssh_session'
       ? verifiedResourceSystemRules
       : binding.kind === 'ssh_profile'
         ? verifiedSSHProfileSystemRules

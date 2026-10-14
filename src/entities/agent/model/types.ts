@@ -233,20 +233,24 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile'] as const
+export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
-export type AgentResourceSlot = 'ssh' | 'file'
+export type AgentResourceSlot = 'ssh' | 'file' | 'desktop' | 'workflow'
 
 export type AgentResourceReference =
   | { kind: 'ssh_session'; session_id: string }
   | { kind: 'ssh_profile'; ssh_profile_id: string }
   | { kind: 'file_profile'; file_access_profile_id: string }
+  | { kind: 'desktop_session'; session_id: string; connection_generation: number }
+  | { kind: 'desktop_profile'; desktop_profile_id: string }
+  | { kind: 'desktop_workflow'; workflow_id: string; workflow_version: number }
 
 interface AgentResourceBindingBase {
   bound_at: string
 }
 
 export interface AgentMessageResource {
+  version?: number
   kind: AgentResourceKind
   id: string
   name: string
@@ -254,6 +258,9 @@ export interface AgentMessageResource {
 }
 
 export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'desktop_session'; session_id: string; connection_generation: number; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
+  | { kind: 'desktop_profile'; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
+  | { kind: 'desktop_workflow'; workflow_id: string; workflow_name: string; workflow_version: number; host_id?: never; host_name?: never }
   | { kind: 'ssh_session'; session_id: string; host_id: string; ssh_profile_id: string; host_name: string; platform: 'linux' }
   | { kind: 'ssh_profile'; host_id: string; ssh_profile_id: string; host_name: string; ssh_profile_name: string; platform: 'linux' }
   | {
@@ -282,7 +289,11 @@ export interface AgentFileResourceState {
   status: 'ready' | 'unavailable'
 }
 
-export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState
+export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' }>
+export type AgentDesktopResourceState = Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_session' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_profile' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_workflow' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState | AgentDesktopResourceState
 
 export interface AgentSSHResourceState {
   session_id: string
@@ -315,7 +326,7 @@ export type AgentLaunchIntent = { key: number } & (
   | {
       source: 'connection_reference'
       target: { kind: 'new' } | { kind: 'session'; session_id: string }
-      resource_reference: Exclude<AgentResourceReference, { kind: 'ssh_profile' }>
+      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' | 'file_profile' }>
       source_resource: AgentSSHResourceState | AgentFileResourceState
     }
 )

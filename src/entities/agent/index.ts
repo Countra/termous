@@ -180,3 +180,7 @@ export {
   type AgentResourceConnectionTarget,
   type AgentResourceConnectionView,
 } from './model/resourceConnection.ts'
+
+export type { AgentDesktopResourceBinding, AgentDesktopResourceState } from './model/types.ts'
+export { agentSlashKindsForCommand, agentSlashCatalogCandidates } from './model/slashCommands.ts'
+export type { AgentSlashDesktopCandidate, AgentSlashDesktopSessionCandidate, AgentSlashDesktopProfileCandidate, AgentSlashWorkflowCandidate } from './model/slashCommands.ts'

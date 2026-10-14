@@ -1,11 +1,11 @@
-import { FolderOpen, ServerCog, TerminalSquare } from 'lucide-react'
+import { FolderOpen, Monitor, Workflow, ServerCog, TerminalSquare } from 'lucide-react'
 import { Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { AgentMessageResource } from '#entities/agent'
 import { uiStyles } from '#shared/ui'
 import styles from './AgentMessageResources.module.scss'
 
-const resourceIcons = { ssh_session: TerminalSquare, ssh_profile: ServerCog, file_profile: FolderOpen }
+const resourceIcons = { ssh_session: TerminalSquare, ssh_profile: ServerCog, file_profile: FolderOpen, desktop_session: Monitor, desktop_profile: Monitor, desktop_workflow: Workflow }
 const maxResourceNameCharacters = 16
 const tooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` }
 
@@ -16,7 +16,7 @@ export function AgentMessageResources({ resources }: { resources: AgentMessageRe
       {resources.map((resource) => {
         const Icon = resourceIcons[resource.kind]
         const kind = t(`agent.message.resourceKind.${resource.kind}`)
-        const label = `${kind} · ${resource.name}`
+        const label = `${kind} · ${resource.name}${resource.version ? ` · v${resource.version}` : ''}`
         const characters = Array.from(resource.name)
         const displayName = characters.length > maxResourceNameCharacters
           ? `${characters.slice(0, maxResourceNameCharacters).join('')}…`
@@ -32,7 +32,7 @@ export function AgentMessageResources({ resources }: { resources: AgentMessageRe
             <span className={styles.resource} tabIndex={0} aria-label={label}>
               <Icon size={12} aria-hidden="true" />
               <span className={styles.kind}>{kind}</span>
-              <span className={styles.name}>{displayName}</span>
+              <span className={styles.name}>{displayName}{resource.version ? ` · v${resource.version}` : null}</span>
             </span>
           </Tooltip>
         )

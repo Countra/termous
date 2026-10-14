@@ -13,6 +13,8 @@ import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
 import { AuditPage } from '#pages/audit'
+import { projectAgentDesktopReferences } from './model/agentDesktopReferences.ts'
+import { useAgentWorkflowReferences } from './model/useAgentWorkflowReferences.ts'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -561,7 +563,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [agentSSHResources, launchAgent, notification, t])
   const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
     [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
-  const agentSlashCandidates = useMemo(() => projectAgentSlashCandidates({
+  const workflowReferences = useAgentWorkflowReferences(gateways.desktopWorkflow, apiReady && !error && !initializing)
+  const desktopReferences = useMemo(() => projectAgentDesktopReferences(remoteDesktopRuntimeSessions, data.remoteDesktopProfiles, data.hostAssets, workflowReferences.scripts),
+    [remoteDesktopRuntimeSessions, data.remoteDesktopProfiles, data.hostAssets, workflowReferences.scripts])
+  const agentSlashCandidates = useMemo(() => desktopReferences.extend(projectAgentSlashCandidates({
     sessions: data.sessions,
     displayedFileSessions,
     hosts: data.hosts,
@@ -569,7 +574,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     sshAccessProfiles: data.sshAccessProfiles,
     fileAccessProfiles: data.fileAccessProfiles,
     closingFileSessionIds,
-  }), [
+  })), [
+    desktopReferences,
     closingFileSessionIds,
     data.fileAccessProfiles,
     data.hostAssets,
@@ -1459,6 +1465,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           fileResources={agentFileResources}
                           fileResourcesReady={agentFileResourcesReady}
                           slashCandidates={agentSlashCandidates}
+                          desktopResources={desktopReferences.resources}
+                          desktopResourcesReady={agentFileResourcesReady}
+                          workflowResourcesReady={workflowReferences.ready}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}

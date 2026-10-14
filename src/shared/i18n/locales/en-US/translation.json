@@ -872,6 +872,24 @@
     "settings": "Settings"
   },
   "agent": {
+    "desktopResource": {
+      "status": {
+        "ready": "Available",
+        "checking": "Checking",
+        "stale": "Reference expired",
+        "unavailable": "Unavailable"
+      },
+      "details": "Desktop resource reference",
+      "type": "Type",
+      "protocol": "Protocol",
+      "select": "Choose a replacement",
+      "fixedVersion": "This version is pinned. Select again to reference a newer version.",
+      "referenceOnly": "Reference only. Connections and actions still require their usual permissions and approval.",
+      "unavailable": "Reference unavailable. Check the target or select it again.",
+      "removeTitle": "Remove reference?",
+      "removeDescription": "Remove from this conversation without closing the desktop or deleting the script.",
+      "errorTitle": "Desktop resource unavailable"
+    },
     "remoteApprovals": "Approvals",
     "sessions": {
       "remoteOrigin": "Created remotely",
@@ -1017,6 +1035,9 @@
     "message": {
       "resources": "Resources linked when sent",
       "resourceKind": {
+        "desktop_session": "Desktop session",
+        "desktop_profile": "Desktop profile",
+        "desktop_workflow": "Desktop workflow",
         "ssh_session": "SSH session",
         "ssh_profile": "SSH profile",
         "file_profile": "File profile"
@@ -1315,14 +1336,18 @@
     "slash": {
       "title": "Slash commands",
       "commands": {
+        "workflow": {
+          "title": "Choose desktop workflow",
+          "description": "Reference a fixed desktop workflow version"
+        },
         "title": "Commands",
         "session": {
           "title": "Choose session type",
-          "description": "Link an existing SSH or file session"
+          "description": "Reference an SSH, file or desktop session"
         },
         "profile": {
           "title": "Choose profile type",
-          "description": "Link through an SSH or file profile"
+          "description": "Reference an SSH, file or desktop profile"
         },
         "compact": {
           "title": "Compact context",
@@ -1334,6 +1359,14 @@
         "context": "Context"
       },
       "resourceKind": {
+        "desktop": {
+          "title": "Remote desktop",
+          "description": "RDP / VNC sessions and profiles"
+        },
+        "workflow": {
+          "title": "Desktop workflows",
+          "description": "Reference a fixed version"
+        },
         "title": "Choose resource type",
         "ssh": {
           "title": "SSH connection",

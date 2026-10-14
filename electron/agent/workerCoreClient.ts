@@ -1,3 +1,4 @@
+import { isRuntimeDesktopBinding, type RuntimeDesktopResourceBinding } from './runtimeDesktopBinding.ts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import type { RuntimeAuditEvent } from './runtimeAuditWriter.ts'
 import { isRecord, validGeneration } from './protocol.ts'
@@ -100,7 +101,7 @@ export interface RuntimeFileResourceBinding {
   bound_at: string
 }
 
-export type RuntimeResourceBinding = RuntimeSSHResourceBinding | RuntimeSSHProfileBinding | RuntimeFileResourceBinding
+export type RuntimeResourceBinding = RuntimeSSHResourceBinding | RuntimeSSHProfileBinding | RuntimeFileResourceBinding | RuntimeDesktopResourceBinding
 
 export interface RuntimeBootstrap {
   core_instance_id: string
@@ -543,12 +544,13 @@ function isRuntimeFileResourceBinding(value: unknown): value is RuntimeFileResou
 }
 
 function isRuntimeResourceBindings(value: unknown): value is RuntimeResourceBinding[] {
-  return Array.isArray(value) && value.length <= 2
+  return Array.isArray(value) && value.length <= 4
     && value.every((binding) => isRuntimeSSHResourceBinding(binding)
       || isRuntimeSSHProfileBinding(binding)
-      || isRuntimeFileResourceBinding(binding))
+      || isRuntimeFileResourceBinding(binding) || isRuntimeDesktopBinding(binding))
     && new Set(value.map((binding: RuntimeResourceBinding) => binding.kind)).size === value.length
-    && value.filter((binding: RuntimeResourceBinding) => binding.kind !== 'file_profile').length <= 1
+    && value.filter((binding: RuntimeResourceBinding) => binding.kind === 'ssh_profile' || binding.kind === 'ssh_session').length <= 1
+    && value.filter((binding: RuntimeResourceBinding) => binding.kind === 'desktop_profile' || binding.kind === 'desktop_session').length <= 1
 }
 
 function normalizeRuntimeResourceBindings(value: unknown): boolean {
@@ -563,7 +565,10 @@ function normalizeRuntimeResourceBindings(value: unknown): boolean {
     if (!ssh || Object.keys(legacy).some((key) => Reflect.get(ssh, key) !== Reflect.get(legacy, key))) return false
   }
   // 兼容字段只在入口对账，冻结后的 Worker 会话只有一份规范状态。
-  session.resource_bindings = [...bindings].sort((left, right) => Number(right.kind !== 'file_profile') - Number(left.kind !== 'file_profile'))
+  const order: Record<RuntimeResourceBinding['kind'], number> = {
+    ssh_session: 0, ssh_profile: 0, file_profile: 1, desktop_session: 2, desktop_profile: 2, desktop_workflow: 3,
+  }
+  session.resource_bindings = [...bindings].sort((left, right) => order[left.kind] - order[right.kind])
   delete session.resource_binding
   return true
 }

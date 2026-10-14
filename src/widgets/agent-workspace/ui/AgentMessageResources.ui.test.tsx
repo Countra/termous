@@ -7,6 +7,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('消息资源名称边界', () => {
+  it('脚本历史消息始终显示当时的版本', () => {
+    render(<AgentMessageResources resources={[{ kind: 'desktop_workflow', id: 'script', name: '回归', version: 2 }]} />)
+    expect(screen.getByLabelText('agent.message.resourceKind.desktop_workflow · 回归 · v2')).toHaveTextContent('回归 · v2')
+  })
   it.each([
     ['TX-HK', 'TX-HK'],
     ['1234567890123456', '1234567890123456'],

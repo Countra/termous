@@ -1,5 +1,7 @@
 import {
   Check,
+  Monitor,
+  Workflow,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -13,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentSlashCandidate, AgentSlashCommandId } from '#entities/agent'
+import { agentSlashKindsForCommand, type AgentSlashCandidate, type AgentSlashCommandId } from '#entities/agent'
 import { agentSlashMenuAvailableHeight } from '../model/agentSlashCommands.ts'
 import {
   agentSlashOptionId,
@@ -178,7 +180,7 @@ export function AgentSlashCommandMenu({
           aria-activedescendant={controller.activeOptionId}
           onKeyDown={controller.onMenuKeyDown}
         >
-          {(['ssh', 'file'] as const).map((resourceKind) => {
+          {agentSlashKindsForCommand(state.command_id).map((resourceKind) => {
             const kindAvailability = controller.resourceKindAvailability(state.command_id, resourceKind)
             const disabled = !kindAvailability.enabled || controller.executing
             return (
@@ -196,7 +198,7 @@ export function AgentSlashCommandMenu({
                 onClick={disabled ? undefined : () => controller.onSelectKind(resourceKind)}
               >
                 <span className={styles.icon} aria-hidden="true">
-                  {resourceKind === 'ssh' ? <Server size={15} /> : <FolderOpen size={15} />}
+                  {resourceIcon(resourceKind)}
                 </span>
                 <span className={styles.copy}>
                   <strong>{t(`agent.slash.resourceKind.${resourceKind}.title`)}</strong>
@@ -267,7 +269,7 @@ export function AgentSlashCommandMenu({
         {t('agent.slash.results', {
           count: state.level === 'root'
             ? controller.rootCommandIds.length
-            : state.level === 'kind' ? 2 : controller.resourceCandidates.length,
+            : state.level === 'kind' ? agentSlashKindsForCommand(state.command_id).length : controller.resourceCandidates.length,
         })}
       </span>
     </div>
@@ -355,12 +357,12 @@ function CandidateOption({
       onClick={disabled ? undefined : () => onSelect(candidate)}
     >
       <span className={styles.icon} aria-hidden="true">
-        {candidate.resource_kind === 'ssh' ? <Server size={15} /> : <FolderOpen size={15} />}
+        {resourceIcon(candidate.resource_kind)}
       </span>
       <span className={styles.copy}>
-        <strong>{candidate.host_name}</strong>
-        <small>{candidate.profile_name}{candidate.kind === 'file_session' ? '' : ` · ${status}`}</small>
-        {candidate.kind === 'ssh_session' ? (
+        <strong>{candidate.kind === 'desktop_workflow' ? candidate.workflow_name : candidate.host_name}</strong>
+        <small>{candidate.kind === 'desktop_workflow' ? `v${candidate.workflow_version}` : candidate.profile_name}{candidate.kind === 'file_session' ? '' : ` · ${status}`}</small>
+        {candidate.kind === 'ssh_session' || candidate.kind === 'desktop_session' ? (
           <small>{formatCandidateTime(candidate.started_at, i18n.resolvedLanguage ?? i18n.language)}{` · ${shortID(candidate.session_id)}`}</small>
         ) : candidate.kind === 'file_session' ? (
           <small>{t('agent.slash.sessionCount', { count: candidate.session_count })}{` · ${status}`}</small>
@@ -375,6 +377,7 @@ function CandidateOption({
 }
 
 function commandPresentation(commandId: AgentSlashCommandId) {
+  if (commandId === 'workflow') return { icon: <Workflow size={15} />, descriptionKey: 'agent.slash.commands.workflow.description' }
   if (commandId === 'session') {
     return { icon: <TerminalSquare size={15} />, descriptionKey: 'agent.slash.commands.session.description' }
   }
@@ -411,4 +414,10 @@ function formatCandidateTime(value: string, language: string) {
   return new Intl.DateTimeFormat(language, {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(date)
+}
+
+function resourceIcon(kind: string) {
+  if (kind === 'desktop') return <Monitor size={15} />
+  if (kind === 'workflow') return <Workflow size={15} />
+  return kind === 'ssh' ? <Server size={15} /> : <FolderOpen size={15} />
 }

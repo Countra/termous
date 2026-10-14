@@ -39,9 +39,9 @@ export interface AgentWorkspaceSlashCommandAvailability {
 }
 
 export type AgentWorkspaceSlashAvailability = Record<
-  AgentSlashCommandId,
+  Exclude<AgentSlashCommandId, 'workflow'>,
   AgentWorkspaceSlashCommandAvailability
->
+> & { workflow?: AgentWorkspaceSlashCommandAvailability }
 
 export type AgentWorkspaceSSHProfileAssociationMode = 'on_demand' | 'immediate'
 

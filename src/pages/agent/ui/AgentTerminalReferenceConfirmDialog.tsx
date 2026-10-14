@@ -34,11 +34,11 @@ export function AgentTerminalReferenceConfirmDialog({ binding, source, resources
           <ConnectionSummary label={t('agent.terminalReference.currentAssociation')}
             host={binding?.host_name || t('agent.terminalReference.unknownHost')}
             profile={(original && resourceProfileName(original)) || (binding?.kind === 'file_profile' && binding.file_access_profile_name) || t('agent.terminalReference.profileUnavailable')}
-            profileId={binding?.kind === 'file_profile' ? binding.file_access_profile_id : binding?.ssh_profile_id}
+            profileId={binding?.kind === 'file_profile' ? binding.file_access_profile_id : binding && 'ssh_profile_id' in binding ? binding.ssh_profile_id : undefined}
             sessionId={binding?.kind === 'ssh_session' ? binding.session_id : undefined} />
           <ConnectionSummary destination label={t('agent.terminalReference.nextAssociation')}
             host={source.host_name || t('agent.terminalReference.unknownHost')} profile={resourceProfileName(source) || t('agent.terminalReference.profileUnavailable')}
-            profileId={file ? resourceReferenceId(resourceReference(source)) : source.ssh_profile_id}
+            profileId={file ? resourceReferenceId(resourceReference(source)) : 'ssh_profile_id' in source ? source.ssh_profile_id : undefined}
             sessionId={'session_id' in source ? source.session_id : undefined} />
         </div>
         <p className={styles.description}>{t(file ? 'agent.fileResource.confirmDescription'

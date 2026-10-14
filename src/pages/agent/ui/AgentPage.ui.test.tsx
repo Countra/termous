@@ -3,6 +3,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentFileResourceState, AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentResourceConnectionInput, AgentResourceConnectionView, AgentResourceRecoveryView, AgentRun, AgentSession, AgentSessionInput, AgentSessionMetadataInput, AgentSlashCandidate, AgentSlashCandidateCatalog, AgentSlashFileProfileCandidate, AgentSlashFileSessionCandidate, AgentSlashSSHProfileCandidate, AgentSlashSSHSessionCandidate, AgentSSHResourceState, AgentSSHSlotResourceBinding } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
+import type { AgentDesktopResourceState } from '#entities/agent'
 import type { AgentWorkspaceGateway } from '#features/agent-runtime'
 import { TermousApiError } from '#shared/api'
 import type { AgentWorkspaceProps, AgentWorkspaceSlashExecution } from '#widgets/agent-workspace'
@@ -1035,6 +1036,20 @@ describe('AgentPage', () => {
       expected_revision: 1,
     })
     expect(harness.connectResourceBinding).not.toHaveBeenCalled()
+  })
+
+  it('脚本保存新版后仍显示固定旧版本，删除脚本后阻止新 Run', async () => {
+    const binding = { kind: 'desktop_workflow' as const, workflow_id: 'script', workflow_name: '旧名称', workflow_version: 2, bound_at: sessions[0]!.created_at }
+    harness.state = { ...workspaceState(), sessions: [{ ...sessions[0]!, resource_bindings: [binding] }, sessions[1]!] }
+    const page = renderPage({ desktopResources: [{ ...binding, workflow_name: '新名称', workflow_version: 3, status: 'ready' }], workflowResourcesReady: true })
+    await waitFor(() => expect(harness.workspaceProps?.resource_contexts).toEqual([expect.objectContaining({
+      status: 'ready', live_resource: expect.objectContaining({ workflow_version: 2, workflow_name: '旧名称' }),
+    })]))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(false)
+    page.unmount()
+    renderPage({ desktopResources: [], workflowResourcesReady: true })
+    await waitFor(() => expect(harness.workspaceProps?.resource_contexts).toEqual([expect.objectContaining({ status: 'stale' })]))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(true)
   })
 
   it('仅关联的 SSH Profile 投影为按需就绪资源且不启用连接恢复', async () => {
@@ -2999,6 +3014,8 @@ function renderPage({
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
   sshProfileResourcesReady = fileResourcesReady,
+  desktopResources = [],
+  workflowResourcesReady = false,
   slashCandidates = emptySlashCandidates(),
 }: {
   remote?: boolean
@@ -3015,6 +3032,8 @@ function renderPage({
   sshProfileResourcesReady?: boolean
   fileResources?: AgentFileResourceState[]
   fileResourcesReady?: boolean
+  desktopResources?: AgentDesktopResourceState[]
+  workflowResourcesReady?: boolean
   slashCandidates?: AgentSlashCandidateCatalog
 } = {}) {
   harness.readiness.mockResolvedValue(readiness)
@@ -3056,6 +3075,8 @@ function renderPage({
         sshProfileResourcesReady={sshProfileResourcesReady}
         fileResources={fileResources}
         fileResourcesReady={fileResourcesReady}
+        desktopResources={desktopResources}
+        workflowResourcesReady={workflowResourcesReady}
         slashCandidates={next.slashCandidates ?? slashCandidates}
         launchIntent={next.launchIntent === undefined ? launchIntent : next.launchIntent}
         onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}

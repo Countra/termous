@@ -5,7 +5,7 @@ import { AgentControlChannel } from './controlChannel.ts'
 import type { AgentCoreRuntimePort, AgentSupervisorLease } from './coreRuntimeClient.ts'
 import type { AgentControlCommand } from './controlProtocol.ts'
 
-const lease: AgentSupervisorLease = { core_instance_id: 'core', supervisor_instance_id: 'supervisor', runtime_protocol_version: '11', supervisor_epoch: 1, max_concurrent_runs: 4, revision: 1, expires_at: new Date(Date.now() + 30000).toISOString() }
+const lease: AgentSupervisorLease = { core_instance_id: 'core', supervisor_instance_id: 'supervisor', runtime_protocol_version: '12', supervisor_epoch: 1, max_concurrent_runs: 4, revision: 1, expires_at: new Date(Date.now() + 30000).toISOString() }
 
 test('插入回执占满时停止仍可执行，ACK 重试不重新执行命令', async () => {
   const queued: AgentControlCommand[] = [0, 1, 2, 3].map(n => ({ id: `steer_${n}`, action: 'steer', run_id: 'run', generation: 1, message: '测试' }))

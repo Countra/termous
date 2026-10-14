@@ -1,6 +1,7 @@
 import { App as AntdApp, Alert } from 'antd'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { AgentDesktopResourceState } from '#entities/agent'
 import {
   isAgentModelRunnable,
   isAgentResourceRecoveryBlocking,
@@ -102,6 +103,9 @@ export function AgentPage({
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
   sshProfileResourcesReady = fileResourcesReady,
+  desktopResources = [],
+  desktopResourcesReady = false,
+  workflowResourcesReady = false,
   slashCandidates = noSlashCandidates,
   enabled,
   active,
@@ -120,6 +124,9 @@ export function AgentPage({
   sshProfileResourcesReady?: boolean
   fileResources?: AgentFileResourceState[]
   fileResourcesReady?: boolean
+  desktopResources?: AgentDesktopResourceState[]
+  desktopResourcesReady?: boolean
+  workflowResourcesReady?: boolean
   slashCandidates?: AgentSlashCandidateCatalog
   enabled: boolean
   active: boolean
@@ -604,7 +611,7 @@ export function AgentPage({
     const current = controller.getSnapshot().sessions.find((session) => session.id === sessionId)
     const binding = current && getAgentResourceBindingBySlot(
       current.resource_bindings,
-      candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+      candidate.resource_kind,
     )
     if (!current || current.archived_at || !slashCandidateMatchesExpectedBinding(candidate, binding)) return
     notificationRef.current.success({
@@ -673,8 +680,8 @@ export function AgentPage({
     status: candidate.disabled_reason ? 'unavailable' : 'ready',
   })), [slashCandidates.profile.ssh])
   const resources = useMemo(
-    () => [...sshResources, ...sshProfileResources, ...fileResources],
-    [sshResources, sshProfileResources, fileResources],
+    () => [...sshResources, ...sshProfileResources, ...fileResources, ...desktopResources],
+    [sshResources, sshProfileResources, fileResources, desktopResources],
   )
   const currentSlashCandidates = useMemo(
     () => projectCurrentAgentSlashCandidates(
@@ -690,13 +697,15 @@ export function AgentPage({
     () => (selected?.resource_bindings ?? []).map((binding) => projectResourceContext(
       binding,
       resources,
-      (binding.kind === 'file_profile'
+      (binding.kind === 'desktop_workflow' ? workflowResourcesReady
+        : binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' ? desktopResourcesReady
+        : binding.kind === 'file_profile'
         ? fileResourcesReady
         : binding.kind === 'ssh_profile' ? sshProfileResourcesReady : sshResourcesReady)
         && state.snapshot_complete,
     )).map((context) => context.binding.kind === 'ssh_session' ? { ...context, recovery: recovery.state } : context),
     [selected?.resource_bindings, resources, sshResourcesReady, sshProfileResourcesReady,
-      fileResourcesReady, state.snapshot_complete, recovery.state],
+      fileResourcesReady, desktopResourcesReady, workflowResourcesReady, state.snapshot_complete, recovery.state],
   )
   const approvalBypass = readiness?.mcp_policy?.approval_bypass
   const createReferenceSession = useCallback(async (request: AgentResourceReferenceLaunch) => {
@@ -848,11 +857,13 @@ export function AgentPage({
     && contextSnapshot?.compression_status !== 'unavailable'
     && (Boolean(selected) || compactDraftHasPayload(state.drafts.new?.text ?? ''))
   const slashAvailability: AgentWorkspaceSlashAvailability = {
+    workflow: slashCommandAvailability(resourceSlashEnabled && workflowResourcesReady && !remote, workflowResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
     session: {
       ...slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
       resource_kinds: {
         ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
         file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady && !remote, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
       },
     },
     profile: {
@@ -860,6 +871,7 @@ export function AgentPage({
       resource_kinds: {
         ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
         file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
+        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady && !remote, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
       },
     },
     compact: slashCommandAvailability(compactSlashEnabled,
@@ -950,7 +962,7 @@ export function AgentPage({
     const originalDraft = invocation.drafts[execution.capture.owner]?.text ?? ''
     if (!slashCaptureMatches(originalDraft, execution.capture)) return false
     const commandAvailability = slashAvailability[execution.command_id]
-    if (!commandAvailability.enabled
+    if (!commandAvailability?.enabled
       || execution.resource_kind && commandAvailability.resource_kinds?.[execution.resource_kind]?.enabled === false) return false
     if (execution.command_id === 'compact' && execution.capture.owner === 'new'
       && !consumeSlashCaptureText(originalDraft, execution.capture).trim()) return false
@@ -1009,7 +1021,7 @@ export function AgentPage({
         const beforeConfirmation = requireSession(controller.getSnapshot().sessions, targetSession.id)
         const currentBinding = getAgentResourceBindingBySlot(
           beforeConfirmation.resource_bindings,
-          candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+          candidate.resource_kind,
         )
         const sourceBindingKey = agentResourceBindingKey(currentBinding)
         const replacing = currentBinding && !slashCandidateMatchesBinding(candidate, currentBinding)
@@ -1026,7 +1038,7 @@ export function AgentPage({
         const latestSession = requireSession(beforeMutation.sessions, targetSession.id)
         const latestBinding = getAgentResourceBindingBySlot(
           latestSession.resource_bindings,
-          candidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+          candidate.resource_kind,
         )
         if (agentResourceBindingKey(latestBinding) !== sourceBindingKey) return false
         if (currentCandidate.resource_kind === 'ssh'
@@ -1051,7 +1063,11 @@ export function AgentPage({
             if (accepted) notifyResourceBindingCompleted(latestSession.id, currentCandidate)
           }
         } else {
-          const reference: AgentResourceReference = currentCandidate.kind === 'ssh_session'
+          const reference: AgentResourceReference = currentCandidate.kind === 'desktop_session'
+            ? { kind: 'desktop_session', session_id: currentCandidate.session_id, connection_generation: currentCandidate.connection_generation }
+            : currentCandidate.kind === 'desktop_profile' ? { kind: 'desktop_profile', desktop_profile_id: currentCandidate.profile_id }
+            : currentCandidate.kind === 'desktop_workflow' ? { kind: 'desktop_workflow', workflow_id: currentCandidate.workflow_id, workflow_version: currentCandidate.workflow_version }
+            : currentCandidate.kind === 'ssh_session'
             ? { kind: 'ssh_session', session_id: currentCandidate.session_id }
             : { kind: 'file_profile', file_access_profile_id: currentCandidate.file_access_profile_id }
           if (currentCandidate.kind === 'ssh_session' && !sshResourcesRef.current.some((resource) => (
@@ -1064,7 +1080,7 @@ export function AgentPage({
           accepted = slashCandidateMatchesExpectedBinding(currentCandidate,
             getAgentResourceBindingBySlot(
               latestSession.resource_bindings,
-              currentCandidate.resource_kind === 'ssh' ? 'ssh' : 'file',
+              currentCandidate.resource_kind,
             ))
             || await performResourceMutation(latestSession.id, () => controller.replaceResourceBinding(latestSession.id, {
               ...reference,
@@ -1616,7 +1632,10 @@ function projectResourceContext(
   resources: AgentResourceState[],
   snapshotReady: boolean,
 ): AgentWorkspaceResourceContext {
-  const live = resources.find((source) => resourceBindingMatchesSource(binding, source))
+  const currentWorkflow = binding.kind === 'desktop_workflow' && resources.find((source) => 'workflow_id' in source && source.workflow_id === binding.workflow_id && source.workflow_version >= binding.workflow_version)
+  // 历史版本不可变；脚本更新不使已固定的旧版本失效，也不悄悄跟随最新版。
+  const live = currentWorkflow ? { ...binding, status: currentWorkflow.status } as AgentResourceState
+    : resources.find((source) => resourceBindingMatchesSource(binding, source))
   const identityMatches = Boolean(live)
   return {
     binding,
@@ -1639,6 +1658,8 @@ function slashCandidateMatchesExpectedBinding(
 }
 
 function slashBindingLabel(binding: AgentResourceBinding, catalog: AgentSlashCandidateCatalog) {
+  if (binding.kind === 'desktop_workflow') return `${binding.workflow_name} · v${binding.workflow_version}`
+  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile') return `${binding.host_name} / ${binding.desktop_profile_name}`
   const profileName = binding.kind === 'file_profile'
     ? binding.file_access_profile_name
     : binding.kind === 'ssh_profile'
@@ -1651,6 +1672,7 @@ function slashBindingLabel(binding: AgentResourceBinding, catalog: AgentSlashCan
 }
 
 function slashCandidateLabel(candidate: AgentSlashCandidate) {
+  if (candidate.kind === 'desktop_workflow') return `${candidate.workflow_name} · v${candidate.workflow_version}`
   return `${candidate.host_name} / ${candidate.profile_name}`
 }
 
@@ -1702,8 +1724,8 @@ function notifyError(
     if (resourceError.kind === 'unavailable') {
       notification.error({
         ...feedback,
-        title: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.errorTitle' : 'agent.resource.error.unavailableTitle'),
-        description: t(resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.hint.stale' : `agent.resource.error.reason.${resourceError.reason}`),
+        title: t(resourceError.resourceKind?.startsWith('desktop_') ? 'agent.desktopResource.errorTitle' : resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.errorTitle' : 'agent.resource.error.unavailableTitle'),
+        description: t(resourceError.resourceKind?.startsWith('desktop_') ? 'agent.desktopResource.unavailable' : resourceError.resourceKind === 'file_profile' ? 'agent.fileResource.hint.stale' : `agent.resource.error.reason.${resourceError.reason}`),
         className: termousNotificationClassName,
       })
       return

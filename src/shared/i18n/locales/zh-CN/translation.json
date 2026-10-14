@@ -872,6 +872,24 @@
     "settings": "设置"
   },
   "agent": {
+    "desktopResource": {
+      "status": {
+        "ready": "可用",
+        "checking": "正在检查",
+        "stale": "引用已失效",
+        "unavailable": "暂不可用"
+      },
+      "details": "桌面资源引用",
+      "type": "类型",
+      "protocol": "协议",
+      "select": "选择替换引用",
+      "fixedVersion": "已固定此版本。脚本更新后，可重新选择以引用新版本。",
+      "referenceOnly": "仅引用目标；连接和操作仍按现有权限与审批执行。",
+      "unavailable": "引用暂不可用，请检查目标或重新选择。",
+      "removeTitle": "解除引用？",
+      "removeDescription": "仅从当前对话解除引用，不关闭桌面、不删除脚本。",
+      "errorTitle": "桌面资源不可用"
+    },
     "remoteApprovals": "待审批",
     "sessions": {
       "remoteOrigin": "远程创建",
@@ -1017,6 +1035,9 @@
     "message": {
       "resources": "发送时关联的资源",
       "resourceKind": {
+        "desktop_session": "桌面会话",
+        "desktop_profile": "桌面配置",
+        "desktop_workflow": "桌面脚本",
         "ssh_session": "SSH 会话",
         "ssh_profile": "SSH 配置",
         "file_profile": "文件配置"
@@ -1314,14 +1335,18 @@
     "slash": {
       "title": "斜杠命令",
       "commands": {
+        "workflow": {
+          "title": "选择桌面脚本",
+          "description": "引用桌面脚本的固定版本"
+        },
         "title": "命令",
         "session": {
           "title": "选择会话类型",
-          "description": "关联现有的 SSH 或文件会话"
+          "description": "引用 SSH、文件或远程桌面会话"
         },
         "profile": {
           "title": "选择配置类型",
-          "description": "通过 SSH 或文件配置建立关联"
+          "description": "引用 SSH、文件或远程桌面配置"
         },
         "compact": {
           "title": "整理上下文",
@@ -1333,6 +1358,14 @@
         "context": "上下文"
       },
       "resourceKind": {
+        "desktop": {
+          "title": "远程桌面",
+          "description": "RDP / VNC 会话与配置"
+        },
+        "workflow": {
+          "title": "桌面脚本",
+          "description": "引用固定版本"
+        },
         "title": "选择资源类型",
         "ssh": {
           "title": "SSH 连接",

@@ -32,7 +32,7 @@ function decodeOperation(value: unknown, sessionId: string, instanceId: string):
     platform: 'linux' as const,
   }
   const binding = source.source_binding === null ? null : decodeAgentResourceBinding(source.source_binding)
-  if (binding?.kind === 'file_profile') invalid()
+  if (binding && binding.kind !== 'ssh_session' && binding.kind !== 'ssh_profile') invalid()
   const result = source.result_session === undefined ? undefined : decodeAgentSession(source.result_session)
   if (Boolean(result) !== (source.status === 'succeeded') || result && result.id !== sessionId) invalid()
   const resultBinding = getAgentResourceBindingBySlot(result?.resource_bindings, 'ssh')

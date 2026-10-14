@@ -8,10 +8,19 @@ import { resourceReference, resourceReferenceId, resourceProfileName, resourceBi
 import type { AgentWorkspaceResourceContext, AgentWorkspaceSSHProfileAssociationMode } from '../model/types.ts'
 import styles from './AgentResourceBindingControl.module.scss'
 import { AgentResourceRecoveryActions } from './AgentResourceRecoveryActions.tsx'
+import { AgentDesktopReferenceControl } from './AgentDesktopReferenceControl.tsx'
 
 const resourceTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` }
 
-export function AgentResourceBindingControl({
+export function AgentResourceBindingControl(props: Parameters<typeof ConnectionResourceBindingControl>[0]) {
+  const binding = props.context.binding
+  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') {
+    return <AgentDesktopReferenceControl {...props} binding={binding} />
+  }
+  return <ConnectionResourceBindingControl {...props} />
+}
+
+function ConnectionResourceBindingControl({
   context,
   disabled,
   onReplace,
@@ -104,7 +113,7 @@ export function AgentResourceBindingControl({
         <div><dt>{t('agent.resource.host')}</dt><dd>{live?.host_name ?? context.binding.host_name}</dd></div>
         <div><dt>{t(`${copy}.profile`)}</dt><dd>{live ? resourceProfileName(live) : context.binding.kind === 'file_profile'
           ? context.binding.file_access_profile_name
-          : context.binding.kind === 'ssh_profile' ? context.binding.ssh_profile_name : context.binding.ssh_profile_id}</dd></div>
+          : context.binding.kind === 'ssh_profile' ? context.binding.ssh_profile_name : context.binding.kind === 'ssh_session' ? context.binding.ssh_profile_id : ''}</dd></div>
         {!profile ? (
           <div><dt>{t(`${copy}.session`)}</dt><dd title={bindingId}>{sessionLabel}</dd></div>
         ) : null}

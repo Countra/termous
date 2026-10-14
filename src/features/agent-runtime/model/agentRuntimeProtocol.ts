@@ -81,7 +81,7 @@ export function decodeAgentSession(value: unknown): AgentSession {
   // 旧 Core 的单引用仅在协议边界转换；应用内部始终使用集合。
   const bindings = source.resource_bindings === undefined
     ? (source.resource_binding === undefined ? [] : [source.resource_binding])
-    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 2)
+    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 4)
   const resourceBindings = bindings.map(decodeAgentResourceBinding)
   unique(resourceBindings.map(({ kind }) => agentResourceSlot(kind)), 'Agent 资源绑定槽位重复')
   return {
@@ -144,6 +144,34 @@ export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding
   const source = record(value, 'Agent 资源绑定响应无效')
   const kind = enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效')
   const common = { bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效') }
+  const fields = ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine',
+    'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation', 'workflow_id', 'workflow_name', 'workflow_version']
+  const allowed = kind === 'desktop_workflow' ? ['workflow_id', 'workflow_name', 'workflow_version']
+    : kind === 'desktop_session' ? ['session_id', 'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation']
+    : kind === 'desktop_profile' ? ['desktop_profile_id', 'desktop_profile_name', 'protocol']
+    : ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine']
+  if (fields.some((field) => source[field] !== undefined && !allowed.includes(field))
+    || kind === 'desktop_workflow' && (source.host_id !== undefined || source.host_name !== undefined && source.host_name !== '')) {
+    throw new AgentRuntimeProtocolError('资源引用包含其他类型的身份')
+  }
+  if (kind === 'desktop_workflow') return { ...common, kind,
+    workflow_id: identifier(source.workflow_id, 'Agent 脚本 ID 无效'),
+    workflow_name: utf8(source.workflow_name, 'Agent 脚本名称无效', 1_024),
+    workflow_version: positiveInteger(source.workflow_version, 'Agent 脚本版本无效'),
+  }
+  if (kind === 'desktop_session' || kind === 'desktop_profile') {
+    const desktop = { ...common,
+      desktop_profile_id: identifier(source.desktop_profile_id, 'Agent 桌面配置 ID 无效'),
+      desktop_profile_name: utf8(source.desktop_profile_name, 'Agent 桌面配置名称无效', 1_024),
+      host_id: identifier(source.host_id, 'Agent 桌面主机 ID 无效'),
+      host_name: utf8(source.host_name, 'Agent 桌面主机名称无效', 1_024),
+      protocol: enumValue<'rdp' | 'vnc'>(source.protocol, ['rdp', 'vnc'], 'Agent 桌面协议无效'),
+    }
+    return kind === 'desktop_profile' ? { ...desktop, kind } : { ...desktop, kind,
+      session_id: identifier(source.session_id, 'Agent 桌面会话 ID 无效'),
+      connection_generation: positiveInteger(source.connection_generation, 'Agent 桌面连接代次无效'),
+    }
+  }
   if (kind === 'file_profile') {
     if (source.session_id !== undefined || source.platform !== undefined || source.ssh_profile_name !== undefined) {
       throw new AgentRuntimeProtocolError('文件引用包含 SSH 身份')
@@ -384,7 +412,7 @@ export function decodeAgentAttachment(value: unknown): AgentAttachment {
 }
 
 function decodeMessageResources(value: unknown): AgentMessageResource[] {
-  const resources = array(value, 'Agent 消息关联资源无效', 2).map((value): AgentMessageResource => {
+  const resources = array(value, 'Agent 消息关联资源无效', 4).map((value): AgentMessageResource => {
     const source = record(value, 'Agent 消息关联资源无效')
     const id = identifier(source.id, 'Agent 消息关联资源 ID 无效')
     const name = utf8(source.name, 'Agent 消息关联资源名称无效', 1_024)
@@ -394,6 +422,7 @@ function decodeMessageResources(value: unknown): AgentMessageResource[] {
     }
     return {
       kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 消息关联资源类型无效'),
+      ...(source.kind === 'desktop_workflow' ? { version: positiveInteger(source.version, 'Agent 脚本引用版本无效') } : {}),
       id, name,
       ...(hostName === undefined ? {} : { host_name: hostName }),
     }
