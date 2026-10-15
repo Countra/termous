@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { runtimeToolNavigation } from './runtimeToolNavigation.ts'
+import type { ToolNavigation } from './runtimeToolNavigation.ts'
 import { createToolSearch, type DiscoveryInput } from './runtimeToolSearch.ts'
 import { runtimeToolDependencies } from './runtimeToolLifecycle.ts'
 import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
@@ -30,7 +30,7 @@ export class RuntimeToolDiscovery {
     this.entries = [...tools, ...permanent].map((tool) => {
       const original = originalName(tool.name) ?? tool.name
       const capability = runtimeCapability(original)
-      return { tool: this.withNavigation(tool, original), original, group: capability?.group ?? 'other', keywords: capability?.keywords ?? original }
+      return { tool: this.withDescription(tool, original), original, group: capability?.group ?? 'other', keywords: capability?.keywords ?? original }
     }).sort((a, b) => a.original.localeCompare(b.original))
     this.tool = {
       name: 'discover_tools', label: '发现工具', executionMode: 'sequential',
@@ -72,22 +72,25 @@ export class RuntimeToolDiscovery {
     this.permanent = [this.tool, ...permanent]
   }
 
-  private withNavigation(tool: AgentTool, original: string): AgentTool {
+  private withDescription(tool: AgentTool, original: string): AgentTool {
     const capability = runtimeCapability(original)
+    const step = runtimeCapabilityStep(original)
     const boundary = capability && !tool.description.includes(capability.purpose) ? `\n职责：${capability.purpose}\n说明：${capability.skill}` : ''
-    return { ...tool, description: tool.description + boundary, execute: async (id, input, signal, update) => {
-      const result = await tool.execute(id, input, signal, update)
-      const navigation = runtimeToolNavigation(original, result)
-      if (!navigation) return result
-      const restriction = navigation.names.map((name) => this.unavailable?.(name)).find(Boolean)
-      const next = navigation.names.flatMap((name) => {
-        const entry = this.entries.find((candidate) => candidate.original === name)
-        return entry && this.schedule(entry) ? [{ name: entry.tool.name, original_name: name }] : []
-      })
-      return { ...result, content: [...result.content, { type: 'text', text: JSON.stringify({
-        tool_navigation: { guidance: restriction ?? navigation.guidance, available_next_turn: next, skill: navigation.skill },
-      }) }] }
-    } }
+    const guidance = step?.guidance && !tool.description.includes(step.guidance) ? `\n后续：${step.guidance}` : ''
+    const action = step && !tool.description.includes('\n动作：') ? `\n动作：${runtimeToolOperations(original).join(', ')}` : ''
+    return { ...tool, description: tool.description + boundary + guidance + action }
+  }
+
+  // 所有回执由运行时统一观察；这里只安排声明，不执行恢复操作。
+  navigate(navigation: ToolNavigation) {
+    const next = this.loadNames(navigation.names)
+    const admitted = new Set(next.map((item) => item.original_name))
+    const unavailable = navigation.names.filter((name) => !admitted.has(name)).map((name) => ({ name,
+      reason: this.unavailable?.(name) ?? (this.entries.some((entry) => entry.original === name) ? '本轮声明容量不足，下轮按需发现' : '不在当前授权工具目录中'),
+    }))
+    return JSON.stringify({ tool_navigation: { guidance: navigation.guidance, available_next_turn: next, skill: navigation.skill,
+      ...(unavailable.length ? { unavailable } : {}),
+    } })
   }
 
   private schedule(entry: Entry) {

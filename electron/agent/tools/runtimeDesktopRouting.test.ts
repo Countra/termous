@@ -65,6 +65,25 @@ function session(protocol = 'rdp', generation = 2) {
 }
 const attachment = { id: 'attach_one', session_id: 'desk_one', connection_generation: 2, execution_generation: 1 }
 
+test('明确不存在的会话不再提示重复 get，未知失败仍保留查询前置条件', async () => {
+  for (const code of ['REMOTE_DESKTOP_SESSION_NOT_FOUND', 'MCP_INTERNAL']) {
+    const f = fixture([profile])
+    f.respond({ error: { code } }, true)
+    await f.tool('termous.desktops.get').execute('get', { session_id: 'desk_one' })
+    const args = { session_id: 'desk_one', connection_generation: 2 }
+    assert.throws(() => f.tool('termous.desktops.attach').prepareArguments!(args), (error: Error) => {
+      const data = JSON.parse(error.message)
+      assert.equal(data.dispatched, false)
+      assert.equal(data.required_tool, code === 'MCP_INTERNAL' ? 'termous.desktops.get' : undefined)
+      assert.equal(data.cause_code, code === 'REMOTE_DESKTOP_SESSION_NOT_FOUND' ? code : undefined)
+      return true
+    })
+    f.respond({ session: session('vnc') })
+    await f.tool('termous.desktops.get').execute('restored', { session_id: 'desk_one' })
+    assert.doesNotThrow(() => f.tool('termous.desktops.attach').prepareArguments!(args))
+  }
+})
+
 test('Profile 已有会话可直接用于 workflow，复用不恢复旧附着授权', async () => {
   const f = fixture([profile, workflow])
   const args = { script_id: 'script_one', version: 3, session_id: 'desk_one', connection_generation: 2 }

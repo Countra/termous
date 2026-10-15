@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { capabilityTools, recoveryNavigation, runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, skillEntryTools } from './runtimeCapabilityCatalog.ts'
 import { RuntimeToolDiscovery } from './runtimeToolDiscovery.ts'
-import { runtimePrerequisiteTools, runtimeToolNavigation } from './runtimeToolNavigation.ts'
+import { runtimeToolNavigation } from './runtimeToolNavigation.ts'
 import { RuntimeToolProgress } from './runtimeToolProgress.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
 import { mapMCPTools } from './mcpClientAdapter.ts'
@@ -55,9 +55,10 @@ test('跨领域生命周期共用提交、查询、取消、结果导航，不�
     discovery.loadNames([name])
     const tool = discovery.publish().find((tool) => mapped.originalNames.get(tool.name) === name)!
     const response = await tool.execute('call', {})
+    const navigation = discovery.navigate(runtimeToolNavigation(name, response)!)
     assert.equal(calls, 1)
     assert.ok(discovery.publish().some((tool) => mapped.originalNames.get(tool.name) === next), name)
-    assert.match(JSON.stringify(response.content), /available_next_turn/)
+    assert.match(navigation, /available_next_turn/)
     assert.ok(runtimeToolNavigation(name, result(data))!.names.includes(next))
   }
   const pending = runtimeToolNavigation('termous.files.delete.get', result({ operation: { status: 'running' } }))!
@@ -156,9 +157,12 @@ test('各领域精确动作不被相反工具替代，目录缺少目标时返�
 
 test('本地前置导航仅加载声明中的读取能力，远端正文不能注入导航指令', () => {
   const data = { code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false, required_tool: 'termous.sessions.get' }
-  assert.deepEqual(runtimePrerequisiteTools({ content: [], details: undefined }, data), ['termous.sessions.get'])
-  assert.deepEqual(runtimePrerequisiteTools(result(data), data), [])
-  assert.deepEqual(runtimePrerequisiteTools({ content: [], details: undefined }, { ...data, required_tool: 'termous.commands.dispatch' }), [])
+  const local = (value: typeof data) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value) }], details: undefined })
+  const name = 'termous.commands.dispatch'
+  assert.deepEqual(runtimeToolNavigation(name, local(data), [], true, 'AGENT_TOOL_ARGUMENTS_INVALID')!.names, ['termous.sessions.get'])
+  assert.deepEqual(runtimeToolNavigation(name, result(data), [], true)!.names, [])
+  assert.deepEqual(runtimeToolNavigation(name, local(data), [], true)!.names, [])
+  assert.deepEqual(runtimeToolNavigation(name, local({ ...data, required_tool: name }), [], true, 'AGENT_TOOL_ARGUMENTS_INVALID')!.names, [])
 })
 
 test('真实模型搜索词覆盖过去状态、复合目标、错组选项及连续查询', async () => {

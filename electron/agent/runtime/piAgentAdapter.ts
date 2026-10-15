@@ -16,7 +16,7 @@ import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { createSkillResourceTool } from '../tools/skillResourceTool.ts'
 import { localToolNames } from '../contracts/toolNames.ts'
 import { RuntimeToolDiscovery } from '../tools/runtimeToolDiscovery.ts'
-import { runtimePrerequisiteTools } from '../tools/runtimeToolNavigation.ts'
+import { runtimeToolNavigation } from '../tools/runtimeToolNavigation.ts'
 import { RuntimeExecutionBudget } from '../execution/runtimeExecutionBudget.ts'
 import { RuntimeInputSafety } from '../execution/runtimeInputSafety.ts'
 import { measuredRuntimeStream } from './runtimeRequestMetrics.ts'
@@ -24,7 +24,7 @@ import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeIm
 import { bindWorkflowPreparation, createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
 import { RuntimeToolProgress } from '../tools/runtimeToolProgress.ts'
 import { RuntimeSkillContext, skillResourcePresent } from '../tools/runtimeSkillContext.ts'
-import { progressData, progressDigest } from '../tools/runtimeToolEvidence.ts'
+import { progressDigest } from '../tools/runtimeToolEvidence.ts'
 import { estimateRuntimeMessageTokens } from '../context/runtimeContextTokens.ts'
 import { clearRuntimeCompactionUsage } from '../context/compaction/runtimeCompactionPolicy.ts'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
@@ -76,7 +76,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills)
   const budget = new RuntimeExecutionBudget(options.bootstrap.model.snapshot.execution_budget)
   const inputSafety = new RuntimeInputSafety()
-  const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name))
+  const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name), options.bootstrap.session.resource_bindings)
   const skillContext = new RuntimeSkillContext(options.skills)
   let supplementalFingerprint = progressDigest([])
   let supplementalTokens = 0
@@ -192,23 +192,27 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     },
   })
   const observedCalls = new Set<string>()
+  const validatedCalls = new Set<string>()
   const callArguments = new Map<string, unknown>()
   const observeToolResult = (id: string, name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean) => {
     if (observedCalls.has(id)) return
     observedCalls.add(id)
-    const prerequisite = isError ? progressData(result) : undefined
-    // 本地门禁明确尚未派发时，仅补齐其只读核验入口，不代替模型执行或恢复历史授权。
-    if (prerequisite) discovery.loadNames(runtimePrerequisiteTools(result, prerequisite))
-    inputSafety.observe(options.mcp.originalName(name) ?? name, result, isError)
-    budget.evaluate({ type: 'tool_result', name: options.mcp.originalName(name) ?? name, args, result, isError })
-    const guidance = toolProgress.observe(options.mcp.originalName(name) ?? name, args, result, isError)
+    const original = options.mcp.originalName(name) ?? name
+    inputSafety.observe(original, result, isError)
+    budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
+    // pi 在参数准备失败时跳过 before/afterToolCall；用实际阶段区分本地失败，不解析错误文案。
+    const preparationCode = isError && !validatedCalls.has(id) && !isMCPToolDetails(result.details)
+      ? tools.some((tool) => tool.name === name) ? 'AGENT_TOOL_ARGUMENTS_INVALID' : 'AGENT_TOOL_UNAVAILABLE' : undefined
+    const navigation = runtimeToolNavigation(original, result, options.bootstrap.session.resource_bindings, isError, preparationCode)
+    const guidance = toolProgress.observe(original, args, result, isError, navigation)
+    const navigationText = navigation ? discovery.navigate(navigation) : undefined
     for (const progress of toolProgress.drain()) {
       if (progress.status === 'detected') discovery.loadNames(progress.next_tools)
       if (options.bootstrap.context.progress_supported) options.events.push('progress', { progress: {
         ...progress, assistant_message_id: options.bootstrap.run.assistant_message_id, after_part_sequence: bridge.partSequence(),
       } })
     }
-    return guidance
+    return [navigationText, guidance].filter(Boolean).join('\n') || undefined
   }
   const initialMessages = hydrateRuntimeMessages(options.bootstrap, model, contextFingerprint)
   const restoredProgress = toolProgress.restore(options.bootstrap.context.checkpoint?.details?.execution_progress)
@@ -244,6 +248,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       for (const result of toolResults) {
         observeToolResult(result.toolCallId, result.toolName, callArguments.get(result.toolCallId), { content: result.content, details: result.details }, result.isError)
         observedCalls.delete(result.toolCallId)
+        validatedCalls.delete(result.toolCallId)
         callArguments.delete(result.toolCallId)
       }
       const failure = executionFailure()
@@ -262,6 +267,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     followUpMode: 'one-at-a-time',
     toolExecution: 'sequential',
     beforeToolCall: async ({ toolCall }, signal) => {
+      validatedCalls.add(toolCall.id)
       if (signal?.aborted) { aborted = true; return { block: true, terminate: true, reason: '任务已取消' } }
       const name = options.mcp.originalName(toolCall.name) ?? toolCall.name
       const decision = inputSafety.failure() ? undefined : budget.evaluate({ type: 'before_tool', name, args: toolCall.arguments })

@@ -8,6 +8,7 @@ interface DesktopSessionRoute {
   generation?: number
   ready: boolean
   revision: number
+  missing?: boolean
 }
 
 interface DesktopAttachmentRoute {
@@ -30,11 +31,13 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
     ? { session_id: desktop.session_id, connection_generation: desktop.connection_generation }
     : desktop ? { profile_id: desktop.desktop_profile_id } : {}
   const reject = (expected: Record<string, unknown>, prerequisite?: { session_id: string }) => {
+    const missing = prerequisite && sessions.get(prerequisite.session_id)?.missing === true
     throw new Error(JSON.stringify({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
-      message: prerequisite ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+      message: missing ? '本轮回执已确认该会话不存在，尚未派发。get 只查询已有会话，不能恢复连接；按本轮精确目标核验现有会话及连接能力，不能使用失效的附着或更换目标。'
+        : prerequisite ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
         : '调用目标与本轮引用不一致，尚未派发。请按精确引用修正参数；不要重放结果未知的操作。',
       expected_arguments: expected,
-      ...(prerequisite ? { required_tool: 'termous.desktops.get', required_arguments: prerequisite } : {}) }))
+      ...(missing ? { cause_code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND' } : prerequisite ? { required_tool: 'termous.desktops.get', required_arguments: prerequisite } : {}) }))
   }
   const knownSession = (id: unknown, generation?: unknown, needsReady = true) => {
     const value = typeof id === 'string' ? sessions.get(id) : undefined
@@ -129,8 +132,15 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
           }
         }
         const result = await tool.execute(id, args, signal, update)
-        if (!isMCPToolDetails(result.details) || result.details.result.isError) return result
+        if (!isMCPToolDetails(result.details)) return result
         const output = result.details.result.structuredContent
+        // 仅明确的不存在回执改变恢复提示；未知失败不能推断资源已删除。
+        if (name === 'termous.desktops.get' && isRecord(args) && typeof args.session_id === 'string'
+          && isRecord(output) && isRecord(output.error) && output.error.code === 'REMOTE_DESKTOP_SESSION_NOT_FOUND'
+          && (sessions.get(args.session_id)?.revision ?? 0) <= currentRevision) {
+          sessions.set(args.session_id, { ready: false, missing: true, revision: currentRevision })
+        }
+        if (result.details.result.isError) return result
         if (!isRecord(output) || output.error) return result
         if (name === 'termous.desktops.connect'
           || name === 'termous.desktops.get' && isRecord(args) && isRecord(output.session) && output.session.id === args.session_id) observeSession(output.session, currentRevision)

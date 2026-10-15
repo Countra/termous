@@ -1,3 +1,4 @@
+import { runtimeToolResponse as response } from '../test-support/runtimeToolResponseFixture.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
@@ -18,7 +19,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
       inputSchema: { type: 'object' as const, properties: {}, additionalProperties: false },
     })), async (definition) => {
       executed.push(definition.name)
-      const result = { session: { session_id: 'fixture', connection_generation: 2 }, attachment: { attachment_id: 'current' } }
+      const result = { sessions: [{ session_id: 'fixture', connection_generation: 2 }], session: { session_id: 'fixture', connection_generation: 2 }, attachment: { attachment_id: 'current' } }
       return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result }
     })
     const writer = new RuntimeEventWriter({
@@ -176,22 +177,6 @@ for (const api of ['responses', 'chat_completions'] as const) {
   })
 }
 
-function response(api: string, name?: string, args = {}, id = name) {
-  if (api === 'chat_completions') {
-    const delta = name ? { tool_calls: [{ index: 0, id: `call_${id}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } : { content: '观察附着已建立' }
-    const chunk = { id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{ index: 0, delta, finish_reason: name ? 'tool_calls' : 'stop' }] }
-    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
-  }
-  const item = name ? { type: 'function_call', id: `fc_${id}`, call_id: `call_${id}`, name, arguments: JSON.stringify(args), status: 'completed' }
-    : { type: 'message', id: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: '观察附着已建立', annotations: [] }] }
-  const events = [
-    { type: 'response.created', response: { id: 'response' } },
-    { type: 'response.output_item.added', output_index: 0, item: { ...item, status: 'in_progress', ...(name ? { arguments: '' } : { content: [] }) } },
-    { type: 'response.output_item.done', output_index: 0, item },
-    { type: 'response.completed', response: { id: 'response', status: 'completed', output: [item] } },
-  ]
-  return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
-}
 
 for (const api of ['responses', 'chat_completions'] as const) {
   test(`${api} 通用生命周期把多个领域的后续声明送入真实下一请求`, async () => {

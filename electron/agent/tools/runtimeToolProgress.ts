@@ -8,11 +8,14 @@ import { completedToolGuidance, completedToolResource, runtimeToolDependencies }
 import { capabilityTools, capabilityValue, recoveryNavigation, runtimeCapability, runtimeCapabilityStep } from './runtimeCapabilityCatalog.ts'
 import { progressArguments, progressData, progressDigest, progressFact, progressFailure, progressFingerprint, progressMetaTools, progressPolling, progressResource } from './runtimeToolEvidence.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
+import { runtimeToolNavigation, type ToolNavigation } from './runtimeToolNavigation.ts'
+import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 
 interface Observation { fingerprint: string; count: number; name: string; resource: string; epoch: number }
 type ProgressNotice = Omit<AgentProgressData, 'assistant_message_id' | 'after_part_sequence'>
 type Fact = ReturnType<typeof progressFact>
-interface ProgressSnapshot { version: 1; observations: [string, Observation][]; recent: string[]; facts: Fact[]; notices: [string, ProgressNotice][] }
+interface Recovery { tool: string; resource: string; guidance: string; next_tools: string[]; empty?: boolean }
+interface ProgressSnapshot { version: 1; observations: [string, Observation][]; recent: string[]; facts: Fact[]; notices: [string, ProgressNotice][]; recoveries?: Recovery[] }
 
 // 进展提示与可关闭预算独立；只有已完成资源的生命周期约束会阻止再次派发。
 export class RuntimeToolProgress {
@@ -20,6 +23,7 @@ export class RuntimeToolProgress {
   private readonly completed = new Map<string, true>()
   private readonly cleanupSuspended = new Set<string>()
   private readonly facts = new Map<string, Fact>()
+  private readonly recoveries = new Map<string, Recovery>()
   private readonly notices = new Map<string, ProgressNotice>()
   private readonly noticeResources = new Map<string, string>()
   private recent: string[] = []
@@ -28,8 +32,10 @@ export class RuntimeToolProgress {
   private readonly polling = new Map<string, { fingerprint: string; since: number }>()
   private readonly now: () => number
   private readonly available: (name: string) => boolean
+  private readonly bindings: RuntimeResourceBinding[]
 
-  constructor(now: () => number = Date.now, available: (name: string) => boolean = () => true) { this.now = now; this.available = available }
+  constructor(now: () => number = Date.now, available: (name: string) => boolean = () => true,
+    bindings: RuntimeResourceBinding[] = []) { this.now = now; this.available = available; this.bindings = bindings }
 
   hidden(name: string) { return this.cleanupSuspended.has(name) }
 
@@ -45,17 +51,19 @@ export class RuntimeToolProgress {
   rediscover(name: string) { this.cleanupSuspended.delete(name) }
 
   // 新用户指令开启新的诊断窗口；已确认的资源终态不会恢复为有效授权。
-  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = [] }
+  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.recoveries.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = [] }
 
   drain() { const pending = this.pending; this.pending = []; return pending }
 
-  observe(name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean): string | undefined {
+  observe(name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean,
+    navigation = runtimeToolNavigation(name, result, this.bindings, isError)): string | undefined {
     const mcp = isMCPToolDetails(result.details) ? result.details : undefined
     const data = progressData(result)
     const failure = progressFailure(data, name)
     const error = isError || mcp?.result.isError === true || failure !== undefined
     const code = failure?.code ?? (error && typeof data.code === 'string' ? data.code.slice(0, 128) : undefined)
     const resource = progressResource(args, data)
+    this.observeRecovery(name, resource, navigation, error)
     const terminal = !error && mcp && completedToolResource(name, args, data)
     if (!error) for (const dependency of runtimeToolDependencies(name)) this.cleanupSuspended.delete(dependency)
     if (terminal) {
@@ -79,15 +87,24 @@ export class RuntimeToolProgress {
       // 合法长轮询有宽限期；状态、进度均不变时恢复诊断，wait_ms 不能造成永久豁免。
       polling = this.now() - since < 60_000
     }
-    if (!error && !polling) {
-      if ([...this.notices.values()].some((notice) => notice.status === 'detected' && notice.reason === 'repeated_failure'
+    if (!error) {
+      if (!polling && [...this.notices.values()].some((notice) => notice.status === 'detected' && notice.reason === 'repeated_failure'
         && notice.tool_name === name && this.noticeResources.get(notice.pattern_id) === resource)) {
         this.advance(resource, name, '同一操作已取得该资源的成功回执；继续核验目标是否完成。', true)
       }
       const capability = runtimeCapability(name)
       const progresses = runtimeCapabilityStep(name)?.progresses
-      if (capability && progresses && typeof capabilityValue(data, progresses.path) === 'string')
-        for (const previous of capabilityTools(capability, progresses.tools)) this.advance(resource, previous, `已取得后续阶段 ${name} 的实际回执；继续按目标核验结果。`)
+      const evidence = progresses && capabilityValue(data, progresses.path)
+      if (capability && progresses && typeof evidence === 'string' && evidence.length > 0) {
+        for (const previous of capabilityTools(capability, progresses.tools)) {
+          const scope = progresses.collection ? 'unresolved' : resource
+          const key = `${previous}:${scope}`
+          // 成员回执只能消除无筛选空列表，不能清除其他目标或权限失败。
+          if (progresses.collection && !this.recoveries.get(key)?.empty) continue
+          this.recoveries.delete(key)
+          this.advance(scope, previous, `已取得后续阶段 ${name} 的实际回执；继续按目标核验结果。`)
+        }
+      }
     }
     if (!error && (polling || !readOnly && (!role || role === 'input'))) {
       this.recent = [...this.recent, ''].slice(-12)
@@ -118,10 +135,10 @@ export class RuntimeToolProgress {
       }
     }
     if (repetitions < 3) return undefined
-    const navigation = recoveryNavigation(name, code)
-    const nextTools = navigation.names.filter(this.available).slice(0, 8)
-    const unavailable = navigation.names.some((name) => !this.available(name)) ? '部分流程入口不在当前可用目录中；先说明缺失能力或门禁限制，不得反复发现或绕过。' : ''
-    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : reason === 'cycle' ? '工具调用正在重复往返' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${navigation.guidance} ${navigation.skill ? `流程说明：${navigation.skill}。` : ''}${unavailable}这是纠错提示，任务继续；更换请求标识或重复读取不会完成目标。`
+    const recovery = navigation ?? recoveryNavigation(name, code)
+    const nextTools = recovery.names.filter(this.available).slice(0, 8)
+    const unavailable = recovery.names.some((name) => !this.available(name)) ? '部分流程入口不在当前可用目录中；先说明缺失能力或门禁限制，不得反复发现或绕过。' : ''
+    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : reason === 'cycle' ? '工具调用正在重复往返' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${recovery.guidance} ${recovery.skill ? `流程说明：${recovery.skill}。` : ''}${unavailable}这是纠错提示，任务继续；更换请求标识或重复读取不会完成目标。`
     const notice: ProgressNotice = { pattern_id: pattern, tool_name: name, reason, status: 'detected', count: repetitions, guidance, next_tools: nextTools }
     const old = this.notices.get(pattern)
     remember(this.notices, pattern, notice, 12)
@@ -147,12 +164,15 @@ export class RuntimeToolProgress {
   }
 
   summary() {
-    if (!this.facts.size && !this.notices.size) return ''
+    if (!this.facts.size && !this.notices.size && !this.recoveries.size) return ''
     const lines = ['[TERMOUS_EXECUTION_STATE]', '以下仅为实际回执摘要；不改变用户目标，不恢复历史授权。以本轮资源绑定和实时工具结果为准。']
     // 保留完整条目，优先记录未解决模式，正文限制在约 2048 Token 以内。
-    const entries = [...[...this.notices.values()].filter((notice) => notice.status === 'detected').reverse(), ...[...this.facts.values()].reverse()]
+    const notices = [...this.notices.values()].filter((notice) => notice.status === 'detected')
+    const recoveries = [...this.recoveries.values()].filter((entry) => !notices.some((notice) => notice.tool_name === entry.tool
+      && this.noticeResources.get(notice.pattern_id) === entry.resource && notice.guidance.includes(entry.guidance)))
+    const entries = [...notices.reverse(), ...recoveries.reverse(), ...[...this.facts.values()].reverse()]
     for (const entry of entries) {
-      const line = JSON.stringify(entry)
+      const line = JSON.stringify('next_tools' in entry ? { ...entry, next_tools: entry.next_tools.filter(this.available) } : entry)
       if (lines.join('\n').length + line.length > 2000) continue
       lines.push(line)
     }
@@ -161,12 +181,15 @@ export class RuntimeToolProgress {
   }
 
   snapshot(): ProgressSnapshot {
-    const snapshot: ProgressSnapshot = { version: 1, observations: [...this.observations].slice(-32), recent: this.recent.slice(), facts: [...this.facts.values()], notices: [...this.notices].map(([id, notice]) => [this.noticeResources.get(id) ?? 'unresolved', notice]) }
+    const snapshot: ProgressSnapshot = { version: 1, observations: [...this.observations].slice(-32), recent: this.recent.slice(), facts: [...this.facts.values()],
+      notices: [...this.notices].map(([id, notice]) => [this.noticeResources.get(id) ?? 'unresolved', { ...notice, next_tools: notice.next_tools.filter(this.available) }]),
+      recoveries: [...this.recoveries.values()].map((entry) => ({ ...entry, next_tools: entry.next_tools.filter(this.available) })) }
     // 按 UTF-8 字节预留检查点其余 details 的空间，避免中文诊断通过字符限额却超过提交上限。
     while (Buffer.byteLength(JSON.stringify(snapshot)) > 48 * 1024) {
       if (snapshot.observations.length) snapshot.observations.shift()
       else if (snapshot.facts.length) snapshot.facts.shift()
       else if (snapshot.notices.length) snapshot.notices.shift()
+      else if (snapshot.recoveries?.length) snapshot.recoveries.shift()
       else break
     }
     return snapshot
@@ -199,7 +222,19 @@ export class RuntimeToolProgress {
       remember(this.notices, progress.pattern_id, progress, 12)
       remember(this.noticeResources, progress.pattern_id, item[0], 12)
     }
+    if (Array.isArray(value.recoveries)) for (const item of value.recoveries.slice(-12)) {
+      if (!isRecord(item) || typeof item.tool !== 'string' || item.tool.length > 128 || typeof item.resource !== 'string' || item.resource.length > 256
+        || typeof item.guidance !== 'string' || item.guidance.length > 1600 || !Array.isArray(item.next_tools)) continue
+      remember(this.recoveries, `${item.tool}:${item.resource}`, { tool: item.tool, resource: item.resource, guidance: item.guidance, empty: item.empty === true,
+        next_tools: item.next_tools.filter((name): name is string => typeof name === 'string' && name.length <= 128 && this.available(name)).slice(0, 8) }, 12)
+    }
     return true
+  }
+
+  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, error: boolean) {
+    if (navigation?.recovery) remember(this.recoveries, `${name}:${resource}`, { tool: name, resource,
+      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty }, 12)
+    else if (!error && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
   }
 
   replay(messages: AgentMessage[], readOnly: (name: string) => boolean) {

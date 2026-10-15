@@ -1,4 +1,20 @@
 export type CapabilityRole = 'list' | 'inspect' | 'observe' | 'preview' | 'submit' | 'poll' | 'result' | 'mutate' | 'input' | 'cancel' | 'close'
+export type CapabilityFailure = 'blocked' | 'uncertain' | 'stale' | 'pending' | 'missing' | 'invalid' | 'unavailable' | 'unknown'
+export type CapabilityTarget = 'session' | 'profile' | 'unbound'
+
+export interface CapabilityCase {
+  tools: string[]
+  path?: string
+  values?: string[]
+  exists?: boolean
+  empty?: boolean
+  omittedIsEmpty?: boolean
+  errors?: CapabilityFailure[]
+  codes?: string[]
+  targets?: CapabilityTarget[]
+  next: string[]
+  guidance: string
+}
 
 export interface CapabilityStep {
   tools: string[]
@@ -8,7 +24,7 @@ export interface CapabilityStep {
   guidance?: string
   evidence?: 'image'
   completion?: { fields: string[]; flag: string; next: string }
-  progresses?: { tools: string[]; path: string }
+  progresses?: { tools: string[]; path: string; collection?: boolean }
 }
 
 export interface ToolCapability {
@@ -20,10 +36,12 @@ export interface ToolCapability {
   skill: string
   entry: string[]
   recovery: string[]
+  missing?: string[]
+  bindings?: { session?: string; profile?: string }
   operations: Partial<Record<string, string[]>>
   evidence?: { states?: string[]; volatile?: string[]; settled?: string[] }
   steps: CapabilityStep[]
-  cases?: Array<{ tools: string[]; path: string; values?: string[]; exists?: boolean; next: string[]; guidance: string }>
+  cases?: CapabilityCase[]
 }
 
 export interface CapabilityCatalog {

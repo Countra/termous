@@ -64,7 +64,7 @@ test('只加载 list 后真实调用会在下一轮补齐 get 与 attach，不�
   const result = await list.execute('call', {})
   assert.deepEqual(calls, ['termous.desktops.list'])
   assert.equal(discovery.active().some((tool) => tool.name.endsWith('_dattach')), false)
-  assert.match(JSON.stringify(result.content), /available_next_turn.*m_termous_ddesktops_dattach/u)
+  assert.match(discovery.navigate(runtimeToolNavigation('termous.desktops.list', result)!), /available_next_turn.*m_termous_ddesktops_dattach/u)
   assert.deepEqual(discovery.publish().map((tool) => tool.name), ['discover_tools', 'm_termous_ddesktops_dattach', 'm_termous_ddesktops_dget', 'm_termous_ddesktops_dlist'])
 })
 
@@ -74,7 +74,7 @@ test('代次失效加载重新观察工具，保留原错误和禁止重放说�
   const key = discovery.publish().find((tool) => tool.name.endsWith('_dkey'))!
   const result = await key.execute('call', {})
   assert.match(JSON.stringify(result.content), /desktop_generation_stale/u)
-  assert.match(JSON.stringify(result.content), /不得重用或自动重放/u)
+  assert.match(discovery.navigate(runtimeToolNavigation('termous.desktops.keyboard.key', result)!), /不得重用或自动重放/u)
   assert.ok(discovery.publish().some((tool) => tool.name.endsWith('_dget')))
   assert.equal(calls.length, 1)
 })
@@ -94,9 +94,8 @@ test('导航不加载未授权工具，不把权限拒绝当成重新附着指�
   await restricted.discovery.tool.execute('find', { names: ['termous.desktops.list', 'termous.desktops.attach'] })
   const active = restricted.discovery.publish()
   const result = await active[1]!.execute('call', {})
-  const hint = result.content[result.content.length - 1]!
-  assert.equal(hint.type, 'text')
-  if (hint.type === 'text') assert.deepEqual(JSON.parse(hint.text).tool_navigation.available_next_turn, [])
+  const hint = restricted.discovery.navigate(runtimeToolNavigation('termous.desktops.list', result)!)
+  assert.deepEqual(JSON.parse(hint).tool_navigation.available_next_turn, [])
   assert.equal(restricted.discovery.publish().length, 2)
   const denied = fixture('forbidden')
   await denied.discovery.tool.execute('find', { names: ['termous.desktops.keyboard.key'] })
@@ -189,7 +188,7 @@ test('截图创建工具不可用时不以释放替代；导航仅加载授权�
   assert.equal(discovery.publish().length, 1)
   await discovery.tool.execute('release', { names: ['termous.desktop_workflows.captures.release'] })
   const released = await discovery.publish()[1]!.execute('release', {})
-  assert.match(JSON.stringify(released.content), /Use captures\.create to create a new snapshot/u)
+  assert.match(discovery.navigate(runtimeToolNavigation('termous.desktop_workflows.captures.release', released)!), /Use captures\.create to create a new snapshot/u)
   assert.equal(discovery.publish().length, 2)
 })
 
