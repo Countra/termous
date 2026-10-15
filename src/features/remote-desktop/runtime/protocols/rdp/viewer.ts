@@ -3,6 +3,7 @@ import { ClientMessageSchema, ServerMessageSchema, InputSchema } from '@termous/
 import type { RemoteDesktopViewerCreateOptions, RemoteDesktopViewerHandle } from '../../core/viewerContracts.ts'
 import { scanCodes } from './keyboard.ts'
 import { createRdpSystemFiles } from './systemFiles.ts'
+import { createAutomationPointerOverlay } from '../../core/automationPointerOverlay.ts'
 
 export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): RemoteDesktopViewerHandle {
   const attachment = options.transport.kind === 'rdp-pixels' ? options.transport.attachment : undefined
@@ -48,6 +49,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   let sequence = 0n
   let width = options.session.rdp.width
   let height = options.session.rdp.height
+  let displayEpoch = 0
   let mode = options.state.displayMode
   let active = true
   let resizeAvailable = false
@@ -62,6 +64,14 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   const buttons = new Set<number>()
   const listeners = new AbortController()
   let inputEpoch = 0
+  const pointer = createAutomationPointerOverlay({ target: options.target, feed: options.pointer,
+    visible: () => active && connected && !owned && !disposed,
+    geometry: () => {
+      const rect = canvas.getBoundingClientRect()
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        remoteX: 0, remoteY: 0, remoteWidth: width, remoteHeight: height, displayEpoch }
+    },
+  })
   const systemFiles = createRdpSystemFiles({
     id: options.session.id, api: options.desktopFiles,
     context: () => owned && !localReadOnly && !disposed ? { sessionId: options.session.id, generation: Number(generation), subscriptionId: attachment.subscription_id, controlGeneration: Number(controlGeneration) } : undefined,
@@ -99,6 +109,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   function dispose() {
     if (disposed) return
     systemFiles.dispose()
+    pointer.dispose()
     disposed = true
     // 断开订阅会由服务端释放输入状态；关闭期间不再发送，避免拥塞触发递归清理。
     motion = undefined
@@ -123,6 +134,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   }
   function layout() {
     if (disposed) return
+    pointer.refresh()
     const rect = options.target.getBoundingClientRect()
     const scale = mode === 'actual' ? 1 : Math.min(rect.width / width, rect.height / height)
     canvas.style.width = `${Math.max(1, width * scale)}px`
@@ -186,10 +198,11 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
         }
       } catch { disconnected() }
     }
-    worker.onmessage = (event: MessageEvent<{ type: string; width: number; height: number; receivedBytes: number; sentBytes: number }>) => {
+    worker.onmessage = (event: MessageEvent<{ type: string; width: number; height: number; displayEpoch: number; receivedBytes: number; sentBytes: number }>) => {
       if (event.data.type === 'error') { disconnected(); return }
       if (disposed) return
       width = event.data.width; height = event.data.height
+      displayEpoch = event.data.displayEpoch
       displayReceived = event.data.receivedBytes
       displaySent = event.data.sentBytes
       layout()

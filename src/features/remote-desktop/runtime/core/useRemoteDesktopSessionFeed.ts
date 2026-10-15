@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { DesktopPointerEvent } from '#common/contracts'
 import type {
   RemoteDesktopSession,
   RemoteDesktopTelemetryEvent,
@@ -17,6 +18,8 @@ interface RemoteDesktopSessionFeedOptions {
   onUpsert: (session: RemoteDesktopSession) => void
   onRemove: (sessionId: string) => void
   onTelemetry: (event: RemoteDesktopTelemetryEvent) => void
+  onPointer: (event: DesktopPointerEvent) => void
+  onPointerDisconnect: () => void
 }
 
 export function useRemoteDesktopSessionFeed({
@@ -27,6 +30,8 @@ export function useRemoteDesktopSessionFeed({
   onUpsert,
   onRemove,
   onTelemetry,
+  onPointer,
+  onPointerDisconnect,
 }: RemoteDesktopSessionFeedOptions) {
   const reconcileRevisionRef = useRef(0)
 
@@ -58,17 +63,25 @@ export function useRemoteDesktopSessionFeed({
       if (disposed) {
         return
       }
-      socket = new WebSocket(api.remoteDesktopSessionEventsUrl())
-      socket.onopen = () => {
+      const url = new URL(api.remoteDesktopSessionEventsUrl())
+      url.searchParams.set('automation_pointer', '1')
+      const connection = new WebSocket(url.toString())
+      socket = connection
+      connection.onopen = () => {
+        if (disposed || socket !== connection) return
         reconnectDelay = reconnectDelayInitial
         void reconcile()
       }
-      socket.onmessage = (message: MessageEvent<string>) => {
+      connection.onmessage = (message: MessageEvent<string>) => {
+        if (disposed || socket !== connection) return
         const event = decodeRemoteDesktopSessionEvent(message.data)
         if (!event) {
+          // 无效视觉投影只丢弃，不能让高频坏消息放大会话 GET 请求。
+          try { if (JSON.parse(message.data)?.type === 'automation_pointer') return } catch { /* 非视觉消息仍执行既有校准。 */ }
           void reconcile()
           return
         }
+        if (event.type === 'automation_pointer') { onPointer(event); return }
         if (event.type === 'telemetry') {
           onTelemetry(event)
           return
@@ -83,8 +96,11 @@ export function useRemoteDesktopSessionFeed({
           onRemove(event.session.id)
         }
       }
-      socket.onerror = () => socket?.close()
-      socket.onclose = () => {
+      connection.onerror = () => { if (!disposed && socket === connection) connection.close() }
+      connection.onclose = () => {
+        if (disposed || socket !== connection) return
+        reconcileRevisionRef.current += 1
+        onPointerDisconnect()
         socket = null
         if (!disposed) {
           reconnectTimer = window.setTimeout(connect, reconnectDelay)
@@ -96,6 +112,7 @@ export function useRemoteDesktopSessionFeed({
     void reconcile()
     connect()
     return () => {
+      onPointerDisconnect()
       disposed = true
       reconcileRevisionRef.current += 1
       if (reconnectTimer !== undefined) {
@@ -103,5 +120,5 @@ export function useRemoteDesktopSessionFeed({
       }
       socket?.close()
     }
-  }, [api, enabled, initialSessions, onRemove, onSnapshot, onTelemetry, onUpsert])
+  }, [api, enabled, initialSessions, onRemove, onSnapshot, onTelemetry, onUpsert, onPointer, onPointerDisconnect])
 }

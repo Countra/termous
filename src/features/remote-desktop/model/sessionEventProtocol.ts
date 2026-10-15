@@ -1,3 +1,4 @@
+import { isDesktopPointerEvent } from '#common/contracts'
 import {
   isRemoteDesktopLoopbackAddress,
   isValidRemoteDesktopIPAddress,
@@ -45,6 +46,8 @@ export function decodeRemoteDesktopSessionEvent(value: string): RemoteDesktopSes
     return null
   }
   switch (decoded.type) {
+    case 'automation_pointer':
+      return isDesktopPointerEvent(decoded) ? decoded : null
     case 'snapshot':
       if (!Array.isArray(decoded.sessions) || !decoded.sessions.every(isRemoteDesktopSession)) {
         return null

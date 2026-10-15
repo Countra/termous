@@ -1,4 +1,5 @@
 import type { AppLanguage, AppTheme } from './application'
+import type { DesktopPointerEvent } from './desktop-pointer.ts'
 
 export interface DesktopAutomationHost {
   id: string
@@ -20,6 +21,8 @@ export interface DesktopAutomationBootstrap {
 
 // 宿主只能访问自己的会话；接口不接受路径、URL、全局令牌或任意脚本。
 export interface DesktopAutomationBridge {
+  pointer(): Promise<DesktopPointerEvent | null>
+  onPointer(listener: (event: DesktopPointerEvent) => void): () => void
   bootstrap(): Promise<DesktopAutomationBootstrap>
   credentials(): Promise<{ password: string }>
   executor(): Promise<{ url: string; ticket: string }>

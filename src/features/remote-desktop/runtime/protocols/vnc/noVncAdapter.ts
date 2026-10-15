@@ -9,6 +9,8 @@ import type {
 import { VncTransportMetrics } from './vncTransportMetrics.ts'
 import { VncDesktopExecution } from './desktopExecution.ts'
 import { connectVncExecution, type VncExecutionConnection } from './executionBridge.ts'
+import { createAutomationPointerOverlay } from '../../core/automationPointerOverlay.ts'
+import type { AutomationPointerFeed } from '../../core/automationPointerState.ts'
 
 export type VncCredentialType = 'username' | 'password' | 'target'
 export type VncCredentials = Partial<Record<VncCredentialType, string>>
@@ -44,6 +46,7 @@ interface NoVncEventMap {
 type NoVncEventName = keyof NoVncEventMap
 
 export interface CreateVncViewerAdapterOptions {
+  pointer?: AutomationPointerFeed
   signal?: AbortSignal
   awaitFirstFrame?: boolean
   execution?: VncExecutionConnection
@@ -59,6 +62,9 @@ export interface CreateVncViewerAdapterOptions {
 }
 
 export class VncViewerAdapter {
+  private pointer?: ReturnType<typeof createAutomationPointerOverlay>
+  private active = true
+  private connected = false
   private readonly rfb: InstanceType<typeof import('@novnc/novnc')['default']>
   private readonly listeners: Array<[NoVncEventName, EventListener]> = []
   private disposed = false
@@ -100,7 +106,7 @@ export class VncViewerAdapter {
     const adapter = new VncViewerAdapter(rfb, transportMetrics, options.events)
     if (options.execution) {
       adapter.executionConnection = options.execution
-      adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => options.onControlChanged?.(owned))
+      adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => { options.onControlChanged?.(owned); adapter.pointer?.refresh() })
       const startExecution = () => {
         void connectVncExecution(options.execution!, adapter.execution!, adapter.executionAbort.signal, () => adapter.disconnect(), options.viewOnly)
           .catch(() => { if (!adapter.disposed) adapter.disconnect() })
@@ -114,11 +120,17 @@ export class VncViewerAdapter {
         rfb.addEventListener('desktopframe', onFrame, { signal: adapter.executionAbort.signal })
       } else rfb.addEventListener('connect', startExecution, { once: true, signal: adapter.executionAbort.signal })
     }
+    adapter.pointer = createAutomationPointerOverlay({ target: options.target, feed: options.pointer,
+      visible: () => adapter.active && adapter.connected && !adapter.disposed && !!adapter.execution?.describe().control && adapter.execution.describe().control?.owner !== 'local-viewer',
+      geometry: () => rfb.desktopViewport,
+    })
+    rfb.addEventListener('desktopframe', () => adapter.pointer?.refresh(), { signal: adapter.executionAbort.signal })
     adapter.setDisplayMode(options.displayMode)
     return adapter
   }
 
   setDisplayMode(mode: RemoteDesktopDisplayMode) {
+    this.pointer?.refresh()
     if (mode === 'fit') {
       this.rfb.resizeSession = false
       this.rfb.scaleViewport = true
@@ -143,6 +155,8 @@ export class VncViewerAdapter {
   }
 
   setViewportActive(active: boolean, mode: RemoteDesktopDisplayMode) {
+    this.active = active
+    this.pointer?.refresh()
     if (!active && mode === 'resize') {
       this.rfb.resizeSession = false
       return
@@ -195,6 +209,7 @@ export class VncViewerAdapter {
       return
     }
     this.disposed = true
+    this.pointer?.dispose()
     this.executionAbort.abort()
     for (const [name, listener] of this.listeners) {
       this.rfb.removeEventListener(name, listener)
@@ -209,10 +224,12 @@ export class VncViewerAdapter {
 
   private bindEvents() {
     this.listen('connect', () => {
+      this.connected = true
+      this.pointer?.refresh()
       this.transportMetrics.markConnected()
       this.events.onConnected()
     })
-    this.listen('disconnect', (event) => { this.disconnectRequested = true; this.executionAbort.abort(); this.events.onDisconnected(event.detail.clean === true) })
+    this.listen('disconnect', (event) => { this.connected = false; this.pointer?.refresh(); this.disconnectRequested = true; this.executionAbort.abort(); this.events.onDisconnected(event.detail.clean === true) })
     this.listen('credentialsrequired', (event) => {
       const types = (event.detail.types ?? []).filter(isCredentialType)
       this.events.onCredentialsRequired(types)

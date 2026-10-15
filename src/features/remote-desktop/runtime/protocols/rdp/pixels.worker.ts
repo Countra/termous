@@ -121,7 +121,7 @@ async function receive(data: ArrayBuffer) {
     const ack = toBinary(ClientMessageSchema, create(ClientMessageSchema, { payload: { case: 'frameAck', value: { displayEpoch: epoch, sequence } } }))
     sentBytes += ack.byteLength
     socket?.send(ack)
-    self.postMessage({ type: 'frame', width: f.width, height: f.height, receivedBytes, sentBytes })
+    self.postMessage({ type: 'frame', width: f.width, height: f.height, displayEpoch: Number(epoch), receivedBytes, sentBytes })
     return
   }
   const key = `${f.x}:${f.y}`

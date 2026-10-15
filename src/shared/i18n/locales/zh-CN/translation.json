@@ -1579,6 +1579,7 @@
   },
   "remoteDesktop": {
     "automation": {
+      "pointerStandby": "已接管",
       "hostHint": "托管画面 · 关闭此窗口仅隐藏，自动化继续运行",
       "hostFailed": "执行端已结束，请重新附着后再申请控制",
       "view": "查看画面",

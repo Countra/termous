@@ -141,6 +141,8 @@ export type {
 
 export * from './settings-center.ts'
 export type { DesktopAutomationHost, DesktopAutomationBootstrap, DesktopAutomationBridge } from './desktop-automation'
+export { isDesktopPointer, isDesktopPointerEvent } from './desktop-pointer.ts'
+export type { DesktopPointer, DesktopPointerControl, DesktopPointerEvent } from './desktop-pointer.ts'
 export * from './cloud.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'

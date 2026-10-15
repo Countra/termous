@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { pathToFileURL } from 'node:url'
 import WebSocket from 'ws'
 import type { AppConfig, AppLanguage, AppTheme, DesktopAutomationBootstrap, DesktopAutomationHost } from '#common/contracts'
+import { isDesktopPointerEvent, type DesktopPointerEvent } from '#common/contracts'
 
 interface Options {
   config(): Promise<AppConfig>
@@ -11,7 +12,7 @@ interface Options {
   devURL?: string
   warn(code: string): void
 }
-interface Entry { window: BrowserWindow; host: DesktopAutomationHost; url: string; bootstrap?: Promise<DesktopAutomationBootstrap>; credential: string }
+interface Entry { window: BrowserWindow; host: DesktopAutomationHost; url: string; bootstrap?: Promise<DesktopAutomationBootstrap>; credential: string; pointer?: DesktopPointerEvent }
 interface Pending { hostID: string; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
 
 export class DesktopAutomationRuntime {
@@ -25,6 +26,7 @@ export class DesktopAutomationRuntime {
   private retry?: ReturnType<typeof setTimeout>
 
   constructor(private readonly options: Options) {
+    ipcMain.handle('desktop-automation:pointer', event => this.own(event).pointer ?? null)
     ipcMain.handle('desktop-automation:bootstrap', event => {
       const entry = this.own(event)
       entry.bootstrap ??= this.bootstrap(entry).catch(error => { this.fail(entry); throw error })
@@ -58,13 +60,17 @@ export class DesktopAutomationRuntime {
     try {
       this.config = await this.options.config()
       if (this.stopped) return
-      const ws = new WebSocket(this.socketURL('/api/v1/remote-desktop-automation/runtime'), { headers: { 'X-Termous-Token': this.config.apiToken }, maxPayload: 64 * 1024, handshakeTimeout: 10_000 })
+      const runtimeURL = this.socketURL('/api/v1/remote-desktop-automation/runtime')
+      runtimeURL.searchParams.set('automation_pointer', '1')
+      const ws = new WebSocket(runtimeURL, { headers: { 'X-Termous-Token': this.config.apiToken }, maxPayload: 64 * 1024, handshakeTimeout: 10_000 })
       this.ws = ws
       ws.on('message', (raw, binary) => {
         if (this.stopped || binary || this.ws !== ws) { ws.close(); return }
         try {
-          const message = JSON.parse(raw.toString()) as { hosts?: unknown; id?: string; value?: unknown; error?: string }
-          if (message.hosts !== undefined) {
+          const message = JSON.parse(raw.toString()) as { type?: string; hosts?: unknown; id?: string; value?: unknown; error?: string }
+          if (message.type === 'automation_pointer') {
+            if (isDesktopPointerEvent(message)) this.pointer(message)
+          } else if (message.hosts !== undefined) {
             if (!Array.isArray(message.hosts) || message.hosts.length > 4 || !message.hosts.every(isHost)) throw new Error('desktop_host_invalid')
             this.reconcile(message.hosts)
           } else if (message.id) {
@@ -110,7 +116,8 @@ export class DesktopAutomationRuntime {
   }
 
   private async bootstrap(entry: Entry): Promise<DesktopAutomationBootstrap> {
-    const info = await this.request<{ shared: boolean }>(entry, 'bootstrap')
+    const info = await this.request<{ shared: boolean; pointer?: DesktopPointerEvent }>(entry, 'bootstrap')
+    if (isDesktopPointerEvent(info.pointer)) this.pointer({ ...info.pointer, snapshot: true })
     const ticket = await this.request<{ ticket: string; credential_ticket?: string }>(entry, 'attach')
     const url = this.socketURL('/api/v1/remote-desktop-stream')
     url.searchParams.set('ticket', ticket.ticket)
@@ -123,6 +130,16 @@ export class DesktopAutomationRuntime {
       if (!entry.window.isDestroyed() && entry.window.webContents === event.sender && event.senderFrame === event.sender.mainFrame && event.senderFrame?.url === entry.url) return entry
     }
     throw new Error('desktop_sender_not_allowed')
+  }
+
+  private pointer(event: DesktopPointerEvent) {
+    for (const entry of this.entries.values()) {
+      if (entry.window.isDestroyed() || entry.host.session_id !== event.session_id || entry.host.generation !== event.connection_generation || (entry.pointer?.revision ?? 0) >= event.revision) continue
+      entry.pointer = event
+      // 主进程按已认证宿主路由，不接受 renderer 指定其他会话。
+      try { entry.window.webContents.send('desktop-automation:pointer', event) }
+      catch { this.options.warn('desktop_automation_pointer_unavailable') }
+    }
   }
 
   private reconcile(hosts: DesktopAutomationHost[]) {

@@ -11,6 +11,7 @@ import { RemoteDesktopViewport } from '../ui/RemoteDesktopViewport'
 import { useRemoteDesktopConnectionMetrics } from './core/connectionMetricsStore'
 import { useRemoteDesktopRuntime } from './core/remoteDesktopRuntimeContext'
 import { RemoteDesktopTargetAuthController } from './core/targetAuthController.ts'
+import type { AutomationPointerFeed } from './core/automationPointerState.ts'
 import { RemoteDesktopRuntimeProvider } from './RemoteDesktopRuntimeProvider'
 import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
 
@@ -49,6 +50,31 @@ test('向外同步事件流维护的权威会话列表', async () => {
   await waitFor(() => expect(onSessionsChange).toHaveBeenCalledWith([session]))
   act(() => MockWebSocket.instances[0].emit({ type: 'removed', session }))
   await waitFor(() => expect(onSessionsChange).toHaveBeenLastCalledWith([]))
+})
+
+test('断线后创建其他会话不会从工作区旧快照恢复原会话的指针', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const control = { automation_id: 'grant', source: 'agent' as const, execution_generation: 1, expires_at: '2099-01-01T00:00:00Z' }
+  const session = { ...remoteDesktopSession(), automation_pointer_control: control, automation_pointer_revision: 1 }
+  adapterCreate.mockResolvedValue(viewerAdapter())
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket', credential_ticket: '', expires_at: '2099-01-01T00:00:00Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.createRemoteDesktopSession = vi.fn(async () => ({ ...remoteDesktopSession(), id: 'other', automation_pointer_control: null, automation_pointer_revision: 0 }))
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <SessionMutationHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledOnce())
+  const pointer = (adapterCreate.mock.calls[0][0] as { pointer: AutomationPointerFeed }).pointer
+  expect(pointer.control()).toEqual(control)
+  act(() => MockWebSocket.instances[0].close())
+  expect(pointer.control()).toBeNull()
+  await act(async () => fireEvent.click(view.getByTestId('create-session')))
+  expect(api.createRemoteDesktopSession).toHaveBeenCalledOnce()
+  expect(pointer.control()).toBeNull()
+  view.unmount()
 })
 
 test('目标握手前失败后同一代际的状态刷新不会重复申请 Ticket', async () => {

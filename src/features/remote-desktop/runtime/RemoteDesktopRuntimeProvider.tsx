@@ -27,6 +27,8 @@ import type {
   RemoteDesktopViewerState,
 } from './core/viewerContracts.ts'
 import { RemoteDesktopViewerLifecycle } from './core/viewerLifecycle.ts'
+import { AutomationPointerStore } from './core/automationPointerState.ts'
+import type { DesktopPointerEvent } from '#common/contracts'
 import { resolveRemoteDesktopSessionDrivers } from './core/sessionDriverResolver.ts'
 import {
   remoteDesktopProtocolRegistry,
@@ -67,6 +69,7 @@ export function RemoteDesktopRuntimeProvider({
   const initialSessionsRef = useRef(initialSessions)
   const apiRef = useRef(api)
   const metricsStoreRef = useRef(new RemoteDesktopConnectionMetricsStore())
+  const [pointerStore] = useState(() => new AutomationPointerStore())
   const lifecycleRef = useRef<RemoteDesktopViewerLifecycle | null>(null)
 
   apiRef.current = api
@@ -94,6 +97,7 @@ export function RemoteDesktopRuntimeProvider({
       protocolRegistry: remoteDesktopProtocolRegistry,
       routeRegistry: remoteDesktopRouteRegistry,
       metrics: metricsStoreRef.current,
+      pointers: pointerStore,
       surfaceClassName: styles.surface,
       session: (sessionId) => sessionsRef.current.get(sessionId),
       profile: (profileId) => profilesRef.current.get(profileId),
@@ -102,7 +106,7 @@ export function RemoteDesktopRuntimeProvider({
     })
   }
 
-  const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
+  const commitSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
     const normalized = sortSessions(sessionId ? nextSessions.filter((session) => session.id === sessionId) : nextSessions)
     const previousSessions = sessionsRef.current
     const generationChanged = lifecycleRef.current?.reconcileSessions(
@@ -178,21 +182,29 @@ export function RemoteDesktopRuntimeProvider({
     ))
   }, [sessionId])
 
+  const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
+    pointerStore.reconcile(sessionId ? nextSessions.filter((session) => session.id === sessionId) : nextSessions)
+    commitSessions(nextSessions)
+  }, [commitSessions, pointerStore, sessionId])
+
   const upsertSession = useCallback((next: RemoteDesktopSession) => {
-    if (!shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
+    if ((sessionId && next.id !== sessionId) || !shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
       return
     }
-    reconcileSessions([
+    // 增量事件只更新对应指针，不能用其他会话的缓存快照恢复已挂起的视觉状态。
+    pointerStore.upsert(next)
+    commitSessions([
       ...[...sessionsRef.current.values()].filter((session) => session.id !== next.id),
       next,
     ])
-  }, [reconcileSessions])
+  }, [commitSessions, pointerStore, sessionId])
 
   const removeSession = useCallback((sessionId: string) => {
-    reconcileSessions(
+    pointerStore.remove(sessionId)
+    commitSessions(
       [...sessionsRef.current.values()].filter((session) => session.id !== sessionId),
     )
-  }, [reconcileSessions])
+  }, [commitSessions, pointerStore])
 
   const initialSessionSnapshot = useCallback(() => initialSessionsRef.current, [])
   const handleTelemetry = useCallback((event: RemoteDesktopTelemetryEvent) => {
@@ -213,6 +225,8 @@ export function RemoteDesktopRuntimeProvider({
     }
   }, [])
 
+  const handlePointer = useCallback((event: DesktopPointerEvent) => pointerStore.publish(event), [pointerStore])
+  const disconnectPointer = useCallback(() => pointerStore.suspend(), [pointerStore])
   useRemoteDesktopSessionFeed({
     api,
     enabled,
@@ -221,6 +235,8 @@ export function RemoteDesktopRuntimeProvider({
     onUpsert: upsertSession,
     onRemove: removeSession,
     onTelemetry: handleTelemetry,
+    onPointer: handlePointer,
+    onPointerDisconnect: disconnectPointer,
   })
 
   useEffect(() => {

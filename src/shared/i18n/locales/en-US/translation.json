@@ -1581,6 +1581,7 @@
   },
   "remoteDesktop": {
     "automation": {
+      "pointerStandby": "In control",
       "hostHint": "Hosted view · Closing this window hides it; automation continues",
       "hostFailed": "Executor ended. Attach again and request control.",
       "view": "View desktop",

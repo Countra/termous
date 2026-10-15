@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DesktopAutomationBootstrap, DesktopAutomationBridge } from '#common/contracts'
 import { VncViewerAdapter, type VncCredentials, type VncCredentialType } from '../runtime/protocols/vnc/noVncAdapter.ts'
+import { AutomationPointerState } from '../runtime/core/automationPointerState.ts'
 import styles from './HostedVncViewer.module.scss'
 
 export function HostedVncViewer({ bootstrap, bridge }: { bootstrap: DesktopAutomationBootstrap; bridge: DesktopAutomationBridge }) {
@@ -18,6 +19,10 @@ export function HostedVncViewer({ bootstrap, bridge }: { bootstrap: DesktopAutom
     let disposed = false
     let savedAttempted = false
     let current: VncViewerAdapter | null = null
+    const pointer = new AutomationPointerState(bootstrap.host.session_id, bootstrap.host.generation)
+    const stopPointer = bridge.onPointer?.(event => { if (!disposed) pointer.publish(event) })
+    // 先订阅再读取，版本水位负责去除初始化期间的乱序；显示失败不影响执行宿主。
+    void bridge.pointer?.().then(event => { if (!disposed && event) pointer.publish(event, false) }).catch(() => { /* 初始投影不可用时等待后续视觉事件，不影响执行。 */ })
     const fail = () => {
       if (disposed) return
       setFailure(true)
@@ -31,6 +36,7 @@ export function HostedVncViewer({ bootstrap, bridge }: { bootstrap: DesktopAutom
     if (!target.current) return
     void VncViewerAdapter.create({
       signal: controller.signal,
+      pointer,
       target: target.current, url: bootstrap.streamURL, shared: bootstrap.shared, viewOnly: true, displayMode: 'fit', awaitFirstFrame: true,
       generation: bootstrap.host.generation,
       execution: { connect: () => bridge.executor(), reclaim: async () => { throw new Error('desktop_control_locked') } },
@@ -49,7 +55,7 @@ export function HostedVncViewer({ bootstrap, bridge }: { bootstrap: DesktopAutom
         onClipboard: () => {}, onDesktopName: () => {}, onCapabilities: () => {}, onMetrics: () => {},
       },
     }).then(value => { current = value; if (disposed) value.dispose(); else adapter.current = value }).catch(fail)
-    return () => { disposed = true; controller.abort(); current?.dispose(); adapter.current = null }
+    return () => { disposed = true; stopPointer?.(); pointer.suspend(); controller.abort(); current?.dispose(); adapter.current = null }
   }, [bootstrap, bridge])
   return <main className={styles.host}>
     <header className={styles.header}><strong>{bootstrap.host.name}</strong><span>{t('remoteDesktop.automation.hostHint')}</span></header>

@@ -33,6 +33,7 @@ export const vncProtocolDriver = Object.freeze({
   async createViewer(options) {
     if (options.transport.kind !== 'rfb') throw new Error('VNC_TRANSPORT_REQUIRED')
     const adapter = await VncViewerAdapter.create({
+      pointer: options.pointer,
       target: options.target,
       url: options.transport.url,
       execution: options.transport.execution,

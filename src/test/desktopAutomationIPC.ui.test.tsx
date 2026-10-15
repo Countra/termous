@@ -9,7 +9,7 @@ class FakeWindow extends EventEmitter {
   destroyed = false
   url = ''
   visible = false
-  webContents = Object.assign(new EventEmitter(), { mainFrame: { url: '' }, setWindowOpenHandler: vi.fn() })
+  webContents = Object.assign(new EventEmitter(), { mainFrame: { url: '' }, setWindowOpenHandler: vi.fn(), send: vi.fn() })
   constructor(readonly options: Record<string, unknown>) { super(); state.windows.push(this) }
   loadURL(url: string) { this.url = url; this.webContents.mainFrame.url = url; return Promise.resolve() }
   show() { this.visible = true }
@@ -73,6 +73,23 @@ it('并发启动复用通道，退出期间迟到配置不能创建连接或窗�
   expect(state.windows).toHaveLength(0)
 })
 
+it('视觉反馈只进入绑定窗口，拒绝跨会话和旧代次，不扩大 IPC 权限', async () => {
+  const r = runtime(); await r.start(); snapshot()
+  const window = state.windows[0]!
+  const event = { type: 'automation_pointer', session_id: host.session_id, connection_generation: 4, revision: 1,
+    pointer: { automation_id: 'grant', source: 'agent', execution_generation: 1, display_epoch: 1, sequence: 1, x: 20, y: 30, buttons: 0, action: 'move', occurred_at: new Date().toISOString() } }
+  const emit = (value: unknown) => state.sockets[0]!.emit('message', Buffer.from(JSON.stringify(value)), false)
+  emit({ ...event, session_id: 'other' }); emit({ ...event, connection_generation: 3 })
+  expect(window.webContents.send).not.toHaveBeenCalled()
+  emit(event); emit(event)
+  expect(window.webContents.send).toHaveBeenCalledExactlyOnceWith('desktop-automation:pointer', event)
+  const read = state.handlers.get('desktop-automation:pointer')!
+  expect(() => read({ sender: {}, senderFrame: window.webContents.mainFrame })).toThrow('desktop_sender_not_allowed')
+  expect(read({ sender: window.webContents, senderFrame: window.webContents.mainFrame })).toEqual(event)
+  emit({ ...event, revision: 2, pointer: null })
+  expect(read({ sender: window.webContents, senderFrame: window.webContents.mainFrame })).toMatchObject({ revision: 2, pointer: null })
+})
+
 it('宿主移除立即取消其票据请求，迟到响应不会影响新宿主', async () => {
   const r = runtime(); await r.start(); snapshot()
   const socket = state.sockets[0]!
@@ -90,6 +107,36 @@ it('宿主移除立即取消其票据请求，迟到响应不会影响新宿主'
   expect(window.destroyed).toBe(true)
   expect(state.windows[1]!.destroyed).toBe(false)
   expect(socket.sent.map(item => item.action)).toEqual(['bootstrap'])
+})
+
+it('没有鼠标操作时也转发接管与释放，旧接管事件不能恢复托管窗口的待命标识', async () => {
+  const r = runtime(); await r.start(); snapshot()
+  const window = state.windows[0]!
+  const event = { type: 'automation_pointer', session_id: host.session_id, connection_generation: 4, revision: 1, pointer: null,
+    control: { automation_id: 'grant', source: 'agent', execution_generation: 1, expires_at: '2099-01-01T00:00:00Z' } }
+  const emit = (value: unknown) => state.sockets[0]!.emit('message', Buffer.from(JSON.stringify(value)), false)
+  emit(event)
+  expect(window.webContents.send).toHaveBeenLastCalledWith('desktop-automation:pointer', event)
+  const released = { ...event, revision: 2, control: null }
+  emit(released); emit(event)
+  expect(window.webContents.send).toHaveBeenCalledTimes(2)
+  expect(state.handlers.get('desktop-automation:pointer')!({ sender: window.webContents, senderFrame: window.webContents.mainFrame })).toEqual(released)
+})
+
+it('引导读取的指针标记为快照，不能作为新点击转发', async () => {
+  const r = runtime(); await r.start(); snapshot()
+  const socket = state.sockets[0]!
+  const window = state.windows[0]!
+  const pointer = { type: 'automation_pointer', session_id: host.session_id, connection_generation: 4, revision: 2,
+    pointer: { automation_id: 'grant', source: 'agent', execution_generation: 1, display_epoch: 1, sequence: 1, x: 20, y: 30, buttons: 0, action: 'click', occurred_at: new Date().toISOString() } }
+  vi.spyOn(socket, 'send').mockImplementation((raw, done) => {
+    const request = JSON.parse(raw) as Record<string, unknown>
+    socket.sent.push(request); done()
+    const value = request.action === 'bootstrap' ? { shared: true, pointer } : { ticket: 'once' }
+    queueMicrotask(() => socket.emit('message', Buffer.from(JSON.stringify({ id: request.id, value })), false))
+  })
+  await state.handlers.get('desktop-automation:bootstrap')!({ sender: window.webContents, senderFrame: window.webContents.mainFrame })
+  expect(window.webContents.send).toHaveBeenCalledExactlyOnceWith('desktop-automation:pointer', { ...pointer, snapshot: true })
 })
 
 it('引导失败立即通知 Core 回收宿主，不等待首帧准备超时', async () => {

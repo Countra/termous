@@ -9,6 +9,7 @@ import type { RemoteDesktopProtocolRegistry } from './protocolRegistry.ts'
 import type { RemoteDesktopRouteRegistry } from './routeRegistry.ts'
 import { resolveRemoteDesktopSessionDrivers } from './sessionDriverResolver.ts'
 import { RemoteDesktopTargetAuthController } from './targetAuthController.ts'
+import type { AutomationPointerStore } from './automationPointerState.ts'
 import type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerHandle,
@@ -32,6 +33,7 @@ interface ViewerEntry {
 }
 
 interface RemoteDesktopViewerLifecycleOptions {
+  pointers?: AutomationPointerStore
   api: () => Pick<
     RemoteDesktopGateway,
     | 'createRemoteDesktopAttachTicket'
@@ -364,6 +366,7 @@ export class RemoteDesktopViewerLifecycle {
     entry.targetAuth.reset(entry.savedCredentialRejected ? '' : ticket.credential_ticket)
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
+      pointer: this.options.pointers?.feed(entry.sessionId, expectedGeneration),
       desktopFiles: api.desktopFiles,
       target: entry.container,
       transport: ticket.rdp ? { kind: 'rdp-pixels', attachment: ticket.rdp } : {
