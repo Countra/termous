@@ -5,6 +5,7 @@
 .workbench-files-toolbar-row {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
@@ -81,6 +82,7 @@
   display: inline-flex;
   min-width: 0;
   height: 29px;
+  flex-shrink: 0;
   align-items: center;
   gap: 5px;
   margin-left: auto;
@@ -218,13 +220,13 @@
   }
 }
 
-@container (max-width: 285px) {
+@container (max-width: 315px) {
   .workbench-files-follow > span:nth-child(2) {
     display: none;
   }
 }
 
-@container (max-width: 270px) {
+@container (max-width: 280px) {
   .workbench-files-upload-button:global(.ant-btn) {
     width: 31px;
     min-width: 31px;

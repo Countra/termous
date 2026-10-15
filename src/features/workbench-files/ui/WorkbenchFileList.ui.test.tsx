@@ -35,6 +35,10 @@ const entries: RemoteFileEntry[] = [
 ]
 
 interface FileListHarnessProps {
+  listEntries?: RemoteFileEntry[]
+  interactionDisabled?: boolean
+  navigationPending?: boolean
+  initialPlaceholder?: boolean
   onPaste?: () => void
   onCopyToSystem?: (paths: string[]) => void
   revealPath: string | null
@@ -44,6 +48,10 @@ interface FileListHarnessProps {
 }
 
 function FileListHarness({
+  listEntries = entries,
+  interactionDisabled = false,
+  navigationPending = false,
+  initialPlaceholder = false,
   onPaste,
   onCopyToSystem,
   revealPath,
@@ -63,13 +71,14 @@ function FileListHarness({
       <WorkbenchFileList
         onPaste={onPaste}
         onCopyToSystem={onCopyToSystem}
-        entries={entries}
+        entries={listEntries}
+        interactionDisabled={interactionDisabled}
         selectedPaths={selectedPaths}
         listingPath="/workspace"
         loading={false}
-        initialPlaceholder={false}
+        initialPlaceholder={initialPlaceholder}
         initialPending={false}
-        navigationPending={false}
+        navigationPending={navigationPending}
         pendingPath=""
         uploading={false}
         revealPath={revealPath}
@@ -204,6 +213,43 @@ describe('工作台文件列表定位', () => {
     act(() => input.focus())
     fireEvent.keyDown(input, { key: 'v', code: 'KeyV', ctrlKey: true })
     expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it.each([{ listEntries: [] }, { listEntries: entries }])('列表容器聚焦时支持系统粘贴，不依赖目录内存在文件：%j', ({ listEntries }) => {
+    const paste = vi.fn()
+    render(<FileListHarness revealPath={null} listEntries={listEntries} onPaste={paste} />)
+    const list = screen.getByRole('listbox')
+    act(() => list.focus())
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true, isComposing: true })
+    expect(paste).not.toHaveBeenCalled()
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true, repeat: true })
+    expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { interactionDisabled: true },
+    { navigationPending: true },
+    { initialPlaceholder: true },
+  ])('不可操作的空目录不触发粘贴上传：%j', (lockedState) => {
+    const paste = vi.fn()
+    const view = render(<FileListHarness revealPath={null} listEntries={[]} {...lockedState} onPaste={paste} />)
+    const list = screen.getByRole('listbox')
+    act(() => list.focus())
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).not.toHaveBeenCalled()
+    view.rerender(<FileListHarness revealPath={null} listEntries={[]} onPaste={paste} />)
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it('空目录中的上传按钮聚焦时不被列表快捷键接管', () => {
+    const paste = vi.fn()
+    render(<FileListHarness revealPath={null} listEntries={[]} onPaste={paste} />)
+    const upload = screen.getByRole('button', { name: 'files.uploadFiles' })
+    act(() => upload.focus())
+    fireEvent.keyDown(upload, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).not.toHaveBeenCalled()
   })
 
   it('目标不在当前目录时保留已有选择且不聚焦或回报完成', () => {

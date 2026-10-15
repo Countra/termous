@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileSession, LocalPathMapping, RemoteFileEntry } from '#entities/file'
 import { defaultTerminalSettings } from '#entities/settings'
-import { ShortcutRuntime, ShortcutRuntimeContextProvider } from '#entities/shortcuts'
+import { compileShortcutIndex, ShortcutRuntime, ShortcutRuntimeContextProvider } from '#entities/shortcuts'
+import { TermousApiError } from '#shared/api'
 import type { FileGateway } from '#features/files'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { TransferRuntimeContext, type TransferRuntimeValue } from '#features/transfers'
@@ -154,7 +155,7 @@ function renderWorkspace(
     consumeRemoteCopyRefreshEvents: vi.fn().mockReturnValue([]),
   }
   const shortcutContext = {
-    runtime: new ShortcutRuntime({ index: { platform: 'win32', byChord: new Map() } }),
+    runtime: new ShortcutRuntime({ index: compileShortcutIndex({}, 'win32') }),
     platform: 'win32' as const,
     labels: new Map(),
     bindingSignatures: new Map(),
@@ -185,12 +186,51 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
   localStorage.removeItem(filesWorkspaceLayoutStorageKey)
   if (scrollToDescriptor) {
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', scrollToDescriptor)
   } else {
     Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
   }
+})
+
+describe('文件工作区系统粘贴', () => {
+  it('空目录聚焦后 Ctrl+V 导入系统文件并创建一次上传，输入框和组合输入不触发', async () => {
+    const grant = { id: 'clipboard-grant', items: [{ id: 'item', name: 'local.txt', kind: 'file', size: 12 }] }
+    const importClipboard = vi.fn().mockResolvedValue({ ok: true, value: { sequence: 12, grant } })
+    vi.stubGlobal('termous', {
+      platform: 'win32',
+      fileSystemClipboard: {
+        importClipboard,
+        status: vi.fn().mockResolvedValue({ ok: true, value: { supported: true, phase: 'idle', names: [], count: 0, total_bytes: 0 } }),
+      },
+    })
+    const { api, container, transfers } = renderWorkspace(true, {
+      activeSession: { ...session, capabilities: ['browse', 'transfer_receive'] },
+      automaticRemoteRequestsEnabled: true,
+    })
+    api.statFileSessionFile.mockRejectedValue(new TermousApiError('不存在', 'SFTP_PATH_NOT_FOUND', 404))
+    const task = { id: 'clipboard-upload', status: 'queued', type: 'upload', file_session_id: session.id, target_path: '/srv' }
+    api.createFileSessionUploadTransfer.mockResolvedValue(task)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'files.paste' })).toBeEnabled())
+    const shell = container.querySelector<HTMLElement>('[data-shortcut-adapter="files-page"]')!
+    act(() => shell.focus())
+    fireEvent.keyDown(shell, { key: 'v', code: 'KeyV', ctrlKey: true, isComposing: true })
+    expect(importClipboard).not.toHaveBeenCalled()
+    fireEvent.keyDown(shell, { key: 'v', code: 'KeyV', ctrlKey: true })
+    await waitFor(() => expect(api.createFileSessionUploadTransfer).toHaveBeenCalledOnce())
+    expect(importClipboard).toHaveBeenCalledExactlyOnceWith({ file_session_id: session.id, connection_generation: 1 })
+    expect(api.createFileSessionUploadTransfer).toHaveBeenCalledWith(session.id, grant.id, '/srv', 'rename', [], [], 1)
+    await waitFor(() => expect(transfers.upsertTransfer).toHaveBeenCalledWith(task))
+    expect(api.createLocalFileGrant).not.toHaveBeenCalled()
+    const input = document.createElement('input')
+    shell.append(input)
+    act(() => input.focus())
+    fireEvent.keyDown(input, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(importClipboard).toHaveBeenCalledOnce()
+    input.remove()
+  })
 })
 
 describe('真实文件工作区向导入口', () => {

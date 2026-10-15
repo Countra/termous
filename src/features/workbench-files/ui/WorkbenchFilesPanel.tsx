@@ -16,7 +16,6 @@ import {
   ChevronRight,
   CircleAlert,
   Clipboard,
-  ClipboardCopy,
   ExternalLink,
   FolderInput,
   FolderOpen,
@@ -42,7 +41,6 @@ import {
   type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useShortcutRuntime } from '#entities/shortcuts'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
 import { captureFileClipboard, isFileClipboardCurrent, readClipboardUpload, useFileSystemClipboard, type FileClipboardStamp, type FileGateway } from '#features/files'
@@ -298,7 +296,6 @@ function WorkbenchFilesPanelContent({
   const systemClipboard = useFileSystemClipboard(() => setRemoteClipboard(null))
   const pastePendingRef = useRef(false)
   const [pastePending, setPastePending] = useState(false)
-  const { labels: shortcutLabels } = useShortcutRuntime()
   const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
@@ -1095,7 +1092,6 @@ function WorkbenchFilesPanelContent({
       includeAdvancedRename: false,
       systemCopy: systemClipboard.enabled,
       systemCopyUnavailable: systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED'),
-      systemCopyShortcut: shortcutLabels.get('files.copy_to_system')?.[0],
     }),
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
@@ -1633,21 +1629,6 @@ function WorkbenchFilesPanelContent({
               onClick={createDirectory}
             />
           </Tooltip>
-          {systemClipboard.enabled && (
-            <Tooltip title={!systemClipboard.available
-              ? t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED')
-              : [t('files.systemClipboard.copy'), shortcutLabels.get('files.copy_to_system')?.[0]].filter(Boolean).join(' · ')}
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={<ClipboardCopy size={14} />}
-                aria-label={t('files.systemClipboard.copy')}
-                disabled={!systemClipboard.available || systemClipboard.cancelling || !files.connected || !files.viewState?.selectedPaths.length || systemClipboard.state.phase === 'preparing'}
-                onClick={() => { if (files.fileSession) void systemClipboard.copy(files.fileSession, files.viewState?.selectedPaths ?? []) }}
-              />
-            </Tooltip>
-          )}
           <Tooltip title={t('files.paste')}>
             <Button
               type="text"

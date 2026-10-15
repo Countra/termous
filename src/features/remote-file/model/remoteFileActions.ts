@@ -21,7 +21,6 @@ export interface RemoteFileActionDescriptor {
 
 export interface RemoteFileActionOptions {
   systemCopy?: boolean
-  systemCopyShortcut?: string
   systemCopyUnavailable?: string
   capabilities?: FileAccessCapability[]
   includeAdvancedRename?: boolean

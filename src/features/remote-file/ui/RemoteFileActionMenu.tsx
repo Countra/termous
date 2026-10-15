@@ -49,7 +49,7 @@ export function buildRemoteFileActionMenu(
       disabled: action.key === 'copyToSystem' && !!options.systemCopyUnavailable,
       icon: icons[action.key],
       label: action.key === 'copyToSystem'
-        ? <span title={options.systemCopyUnavailable}>{[t(translationKeys[action.key]), options.systemCopyShortcut].filter(Boolean).join('  ')}</span>
+        ? <span title={options.systemCopyUnavailable}>{t(translationKeys[action.key])}</span>
         : t(translationKeys[action.key]),
     }
     return action.dividerBefore

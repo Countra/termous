@@ -397,7 +397,7 @@ function FilesWorkspaceContent({
 }: FilesWorkspaceProps) {
   const { t } = useTranslation()
   const api = fileGateway
-  const { runtime: shortcutRuntime, labels: shortcutLabels } = useShortcutRuntime()
+  const { runtime: shortcutRuntime } = useShortcutRuntime()
   const filesShortcutInstanceId = useId()
   const filesShortcutContextId = `files.page:${filesShortcutInstanceId}`
   const globalFileSearchOwnerId = `${filesShortcutContextId}:global-search`
@@ -2297,7 +2297,6 @@ function FilesWorkspaceContent({
       capabilities: activeFileSession?.capabilities,
       systemCopy: systemClipboard.enabled,
       systemCopyUnavailable: systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED'),
-      systemCopyShortcut: shortcutLabels.get('files.copy_to_system')?.[0],
     }) ?? []
     return items.flatMap((item) => {
       if (!item || !('key' in item) || item.key !== 'download') {
@@ -2856,7 +2855,7 @@ function FilesWorkspaceContent({
   }, [filesShortcutContextId, shortcutRuntime])
 
   const handleFileTableKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!fileActionsEnabled || entries.length === 0) {
+    if (!fileActionsEnabled) {
       return
     }
     const target = event.target
@@ -2878,6 +2877,11 @@ function FilesWorkspaceContent({
         event.preventDefault()
         event.stopPropagation()
       }
+    }
+    // 粘贴等目录级操作不依赖文件行；空目录也必须进入统一快捷键分发。
+    if (entries.length === 0) {
+      dispatchFileShortcut()
+      return
     }
     const navigationKey = [
       'ArrowUp',
@@ -3586,7 +3590,6 @@ function FilesWorkspaceContent({
                     onClick={copyToSystem}
                   >
                     {t('files.systemClipboard.copy')}
-                    {shortcutLabels.get('files.copy_to_system')?.[0] ? ` · ${shortcutLabels.get('files.copy_to_system')![0]}` : ''}
                   </Button>
                 )}
                 <Button

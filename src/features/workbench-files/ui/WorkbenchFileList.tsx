@@ -374,6 +374,19 @@ export function WorkbenchFileList({
         tabIndex={interactionLocked || entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
         aria-busy={loading || initialPending || navigationPending}
+        onKeyDown={(event) => {
+          // 文件行自行处理导航和快捷键；容器补齐空目录及空白区域聚焦时的入口。
+          if (interactionLocked || event.target !== event.currentTarget) return
+          const result = shortcutRuntime.dispatch(event.nativeEvent, {
+            adapterId: `workbench-files:${shortcutInstanceId}`,
+            contextIds: [shortcutContextId],
+            editable: false,
+          })
+          if (result.result === 'handled' || result.result === 'blocked') {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        }}
         onScroll={() => {
           hideNameTooltip()
           onScroll()
