@@ -1,22 +1,13 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
-import { desktopToolGuide } from './runtimeLocalTools.ts'
 import { runtimeToolNavigation } from './runtimeToolNavigation.ts'
-import { scoreToolEntry, type DiscoveryInput } from './runtimeToolSearch.ts'
+import { createToolSearch, type DiscoveryInput } from './runtimeToolSearch.ts'
 import { runtimeToolDependencies } from './runtimeToolLifecycle.ts'
+import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
 
-const groups = [
-  ['desktop_observe', '桌面连接 观察 截图 desktop connect capture', /desktops\.(profiles|list|get|connect|attach|detach|capture|close)/u],
-  ['desktop_input', '桌面鼠标 键盘 输入 点击 控制 desktop mouse keyboard input control', /desktops\.(control|pointer|keyboard|clipboard|resize|operations)/u],
-  ['workflow_edit', '脚本编排 编辑 版本 workflow script edit schema', /desktop_workflows\.(schema|list|get|versions|create|update|duplicate|restore|delete|validate)$/u],
-  ['workflow_templates', '模板 快照 图像 区域 裁剪 放大 定位 template snapshot image crop region view', /desktop_workflows\.(captures|templates)\./u],
-  ['workflow_runs', '脚本运行 报告 等待 暂停 取消 workflow run report wait', /desktop_workflows\.(runs|assets)\.|^wait_workflow_run$/u],
-  ['ssh', '主机 终端 连接 命令 ssh host shell command', /termous\.(hosts|sessions|commands)\./u],
-  ['files', '文件 目录 上传 下载 搜索 sftp file directory transfer', /termous\.files\./u],
-  ['system', '系统 进程 服务 容器 docker process service system', /termous\.remoteops\./u],
-  ['forwarding', '端口 转发 隧道 forwarding tunnel', /termous\.forwarding\./u],
-  ['snippets', '代码片段 命令库 snippet', /termous\.snippets\./u],
-] as const
+const groups = [...new Set(runtimeCapabilities.map((capability) => capability.group))].map((group) => [group,
+  [...new Set(runtimeCapabilities.filter((capability) => capability.group === group).flatMap((capability) => capability.keywords.split(' ')))].join(' '),
+] as const)
 
 interface Entry { tool: AgentTool; original: string; group: string; keywords: string }
 
@@ -27,6 +18,7 @@ export class RuntimeToolDiscovery {
   private readonly selected = new Map<string, number>()
   private readonly pinned = new Set<string>()
   private readonly pending = new Set<string>()
+  private preferredCapabilities = new Set<string>()
   private readonly unavailable?: (name: string) => string | undefined
   private readonly onLoad?: (name: string) => void
   private clock = 0
@@ -37,32 +29,42 @@ export class RuntimeToolDiscovery {
     this.onLoad = onLoad
     this.entries = [...tools, ...permanent].map((tool) => {
       const original = originalName(tool.name) ?? tool.name
-      const group = groups.find((item) => item[2].test(original))
-      return { tool: this.withNavigation(tool, original), original, group: group?.[0] ?? 'other', keywords: group?.[1] ?? original }
+      const capability = runtimeCapability(original)
+      return { tool: this.withNavigation(tool, original), original, group: capability?.group ?? 'other', keywords: capability?.keywords ?? original }
     }).sort((a, b) => a.original.localeCompare(b.original))
     this.tool = {
       name: 'discover_tools', label: '发现工具', executionMode: 'sequential',
-      description: '需要的准确操作未加载或不确定当前工具能否完成目标时，先用此工具搜索，禁止拿相似或相反操作代替。query 填目标动作，或用 group、精确 names，至少一项；最多加载 8 个已授权工具，下一轮才可调用。返回 name 是实际名称，完整参数进入工具声明。',
+      description: '需要的准确操作未加载或不确定当前工具能否完成目标时，先搜索，禁止拿相似或相反操作代替。优先用 operation 指明动作、query 填资源对象（如 operation=read、query=命令输出）；多个目标分别搜索。也兼容自然语言 query、group 或精确 names。最多加载 8 个已授权工具，下一轮才可调用；核对职责后选择，不能把候选加载当作操作已执行。返回 name 是实际名称，完整参数进入工具声明。',
       parameters: Type.Object({
         query: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
+        operation: Type.Optional(Type.Union(Object.keys(runtimeOperations).map((name) => Type.Literal(name)))),
         group: Type.Optional(Type.Union(groups.map(([name]) => Type.Literal(name)))),
         names: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 1, maxItems: 8 })),
       }, { additionalProperties: false, minProperties: 1 }),
       execute: async (_id, input) => {
         const args = input as DiscoveryInput
-        const scored = this.entries.map((entry) => ({ entry, score: scoreToolEntry(entry, args) }))
+        const score = createToolSearch(args, this.preferredCapabilities)
+        const scored = this.entries.map((entry) => ({ entry, score: score(entry) }))
           .filter((v) => v.score > 0).sort((a, b) => b.score - a.score || a.entry.original.localeCompare(b.entry.original)).slice(0, 8)
         const blocked = scored.filter(({ entry }) => this.unavailable?.(entry.original))
         const eligible = scored.filter((entry) => !blocked.includes(entry))
         const admitted = eligible.filter(({ entry }) => this.schedule(entry))
+        if (admitted.length) this.preferredCapabilities = new Set(admitted.flatMap(({ entry }) => {
+          const capability = runtimeCapability(entry.original)
+          return capability ? [capability.id] : []
+        }))
         const notFound = args.names?.filter((name) => !this.entries.some((entry) => entry.original === name || entry.tool.name === name)) ?? []
-        const desktop = admitted.some(({ entry }) => entry.original.includes('desktop'))
         return { content: [{ type: 'text', text: JSON.stringify({
-          tools: admitted.map(({ entry }) => ({ name: entry.tool.name, original_name: entry.original, purpose: entry.tool.description, group: entry.group })),
+          tools: admitted.map(({ entry }) => ({ name: entry.tool.name, original_name: entry.original, purpose: entry.tool.description, group: entry.group,
+            stage: runtimeCapabilityStep(entry.original)?.role, operations: runtimeToolOperations(entry.original), skill: runtimeCapability(entry.original)?.skill })),
           ...(notFound.length ? { not_found: notFound, unavailable_guidance: '这些名称不在当前授权目录中；按能力组查询实际工具，不要猜测名称。' } : {}),
           ...(blocked.length ? { unavailable: blocked.map(({ entry }) => ({ name: entry.original, reason: this.unavailable?.(entry.original) })) } : {}),
           ...(admitted.length < eligible.length ? { deferred: eligible.filter((entry) => !admitted.includes(entry)).map(({ entry }) => entry.original), notice: '本轮待加载工具已达容量上限；先使用已加载工具，下一轮再发现其余能力。' } : {}),
-          ...(desktop ? { guidance: desktopToolGuide, skill: 'skill://termous-desktop-workflows/SKILL.md' } : {}),
+          ...(args.group && admitted.some(({ entry }) => entry.group !== args.group) ? { group_correction: '目标资源和动作与所选能力组不一致；已按明确目标返回当前获准目录中的准确候选，请核对各工具职责。' } : {}),
+          ...(admitted.length ? { guidance: '按准确操作与能力阶段选择工具；声明可见不等于已授权执行，提交回执不等于目标完成。', skills: [...new Set(admitted.flatMap(({ entry }) => {
+            const capability = runtimeCapability(entry.original)
+            return capability ? [capability.skill] : []
+          }))] } : {}),
           ...(admitted.length === 0 ? { groups: this.catalog(), guidance: '使用能力组或精确工具名重新查询；目录仅包含当前获准能力。' } : {}),
         }) }], details: { kind: 'tool_discovery' } }
       },
@@ -71,7 +73,9 @@ export class RuntimeToolDiscovery {
   }
 
   private withNavigation(tool: AgentTool, original: string): AgentTool {
-    return { ...tool, execute: async (id, input, signal, update) => {
+    const capability = runtimeCapability(original)
+    const boundary = capability && !tool.description.includes(capability.purpose) ? `\n职责：${capability.purpose}\n说明：${capability.skill}` : ''
+    return { ...tool, description: tool.description + boundary, execute: async (id, input, signal, update) => {
       const result = await tool.execute(id, input, signal, update)
       const navigation = runtimeToolNavigation(original, result)
       if (!navigation) return result
@@ -81,7 +85,7 @@ export class RuntimeToolDiscovery {
         return entry && this.schedule(entry) ? [{ name: entry.tool.name, original_name: name }] : []
       })
       return { ...result, content: [...result.content, { type: 'text', text: JSON.stringify({
-        tool_navigation: { guidance: restriction ?? navigation.guidance, available_next_turn: next },
+        tool_navigation: { guidance: restriction ?? navigation.guidance, available_next_turn: next, skill: navigation.skill },
       }) }] }
     } }
   }
@@ -104,14 +108,22 @@ export class RuntimeToolDiscovery {
     return groups.filter(([id]) => this.entries.some((entry) => entry.group === id)).map(([id, description]) => ({ group: id, description }))
   }
 
-  loadReferencedTools(content: string) {
-    // Skill 来自当前可信快照；只加载目录中真实存在的引用，不执行文档内操作。
-    const names = [...new Set(content.match(/termous\.[a-z_]+(?:\.[a-z_]+)+|wait_workflow_run/gu) ?? [])]
-      .filter((name) => this.entries.some((entry) => entry.original === name)).slice(0, 8)
+  available(name: string) {
+    return this.entries.some((entry) => entry.original === name) && !this.unavailable?.(name)
+  }
+
+  loadNames(names: string[]) {
     return names.flatMap((name) => {
       const entry = this.entries.find((candidate) => candidate.original === name)
       return entry && this.schedule(entry) ? [{ name: entry.tool.name, original_name: name }] : []
     })
+  }
+
+  loadReferencedTools(_content: string, uri?: string) {
+    // Skill 来自当前可信快照；只加载目录中真实存在的引用，不执行文档内操作。
+    const names = (uri ? skillEntryTools(uri) : [])
+      .filter((name) => this.entries.some((entry) => entry.original === name)).slice(0, 8)
+    return this.loadNames(names)
   }
 
   touch(name: string) {

@@ -91,6 +91,7 @@ export async function connectAgentMCP(
     return {
       tools: mapped.tools,
       originalName: (encodedName) => mapped.originalNames.get(encodedName) ?? null,
+      readOnly: (name) => listed.tools.some((tool) => tool.name === name && tool.annotations?.readOnlyHint === true),
       close,
     }
   } catch (error) {

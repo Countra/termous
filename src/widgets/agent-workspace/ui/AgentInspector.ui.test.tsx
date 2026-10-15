@@ -13,6 +13,15 @@ const context: AgentWorkspaceContextState = {
 }
 
 describe('AgentInspector 模型上下文评估', () => {
+  it('显示实际压缩阈值并解释尚未压缩，达到阈值后更新下一请求提示', async () => {
+    const ready = { ...context, assessment: 'ready' as const, used_tokens: 155440, context_window_tokens: 262144,
+      compression_trigger_tokens: 209715, compression_available: true, compression_status: 'available' as const }
+    const { rerender, element } = await renderInspector(ready)
+    expect(screen.getByText(/209,715/)).toHaveTextContent('尚未达到')
+    rerender(element({ ...ready, used_tokens: 210000 }))
+    expect(screen.getByText(/209,715/)).toHaveTextContent('下一次请求前')
+  })
+
   it('待评估只显示当前容量和原模型参考，不将原占用除以新窗口，也不渲染旧预警', async () => {
     await renderInspector({ ...context, warning: true, last_snapshot: {
       model_id: 'apm-old', model_name: 'GPT', estimated_tokens: 75_000, context_window_tokens: 100_000,

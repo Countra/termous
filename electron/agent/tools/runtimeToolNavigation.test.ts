@@ -45,8 +45,18 @@ test('代次失效加载重新观察工具，保留原错误和禁止重放说�
   const result = await key.execute('call', {})
   assert.match(JSON.stringify(result.content), /desktop_generation_stale/u)
   assert.match(JSON.stringify(result.content), /不得重用或自动重放/u)
-  assert.ok(discovery.publish().some((tool) => tool.name.endsWith('_dattach')))
+  assert.ok(discovery.publish().some((tool) => tool.name.endsWith('_dget')))
   assert.equal(calls.length, 1)
+})
+
+test('已失败附着或会话不会被导航当成仍在准备，禁止建议反复新建附着', () => {
+  for (const data of [{ attachment: { state: 'failed', reason: 'desktop_generation_stale' } }, { session: { status: 'failed' } }]) {
+    const navigation = runtimeToolNavigation('termous.desktops.get', { content: [], details: {
+      kind: 'mcp', originalToolName: 'termous.desktops.get', result: { content: [], structuredContent: data },
+    } })
+    assert.deepEqual(navigation?.names, ['termous.desktops.get'])
+    assert.match(navigation!.guidance, /A failed state must not be treated as ready/)
+  }
 })
 
 test('导航不加载未授权工具，不把权限拒绝当成重新附着指令', async () => {
@@ -117,11 +127,11 @@ test('执行保护撤下副作用工具，重新发现也不能恢复，导航�
   assert.ok(!discovery.publish().some((tool) => tool.name.includes('_dcontrol_')))
 })
 
-test('桌面动作索引不把其他领域的写入工具错误限定为 update 或 edit', async () => {
-  const mapped = mapMCPTools([{ name: 'termous.files.text.write', description: '编辑文件正文', inputSchema: { type: 'object', properties: {} } }], async () => ({ content: [] }))
+test('统一动作索引按文件能力选择实际存在的正文保存工具', async () => {
+  const mapped = mapMCPTools([{ name: 'termous.files.save_text', description: '编辑文件正文', inputSchema: { type: 'object', properties: {} } }], async () => ({ content: [] }))
   const discovery = new RuntimeToolDiscovery(mapped.tools, (name) => mapped.originalNames.get(name) ?? null, [])
   await discovery.tool.execute('find', { group: 'files', query: '编辑文件' })
-  assert.ok(discovery.publish().some((tool) => tool.name.endsWith('_dwrite')))
+  assert.ok(discovery.publish().some((tool) => tool.name.endsWith('_dsave_utext')))
 })
 
 test('工作流查询编辑不加载释放入口，创建资源只保留对应清理工具', async () => {
@@ -149,7 +159,7 @@ test('截图创建工具不可用时不以释放替代；导航仅加载授权�
   assert.equal(discovery.publish().length, 1)
   await discovery.tool.execute('release', { names: ['termous.desktop_workflows.captures.release'] })
   const released = await discovery.publish()[1]!.execute('release', {})
-  assert.match(JSON.stringify(released.content), /创建新快照使用 captures.create/u)
+  assert.match(JSON.stringify(released.content), /Use captures\.create to create a new snapshot/u)
   assert.equal(discovery.publish().length, 2)
 })
 

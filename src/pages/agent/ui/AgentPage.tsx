@@ -890,6 +890,7 @@ export function AgentPage({
       phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
       has_snapshot: Boolean(contextSnapshot),
       used_tokens: contextSnapshot?.estimated_tokens ?? 0,
+      compression_trigger_tokens: contextSnapshot?.compression_trigger_tokens,
       context_window_tokens: contextPending
         ? selectedModel?.effective_context_window_tokens ?? contextSnapshot?.context_window_tokens ?? 0
         : contextSnapshot?.context_window_tokens ?? 0,

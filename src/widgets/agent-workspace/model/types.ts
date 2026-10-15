@@ -1,3 +1,4 @@
+import type { AgentProgressActivity } from '#entities/agent'
 import type {
   AgentAttachment,
   AgentToolImageSource,
@@ -164,6 +165,7 @@ export type AgentWorkspaceMessagePart =
   | AgentWorkspaceToolPart
   | { id: string; kind: 'compaction'; activity: AgentCompactionActivity }
   | { id: string; kind: 'retry'; activity: AgentRetryActivity }
+  | { id: string; kind: 'progress'; activity: AgentProgressActivity }
   | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
@@ -195,6 +197,7 @@ export interface AgentWorkspaceDraftAttachment {
 }
 
 export interface AgentWorkspaceContextState {
+  compression_trigger_tokens?: number
   phase: 'unavailable' | 'idle' | 'loading' | 'ready' | 'error'
   has_snapshot: boolean
   used_tokens: number

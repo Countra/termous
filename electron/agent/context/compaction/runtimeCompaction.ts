@@ -42,6 +42,7 @@ export interface RuntimeCompactionActivity {
 export interface RuntimeCompactionContextUsage {
   estimated_tokens: number
   context_window_tokens: number
+  compression_trigger_tokens: number
   estimated: true
   warning: boolean
   compression_available: boolean
@@ -69,7 +70,10 @@ export interface RuntimeCompactionOptions<TSource> {
   thinkingLevel?: ThinkingLevel
   initialCheckpoint?: RuntimeCompactionCheckpoint
   projectMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
+  // 请求补充项参与容量评估，但不参与历史切分、摘要正文或检查点持久化。
+  supplementalMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   retainToolCall?(messages: AgentMessage[]): string | undefined
+  captureDetails?(): Record<string, unknown>
   captureSource(signal?: AbortSignal): Promise<TSource>
   commit(candidate: RuntimeCompactionCommit<TSource>, signal?: AbortSignal): Promise<void>
   onActivity(activity: RuntimeCompactionActivity): Promise<void> | void
@@ -113,7 +117,11 @@ export function createRuntimeCompactionController<TSource>(
     lastContextUsage = undefined
   }
   const validUsage = (messages: AgentMessage[]) => messages.map((message) => ignoredUsage.has(message) ? clearRuntimeCompactionUsage(message) : message)
-  const project = (messages: AgentMessage[], commit: boolean) => validUsage(options.projectMessages?.(messages, commit) ?? messages)
+  const projectHistory = (messages: AgentMessage[], commit: boolean) => validUsage(options.projectMessages?.(messages, commit) ?? messages)
+  const project = (messages: AgentMessage[], commit: boolean) => {
+    const history = projectHistory(messages, commit)
+    return [...history, ...(options.supplementalMessages?.(history, commit) ?? [])]
+  }
 
   const publishContext = async (
     messages: AgentMessage[], preparation?: RuntimeCompactionPreparation, providerUsage?: RuntimeProviderUsage,
@@ -123,6 +131,7 @@ export function createRuntimeCompactionController<TSource>(
     const usage: RuntimeCompactionContextUsage = {
       estimated_tokens: tokens,
       context_window_tokens: options.model.contextWindow,
+      compression_trigger_tokens: budget.triggerTokens,
       estimated: true,
       warning: tokens >= Math.min(Math.floor(options.model.contextWindow * 0.7), budget.triggerTokens),
       compression_available: compressionAvailable,
@@ -139,12 +148,12 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
-    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => project(messages, false), options.retainToolCall)
+    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => projectHistory(messages, false), options.retainToolCall)
     if (!hasRuntimeCompactionPrefix(prepared)) {
       const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
       if (calibratedSettings) {
         // 仅补救用量已过门禁但字符估算尚无切点的情况，仍保持完整工具调用边界。
-        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => project(messages, false), options.retainToolCall)
+        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => projectHistory(messages, false), options.retainToolCall)
       }
     }
     return prepared
@@ -171,6 +180,7 @@ export function createRuntimeCompactionController<TSource>(
         throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
       }
       throwIfRuntimeCompactionAborted(signal)
+      const details = options.captureDetails?.()
       const source = await options.captureSource(signal)
       throwIfRuntimeCompactionAborted(signal)
       started = true
@@ -187,7 +197,7 @@ export function createRuntimeCompactionController<TSource>(
         coveredRawLength: raw.length,
         tokensBefore,
         timestamp: (options.now ?? Date.now)(),
-        ...(checkpoint?.details ? { details: { ...checkpoint.details } } : {}),
+        ...(checkpoint?.details || details ? { details: { ...checkpoint?.details, ...details } } : {}),
       }
       const nextProjection = project(runtimeCompactionProjection(raw, candidate), false)
       const tokensAfter = runtimeCompactionEstimate(nextProjection, options.model, budget.fixedTokens)
@@ -202,7 +212,7 @@ export function createRuntimeCompactionController<TSource>(
       }
       // Core 已原子提交摘要和完成活动，此后才改变本地投影，禁止提前裁剪历史。
       checkpoint = cloneRuntimeCompactionCheckpoint(candidate)
-      projected = project(nextProjection, true)
+      projected = project(runtimeCompactionProjection(raw, checkpoint), true)
       started = false
       await options.onActivity({ status: 'completed', reason, tokensBefore, tokensAfter })
       await publishContext(projected, prepareContext(raw, projected))

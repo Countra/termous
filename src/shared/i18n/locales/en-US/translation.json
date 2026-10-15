@@ -1108,6 +1108,11 @@
       "contextWindow": "This run's model context window: {{tokens}} tokens.",
       "duration": "Duration: {{duration}}."
     },
+    "progress": {
+      "detected": "Repeated operations detected ({{count}}); guidance provided",
+      "progressed": "New meaningful results observed",
+      "candidates": "Suggested operations"
+    },
     "retry": {
       "waiting": "Waiting to reconnect · {{attempt}}/{{max}}",
       "requesting": "Reconnecting · {{attempt}}/{{max}}",
@@ -1501,6 +1506,8 @@
       "measured": "Measured usage",
       "contentEstimate": "Content estimate",
       "providerBasis": "Model-calibrated estimate",
+      "belowThreshold": "Automatic compaction starts at {{tokens}} tokens; current usage is below this threshold. Repetition alone does not trigger compaction.",
+      "atThreshold": "The {{tokens}} token threshold has been reached. Context will be compacted after the current tool operations finish and before the next request.",
       "providerBasisHint": "Based on model-reported usage and content added since then.",
       "contextPending": "Current model awaiting assessment",
       "currentContextWindow": "Current model window: {{window}} tokens",

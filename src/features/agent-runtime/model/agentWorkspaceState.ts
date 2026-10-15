@@ -1,3 +1,4 @@
+import { mergeAgentProgress } from '#entities/agent'
 import { maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   compareAgentSessionOrder,
@@ -140,7 +141,7 @@ export function replaceAgentMessages(
     const snapshot = previous ? retainResponseFailureParts(preferred, preferred === message ? previous : message) : preferred
     if (!previous) return snapshot
     const merged = preferMessage(previous, message)
-    return { ...snapshot, retries: merged.retries, request_usage: merged.request_usage }
+    return { ...snapshot, progress: merged.progress, retries: merged.retries, request_usage: merged.request_usage }
   })
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
   let overlays = current.run_part_overlays
@@ -443,6 +444,15 @@ function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, eve
     ))) return current
     return acceptAgentContextUsage(current, run, event.payload.context_usage)
   }
+  if (event.kind === 'progress') {
+    const incoming = { ...event.payload.progress, created_at: event.created_at }
+    return { ...current, messages: { ...current.messages, [run.session_id]: (current.messages[run.session_id] ?? []).map((message) => {
+      if (message.id !== run.assistant_message_id || message.id !== incoming.assistant_message_id) return message
+      const progress = new Map((message.progress ?? []).map((value) => [value.pattern_id, value]))
+      progress.set(incoming.pattern_id, mergeAgentProgress(progress.get(incoming.pattern_id), incoming))
+      return { ...message, progress: [...progress.values()] }
+    }) } }
+  }
   if (event.kind !== 'compaction' && event.kind !== 'retry') return current
   const messages = current.messages[run.session_id]
   if (!messages) return current
@@ -627,9 +637,11 @@ function preferMessage(left: AgentMessage, right: AgentMessage) {
   const preferred = retainResponseFailureParts(snapshot, snapshot === left ? right : left)
   const retries = new Map((left.retries ?? []).map((activity) => [activity.retry_id, activity]))
   for (const activity of right.retries ?? []) retries.set(activity.retry_id, mergeAgentRetryActivity(retries.get(activity.retry_id), activity))
+  const progress = new Map((left.progress ?? []).map((value) => [value.pattern_id, value]))
+  for (const value of right.progress ?? []) progress.set(value.pattern_id, mergeAgentProgress(progress.get(value.pattern_id), value))
   const requests = new Map((left.request_usage ?? []).map((usage) => [usage.request_index, usage]))
   for (const usage of right.request_usage ?? []) requests.set(usage.request_index, usage)
-  return { ...preferred, ...(retries.size ? { retries: [...retries.values()] } : {}), ...(requests.size ? { request_usage: [...requests.values()].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage) } : {}) }
+  return { ...preferred, ...(progress.size ? { progress: [...progress.values()] } : {}), ...(retries.size ? { retries: [...retries.values()] } : {}), ...(requests.size ? { request_usage: [...requests.values()].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage) } : {}) }
 }
 
 function retainResponseFailureParts(preferred: AgentMessage, other: AgentMessage): AgentMessage {

@@ -71,7 +71,16 @@ test('桌面引用校验精确代次，必须先查询，再建立本轮附着',
   const click = f.tool('termous.desktops.pointer.click')
   f.respond({ sessions: [session()] })
   await f.tool('termous.desktops.list').execute('list', {})
-  await assert.rejects(attach.execute('attach', { session_id: 'desk_one', connection_generation: 2 }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  await assert.rejects(attach.execute('attach', { session_id: 'desk_one', connection_generation: 2 }), (error: Error) => {
+    const detail = JSON.parse(error.message)
+    assert.equal(detail.code, 'AGENT_RESOURCE_BINDING_MISMATCH')
+    assert.equal(detail.dispatched, false)
+    assert.equal(detail.required_tool, 'termous.desktops.get')
+    assert.deepEqual(detail.required_arguments, { session_id: 'desk_one' })
+    assert.match(detail.message, /原样重试不能/)
+    return true
+  })
+  assert.match(attach.description, /本轮必须先用 termous.desktops.get/)
   assert.throws(() => click.prepareArguments?.({ attachment_id: 'old_attach' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
   const get = f.tool('termous.desktops.get')
   await assert.rejects(get.execute('wrong', { session_id: 'another' }), /AGENT_RESOURCE_BINDING_MISMATCH/)

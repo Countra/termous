@@ -1,3 +1,4 @@
+import { isAgentProgressData } from '#common/contracts'
 import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   agentApiModes,
@@ -352,6 +353,12 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
       throw new AgentRuntimeProtocolError('Agent 消息压缩记录归属无效')
     }
   }
+  const progress = source.progress === undefined ? undefined : array(source.progress, '执行进展记录无效').map((value) => {
+    const entry = record(value, '执行进展无效')
+    if (!isAgentProgressData(entry) || entry.assistant_message_id !== id || role !== 'assistant') throw new AgentRuntimeProtocolError('执行进展归属无效')
+    return { ...entry, created_at: timestamp(entry.created_at, '执行进展时间无效') }
+  })
+  if (progress) unique(progress.map((value) => value.pattern_id), '重复进展记录')
   const retries = source.retries === undefined ? undefined
     : array(source.retries, 'Agent 消息重试记录无效').map(decodeRetryActivity)
   if (retries) {
@@ -388,6 +395,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     ...(source.request_usage === undefined ? {} : { request_usage: array(source.request_usage, '请求用量记录无效', maxAgentMessageRequestUsage).map(decodeRequestUsage) }),
     ...(compactions ? { compactions } : {}),
     ...(retries ? { retries } : {}),
+    ...(progress ? { progress } : {}),
   }
 }
 
@@ -499,6 +507,9 @@ function decodeRequestUsage(value: unknown): import('#entities/agent').AgentRequ
   const source = record(value, '请求用量无效')
   return {
     ...(source.error_code === undefined ? {} : { error_code: identifier(source.error_code, '请求错误码无效', 64) }),
+    ...(source.effective_tools === undefined ? {} : { effective_tools: array(source.effective_tools, '有效工具清单无效', 256).map((name) => identifier(name, '有效工具名无效', 128)) }),
+    ...(source.context_fingerprint === undefined ? {} : { context_fingerprint: identifier(source.context_fingerprint, '上下文指纹无效', 64) }),
+    ...(source.execution_summary_tokens === undefined ? {} : { execution_summary_tokens: nonNegativeInteger(source.execution_summary_tokens, '执行摘要规模无效') }),
     request_index: positiveInteger(source.request_index, '请求序号无效'),
     purpose: enumValue(source.purpose, ['response', 'compaction'] as const, '请求用途无效'),
     tool_count: nonNegativeInteger(source.tool_count, '工具数量无效'),
@@ -525,7 +536,7 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage', 'request_usage']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage', 'request_usage', 'progress']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
@@ -533,6 +544,9 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   switch (kind) {
     case 'request_usage':
       return { ...base, kind, payload: { request_usage: decodeRequestUsage(payload.request_usage) } }
+    case 'progress':
+      if (!isAgentProgressData(payload.progress)) throw new AgentRuntimeProtocolError('执行进展事件无效')
+      return { ...base, kind, payload: { progress: payload.progress } }
     case 'retry':
       return { ...base, kind, payload: { retry: decodeRetryData(payload.retry) } }
     case 'compaction':
@@ -824,6 +838,7 @@ function decodeContextUsageFields(source: Record<string, unknown>): AgentContext
     estimated: bool(source.estimated, 'Agent 上下文估算状态无效'),
     warning: bool(source.warning, 'Agent 上下文预警状态无效'),
     compression_available: available,
+    ...(source.compression_trigger_tokens === undefined ? {} : { compression_trigger_tokens: positiveInteger(source.compression_trigger_tokens, '压缩阈值无效') }),
     ...(source.basis === undefined ? {} : { basis: decodeContextUsageBasis(source.basis) }),
     ...(status === undefined ? {} : { compression_status: status }),
   }

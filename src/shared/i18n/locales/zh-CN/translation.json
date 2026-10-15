@@ -1108,6 +1108,11 @@
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
     },
+    "progress": {
+      "detected": "检测到重复操作（{{count}} 次），正在提示调整方案",
+      "progressed": "已观察到新的有效结果",
+      "candidates": "候选操作"
+    },
     "retry": {
       "waiting": "等待重连 · 第{{attempt}}/{{max}}次",
       "requesting": "正在重连 · 第{{attempt}}/{{max}}次",
@@ -1500,6 +1505,8 @@
       "measured": "精确用量",
       "contentEstimate": "内容估算",
       "providerBasis": "模型用量校准",
+      "belowThreshold": "自动压缩阈值为 {{tokens}} token，当前尚未达到。重复操作不会直接触发压缩。",
+      "atThreshold": "已达到 {{tokens}} token 阈值，将在当前工具操作完成后、下一次请求前自动整理。",
       "providerBasisHint": "根据模型返回的用量和后续新增内容估算。",
       "contextPending": "当前模型待评估",
       "currentContextWindow": "当前模型窗口：{{window}} token",

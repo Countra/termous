@@ -12,6 +12,7 @@ import type { RuntimeCompactionContextUsage } from '../context/compaction/runtim
 import type { RuntimeProviderUsage } from '../contracts/providerUsageContract.ts'
 import { testAgentSkillBundle } from '../test-support/skillBundleTestFixture.ts'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
+import { compactionTestAssistant } from '../test-support/runtimeCompactionTestFixture.ts'
 import { WorkerCoreClient } from '../worker/workerCoreClient.ts'
 import { type RuntimeBootstrap, type RuntimeMessagePart } from '../contracts/runtimeBootstrap.ts'
 import { type RuntimeEventInput } from '../contracts/runtimeEvents.ts'
@@ -161,6 +162,7 @@ test('用量观察不打断未执行工具，工具结果越过阈值后在下�
     commitCheckpoint: async (input) => {
       assert.ok(input.retained_tail.every((message) => (message as AgentMessage).role !== 'system'))
       assert.doesNotMatch(JSON.stringify(input.retained_tail), /你是 Termous 内置 AI 助手/u)
+      assert.equal(/TERMOUS_EXECUTION_STATE|当前能力说明/u.test(JSON.stringify(input.retained_tail)), false)
       order.push('checkpoint')
       return { last_sequence: input.sequence, checkpoint: {
         id: input.compaction_id, version: 2, boundary_message_sequence: 1, summary: input.summary,
@@ -247,6 +249,95 @@ test('成功工具轮之后无 start 的请求失败，不把上一轮正文误�
   const retries = result.events.filter((event) => event.kind === 'retry').map((event) => event.payload.retry as { after_part_sequence: number })
   assert.equal(retries.length, 3)
   assert.equal(new Set(retries.map((retry) => retry.after_part_sequence)).size, 1)
+})
+
+test('连续工具轮更新执行摘要不累积副本、不重复叠加 Provider 用量', async () => {
+  const bootstrap = usageBootstrap('chat_completions')
+  bootstrap.context.progress_supported = true
+  const original = 'termous.fixture.inspect'
+  const toolName = encodeMCPToolName(original)
+  let requests = 0
+  const result = await executeFixture(bootstrap, 70000, {
+    mcp: { originalName: (name) => name === toolName ? original : null, close: async () => {},
+      tools: [{ name: toolName, label: '检查', description: '内存夹具', parameters: Type.Object({}),
+        execute: async () => ({ content: [{ type: 'text', text: '{"status":"ready"}' }],
+          details: { kind: 'mcp', originalToolName: original, readOnly: true, result: { content: [], structuredContent: { status: 'ready' } } } }) }] },
+    fetch: async (_url, init) => {
+      requests++
+      if (requests > 1) assert.equal((String(init?.body).match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
+      if (requests === 7) return providerResponse('chat_completions', 70000)
+      const chunk = { id: `chat_${requests}`, object: 'chat.completion.chunk', created: 1, model: 'test-model',
+        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `call_${requests}`, type: 'function', function: { name: toolName, arguments: '{}' } }] }, finish_reason: 'tool_calls' }],
+        usage: { prompt_tokens: 69990, completion_tokens: 10, total_tokens: 70000, prompt_tokens_details: { cached_tokens: 60000 } } }
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    },
+  })
+  assert.equal(requests, 7)
+  const calibrated = result.contexts.filter((context) => context.basis === 'provider_usage')
+  assert.ok(calibrated.length >= 7)
+  assert.ok(calibrated.every((context) => context.estimated_tokens >= 69500 && context.estimated_tokens < 71000))
+  assert.equal(result.events.some((event) => event.kind === 'compaction'), false)
+})
+
+test('旧检查点缺少执行状态时，从保留工具回执重建当前诊断', async () => {
+  const bootstrap = usageBootstrap('chat_completions')
+  const name = encodeMCPToolName('termous.desktops.capture')
+  const retained: AgentMessage[] = []
+  for (let index = 1; index <= 3; index++) {
+    retained.push({ ...compactionTestAssistant(''), stopReason: 'toolUse', content: [
+      { type: 'toolCall', id: `old-${index}`, name, arguments: { attachment_id: 'historical' } },
+    ] }, { role: 'toolResult', toolCallId: `old-${index}`, toolName: name, isError: false, timestamp: index,
+      content: [{ type: 'text', text: JSON.stringify({ capture: { screenshot_id: `old-${index}`, metadata: { connection_generation: 1 } } }) }] })
+  }
+  bootstrap.context.checkpoint = { id: 'agc_previous', version: 2, boundary_message_sequence: 1,
+    summary: '此前只取得普通截图，尚未创建固定快照。', estimated_tokens: 100,
+    retained_tail: retained, image_sources: [], run_id: 'agr_previous', generation: 1, covered_event_sequence: 0 }
+  let requests = 0
+  await executeFixture(bootstrap, 1000, { fetch: async (_input, init) => {
+    requests++
+    const body = String(init?.body)
+    assert.equal((body.match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
+    assert.match(body, /repeated_observation/u)
+    assert.match(body, /不恢复历史授权/u)
+    return providerResponse('chat_completions', 1000)
+  } })
+  assert.equal(requests, 1)
+})
+
+test('连续截图改变图片工作集后丢弃旧 Provider 基准，实际请求只保留最近两帧', async () => {
+  const bootstrap = usageBootstrap('chat_completions')
+  bootstrap.model.snapshot.supports_images = true
+  const original = 'termous.desktops.capture'
+  const name = encodeMCPToolName(original)
+  let requests = 0
+  let captures = 0
+  const result = await executeFixture(bootstrap, 70000, {
+    mcp: { originalName: (value) => value === name ? original : null, close: async () => {},
+      tools: [{ name, label: '截图', description: '内存图片夹具', parameters: Type.Object({}), execute: async () => {
+        captures++
+        const data = { capture: { screenshot_id: `shot-${captures}`, metadata: { connection_generation: 1 } } }
+        return { content: [{ type: 'text', text: JSON.stringify(data) },
+          { type: 'image', mimeType: 'image/png', data: Buffer.from(`image-fixture-${captures}`).toString('base64') }],
+          details: { kind: 'mcp', originalToolName: original, readOnly: true, result: { content: [], structuredContent: data } } }
+      } }] },
+    fetch: async (_input, init) => {
+      requests++
+      assert.equal((String(init?.body).match(/"type":"image_url"/gu) ?? []).length, Math.min(captures, 2))
+      if (captures === 3) {
+        assert.match(String(init?.body), /history_image/u)
+        return providerResponse('chat_completions', 70000)
+      }
+      const chunk = { id: `image_${requests}`, object: 'chat.completion.chunk', created: 1, model: 'test-model',
+        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `capture_${requests}`, type: 'function', function: { name, arguments: '{}' } }] }, finish_reason: 'tool_calls' }],
+        usage: { prompt_tokens: 69990, completion_tokens: 10, total_tokens: 70000 } }
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    },
+  })
+  assert.equal(captures, 3)
+  const projections = result.contexts.filter((context) => !context.provider_usage)
+  assert.ok(projections.length >= 4)
+  assert.ok(projections.every((context) => context.basis === 'pi_estimate' && context.estimated_tokens < 10000))
+  assert.equal(result.contexts[result.contexts.length - 1]!.basis, 'provider_usage')
 })
 
 async function executeFixture(

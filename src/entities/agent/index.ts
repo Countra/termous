@@ -185,3 +185,6 @@ export {
 export type { AgentDesktopResourceBinding, AgentDesktopResourceState } from './model/types.ts'
 export { agentSlashKindsForCommand, agentSlashCatalogCandidates } from './model/slashCommands.ts'
 export type { AgentSlashDesktopCandidate, AgentSlashDesktopSessionCandidate, AgentSlashDesktopProfileCandidate, AgentSlashWorkflowCandidate } from './model/slashCommands.ts'
+
+export type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
+export { mergeAgentProgress } from './model/agentProgress.ts'

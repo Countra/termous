@@ -92,6 +92,7 @@ export function AgentInspector({
               railColor="var(--row-hover-bg)"
             />
             <p>{formatTokens(inspector.context.used_tokens)} / {formatTokens(inspector.context.context_window_tokens)} token</p>
+            {inspector.context.compression_trigger_tokens ? <p>{t(inspector.context.used_tokens < inspector.context.compression_trigger_tokens ? 'agent.inspector.belowThreshold' : 'agent.inspector.atThreshold', { tokens: formatAgentTokenCount(inspector.context.compression_trigger_tokens, i18n.resolvedLanguage) })}</p> : null}
             {inspector.context.basis === 'provider_usage' ? <p>{t('agent.inspector.providerBasisHint')}</p> : null}
           </div>
         ) : null}

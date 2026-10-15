@@ -279,6 +279,19 @@ test('恢复旧版本文件操作明细并在新 checkpoint 中继续保存', as
   })
 })
 
+test('检查点合并有界执行状态；提交失败不替换历史投影', async () => {
+  const progress = { version: 1, facts: [{ tool: 'capture', outcome: '已观察' }] }
+  const harness = createCompactionTestHarness({ captureDetails: () => ({ execution_progress: progress }) })
+  await harness.controller.transformContext(compactionTestHistory())
+  assert.deepEqual(harness.commits[0]!.checkpoint.details, { execution_progress: progress })
+  const raw = compactionTestHistory()
+  const failed = createCompactionTestHarness({ captureDetails: () => ({ execution_progress: progress }), commit: async () => { throw new Error('存储失败') } })
+  assert.deepEqual(await failed.controller.transformContext(raw), raw)
+  assert.throws(() => failed.controller.beforeProviderRequest(), /CHECKPOINT_FAILED/)
+  assert.equal(failed.controller.checkpoint(), undefined)
+  assert.equal(failed.activities.some((activity) => activity.status === 'completed'), false)
+})
+
 test('压后超过窗口 30% 仍可继续，不执行目标比例压缩', async () => {
   const harness = createCompactionTestHarness({
     streamFn: compactionTestStream(compactionTestAssistant('summary '.repeat(600), 100)),
@@ -296,4 +309,24 @@ test('恰好达到阈值时触发压缩', async () => {
   raw[5] = compactionTestAssistant('recent-assistant ' + 'f'.repeat(4000), 6400)
   await harness.controller.transformContext(raw)
   assert.equal(harness.commits.length, 1)
+})
+
+test('请求补充说明计入容量但不写入摘要或保留历史，恢复后仅生成当前副本', async () => {
+  const supplement = compactionTestUser('temporary-skill-and-execution-state')
+  const raw = compactionTestHistory()
+  const harness = createCompactionTestHarness({ supplementalMessages: () => [supplement] })
+  const projected = await harness.controller.transformContext(raw)
+  const checkpoint = harness.controller.checkpoint()!
+  assert.ok(checkpoint)
+  assert.equal(projected.filter((message) => message === supplement).length, 1)
+  assert.equal(JSON.stringify(checkpoint.retainedTail).includes('temporary-skill-and-execution-state'), false)
+  assert.equal(JSON.stringify(harness.requests).includes('temporary-skill-and-execution-state'), false)
+  const restored = createCompactionTestHarness({
+    initialCheckpoint: JSON.parse(JSON.stringify(checkpoint)), supplementalMessages: () => [supplement],
+  })
+  const continued = await restored.controller.transformContext([...raw, compactionTestUser('继续')])
+  assert.equal(continued.filter((message) => message === supplement).length, 1)
+  const expected = runtimeCompactionEstimate(continued, compactionTestModel, 0)
+  assert.equal(restored.contexts[restored.contexts.length - 1]!.estimated_tokens, expected)
+  assert.equal(restored.commits.length, 0)
 })

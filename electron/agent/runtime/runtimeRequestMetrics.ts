@@ -9,10 +9,11 @@ import { estimateRuntimeMessageTokens } from '../context/runtimeContextTokens.ts
 import { runtimeImageDimensions } from '../context/runtimeImageDimensions.ts'
 import { runtimeProviderFailure, sanitizeRuntimeProviderError } from '../provider/runtimeProviderFailure.ts'
 
-export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBudget, events: Pick<RuntimeEventWriter, 'push'>, supported: boolean, purpose: 'response' | 'compaction', secrets: readonly string[] = []): StreamFn {
+export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBudget, events: Pick<RuntimeEventWriter, 'push'>, supported: boolean, purpose: 'response' | 'compaction', secrets: readonly string[] = [], diagnostics?: () => { context_fingerprint: string; execution_summary_tokens: number }): StreamFn {
   return (model, context, options) => {
     const tools = getCurrentTools(context.messages)
     const schemaBytes = Buffer.byteLength(JSON.stringify(tools))
+    const metadata = diagnostics ? { ...diagnostics(), effective_tools: tools.map((tool) => tool.name) } : undefined
     const estimatedInput = Math.ceil((schemaBytes + getCurrentSystemPrompt(context.messages).length) / 3) + context.messages.filter((message) => message.role !== 'system').reduce((sum, message) => sum + estimateRuntimeMessageTokens(message), 0)
     const decision = options?.signal?.aborted ? undefined : budget.evaluate({ type: 'before_request', estimatedInput })
     const blocked = decision && !decision.allowed ? decision.reason : undefined
@@ -41,6 +42,7 @@ export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBu
         budget.usage.record(usage)
         if (supported) events.push('request_usage', { request_usage: {
           request_index: requestIndex, purpose, tool_count: tools.length,
+          ...metadata,
           schema_bytes: schemaBytes, schema_tokens_estimate: Math.ceil(schemaBytes / 3), images: images.slice(0, 256),
           usage, duration_ms: Date.now() - started, outcome: message.stopReason === 'error' ? 'failed' : message.stopReason === 'aborted' ? 'cancelled' : 'completed',
           ...(message.stopReason === 'error' ? { error_code: runtimeProviderFailure(message.errorMessage).code } : {}),

@@ -1,3 +1,4 @@
+import { mergeAgentProgress } from '#entities/agent'
 import type {
   AgentMessage,
   AgentCompactionActivity,
@@ -199,8 +200,15 @@ function interleaveActivities(
     const incoming = { ...event.payload.retry, created_at: event.created_at }
     retries.set(incoming.retry_id, mergeAgentRetryActivity(retries.get(incoming.retry_id), incoming))
   }
-  if (activities.size === 0 && retries.size === 0) return parts
-  const pending: Extract<AgentWorkspaceMessagePart, { kind: 'compaction' | 'retry' }>[] = [
+  const progress = new Map((message.progress ?? []).map((value) => [value.pattern_id, value]))
+  for (const event of events) {
+    if (event.kind !== 'progress' || event.payload.progress.assistant_message_id !== message.id) continue
+    const incoming = { ...event.payload.progress, created_at: event.created_at }
+    progress.set(incoming.pattern_id, mergeAgentProgress(progress.get(incoming.pattern_id), incoming))
+  }
+  if (activities.size === 0 && retries.size === 0 && progress.size === 0) return parts
+  const pending: Extract<AgentWorkspaceMessagePart, { kind: 'compaction' | 'retry' | 'progress' }>[] = [
+    ...[...progress.values()].map((activity) => ({ id: `progress:${activity.pattern_id}`, kind: 'progress' as const, activity })),
     ...[...activities.values()].map((activity) => ({ id: `compaction:${activity.compaction_id}`, kind: 'compaction' as const, activity })),
     ...[...retries.values()].map((activity) => ({ id: `retry:${activity.retry_id}`, kind: 'retry' as const, activity })),
   ]

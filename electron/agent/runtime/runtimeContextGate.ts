@@ -23,7 +23,9 @@ interface RuntimeContextGateOptions {
   commitCheckpoint(input: RuntimeCheckpointInput, signal?: AbortSignal): Promise<RuntimeCheckpointResult>
   now?: () => number
   projectMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
+  supplementalMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   retainToolCall?(messages: AgentMessage[]): string | undefined
+  captureDetails?(): Record<string, unknown>
 }
 
 interface CompactionSource {
@@ -57,7 +59,9 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     providerErrorSecrets: options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : [],
     initialCheckpoint: checkpoint,
     projectMessages: options.projectMessages,
+    supplementalMessages: options.supplementalMessages,
     retainToolCall: options.retainToolCall,
+    captureDetails: options.captureDetails,
     now,
     captureSource: async () => {
       await options.events.flush()
@@ -136,9 +140,9 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     },
     onContextUsage: (usage) => {
       // 能力位独立于原生用量恢复，避免新版字段被严格解码的旧 Core 拒绝。
-      const { basis, compression_status, ...legacy } = usage
+      const { basis, compression_status, compression_trigger_tokens, ...legacy } = usage
       options.events.push('context_usage', { context_usage: options.bootstrap.context.context_assessment_supported === true
-        ? { ...legacy, basis, compression_status }
+        ? { ...legacy, basis, compression_status, ...(options.bootstrap.context.progress_supported ? { compression_trigger_tokens } : {}) }
         : legacy })
     },
   })

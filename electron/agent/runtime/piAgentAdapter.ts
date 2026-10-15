@@ -16,12 +16,17 @@ import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { createSkillResourceTool } from '../tools/skillResourceTool.ts'
 import { localToolNames } from '../contracts/toolNames.ts'
 import { RuntimeToolDiscovery } from '../tools/runtimeToolDiscovery.ts'
+import { runtimePrerequisiteTools } from '../tools/runtimeToolNavigation.ts'
 import { RuntimeExecutionBudget } from '../execution/runtimeExecutionBudget.ts'
 import { RuntimeInputSafety } from '../execution/runtimeInputSafety.ts'
 import { measuredRuntimeStream } from './runtimeRequestMetrics.ts'
 import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeImageWorkingSet.ts'
 import { bindWorkflowPreparation, createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
 import { RuntimeToolProgress } from '../tools/runtimeToolProgress.ts'
+import { RuntimeSkillContext, skillResourcePresent } from '../tools/runtimeSkillContext.ts'
+import { progressData, progressDigest } from '../tools/runtimeToolEvidence.ts'
+import { estimateRuntimeMessageTokens } from '../context/runtimeContextTokens.ts'
+import { clearRuntimeCompactionUsage } from '../context/compaction/runtimeCompactionPolicy.ts'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
 import type { RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
@@ -71,7 +76,12 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills)
   const budget = new RuntimeExecutionBudget(options.bootstrap.model.snapshot.execution_budget)
   const inputSafety = new RuntimeInputSafety()
-  const toolProgress = new RuntimeToolProgress()
+  const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name))
+  const skillContext = new RuntimeSkillContext(options.skills)
+  let supplementalFingerprint = progressDigest([])
+  let supplementalTokens = 0
+  let requestSupplementalTokens = 0
+  const requestSupplements = new WeakMap<AgentMessage, number>()
   let aborted = false
   const executionFailure = () => aborted ? undefined : inputSafety.failure() ?? budget.failure()
   const imageWorkingSet = new RuntimeImageWorkingSet(images)
@@ -81,8 +91,8 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     return { ...tool, execute: (id, args, signal, update) => tool.execute(id, { compact: true, ...(args as Record<string, unknown>) }, signal, update) } as typeof tool
   })
   let modelMessages: AgentMessage[] = []
-  const hasSkill = (content: string) => modelMessages.some((message) => message.role === 'toolResult' && message.content.some((part) => part.type === 'text' && part.text === content))
-  const skillTool = createSkillResourceTool(options.skills, hasSkill, (content) => discovery.loadReferencedTools(content))
+  const hasSkill = (content: string, uri: string, sha256: string) => skillResourcePresent(modelMessages, content, uri, sha256)
+  const skillTool = createSkillResourceTool(options.skills, hasSkill, (content, uri) => discovery.loadReferencedTools(content, uri))
   const historyTool = createHistoryImageTool(async (reference, signal) => {
     if (!model.input.includes('image')) throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
     if (!options.readHistoryImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
@@ -91,14 +101,15 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   })
   const discovery = new RuntimeToolDiscovery([...boundTools, ...createWorkflowWaitTool(boundTools, options.mcp.originalName)], options.mcp.originalName, [skillTool, historyTool],
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
-    (name) => toolProgress.rediscover(name))
+    (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) })
   let tools = discovery.active()
   let toolDeclarations = tools.map(toToolDeclaration)
-  const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key(), tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
+  const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
   let contextFingerprint = fingerprint()
   const baseStream = createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch)
   const secrets = options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : []
-  const streamFn = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'response', secrets)
+  const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: toolProgress.summary(), timestamp: 0 }) }) : undefined
+  const streamFn = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'response', secrets, diagnostics)
   const summaryStream = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'compaction', secrets)
   const bridge = new PiEventBridge({
     writer: options.events,
@@ -119,16 +130,48 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const compaction = createRuntimeContextGate({
     bootstrap: options.bootstrap, model, systemPrompt, tools, streamFn: summaryStream, bridge, images,
     events: options.events, commitCheckpoint: options.commitCheckpoint, now: options.now,
-    projectMessages: (messages, commit) => projectImages(messages, commit).messages,
+    projectMessages: (messages, commit) => projectContext(messages, commit),
+    supplementalMessages: (messages, commit) => supplementContext(messages, commit),
     retainToolCall: pendingPreviewCall,
+    captureDetails: () => ({ execution_progress: toolProgress.snapshot() }),
   })
   const projectImages = (messages: AgentMessage[], commit: boolean) => {
     const projected = imageWorkingSet.project(standardMessages(messages), commit)
     if (commit && projected.changed) {
       compaction.invalidateUsage(messages)
       contextFingerprint = fingerprint()
+      // 图片变化会使原生用量失效；在后续复制消息前清除，避免对象身份变化绕过失效标记。
+      return { ...projected, messages: projected.messages.map(clearRuntimeCompactionUsage) }
     }
     return projected
+  }
+  const projectContext = (messages: AgentMessage[], commit: boolean) => {
+    const projected = projectImages(messages, commit).messages.map((message) => {
+      const tokens = requestSupplements.get(message)
+      if (message.role !== 'assistant' || !tokens || !message.usage.totalTokens) return message
+      // Provider 用量已包含上次注入；扣除该投影后再计入当前投影，避免逐轮重复估算占用。
+      const usage = { ...message.usage }
+      let remaining = tokens
+      for (const key of ['input', 'cacheRead', 'cacheWrite'] as const) {
+        const removed = Math.min(usage[key], remaining)
+        usage[key] -= removed; usage.totalTokens -= removed; remaining -= removed
+      }
+      return { ...message, usage }
+    })
+    if (commit) modelMessages = projected
+    return projected
+  }
+  const supplementContext = (messages: AgentMessage[], commit: boolean): AgentMessage[] => {
+    const knowledge = skillContext.content(messages)
+    const summary = toolProgress.summary()
+    const content = [...knowledge, ...(summary ? [{ type: 'text' as const, text: summary }] : [])]
+    const key = progressDigest(content)
+    if (commit && supplementalFingerprint !== key) {
+      supplementalFingerprint = key
+      contextFingerprint = fingerprint()
+    }
+    if (commit) supplementalTokens = content.length ? estimateRuntimeMessageTokens({ role: 'user', content, timestamp: 0 }) : 0
+    return content.length ? [{ role: 'user', content, timestamp: 0 }] : []
   }
   const retryPositions = new Map<string, number>()
   const retryStreamFn = createRuntimeRetryStreamFunction(streamFn, {
@@ -153,10 +196,25 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const observeToolResult = (id: string, name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean) => {
     if (observedCalls.has(id)) return
     observedCalls.add(id)
+    const prerequisite = isError ? progressData(result) : undefined
+    // 本地门禁明确尚未派发时，仅补齐其只读核验入口，不代替模型执行或恢复历史授权。
+    if (prerequisite) discovery.loadNames(runtimePrerequisiteTools(result, prerequisite))
     inputSafety.observe(options.mcp.originalName(name) ?? name, result, isError)
     budget.evaluate({ type: 'tool_result', name: options.mcp.originalName(name) ?? name, args, result, isError })
-    return toolProgress.observe(options.mcp.originalName(name) ?? name, args, result, isError)
+    const guidance = toolProgress.observe(options.mcp.originalName(name) ?? name, args, result, isError)
+    for (const progress of toolProgress.drain()) {
+      if (progress.status === 'detected') discovery.loadNames(progress.next_tools)
+      if (options.bootstrap.context.progress_supported) options.events.push('progress', { progress: {
+        ...progress, assistant_message_id: options.bootstrap.run.assistant_message_id, after_part_sequence: bridge.partSequence(),
+      } })
+    }
+    return guidance
   }
+  const initialMessages = hydrateRuntimeMessages(options.bootstrap, model, contextFingerprint)
+  const restoredProgress = toolProgress.restore(options.bootstrap.context.checkpoint?.details?.execution_progress)
+  // 旧检查点没有执行状态时，从其保留历史重建；只有已恢复的快照才跳过该段，避免重复计数。
+  toolProgress.replay(initialMessages.slice(options.bootstrap.context.checkpoint ? 1 + (restoredProgress ? options.bootstrap.context.checkpoint.retained_tail?.length ?? 0 : 0) : 0),
+    (name) => options.mcp.readOnly?.(name) ?? /\.(?:get|list|capture|view|match)$/u.test(name))
   const steerSources = new WeakMap<AgentMessage, Pick<RuntimeSteerResult, 'message_id' | 'part_id'>>()
   const agent = new Agent({
     initialState: {
@@ -164,17 +222,13 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       model,
       thinkingLevel: options.bootstrap.run.reasoning_level,
       tools,
-      messages: hydrateRuntimeMessages(options.bootstrap, model, contextFingerprint),
+      messages: initialMessages,
     },
     // 系统提示和工具只来自本轮可信配置；压缩与 Core 快照仍只处理业务历史。
     convertToLlm: (messages) => normalizeContext({
       systemPrompt, tools: toolDeclarations, messages: standardMessages(messages),
     }).messages,
-    transformContext: async (messages, signal) => {
-      modelMessages = await compaction.transformContext(standardMessages(messages), signal)
-      toolProgress.contextChanged((uri) => options.skills.resources.some((resource) => resource.uri === uri && hasSkill(resource.content)))
-      return modelMessages
-    },
+    transformContext: (messages, signal) => compaction.transformContext(standardMessages(messages), signal),
     prepareNextTurnWithContext: ({ context }) => {
       const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
       if (next.map((tool) => tool.name).join() !== tools.map((tool) => tool.name).join()) {
@@ -198,6 +252,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     },
     streamFn: (requestModel, context, streamOptions) => {
       compaction.beforeProviderRequest()
+      requestSupplementalTokens = supplementalTokens
       // HTTP 失败可能没有 start，必须先隔离上一工具轮已完成的消息片段。
       bridge.beginAssistantRequest()
       return retryStreamFn(requestModel, context, streamOptions)
@@ -225,7 +280,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     afterToolCall: async ({ result, toolCall, isError }) => {
       const guidance = observeToolResult(toolCall.id, toolCall.name, toolCall.arguments, result, isError)
       if (isMCPToolDetails(result.details) && result.details.result.isError === true) {
-        return { isError: true }
+        return { isError: true, ...(guidance ? { content: [...result.content, { type: 'text' as const, text: guidance }] } : {}) }
       }
       if (guidance) return { content: [...result.content, { type: 'text', text: guidance }] }
       return undefined
@@ -251,6 +306,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
           observeToolResult(result.toolCallId, result.toolName, callArguments.get(result.toolCallId), { content: result.content, details: result.details }, result.isError)
         }
         if (value.type === 'message_end' && value.message.role === 'assistant') {
+          requestSupplements.set(value.message, requestSupplementalTokens)
           // 旧 Core 严格拒绝未知事件字段，只有启动时明确声明支持才发送可恢复的单次用量。
           const providerUsage = options.bootstrap.context.provider_usage_supported === true
             ? runtimeProviderUsage(value.message, bridge.lastAssistantPartID(), contextFingerprint)

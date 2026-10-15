@@ -29,9 +29,12 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
   const expectedTarget = desktop?.kind === 'desktop_session'
     ? { session_id: desktop.session_id, connection_generation: desktop.connection_generation }
     : desktop ? { profile_id: desktop.desktop_profile_id } : {}
-  const reject = (expected: Record<string, unknown>) => {
+  const reject = (expected: Record<string, unknown>, prerequisite?: { session_id: string }) => {
     throw new Error(JSON.stringify({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
-      message: '调用目标与本轮引用不一致，尚未派发。请按精确引用修正参数；不要重放结果未知的操作。', expected_arguments: expected }))
+      message: prerequisite ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+        : '调用目标与本轮引用不一致，尚未派发。请按精确引用修正参数；不要重放结果未知的操作。',
+      expected_arguments: expected,
+      ...(prerequisite ? { required_tool: 'termous.desktops.get', required_arguments: prerequisite } : {}) }))
   }
   const knownSession = (id: unknown, generation?: unknown, needsReady = true) => {
     const value = typeof id === 'string' ? sessions.get(id) : undefined
@@ -77,14 +80,19 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
       if (name === 'termous.desktops.get' && args.session_id !== undefined
         && desktop.kind === 'desktop_session' && args.session_id !== desktop.session_id) reject(expectedTarget)
       if ((name === 'termous.desktops.attach' || name === 'termous.desktops.close')
-        && !knownSession(args.session_id, args.connection_generation, name !== 'termous.desktops.close')) reject(expectedTarget)
+        && !knownSession(args.session_id, args.connection_generation, name !== 'termous.desktops.close')) {
+        const sessionID = desktop.kind === 'desktop_session' ? desktop.session_id
+          : typeof args.session_id === 'string' && sessions.has(args.session_id) ? args.session_id : undefined
+        reject(expectedTarget, sessionID ? { session_id: sessionID } : undefined)
+      }
       if ('attachment_id' in args) {
         // 失效目标仍允许查询和释放本轮已有入口，清理由 Core 复验归属与控制代次。
         const ownedOnly = name === 'termous.desktops.get' || name === 'termous.desktops.detach'
           || name === 'termous.desktops.control.release' || name === 'termous.desktops.operations.get'
         const owned = typeof args.attachment_id === 'string' ? attachments.get(args.attachment_id) : undefined
         const allowed = ownedOnly ? owned !== undefined && !owned.detached : knownAttachment(args.attachment_id)
-        if (!allowed) reject({ attachment_id: [...attachments.keys()] })
+        if (!allowed) reject({ attachment_id: [...attachments.keys()] }, desktop.kind === 'desktop_session' ? { session_id: desktop.session_id }
+          : owned ? { session_id: owned.session } : undefined)
       }
       if (name === 'termous.desktop_workflows.runs.start') {
         if (desktop.kind === 'desktop_session') {
@@ -101,6 +109,7 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
         }) : tool.parameters
     return {
       ...tool, parameters,
+      ...(name === 'termous.desktops.attach' ? { description: `${tool.description} 内置 Agent 本轮必须先用 termous.desktops.get(session_id) 核验就绪与连接代次，再调用 attach；历史或启动引用不能代替本轮查询。` } : {}),
       prepareArguments: (args) => {
         const prepared = tool.prepareArguments ? tool.prepareArguments(args) : args
         validate(prepared)

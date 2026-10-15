@@ -1,3 +1,4 @@
+import { AgentProgressActivity } from './AgentProgressActivity.tsx'
 import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
@@ -187,6 +188,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
             {message.parts.map((part) => {
               if (part.kind === 'text') return <AgentMarkdown key={part.id} images={message.role === 'assistant' ? images : undefined} onLoadToolImage={onLoadToolImage}>{part.text}</AgentMarkdown>
               if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} onLoadToolImage={onLoadToolImage} />
+              if (part.kind === 'progress') return <AgentProgressActivity key={part.id} activity={part.activity} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
               if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />
               if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} hideError={
@@ -261,6 +263,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   if (!message) return 'empty'
   const parts = message.parts.map((part) => {
     if (part.kind === 'response_failure') return `${part.id}:${part.failure.error_message}`
+    if (part.kind === 'progress') return `${part.id}:${part.activity.status}:${part.activity.count}`
     if (part.kind === 'retry') {
       const activity = part.activity
       return `${part.id}:${activity.status}:${activity.attempt}:${activity.delay_ms}:${activity.duration_ms ?? ''}:${activity.error_message}`

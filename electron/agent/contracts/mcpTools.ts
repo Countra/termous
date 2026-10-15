@@ -26,6 +26,7 @@ export interface MCPToolDetails {
 export interface AgentMCPConnection {
   tools: AgentTool[]
   originalName(encodedName: string): string | null
+  readOnly?(originalName: string): boolean
   close(): Promise<void>
 }
 

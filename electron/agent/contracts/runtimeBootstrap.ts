@@ -73,6 +73,7 @@ export interface RuntimeContextBootstrap {
   provider_usage_supported?: boolean
   context_assessment_supported?: boolean
   request_usage_supported?: boolean
+  progress_supported?: boolean
   checkpoint?: RuntimeContextCheckpoint
 }
 
@@ -134,6 +135,7 @@ function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBoots
     && typeof value.warning === 'boolean'
     && (value.provider_usage_supported === undefined || typeof value.provider_usage_supported === 'boolean')
     && (value.request_usage_supported === undefined || typeof value.request_usage_supported === 'boolean')
+    && (value.progress_supported === undefined || typeof value.progress_supported === 'boolean')
     && (value.context_assessment_supported === undefined || typeof value.context_assessment_supported === 'boolean')
     && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
 }

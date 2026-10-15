@@ -41,7 +41,8 @@ test('旧文件 Skill URI 仅回退到当前快照对应资源，并返回真实
   const tool = createSkillResourceTool(createAgentSkillBundleSnapshot([entry], [resource]))
   const result = await tool.execute('call-legacy', { uri: 'skill://termous-sftp/SKILL.md' }, undefined)
   assert.deepEqual(result.details, { kind: 'skill_resource', uri: resource.uri, sha256: resource.sha256, size: resource.size })
-  assert.deepEqual(result.content, [{ type: 'text', text: resource.content }])
+  assert.deepEqual(result.content[0], { type: 'text', text: resource.content })
+  assert.match(JSON.stringify(result.content[1]), /skill:\/\/termous-files\/SKILL.md/)
   for (const uri of ['skill://termous-sftp-extra/SKILL.md', 'skill://termous-sftp/../termous-files/SKILL.md',
     'skill://termous-sftp/references/missing.md', 'skill://termous-sftp/SKILL.md/../SKILL.md']) {
     await assert.rejects(tool.execute('call-invalid', { uri }, undefined), /AGENT_SKILL_RESOURCE_NOT_FOUND/)

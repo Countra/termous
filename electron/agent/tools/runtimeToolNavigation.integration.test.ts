@@ -65,13 +65,62 @@ for (const api of ['responses', 'chat_completions'] as const) {
   })
 }
 
-function response(api: string, name?: string, args = {}) {
+test('自动阶段说明不能代替显式 Skill 读取，切换能力后完整文档仍保留在历史中', async () => {
+  const bootstrap = fixtureBootstrap('chat_completions')
+  const entries = ['termous-remote-desktop', 'termous-files', 'termous-snippets'].map((name) => ({
+    name, description: name, entry_uri: `skill://${name}/SKILL.md`,
+  }))
+  const resources = entries.map((entry) => {
+    const content = `Durable instructions for ${entry.name}.`
+    return { uri: entry.entry_uri, content, size: Buffer.byteLength(content),
+      sha256: createHash('sha256').update(content).digest('hex'), media_type: 'text/markdown; charset=utf-8' as const }
+  })
+  const skills = createAgentSkillBundleSnapshot(entries, [...resources,
+    { ...resources[1]!, uri: 'skill://termous-files/references/session-and-files.md' },
+    { ...resources[2]!, uri: 'skill://termous-snippets/references/library-workflows.md' },
+  ])
+  const names = ['termous.desktops.list', 'termous.files.sessions.list', 'termous.snippets.list']
+  const mapped = mapMCPTools(names.map((name) => ({ name, inputSchema: { type: 'object' as const, properties: {} } })),
+    async () => { throw new Error('本测试只发现能力和读取文档') })
+  const writer = new RuntimeEventWriter({
+    start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122',
+      ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills },
+    runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: (error) => { throw error },
+    core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {},
+      appendEvents: async (_start, _bearer, batch) => batch[batch.length - 1]!.sequence,
+      appendSteer: async () => { throw new Error('不应追加消息') }, commitCheckpoint: async () => { throw new Error('不应压缩') } },
+  })
+  const requests: Array<{ messages: Array<{ role: string; content: unknown }> }> = []
+  const agent = createPiAgent({ bootstrap, skills, events: writer,
+    mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
+    commitCheckpoint: async () => { throw new Error('不应压缩') },
+    fetch: async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      if (requests.length === 1) return response('chat_completions', 'discover_tools', { names: [names[0]] })
+      if (requests.length === 2) return response('chat_completions', 'read_skill_resource', { uri: resources[0]!.uri })
+      if (requests.length === 3) return response('chat_completions', 'discover_tools', { names: names.slice(1) }, 'switch')
+      return response('chat_completions')
+    },
+  })
+  try {
+    assert.equal(await agent.continue(), 'completed')
+    assert.equal(requests.length, 4)
+    const text = resources[0]!.content
+    assert.ok(requests[1]!.messages.some((message) => message.role === 'user' && JSON.stringify(message.content).includes(text)))
+    assert.ok(requests[3]!.messages.some((message) => message.role === 'tool' && JSON.stringify(message.content).includes(text)))
+    assert.equal(JSON.stringify(requests[3]).split(text).length - 1, 1)
+    assert.ok(requests[3]!.messages.some((message) => message.role === 'user' && JSON.stringify(message.content).includes(resources[2]!.content)))
+  }
+  finally { agent.close(); await writer.close() }
+})
+
+function response(api: string, name?: string, args = {}, id = name) {
   if (api === 'chat_completions') {
-    const delta = name ? { tool_calls: [{ index: 0, id: `call_${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } : { content: '观察附着已建立' }
+    const delta = name ? { tool_calls: [{ index: 0, id: `call_${id}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } : { content: '观察附着已建立' }
     const chunk = { id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{ index: 0, delta, finish_reason: name ? 'tool_calls' : 'stop' }] }
     return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
   }
-  const item = name ? { type: 'function_call', id: `fc_${name}`, call_id: `call_${name}`, name, arguments: JSON.stringify(args), status: 'completed' }
+  const item = name ? { type: 'function_call', id: `fc_${id}`, call_id: `call_${id}`, name, arguments: JSON.stringify(args), status: 'completed' }
     : { type: 'message', id: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: '观察附着已建立', annotations: [] }] }
   const events = [
     { type: 'response.created', response: { id: 'response' } },
@@ -80,6 +129,98 @@ function response(api: string, name?: string, args = {}) {
     { type: 'response.completed', response: { id: 'response', status: 'completed', output: [item] } },
   ]
   return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
+}
+
+for (const api of ['responses', 'chat_completions'] as const) {
+  test(`${api} 通用生命周期把多个领域的后续声明送入真实下一请求`, async () => {
+    for (const [submit, next, data] of [
+      ['termous.commands.dispatch', 'termous.commands.get', { task: { id: 'task', status: 'running' } }],
+      ['termous.files.transfers.upload', 'termous.files.transfers.get', { transfer: { id: 'transfer', status: 'running' } }],
+      ['termous.remoteops.services.action', 'termous.remoteops.services.operations.get', { operation: { id: 'operation', phase: 'queued' } }],
+      ['termous.remoteops.crontab.jobs.create', 'termous.remoteops.crontab.get', { mutation: { revision: 'revision' } }],
+      ['termous.forwarding.instances.start', 'termous.forwarding.instances.get', { instance: { id: 'forward', status: 'connecting' } }],
+      ['termous.snippets.create', 'termous.snippets.get', { snippet: { id: 'snippet' } }],
+    ] as const) {
+      const bootstrap = fixtureBootstrap(api)
+      const executed: string[] = []
+      const mapped = mapMCPTools([submit, next].map((name) => ({ name, inputSchema: { type: 'object' as const, properties: {} } })), async (definition) => {
+        executed.push(definition.name)
+        return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data }
+      })
+      const writer = new RuntimeEventWriter({
+        start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+        runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: (error) => { throw error },
+        core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {}, appendEvents: async (_start, _bearer, batch) => batch[batch.length - 1]!.sequence,
+          appendSteer: async () => { throw new Error('不应追加消息') }, commitCheckpoint: async () => { throw new Error('不应压缩') } },
+      })
+      let requests = 0
+      const encoded = (original: string) => mapped.tools.find((tool) => mapped.originalNames.get(tool.name) === original)!.name
+      const agent = createPiAgent({ bootstrap, events: writer, skills: testAgentSkillBundle(),
+        mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
+        commitCheckpoint: async () => { throw new Error('不应压缩') }, fetch: async (_input, init) => {
+          const body = JSON.parse(String(init?.body)) as { tools: Array<{ name?: string; function?: { name: string } }> }
+          requests++
+          if (requests === 1) return response(api, 'discover_tools', { names: [submit] })
+          if (requests === 2) return response(api, encoded(submit))
+          assert.ok(body.tools.some((tool) => (tool.name ?? tool.function?.name) === encoded(next)), submit)
+          assert.deepEqual(executed, [submit])
+          return response(api)
+        },
+      })
+      try { assert.equal(await agent.continue(), 'completed'); assert.equal(requests, 3) }
+      finally { agent.close(); await writer.close() }
+    }
+  })
+}
+
+for (const api of ['responses', 'chat_completions'] as const) {
+  test(`${api} 历史附着被门禁拒绝后立即提供当前会话查询入口，仍须重新核验和附着`, async () => {
+    const bootstrap = fixtureBootstrap(api)
+    bootstrap.model.snapshot.supports_images = true
+    bootstrap.session.resource_bindings = [{ kind: 'desktop_session', session_id: 'current-session', connection_generation: 1,
+      desktop_profile_id: 'profile', desktop_profile_name: '', host_id: 'host', host_name: '', protocol: 'vnc', bound_at: '2026-10-15T00:00:00Z' }]
+    const executed: string[] = []
+    const mapped = mapMCPTools(['termous.desktop_workflows.captures.create', 'termous.desktops.get', 'termous.desktops.attach'].map((name) => ({ name,
+      inputSchema: { type: 'object' as const, properties: { session_id: { type: 'string' }, connection_generation: { type: 'integer' }, attachment_id: { type: 'string' } } },
+    })), async (definition) => {
+      executed.push(definition.name)
+      const data = definition.name.endsWith('.get') ? { session: { id: 'current-session', profile_id: 'profile', host_id: 'host', protocol: 'vnc', status: 'ready', connection_generation: 1 } }
+        : definition.name.endsWith('.attach') ? { attachment: { id: 'current-attachment', session_id: 'current-session', connection_generation: 1, state: 'ready' } }
+          : { snapshot: { snapshot_id: 'created' } }
+      return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data }
+    })
+    const writer = new RuntimeEventWriter({
+      start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+      runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: (error) => { throw error },
+      core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {}, appendEvents: async (_start, _bearer, batch) => batch[batch.length - 1]!.sequence,
+        appendSteer: async () => { throw new Error('不应追加消息') }, commitCheckpoint: async () => { throw new Error('不应压缩') } },
+    })
+    let requests = 0
+    const agent = createPiAgent({ bootstrap, events: writer, skills: testAgentSkillBundle(),
+      mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
+      commitCheckpoint: async () => { throw new Error('不应压缩') }, fetch: async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { tools: Array<{ name?: string; function?: { name: string } }> }
+        const names = body.tools.map((tool) => tool.name ?? tool.function?.name)
+        requests++
+        if (requests === 1) return response(api, 'discover_tools', { names: ['termous.desktop_workflows.captures.create'] })
+        if (requests === 2) return response(api, 'm_termous_ddesktop_uworkflows_dcaptures_dcreate', { attachment_id: 'historical-attachment' }, 'old')
+        if (requests === 3) {
+          assert.equal(executed.length, 0)
+          assert.ok(names.includes('m_termous_ddesktops_dget'))
+          assert.match(String(init?.body), /required_arguments/)
+          return response(api, 'm_termous_ddesktops_dget', { session_id: 'current-session' })
+        }
+        if (requests === 4) return response(api, 'm_termous_ddesktops_dattach', { session_id: 'current-session', connection_generation: 1 })
+        if (requests === 5) return response(api, 'm_termous_ddesktop_uworkflows_dcaptures_dcreate', { attachment_id: 'current-attachment' }, 'new')
+        assert.equal(requests, 6)
+        return response(api)
+      },
+    })
+    try {
+      assert.equal(await agent.continue(), 'completed')
+      assert.deepEqual(executed, ['termous.desktops.get', 'termous.desktops.attach', 'termous.desktop_workflows.captures.create'])
+    } finally { agent.close(); await writer.close() }
+  })
 }
 
 for (const api of ['responses', 'chat_completions'] as const) {
@@ -149,14 +290,14 @@ function fixtureBootstrap(api: 'responses' | 'chat_completions'): RuntimeBootstr
 }
 
 for (const api of ['responses', 'chat_completions'] as const) {
-  test(`${api} 重复 Skill 撤下后可发现其他资源，但旧请求仍被拦截且业务可继续`, async () => {
+  test(`${api} 重复 Skill 只提示，声明始终保留且业务可继续`, async () => {
     const base = testAgentSkillBundle()
     const content = '需要查询时使用 termous.desktops.get。缺少工具时先发现，不重复读取。'
-    const resource = { ...base.resources[0]!, content, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex') }
+    const resource = { ...base.resources[0]!, uri: 'skill://termous-remote-desktop/SKILL.md', content, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex') }
     const nextContent = '另一份资源的独立规则。'
     const nextResource = { ...resource, uri: resource.uri.replace('/SKILL.md', '/references/next.md'), content: nextContent,
       size: Buffer.byteLength(nextContent), sha256: createHash('sha256').update(nextContent).digest('hex') }
-    const skills = createAgentSkillBundleSnapshot([...base.catalog], [resource, nextResource])
+    const skills = createAgentSkillBundleSnapshot([{ name: 'termous-remote-desktop', description: '桌面观察', entry_uri: resource.uri }], [resource, nextResource])
     const bootstrap = fixtureBootstrap(api)
     let executed = 0
     const mapped = mapMCPTools([{ name: 'termous.desktops.get', inputSchema: { type: 'object', properties: {} } }], async () => {
@@ -180,7 +321,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
         requests++
         if (requests <= 3) return response(api, 'read_skill_resource', { uri: resource.uri, refresh: true })
         if (requests === 4) {
-          assert.ok(!names.includes('read_skill_resource'))
+          assert.ok(names.includes('read_skill_resource'))
           assert.ok(names.includes('discover_tools'))
           assert.ok(names.includes('m_termous_ddesktops_dget'))
           return response(api, 'discover_tools', { names: ['read_skill_resource'] })
@@ -190,7 +331,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
           return response(api, 'read_skill_resource', { uri: resource.uri, refresh: true })
         }
         if (requests === 6) {
-          assert.ok(!names.includes('read_skill_resource'))
+          assert.ok(names.includes('read_skill_resource'))
           return response(api, 'discover_tools', { names: ['read_skill_resource'] })
         }
         if (requests === 7) return response(api, 'read_skill_resource', { uri: nextResource.uri })
@@ -268,6 +409,73 @@ for (const api of ['responses', 'chat_completions'] as const) {
       assert.equal(await agent.continue(), 'completed')
       assert.deepEqual(executed.filter((call) => call.name.endsWith('release')).map((call) => (call.args as { snapshot_id: string }).snapshot_id), ['old', 'other', 'new'])
       assert.equal(executed.filter((call) => call.name.endsWith('create')).length, 1)
+    } finally { agent.close(); await writer.close() }
+  })
+}
+
+for (const api of ['responses', 'chat_completions'] as const) for (const supported of [false, true]) {
+  test(`${api} 重复截图第三次提供证据、快照声明和单份执行摘要；旧 Core 兼容=${!supported}`, async () => {
+    const bootstrap = fixtureBootstrap(api)
+    bootstrap.context.progress_supported = supported
+    bootstrap.context.request_usage_supported = true
+    const content = '# 固定模板流程\n使用 snapshot_id 创建并确认模板。'
+    const uri = 'skill://termous-desktop-workflows/references/templates.md'
+    const rootURI = 'skill://termous-desktop-workflows/SKILL.md'
+    const resource = { uri, content, sha256: createHash('sha256').update(content).digest('hex'), size: Buffer.byteLength(content), media_type: 'text/markdown; charset=utf-8' as const }
+    const skills = createAgentSkillBundleSnapshot([{ name: 'termous-desktop-workflows', description: '脚本流程', entry_uri: rootURI }], [resource, { ...resource, uri: rootURI }])
+    bootstrap.model.snapshot.supports_images = true
+    const events: Array<{ kind: string; payload: Record<string, unknown> }> = []
+    const calls: string[] = []
+    const mapped = mapMCPTools(['termous.desktops.capture', 'termous.desktop_workflows.captures.create'].map((name) => ({
+      name, description: name, annotations: { readOnlyHint: name === 'termous.desktops.capture' },
+      inputSchema: { type: 'object' as const, properties: { attachment_id: { type: 'string' } } },
+    })), async (definition) => {
+      calls.push(definition.name)
+      const data = definition.name === 'termous.desktops.capture' ? { capture: { screenshot_id: `shot-${calls.length}`, expires_at: calls.length, metadata: { connection_generation: 1, frame_sequence: calls.length } } } : { snapshot: { snapshot_id: 'snapshot-new' } }
+      return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data }
+    })
+    const writer = new RuntimeEventWriter({
+      start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills },
+      runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: (error) => { throw error },
+      core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {},
+        appendEvents: async (_start, _bearer, batch) => { events.push(...batch); return batch[batch.length - 1]!.sequence },
+        appendSteer: async () => { throw new Error('不应追加消息') }, commitCheckpoint: async () => { throw new Error('循环不能触发压缩') } },
+    })
+    let requests = 0
+    const capture = 'm_termous_ddesktops_dcapture'
+    const create = 'm_termous_ddesktop_uworkflows_dcaptures_dcreate'
+    const agent = createPiAgent({ bootstrap, events: writer, skills,
+      mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
+      commitCheckpoint: async () => { throw new Error('循环不能触发压缩') },
+      fetch: async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { tools: Array<{ name?: string; function?: { name: string } }> }
+        const names = body.tools.map((tool) => tool.name ?? tool.function?.name)
+        requests++
+        if (requests === 1) return response(api, 'discover_tools', { names: ['termous.desktops.capture'] })
+        if (requests >= 3) {
+          assert.ok(names.includes(create))
+          assert.match(String(init?.body), /固定模板流程/)
+          assert.equal((String(init?.body).match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
+        }
+        if (requests >= 5) {
+          assert.ok(names.includes(capture))
+          assert.match(String(init?.body), /同一观察反复返回相同有效信息/)
+        }
+        if (requests <= 5) return response(api, capture, { attachment_id: 'current' }, String(requests))
+        if (requests === 6) return response(api, create, { attachment_id: 'current' })
+        assert.equal(requests, 7)
+        return response(api)
+      },
+    })
+    try {
+      assert.equal(await agent.continue(), 'completed')
+      await writer.flush()
+      assert.equal(calls.filter((name) => name === 'termous.desktops.capture').length, 4)
+      assert.equal(calls[calls.length - 1], 'termous.desktop_workflows.captures.create')
+      assert.deepEqual(events.filter((event) => event.kind === 'progress').map((event) => (event.payload.progress as { status: string }).status), supported ? ['detected', 'progressed'] : [])
+      const usage = events.filter((event) => event.kind === 'request_usage').slice(-1)[0]!.payload.request_usage as Record<string, unknown>
+      assert.equal(Array.isArray(usage.effective_tools), supported)
+      assert.equal(events.some((event) => event.kind === 'compaction'), false)
     } finally { agent.close(); await writer.close() }
   })
 }

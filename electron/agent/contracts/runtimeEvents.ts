@@ -7,6 +7,7 @@ export type RuntimeEventKind =
   | 'tool_failed'
   | 'usage'
   | 'request_usage'
+  | 'progress'
   | 'error'
   | 'retry'
   | 'compaction'

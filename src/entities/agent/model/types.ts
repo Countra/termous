@@ -1,3 +1,4 @@
+import type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
 export const agentApiModes = ['responses', 'chat_completions'] as const
 export type AgentApiMode = (typeof agentApiModes)[number]
 
@@ -463,6 +464,9 @@ export type AgentMessagePart = {
 )
 
 export interface AgentRequestUsage {
+  effective_tools?: string[]
+  context_fingerprint?: string
+  execution_summary_tokens?: number
   error_code?: string
   request_index: number
   purpose: 'response' | 'compaction'
@@ -476,6 +480,7 @@ export interface AgentRequestUsage {
 }
 
 export interface AgentMessage {
+  progress?: AgentProgressActivity[]
   request_usage?: AgentRequestUsage[]
   id: string
   session_id: string
@@ -530,6 +535,7 @@ export type AgentContextUsageBasis = 'pi_estimate' | 'provider_usage'
 export type AgentContextCompressionStatus = 'unknown' | 'available' | 'unavailable'
 
 export interface AgentContextUsageData {
+  compression_trigger_tokens?: number
   estimated_tokens: number
   context_window_tokens: number
   estimated: boolean
@@ -698,6 +704,7 @@ export const agentRunEventKinds = [
   'usage',
   'compaction',
   'retry',
+  'progress',
   'context_usage',
   'request_usage',
   'error',
@@ -750,6 +757,7 @@ export type AgentRunEvent =
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
   | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
   | AgentRunEventBase<'retry', { retry: AgentRetryData }>
+  | AgentRunEventBase<'progress', { progress: AgentProgressData }>
   | AgentRunEventBase<'context_usage', { context_usage: AgentContextUsageData }>
   | AgentRunEventBase<'error', { error: { code: string; message: string } }>
 
