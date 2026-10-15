@@ -1504,6 +1504,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onSelectHost={setSelectedHostId}
                           onDelete={(id) => runAction(async () => {
                             await actions.deleteHost(id)
+                            await mounts.reload()
                             return true
                           })}
                           onCreateGroup={createHostGroup}

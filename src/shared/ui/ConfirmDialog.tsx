@@ -1,12 +1,14 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { Button, Modal } from 'antd'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import styles from './ConfirmDialog.module.scss'
 
 interface ConfirmDialogProps {
   open: boolean
   title: string
-  description: string
+  description: ReactNode
+  width?: number
   confirmLabel?: string
   cancelLabel?: string
   secondaryLabel?: string
@@ -26,6 +28,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  width = 420,
   confirmLabel,
   cancelLabel,
   secondaryLabel,
@@ -47,7 +50,7 @@ export function ConfirmDialog({
     <Modal
       open={open}
       centered
-      width={420}
+      width={width}
       zIndex={zIndex}
       title={null}
       footer={null}
@@ -73,7 +76,7 @@ export function ConfirmDialog({
         </div>
         <div className={styles['dialog-copy']}>
           <h2 id="confirm-dialog-title">{title}</h2>
-          <p>{description}</p>
+          <div className={styles['dialog-description']}>{description}</div>
         </div>
         <div className={styles['dialog-actions']}>
           {showCancelButton ? (
