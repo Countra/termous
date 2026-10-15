@@ -10,6 +10,44 @@ const capture = (index: number, image = 'same', generation = 1) => ({ ...read({ 
 const name = 'termous.desktops.capture'
 const args = { attachment_id: 'attachment' }
 
+test('脚本详情摘要区分当前修订与所读版本，检查点恢复也不带入脚本正文', () => {
+  const progress = new RuntimeToolProgress()
+  progress.observe('termous.desktop_workflows.get', { script_id: 'script', version: 2 }, read({ detail: {
+    script: { id: 'script', revision: 6 },
+    version: { script_id: 'script', number: 2, definition: { steps: [{ text: 'private script body' }] } },
+  } }), false)
+  for (const current of [progress, new RuntimeToolProgress()]) {
+    if (current !== progress) assert.equal(current.restore(progress.snapshot()), true)
+    assert.match(current.summary(), /"revision":6/)
+    assert.match(current.summary(), /"number":2/)
+    assert.doesNotMatch(current.summary(), /private script body/)
+  }
+})
+
+test('历史重复启动回放第三次提示；真实运行身份和版本进入摘要，不以旁白更新版本', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../test-support/workflow-start-loop-incident.json', import.meta.url), 'utf8')) as { calls: Array<{ tool: string; args: unknown; error: boolean; data: unknown }> }
+  assert.equal(fixture.calls.length, 5)
+  for (const terminal of [false, true]) {
+    const progress = new RuntimeToolProgress()
+    for (const [index, call] of fixture.calls.entries()) {
+      const data = terminal ? { run: { id: 'run-1', script_id: 'script-1', version: 2, state: 'failed', executed: 6, error_code: 'desktop_generation_stale' } } : call.data
+      const guidance = progress.observe(call.tool, call.args, write(data), call.error)
+      assert.equal(Boolean(guidance), index === 2)
+      if (guidance) {
+        assert.match(guidance, /termous.desktop_workflows.get/)
+        assert.match(guidance, /expected_revision/)
+        assert.match(guidance, /skill:\/\/termous-desktop-workflows\/references\/editing.md/)
+      }
+      assert.equal(progress.beforeCall(call.tool, call.args), undefined)
+      assert.equal(progress.hidden(call.tool), false)
+    }
+    const summary = progress.summary()
+    assert.match(summary, /"id":"run-1"/)
+    assert.match(summary, /"version":2/)
+    if (terminal) assert.match(summary, /"executed":6/)
+  }
+})
+
 test('真实故障的 62 次脱敏调用回放能提示并保留准确快照入口', () => {
   const fixture = JSON.parse(readFileSync(new URL('../test-support/desktop-loop-incident.json', import.meta.url), 'utf8')) as { calls: Array<{ tool: string; args: unknown; error: boolean; data: unknown; image_hashes?: string[] }> }
   const progress = new RuntimeToolProgress()

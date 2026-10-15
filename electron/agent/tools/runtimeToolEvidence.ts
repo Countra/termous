@@ -90,9 +90,11 @@ export function progressFingerprint(name: string, data: Record<string, unknown>,
 
 export function progressFact(name: string, resource: string, data: Record<string, unknown>, error: boolean, code?: string) {
   const values: Record<string, string | number | boolean> = {}
-  const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'exit_code', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed']
+  const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'number', 'exit_code', 'error_code', 'cleanup_error', 'executed', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed']
   const capture = isRecord(data.capture) ? data.capture : isRecord(data.snapshot) ? data.snapshot : {}
-  for (const branch of [data, ...['session', 'attachment', 'snapshot', 'preview', 'script', 'run', 'operation', 'task', 'transfer', 'instance', 'mutation', 'crontab'].map((key) => data[key]), capture.metadata, capture.source, isRecord(data.report) ? data.report.run : undefined]) {
+  const detail = isRecord(data.detail) ? data.detail : {}
+  // 当前脚本 revision 与所读版本 number 各自保留，不能把历史定义误作最新修改前置版本。
+  for (const branch of [data, ...['session', 'attachment', 'snapshot', 'preview', 'script', 'run', 'operation', 'task', 'transfer', 'instance', 'mutation', 'crontab'].map((key) => data[key]), capture.metadata, capture.source, detail.script, detail.version, isRecord(data.report) ? data.report.run : undefined]) {
     if (!isRecord(branch)) continue
     for (const field of fields) {
       const value = branch[field]

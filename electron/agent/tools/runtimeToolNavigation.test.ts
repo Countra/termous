@@ -5,6 +5,36 @@ import { mapMCPTools } from './mcpClientAdapter.ts'
 import { RuntimeToolDiscovery } from './runtimeToolDiscovery.ts'
 import { runtimeToolNavigation } from './runtimeToolNavigation.ts'
 import { runtimeToolDependencies } from './runtimeToolLifecycle.ts'
+import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
+
+test('脚本执行失败提供报告与定义查询，参数冲突和超时仍禁止自动重放', () => {
+  const name = 'termous.desktop_workflows.runs.start'
+  for (const [state, error_code] of [['failed', 'desktop_generation_stale'], ['timed_out', 'deadline_exceeded'], ['uncertain', 'desktop_operation_uncertain']]) {
+    const data = { run: { id: 'original', state, error_code, version: 2 } }
+    const navigation = runtimeToolNavigation(name, { content: [], details: { kind: 'mcp', originalToolName: name, result: { content: [], structuredContent: data } } })!
+    assert.equal(runtimeToolOutcome(name, data), 'failed')
+    assert.deepEqual(navigation.names, ['termous.desktop_workflows.runs.get', 'termous.desktop_workflows.get'])
+    assert.match(navigation.guidance, /expected_revision/)
+    assert.match(navigation.guidance, /不得|不能/)
+    assert.ok(!navigation.names.includes('termous.desktop_workflows.runs.start'))
+  }
+  const denied = runtimeToolNavigation(name, { content: [], details: { kind: 'mcp', originalToolName: name, result: {
+    content: [], structuredContent: { run: { state: 'failed', error_code: 'MCP_APPROVAL_REJECTED' } },
+  } } })!
+  assert.deepEqual(denied.names, [])
+  const timeout = runtimeToolNavigation(name, { content: [], details: { kind: 'mcp', originalToolName: name, result: {
+    content: [], structuredContent: { run: { state: 'timed_out' } },
+  } } })!
+  assert.match(timeout.guidance, /不能更换请求 ID/)
+  for (const code of ['MCP_WORKFLOW_STATUS_UNAVAILABLE', 'AGENT_WORKFLOW_STATUS_UNAVAILABLE']) {
+    const navigation = runtimeToolNavigation(name, { content: [], details: { kind: 'mcp', originalToolName: name, result: {
+      isError: true, content: [], structuredContent: { error: { code } },
+    } } })!
+    assert.match(navigation.guidance, /原命令已登记/)
+    assert.match(navigation.guidance, /不能更换请求 ID/)
+    assert.deepEqual(navigation.names, ['termous.desktop_workflows.runs.get', 'termous.desktop_workflows.get'])
+  }
+})
 
 function fixture(errorCode?: string, names = ['list', 'get', 'attach', 'capture', 'keyboard.key']) {
   const calls: string[] = []

@@ -114,6 +114,68 @@ test('自动阶段说明不能代替显式 Skill 读取，切换能力后完整�
   finally { agent.close(); await writer.close() }
 })
 
+for (const api of ['responses', 'chat_completions'] as const) {
+  test(`${api} 重复启动后的下一请求包含报告和编辑入口，版本以真实回执为准`, async () => {
+    const bootstrap = fixtureBootstrap(api)
+    bootstrap.context.progress_supported = true
+    const prefix = 'termous.desktop_workflows.'
+    const called: string[] = []
+    const run = { id: 'original-run', script_id: 'original-script', version: 2, state: 'failed', error_code: 'desktop_generation_stale', executed: 6 }
+    const mapped = mapMCPTools(['runs.start', 'runs.get', 'get', 'update', 'validate'].map((suffix) => ({
+      name: prefix + suffix, annotations: { readOnlyHint: ['runs.get', 'get', 'validate'].includes(suffix) },
+      inputSchema: { type: 'object' as const, properties: {} },
+    })), async (definition) => {
+      called.push(definition.name)
+      const data = definition.name === prefix + 'runs.start' ? { run }
+        : definition.name === prefix + 'runs.get' ? { report: { run, steps: [] } }
+          : definition.name === prefix + 'get' ? { detail: { script: { id: 'original-script', revision: 6 }, version: { script_id: 'original-script', number: 2 } } }
+            : { script: { id: 'original-script', revision: 7 } }
+      return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data }
+    })
+    const writer = new RuntimeEventWriter({
+      start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
+      runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: (error) => { throw error },
+      core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {}, appendEvents: async (_start, _bearer, batch) => batch[batch.length - 1]!.sequence,
+        appendSteer: async () => { throw new Error('不应追加消息') }, commitCheckpoint: async () => { throw new Error('重复调用不应强制压缩') } },
+    })
+    const encoded = (suffix: string) => mapped.tools.find((tool) => mapped.originalNames.get(tool.name) === prefix + suffix)!.name
+    let requests = 0
+    const agent = createPiAgent({ bootstrap, events: writer, skills: testAgentSkillBundle(),
+      mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
+      commitCheckpoint: async () => { throw new Error('不应压缩') }, fetch: async (_input, init) => {
+        const wire = String(init?.body)
+        const body = JSON.parse(wire) as { tools: Array<{ name?: string; function?: { name: string } }> }
+        const names = body.tools.map((tool) => tool.name ?? tool.function?.name)
+        requests++
+        if (requests === 1) return response(api, 'discover_tools', { names: [prefix + 'runs.start'] })
+        if (requests >= 3) {
+          assert.ok(names.includes(encoded('runs.get')))
+          assert.ok(names.includes(encoded('get')))
+          assert.match(wire, /expected_revision/)
+          assert.match(wire, /original-run/)
+        }
+        if (requests <= 4) return response(api, encoded('runs.start'), { client_request_id: 'same', script_id: 'original-script', version: 2 }, String(requests))
+        assert.ok(names.includes(encoded('runs.start')), '提示模式不能隐藏原工具')
+        assert.match(wire, /同类操作反复失败/)
+        assert.equal((wire.match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
+        if (requests === 5) return response(api, encoded('runs.get'), { run_id: 'original-run' })
+        if (requests === 6) return response(api, encoded('get'), { script_id: 'original-script', version: 2 })
+        assert.ok(names.includes(encoded('update')))
+        assert.match(wire, /revision.{1,4}:6/)
+        assert.match(wire, /number.{1,4}:2/)
+        if (requests === 7) return response(api, encoded('update'), { script_id: 'original-script', expected_revision: 6, client_request_id: 'edit', name: '修复版本' })
+        assert.equal(requests, 8)
+        assert.match(wire, /revision.{1,4}:7/)
+        return response(api)
+      },
+    })
+    try {
+      assert.equal(await agent.continue(), 'completed')
+      assert.deepEqual(called, ['runs.start', 'runs.start', 'runs.start', 'runs.get', 'get', 'update'].map((suffix) => prefix + suffix))
+    } finally { agent.close(); await writer.close() }
+  })
+}
+
 function response(api: string, name?: string, args = {}, id = name) {
   if (api === 'chat_completions') {
     const delta = name ? { tool_calls: [{ index: 0, id: `call_${id}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } : { content: '观察附着已建立' }

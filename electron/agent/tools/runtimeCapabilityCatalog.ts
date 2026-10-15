@@ -50,7 +50,9 @@ export function recoveryNavigation(name: string, errorCode?: string) {
   } else if (/uncertain|ambiguous|deadline|timeout/u.test(code)) {
     guidance = `结果可能不确定，先用已获准的只读入口核查原资源；不能更换请求 ID 或自动重放写操作。${guidance}`
   } else if (/conflict|stale/u.test(code)) {
-    guidance = `重新读取原资源及当前版本或连接代次；历史 ID 和旧版本不能用于重试。不得重用或自动重放未确认的输入。${guidance}`
+    guidance = `重新读取原资源及当前版本或连接代次，更新失效的资源绑定或版本前置条件；已登记任务仍使用原任务 ID 查询。不得重用或自动重放未确认的输入，也不能更换请求 ID 绕过结果核验。${guidance}`
+  } else if (/status_unavailable/u.test(code)) {
+    guidance = `原命令已登记，但当前状态未能读取。查询原任务，或以原请求 ID 和相同参数重试；不能更换请求 ID 重新执行。${guidance}`
   } else if (/unsupported|unavailable|disabled/u.test(code)) {
     guidance = `核查当前资源 capability；能力缺失时说明限制，不用 Shell 或其他领域工具绕过。${guidance}`
   } else if (/invalid|validation|binding_mismatch/u.test(code)) {

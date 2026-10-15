@@ -80,7 +80,7 @@ export async function prepareAgentSkillsBundle(options = {}) {
 
 export function runSkillsValidator({ backendDirectory, skillsRepository, validatorPath, spawn, python }) {
   const executable = python ?? process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3')
-  const result = spawn(executable, [validatorPath, '--backend-root', backendDirectory, '--web-root', webDirectory], {
+  const result = spawn(executable, ['-B', validatorPath, '--backend-root', backendDirectory, '--web-root', webDirectory], {
     cwd: skillsRepository,
     encoding: 'utf8',
     shell: false,

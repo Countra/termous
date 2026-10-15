@@ -4,7 +4,7 @@ import { isRecord } from '../contracts/validation.ts'
 export type ToolOutcome = 'failed' | 'waiting' | 'pending' | 'settled' | 'unknown'
 const pending = new Set(['preparing', 'queued', 'running', 'pending', 'connecting', 'reconnecting', 'starting', 'stopping', 'cancelling', 'executing', 'validating', 'verifying', 'enqueued', 'interrupting'])
 const terminal = new Set(['completed', 'succeeded', 'success', 'ready', 'connected', 'closed', 'cancelled', 'stopped', 'detached', 'interrupted'])
-const failed = new Set(['failed', 'invalidated', 'uncertain', 'partial_failed', 'completed_unknown'])
+const failed = new Set(['failed', 'timed_out', 'invalidated', 'uncertain', 'partial_failed', 'completed_unknown'])
 
 export function runtimeToolFailureCode(name: string, data: Record<string, unknown>, isError = false): string | undefined {
   if (isRecord(data.error)) return typeof data.error.code === 'string' ? data.error.code.slice(0, 128) : 'tool_failed'
@@ -17,6 +17,7 @@ export function runtimeToolFailureCode(name: string, data: Record<string, unknow
     if (state === 'uncertain' || state === 'completed_unknown') return 'operation_uncertain'
     if (state === 'partial_failed') return 'operation_partial_failed'
     if (isRecord(parent)) for (const key of ['error_code', 'reason']) if (typeof parent[key] === 'string' && parent[key]) return parent[key].slice(0, 128)
+    if (state === 'timed_out') return 'operation_timeout'
     return 'operation_failed'
   }
   return isError ? 'tool_failed' : undefined
@@ -27,10 +28,8 @@ export function runtimeToolOutcome(name: string, data: Record<string, unknown>, 
   if (runtimeToolFailureCode(name, data, isError)) return 'failed'
   const approval = isRecord(data.approval) ? data.approval : isRecord(data.report) && isRecord(data.report.approval) ? data.report.approval : undefined
   if (approval && ['pending', 'waiting'].includes(String(approval.state))) return 'waiting'
-  if (approval && ['rejected', 'expired', 'cancelled'].includes(String(approval.state))) return 'failed'
   const evidence = runtimeCapability(name)?.evidence
   const states = (evidence?.states ?? []).map((path) => capabilityValue(data, path)).filter((state): state is string => typeof state === 'string')
-  if (states.some((state) => ['failed', 'invalidated', 'uncertain'].includes(state))) return 'failed'
   if (states.some((state) => state === 'paused' || state.startsWith('waiting'))) return 'waiting'
   // 长驻资源的就绪态由领域契约声明；例如隧道 running 已就绪，而命令 running 仍待结束。
   if (states.some((state) => evidence?.settled?.includes(state))) return 'settled'
