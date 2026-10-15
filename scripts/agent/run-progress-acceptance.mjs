@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { app, utilityProcess } from 'electron'
 import ts from 'typescript'
+import { verifySessionReuse } from './session-reuse-acceptance.mjs'
 import { validateAgentSkillsBundleDirectory } from './validate-skills-bundle.mjs'
 
 // 使用开发 Core 的既有认证链；模型密钥仅由 Core 交给 Worker，不经过验收日志。
@@ -16,7 +17,9 @@ const supervisor = `progress_acceptance_${randomUUID()}`
 const report = { started_at: new Date().toISOString(), cases: [], sessions: [], cleanup_errors: [] }
 const probe = process.argv.includes('--probe')
 const capabilities = process.argv.includes('--capabilities')
-let lease, heartbeat, runtime, host, desktop, child, allocation, sequence = 1
+const liveReuse = process.argv.includes('--reuse-live')
+const reuse = process.argv.includes('--reuse') || liveReuse
+let lease, heartbeat, runtime, host, fixtureProfile, desktop, child, allocation, sequence = 1
 await mkdir(output, { recursive: true })
 for (const [name, folder] of [['userData', 'electron-profile'], ['sessionData', 'electron-session'], ['logs', 'logs'], ['crashDumps', 'crashes']]) app.setPath(name, path.join(output, folder))
 app.disableHardwareAcceleration()
@@ -72,12 +75,16 @@ async function main() {
       report.success = report.cases.every((entry) => entry.success)
       return
     }
-    const catalog = await api('/host-assets/provision', 'POST', { client_request_id: randomUUID(), host: { name: 'Agent 循环回归本机夹具', platform: 'linux', tags: [] }, ssh: [],
+    let profile
+    if (!liveReuse) {
+      const catalog = await api('/host-assets/provision', 'POST', { client_request_id: randomUUID(), host: { name: 'Agent 循环回归本机夹具', platform: 'linux', tags: [] }, ssh: [],
       remote_desktops: [{ draft_id: 'fixture', name: '本机只读 VNC', route: 'direct', protocol: 'vnc', is_default: true,
         vnc: { target_host: '127.0.0.1', port: 5194, shared: true, default_view_only: true, default_display_mode: 'fit' } }] })
-    host = catalog.host.id
-    report.host_id = host
-    const profile = catalog.remote_desktops[0].id
+      host = catalog.host.id
+      report.host_id = host
+      profile = catalog.remote_desktops[0].id
+      fixtureProfile = catalog.remote_desktops[0]
+    }
     const runtimeFile = path.join(output, 'desktop-runtime.mjs')
     const compiled = ts.transpileModule(await readFile(path.join(web, 'electron/desktopAutomation/runtime.ts'), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
     const require = createRequire(import.meta.url)
@@ -87,6 +94,26 @@ async function main() {
       devURL: 'http://127.0.0.1:5191/',
       renderer: path.join(web, 'dist/index.html'), preload: path.join(web, 'dist-electron/desktop-automation-preload.cjs'), warn: (code) => { report.runtime_warnings ??= []; report.runtime_warnings.push(code) } })
     await runtime.start()
+    if (liveReuse) {
+      const hosts = await api('/host-assets')
+      const profiles = await api('/remote-desktop-profiles')
+      const requestedHost = process.argv.find((value) => value.startsWith('--live-host='))?.slice('--live-host='.length)
+      const liveTargets = [['VM-Debian12', 'vnc'], ['win', 'rdp']].filter(([name]) => !requestedHost || name === requestedHost)
+      assert.ok(liveTargets.length, '真实验收仅支持用户指定的主机')
+      for (const [name, expectedProtocol] of liveTargets) {
+        const targets = hosts.filter((item) => item.name === name)
+        assert.equal(targets.length, 1, `真实验收主机必须唯一: ${name}`)
+        const candidates = profiles.filter((item) => item.host_id === targets[0].id && item.protocol === expectedProtocol)
+        const target = (name === 'win' ? candidates.find((item) => item.name === 'win测试') : candidates.find((item) => item.is_default)) ?? (candidates.length === 1 ? candidates[0] : undefined)
+        assert.ok(target, `未找到唯一默认 ${expectedProtocol} 配置: ${name}`)
+        await verifySessionReuse({ api, core, profile: target.id, model, protocol, skills, run, report, save, live: true })
+      }
+      return
+    }
+    if (reuse) {
+      await verifySessionReuse({ api, core, profile, model, protocol, skills, run, report, save, setDesktop: (value) => { desktop = value } })
+      return
+    }
     for (let index = 0; index < (probe ? 1 : 5); index++) {
       await prepareDesktop(profile)
       const session = await api('/agent/sessions', 'POST', { title: `工具导航验收 ${index + 1}`, model_id: model.id, reasoning_level: 'low',
@@ -101,11 +128,7 @@ async function main() {
           const preparation = await run(session, '后续目标是给这个已关联桌面创建供 workflow 模板使用的固定快照，再放大查看左上角 100×100 区域。现在先用普通桌面截图观察当前画面一次，然后停下等待我说继续；此轮暂不制作固定快照。', protocol, skills)
           entry.runs.push(preparation)
           assert.ok(preparation.status === 'completed' && preparation.successful_tools.includes('termous.desktops.capture'), '历史准备轮未成功观察桌面')
-          // 上轮结束会释放托管执行端；重新绑定同一夹具的新会话，同时保留真实对话历史。
-          await prepareDesktop(profile)
-          const current = await api(`/agent/sessions/${session.id}`)
-          await api(`/agent/sessions/${session.id}/resource-binding`, 'PUT', { kind: 'desktop_session', session_id: desktop.id,
-            connection_generation: desktop.connection_generation, expected_revision: current.revision })
+          // 历史继续复用同一会话；新 Run 必须重新取得观察入口，不能继承旧授权。
         }
         const prompt = history ? '现在可以了，请继续完成之前的固定快照和局部查看目标。' : [
           '为这个已关联桌面创建一个 workflow 固定快照，再从同一快照放大查看左上角 100×100 区域。执行成功后报告实际结果即可，不需要键盘鼠标输入。',
@@ -127,10 +150,11 @@ async function main() {
   finally {
     clearInterval(heartbeat)
     child?.kill()
-    runtime?.close()
+    if (!liveReuse) runtime?.close()
     if (allocation) await release().catch((error) => report.cleanup_errors.push(error.message))
     if (lease) await api('/agent/runtime/supervisor', 'DELETE', { supervisor_instance_id: supervisor, expected_revision: lease.revision }).catch((error) => report.cleanup_errors.push(error.message))
     if (desktop) await api(`/remote-desktop-sessions/${desktop.id}`, 'DELETE').catch((error) => report.cleanup_errors.push(error.message))
+    if (fixtureProfile && !process.argv.includes('--keep-sessions')) await api(`/remote-desktop-profiles/${fixtureProfile.id}`, 'DELETE', { expected_updated_at: fixtureProfile.updated_at }).catch((error) => report.cleanup_errors.push(error.message))
     // 只删除本次创建的对象；可保留五个验收会话供界面检查。
     if (!process.argv.includes('--keep-sessions')) for (const id of report.sessions) {
       await api(`/agent/sessions/${id}`, 'GET').then((value) => api(`/agent/sessions/${id}`, 'DELETE', { expected_revision: value.revision })).catch((error) => report.cleanup_errors.push(error.message))
@@ -138,11 +162,13 @@ async function main() {
     if (host && !process.argv.includes('--keep-sessions')) await api(`/hosts/${host}`, 'DELETE').catch((error) => report.cleanup_errors.push(error.message))
     report.completed_at = new Date().toISOString()
     await save()
-    app.exit(report.success && !report.cleanup_errors.length ? 0 : 1)
+    // 真实验收保留执行宿主供查看，退出测试进程不能把保留的 VNC 连接变成失败状态。
+    if (liveReuse && runtime) console.log(JSON.stringify({ live_validation_complete: true, success: report.success, runtime_retained: true }))
+    else app.exit(report.success && !report.cleanup_errors.length ? 0 : 1)
   }
 }
 
-async function run(session, prompt, protocol, skills) {
+async function run(session, prompt, protocol, skills, tick) {
   const created = await api(`/agent/sessions/${session.id}/runs`, 'POST', { client_request_id: randomUUID(), prompt, attachment_ids: [] })
   report.active_run = { run_id: created.id, session_id: session.id }
   await save()
@@ -156,7 +182,7 @@ async function run(session, prompt, protocol, skills) {
     child.once('exit', (code) => { exited = true; resolve(code) })
     child.once('spawn', () => child.postMessage({ type: 'start', protocol_version: protocol, core_base_url: core, ticket: ticket.ticket, run_id: created.id, generation: created.generation, skills }))
   })
-  const result = { run_id: created.id, status: 'running', requests: 0, successful_tools: [], tool_sequence: [], progress: [], discovered_tools: [], effective_tools: [] }
+  const result = { run_id: created.id, status: 'running', requests: 0, successful_tools: [], tool_sequence: [], progress: [], discovered_tools: [], effective_tools: [], tool_targets: [] }
   const deadline = Date.now() + 240000
   let cursor = 0, failure
   const collect = async () => {
@@ -172,6 +198,11 @@ async function run(session, prompt, protocol, skills) {
         if (event.kind === 'tool_completed') result.successful_tools.push(event.payload.tool.tool_name)
       }
       if (event.kind === 'progress') result.progress.push(event.payload.progress)
+      const call = event.kind === 'message_part' ? event.payload.message_part?.content?.tool_call : undefined
+      if (reuse && call && /^termous\.(?:desktops|desktop_workflows)\./u.test(call.tool_name)) {
+        const fields = ['session_id', 'connection_generation', 'profile_id', 'script_id', 'version', 'keep_connection']
+        result.tool_targets.push({ name: call.tool_name, ...Object.fromEntries(fields.filter((key) => call.arguments?.[key] !== undefined).map((key) => [key, call.arguments[key]])) })
+      }
       const receipt = event.kind === 'message_part' ? event.payload.message_part?.content?.tool_result : undefined
       if (receipt && !receipt.is_error) for (const part of receipt.content ?? []) {
         if (part.type !== 'text' || !part.text.includes('{')) continue
@@ -195,6 +226,7 @@ async function run(session, prompt, protocol, skills) {
   try {
     while (!exited) {
       await collect()
+      if (tick) await tick()
       if (Date.now() >= deadline || result.requests >= 24) throw new Error('验收达到独立的时间或请求上限')
       await new Promise((resolve) => setTimeout(resolve, 500))
     }
@@ -238,4 +270,4 @@ async function api(resource, method = 'GET', body) {
   if (!response.ok) throw new Error(`${method} ${resource}: ${response.status} ${await response.text()}`)
   return response.status === 204 ? undefined : response.json()
 }
-async function save() { await writeFile(path.join(output, capabilities ? 'capability-report.json' : probe ? 'probe-report.json' : 'report.json'), JSON.stringify(report, null, 2), 'utf8') }
+async function save() { await writeFile(path.join(output, liveReuse ? 'reuse-live-report.json' : reuse ? 'reuse-report.json' : capabilities ? 'capability-report.json' : probe ? 'probe-report.json' : 'report.json'), JSON.stringify(report, null, 2), 'utf8') }

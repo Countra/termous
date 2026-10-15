@@ -14,15 +14,17 @@ import { StepProperties } from './StepProperties'
 import { StepTree } from './StepTree'
 import { WorkflowOrigin } from './WorkflowOrigin'
 import { workflowAuthor } from '../model/author'
+import { sessionTarget, type WorkflowTarget } from '../model/target'
 import styles from './WorkflowWorkspace.module.scss'
 
 export interface WorkflowWorkspaceProps {
   gateway: WorkflowGateway; sessions: RemoteDesktopSession[]; profiles: RemoteDesktopAccessProfile[]
+  activeSessionId?: string
   view: 'scripts' | 'runs'; onViewChange: (view: 'scripts' | 'runs') => void
   onDirtyChange: (dirty: boolean) => void; onViewDesktop: (session: string) => void | Promise<void>
 }
 interface Draft { editingID: string; script?: Script; name: string; description: string; tags: string[]; definition: Definition }
-export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewChange, onDirtyChange, onViewDesktop }: WorkflowWorkspaceProps) {
+export function WorkflowWorkspace({ gateway, sessions, activeSessionId, profiles, view, onViewChange, onDirtyChange, onViewDesktop }: WorkflowWorkspaceProps) {
   const { t } = useTranslation(); const { modal } = App.useApp()
   const data = useWorkflowData(gateway)
   const [draft, setDraft] = useState<Draft>()
@@ -37,6 +39,10 @@ export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewCha
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [versions, setVersions] = useState<Version[]>()
   const [runDialog, setRunDialog] = useState<{ debug: boolean }>()
+  const [chosenTarget, setChosenTarget] = useState<WorkflowTarget>()
+  // 手动选择或打开运行对话框后固定目标；后台遥测不能替换会话及代次。
+  const target = chosenTarget ?? sessionTarget(sessions, activeSessionId)
+  const openRun = (debug: boolean) => { setChosenTarget(target); setRunDialog({ debug }) }
   const serial = useRef(0)
   const edits = useRef(0)
   const root = useRef<HTMLDivElement>(null)
@@ -122,8 +128,8 @@ export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewCha
             <Tag>{draft.script ? `v${draft.script.revision}` : t('desktopWorkflow.draft')}{dirty ? ' *' : ''}</Tag>
             <Button type="primary" disabled={!dirty || busy || !draft.name.trim()} onClick={() => void save()}>{t('desktopWorkflow.save')}</Button>
             <Button disabled={busy} onClick={() => void validate()}>{t('desktopWorkflow.validate')}</Button>
-            <Button disabled={dirty || busy || !draft.script} onClick={() => setRunDialog({ debug: false })}>{t('desktopWorkflow.run')}</Button>
-            <Button disabled={dirty || busy || !draft.script} onClick={() => setRunDialog({ debug: true })}>{t('desktopWorkflow.debug')}</Button>
+            <Button disabled={dirty || busy || !draft.script} onClick={() => openRun(false)}>{t('desktopWorkflow.run')}</Button>
+            <Button disabled={dirty || busy || !draft.script} onClick={() => openRun(true)}>{t('desktopWorkflow.debug')}</Button>
             {narrow && <Button disabled={!step} onClick={() => setPropertiesOpen(true)}>{t('desktopWorkflow.properties')}</Button>}
           </header>
           <div className={styles.metadata}>
@@ -142,11 +148,11 @@ export function WorkflowWorkspace({ gateway, sessions, profiles, view, onViewCha
               onCopy={(id) => change({ definition: { ...draft.definition, steps: copyStep(draft.definition.steps, id) } })}
               onRemove={(id) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, () => undefined) } })}
               onToggle={(id, disabled) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, (value) => ({ ...value, disabled })) } })} />
-            <ScreenshotEditor key={draft.editingID} gateway={gateway} sessions={sessions} step={step} onChange={(id, edit) => { edits.current++; setDraft((value) => value ? { ...value, definition: { ...value.definition, steps: editStep(value.definition.steps, id, edit) } } : value); setDirty(true); setDiagnostics(undefined) }} />
+            <ScreenshotEditor key={draft.editingID} gateway={gateway} sessions={sessions} target={target} onTargetChange={setChosenTarget} step={step} onChange={(id, edit) => { edits.current++; setDraft((value) => value ? { ...value, definition: { ...value.definition, steps: editStep(value.definition.steps, id, edit) } } : value); setDirty(true); setDiagnostics(undefined) }} />
             {!narrow && <aside className={styles['property-panel']}><header className={styles['panel-header']}><strong>{t('desktopWorkflow.properties')}</strong></header>{properties || <p className={styles.hint}>{t('desktopWorkflow.selectStep')}</p>}</aside>}
           </div>
           {parametersOpen && <ParameterDialog value={draft.definition.parameters} onSave={(parameters) => change({ definition: { ...draft.definition, parameters } })} onClose={() => setParametersOpen(false)} />}
-          {runDialog && draft.script && <RunDialog gateway={gateway} script={draft.script} definition={draft.definition} sessions={sessions} profiles={profiles} debug={runDialog.debug} onStarted={started} onClose={() => setRunDialog(undefined)} />}
+          {runDialog && draft.script && <RunDialog gateway={gateway} target={target} onTargetChange={setChosenTarget} script={draft.script} definition={draft.definition} sessions={sessions} profiles={profiles} debug={runDialog.debug} onStarted={started} onClose={() => setRunDialog(undefined)} />}
         </> : <Empty description={t('desktopWorkflow.createHint')}><Button type="primary" onClick={create}>{t('desktopWorkflow.create')}</Button></Empty>}
       </main>
     </> : <>

@@ -65,6 +65,19 @@ function session(protocol = 'rdp', generation = 2) {
 }
 const attachment = { id: 'attach_one', session_id: 'desk_one', connection_generation: 2, execution_generation: 1 }
 
+test('Profile 已有会话可直接用于 workflow，复用不恢复旧附着授权', async () => {
+  const f = fixture([profile, workflow])
+  const args = { script_id: 'script_one', version: 3, session_id: 'desk_one', connection_generation: 2 }
+  await assert.rejects(f.tool('termous.desktop_workflows.runs.start').execute('unverified', args), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  f.respond({ session: session('vnc') })
+  await f.tool('termous.desktops.get').execute('verify', { session_id: 'desk_one' })
+  f.respond({ run: { id: 'run', session_id: 'desk_one' } })
+  await f.tool('termous.desktop_workflows.runs.start').execute('reuse', args)
+  assert.deepEqual(f.calls[f.calls.length - 1], { name: 'termous.desktop_workflows.runs.start', args })
+  assert.equal(f.calls.some((call) => call.name === 'termous.desktops.connect'), false)
+  await assert.rejects(f.tool('termous.desktops.pointer.click').execute('old-grant', { attachment_id: 'previous-run' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+})
+
 test('桌面引用校验精确代次，必须先查询，再建立本轮附着', async () => {
   const f = fixture([desktop])
   const attach = f.tool('termous.desktops.attach')

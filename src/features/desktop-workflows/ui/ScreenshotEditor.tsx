@@ -7,14 +7,15 @@ import { ImagePreview, ImageThumbnail, type ImagePreviewSource } from '#shared/u
 import { imagePoint, imageRegion } from '../model/coordinates'
 import { blankImage, setStepImage, stepImage, type ImageSlot } from '../model/images'
 import { workflowError } from '../model/messages'
+import { isTargetAvailable, sessionTarget, type WorkflowTarget } from '../model/target'
 import styles from './WorkflowWorkspace.module.scss'
 
-interface Props { gateway: WorkflowGateway; sessions: RemoteDesktopSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void }
+interface Props { target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowGateway; sessions: RemoteDesktopSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void }
 type Mode = 'point' | 'template' | 'region'
 
-export function ScreenshotEditor({ gateway, sessions, step, onChange }: Props) {
+export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange }: Props) {
   const { t } = useTranslation()
-  const [session, setSession] = useState('')
+  const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
   const [snapshot, setSnapshot] = useState<Snapshot>()
   const [url, setURL] = useState<string>()
@@ -33,8 +34,7 @@ export function ScreenshotEditor({ gateway, sessions, step, onChange }: Props) {
   const working = useRef(false)
   const epoch = useRef(0)
   const fileInput = useRef<HTMLInputElement>(null)
-  const current = sessions.find((item) => item.id === session)
-  const generation = current?.connection_generation
+  const generation = isTargetAvailable(desktopTarget, sessions) ? desktopTarget.connectionGeneration : undefined
   const activeSlot: ImageSlot = step?.kind.startsWith('image.') || step?.kind === 'if' ? 'image' : step?.kind === 'pointer.drag' ? slot : 'target'
   const target = step && stepImage(step, activeSlot)
   const selectable = !!step && (step.kind.startsWith('pointer.') || step.kind.startsWith('image.') || step.kind === 'if')
@@ -118,10 +118,11 @@ export function ScreenshotEditor({ gateway, sessions, step, onChange }: Props) {
   const boxStyle = (box: Region) => ({ left: `${box.x * 100 / snapshot!.metadata.width}%`, top: `${box.y * 100 / snapshot!.metadata.height}%`, width: `${Math.max(2, box.width) * 100 / snapshot!.metadata.width}%`, height: `${Math.max(2, box.height) * 100 / snapshot!.metadata.height}%` })
   return <section className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
     <header className={styles['screen-toolbar']}>
-      <Select className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && item.status !== 'failed').map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()}` }))} onChange={(value) => setSession(value ?? '')} />
+      <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
       <Button disabled={!preview || busy} onClick={() => void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined); setSelection(undefined) } })}>{t('desktopWorkflow.refresh')}</Button>
       <Select aria-label={t('desktopWorkflow.zoom')} value={zoom} options={['fit', '0.5', '1', '2'].map((value) => ({ value, label: value === 'fit' ? t('desktopWorkflow.fit') : `${Number(value) * 100}%` }))} onChange={setZoom} />
     </header>
+    {session && !generation && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
     {error != null && <Alert type="error" title={workflowError(error, t)} closable onClose={() => setError(undefined)} action={<Button size="small" disabled={busy || !session} onClick={() => setPreviewRevision((v) => v + 1)}>{t('desktopWorkflow.refresh')}</Button>} />}
     <div className={styles['screen-tools']}>
       {step?.kind === 'pointer.drag' && <Select aria-label={t('desktopWorkflow.target')} value={slot} options={['target', 'end_target'].map((value) => ({ value, label: t(`desktopWorkflow.${value === 'target' ? 'target' : 'endTarget'}`) }))} onChange={setSlot} />}

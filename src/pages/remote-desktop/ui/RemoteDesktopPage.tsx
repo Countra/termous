@@ -25,7 +25,7 @@ export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, ...props 
   return <div className={styles.page}>
     <div className={styles.tabs}><Segmented value={tab} options={(['desktops', 'scripts', 'runs'] as const).map((value) => ({ value, label: t(`desktopWorkflow.${value}`) }))} onChange={(value) => { setTab(value); if (value !== 'desktops') setWorkflowOpened(true) }} /></div>
     <div className={styles.content} hidden={tab !== 'desktops'}><RemoteDesktopWorkspace {...props} /></div>
-    {workflowOpened && <div className={styles.content} hidden={tab === 'desktops'}><WorkflowWorkspace gateway={workflow} sessions={runtime.sessions} profiles={profiles} view={tab === 'runs' ? 'runs' : 'scripts'} onViewChange={setTab} onDirtyChange={onDirtyChange} onViewDesktop={async (id) => {
+    {workflowOpened && <div className={styles.content} hidden={tab === 'desktops'}><WorkflowWorkspace gateway={workflow} sessions={runtime.sessions} activeSessionId={runtime.activeSessionId ?? undefined} profiles={profiles} view={tab === 'runs' ? 'runs' : 'scripts'} onViewChange={setTab} onDirtyChange={onDirtyChange} onViewDesktop={async (id) => {
       const session = runtime.sessions.find((item) => item.id === id)
       if (session?.automation_host_id) await runtime.automation?.show(id, session.connection_generation, session.automation_host_id)
       runtime.selectSession(id); setTab('desktops')

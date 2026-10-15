@@ -55,7 +55,7 @@ export interface StepResult {
 }
 export interface StartInput {
   script_id: string; version: number; request_id: string; session_id?: string; connection_generation?: number
-  profile_id?: string; keep_connection: boolean; takeover: boolean; debug: boolean
+  profile_id?: string; keep_connection?: boolean; takeover: boolean; debug: boolean
   parameters: Record<string, string | number | boolean>
 }
 export interface Preview { id: string; state: string; reason?: string }
