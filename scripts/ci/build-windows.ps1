@@ -84,6 +84,21 @@ function Prepare-CoreOutputDirectory {
   }
 }
 
+function Set-LocalGoCache {
+  # 仅设置本地磁盘路径；Actions 沿用 runner 环境，不在此处管理远端缓存。
+  if ($env:GITHUB_ACTIONS -eq "true") { return }
+  $goCacheRoot = Join-Path $workspaceDir "TEMP/go"
+  $env:GOCACHE = Join-Path $goCacheRoot "build"
+  $env:GOMODCACHE = Join-Path $goCacheRoot "mod"
+  $env:GOTMPDIR = Join-Path $goCacheRoot "tmp"
+  foreach ($directory in @($env:GOCACHE, $env:GOMODCACHE, $env:GOTMPDIR)) {
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+  }
+  $env:TEMP = $env:GOTMPDIR
+  $env:TMP = $env:GOTMPDIR
+  $env:TMPDIR = $env:GOTMPDIR
+}
+
 function Invoke-Native {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -227,6 +242,7 @@ $env:TERMOUS_SKILLS_DIR = $skillsDir
 $env:TERMOUS_CORE_DIR = $coreDir
 
 if ($phase -in @("all", "prepare")) {
+  Set-LocalGoCache
   Prepare-CoreOutputDirectory `
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir
@@ -255,7 +271,9 @@ if ($phase -in @("all", "prepare")) {
   Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
     "build",
     "-tags", "mountfuse",
+    "-mod=readonly",
     "-trimpath",
+    "-buildvcs=false",
     "-ldflags",
     "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version",
     "-o",

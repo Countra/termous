@@ -72,6 +72,16 @@ prepare_core_output_directory() {
   done
 }
 
+configure_local_go_cache() {
+  # 仅设置本地磁盘路径；Actions 沿用 runner 环境，不在此处管理远端缓存。
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then return; fi
+  export GOCACHE="$workspace_dir/TEMP/go/build"
+  export GOMODCACHE="$workspace_dir/TEMP/go/mod"
+  export GOTMPDIR="$workspace_dir/TEMP/go/tmp"
+  mkdir -p -- "$GOCACHE" "$GOMODCACHE" "$GOTMPDIR"
+  export TEMP="$GOTMPDIR" TMP="$GOTMPDIR" TMPDIR="$GOTMPDIR"
+}
+
 run_step() {
   local name="$1"
   local working_directory="$2"
@@ -228,6 +238,7 @@ clear_publish_credentials
 disable_code_signing
 
 if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
+  configure_local_go_cache
   prepare_core_output_directory "$web_dir/build" "$core_output_dir"
   export CGO_ENABLED=1
   export GOOS="$goos"
@@ -270,7 +281,9 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
   run_step "Go tests" "$core_dir" go test -tags "$mount_tags" ./...
   run_step "Build Termous Core" "$core_dir" go build \
     -tags "$mount_tags" \
+    -mod=readonly \
     -trimpath \
+    -buildvcs=false \
     -ldflags "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version" \
     -o "$core_binary" \
     ./cmd/termous-core
