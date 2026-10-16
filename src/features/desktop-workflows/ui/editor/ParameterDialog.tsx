@@ -2,7 +2,7 @@ import { Button, Input, InputNumber, Modal, Select, Switch } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Parameter } from '#entities/desktop-workflow'
-import styles from './WorkflowWorkspace.module.scss'
+import styles from '../shared/WorkflowForms.module.scss'
 
 export function ParameterDialog({ value, onSave, onClose }: { value: Parameter[]; onSave: (parameters: Parameter[]) => void; onClose: () => void }) {
   const { t } = useTranslation()

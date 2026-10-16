@@ -5,13 +5,13 @@ import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
 import { systemClipboardStore } from '../../../model/systemClipboardStore.ts'
 import { createRdpSystemFiles } from './systemFiles.ts'
 
-const provider = vi.hoisted(() => ({ bridge: undefined as DesktopFileBridge | undefined, independent: false }))
-vi.mock('#shared/bridge', () => ({ getTermousBridge: () => provider.independent ? undefined : ({ desktopFiles: provider.bridge }), getDesktopWindowBridge: () => provider.independent ? ({ desktopFiles: provider.bridge }) : undefined }))
+const provider = vi.hoisted(() => ({ bridge: undefined as DesktopFileBridge | undefined }))
+vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ desktopFiles: provider.bridge }) }))
 const context: SystemFileClipboardContext = { sessionId: 'session', generation: 1, subscriptionId: 'viewer', controlGeneration: 2 }
 const completed = { id: 'task', status: 'completed' } as TransferTask
 const state = (enabled: boolean): RemoteResult<SystemFileClipboardState> => ({ ok: true, value: { supported: true, enabled, files: [] } })
 const disposers: (() => void)[] = []
-afterEach(async () => { for (const dispose of disposers.splice(0)) dispose(); await Promise.resolve(); provider.bridge = undefined; provider.independent = false; vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(async () => { for (const dispose of disposers.splice(0)) dispose(); await Promise.resolve(); provider.bridge = undefined; vi.useRealTimers(); vi.restoreAllMocks() })
 function fixture() {
   let savedEnabled = false
   const bridge: DesktopFileBridge = {
@@ -54,8 +54,7 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(systemClipboardStore.get('test-session').error_code).toBe('desktop_file_clipboard_failed')
   })
 
-  it.each([false, true])('协商未就绪时不误报失败，就绪后自动启用（独立窗口=%s）', async independent => {
-    provider.independent = independent
+  it('协商未就绪时不误报失败，就绪后自动启用', async () => {
     const f = fixture()
     vi.mocked(f.bridge.configure).mockResolvedValueOnce({ ok: false, code: 'desktop_not_ready' })
     await f.runtime.changed()
@@ -78,8 +77,7 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(f.runtime.interceptPaste()).toBe(true)
   })
 
-  it.each([false, true])('主窗口与独立窗口都按 Core 设置自动启用（独立窗口=%s）', async independent => {
-    provider.independent = independent
+  it('主窗口按 Core 设置自动启用', async () => {
     const f = fixture()
     vi.mocked(f.bridge.configure).mockResolvedValue(state(true))
     await f.runtime.changed()

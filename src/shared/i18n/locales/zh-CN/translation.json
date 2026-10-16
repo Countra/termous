@@ -1606,6 +1606,11 @@
     }
   },
   "remoteDesktop": {
+    "tools": {
+      "title": "桌面工具",
+      "files": "文件管理",
+      "retainedCount": "保留会话，{{count}} 个"
+    },
     "automation": {
       "pointerStandby": "已接管",
       "hostHint": "托管画面 · 关闭此窗口仅隐藏，自动化继续运行",
@@ -1772,8 +1777,7 @@
       }
     },
     "rdp": {
-      "openWindow": "在新窗口观看",
-      "retained": "保留的会话", "closeViewer": "关闭观看并保留会话", "rememberCertificate": "在此设备上记住此证书",
+      "retained": "保留会话", "closeViewer": "关闭观看并保留会话", "rememberCertificate": "在此设备上记住此证书",
       "rememberCertificateHint": "默认仅本次会话信任。记住后，相同证书将自动验证；证书变更时需重新确认。",
       "protocol": "桌面协议", "route": "连接方式", "direct": "直连", "tunnel": "SSH 隧道", "target": "目标地址", "port": "端口",
       "serverName": "服务器名称（证书与认证）", "username": "用户名", "domain": "域（可选）", "width": "桌面宽度", "height": "桌面高度",

@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Copy, GripVertical, Plus, Trash2 } from 'lucide-rea
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { stepKinds, type Step, type StepKind } from '#entities/desktop-workflow'
-import styles from './WorkflowWorkspace.module.scss'
+import styles from './StepTree.module.scss'
 
 interface Props {
   steps: Step[]; selected?: string; onSelect: (id: string) => void
@@ -24,7 +24,7 @@ export function StepTree(props: Props) {
         <span className={styles.grip} draggable onDragStart={(event) => { setDrag(step.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', step.id) }} onDragEnd={() => setDrag(undefined)} aria-hidden="true"><GripVertical size={14} /></span>
         <button className={styles['step-label']} aria-current={props.selected === step.id ? 'step' : undefined} onClick={() => props.onSelect(step.id)}>
           <span className={styles['step-number']}>{index + 1}</span>
-          <span>{step.name || t(`desktopWorkflow.kinds.${step.kind.replace(/\./g, '_')}`)}</span>
+          <Tooltip title={step.name || t(`desktopWorkflow.kinds.${step.kind.replace(/\./g, '_')}`)}><span>{step.name || t(`desktopWorkflow.kinds.${step.kind.replace(/\./g, '_')}`)}</span></Tooltip>
         </button>
         <Switch size="small" checked={!step.disabled} aria-label={t('desktopWorkflow.enableStep')} onChange={(checked) => props.onToggle(step.id, !checked)} />
       </div>

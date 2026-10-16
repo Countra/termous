@@ -4,7 +4,7 @@ import type { TransferTask } from '#entities/file'
 import type { DesktopExchange, DesktopFilesState } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
 import { TermousApiError } from '#shared/api'
-import { getDesktopWindowBridge, getTermousBridge } from '#shared/bridge'
+import { getTermousBridge } from '#shared/bridge'
 
 export function desktopFileError(error: unknown) {
   if (error instanceof TermousApiError) return error.code
@@ -73,7 +73,7 @@ export function useDesktopFiles(api: DesktopFilesGateway, sessionId: string | un
   }, [refresh])
 
   const withGrant = useCallback(async (mode: FilePickerMode, multiple: boolean, action: (grantId: string) => Promise<unknown>) => {
-    const picker = getTermousBridge()?.files?.pickPaths ?? getDesktopWindowBridge()?.pickPaths
+    const picker = getTermousBridge()?.files?.pickPaths
     if (!picker) throw new TermousApiError('请在桌面应用中选择文件', 'desktop_files_picker_unavailable', 0)
     const signal = alive.current?.signal
     const paths = await picker({ mode, multiple })

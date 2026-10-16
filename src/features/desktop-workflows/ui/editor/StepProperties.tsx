@@ -1,9 +1,9 @@
 import { Collapse, Input, InputNumber, Select, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { Action, ImageTarget, Parameter, Step, Target } from '#entities/desktop-workflow'
-import styles from './WorkflowWorkspace.module.scss'
+import styles from '../shared/WorkflowForms.module.scss'
 
-import { blankImage, setStepTarget } from '../model/images'
+import { blankImage, setStepTarget } from '../../model/images'
 
 function ImageFields({ value, change }: { value?: ImageTarget; change: (next: ImageTarget) => void }) {
   const { t } = useTranslation(); const image = value ?? blankImage()

@@ -1,0 +1,29 @@
+.status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.status[data-tone='active'] {
+  color: var(--accent);
+}
+
+.status[data-tone='success'] {
+  color: var(--success);
+}
+
+.status[data-tone='error'] {
+  color: var(--danger);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentcolor;
+}

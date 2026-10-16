@@ -129,7 +129,6 @@ const bridge = {
     revoke: (id) => ipcRenderer.invoke('file-system-clipboard:revoke', id),
   },
   desktopFiles: createDesktopFileBridge(),
-  desktopWindow: { open: (sessionId) => ipcRenderer.invoke('desktop:open', sessionId) },
   remoteControl: {
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
     configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),

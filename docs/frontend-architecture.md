@@ -153,7 +153,7 @@ node scripts/architecture/check.mjs --report-json
 
 ## 远程桌面连接确认
 
-`RemoteDesktopConnectionCoordinator` 在主窗口及独立桌面窗口的 `RemoteDesktopRuntimeProvider` 内全局挂载，复用运行时会话订阅，统一呈现证书确认和凭据输入。提示不依赖页面、活动标签或观看入口；多个请求逐个处理，身份绑定会话、连接代次及挑战。SSH 主机密钥确认优先，桌面确认期间暂缓 MCP／账号审批和产品导览。工作区不再单独挂载确认弹窗；展示提示不会创建观看连接或自动批准身份。
+`RemoteDesktopConnectionCoordinator` 在主窗口的 `RemoteDesktopRuntimeProvider` 内全局挂载，复用运行时会话订阅，统一呈现证书确认和凭据输入。提示不依赖页面、活动标签或观看入口；多个请求逐个处理，身份绑定会话、连接代次及挑战。SSH 主机密钥确认优先，桌面确认期间暂缓 MCP／账号审批和产品导览。工作区不再单独挂载确认弹窗；展示提示不会创建观看连接或自动批准身份。
 
 ## 统一设置中心
 

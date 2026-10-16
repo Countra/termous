@@ -3,9 +3,9 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Definition, Run, Script, StartInput, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
-import { wasRequestRejected, workflowError } from '../model/messages'
-import { isTargetAvailable, sessionTarget, type WorkflowTarget } from '../model/target'
-import styles from './WorkflowWorkspace.module.scss'
+import { wasRequestRejected, workflowError } from '../../model/messages'
+import { isTargetAvailable, sessionTarget, type WorkflowTarget } from '../../model/target'
+import styles from '../shared/WorkflowForms.module.scss'
 
 interface Props { target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowGateway; script: Script; definition: Definition; sessions: RemoteDesktopSession[]; profiles: RemoteDesktopAccessProfile[]; debug: boolean; onStarted: (run: Run) => void; onClose: () => void }
 export function RunDialog({ target: selection, onTargetChange, gateway, script, definition, sessions, profiles, debug, onStarted, onClose }: Props) {

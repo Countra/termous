@@ -11,7 +11,6 @@ import {
   ClipboardCopy,
   ClipboardPaste,
   Expand,
-  FolderOpen,
   Keyboard,
   Maximize2,
   Minimize2,
@@ -25,14 +24,13 @@ import {
   Scan,
   Unplug,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
-import { getTermousBridge } from '#shared/bridge'
 import {
   ConnectionActionButton,
   SessionNewTabButton,
@@ -49,17 +47,22 @@ import {
   useRemoteDesktopRuntime,
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
-import { RemoteDesktopConnectionQuality } from './RemoteDesktopConnectionQuality.tsx'
+import { RemoteDesktopStatusBar } from './RemoteDesktopStatusBar.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
+import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 
 export interface RemoteDesktopWorkspaceProps {
   onOpenConnectionLauncher?: () => void
+  tools?: RemoteDesktopWorkspaceTool[]
+  toolsButtonRef?: Ref<HTMLButtonElement>
 }
 
 export function RemoteDesktopWorkspace({
   onOpenConnectionLauncher,
+  tools,
+  toolsButtonRef,
 }: RemoteDesktopWorkspaceProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -216,13 +219,13 @@ export function RemoteDesktopWorkspace({
                 />
               ))}
           </SessionTabStrip>
-          {runtime.desktopFiles && <Button size="small" icon={<FolderOpen size={14} />} aria-expanded={filesOpen} onClick={() => setFilesOpen(true)}>{t('remoteDesktop.files.title')}</Button>}
-          {activeSession?.protocol === 'rdp' && getTermousBridge()?.desktopWindow ? <Button size="small" onClick={() => {
-            void getTermousBridge()?.desktopWindow?.open(activeSession.id).catch((error) => notification.error({ title: t('remoteDesktop.rdp.openWindow'), description: publicError(error) }))
-          }}>{t('remoteDesktop.rdp.openWindow')}</Button> : null}
-          {runtime.hiddenSessionIds.length > 0 ? <Dropdown menu={{ items: runtime.sessions.filter((session) => runtime.hiddenSessionIds.includes(session.id)).map((session) => ({ key: session.id, label: session.profile_name })), onClick: ({ key }) => runtime.selectSession(key) }}>
-            <Button size="small" icon={<MonitorPlay size={14} />}>{t('remoteDesktop.rdp.retained')}</Button>
-          </Dropdown> : null}
+          <RemoteDesktopWorkspaceActions
+            retainedSessions={runtime.sessions.filter((session) => runtime.hiddenSessionIds.includes(session.id))}
+            onSelectSession={runtime.selectSession}
+            onOpenFiles={runtime.desktopFiles ? () => setFilesOpen(true) : undefined}
+            tools={fullscreen.isFullscreen ? undefined : tools}
+            toolsButtonRef={toolsButtonRef}
+          />
         </header>
         {activeSession ? (
           <RemoteDesktopToolbar
@@ -249,7 +252,6 @@ export function RemoteDesktopWorkspace({
             <RemoteDesktopViewport sessionId={activeSession.id} />
             {!activeSession.automation_host_id && <ViewerOverlay session={activeSession} viewerState={viewerState} />}
           </main>
-          <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} />
         </>
       ) : (
         <main className={styles['empty-workspace']}>
@@ -270,6 +272,8 @@ export function RemoteDesktopWorkspace({
           />
         </main>
       )}
+
+      {activeSession && <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} />}
 
       {filesOpen && runtime.desktopFiles && <DesktopFilesPanel key={`${activeSession?.id ?? ''}:${activeSession?.connection_generation ?? 0}`} api={runtime.desktopFiles} session={activeSession} viewer={viewerState} onClose={() => setFilesOpen(false)} />}
     </section>
@@ -441,35 +445,6 @@ function ViewerOverlay({ session, viewerState }: { session: RemoteDesktopSession
       }</p>
       {session.error_code ? <code className={styles['error-code']}>{session.error_code}</code> : null}
     </div>
-  )
-}
-
-function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDesktopSession; viewerState: RemoteDesktopViewerState | undefined }) {
-  const { t } = useTranslation()
-  const reconnectAttempt = session.reconnect_attempt ?? 0
-  const reconnectMaxAttempts = session.reconnect_max_attempts ?? 0
-  return (
-    <footer className={styles.statusbar}>
-      <div className={styles['status-context']}>
-        <span className={`${styles.dot} ${styles[`is-${tabStatus(session).replace('_', '-')}`]}`} />
-        <strong>{t(`remoteDesktop.status.${session.status}`)}</strong>
-        <span className={styles['status-host']}>{session.host_name}</span>
-        {viewerState?.targetLabel ? (
-          <span className={styles['status-target']}>{viewerState.targetLabel}</span>
-        ) : null}
-        {viewerState?.desktopName ? <span className={styles['desktop-name']}>{viewerState.desktopName}</span> : null}
-        {session.status === 'reconnecting' && reconnectAttempt > 0 && reconnectMaxAttempts > 0 ? (
-          <span className={styles['reconnect-progress']}>
-            {t('remoteDesktop.reconnectProgress', { current: reconnectAttempt, total: reconnectMaxAttempts })}
-          </span>
-        ) : null}
-      </div>
-      <RemoteDesktopConnectionQuality
-        sessionId={session.id}
-        connected={viewerState?.connection === 'connected'}
-        showSshLatency={session.route === 'ssh_tunnel'}
-      />
-    </footer>
   )
 }
 

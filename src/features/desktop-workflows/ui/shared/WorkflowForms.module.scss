@@ -1,0 +1,58 @@
+.hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.properties {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.properties label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.properties h4 {
+  margin: 4px 0 0;
+}
+
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.field-pair > label {
+  min-width: 0;
+}
+
+.text-button {
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.parameter-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 100px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.parameter-row label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

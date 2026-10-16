@@ -44,7 +44,6 @@ interface RemoteDesktopRuntimeProviderProps {
   children: ReactNode
   onSessionCountChange?: (count: number) => void
   onSessionsChange?: (sessions: RemoteDesktopSession[]) => void
-  sessionId?: string
 }
 
 export function RemoteDesktopRuntimeProvider({
@@ -55,7 +54,6 @@ export function RemoteDesktopRuntimeProvider({
   children,
   onSessionCountChange,
   onSessionsChange,
-  sessionId,
 }: RemoteDesktopRuntimeProviderProps) {
   const [sessions, setSessions] = useState<RemoteDesktopSession[]>([])
   const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([])
@@ -107,7 +105,7 @@ export function RemoteDesktopRuntimeProvider({
   }
 
   const commitSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
-    const normalized = sortSessions(sessionId ? nextSessions.filter((session) => session.id === sessionId) : nextSessions)
+    const normalized = sortSessions(nextSessions)
     const previousSessions = sessionsRef.current
     const generationChanged = lifecycleRef.current?.reconcileSessions(
       previousSessions,
@@ -180,15 +178,15 @@ export function RemoteDesktopRuntimeProvider({
       current && nextIds.has(current) && !hiddenSessionIdsRef.current.has(current)
         ? current : normalized.find((session) => !hiddenSessionIdsRef.current.has(session.id))?.id ?? null
     ))
-  }, [sessionId])
+  }, [])
 
   const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
-    pointerStore.reconcile(sessionId ? nextSessions.filter((session) => session.id === sessionId) : nextSessions)
+    pointerStore.reconcile(nextSessions)
     commitSessions(nextSessions)
-  }, [commitSessions, pointerStore, sessionId])
+  }, [commitSessions, pointerStore])
 
   const upsertSession = useCallback((next: RemoteDesktopSession) => {
-    if ((sessionId && next.id !== sessionId) || !shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
+    if (!shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
       return
     }
     // 增量事件只更新对应指针，不能用其他会话的缓存快照恢复已挂起的视觉状态。
@@ -197,7 +195,7 @@ export function RemoteDesktopRuntimeProvider({
       ...[...sessionsRef.current.values()].filter((session) => session.id !== next.id),
       next,
     ])
-  }, [commitSessions, pointerStore, sessionId])
+  }, [commitSessions, pointerStore])
 
   const removeSession = useCallback((sessionId: string) => {
     pointerStore.remove(sessionId)

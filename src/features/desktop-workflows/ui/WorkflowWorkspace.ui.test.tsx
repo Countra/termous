@@ -5,11 +5,11 @@ import type { Run, Script, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import { useState } from 'react'
 import { sessionTarget, type WorkflowTarget } from '../model/target'
-import { RunDialog } from './RunDialog'
+import { RunDialog } from './execution/RunDialog'
 import { WorkflowWorkspace } from './WorkflowWorkspace'
-import { RunReport } from './RunReport'
-import { ParameterDialog } from './ParameterDialog'
-import { ScreenshotEditor } from './ScreenshotEditor'
+import { RunReport } from './execution/RunReport'
+import { ParameterDialog } from './editor/ParameterDialog'
+import { ScreenshotEditor } from './editor/ScreenshotEditor'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 class SocketFixture {
@@ -24,6 +24,30 @@ function gateway(): WorkflowGateway {
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 
 describe('桌面脚本手动管理', () => {
+  it('执行记录归属流程内部，查看报告后返回仍保留未保存草稿', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const dirty = vi.fn()
+    const run: Run = { id: 'recent', script_id: 'script', version: 2, name: '最近任务', state: 'completed', phase: 'completed', executed: 2, assertions: 0, revision: 1, started_at: '2026-10-16T00:00:00Z' }
+    vi.mocked(api.listRuns).mockResolvedValue([run])
+    vi.mocked(api.run).mockResolvedValue({ run, steps: [] })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.create' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '保留中的草稿' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.search' }), { target: { value: '流程库筛选' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'desktopWorkflow.executionHistory' })[0]!)
+    expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('')
+    fireEvent.click(await screen.findByRole('button', { name: /最近任务/ }))
+    expect(await screen.findByText('desktopWorkflow.executionCompleted')).toBeVisible()
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'desktopWorkflow.runs' })).getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
+    expect(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' })).toHaveValue('保留中的草稿')
+    expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('流程库筛选')
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeDisabled()
+    expect(dirty).toHaveBeenLastCalledWith(true)
+    expect(api.save).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
+    view.unmount(); vi.unstubAllGlobals()
+  })
   it('截图与运行共用选中会话，手动选择不被后台更新覆盖', async () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway()
@@ -34,8 +58,9 @@ describe('桌面脚本手动管理', () => {
     vi.mocked(api.capture).mockRejectedValue(new Error('fixture'))
     vi.mocked(api.closePreview).mockResolvedValue(undefined)
     vi.mocked(api.start).mockResolvedValue({ id: 'run' } as Run)
+    vi.mocked(api.run).mockResolvedValue({ run: { id: 'run', name: script.name, script_id: script.id, version: 1, state: 'running', phase: 'running', executed: 0, assertions: 0, revision: 1, started_at: new Date().toISOString() }, steps: [] })
     const sessions = [desktopSession('one', 'win'), desktopSession('two', 'linux')]
-    const props = { gateway: api, sessions, profiles: [], activeSessionId: 'one', view: 'scripts' as const, onViewChange: vi.fn(), onDirtyChange: vi.fn(), onViewDesktop: vi.fn() }
+    const props = { gateway: api, sessions, profiles: [], activeSessionId: 'one', onDirtyChange: vi.fn(), onViewDesktop: vi.fn() }
     const view = render(<WorkflowWorkspace {...props} />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /复用脚本/ }))
     await waitFor(() => expect(api.openPreview).toHaveBeenCalledWith('one', 1))
@@ -140,7 +165,7 @@ describe('桌面脚本手动管理', () => {
     const script: Script = { id: 'script', name: '原脚本', description: '', tags: [], revision: 1, created_at: '', updated_at: '' }
     vi.mocked(api.list).mockResolvedValue([script])
     vi.mocked(api.get).mockResolvedValue({ script, version: { script_id: 'script', number: 1, created_at: '', definition: { schema_version: 1, parameters: [], steps: [] } } })
-    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} view="scripts" onViewChange={() => undefined} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /原脚本/ }))
     const input = await screen.findByRole('textbox', { name: 'desktopWorkflow.scriptName' })
     fireEvent.change(input, { target: { value: '未保存草稿' } })
@@ -163,7 +188,7 @@ describe('桌面脚本手动管理', () => {
     let save!: (value: Script) => void
     vi.mocked(api.upload).mockImplementation(() => new Promise((resolve) => { upload = resolve }))
     vi.mocked(api.save).mockImplementationOnce(() => new Promise((resolve) => { save = resolve })).mockResolvedValue({ ...script, revision: 3 })
-    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} view="scripts" onViewChange={() => undefined} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /图像脚本/ }))
     fireEvent.click(await screen.findByRole('button', { name: /图像校验/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '更新名称' } })
@@ -193,6 +218,40 @@ describe('桌面脚本手动管理', () => {
     const calls = vi.mocked(api.control).mock.calls
     expect(calls[0]?.[1]).toEqual(calls[1]?.[1])
   })
+  it('未确认单步操作在返回编辑器后仍沿用原标识重试', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const run: Run = { id: 'pending-step', script_id: 'script', version: 1, name: '待确认任务', state: 'paused', phase: 'paused', executed: 1, assertions: 0, revision: 1, started_at: new Date().toISOString() }
+    vi.mocked(api.listRuns).mockResolvedValue([run])
+    vi.mocked(api.run).mockResolvedValue({ run, steps: [] })
+    vi.mocked(api.control).mockRejectedValueOnce(new TypeError('network')).mockResolvedValue(run)
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: /待确认任务/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.singleStep' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'desktopWorkflow.singleStep' })).not.toBeDisabled())
+      fireEvent.click(within(screen.getByRole('complementary', { name: 'desktopWorkflow.runs' })).getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
+      expect(screen.queryByRole('button', { name: 'desktopWorkflow.singleStep' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /待确认任务/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.singleStep' }))
+      await waitFor(() => expect(api.control).toHaveBeenCalledTimes(2))
+      expect(vi.mocked(api.control).mock.calls[1]).toEqual(vi.mocked(api.control).mock.calls[0])
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+  it.each(['control', 'view'] as const)('切换报告后忽略上一任务 %s 请求的迟到错误', async (action) => {
+    const api = gateway()
+    const run: Run = { id: 'first', script_id: 'script', session_id: 'desktop', version: 1, name: '原任务', state: 'paused', phase: 'paused', executed: 1, assertions: 0, revision: 1, started_at: new Date().toISOString() }
+    vi.mocked(api.run).mockImplementation(async (id) => ({ run: { ...run, id, name: id === 'first' ? '原任务' : '当前任务' }, steps: [] }))
+    let reject!: (reason: Error) => void
+    vi.mocked(api.control).mockImplementation(() => new Promise((_, fail) => { reject = fail }))
+    const onView = vi.fn(() => new Promise<void>((_, fail) => { reject = fail }))
+    const view = render(<RunReport gateway={api} id="first" revision={1} onView={onView} />, { wrapper })
+    fireEvent.click(await screen.findByRole('button', { name: action === 'control' ? 'desktopWorkflow.singleStep' : 'desktopWorkflow.viewDesktop' }))
+    view.rerender(<RunReport gateway={api} id="second" revision={1} onView={onView} />)
+    await screen.findByText('当前任务')
+    await act(async () => { reject(new TypeError('network')) })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
   it('未选择会话时的模板导入在卸载后不能修改下一份脚本', async () => {
     const api = gateway(); const change = vi.fn()
     let resolve!: (value: Awaited<ReturnType<WorkflowGateway['upload']>>) => void
@@ -209,7 +268,7 @@ describe('桌面脚本手动管理', () => {
     const api = gateway(); const dirty = vi.fn()
     const script: Script = { id: 'saved', name: 'desktopWorkflow.newScript', description: '', tags: [], revision: 1, created_at: '', updated_at: '' }
     vi.mocked(api.save).mockResolvedValue(script)
-    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} view="scripts" onViewChange={() => undefined} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
     await waitFor(() => expect(api.list).toHaveBeenCalled())
     fireEvent.click(screen.getAllByRole('button', { name: 'desktopWorkflow.create' })[0]!)
     expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeDisabled()

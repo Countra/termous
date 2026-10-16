@@ -1608,6 +1608,11 @@
     }
   },
   "remoteDesktop": {
+    "tools": {
+      "title": "Desktop tools",
+      "files": "File manager",
+      "retainedCount": "Retained sessions, {{count}}"
+    },
     "automation": {
       "pointerStandby": "In control",
       "hostHint": "Hosted view · Closing this window hides it; automation continues",
@@ -1774,7 +1779,6 @@
       }
     },
     "rdp": {
-      "openWindow": "Open another viewer",
       "retained": "Retained sessions", "closeViewer": "Close viewer and keep session", "rememberCertificate": "Remember this certificate on this device",
       "rememberCertificateHint": "Trust applies only to this session by default. Remembering verifies the same certificate automatically; a changed certificate requires confirmation.",
       "protocol": "Desktop protocol", "route": "Connection", "direct": "Direct", "tunnel": "SSH tunnel", "target": "Target address", "port": "Port",

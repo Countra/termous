@@ -5,7 +5,8 @@ import type { DesktopFilesGateway, RemoteDesktopViewerState } from '#features/re
 import type { useDesktopFiles } from '../model/useDesktopFiles.ts'
 import { DesktopFileClipboard } from './DesktopFileClipboard.tsx'
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...await importOriginal<typeof import('react-i18next')>(),
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 

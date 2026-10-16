@@ -1,5 +1,5 @@
 import type { SystemFileClipboardContext } from '#common/contracts'
-import { getDesktopWindowBridge, getTermousBridge } from '#shared/bridge'
+import { getTermousBridge } from '#shared/bridge'
 import { systemClipboardStore } from '../../../model/systemClipboardStore.ts'
 import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
 
@@ -7,7 +7,7 @@ export function createRdpSystemFiles(options: {
   id: string; api?: DesktopFilesGateway; context: () => SystemFileClipboardContext | undefined
   focused: () => boolean; inputEpoch: () => number; paste: () => void
 }) {
-  const bridge = getTermousBridge()?.desktopFiles ?? getDesktopWindowBridge()?.desktopFiles
+  const bridge = getTermousBridge()?.desktopFiles
   let enabled = false, disposed = false, busy = false
   let revision = 0, applied = -1
   let configuring: Promise<void> | undefined

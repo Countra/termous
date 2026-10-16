@@ -1,0 +1,90 @@
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.identity {
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 360px;
+}
+
+.name {
+  padding: 2px 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.name:hover, .name:focus {
+  border-color: var(--border);
+  background: var(--input-bg);
+}
+
+.revision {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.save-state {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.save-state[data-dirty] {
+  color: var(--warning);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.separator {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: var(--border);
+}
+
+.settings, .settings label, .management {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.settings {
+  gap: 24px;
+}
+
+.management {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+@media (width <= 1000px) {
+  .header {
+    padding: 14px;
+  }
+
+  .identity {
+    max-width: none;
+  }
+}

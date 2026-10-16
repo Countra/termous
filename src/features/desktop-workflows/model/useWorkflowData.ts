@@ -6,13 +6,16 @@ export function useWorkflowData(gateway: WorkflowGateway) {
   const [runs, setRuns] = useState<Run[]>([])
   const [error, setError] = useState<unknown>()
   const [revision, setRevision] = useState(0)
+  const [loading, setLoading] = useState(true)
   const request = useRef<AbortController | undefined>(undefined)
   const reload = useCallback(async () => {
     request.current?.abort(); const controller = new AbortController(); request.current = controller
+    setLoading(true)
     try {
       const [nextScripts, nextRuns] = await Promise.all([gateway.list(controller.signal), gateway.listRuns(controller.signal)])
       if (!controller.signal.aborted) { setScripts(nextScripts); setRuns(nextRuns); setError(undefined); setRevision((value) => value + 1) }
     } catch (reason) { if (!controller.signal.aborted) setError(reason) }
+    finally { if (!controller.signal.aborted) setLoading(false) }
   }, [gateway])
   useEffect(() => {
     let stopped = false; let socket: WebSocket | undefined; let retry: ReturnType<typeof setTimeout> | undefined; let refresh: ReturnType<typeof setTimeout> | undefined
@@ -28,5 +31,5 @@ export function useWorkflowData(gateway: WorkflowGateway) {
     void reload(); connect()
     return () => { stopped = true; clearTimeout(retry); clearTimeout(refresh); socket?.close(); request.current?.abort() }
   }, [gateway, reload])
-  return { scripts, runs, error, revision, reload }
+  return { scripts, runs, error, revision, reload, loading }
 }

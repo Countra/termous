@@ -2,7 +2,6 @@ export { defaultExecutionBudget, isExecutionBudget, maxAgentMessageRequestUsage,
 export { isAgentProgressData, type AgentProgressData, type AgentProgressActivity } from './agent-progress.ts'
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
 export type { RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
-export type { DesktopWindowBootstrap, DesktopWindowBridge } from './desktop-window'
 export { notificationIPCChannels, decodeNotification, decodeNotificationPage, decodeNotificationEvent, validateNotificationPreferences, notificationTarget, notificationText } from './notification.ts'
 export type {
   AgentRuntimeCommandResult,

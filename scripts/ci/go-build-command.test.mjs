@@ -18,11 +18,11 @@ for (const windows of [false, true]) {
       // 只执行真实缓存函数及命令段，以记录器替代 Go 调用，不触发清理、安装或打包。
       const cache = source.match(windows ? /function Set-LocalGoCache \{[\s\S]*?\n\}/ : /configure_local_go_cache\(\) \{[\s\S]*?\n\}/)?.[0]
       const commands = source.match(windows
-        ? /^  Invoke-Native -Name "Go tests"[\s\S]*?^  \) -WorkingDirectory \$coreDir/m
-        : /^  run_step "Go tests"[\s\S]*?^    \.\/cmd\/termous-core/m)?.[0]
+        ? /^ {2}Invoke-Native -Name "Go tests"[\s\S]*?^ {2}\) -WorkingDirectory \$coreDir/m
+        : /^ {2}run_step "Go tests"[\s\S]*?^ {4}\.\/cmd\/termous-core/m)?.[0]
       assert.ok(cache)
       assert.ok(commands)
-      assert.match(source, windows ? /if \(\$phase -in[^\n]+\{\n  Set-LocalGoCache/ : /if \[\[ "\$build_phase"[^\n]+then\n  configure_local_go_cache/)
+      assert.match(source, windows ? /if \(\$phase -in[^\n]+\{\n {2}Set-LocalGoCache/ : /if \[\[ "\$build_phase"[^\n]+then\n {2}configure_local_go_cache/)
       assert.doesNotMatch(source, /GOFLAGS[^\n]*-ldflags/)
       const code = windows ? `
 $ErrorActionPreference = 'Stop'

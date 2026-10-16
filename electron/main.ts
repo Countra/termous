@@ -1,7 +1,6 @@
 import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
-import { DesktopWindows } from './desktopWindow'
 import { DetachedWindows } from './detached-windows/manager'
 import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
@@ -1769,15 +1768,6 @@ async function initializeApplication() {
     renderer: path.join(RENDERER_DIST, 'index.html'), preload: path.join(__dirname, 'detached-preload.cjs'), devURL: VITE_DEV_SERVER_URL,
   })
   app.once('before-quit', () => detachedWindows.close())
-  const desktopWindows = new DesktopWindows({
-    trusted: isTrustedMainIPCEvent,
-    config: () => coreProcess.initialize(),
-    appearance: () => ({ theme: appTheme, language: appLanguage }),
-    preload: path.join(__dirname, 'desktop-preload.cjs'),
-    renderer: path.join(RENDERER_DIST, 'index.html'),
-    devURL: VITE_DEV_SERVER_URL,
-  })
-  app.once('before-quit', () => desktopWindows.close())
   const desktopAutomation = new DesktopAutomationRuntime({
     config: () => coreProcess.initialize(),
     appearance: () => ({ theme: appTheme, language: appLanguage }),
@@ -1795,7 +1785,7 @@ async function initializeApplication() {
     focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(),
     warn: code => reportElectronProcessEvent(code, {}),
   })
-  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: (event, id) => isTrustedMainIPCEvent(event) || desktopWindows.accepts(event, id), focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
+  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: isTrustedMainIPCEvent, focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
   remoteControlRuntime = new RemoteControlRuntime({
     core: new RemoteCore(() => coreProcess.initialize()),
     trusted: isTrustedMainIPCEvent,
