@@ -7,6 +7,12 @@ export interface ShortcutRuntimeContextValue {
   platform: ShortcutPlatform
   labels: ReadonlyMap<ShortcutActionId, readonly string[]>
   bindingSignatures: ReadonlyMap<ShortcutActionId, string>
+  availability?: Partial<Record<ShortcutActionId, { visible: boolean; available: boolean; unavailableReasonKey?: string }>>
+}
+
+// 能力条件由应用层注入，快捷键实体不依赖业务实体。
+export function useShortcutAvailability() {
+  return useContext(shortcutRuntimeContext)?.availability
 }
 
 const shortcutRuntimeContext = createContext<ShortcutRuntimeContextValue | null>(null)

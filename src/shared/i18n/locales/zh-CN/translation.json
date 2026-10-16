@@ -1,4 +1,10 @@
 {
+  "systemClipboard": {
+    "unavailable": "系统文件剪贴板服务暂时不可用，连接恢复后将自动启用。",
+    "initializationFailed": "系统文件剪贴板初始化失败，正在自动重试。",
+    "serviceStopped": "系统文件剪贴板服务已停止，等待重新连接。",
+    "invalidResponse": "系统文件剪贴板能力同步失败，正在重新同步。"
+  },
   "storageStatus": {
     "title": "部分本机存储不可用",
     "unavailable": "{{modules}} 暂时无法使用，已有数据不会被替换为空数据。请检查启动诊断并在修复后重启。错误码：{{codes}}",
@@ -3976,6 +3982,7 @@
         "FILE_CLIPBOARD_CHANGED": "剪贴板内容已更新，请重新复制。",
         "FILE_CLIPBOARD_STALE": "请重新连接文件列表，再复制这些文件。",
         "FILE_CLIPBOARD_SOURCE_CHANGED": "文件已发生变化，请重新复制。",
+        "FILE_CLIPBOARD_UNAVAILABLE": "系统文件剪贴板服务暂时不可用，连接恢复后将自动启用。",
         "FILE_CLIPBOARD_UNSUPPORTED": "当前系统或文件连接不支持此操作。",
         "FILE_CLIPBOARD_NO_SPACE": "本机磁盘空间不足，请清理后重试。",
         "FILE_CLIPBOARD_LIMIT": "所选文件超出复制限制，请分批复制。",
@@ -5253,7 +5260,7 @@
     "tabRemoteDesktop": "远程桌面",
     "rdpSettings": "RDP 设置",
     "systemFileClipboard": "系统文件复制粘贴",
-    "systemFileClipboardHint": "在此设备记住，对所有本机 RDP 会话生效，包括已打开的会话和独立窗口。支持资源管理器与目标桌面之间复制粘贴文件、文件夹。",
+    "systemFileClipboardHint": "在此设备记住，对所有本机 RDP 会话生效，包括已打开的会话和独立窗口。根据本机平台能力，支持本机文件管理器与目标桌面之间复制粘贴文件、文件夹。",
     "systemFileClipboardBoundary": "目标复制文件会替换本机剪贴板；粘贴接收需保持连接和控制权。文件内容按需读取，剪贴板查看器也可能触发传输。",
     "systemFileClipboardUnavailable": "此功能需要 Windows 桌面版及可用的系统文件剪贴板服务。",
     "systemFileClipboardFailed": "设置读取或保存失败，请重试。",

@@ -34,6 +34,7 @@ export {
 export {
   ShortcutRuntimeContextProvider,
   useShortcutRuntime,
+  useShortcutAvailability,
   type ShortcutRuntimeContextValue,
 } from './model/shortcutRuntimeContext.ts'
 export {

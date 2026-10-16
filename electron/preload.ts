@@ -1,4 +1,5 @@
 import { notificationIPCChannels as notificationChannels } from '#common/contracts'
+import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
@@ -77,13 +78,6 @@ function consumeRecentDroppedPaths(fileCount: number) {
   return uniquePaths(snapshot.paths)
 }
 
-function parseWindowsFileNameBuffer(buffer: Buffer) {
-  if (buffer.length === 0) {
-    return []
-  }
-  return uniquePaths(buffer.toString('utf16le').split('\u0000'))
-}
-
 function parseFileUriText(text: string) {
   const paths: string[] = []
   for (const line of text.split(/\r?\n/)) {
@@ -94,20 +88,9 @@ function parseFileUriText(text: string) {
     try {
       paths.push(fileURLToPath(value))
     } catch {
-      // 剪贴板来源不可控，无法解析的 file URI 直接忽略。
+      // 拖放来源不可控，无法解析的 file URI 直接忽略。
     }
   }
-  return uniquePaths(paths)
-}
-
-function readClipboardFilePaths() {
-  const formats = clipboard.availableFormats()
-  if (formats.includes("Termous.DesktopFilePublication.v1")) return []
-  const paths: string[] = []
-  if (formats.includes('FileNameW')) {
-    paths.push(...parseWindowsFileNameBuffer(clipboard.readBuffer('FileNameW')))
-  }
-  paths.push(...parseFileUriText(clipboard.readText()))
   return uniquePaths(paths)
 }
 
@@ -121,6 +104,7 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  systemClipboard: createSystemClipboardCapabilitiesBridge(),
   detachedWindows: createDetachedOwnerBridge(),
   fileSystemClipboard: {
     importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
@@ -288,7 +272,6 @@ const bridge = {
       recentDroppedFiles = { paths: [], fileCount: 0, capturedAt: 0 }
       return Promise.resolve(uniquePaths(snapshot.paths))
     },
-    readClipboardFilePaths: () => Promise.resolve(readClipboardFilePaths()),
   },
   updates: {
     getState: () => ipcRenderer.invoke('app-update:get-state') as Promise<UpdateSnapshot>,

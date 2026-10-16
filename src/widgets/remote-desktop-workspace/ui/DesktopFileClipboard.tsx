@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DesktopFileClipboard as ClipboardState, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { OverwritePolicy } from '#entities/file'
+import { useSystemClipboardOperation, systemClipboardReasonKey } from '#entities/system-clipboard'
 import { useSystemFileClipboard, type DesktopFilesGateway, type RemoteDesktopViewerState } from '#features/remote-desktop'
 import { formatBytes } from '#shared/format'
 import type { useDesktopFiles } from '../model/useDesktopFiles.ts'
@@ -17,6 +18,10 @@ export function DesktopFileClipboard({ api, session, viewer, operations, overwri
 }) {
   const { t } = useTranslation()
   const system = useSystemFileClipboard(session.id)
+  const importing = useSystemClipboardOperation('import_files')
+  const publishing = useSystemClipboardOperation('publish_files')
+  const nativeVisible = importing.visible || publishing.visible
+  const nativeReady = importing.available || publishing.available
   const receiving = operations.tasks.find(task => task.id === system.task_id && task.desktop_session_id === session.id)
   const [state, setState] = useState<ClipboardState>()
   const [publication, setPublication] = useState<Pick<ClipboardState, 'published' | 'serving' | 'provided_bytes' | 'content_generation'>>()
@@ -77,9 +82,9 @@ export function DesktopFileClipboard({ api, session, viewer, operations, overwri
   return <section className={styles.section}>
     <div className={styles['section-heading']}><div><h3>{t('remoteDesktop.files.clipboard')}</h3><p>{t('remoteDesktop.files.clipboardNote')}</p></div></div>
     {!permitted && <p className={styles.note}>{t('remoteDesktop.files.controllerRequired')}</p>}
-    {system.supported && operations.state?.capabilities.file_clipboard_read && <div className={styles['system-clipboard']}>
+    {nativeVisible && <div className={styles['system-clipboard']}>
       <div><strong>{t('remoteDesktop.files.systemClipboard')}</strong><p>{t('remoteDesktop.files.systemClipboardHint')}</p></div>
-      <Tag color={system.enabled ? 'success' : undefined}>{t(`remoteDesktop.files.${system.enabled ? 'systemClipboardEnabled' : 'systemClipboardInactive'}`)}</Tag>
+      <Tag color={nativeReady && system.enabled ? 'success' : undefined}>{nativeReady ? t(`remoteDesktop.files.${system.enabled ? 'systemClipboardEnabled' : 'systemClipboardInactive'}`) : t(systemClipboardReasonKey(importing.visible ? importing.reason : publishing.reason))}</Tag>
     </div>}
     {system.error_code && <Alert type="error" showIcon title={t(`remoteDesktop.files.errors.${system.error_code}`, { defaultValue: t('remoteDesktop.files.systemClipboardFailed') })} description={<code>{system.error_code}</code>} />}
     <div className={styles['clipboard-directions']}>
@@ -88,7 +93,7 @@ export function DesktopFileClipboard({ api, session, viewer, operations, overwri
           <Button size="small" icon={<Folder size={14} />} disabled={!permitted || operations.busy} onClick={() => transfer('publish', true)}>{t('remoteDesktop.files.publishFolder')}</Button></div>
       </div>
       <div className={styles['clipboard-direction']}><h4><ArrowDownToLine size={17} />{t('remoteDesktop.files.receiveFromDesktop')}</h4><p>{t('remoteDesktop.files.receiveHint')}</p>
-        {system.enabled && system.publication_id && !receiving && <p className={styles.note}>{t('remoteDesktop.files.systemClipboardReady', { count: system.files.length })}</p>}
+        {publishing.available && system.publish_enabled && system.publication_id && !receiving && <p className={styles.note}>{t('remoteDesktop.files.systemClipboardReady', { count: system.files.length })}</p>}
         {receiving && <DesktopClipboardProgress task={receiving} busy={operations.busy} cancel={() => void operations.run(() => api.cancelTask(receiving.id))} />}
         <Button size="small" icon={<ClipboardCopy size={14} />} disabled={!permitted || operations.busy} onClick={read}>{t('remoteDesktop.files.readClipboard')}</Button>
       </div>

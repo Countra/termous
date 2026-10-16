@@ -26,6 +26,7 @@ import type {
 import { termousPopconfirmProps } from '#shared/ui'
 import {
   formatShortcutChord,
+  useShortcutAvailability,
   shortcutBindingListsEqual,
   type ShortcutActionId,
   type ShortcutPlatform,
@@ -76,6 +77,7 @@ export function ShortcutSettingsPanel({
   onResetAll,
 }: ShortcutSettingsPanelProps) {
   const { t } = useTranslation()
+  const availability = useShortcutAvailability()
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<ShortcutEditorState | null>(null)
   const [busyActionIds, setBusyActionIds] = useState<Set<ShortcutActionId>>(() => new Set())
@@ -85,7 +87,7 @@ export function ShortcutSettingsPanel({
   const busyActionIdsRef = useRef(new Set<ShortcutActionId>())
   const resetBusyRef = useRef(false)
 
-  const rows = useMemo(() => buildShortcutSettingsRows(value, platform), [platform, value])
+  const rows = useMemo(() => buildShortcutSettingsRows(value, platform).filter(row => availability?.[row.definition.id]?.visible !== false), [platform, value, availability])
   const filteredRows = useMemo(() => filterShortcutSettingsRows(
     rows,
     query,
@@ -277,7 +279,8 @@ export function ShortcutSettingsPanel({
                     platform={platform}
                     busy={busyActionIds.has(row.definition.id)}
                     failed={failedActionIds.has(row.definition.id)}
-                    disabled={disabled || resetBusy}
+                    disabled={disabled || resetBusy || availability?.[row.definition.id]?.available === false}
+                    unavailableReason={availability?.[row.definition.id]?.unavailableReasonKey ? t(availability[row.definition.id]!.unavailableReasonKey!) : undefined}
                     onEdit={() => openEditor(row)}
                     onRestore={() => restoreAction(row.definition.id)}
                   />
@@ -324,6 +327,7 @@ function ShortcutSettingsRowView({
   busy,
   failed,
   disabled,
+  unavailableReason,
   onEdit,
   onRestore,
 }: {
@@ -332,6 +336,7 @@ function ShortcutSettingsRowView({
   busy: boolean
   failed: boolean
   disabled: boolean
+  unavailableReason?: string
   onEdit: () => void
   onRestore: () => Promise<void>
 }) {
@@ -343,7 +348,7 @@ function ShortcutSettingsRowView({
     >
       <div className={styles['shortcut-settings-action-copy']}>
         <strong>{actionLabel}</strong>
-        <small>{actionDescription(row, t)}</small>
+        <small>{unavailableReason ?? actionDescription(row, t)}</small>
         {failed && (
           <span className={styles['shortcut-settings-row-error']} role="status">
             {t('settings.shortcuts.binding.saveFailed')}

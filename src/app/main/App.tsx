@@ -115,6 +115,7 @@ import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
 import { projectAgentSlashCandidates } from './model/projectAgentSlashCandidates.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
+import { useSystemClipboardRuntime } from './model/useSystemClipboardRuntime'
 import { CoreFatalDialog } from './CoreFatalDialog'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
@@ -122,6 +123,7 @@ const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
+  useSystemClipboardRuntime()
   const { i18n } = useTranslation()
   const updateBridge = useMemo(() => desktopUpdateBridge(getTermousBridge()) ?? developmentUpdateSimulation?.mainBridge ?? null, [])
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)

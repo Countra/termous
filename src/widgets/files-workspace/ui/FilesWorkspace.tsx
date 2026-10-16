@@ -1,3 +1,4 @@
+import { systemClipboardReasonKey } from '#entities/system-clipboard'
 import { App as AntdApp, Breadcrumb, Button, Dropdown, Grid, Input, Table, Tooltip } from 'antd'
 import type { InputRef, MenuProps, TableColumnsType, TableProps } from 'antd'
 import type { TableRef } from 'antd/es/table'
@@ -2297,8 +2298,8 @@ function FilesWorkspaceContent({
   const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
     const items = buildRemoteFileActionMenu(entry, t, {
       capabilities: activeFileSession?.capabilities,
-      systemCopy: systemClipboard.enabled,
-      systemCopyUnavailable: systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED'),
+      systemCopy: systemClipboard.visible,
+      systemCopyUnavailable: systemClipboard.available ? undefined : t(systemClipboardReasonKey(systemClipboard.reason)),
     }) ?? []
     return items.flatMap((item) => {
       if (!item || !('key' in item) || item.key !== 'download') {
@@ -2753,7 +2754,7 @@ function FilesWorkspaceContent({
 
   const copyToSystem = () => {
     const paths = selectedPaths.length ? selectedPaths : workspaceViewState.focusedPath ? [workspaceViewState.focusedPath] : []
-    if (!systemClipboard.enabled || !activeFileSession || !fileActionsEnabled || !paths.length) return 'fallthrough' as const
+    if (!systemClipboard.available || !activeFileSession || !fileActionsEnabled || !paths.length) return 'fallthrough' as const
     void systemClipboard.copy(activeFileSession, paths)
     return 'handled' as const
   }
@@ -2809,7 +2810,7 @@ function FilesWorkspaceContent({
     }
     const disposeHandlers = [
       shortcutRuntime.registerHandler(filesShortcutContextId, 'files.paste', () => { void filesShortcutStateRef.current.pasteFromClipboard(); return 'handled' }),
-      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.copy_to_system', () => filesShortcutStateRef.current.copyToSystem()),
+      ...(systemClipboard.visible ? [shortcutRuntime.registerHandler(filesShortcutContextId, 'files.copy_to_system', () => filesShortcutStateRef.current.copyToSystem())] : []),
       shortcutRuntime.registerHandler(filesShortcutContextId, 'files.select_all', () => {
         const current = filesShortcutStateRef.current
         const entry = focusedEntry()
@@ -2854,7 +2855,7 @@ function FilesWorkspaceContent({
       disposeHandlers.reverse().forEach((dispose) => dispose())
       disposeContext()
     }
-  }, [filesShortcutContextId, shortcutRuntime])
+  }, [filesShortcutContextId, shortcutRuntime, systemClipboard.visible])
 
   const handleFileTableKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!fileActionsEnabled) {
@@ -3583,11 +3584,11 @@ function FilesWorkspaceContent({
                 <span className={styles['files-selection-summary']}>
                   {t('files.selectedCount', { count: selectedPaths.length })}
                 </span>
-                {systemClipboard.enabled && (
+                {systemClipboard.visible && (
                   <Button
                     type="text"
                     className={styles['files-command-button']}
-                    title={systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED')}
+                    title={systemClipboard.available ? undefined : t(systemClipboardReasonKey(systemClipboard.reason))}
                     disabled={!systemClipboard.available || systemClipboard.cancelling || !fileActionsEnabled || systemClipboard.state.phase === 'preparing'}
                     icon={<Copy size={15} />}
                     onClick={copyToSystem}

@@ -1,21 +1,38 @@
+import { clipboardCapabilitiesFixture } from '../../../../test/systemClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { expect, test, vi } from 'vitest'
+import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import type { SettingsSnapshot } from '#common/contracts'
 import { SettingsGatewayContext, SettingsModuleStore, type SettingsGateway, type SettingsTransport } from '#entities/settings'
 import { SystemClipboardSetting } from './SystemClipboardSetting'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
+test('不支持时隐藏设置，支持后断线保留禁用，恢复自动可用', async () => {
+  capabilities.disconnect()
+  capabilities = clipboardCapabilitiesFixture('unsupported', 'unsupported')
+  const f = fixture()
+  expect(screen.queryByRole('switch')).toBeNull()
+  fireEvent.focus(window)
+  expect(f.read).not.toHaveBeenCalled()
+  await act(async () => { capabilities.disconnect(); capabilities = clipboardCapabilitiesFixture('ready', 'unsupported') })
+  await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled())
+  act(() => capabilities.update({ status: 'disconnected' }))
+  expect(screen.getByRole('switch')).toBeDisabled()
+  act(() => capabilities.update({ status: 'connected' }))
+  expect(screen.getByRole('switch')).toBeEnabled()
+})
+
 function fixture(enabled = false, unavailable = false) {
   let saved: SettingsSnapshot = { id: 'desktop_clipboard', schema_version: 1, revision: 1, value: { enabled }, state: { status: unavailable ? 'unavailable' : 'applied' } }
   const update = vi.fn<SettingsTransport['update']>(async (_id, input) => { saved = { ...saved, revision: saved.revision + 1, value: input.patch }; return saved })
-  const store = new SettingsModuleStore({ read: async () => saved, update })
+  const read = vi.fn(async () => saved)
+  const store = new SettingsModuleStore({ read, update })
   const gateway: SettingsGateway = {
     getModule: id => store.snapshot(id), readModule: (id, signal) => store.read(id, signal),
     updateModule: (id, patch, options) => store.update(id, patch, options), subscribeSettings: store.subscribe,
   }
   const view = render(<SettingsGatewayContext value={gateway}><SystemClipboardSetting disabled={false} /></SettingsGatewayContext>)
-  return { view, update, store, gateway }
+  return { view, read, update, store, gateway }
 }
 
 test('读取持久开关，保存期间禁止重复操作，重新挂载保持已确认值', async () => {
@@ -57,3 +74,7 @@ test('平台不可用时不允许启用，不影响同页其他设置', async ()
   expect(screen.getByRole('switch')).toBeDisabled()
   expect(f.update).not.toHaveBeenCalled()
 })
+
+let capabilities: ReturnType<typeof clipboardCapabilitiesFixture>
+beforeEach(() => { capabilities = clipboardCapabilitiesFixture() })
+afterEach(() => capabilities.disconnect())

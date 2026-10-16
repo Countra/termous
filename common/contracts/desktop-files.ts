@@ -9,6 +9,8 @@ export interface SystemFileClipboardContext {
 export interface SystemFileClipboardState {
   supported: boolean
   enabled: boolean
+  import_enabled?: boolean
+  publish_enabled?: boolean
   publication_id?: string
   task_id?: string
   content_generation?: number

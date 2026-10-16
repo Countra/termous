@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clipboardCapabilitiesFixture } from '../../../../../test/systemClipboard'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopFileBridge, RemoteResult, SystemFileClipboardContext, SystemFileClipboardState } from '#common/contracts'
 import type { TransferTask } from '#entities/file'
 import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
@@ -9,7 +10,7 @@ const provider = vi.hoisted(() => ({ bridge: undefined as DesktopFileBridge | un
 vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ desktopFiles: provider.bridge }) }))
 const context: SystemFileClipboardContext = { sessionId: 'session', generation: 1, subscriptionId: 'viewer', controlGeneration: 2 }
 const completed = { id: 'task', status: 'completed' } as TransferTask
-const state = (enabled: boolean): RemoteResult<SystemFileClipboardState> => ({ ok: true, value: { supported: true, enabled, files: [] } })
+const state = (enabled: boolean): RemoteResult<SystemFileClipboardState> => ({ ok: true, value: { supported: true, enabled, import_enabled: enabled, publish_enabled: enabled, files: [] } })
 const disposers: (() => void)[] = []
 afterEach(async () => { for (const dispose of disposers.splice(0)) dispose(); await Promise.resolve(); provider.bridge = undefined; vi.useRealTimers(); vi.restoreAllMocks() })
 function fixture() {
@@ -30,6 +31,45 @@ function fixture() {
 }
 
 describe('本机 RDP 文件快捷键与异步发布', () => {
+  it.each(['import_files', 'publish_files'] as const)('只支持 %s 时不被另一方向阻断', async direction => {
+    capabilities.disconnect()
+    capabilities = clipboardCapabilitiesFixture(direction === 'import_files' ? 'ready' : 'unsupported', direction === 'publish_files' ? 'ready' : 'unsupported')
+    const f = fixture()
+    await f.setEnabled(true)
+    expect(f.runtime.interceptPaste()).toBe(direction === 'import_files')
+    expect(systemClipboardStore.get('test-session').publish_enabled).toBe(direction === 'publish_files')
+    await f.runtime.prepare(false)
+    expect(f.bridge.importClipboard).toHaveBeenCalledTimes(direction === 'import_files' ? 1 : 0)
+  })
+
+  it('未适配平台停止系统轮询与导入，拖放仍可准备文件', async () => {
+    vi.useFakeTimers()
+    capabilities.disconnect()
+    capabilities = clipboardCapabilitiesFixture('unsupported', 'unsupported')
+    const f = fixture()
+    await f.runtime.changed()
+    await vi.advanceTimersByTimeAsync(3000)
+    await f.runtime.prepare(false)
+    expect(f.bridge.configure).not.toHaveBeenCalled()
+    expect(f.bridge.importClipboard).not.toHaveBeenCalled()
+    await f.runtime.prepare(true)
+    expect(f.bridge.consumeDrop).toHaveBeenCalledOnce()
+  })
+
+  it('已知支持断线后立即停止拦截与轮询，恢复后重新同步', async () => {
+    vi.useFakeTimers()
+    const f = fixture()
+    await f.setEnabled(true)
+    capabilities.update({ status: 'disconnected', reason: 'service_unavailable' })
+    expect(f.runtime.interceptPaste()).toBe(false)
+    await Promise.resolve(); await Promise.resolve()
+    const calls = vi.mocked(f.bridge.configure).mock.calls.length
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(f.bridge.configure).toHaveBeenCalledTimes(calls)
+    capabilities.update({ status: 'connected', reason: undefined })
+    await f.runtime.changed()
+    expect(f.runtime.interceptPaste()).toBe(true)
+  })
   it('耗时超过心跳间隔的有效响应仍可启用，不被轮询持续淘汰', async () => {
     vi.useFakeTimers()
     const f = fixture()
@@ -39,6 +79,23 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(f.runtime.interceptPaste()).toBe(true)
     f.runtime.dispose()
     await vi.advanceTimersByTimeAsync(5000)
+  })
+
+  it('能力断线立即禁用，迟到的配置异常不能重新写入错误状态', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    let reject!: (error: Error) => void
+    vi.mocked(f.bridge.configure).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    const pending = f.runtime.changed()
+    capabilities.update({ status: 'disconnected' })
+    expect(systemClipboardStore.get('test-session').enabled).toBe(false)
+    reject(new Error('旧配置请求失败'))
+    await pending
+    expect(systemClipboardStore.get('test-session').error_code).toBeFalsy()
+    expect(f.runtime.interceptPaste()).toBe(false)
+    capabilities.update({ status: 'connected' })
+    await f.runtime.changed()
+    expect(f.runtime.interceptPaste()).toBe(true)
   })
 
   it('关闭全局开关清除旧自动启用错误，但心跳不清除显式发送失败', async () => {
@@ -59,7 +116,7 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     vi.mocked(f.bridge.configure).mockResolvedValueOnce({ ok: false, code: 'desktop_not_ready' })
     await f.runtime.changed()
     expect(systemClipboardStore.get('test-session').error_code).toBeFalsy()
-    expect(systemClipboardStore.get('test-session').supported).toBe(true)
+    expect(systemClipboardStore.get('test-session').enabled).toBe(false)
     expect(f.runtime.interceptPaste()).toBe(false)
     await f.setEnabled(true)
     expect(f.runtime.interceptPaste()).toBe(true)
@@ -155,6 +212,7 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
 
   it('迟到开启结果不会覆盖新的设置快照，旧窗口清理最后执行解绑', async () => {
     const f = fixture()
+    await f.runtime.changed()
     let finish!: (value: RemoteResult<SystemFileClipboardState>) => void
     vi.mocked(f.bridge.configure).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
     const enabling = f.setEnabled(true)
@@ -178,3 +236,7 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(f.bridge.releaseSelection).toHaveBeenCalledWith('grant')
   })
 })
+
+let capabilities: ReturnType<typeof clipboardCapabilitiesFixture>
+beforeEach(() => { capabilities = clipboardCapabilitiesFixture() })
+afterEach(() => capabilities.disconnect())

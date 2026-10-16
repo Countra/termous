@@ -1,16 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clipboardCapabilitiesFixture } from '../../../test/systemClipboard'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readClipboardUpload } from './clipboardUpload'
 import { createUploadWithConflictDecision } from '#features/transfers'
 import { TermousApiError } from '#shared/api'
 
-const fixture = vi.hoisted(() => ({ importClipboard: vi.fn(), readPaths: vi.fn() }))
-vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ platform: 'win32', fileSystemClipboard: fixture, files: { readClipboardFilePaths: fixture.readPaths } }) }))
+const fixture = vi.hoisted(() => ({ importClipboard: vi.fn() }))
+vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ fileSystemClipboard: fixture }) }))
 
 const grant = { id: 'grant', source: 'clipboard' as const, items: [{ id: 'file', name: '中文.txt', kind: 'file' as const, size: 12 }, { id: 'folder', name: '目录', kind: 'directory' as const }], created_at: '', expires_at: '' }
 const session = { id: 'session', connection_generation: 7 }
-beforeEach(() => { fixture.importClipboard.mockReset(); fixture.readPaths.mockReset() })
+beforeEach(() => { fixture.importClipboard.mockReset() })
 
 describe('从系统剪贴板上传', () => {
+  it('平台未支持时跳过本机导入，也不回退为文本路径读取', async () => {
+    capabilities.disconnect()
+    capabilities = clipboardCapabilitiesFixture('unsupported', 'ready')
+    expect(await readClipboardUpload(session)).toBeNull()
+    expect(fixture.importClipboard).not.toHaveBeenCalled()
+  })
+
+  it('已支持但断线时报告暂时不可用，不发送导入请求', async () => {
+    capabilities.update({ status: 'disconnected' })
+    await expect(readClipboardUpload(session)).rejects.toMatchObject({ code: 'FILE_CLIPBOARD_UNAVAILABLE' })
+    expect(fixture.importClipboard).not.toHaveBeenCalled()
+  })
   it('只向界面返回授权，多选和目录复用当前目录的上传任务', async () => {
     fixture.importClipboard.mockResolvedValue({ ok: true, value: { sequence: 12, grant } })
     const selection = await readClipboardUpload(session)
@@ -25,7 +38,6 @@ describe('从系统剪贴板上传', () => {
     expect(task).toBe('task')
     expect(createUpload).toHaveBeenCalledWith('grant', [], [])
     expect(fixture.importClipboard).toHaveBeenCalledWith({ file_session_id: 'session', connection_generation: 7 })
-    expect(fixture.readPaths).not.toHaveBeenCalled()
     expect(releaseGrant).not.toHaveBeenCalled()
   })
 
@@ -56,6 +68,9 @@ describe('从系统剪贴板上传', () => {
     expect(await readClipboardUpload(session)).toBeNull()
     fixture.importClipboard.mockResolvedValue({ ok: false, code: 'FILE_CLIPBOARD_PASTE_EXTERNAL' })
     await expect(readClipboardUpload(session)).rejects.toMatchObject({ code: 'FILE_CLIPBOARD_PASTE_EXTERNAL' })
-    expect(fixture.readPaths).not.toHaveBeenCalled()
   })
 })
+
+let capabilities: ReturnType<typeof clipboardCapabilitiesFixture>
+beforeEach(() => { capabilities = clipboardCapabilitiesFixture() })
+afterEach(() => capabilities.disconnect())

@@ -1,5 +1,6 @@
 import type { SystemFileClipboardContext } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
+import { getSystemClipboardOperation, systemClipboardCapabilities } from '#entities/system-clipboard'
 import { systemClipboardStore } from '../../../model/systemClipboardStore.ts'
 import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
 
@@ -14,11 +15,17 @@ export function createRdpSystemFiles(options: {
   let registered: SystemFileClipboardContext | undefined
   let operationError: string | undefined
   let prepared: { sequence: number; context: string; content: number } | undefined
+  const capabilityReady = () => getSystemClipboardOperation('import_files').available || getSystemClipboardOperation('publish_files').available
+  const canImport = () => enabled && getSystemClipboardOperation('import_files').available
   const update = (patch: Parameters<typeof systemClipboardStore.update>[1]) => { if (!disposed) systemClipboardStore.update(options.id, patch) }
   function configure(invalidate = true): Promise<void> {
     // 心跳只补充状态；只有控制、焦点等主动变更才淘汰正在返回的快照。
     if (!invalidate && configuring) return configuring
-    if (!options.context() || disposed) enabled = false
+    if (!options.context() || disposed || !capabilityReady()) {
+      enabled = false
+      prepared = undefined
+      update({ enabled: false, import_enabled: false, publish_enabled: false, error_code: operationError })
+    }
     revision++
     if (configuring) return configuring
     configuring = (async () => {
@@ -27,9 +34,9 @@ export function createRdpSystemFiles(options: {
         applied = current
         if (!bridge) break
         try {
-          if (!context || disposed) {
+          if (!context || disposed || !capabilityReady()) {
             enabled = false
-            update({ enabled: false })
+            update({ enabled: false, import_enabled: false, publish_enabled: false })
             if (registered) {
               const old = registered; registered = undefined
               const result = await bridge.configure(old, false, 'detach'); if (!result.ok) update({ error_code: operationError ?? result.code })
@@ -42,26 +49,39 @@ export function createRdpSystemFiles(options: {
           if (!result.ok) {
             enabled = false
             // 自动启用等待桌面和文件通道就绪；显式文件操作的错误仍由 prepare 展示。
-            if (result.code === 'desktop_not_ready') update({ enabled: false, error_code: operationError })
-            else update({ enabled: false, error_code: operationError ?? result.code, ...(result.code === 'desktop_files_unsupported' ? { supported: false } : {}) })
+            if (result.code === 'desktop_not_ready') update({ enabled: false, import_enabled: false, publish_enabled: false, error_code: operationError })
+            else update({ enabled: false, import_enabled: false, publish_enabled: false, error_code: operationError ?? result.code })
           }
           else {
-            enabled = result.value.supported && result.value.enabled
+            enabled = result.value.import_enabled === true && getSystemClipboardOperation('import_files').available
+            const publishEnabled = result.value.publish_enabled === true && getSystemClipboardOperation('publish_files').available
             const error = operationError ?? result.value.error_code
-            update({ ...result.value, publication_id: result.value.publication_id, content_generation: result.value.content_generation, task_id: result.value.task_id, enabled, error_code: error })
+            update({ ...result.value, publication_id: result.value.publication_id, content_generation: result.value.content_generation, task_id: result.value.task_id, enabled: enabled || publishEnabled, import_enabled: enabled, publish_enabled: publishEnabled, error_code: error })
           }
-        } catch { enabled = false; update({ enabled: false, error_code: operationError ?? 'desktop_system_clipboard_failed' }) }
+        } catch {
+          if (current !== revision || disposed) continue
+          enabled = false
+          update({ enabled: false, import_enabled: false, publish_enabled: false, error_code: operationError ?? 'desktop_system_clipboard_failed' })
+        }
       }
     })().finally(() => { configuring = undefined })
     return configuring
   }
   const unbind = systemClipboardStore.bind(options.id)
-  update({ supported: !!bridge && !!options.api, enabled: false })
-  const timer = setInterval(() => void configure(false), 1000)
+  update({ enabled: false, import_enabled: false, publish_enabled: false })
+  let timer: ReturnType<typeof setInterval> | undefined
+  const synchronizeCapabilities = () => {
+    clearInterval(timer)
+    if (capabilityReady() && bridge && options.api) timer = setInterval(() => void configure(false), 1000)
+    if (!getSystemClipboardOperation('import_files').available) enabled = false
+    void configure()
+  }
+  const unsubscribeCapabilities = systemClipboardCapabilities.subscribe(synchronizeCapabilities)
+  synchronizeCapabilities()
   function operationFailed(code: string) { operationError = code; update({ error_code: code, notice: 'failed' }) }
   async function prepare(drop: boolean) {
     const context = options.context(), api = options.api
-    if (!context || !bridge || !api || disposed || busy || !drop && !enabled) return
+    if (!context || !bridge || !api || disposed || busy || !drop && !canImport()) return
     busy = true; operationError = undefined; update({ busy: true, error_code: '', notice: undefined })
     const epoch = options.inputEpoch()
     let grant: string | undefined
@@ -112,12 +132,12 @@ export function createRdpSystemFiles(options: {
     }
   }
   return {
-    interceptPaste: () => enabled && !!bridge && !!options.api,
+    interceptPaste: () => canImport() && !!bridge && !!options.api,
     prepare,
     changed: () => configure(),
     drag: (dragging: boolean) => update({ dragging }),
     dispose() {
-      disposed = true; clearInterval(timer); unbind(); void configure()
+      disposed = true; clearInterval(timer); unsubscribeCapabilities(); unbind(); void configure()
     },
   }
 }

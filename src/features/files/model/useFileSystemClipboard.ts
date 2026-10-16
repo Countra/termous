@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { FileSystemClipboardState } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
+import { getSystemClipboardOperation, useSystemClipboardOperation, systemClipboardCapabilities } from '#entities/system-clipboard'
 
 type ClipboardViewState = FileSystemClipboardState & { cancelling?: boolean }
 const initial: ClipboardViewState = { supported: false, phase: 'idle', names: [], count: 0, total_bytes: 0 }
@@ -12,12 +13,14 @@ let failedCopyOperation: string | undefined
 let stopping = false
 let copying = false
 let timer: ReturnType<typeof setInterval> | undefined
+let unsubscribeCapabilities: (() => void) | undefined
+let coreInstance: string | undefined
 const listeners = new Set<() => void>()
 const emit = (value: ClipboardViewState) => { state = value; listeners.forEach(listener => listener()) }
 const bridge = () => getTermousBridge()?.fileSystemClipboard
 
 async function refresh() {
-  if (pending || copying || stopping || !bridge()) return
+  if (pending || copying || stopping || !bridge() || !getSystemClipboardOperation('publish_files').available) return
   pending = true
   const version = revision
   try {
@@ -41,11 +44,31 @@ async function refresh() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
-  if (listeners.size === 1) { void refresh(); timer = setInterval(() => { void refresh() }, 1000) }
-  return () => { listeners.delete(listener); if (!listeners.size) { clearInterval(timer); timer = undefined } }
+  if (listeners.size === 1) {
+    const synchronize = () => {
+      revision++
+      clearInterval(timer)
+      timer = undefined
+      const instance = systemClipboardCapabilities.get().snapshot?.instance_id
+      if (instance && coreInstance && instance !== coreInstance) {
+        actionError = undefined
+        failedCopyOperation = undefined
+        emit(initial)
+      }
+      if (instance) coreInstance = instance
+      if (getSystemClipboardOperation('publish_files').available) {
+        void refresh()
+        timer = setInterval(() => { void refresh() }, 1000)
+      }
+    }
+    unsubscribeCapabilities = systemClipboardCapabilities.subscribe(synchronize)
+    synchronize()
+  }
+  return () => { listeners.delete(listener); if (!listeners.size) { clearInterval(timer); timer = undefined; unsubscribeCapabilities?.(); unsubscribeCapabilities = undefined } }
 }
 
 export function useFileSystemClipboard(onPublished?: () => void) {
+  const capability = useSystemClipboardOperation('publish_files')
   const snapshot = useSyncExternalStore(subscribe, () => state, () => initial)
   const callback = useRef(onPublished)
   const seen = useRef('')
@@ -61,7 +84,8 @@ export function useFileSystemClipboard(onPublished?: () => void) {
     if (copying || stopping || state.phase === 'preparing' || paths.length === 0) return
     actionError = undefined
     failedCopyOperation = undefined
-    if (!client) { actionError = 'FILE_CLIPBOARD_UNSUPPORTED'; emit({ ...state, phase: 'failed', error_code: actionError }); return }
+    const capability = getSystemClipboardOperation('publish_files')
+    if (!client || !capability.available) return
     copying = true
     const version = ++revision
     const operationId = crypto.randomUUID()
@@ -93,5 +117,5 @@ export function useFileSystemClipboard(onPublished?: () => void) {
       }
     } finally { stopping = false }
   }, [])
-  return { state: snapshot, copy, revoke, cancelling: !!snapshot.cancelling, enabled: !!bridge(), available: !!bridge() && snapshot.supported }
+  return { state: snapshot, copy, revoke, cancelling: !!snapshot.cancelling, visible: capability.visible, available: capability.available && !!bridge(), reason: capability.reason }
 }

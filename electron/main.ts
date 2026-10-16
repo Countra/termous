@@ -1,4 +1,5 @@
 import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
+import { registerSystemClipboardCapabilities } from './system-clipboard/lifecycle'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DetachedWindows } from './detached-windows/manager'
@@ -1762,6 +1763,9 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  const closeClipboardCapabilities = registerSystemClipboardCapabilities(ipcMain, coreProcess, isTrustedMainIPCEvent)
+  // before-quit 可能被退出协调器阻止；只有真正退出时才能永久移除桥接。
+  app.once('will-quit', closeClipboardCapabilities)
   const detachedWindows = new DetachedWindows({
     trusted: isTrustedMainIPCEvent, host: () => win, reveal: revealMainWindow,
     appearance: () => ({ theme: appTheme, language: appLanguage }),

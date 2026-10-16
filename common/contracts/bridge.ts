@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  systemClipboard?: import('./system-clipboard').SystemClipboardCapabilitiesBridge
   detachedWindows?: import('./detached-window').DetachedOwnerBridge
   fileSystemClipboard?: import("./file-system-clipboard").FileSystemClipboardBridge
   desktopFiles?: import('./desktop-files').DesktopFileBridge
@@ -130,7 +131,6 @@ export interface TermousBridge {
     openDirectory: (localPath: string) => Promise<OpenLocalDirectoryResult>
     pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
     consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
-    readClipboardFilePaths: () => Promise<string[]>
   }
   updates?: {
     getState: () => Promise<UpdateSnapshot>

@@ -238,6 +238,7 @@ export function WorkbenchFileList({
     activateEntry,
     hideNameTooltip,
   }
+  const systemCopyVisible = !!onCopyToSystem
 
   useEffect(() => {
     const disposeContext = shortcutRuntime.pushContext({
@@ -272,7 +273,7 @@ export function WorkbenchFileList({
         return 'handled'
       },
     )
-    const disposeCopy = shortcutRuntime.registerHandler(shortcutContextId, 'files.copy_to_system', () => {
+    const disposeCopy = systemCopyVisible ? shortcutRuntime.registerHandler(shortcutContextId, 'files.copy_to_system', () => {
       const current = shortcutStateRef.current
       if (current.interactionLocked || !current.onCopyToSystem) return 'fallthrough'
       const paths = [...current.selectedPathSet]
@@ -280,7 +281,7 @@ export function WorkbenchFileList({
       if (!selected.length) return 'fallthrough'
       current.onCopyToSystem(selected)
       return 'handled'
-    })
+    }) : () => {}
     const disposePaste = shortcutRuntime.registerHandler(shortcutContextId, 'files.paste', () => {
       const current = shortcutStateRef.current
       if (current.interactionLocked || !current.onPaste) return 'fallthrough'
@@ -293,7 +294,7 @@ export function WorkbenchFileList({
       disposeHandler()
       disposeContext()
     }
-  }, [listRef, shortcutContextId, shortcutRuntime])
+  }, [listRef, shortcutContextId, shortcutRuntime, systemCopyVisible])
 
   const revealNameTooltip = (entry: RemoteFileEntry) => {
     hideNameTooltip()

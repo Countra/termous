@@ -1,3 +1,4 @@
+import { systemClipboardReasonKey } from '#entities/system-clipboard'
 import {
   App as AntdApp,
   Breadcrumb,
@@ -1090,8 +1091,8 @@ function WorkbenchFilesPanelContent({
   const menuFor = (entry: RemoteFileEntry): MenuProps => ({
     items: buildRemoteFileActionMenu(entry, t, {
       includeAdvancedRename: false,
-      systemCopy: systemClipboard.enabled,
-      systemCopyUnavailable: systemClipboard.available ? undefined : t('files.systemClipboard.errors.FILE_CLIPBOARD_UNSUPPORTED'),
+      systemCopy: systemClipboard.visible,
+      systemCopyUnavailable: systemClipboard.available ? undefined : t(systemClipboardReasonKey(systemClipboard.reason)),
     }),
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
@@ -1809,7 +1810,7 @@ function WorkbenchFilesPanelContent({
         )}
       </div>
       <WorkbenchFileList
-        onCopyToSystem={systemClipboard.enabled
+        onCopyToSystem={systemClipboard.visible
           ? paths => { if (files.fileSession) void systemClipboard.copy(files.fileSession, paths) }
           : undefined}
         entries={files.entries}

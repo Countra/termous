@@ -1,5 +1,6 @@
+import { clipboardCapabilitiesFixture } from '../../../test/systemClipboard'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import type { FileSystemClipboardBridge, FileSystemClipboardState } from '#common/contracts'
 import { useFileSystemClipboard } from './useFileSystemClipboard'
 
@@ -92,3 +93,7 @@ describe('文件系统复制共享状态', () => {
     view.unmount()
   })
 })
+
+let capabilities: ReturnType<typeof clipboardCapabilitiesFixture>
+beforeEach(() => { capabilities = clipboardCapabilitiesFixture() })
+afterEach(() => capabilities.disconnect())
