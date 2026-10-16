@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { Alert, Spin } from 'antd'
 import type { DetachedAppearance, DetachedPacket } from '#common/contracts'
 import { getDetachedWindowBridge } from '#shared/bridge'
@@ -14,6 +14,10 @@ export default function DetachedSurfaceRoot() {
   const [client, setClient] = useState<DetachedClient>()
   const [appearance, setAppearance] = useState<DetachedAppearance>({ theme: 'dark', language: navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US' })
   const [failed, setFailed] = useState(false)
+  useLayoutEffect(() => {
+    document.body.dataset.termousDetachedSurface = 'true'
+    return () => { delete document.body.dataset.termousDetachedSurface }
+  }, [])
   useEffect(() => {
     const bridge = getDetachedWindowBridge()
     if (!bridge) { setFailed(true); return }
