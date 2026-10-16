@@ -591,7 +591,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.sshAccessProfiles,
     displayedFileSessions,
   ])
-  const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
+  const agentResources = useMemo(() => [
+    ...agentSSHResources, ...agentFileResources,
+    ...desktopReferences.resources.filter((resource) => resource.kind === 'desktop_session'),
+  ], [agentSSHResources, agentFileResources, desktopReferences])
   const referenceAgentConnection = useCallback((source: AgentConnectionResourceState, target: AgentReferenceTarget) => {
     try {
       launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
@@ -1198,6 +1201,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     ))
   }, [actionBusy])
 
+  const openPageConnectionLauncher = useCallback(
+    () => openHostLauncher(
+      page === 'remote-desktop' ? 'remote_desktop' : page === 'files' ? 'files' : 'terminal',
+    ),
+    [openHostLauncher, page],
+  )
+
   const openFileSessionLauncher = useCallback(
     () => openHostLauncher('files'),
     [openHostLauncher],
@@ -1268,7 +1278,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
   const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentConnectionResourceReference) => projectConnectionReferenceSnapshot(
-    reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
+    reference, agentResources, agentReferenceTargets, reference.kind === 'ssh_session' ? agentReferenceResourcesReady : agentFileResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
     || hostKeyApprovalBlocking
@@ -1333,10 +1343,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       {apiReady && !coreFatal && <FileSystemClipboardNotification />}
       <ShortcutWindowAdapter handlers={{
         'app.host_launcher.open': () => {
-          if (actionBusy) {
+          if (actionBusy || hostSavingRef.current) {
             return 'blocked'
           }
-          openTerminalSessionLauncher()
+          openPageConnectionLauncher()
           return 'handled'
         },
       }} />
@@ -1392,7 +1402,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       sidebarCollapsed={sidebarCollapsed}
                       actionBusy={actionBusy || hostSaving}
                       onNavigate={navigateToPage}
-                      onOpenConnectionLauncher={openTerminalSessionLauncher}
+                      onOpenConnectionLauncher={openPageConnectionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
                       onOpenProductTour={() => { completeAccountWelcome(); setProductTourRequestKey((current) => current + 1) }}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
@@ -1678,6 +1688,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           profiles={data.remoteDesktopProfiles}
                           onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
                         />
                       ) : null}
                     </AppShell>

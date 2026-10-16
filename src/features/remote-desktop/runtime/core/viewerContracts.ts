@@ -41,6 +41,7 @@ export type RemoteDesktopViewerErrorCode =
   | 'server_identity_rejected'
   | 'stream_disconnected'
   | 'attach_failed'
+  | 'reconnect_failed'
   | ''
 
 export interface RemoteDesktopViewerState {

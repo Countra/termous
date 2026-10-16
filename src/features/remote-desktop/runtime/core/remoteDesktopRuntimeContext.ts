@@ -13,12 +13,15 @@ export interface RemoteDesktopRuntimeValue {
   automation?: import('../../api/remoteDesktopGateway.ts').RemoteDesktopRuntimeGateway['automation']
   desktopFiles?: DesktopFilesGateway
   sessions: RemoteDesktopSession[]
+  sessionsReady: boolean
   hiddenSessionIds: string[]
   closeViewer: (sessionId: string) => void
   activeSessionId: string | null
   viewerStates: Record<string, RemoteDesktopViewerState>
   selectSession: (sessionId: string) => void
   createSession: (profileId: string) => Promise<RemoteDesktopSession>
+  duplicateSession: (sessionId: string) => Promise<RemoteDesktopSession | null>
+  pendingSessionActionIds: ReadonlySet<string>
   closeSession: (sessionId: string) => Promise<void>
   reconnectSession: (sessionId: string) => Promise<void>
   registerViewport: (sessionId: string, host: HTMLDivElement) => () => void

@@ -895,6 +895,8 @@
       "approval": "Go to approval"
     },
     "desktopResource": {
+      "confirmTitle": "Replace the desktop connection reference?",
+      "confirmDescription": "Replace the current desktop connection reference while keeping other references and the existing draft.",
       "status": {
         "ready": "Available",
         "checking": "Checking",
@@ -1922,6 +1924,7 @@
     "unpinToolbar": "Auto-hide top bar",
     "reconnect": "Reconnect",
     "reconnectFailed": "Remote desktop reconnection failed",
+    "duplicateFailed": "Could not duplicate the remote desktop session",
     "reconnectProgress": "Recovery {{current}}/{{total}}",
     "connectionQuality": {
       "details": "View connection details",
@@ -1958,6 +1961,7 @@
     "viewerErrors": {
       "stream_disconnected": "The remote desktop data channel disconnected unexpectedly.",
       "attach_failed": "Could not attach the remote desktop viewer.",
+      "reconnect_failed": "Reconnection failed. Please try again.",
       "security_failure": "VNC authentication failed.",
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
       "server_identity_unverifiable": "Could not verify the VNC service identity.",

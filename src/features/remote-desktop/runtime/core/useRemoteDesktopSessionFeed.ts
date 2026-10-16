@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DesktopPointerEvent } from '#common/contracts'
 import type {
   RemoteDesktopSession,
@@ -34,15 +34,18 @@ export function useRemoteDesktopSessionFeed({
   onPointerDisconnect,
 }: RemoteDesktopSessionFeedOptions) {
   const reconcileRevisionRef = useRef(0)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     if (!enabled) {
       reconcileRevisionRef.current += 1
+      setReady(false)
       onSnapshot([])
       return undefined
     }
     // AppData 只提供启动快照；从此处开始由事件流和权威 GET 单独维护运行态。
     onSnapshot(initialSessions())
+    setReady(true)
     let disposed = false
     let socket: WebSocket | null = null
     let reconnectTimer: number | undefined
@@ -121,4 +124,5 @@ export function useRemoteDesktopSessionFeed({
       socket?.close()
     }
   }, [api, enabled, initialSessions, onRemove, onSnapshot, onTelemetry, onUpsert, onPointer, onPointerDisconnect])
+  return enabled && ready
 }

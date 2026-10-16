@@ -35,12 +35,15 @@ function runtimeValue(
 ): RemoteDesktopRuntimeValue {
   return {
     sessions: [],
+    sessionsReady: true,
     hiddenSessionIds: [],
     closeViewer: vi.fn(),
     activeSessionId: null,
     viewerStates: {},
     selectSession: vi.fn(),
     createSession: vi.fn(),
+    duplicateSession: vi.fn(),
+    pendingSessionActionIds: new Set(),
     closeSession: vi.fn(),
     reconnectSession: vi.fn(),
     registerViewport: vi.fn(() => vi.fn()),

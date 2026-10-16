@@ -56,6 +56,8 @@ export function RemoteDesktopRuntimeProvider({
   onSessionsChange,
 }: RemoteDesktopRuntimeProviderProps) {
   const [sessions, setSessions] = useState<RemoteDesktopSession[]>([])
+  const pendingSessionActionsRef = useRef(new Set<string>())
+  const [pendingSessionActionIds, setPendingSessionActionIds] = useState<ReadonlySet<string>>(new Set())
   const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([])
   const hiddenSessionIdsRef = useRef(new Set<string>())
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -225,7 +227,7 @@ export function RemoteDesktopRuntimeProvider({
 
   const handlePointer = useCallback((event: DesktopPointerEvent) => pointerStore.publish(event), [pointerStore])
   const disconnectPointer = useCallback(() => pointerStore.suspend(), [pointerStore])
-  useRemoteDesktopSessionFeed({
+  const sessionsReady = useRemoteDesktopSessionFeed({
     api,
     enabled,
     initialSessions: initialSessionSnapshot,
@@ -281,6 +283,21 @@ export function RemoteDesktopRuntimeProvider({
     return session
   }, [selectSession, upsertSession])
 
+  const duplicateSession = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.get(sessionId)
+    // RDP 按配置复用桌面；自动化宿主管理的会话也不能通过标签菜单另建连接。
+    if (!session || session.protocol !== 'vnc' || !session.profile_id || session.automation_host_id
+      || session.status === 'stopping' || pendingSessionActionsRef.current.has(sessionId)) return null
+    pendingSessionActionsRef.current.add(sessionId)
+    setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    try {
+      return await createSession(session.profile_id)
+    } finally {
+      pendingSessionActionsRef.current.delete(sessionId)
+      setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    }
+  }, [createSession])
+
   const closeSession = useCallback(async (sessionId: string) => {
     const session = sessionsRef.current.get(sessionId)
     if (!session) return
@@ -294,20 +311,42 @@ export function RemoteDesktopRuntimeProvider({
 
   const reconnectSession = useCallback(async (sessionId: string) => {
     const session = sessionsRef.current.get(sessionId)
-    if (!session) {
+    if (!session || pendingSessionActionsRef.current.has(sessionId)) {
       return
     }
-    lifecycleRef.current?.resetForReconnect(sessionId, session.connection_generation)
-    commitViewerState(sessionId, {
-      connection: 'idle',
-      credentialFields: [],
-      verification: null,
-      errorCode: '',
-    })
-    upsertSession(await apiRef.current.reconnectRemoteDesktopSession(
-      sessionId,
-      session.connection_generation,
-    ))
+    pendingSessionActionsRef.current.add(sessionId)
+    setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    const previousErrorCode = viewerStatesRef.current[sessionId]?.errorCode
+    try {
+      lifecycleRef.current?.resetForReconnect(sessionId, session.connection_generation)
+      commitViewerState(sessionId, {
+        connection: 'idle',
+        credentialFields: [],
+        verification: null,
+        errorCode: '',
+      })
+      const result = await apiRef.current.reconnectRemoteDesktopSession(sessionId, session.connection_generation)
+      // 请求期间会话可能已关闭，迟到响应不能重新创建标签和 Viewer。
+      if (sessionsRef.current.has(sessionId)) upsertSession(result)
+    } catch (error) {
+      const current = sessionsRef.current.get(sessionId)
+      // 仅恢复未推进的连接；失败回执不能打断事件流已建立的新代次。
+      if (current?.connection_generation === session.connection_generation
+        && current.status !== 'reconnecting' && current.status !== 'stopping') {
+        const rejected = previousErrorCode === 'server_identity_rejected'
+        commitViewerState(sessionId, {
+          connection: rejected ? 'security_failed' : 'disconnected',
+          errorCode: rejected ? previousErrorCode : 'reconnect_failed',
+        })
+        if (current.status !== 'failed' && !rejected) {
+          lifecycleRef.current?.resumeAfterReconnectFailure(sessionId, session.connection_generation)
+        }
+      }
+      throw error
+    } finally {
+      pendingSessionActionsRef.current.delete(sessionId)
+      setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    }
   }, [commitViewerState, upsertSession])
 
   const registerViewport = useCallback((sessionId: string, host: HTMLDivElement) => (
@@ -423,12 +462,15 @@ export function RemoteDesktopRuntimeProvider({
     automation: api.automation,
     desktopFiles: api.desktopFiles,
     sessions,
+    sessionsReady,
     hiddenSessionIds,
     closeViewer,
     activeSessionId,
     viewerStates,
     selectSession,
     createSession,
+    duplicateSession,
+    pendingSessionActionIds,
     closeSession,
     reconnectSession,
     registerViewport,
@@ -453,6 +495,8 @@ export function RemoteDesktopRuntimeProvider({
     blurViewer,
     closeSession,
     createSession,
+    duplicateSession,
+    pendingSessionActionIds,
     focusViewer,
     reconnectSession,
     registerViewport,
@@ -460,6 +504,7 @@ export function RemoteDesktopRuntimeProvider({
     sendClipboard,
     sendCtrlAltDel,
     sessions,
+    sessionsReady,
     setDisplayMode,
     setViewOnly,
     reclaimRemoteViewer,

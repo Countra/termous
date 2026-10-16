@@ -162,7 +162,7 @@ export class RemoteDesktopViewerLifecycle {
     }
     const expectedGeneration = session.connection_generation
     this.options.commitViewerState(sessionId, { connection: 'loading', errorCode: '' })
-    const attach = this.attachViewer(entry, session, expectedGeneration)
+    const attach: Promise<void> = this.attachViewer(entry, session, expectedGeneration, () => entry.attachPromise === attach)
       .catch(() => {
         if (
           this.entries.get(sessionId) === entry
@@ -274,6 +274,13 @@ export class RemoteDesktopViewerLifecycle {
     entry.automaticCredentialGeneration = null
   }
 
+  resumeAfterReconnectFailure(sessionId: string, generation: number) {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.connectionGeneration !== generation || entry.blockedAttachGeneration !== generation) return
+    entry.blockedAttachGeneration = null
+    this.ensureViewer(sessionId)
+  }
+
   setDisplayMode(sessionId: string, mode: RemoteDesktopDisplayMode) {
     this.entries.get(sessionId)?.viewer?.setDisplayMode(mode)
   }
@@ -337,7 +344,10 @@ export class RemoteDesktopViewerLifecycle {
     entry: ViewerEntry,
     session: RemoteDesktopSession,
     expectedGeneration: number,
+    ownsAttach: () => boolean,
   ) {
+    // 同一代次也可能重新附加，旧任务必须同时失去 Promise 所有权。
+    const isCurrent = () => ownsAttach() && this.isCurrentAttach(entry, expectedGeneration)
     const profile = this.options.profile(session.profile_id)
     const { protocol: driver } = resolveRemoteDesktopSessionDrivers(
       session,
@@ -346,14 +356,14 @@ export class RemoteDesktopViewerLifecycle {
     )
     // 先完成协议模块加载，再申请短时 Ticket，避免冷加载消耗有效期。
     await driver.prepare()
-    if (!this.isCurrentAttach(entry, expectedGeneration)) {
+    if (!isCurrent()) {
       return
     }
     const api = this.options.api()
     const ticket = await api.createRemoteDesktopAttachTicket(entry.sessionId, expectedGeneration)
     if (
       ticket.connection_generation !== expectedGeneration
-      || !this.isCurrentAttach(entry, expectedGeneration)
+      || !isCurrent()
     ) {
       return
     }
@@ -504,8 +514,8 @@ export class RemoteDesktopViewerLifecycle {
         },
       },
     })
-    if (!this.isCurrentAttach(entry, expectedGeneration)) {
-      if (entry.connectionGeneration === expectedGeneration) {
+    if (!isCurrent()) {
+      if (ownsAttach() && entry.connectionGeneration === expectedGeneration) {
         entry.targetAuth.clear()
       }
       viewer.dispose()

@@ -47,6 +47,7 @@ const testState = vi.hoisted(() => {
     onCreateHost: null as (() => void) | null,
     launcherOpen: false,
     launcherIntent: 'terminal',
+    openConnectionShortcut: null as (() => string) | null,
     onLauncherClose: null as (() => void) | null,
     onConnectSSHProfile: null as ((profileId: string) => Promise<void>) | null,
     onOpenFileProfile: null as ((profileId: string, hostId: string) => Promise<void>) | null,
@@ -168,7 +169,10 @@ vi.mock('#app/shortcut-runtime', () => ({
   ShortcutRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="shortcut">{children}</div>
   ),
-  ShortcutWindowAdapter: () => null,
+  ShortcutWindowAdapter: ({ handlers }: { handlers: Record<string, (() => string) | undefined> }) => {
+    testState.openConnectionShortcut = handlers['app.host_launcher.open'] ?? null
+    return null
+  },
 }))
 
 vi.mock('#widgets/files-workspace', () => ({
@@ -816,6 +820,7 @@ describe('应用运行时组合合同', () => {
     testState.onCreateHost = null
     testState.launcherOpen = false
     testState.launcherIntent = 'terminal'
+    testState.openConnectionShortcut = null
     testState.onLauncherClose = null
     testState.onConnectSSHProfile = null
     testState.onOpenFileProfile = null
@@ -1355,7 +1360,7 @@ describe('应用运行时组合合同', () => {
     )).toBe(true)
   })
 
-  it('全局连接固定使用终端场景，页面入口使用自己的访问场景', async () => {
+  it('顶部连接和窗口快捷键跟随当前页面，并保持已打开连接器的场景', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -1370,13 +1375,35 @@ describe('应用运行时组合合同', () => {
     await act(async () => testState.onLauncherClose?.())
     await user.click(screen.getByRole('button', { name: 'global-connect' }))
     expect(testState.launcherOpen).toBe(true)
-    expect(testState.launcherIntent).toBe('terminal')
+    expect(testState.launcherIntent).toBe('files')
+
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('files')
 
     await act(async () => testState.onLauncherClose?.())
     await user.click(screen.getByRole('button', { name: 'remote-desktop' }))
     await user.click(screen.getByRole('button', { name: 'remote-desktop-connect' }))
     expect(testState.launcherOpen).toBe(true)
     expect(testState.launcherIntent).toBe('remote_desktop')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherIntent).toBe('remote_desktop')
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('remote_desktop')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherIntent).toBe('terminal')
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('terminal')
   })
 
   it('Launcher 连接失败会保留拒绝语义并交给统一错误提示', async () => {

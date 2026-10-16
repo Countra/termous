@@ -895,6 +895,8 @@
       "approval": "前往审批"
     },
     "desktopResource": {
+      "confirmTitle": "替换桌面连接引用？",
+      "confirmDescription": "将替换当前桌面连接引用，其他连接引用和已有草稿会保留。",
       "status": {
         "ready": "可用",
         "checking": "正在检查",
@@ -1920,6 +1922,7 @@
     "unpinToolbar": "自动收起顶部栏",
     "reconnect": "重新连接",
     "reconnectFailed": "远程桌面重连失败",
+    "duplicateFailed": "远程桌面会话复制失败",
     "reconnectProgress": "第 {{current}}/{{total}} 次恢复",
     "connectionQuality": {
       "details": "查看连接详情",
@@ -1956,6 +1959,7 @@
     "viewerErrors": {
       "stream_disconnected": "远程桌面数据通道意外断开。",
       "attach_failed": "无法接入远程桌面查看器。",
+      "reconnect_failed": "重新连接失败，请重试。",
       "security_failure": "VNC 身份验证失败。",
       "server_identity_missing": "VNC 服务未提供可验证的身份信息。",
       "server_identity_unverifiable": "无法验证 VNC 服务身份。",

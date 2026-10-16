@@ -328,8 +328,8 @@ export type AgentLaunchIntent = { key: number } & (
   | {
       source: 'connection_reference'
       target: { kind: 'new' } | { kind: 'session'; session_id: string }
-      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' | 'file_profile' }>
-      source_resource: AgentSSHResourceState | AgentFileResourceState
+      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' | 'file_profile' | 'desktop_session' }>
+      source_resource: AgentSSHResourceState | AgentFileResourceState | Extract<AgentDesktopResourceState, { kind: 'desktop_session' }>
     }
 )
 

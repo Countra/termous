@@ -325,7 +325,7 @@ export function AgentWorkspaceHost({
     active,
     ready: enabled && activeSetupReady && workspaceInfrastructureReady && state.snapshot_complete,
     modelReady: newSessionModelRunnable,
-    resourcesReady: { ssh_session: sshResourcesReady, file_profile: fileResourcesReady },
+    resourcesReady: { ssh_session: sshResourcesReady, file_profile: fileResourcesReady, desktop_session: desktopResourcesReady },
     resources,
     createSession: createReferenceSession,
     getOwnerId: (sessionId) => getQueuedEditOwner(sessionId) ?? 'draft',

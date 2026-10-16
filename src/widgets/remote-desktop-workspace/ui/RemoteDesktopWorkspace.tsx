@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopSession,
@@ -33,9 +34,6 @@ import type {
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
 import {
   ConnectionActionButton,
-  SessionNewTabButton,
-  SessionTabButton,
-  SessionTabStrip,
   WorkspaceEmptyState,
   termousNotificationClassName,
   contextActionMenuPopupClassName,
@@ -48,12 +46,13 @@ import {
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
 import { RemoteDesktopStatusBar } from './RemoteDesktopStatusBar.tsx'
+import { RemoteDesktopSessionTabs } from './RemoteDesktopSessionTabs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 
-export interface RemoteDesktopWorkspaceProps {
+export interface RemoteDesktopWorkspaceProps extends AgentConnectionReferenceProps {
   onOpenConnectionLauncher?: () => void
   tools?: RemoteDesktopWorkspaceTool[]
   toolsButtonRef?: Ref<HTMLButtonElement>
@@ -63,6 +62,8 @@ export function RemoteDesktopWorkspace({
   onOpenConnectionLauncher,
   tools,
   toolsButtonRef,
+  getAgentConnectionReferenceSnapshot,
+  onReferenceAgentConnection,
 }: RemoteDesktopWorkspaceProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -181,44 +182,10 @@ export function RemoteDesktopWorkspace({
         }}
       >
         <header className={styles.tabs}>
-          <SessionTabStrip
-            ariaLabel={t('remoteDesktop.sessions')}
-            activeId={activeSession?.id}
-            contentKey={runtime.sessions.map((session) => `${session.id}:${session.status}`).join('|')}
-            scrollLeftLabel={t('remoteDesktop.scrollTabsLeft')}
-            scrollRightLabel={t('remoteDesktop.scrollTabsRight')}
-            tabsClassName={styles['session-tabs']}
-            trailing={onOpenConnectionLauncher ? (
-              <SessionNewTabButton
-                label={t('remoteDesktop.newConnection')}
-                onClick={onOpenConnectionLauncher}
-              />
-            ) : undefined}
-          >
-            {runtime.sessions.filter((session) => !runtime.hiddenSessionIds.includes(session.id)).length === 0 ? (
-              <SessionTabButton
-                empty
-                icon={<MonitorPlay size={18} />}
-                label={t('app.noSessions')}
-              />
-            ) : runtime.sessions.filter((session) => !runtime.hiddenSessionIds.includes(session.id)).map((session) => (
-                <SessionTabButton
-                  key={session.id}
-                  data-session-tab-id={session.id}
-                  active={session.id === activeSession?.id}
-                  role="tab"
-                  aria-selected={session.id === activeSession?.id}
-                  icon={<MonitorPlay size={16} />}
-                  label={session.profile_name}
-                  status={tabStatus(session)}
-                  statusLabel={session.automation ? t('remoteDesktop.automation.active') : t(`remoteDesktop.status.${session.status}`)}
-                  closeLabel={t(session.protocol === 'rdp' ? 'remoteDesktop.rdp.closeViewer' : 'remoteDesktop.disconnect')}
-                  tooltipTitle={`${session.profile_name} · ${session.host_name}`}
-                  onClick={() => runtime.selectSession(session.id)}
-                  onClose={() => session.protocol === 'rdp' ? runtime.closeViewer(session.id) : closeSession(session)}
-                />
-              ))}
-          </SessionTabStrip>
+          <RemoteDesktopSessionTabs onOpenLauncher={onOpenConnectionLauncher} onClose={closeSession}
+            getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+            onReferenceAgentConnection={onReferenceAgentConnection}
+          />
           <RemoteDesktopWorkspaceActions
             retainedSessions={runtime.sessions.filter((session) => runtime.hiddenSessionIds.includes(session.id))}
             onSelectSession={runtime.selectSession}
@@ -240,6 +207,7 @@ export function RemoteDesktopWorkspace({
             onReceiveClipboard={() => void receiveClipboard()}
             onCtrlAltDel={sendCtrlAltDel}
             onFullscreen={() => void toggleFullscreen()}
+            reconnectPending={runtime.pendingSessionActionIds.has(activeSession.id)}
             onReconnect={() => void runtime.reconnectSession(activeSession.id).catch((error) => notification.error({ title: t('remoteDesktop.reconnectFailed'), description: publicError(error) }))}
             onDisconnect={() => closeSession(activeSession)}
           />
@@ -293,6 +261,7 @@ function RemoteDesktopToolbar({
   onCtrlAltDel,
   onFullscreen,
   onReconnect,
+  reconnectPending,
   onDisconnect,
 }: {
   session: RemoteDesktopSession
@@ -307,6 +276,7 @@ function RemoteDesktopToolbar({
   onCtrlAltDel: () => void
   onFullscreen: () => void
   onReconnect: () => void
+  reconnectPending: boolean
   onDisconnect: () => void
 }) {
   const { t } = useTranslation()
@@ -384,7 +354,7 @@ function RemoteDesktopToolbar({
       <ToolbarButton
         title={t('remoteDesktop.reconnect')}
         icon={<RefreshCw size={16} />}
-        disabled={['connecting', 'waiting_host_trust', 'reconnecting', 'stopping'].includes(session.status)}
+        disabled={reconnectPending || ['connecting', 'waiting_host_trust', 'reconnecting', 'stopping'].includes(session.status)}
         onClick={onReconnect}
       />
       <ToolbarButton title={t('remoteDesktop.disconnect')} danger icon={<Unplug size={16} />} onClick={onDisconnect} />
@@ -446,14 +416,6 @@ function ViewerOverlay({ session, viewerState }: { session: RemoteDesktopSession
       {session.error_code ? <code className={styles['error-code']}>{session.error_code}</code> : null}
     </div>
   )
-}
-
-function tabStatus(session: RemoteDesktopSession) {
-  if (session.status === 'streaming' || session.status === 'ready') return 'connected'
-  if (session.status === 'waiting_host_trust') return 'waiting_host_trust'
-  if (session.status === 'failed') return 'failed'
-  if (session.status === 'stopping') return 'closing'
-  return 'connecting'
 }
 
 function publicError(error: unknown, clipboardTooLargeMessage = '') {
