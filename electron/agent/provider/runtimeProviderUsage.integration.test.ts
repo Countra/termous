@@ -279,7 +279,7 @@ test('连续工具轮更新执行摘要不累积副本、不重复叠加 Provide
   assert.equal(result.events.some((event) => event.kind === 'compaction'), false)
 })
 
-test('旧检查点缺少执行状态时，从保留工具回执重建当前诊断', async () => {
+test('旧检查点缺少执行状态时，从保留回执恢复历史事实而不继承重复计数', async () => {
   const bootstrap = usageBootstrap('chat_completions')
   const name = encodeMCPToolName('termous.desktops.capture')
   const retained: AgentMessage[] = []
@@ -297,8 +297,9 @@ test('旧检查点缺少执行状态时，从保留工具回执重建当前诊�
     requests++
     const body = String(init?.body)
     assert.equal((body.match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
-    assert.match(body, /repeated_observation/u)
-    assert.match(body, /不恢复历史授权/u)
+    assert.match(body, /historical/u)
+    assert.doesNotMatch(body, /repeated_observation/u)
+    assert.match(body, /需重新核验/u)
     return providerResponse('chat_completions', 1000)
   } })
   assert.equal(requests, 1)

@@ -24,7 +24,8 @@ import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeIm
 import { bindWorkflowPreparation, createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
 import { RuntimeToolProgress } from '../tools/runtimeToolProgress.ts'
 import { RuntimeSkillContext, skillResourcePresent } from '../tools/runtimeSkillContext.ts'
-import { progressDigest } from '../tools/runtimeToolEvidence.ts'
+import { progressData, progressDigest } from '../tools/runtimeToolEvidence.ts'
+import { runtimeToolOutcome } from '../tools/runtimeToolOutcome.ts'
 import { estimateRuntimeMessageTokens } from '../context/runtimeContextTokens.ts'
 import { clearRuntimeCompactionUsage } from '../context/compaction/runtimeCompactionPolicy.ts'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
@@ -198,6 +199,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     if (observedCalls.has(id)) return
     observedCalls.add(id)
     const original = options.mcp.originalName(name) ?? name
+    if (isMCPToolDetails(result.details) && !['failed', 'waiting'].includes(runtimeToolOutcome(original, progressData(result), isError || result.details.result.isError === true))) discovery.used(original)
     inputSafety.observe(original, result, isError)
     budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
     // pi 在参数准备失败时跳过 before/afterToolCall；用实际阶段区分本地失败，不解析错误文案。

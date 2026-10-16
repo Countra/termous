@@ -131,7 +131,7 @@ test('确认集合成员存在后撤销空列表诊断，失败、其他领域�
     for (const current of [progress, restored]) {
       current.observe(ensure, { profile_id: 'p' }, result({ session: { id: 'new', status: 'waiting_user_action' } }, ensure), false)
       assert.ok(!current.snapshot().recoveries?.some((entry) => entry.tool === list))
-      assert.ok(current.drain().some((notice) => notice.status === 'progressed' && notice.tool_name === list))
+      assert.equal(current.drain().some((notice) => notice.status === 'progressed' && notice.tool_name === list), current === progress)
       assert.doesNotMatch(current.summary(), /No sessions were returned/)
     }
     const denied = new RuntimeToolProgress()

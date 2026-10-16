@@ -34,7 +34,7 @@ export class RuntimeToolDiscovery {
     }).sort((a, b) => a.original.localeCompare(b.original))
     this.tool = {
       name: 'discover_tools', label: '发现工具', executionMode: 'sequential',
-      description: '需要的准确操作未加载或不确定当前工具能否完成目标时，先搜索，禁止拿相似或相反操作代替。优先用 operation 指明动作、query 填资源对象（如 operation=read、query=命令输出）；多个目标分别搜索。也兼容自然语言 query、group 或精确 names。最多加载 8 个已授权工具，下一轮才可调用；核对职责后选择，不能把候选加载当作操作已执行。返回 name 是实际名称，完整参数进入工具声明。',
+      description: '发现准确操作：已知名称用 names，否则用 operation＋query（如 read＋命令输出），也可浏览 group。多个目标分别搜索。最多加载 8 个已授权工具，下一轮才可调用；返回 name 是实际名称，完整参数进入声明。加载不执行操作，请核对职责。',
       parameters: Type.Object({
         query: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
         operation: Type.Optional(Type.Union(Object.keys(runtimeOperations).map((name) => Type.Literal(name)))),
@@ -45,9 +45,9 @@ export class RuntimeToolDiscovery {
         const args = input as DiscoveryInput
         const score = createToolSearch(args, this.preferredCapabilities)
         const scored = this.entries.map((entry) => ({ entry, score: score(entry) }))
-          .filter((v) => v.score > 0).sort((a, b) => b.score - a.score || a.entry.original.localeCompare(b.entry.original)).slice(0, 8)
+          .filter((v) => v.score > 0).sort((a, b) => b.score - a.score || a.entry.original.localeCompare(b.entry.original))
         const blocked = scored.filter(({ entry }) => this.unavailable?.(entry.original))
-        const eligible = scored.filter((entry) => !blocked.includes(entry))
+        const eligible = scored.filter((entry) => !blocked.includes(entry)).slice(0, 8)
         const admitted = eligible.filter(({ entry }) => this.schedule(entry))
         if (admitted.length) this.preferredCapabilities = new Set(admitted.flatMap(({ entry }) => {
           const capability = runtimeCapability(entry.original)
@@ -58,14 +58,15 @@ export class RuntimeToolDiscovery {
           tools: admitted.map(({ entry }) => ({ name: entry.tool.name, original_name: entry.original, purpose: entry.tool.description, group: entry.group,
             stage: runtimeCapabilityStep(entry.original)?.role, operations: runtimeToolOperations(entry.original), skill: runtimeCapability(entry.original)?.skill })),
           ...(notFound.length ? { not_found: notFound, unavailable_guidance: '这些名称不在当前授权目录中；按能力组查询实际工具，不要猜测名称。' } : {}),
-          ...(blocked.length ? { unavailable: blocked.map(({ entry }) => ({ name: entry.original, reason: this.unavailable?.(entry.original) })) } : {}),
+          ...(blocked.length ? { unavailable: blocked.slice(0, 8).map(({ entry }) => ({ name: entry.original, reason: this.unavailable?.(entry.original) })) } : {}),
           ...(admitted.length < eligible.length ? { deferred: eligible.filter((entry) => !admitted.includes(entry)).map(({ entry }) => entry.original), notice: '本轮待加载工具已达容量上限；先使用已加载工具，下一轮再发现其余能力。' } : {}),
           ...(args.group && admitted.some(({ entry }) => entry.group !== args.group) ? { group_correction: '目标资源和动作与所选能力组不一致；已按明确目标返回当前获准目录中的准确候选，请核对各工具职责。' } : {}),
           ...(admitted.length ? { guidance: '按准确操作与能力阶段选择工具；声明可见不等于已授权执行，提交回执不等于目标完成。', skills: [...new Set(admitted.flatMap(({ entry }) => {
             const capability = runtimeCapability(entry.original)
             return capability ? [capability.skill] : []
           }))] } : {}),
-          ...(admitted.length === 0 ? { groups: this.catalog(), guidance: '使用能力组或精确工具名重新查询；目录仅包含当前获准能力。' } : {}),
+          ...(admitted.length === 0 ? { groups: this.catalog(), guidance: '先把目标拆成具体动作与资源，再按能力组、operation 或精确 names 查询；目录仅包含当前获准能力。',
+            examples: this.catalog().slice(0, 3).map(({ group }) => ({ group })) } : {}),
         }) }], details: { kind: 'tool_discovery' } }
       },
     }
@@ -134,6 +135,13 @@ export class RuntimeToolDiscovery {
     const entry = this.entries.find((v) => v.tool.name === name)
     if (!entry) return
     this.pinCleanup(entry)
+  }
+
+  used(name: string) {
+    const capability = runtimeCapability(name)
+    const role = runtimeCapabilityStep(name)?.role
+    // 观察和清理服务于当前目标，不因后台补齐候选或截图而切换任务领域。
+    if (capability && role && ['submit', 'mutate', 'input', 'preview'].includes(role)) this.preferredCapabilities = new Set([capability.id])
   }
 
   private cleanupTools(entry: Entry) {

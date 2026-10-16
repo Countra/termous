@@ -461,7 +461,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
 }
 
 for (const api of ['responses', 'chat_completions'] as const) for (const supported of [false, true]) {
-  test(`${api} 重复截图第三次提供证据、快照声明和单份执行摘要；旧 Core 兼容=${!supported}`, async () => {
+  test(`${api} 重复截图只提示，显式发现后才加载固定帧；旧 Core 兼容=${!supported}`, async () => {
     const bootstrap = fixtureBootstrap(api)
     bootstrap.context.progress_supported = supported
     bootstrap.context.request_usage_supported = true
@@ -500,8 +500,7 @@ for (const api of ['responses', 'chat_completions'] as const) for (const support
         requests++
         if (requests === 1) return response(api, 'discover_tools', { names: ['termous.desktops.capture'] })
         if (requests >= 3) {
-          assert.ok(names.includes(create))
-          assert.match(String(init?.body), /固定模板流程/)
+          assert.equal(names.includes(create), requests >= 7)
           assert.equal((String(init?.body).match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
         }
         if (requests >= 5) {
@@ -509,8 +508,10 @@ for (const api of ['responses', 'chat_completions'] as const) for (const support
           assert.match(String(init?.body), /同一观察反复返回相同有效信息/)
         }
         if (requests <= 5) return response(api, capture, { attachment_id: 'current' }, String(requests))
-        if (requests === 6) return response(api, create, { attachment_id: 'current' })
-        assert.equal(requests, 7)
+        if (requests === 6) return response(api, 'discover_tools', { names: ['termous.desktop_workflows.captures.create'] })
+        assert.match(String(init?.body), /固定模板流程/)
+        if (requests === 7) return response(api, create, { attachment_id: 'current' })
+        assert.equal(requests, 8)
         return response(api)
       },
     })

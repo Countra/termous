@@ -39,7 +39,7 @@ export interface ToolCapability {
   missing?: string[]
   bindings?: { session?: string; profile?: string }
   operations: Partial<Record<string, string[]>>
-  evidence?: { states?: string[]; volatile?: string[]; settled?: string[] }
+  evidence?: { states?: string[]; volatile?: string[]; settled?: string[]; approvals?: string[] }
   steps: CapabilityStep[]
   cases?: CapabilityCase[]
 }

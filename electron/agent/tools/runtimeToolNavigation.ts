@@ -8,6 +8,7 @@ import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import type { CapabilityTarget } from '../contracts/toolCapabilities.ts'
 import { progressData } from './runtimeToolEvidence.ts'
 import { runtimeFailureKind } from './runtimeToolRecovery.ts'
+import { desktopAttachment, desktopGrantCurrent } from './runtimeDesktopObservation.ts'
 
 export interface ToolNavigation {
   names: string[]
@@ -29,7 +30,13 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   bindings: RuntimeResourceBinding[] = [], isError = false,
   preparationCode?: 'AGENT_TOOL_ARGUMENTS_INVALID' | 'AGENT_TOOL_UNAVAILABLE'): ToolNavigation | undefined {
   const response = isMCPToolDetails(result.details) ? result.details.result : undefined
-  const data = response ? isRecord(response.structuredContent) ? response.structuredContent : {} : isError ? progressData(result) : {}
+  let data = response ? isRecord(response.structuredContent) ? response.structuredContent : {} : isError ? progressData(result) : {}
+  const attachment = name.startsWith('termous.desktops.') ? desktopAttachment(data) : undefined
+  // 导航只提示最近确认的有效授权；不修改原始回执或增加执行门禁。
+  if (attachment && !desktopGrantCurrent(attachment, Date.now())) {
+    const observed = { ...attachment, grant: undefined }
+    data = isRecord(data.control) ? { ...data, control: { ...data.control, attachment: observed } } : { ...data, attachment: observed }
+  }
   const failed = isError || response?.isError === true || isRecord(data.error)
   const safety = runtimeDesktopSafetyOutcome(name, result, failed)
   if (safety.cleanupUncertain && !safety.inputUncertain) return {
@@ -50,6 +57,7 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   const target: CapabilityTarget = bindings.some((binding) => binding.kind === capability.bindings?.session) ? 'session'
     : bindings.some((binding) => binding.kind === capability.bindings?.profile) ? 'profile' : 'unbound'
   const outcome = runtimeToolOutcome(name, data, failed)
+  if (outcome === 'waiting') return { names: capabilityTools(capability, capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
   for (const rule of capability.cases ?? []) {
     if (!capabilityTools(capability, rule.tools).includes(name)) continue
     if (rule.errors ? !kind || !rule.errors.includes(kind) : failed) continue
@@ -68,9 +76,8 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     return { ...recovery, names: prerequisite, guidance: `${recovery.guidance} ${prerequisite.length ? '本轮尚缺有效查询回执，请按本地校验返回的 required_arguments 核验目标。' : ''}` }
   }
   if (outcome === 'failed') return fallback()
-  if (outcome === 'waiting') return { names: capabilityTools(capability, capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
   if (step.role === 'poll' && outcome !== 'settled') return { names: [], guidance: roleGuidance.poll, skill: capability.skill }
   const names = capabilityTools(capability, step.next ?? [])
-  if (step.completion && data[step.completion.flag] === true) names.push(...capabilityTools(capability, [step.completion.next]))
+  if (step.completion && step.next === undefined && data[step.completion.flag] === true) names.push(...capabilityTools(capability, [step.completion.next]))
   return { names, guidance: step.guidance ?? `${capability.purpose} ${roleGuidance[step.role]}`, skill: capability.skill }
 }

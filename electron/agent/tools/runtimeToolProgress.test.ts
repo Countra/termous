@@ -82,13 +82,13 @@ test('诊断与恢复仅保留当前可用候选，缺失权限不能变成可�
   for (let i = 0; i < 3; i++) progress.observe(name, args, capture(i), false)
   const notice = progress.drain()[0]!
   assert.deepEqual(notice.next_tools, [])
-  assert.match(notice.guidance, /不在当前可用目录/)
+  assert.match(notice.guidance, /discover_tools/)
   const previous = new RuntimeToolProgress()
   for (let i = 0; i < 3; i++) previous.observe(name, args, capture(i), false)
   const restored = new RuntimeToolProgress(Date.now, () => false)
   assert.equal(restored.restore(previous.snapshot()), true)
   assert.deepEqual(restored.snapshot().notices[0]![1].next_tools, [])
-  for (const value of [undefined, {}, { version: 1 }, { ...previous.snapshot(), version: 2 }]) {
+  for (const value of [undefined, {}, { version: 1 }, { ...previous.snapshot(), version: 3 }, { ...previous.snapshot(), version: '2' }]) {
     assert.equal(new RuntimeToolProgress().restore(value), false)
   }
 })
@@ -191,12 +191,13 @@ test('检查点恢复证据和摘要，不恢复历史清理权限；摘要有�
   first.observe('termous.desktop_workflows.captures.release', { snapshot_id: 'released' }, write({ completed: true }), false)
   const second = new RuntimeToolProgress()
   second.restore(JSON.parse(JSON.stringify(first.snapshot())))
-  assert.equal(second.summary(), first.summary())
+  assert.match(second.summary(), /"origin":"historical"/)
+  assert.deepEqual(second.snapshot().facts.map((fact) => fact.values), first.snapshot().facts.map((fact) => fact.values))
   assert.equal(second.beforeCall('termous.desktop_workflows.captures.release', { snapshot_id: 'released' }), undefined)
   assert.ok(second.summary().length <= 2048)
   assert.doesNotMatch(second.summary(), /private text/)
   for (let i = 4; i <= 6; i++) second.observe(name, args, capture(i), false)
-  assert.equal(second.drain()[0]?.count, 6)
+  assert.equal(second.drain()[0]?.count, 3)
 })
 
 test('短周期窗口包含实际输入与等待，不把跨很久的观察拼成最近循环', () => {
