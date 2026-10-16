@@ -109,6 +109,46 @@ test('排序兼容无效时间且不改写输入顺序和对象', () => {
   assert.deepEqual(source.map((item) => item.id), ['invalid', 'older', 'favorite', 'newer'])
 })
 
+test('对应类型配置优先于收藏和访问时间，同类主机保留原有排序且不改写输入', () => {
+  const source = [
+    host({ id: 'without-profile', favorite: true, last_accessed_at: '2026-08-26T00:00:00Z' }),
+    host({ id: 'older', name: 'Older', last_accessed_at: '2026-08-20T00:00:00Z' }),
+    host({ id: 'favorite', name: 'Favorite', favorite: true, last_accessed_at: '2026-08-19T00:00:00Z' }),
+    host({ id: 'beta', name: 'Beta', last_accessed_at: '2026-08-25T00:00:00Z' }),
+    host({ id: 'alpha', name: 'Alpha', last_accessed_at: '2026-08-25T00:00:00Z' }),
+  ]
+  const profileHostIds = new Set(['older', 'favorite', 'beta', 'alpha'])
+  const snapshot = structuredClone(source)
+  const all = filterHosts(source, new Map(), {}, '', 'all', 'all', 'all', 'all', [], profileHostIds)
+  const recent = filterHosts(source, new Map(), {}, '', 'recent', 'all', 'all', 'all', [], profileHostIds)
+
+  assert.deepEqual(all.map((item) => item.id), ['favorite', 'alpha', 'beta', 'older', 'without-profile'])
+  assert.deepEqual(recent.map((item) => item.id), ['alpha', 'beta', 'older', 'favorite', 'without-profile'])
+  assert.deepEqual(source, snapshot)
+  assert.deepEqual([...profileHostIds], ['older', 'favorite', 'beta', 'alpha'])
+})
+
+test('配置优先排序不绕过搜索、收藏、最近和在线筛选', () => {
+  const source = [
+    host({ id: 'profile', name: 'Profile', last_accessed_at: 'invalid' }),
+    host({ id: 'favorite', name: 'Favorite', favorite: true, last_accessed_at: '2026-08-26T00:00:00Z' }),
+  ]
+  const profileHostIds = new Set(['profile'])
+  for (const [query, filter] of [
+    ['Favorite', 'all'], ['', 'favorite'], ['', 'recent'], ['', 'online'],
+  ] as const) {
+    const result = filterHosts(
+      source, new Map(), { favorite: reachability('favorite', 'online') },
+      query, filter, 'all', 'all', 'all', [], profileHostIds,
+    )
+    assert.deepEqual(result.map((item) => item.id), ['favorite'])
+  }
+  assert.deepEqual(
+    filterHosts(source, new Map(), {}, '', 'all', 'all', 'all', 'all', [], new Set()),
+    filterHosts(source, new Map(), {}, '', 'all', 'all', 'all', 'all', []),
+  )
+})
+
 test('分组遵循配置顺序并将未分组主机放在末尾且不改写输入', () => {
   const groups: HostGroup[] = [group('production', 'Production', 0), group('staging', 'Staging', 1)]
   const source = [

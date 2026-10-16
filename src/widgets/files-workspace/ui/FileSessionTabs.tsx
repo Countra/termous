@@ -6,12 +6,14 @@ import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { FileSession, FileSessionConnectInput } from '#entities/file'
 import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import { SessionProfileQuickConnect } from '#features/hosts'
 import {
   normalizeSessionTabTitle,
   sessionTabStyles,
   sortSessionsForTabs,
 } from '#features/session-tabs'
-import { SessionNewTabButton, SessionTabButton, SessionTabStrip, termousNotificationClassName } from '#shared/ui'
+import { SessionTabButton, SessionTabStrip, termousNotificationClassName } from '#shared/ui'
 import { useFilesWorkspaceRuntime } from '../model/useFilesWorkspaceRuntime'
 import { FileSessionTab, type FileSessionTabAction } from './FileSessionTab'
 
@@ -19,6 +21,7 @@ interface Props extends AgentConnectionReferenceProps {
   sessions: FileSession[]
   hosts: Pick<Host, 'id' | 'name' | 'icon_id'>[]
   profiles?: FileAccessProfile[]
+  sshAccessProfiles?: SSHAccessProfile[]
   activeId: string
   closingIds: ReadonlySet<string>
   getHostIconUrl: (id: string) => string
@@ -32,7 +35,7 @@ interface Props extends AgentConnectionReferenceProps {
 }
 
 export function FileSessionTabs({
-  sessions, hosts, profiles, activeId, closingIds, getHostIconUrl, getPath,
+  sessions, hosts, profiles, sshAccessProfiles, activeId, closingIds, getHostIconUrl, getPath,
   onConnect, onClose, onRestart, onSelect, onAuxClose, onOpenLauncher,
   getAgentConnectionReferenceSnapshot, onReferenceAgentConnection,
 }: Props) {
@@ -91,7 +94,13 @@ export function FileSessionTabs({
         scrollLeftLabel={t('workbench.scrollTabsLeft')}
         scrollRightLabel={t('workbench.scrollTabsRight')}
         tabsClassName={`${sessionTabStyles['terminal-tabs']} terminal-tabs`}
-        trailing={<SessionNewTabButton label={t('files.openFileSession')} onClick={onOpenLauncher} />}
+        trailing={(
+          <SessionProfileQuickConnect intent="files" hosts={hosts} profiles={profiles ?? []}
+            sshAccessProfiles={sshAccessProfiles ?? []} triggerLabel={t('files.openFileSession')}
+            getHostIconUrl={getHostIconUrl} onOpenLauncher={onOpenLauncher}
+            onConnect={(profileId) => onConnect({ fileAccessProfileId: profileId })}
+          />
+        )}
       >
         {sortedSessions.length === 0 ? (
           <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />

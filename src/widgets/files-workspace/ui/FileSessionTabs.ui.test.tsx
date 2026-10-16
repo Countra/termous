@@ -54,6 +54,22 @@ afterEach(() => {
   else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
 })
 
+test('文件加号按所选配置连接，不再直接打开连接器', async () => {
+  const view = renderTabs(createProps({
+    profiles: [{
+      id: 'store-profile', name: 'Object storage', engine: 's3', engine_config_version: 1,
+      config: { endpoint: 'https://storage.example', bucket: 'artifacts' },
+      is_default: false, sort_order: 0, created_at: '', updated_at: '',
+    }],
+  }))
+  fireEvent.click(screen.getByRole('button', { name: 'files.openFileSession' }))
+  await waitFor(() => expect(screen.getByRole('dialog', { name: 'workbench.quickConnect.profiles.files' })).toBeVisible())
+  expect(view.props.onOpenLauncher).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: /Object storage/ }))
+  await waitFor(() => expect(view.props.onConnect).toHaveBeenCalledExactlyOnceWith({ fileAccessProfileId: 'store-profile' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
 test('文件标签菜单保持六项操作及 AI 助手引用入口', async () => {
   renderTabs(createProps({
     getAgentConnectionReferenceSnapshot: () => ({ ready: true, enabled: true, targets: [] }),

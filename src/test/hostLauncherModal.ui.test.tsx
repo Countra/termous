@@ -200,6 +200,63 @@ describe('HostLauncherModal 行为合同', () => {
     vi.clearAllMocks()
   })
 
+  it('文件和桌面连接按对应配置优先排序，切换类型和配置更新后同步重排', () => {
+    const favorite = { ...host('favorite', 'A Favorite'), favorite: true }
+    const files = host('files', 'B Files')
+    const desktop = host('desktop', 'C Desktop')
+    const both = host('both', 'D Both')
+    const launcherData = data([favorite, files, desktop, both])
+    launcherData.fileAccessProfiles = [
+      { ...fileProfile(files), is_default: false },
+      { ...fileProfile(both), is_default: false, config: { ssh_profile_id: 'missing' }, sftp: { ssh_profile_id: 'missing' } },
+      { ...fileProfile(favorite), id: 'standalone', host_id: undefined, engine: 's3', config: {} },
+    ]
+    launcherData.remoteDesktopProfiles = [
+      { ...remoteDesktopProfile(desktop), is_default: false },
+      { ...remoteDesktopProfile(both), route: 'ssh_tunnel', is_default: false, ssh_profile_id: 'missing' },
+    ]
+    const props = {
+      open: true,
+      instanceKey: 1,
+      data: launcherData,
+      selectedHostId: favorite.id,
+      actionBusy: false,
+      onClose: vi.fn(),
+      onSelectHost: vi.fn(),
+      onConnectSSHProfile: vi.fn().mockResolvedValue(undefined),
+      onCreateHost: vi.fn(),
+      onEditHost: vi.fn(),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenForward: vi.fn(),
+      onToggleFavorite: vi.fn().mockResolvedValue(undefined),
+      onRefreshReachability: vi.fn().mockResolvedValue(undefined),
+      getHostIconUrl: vi.fn(() => ''),
+    }
+    const view = render(<HostLauncherModal {...props} />)
+    const hostIds = () => within(screen.getByRole('listbox', {
+      name: 'workbench.hostLauncher.hostList',
+    })).getAllByRole('option').map((row) => row.getAttribute('data-host-id'))
+
+    expect(hostIds()).toEqual(['favorite', 'files', 'desktop', 'both'])
+
+    view.rerender(<HostLauncherModal {...props} intent="files" />)
+    expect(hostIds()).toEqual(['files', 'both', 'favorite', 'desktop'])
+
+    view.rerender(<HostLauncherModal {...props} intent="remote_desktop" />)
+    expect(hostIds()).toEqual(['desktop', 'both', 'favorite', 'files'])
+
+    view.rerender(<HostLauncherModal {...props} intent="remote_desktop" data={{
+      ...launcherData,
+      remoteDesktopProfiles: [remoteDesktopProfile(files)],
+    }} />)
+    expect(hostIds()).toEqual(['files', 'favorite', 'desktop', 'both'])
+
+    view.rerender(<HostLauncherModal {...props} />)
+    expect(hostIds()).toEqual(['favorite', 'files', 'desktop', 'both'])
+  })
+
   it('无 SSH 的主机通过文件快捷操作打开默认 S3 配置', async () => {
     const current = host('s3-host', 'Object storage')
     const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)

@@ -3,7 +3,7 @@ import { fireEvent, render as renderUI, screen, waitFor, within } from '@testing
 import type { ReactNode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
-import type { RemoteDesktopSession } from '#entities/remote-desktop'
+import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
 import { RemoteDesktopWorkspace } from './RemoteDesktopWorkspace'
 import { remoteDesktopTabPreferencesKey } from './RemoteDesktopSessionTabs'
@@ -98,7 +98,7 @@ afterEach(() => {
   runtimeMock.value.rejectServer.mockResolvedValue(undefined)
 })
 
-test('无远程桌面会话时两个入口都打开统一连接器', async () => {
+test('无远程桌面会话时加号打开快捷配置菜单，空状态仍打开统一连接器', async () => {
   const user = userEvent.setup()
   const onOpenConnectionLauncher = vi.fn()
   render(
@@ -117,9 +117,32 @@ test('无远程桌面会话时两个入口都打开统一连接器', async () =>
   expect(openButtons).toHaveLength(2)
 
   await user.click(openButtons[0]!)
+  await waitFor(() => expect(screen.getByRole('dialog', { name: 'workbench.quickConnect.profiles.remoteDesktop' })).toBeVisible())
+  expect(onOpenConnectionLauncher).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'workbench.quickConnect.profiles.openLauncher' }))
+  expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(1)
   await user.click(openButtons[1]!)
 
   expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(2)
+})
+
+test.each(['vnc', 'rdp'] as const)('桌面加号选择 %s 配置时调用原有 runtime 连接逻辑', async (protocol) => {
+  const base = {
+    id: 'desktop-profile', host_id: 'host-a', name: 'Maintenance desktop', description: '',
+    route: 'direct' as const, route_config_version: 1 as const, protocol_config_version: 1 as const,
+    target_auth: null, is_default: true, sort_order: 0, created_at: '', updated_at: '',
+  }
+  const profiles: RemoteDesktopAccessProfile[] = protocol === 'vnc' ? [{ ...base, protocol, vnc: {
+    target_host: '192.0.2.10', port: 5900, shared: true, default_view_only: false, default_display_mode: 'fit',
+  } }] : [{ ...base, protocol, rdp: {
+    target_host: '192.0.2.10', port: 3389, server_name: '', username: '', domain: '',
+    width: 1280, height: 720, audio: false, default_view_only: false, default_display_mode: 'fit',
+  } }]
+  render(<AntdApp><RemoteDesktopWorkspace profiles={profiles} hosts={[{ id: 'host-a', name: 'Server A' }]} /></AntdApp>)
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.newConnection' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Maintenance desktop/ }))
+  await waitFor(() => expect(runtimeMock.value.createSession).toHaveBeenCalledExactlyOnceWith('desktop-profile'))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 test('启动快照就绪前保留标签偏好，就绪后只清理已移除的会话', () => {

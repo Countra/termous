@@ -26,7 +26,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopSession,
@@ -46,13 +45,13 @@ import {
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
 import { RemoteDesktopStatusBar } from './RemoteDesktopStatusBar.tsx'
-import { RemoteDesktopSessionTabs } from './RemoteDesktopSessionTabs.tsx'
+import { RemoteDesktopSessionTabs, type RemoteDesktopSessionTabsProps } from './RemoteDesktopSessionTabs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 
-export interface RemoteDesktopWorkspaceProps extends AgentConnectionReferenceProps {
+export interface RemoteDesktopWorkspaceProps extends Omit<RemoteDesktopSessionTabsProps, 'onOpenLauncher' | 'onClose'> {
   onOpenConnectionLauncher?: () => void
   tools?: RemoteDesktopWorkspaceTool[]
   toolsButtonRef?: Ref<HTMLButtonElement>
@@ -64,6 +63,7 @@ export function RemoteDesktopWorkspace({
   toolsButtonRef,
   getAgentConnectionReferenceSnapshot,
   onReferenceAgentConnection,
+  profiles, hosts, sshAccessProfiles, getHostIconUrl,
 }: RemoteDesktopWorkspaceProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -183,6 +183,7 @@ export function RemoteDesktopWorkspace({
       >
         <header className={styles.tabs}>
           <RemoteDesktopSessionTabs onOpenLauncher={onOpenConnectionLauncher} onClose={closeSession}
+            profiles={profiles} hosts={hosts} sshAccessProfiles={sshAccessProfiles} getHostIconUrl={getHostIconUrl}
             getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
             onReferenceAgentConnection={onReferenceAgentConnection}
           />

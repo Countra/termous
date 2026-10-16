@@ -695,6 +695,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const filesPageData = useMemo<FilesPageProps['data']>(() => ({
     fileAccessProfiles: data.fileAccessProfiles,
+    sshAccessProfiles: data.sshAccessProfiles,
     hosts: data.hosts,
     hostAssets: data.hostAssets,
     fileSessions: displayedFileSessions,
@@ -711,6 +712,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.hostAssets,
     data.localPathMappings,
     data.fileAccessProfiles,
+    data.sshAccessProfiles,
     data.settings.terminal,
     displayedFileSessions,
   ])
@@ -1686,6 +1688,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         <RemoteDesktopPage
                           workflow={gateways.desktopWorkflow}
                           profiles={data.remoteDesktopProfiles}
+                          hosts={data.hostAssets}
+                          sshAccessProfiles={data.sshAccessProfiles}
+                          getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
                           getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}

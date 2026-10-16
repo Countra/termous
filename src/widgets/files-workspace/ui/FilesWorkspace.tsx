@@ -59,6 +59,7 @@ import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
 import type { HostAsset } from '#entities/host-asset'
 import type { FileAccessProfile } from '#entities/file-access-profile'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { fileOperationCapabilities } from '#entities/file'
 import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { ThemeMode } from '#shared/theme'
@@ -189,6 +190,7 @@ const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 
 export interface FilesWorkspaceData {
   fileAccessProfiles?: FileAccessProfile[]
+  sshAccessProfiles?: SSHAccessProfile[]
   hosts: Host[]
   hostAssets?: HostAsset[]
   fileSessions: FileSession[]
@@ -3278,6 +3280,7 @@ function FilesWorkspaceContent({
             sessions={data.fileSessions}
             hosts={[...(data.hostAssets ?? []), ...data.hosts]}
             profiles={data.fileAccessProfiles}
+            sshAccessProfiles={data.sshAccessProfiles}
             activeId={activeFileSessionId}
             closingIds={closingFileSessionIdSet}
             getHostIconUrl={getHostIconUrl}

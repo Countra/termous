@@ -2239,7 +2239,22 @@
       "hostList": "Quick connect host list",
       "empty": "No hosts available",
       "noResults": "No matching hosts",
-      "count": "{{count}} hosts"
+      "count": "{{count}} hosts",
+      "details": {
+        "host": "Host",
+        "standalone": "Standalone file connection"
+      },
+      "profiles": {
+        "files": "Quick file connection",
+        "remoteDesktop": "Quick desktop connection",
+        "search": "Search profiles, hosts or addresses",
+        "empty": "No connection profiles",
+        "noResults": "No matching profiles",
+        "count": "{{count}} profiles",
+        "openLauncher": "Open connection launcher",
+        "connectFailed": "Connection failed",
+        "hostMissing": "The linked host no longer exists"
+      }
     },
     "detailsTabs": {
       "overview": "Overview",

@@ -29,7 +29,7 @@ export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, ...props 
     else if (workflowOpened) entry.current?.focus({ preventScroll: true })
   }, [view, workflowOpened])
   return <div className={styles.page}>
-    <div id="remote-desktop-desktops" className={styles.content} hidden={view !== 'desktops'} inert={view !== 'desktops'}><RemoteDesktopWorkspace {...props} toolsButtonRef={entry} tools={[
+    <div id="remote-desktop-desktops" className={styles.content} hidden={view !== 'desktops'} inert={view !== 'desktops'}><RemoteDesktopWorkspace {...props} profiles={profiles} toolsButtonRef={entry} tools={[
       { key: 'automation', label: t('desktopWorkflow.workflow'), icon: <Workflow size={17} />, onClick: () => { setWorkflowOpened(true); setView('workflow') } },
     ]} /></div>
     {workflowOpened && <div ref={automation} id="remote-desktop-workflow" className={styles.content} role="region" aria-label={t('desktopWorkflow.workflow')} tabIndex={-1} hidden={view !== 'workflow'} inert={view !== 'workflow'}><WorkflowWorkspace gateway={workflow} sessions={runtime.sessions} activeSessionId={runtime.activeSessionId ?? undefined} profiles={profiles} onDirtyChange={onDirtyChange} headerActions={

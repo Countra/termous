@@ -36,6 +36,7 @@ export function filterHosts(
   groupFilter: LauncherGroupFilter,
   authFilter: LauncherAuthFilter,
   selectedTags: string[],
+  profileHostIds?: ReadonlySet<string>,
 ) {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const selectedTagKeys = selectedTags.map(tagKey)
@@ -86,6 +87,11 @@ export function filterHosts(
     return tokens.every((token) => searchable.includes(token))
   })
   return filtered.sort((left, right) => {
+    const profileDelta = Number(profileHostIds?.has(right.id) ?? false)
+      - Number(profileHostIds?.has(left.id) ?? false)
+    if (profileDelta !== 0) {
+      return profileDelta
+    }
     const recentDelta = timestamp(right.last_accessed_at) - timestamp(left.last_accessed_at)
     if (filter === 'recent') {
       return recentDelta || left.name.localeCompare(right.name)

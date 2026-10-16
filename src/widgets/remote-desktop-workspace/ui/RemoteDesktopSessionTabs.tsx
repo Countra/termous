@@ -4,26 +4,35 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
+import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
+import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import { SessionProfileQuickConnect } from '#features/hosts'
 import { useRemoteDesktopRuntime } from '#features/remote-desktop'
 import {
   normalizeSessionTabTitle,
   sortSessionsForTabs,
   useSessionTabPreferences,
 } from '#features/session-tabs'
-import { SessionNewTabButton, SessionTabButton, SessionTabStrip, termousNotificationClassName } from '#shared/ui'
+import { SessionTabButton, SessionTabStrip, termousNotificationClassName } from '#shared/ui'
 import { RemoteDesktopSessionTab, type RemoteDesktopTabAction } from './RemoteDesktopSessionTab'
 import styles from './RemoteDesktopWorkspace.module.scss'
 
 export const remoteDesktopTabPreferencesKey = 'termous.ui.remoteDesktop.sessionTabPreferences.v1'
 
-interface Props extends AgentConnectionReferenceProps {
+export interface RemoteDesktopSessionTabsProps extends AgentConnectionReferenceProps {
   onOpenLauncher?: () => void
   onClose: (session: RemoteDesktopSession) => void
+  profiles?: RemoteDesktopAccessProfile[]
+  hosts?: Pick<Host, 'id' | 'name' | 'icon_id'>[]
+  sshAccessProfiles?: SSHAccessProfile[]
+  getHostIconUrl?: (iconId: string) => string
 }
 
 export function RemoteDesktopSessionTabs({
   onOpenLauncher, onClose, getAgentConnectionReferenceSnapshot, onReferenceAgentConnection,
-}: Props) {
+  profiles, hosts, sshAccessProfiles, getHostIconUrl,
+}: RemoteDesktopSessionTabsProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const runtime = useRemoteDesktopRuntime()
@@ -78,7 +87,12 @@ export function RemoteDesktopSessionTabs({
         contentKey={visibleSessions.map((session) => `${session.id}:${session.status}`).join('|')}
         scrollLeftLabel={t('remoteDesktop.scrollTabsLeft')} scrollRightLabel={t('remoteDesktop.scrollTabsRight')}
         tabsClassName={styles['session-tabs']}
-        trailing={onOpenLauncher ? <SessionNewTabButton label={t('remoteDesktop.newConnection')} onClick={onOpenLauncher} /> : undefined}
+        trailing={(
+          <SessionProfileQuickConnect intent="remote_desktop" profiles={profiles ?? []} hosts={hosts ?? []}
+            sshAccessProfiles={sshAccessProfiles ?? []} triggerLabel={t('remoteDesktop.newConnection')}
+            getHostIconUrl={getHostIconUrl} onOpenLauncher={onOpenLauncher} onConnect={runtime.createSession}
+          />
+        )}
       >
         {visibleSessions.length === 0 ? (
           <SessionTabButton empty icon={<MonitorPlay size={18} />} label={t('app.noSessions')} />

@@ -4,6 +4,9 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AuthMethodBadge, HostAvatar, type Host } from '#entities/host'
 import { SessionNewTabButton, uiStyles } from '#shared/ui'
+import { formatSSHProfileEndpoint } from '../model/hostDirectory.ts'
+import { SSHQuickConnectDetails } from './SessionQuickConnectDetails.tsx'
+import { SessionQuickConnectHoverCard } from './SessionQuickConnectHoverCard.tsx'
 import styles from './SessionQuickConnect.module.scss'
 
 export interface SessionQuickConnectProps {
@@ -60,6 +63,7 @@ export function SessionQuickConnect({
       trigger="click"
       placement="bottomLeft"
       arrow={false}
+      destroyOnHidden
       classNames={{ root: styles.popover }}
       onOpenChange={onOpenChange}
       content={(
@@ -68,6 +72,7 @@ export function SessionQuickConnect({
           totalCount={hosts.length}
           query={query}
           actionBusy={busy}
+          active={open}
           onQueryChange={onQueryChange}
           onConnect={connectHost}
           getHostIconUrl={getHostIconUrl}
@@ -84,6 +89,7 @@ function QuickConnectHostPanel({
   totalCount,
   query,
   actionBusy,
+  active,
   onQueryChange,
   onConnect,
   getHostIconUrl,
@@ -92,6 +98,7 @@ function QuickConnectHostPanel({
   totalCount: number
   query: string
   actionBusy: boolean
+  active: boolean
   onQueryChange: (value: string) => void
   onConnect: (hostId: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
@@ -123,26 +130,29 @@ function QuickConnectHostPanel({
           <div className={styles.empty}>{emptyTitle}</div>
         ) : (
           hosts.map((host) => (
-            <button
-              key={host.id}
-              type="button"
-              className={styles.row}
-              role="option"
-              disabled={actionBusy}
-              onClick={() => void onConnect(host.id)}
+            <SessionQuickConnectHoverCard key={host.id} active={active && !actionBusy} resetKey={query}
+              content={<SSHQuickConnectDetails host={host} />}
             >
-              <HostAvatar host={host} getIconUrl={getHostIconUrl} className={styles['host-icon']} size={28} iconSize={15} />
-              <span className={styles.copy}>
-                <strong>
-                  {host.name}
-                  {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
-                </strong>
-                <small>{host.username}@{host.address}:{host.port}</small>
-              </span>
-              <span className={styles.meta}>
-                <AuthMethodBadge method={host.auth_method} compact />
-              </span>
-            </button>
+              <button
+                type="button"
+                className={styles.row}
+                role="option"
+                disabled={actionBusy}
+                onClick={() => void onConnect(host.id)}
+              >
+                <HostAvatar host={host} getIconUrl={getHostIconUrl} className={styles['host-icon']} size={28} iconSize={15} />
+                <span className={styles.copy}>
+                  <strong>
+                    {host.name}
+                    {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
+                  </strong>
+                  <small>{formatSSHProfileEndpoint(host)}</small>
+                </span>
+                <span className={styles.meta}>
+                  <AuthMethodBadge method={host.auth_method} compact />
+                </span>
+              </button>
+            </SessionQuickConnectHoverCard>
           ))
         )}
       </div>

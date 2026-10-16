@@ -2236,7 +2236,22 @@
       "hostList": "快速连接主机列表",
       "empty": "暂无可连接主机",
       "noResults": "没有匹配的主机",
-      "count": "{{count}} 台主机"
+      "count": "{{count}} 台主机",
+      "details": {
+        "host": "所属主机",
+        "standalone": "独立文件连接"
+      },
+      "profiles": {
+        "files": "文件快捷连接",
+        "remoteDesktop": "桌面快捷连接",
+        "search": "搜索配置、主机或地址",
+        "empty": "暂无连接配置",
+        "noResults": "没有匹配的连接配置",
+        "count": "{{count}} 个配置",
+        "openLauncher": "打开连接器",
+        "connectFailed": "连接失败",
+        "hostMissing": "关联主机已不存在"
+      }
     },
     "detailsTabs": {
       "overview": "概览",

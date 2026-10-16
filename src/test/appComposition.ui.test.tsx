@@ -965,6 +965,7 @@ describe('应用运行时组合合同', () => {
       'hosts',
       'localPathMappings',
       'settings',
+      'sshAccessProfiles',
     ])
 
     await user.click(screen.getByRole('button', { name: 'forwards' }))

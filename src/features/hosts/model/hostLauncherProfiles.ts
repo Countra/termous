@@ -87,8 +87,7 @@ export function buildHostLauncherProfileMenu(
   hostId: string,
   intent: HostLauncherIntent,
 ): HostLauncherProfileMenu {
-  const sshProfiles = data.sshAccessProfiles
-  const items = buildItems(data, sshProfiles, hostId, intent)
+  const items = buildHostLauncherProfileItems(data, intent, hostId)
   const defaultItem = selectUniqueDefaultHostLauncherProfile(items) ?? null
   return {
     hostId,
@@ -129,25 +128,25 @@ export function selectCompanionHostLauncherFileProfile(
   return matches.length === 1 ? matches[0] ?? null : null
 }
 
-function buildItems(
+export function buildHostLauncherProfileItems(
   data: HostLauncherProfileData,
-  sshProfiles: SSHAccessProfile[],
-  hostId: string,
   intent: HostLauncherIntent,
+  hostId?: string,
 ): HostLauncherProfileMenuItem[] {
+  const sshProfiles = data.sshAccessProfiles
   if (intent === 'terminal') {
     return sortSSHAccessProfiles(sshProfiles)
-      .filter((profile) => profile.host_id === hostId)
+      .filter((profile) => hostId === undefined || profile.host_id === hostId)
       .map(toSSHMenuItem)
   }
   if (intent === 'files') {
     return sortFileAccessProfiles(data.fileAccessProfiles)
-      .filter((profile) => profile.host_id === hostId)
+      .filter((profile) => hostId === undefined || profile.host_id === hostId)
       .map(projectFileAccessProfile)
       .map((profile) => toFileMenuItem(profile, sshProfiles))
   }
   return sortRemoteDesktopAccessProfiles(data.remoteDesktopProfiles)
-    .filter((profile) => profile.host_id === hostId)
+    .filter((profile) => hostId === undefined || profile.host_id === hostId)
     .map(projectRemoteDesktopAccessProfile)
     .map((profile) => toRemoteDesktopMenuItem(profile, sshProfiles))
 }

@@ -129,7 +129,7 @@ export function groupHostDirectoryItems(
     : sections
 }
 
-export function formatSSHProfileEndpoint(profile: SSHAccessProfile) {
+export function formatSSHProfileEndpoint(profile: Pick<SSHAccessProfile, 'address' | 'port' | 'username'>) {
   const address = profile.address.includes(':') && !profile.address.startsWith('[')
     ? `[${profile.address}]`
     : profile.address
