@@ -271,19 +271,22 @@ for (const api of ['responses', 'chat_completions'] as const) {
 }
 
 for (const api of ['responses', 'chat_completions'] as const) {
-  for (const code of ['desktop_input_uncertain', 'desktop_cleanup_uncertain']) {
-    test(`${api} 清理未确认 ${code}：阻止后续输入，允许只读查询和正常回复`, async () => {
+  for (const { code, phase } of ['desktop_input_uncertain', 'desktop_cleanup_uncertain'].flatMap((code) =>
+    ['release', 'acquire'].map((phase) => ({ code, phase })))) {
+    test(`${api} ${phase} 清理未确认 ${code}：阻止后续输入，允许只读查询和正常回复`, async () => {
       const bootstrap = fixtureBootstrap(api)
       const executed: string[] = []
       const errors: unknown[] = []
-      const mapped = mapMCPTools(['control.release', 'get', 'keyboard.text'].map((name) => ({
+      const mapped = mapMCPTools([`control.${phase}`, 'get', 'keyboard.text'].map((name) => ({
         name: `termous.desktops.${name}`, description: name,
         inputSchema: { type: 'object' as const, properties: {}, additionalProperties: false },
       })), async (definition) => {
         executed.push(definition.name)
-        const isError = definition.name.endsWith('release')
-        const result = isError ? { error: { code, retryable: false } } : { session: { state: 'connected' } }
-        return { isError, content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result }
+        const failed = definition.name.endsWith(phase)
+        const result = failed ? phase === 'acquire'
+          ? { control: { approval: { state: 'dispatch_conflict', error_code: code } } }
+          : { error: { code, retryable: false } } : { session: { state: 'connected' } }
+        return { isError: failed && phase === 'release', content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result }
       })
       const writer = new RuntimeEventWriter({
         start: { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills: testAgentSkillBundle() },
@@ -300,12 +303,12 @@ for (const api of ['responses', 'chat_completions'] as const) {
           if (requests > 2) {
             const body = JSON.parse(String(init?.body)) as { tools: Array<{ name?: string; function?: { name: string } }> }
             const names = body.tools.map((tool) => tool.name ?? tool.function?.name)
-            assert.ok(!names.includes('m_termous_ddesktops_dcontrol_drelease'))
+            assert.ok(!names.includes(`m_termous_ddesktops_dcontrol_d${phase}`))
             assert.ok(!names.includes('m_termous_ddesktops_dkeyboard_dtext'))
             assert.ok(names.includes('m_termous_ddesktops_dget'))
           }
-          if (requests === 1) return response(api, 'discover_tools', { names: ['termous.desktops.control.release', 'termous.desktops.get', 'termous.desktops.keyboard.text'] })
-          if (requests === 2) return response(api, 'm_termous_ddesktops_dcontrol_drelease')
+          if (requests === 1) return response(api, 'discover_tools', { names: [`termous.desktops.control.${phase}`, 'termous.desktops.get', 'termous.desktops.keyboard.text'] })
+          if (requests === 2) return response(api, `m_termous_ddesktops_dcontrol_d${phase}`)
           if (requests === 3) return response(api, 'm_termous_ddesktops_dkeyboard_dtext')
           if (requests === 4) return response(api, 'm_termous_ddesktops_dget')
           assert.equal(requests, 5)
@@ -315,7 +318,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
       try {
         assert.equal(await agent.continue(), 'completed')
         await writer.flush()
-        assert.deepEqual(executed, ['termous.desktops.control.release', 'termous.desktops.get'])
+        assert.deepEqual(executed, [`termous.desktops.control.${phase}`, 'termous.desktops.get'])
         assert.deepEqual(errors, [])
       } finally { agent.close(); await writer.close() }
     })

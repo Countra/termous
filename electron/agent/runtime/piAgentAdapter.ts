@@ -286,8 +286,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       return undefined
     },
     afterToolCall: async ({ result, toolCall, isError }) => {
-      const guidance = observeToolResult(toolCall.id, toolCall.name, toolCall.arguments, result, isError)
-      if (isMCPToolDetails(result.details) && result.details.result.isError === true) {
+      const original = options.mcp.originalName(toolCall.name) ?? toolCall.name
+      const failed = isError || isMCPToolDetails(result.details)
+        && runtimeToolOutcome(original, progressData(result), result.details.result.isError === true) === 'failed'
+      const guidance = observeToolResult(toolCall.id, toolCall.name, toolCall.arguments, result, failed)
+      if (failed) {
         return { isError: true, ...(guidance ? { content: [...result.content, { type: 'text' as const, text: guidance }] } : {}) }
       }
       if (guidance) return { content: [...result.content, { type: 'text', text: guidance }] }

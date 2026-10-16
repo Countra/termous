@@ -1,7 +1,7 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import { defaultExecutionBudget, isExecutionBudget, type ExecutionBudget, type ExecutionLimits } from '#common/contracts'
 import { isRecord } from '../contracts/validation.ts'
-import { runtimeToolOutcome, type RuntimeStopReason } from './runtimeInputSafety.ts'
+import { runtimeResultEvidence, type RuntimeStopReason } from './runtimeInputSafety.ts'
 import { RuntimeExecutionUsage } from './runtimeExecutionUsage.ts'
 
 export { defaultExecutionBudget, type ExecutionBudget, type ExecutionLimits } from '#common/contracts'
@@ -73,7 +73,7 @@ export class RuntimeExecutionBudget {
   }
 
   private observe({ name, args, result, isError }: Extract<BudgetCheckpoint, { type: 'tool_result' }>): Measurement[] {
-    const outcome = runtimeToolOutcome(result, isError)
+    const outcome = runtimeResultEvidence(name, result, isError)
     const input = isRecord(args) ? args : {}
     const visual = /desktop_workflows\.(templates|captures)\./u.test(name)
     const resource = this.resource(args)

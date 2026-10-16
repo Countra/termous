@@ -8,6 +8,7 @@ import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
 import { runtimeToolNavigation, type ToolNavigation } from './runtimeToolNavigation.ts'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import { RuntimeExecutionState, type ProgressNotice, type ExecutionRecovery as Recovery } from './runtimeExecutionState.ts'
+import { desktopControlUnconfirmed } from './runtimeDesktopObservation.ts'
 
 interface Observation { fingerprint: string; count: number; name: string; resource: string; epoch: number }
 // 进展提示与可关闭预算独立；只有已完成资源的生命周期约束会阻止再次派发。
@@ -22,6 +23,7 @@ export class RuntimeToolProgress {
   private recent: string[] = []
   private pending: ProgressNotice[] = []
   private epoch = 0
+  private previousFailure?: { name: string; resource: string }
   private readonly polling = new Map<string, { fingerprint: string; since: number }>()
   private readonly now: () => number
   private readonly available: (name: string) => boolean
@@ -44,7 +46,7 @@ export class RuntimeToolProgress {
   rediscover(name: string) { this.cleanupSuspended.delete(name) }
 
   // 新用户指令开启新的诊断窗口；已确认的资源终态不会恢复为有效授权。
-  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.recoveries.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = [] }
+  reset() { this.observations.clear(); this.recent = []; this.notices.clear(); this.noticeResources.clear(); this.recoveries.clear(); this.cleanupSuspended.clear(); this.polling.clear(); this.pending = []; this.previousFailure = undefined }
 
   drain() { const pending = this.pending; this.pending = []; return pending }
 
@@ -56,7 +58,10 @@ export class RuntimeToolProgress {
     const error = isError || mcp?.result.isError === true || failure !== undefined
     const code = failure?.code ?? (error && typeof data.code === 'string' ? data.code.slice(0, 128) : undefined)
     const resource = progressResource(args, data)
-    this.observeRecovery(name, resource, navigation, error)
+    const previousFailure = this.previousFailure
+    this.previousFailure = error ? { name, resource } : undefined
+    const unresolved = error || ['pending', 'waiting'].includes(runtimeToolOutcome(name, data)) || desktopControlUnconfirmed(name, data, this.now())
+    this.observeRecovery(name, resource, navigation, unresolved)
     const terminal = !error && mcp && completedToolResource(name, args, data)
     if (!error) for (const dependency of runtimeToolDependencies(name)) this.cleanupSuspended.delete(dependency)
     if (terminal) {
@@ -65,7 +70,7 @@ export class RuntimeToolProgress {
       remember(this.completed, key, true)
       this.cleanupSuspended.delete(name)
     }
-    if (!progressMetaTools.has(name)) this.state.observe(name, resource, data, args, error, code)
+    const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, args, error, code) === true
     const readOnly = progressMetaTools.has(name) || mcp?.readOnly === true
     const role = runtimeCapabilityStep(name)?.role
     // 连续输入可以是合法任务；协议接收本身不能消除尚未解决的观察诊断。
@@ -81,8 +86,8 @@ export class RuntimeToolProgress {
       polling = this.now() - since < 60_000
     }
     if (!error) {
-      this.confirmRecovery(name, resource, data)
-      if (!polling && [...this.notices.values()].some((notice) => notice.status === 'detected' && notice.reason === 'repeated_failure'
+      this.confirmRecovery(name, resource, data, false, this.now(), grantChanged)
+      if (!unresolved && !polling && [...this.notices.values()].some((notice) => notice.status === 'detected' && notice.reason === 'repeated_failure'
         && notice.tool_name === name && this.noticeResources.get(notice.pattern_id) === resource)) {
         this.advance(resource, name, '同一操作已取得该资源的成功回执；继续核验目标是否完成。', true)
       }
@@ -116,6 +121,10 @@ export class RuntimeToolProgress {
       }
     }
     if (repetitions < 3) return undefined
+    // 只合并紧随同一附着申请失败的前置查询；持续单独查询仍按原节奏提示。
+    const prerequisite = this.state.prerequisiteRecovery(name, data)
+    if (!error && prerequisite && previousFailure?.name === prerequisite.tool && previousFailure.resource === prerequisite.resource
+      && this.recoveries.has(`${prerequisite.tool}:${prerequisite.resource}`)) return undefined
     const recovery = navigation ?? recoveryNavigation(name, code)
     const nextTools = recovery.names.filter(this.available).slice(0, 8)
     const unavailable = recovery.names.some((name) => !this.available(name)) ? '部分流程入口不在当前可用目录中；先说明缺失能力或门禁限制，不得反复发现或绕过。' : ''
@@ -144,17 +153,17 @@ export class RuntimeToolProgress {
     }
   }
 
-  private confirmRecovery(name: string, resource: string, data: Record<string, unknown>, historical = false, timestamp = this.now()) {
+  private confirmRecovery(name: string, resource: string, data: Record<string, unknown>, historical = false, timestamp = this.now(), grantChanged = false) {
     const resolve = (tool: string, scope: string, guidance: string) => {
-      this.state.resolveHistorical(tool, scope)
+      this.state.resolveRecovery(tool, scope)
       if (historical) return
       this.recoveries.delete(`${tool}:${scope}`)
       this.advance(scope, tool, guidance)
     }
-    for (const previous of this.state.confirmedRecoveries(name, data, timestamp)) {
-      resolve(previous.tool, previous.resource, previous.tool === name
+    for (const previous of this.state.confirmedRecoveries(name, data, timestamp, grantChanged)) {
+      resolve(previous.tool, previous.resource, name === 'termous.desktops.get' && previous.tool === name
         ? '已查询确认同一附着恢复就绪；继续核验目标是否完成。'
-        : '已查询确认同一附着持有有效授权；若目标需要操作应用，可选择实际输入工具。')
+        : '已确认同一附着持有有效授权；若目标需要操作应用，可选择实际输入工具。')
     }
     const capability = runtimeCapability(name)
     const progresses = runtimeCapabilityStep(name)?.progresses
@@ -177,10 +186,10 @@ export class RuntimeToolProgress {
   snapshot() { return this.state.snapshot(this.diagnosticNotices(), [...this.recoveries.values()]) }
   restore(value: unknown) { return this.state.restore(value) }
 
-  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, error: boolean) {
+  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, unresolved: boolean) {
     if (navigation?.recovery) remember(this.recoveries, `${name}:${resource}`, { tool: name, resource,
       guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty }, 12)
-    else if (!error && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
+    else if (!unresolved && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
   }
 
   replay(messages: AgentMessage[], readOnly: (name: string) => boolean) {
@@ -195,15 +204,15 @@ export class RuntimeToolProgress {
       const resource = progressResource(parameters, data)
       const code = progressFailure(data, name)?.code
       const failed = message.isError || code !== undefined
-      if (!progressMetaTools.has(name)) this.state.observe(name, resource, data, parameters, failed, code, 'historical', message.timestamp)
+      const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, parameters, failed, code, 'historical', message.timestamp) === true
       const navigation = runtimeToolNavigation(name, { ...result, details: { kind: 'mcp', originalToolName: name,
         readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed)
       if (navigation?.recovery) this.state.historicalRecovery({ tool: name, resource, guidance: navigation.guidance,
         next_tools: navigation.names.filter(this.available), empty: navigation.empty })
-      if (!failed) this.confirmRecovery(name, resource, data, true, message.timestamp)
+      if (!failed) this.confirmRecovery(name, resource, data, true, message.timestamp, grantChanged)
       args.delete(message.toolCallId)
     }
-    this.completed.clear(); this.cleanupSuspended.clear(); this.pending = []
+    this.completed.clear(); this.cleanupSuspended.clear(); this.pending = []; this.previousFailure = undefined
   }
 }
 

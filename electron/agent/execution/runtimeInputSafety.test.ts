@@ -50,3 +50,20 @@ test('已派发输入及无法判明阶段的工作流不确定仍停止，任�
   unrelated.observe('termous.files.read', result({ operation: { state: 'uncertain' } }), true)
   assert.equal(unrelated.failure(), undefined)
 })
+
+test('审批后清理冲突沿用既有保护，普通占用及未执行审批不会误触发', () => {
+  for (const code of ['desktop_cleanup_uncertain', 'desktop_input_uncertain']) {
+    const safety = new RuntimeInputSafety()
+    safety.observe('termous.desktops.control.acquire', result({ control: { approval: { state: 'dispatch_conflict', error_code: code } } }), false)
+    assert.equal(safety.failure(), undefined)
+    assert.ok(safety.blockedTool('termous.desktops.keyboard.text', {}))
+    assert.ok(safety.blockedTool('termous.desktops.control.acquire', {}))
+    assert.equal(safety.blockedTool('termous.desktops.get', {}), undefined)
+  }
+  for (const [state, code] of [['pending', 'desktop_cleanup_uncertain'], ['rejected', 'desktop_cleanup_uncertain'], ['dispatch_conflict', 'desktop_control_locked']]) {
+    const safety = new RuntimeInputSafety()
+    safety.observe('termous.desktops.control.acquire', result({ control: { approval: { state, error_code: code } } }), false)
+    assert.equal(safety.failure(), undefined)
+    assert.equal(safety.blockedTool('termous.desktops.keyboard.text', {}), undefined)
+  }
+})

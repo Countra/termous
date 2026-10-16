@@ -72,3 +72,23 @@ test('参数错误仍有开始和终态，正文和完整输出不会进入审�
   ] })
   assert.doesNotMatch(JSON.stringify(commands), /PRIVATE_PASSWORD|PRIVATE_SIGNATURE|PRIVATE_BEARER|PRIVATE_MATERIAL/)
 })
+
+test('语义失败标记不覆盖审批拒绝、部分失败和不确定结果的审计分类', async () => {
+  const events: RuntimeAuditEvent[] = []
+  const writer = new RuntimeAuditWriter({ originalName: () => 'termous.desktops.control.acquire', submit: async (items) => { events.push(...items) } })
+  const cases = [
+    { approval: { state: 'rejected' } },
+    { approval: { state: 'expired' } },
+    { approval: { state: 'cancelled' } },
+    { operation: { state: 'partial_failed' } },
+    { operation: { state: 'uncertain' } },
+    { control: { approval: { state: 'dispatch_conflict', error_code: 'desktop_cleanup_uncertain' } } },
+    { control: { approval: { state: 'dispatch_conflict', error_code: 'desktop_control_locked' } } },
+    { task: { status: 'running' } },
+  ]
+  for (const [index, structuredContent] of cases.entries()) writer.capture({ type: 'tool_execution_end', toolCallId: `call-${index}`, toolName: 'acquire',
+    result: { content: [], details: { kind: 'mcp', originalToolName: 'termous.desktops.control.acquire', result: { content: [], structuredContent } } }, isError: true })
+  await writer.close()
+  assert.deepEqual(events.map((event) => event.outcome), ['denied', 'expired', 'cancelled', 'partial', 'unknown', 'unknown', 'failed', 'failed'])
+  assert.equal((events[6]!.result?.error as { code: string }).code, 'desktop_control_locked')
+})

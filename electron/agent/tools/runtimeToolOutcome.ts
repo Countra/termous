@@ -1,22 +1,21 @@
 import { capabilityValue, runtimeCapability } from './runtimeCapabilityCatalog.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { runtimeApprovalFailure, runtimeToolApprovals } from '../contracts/runtimeToolResult.ts'
 
 export type ToolOutcome = 'failed' | 'waiting' | 'pending' | 'settled' | 'unknown'
 const pending = new Set(['preparing', 'queued', 'running', 'pending', 'connecting', 'reconnecting', 'starting', 'stopping', 'cancelling', 'executing', 'validating', 'verifying', 'enqueued', 'interrupting'])
 const terminal = new Set(['completed', 'succeeded', 'success', 'ready', 'connected', 'closed', 'cancelled', 'stopped', 'detached', 'interrupted'])
 const failed = new Set(['failed', 'timed_out', 'invalidated', 'uncertain', 'partial_failed', 'completed_unknown'])
 
-function approvals(name: string, data: Record<string, unknown>) {
-  const paths = runtimeCapability(name)?.evidence?.approvals ?? ['approval', 'report.approval']
-  return paths.map((path) => capabilityValue(data, path)).filter(isRecord)
-}
+export function isFailedToolState(value: unknown) { return failed.has(String(value)) }
 
 export function runtimeToolFailureCode(name: string, data: Record<string, unknown>, isError = false): string | undefined {
   if (isRecord(data.error)) return typeof data.error.code === 'string' ? data.error.code.slice(0, 128) : 'tool_failed'
-  for (const approval of approvals(name, data)) if (['rejected', 'expired', 'cancelled'].includes(String(approval.state))) return `approval_${String(approval.state)}`
+  const approval = runtimeApprovalFailure(name, data)
+  if (approval) return approval
   for (const path of runtimeCapability(name)?.evidence?.states ?? []) {
     const state = capabilityValue(data, path)
-    if (!failed.has(String(state))) continue
+    if (!isFailedToolState(state)) continue
     const parent = capabilityValue(data, path.slice(0, path.lastIndexOf('.')))
     if (state === 'uncertain' || state === 'completed_unknown') return 'operation_uncertain'
     if (state === 'partial_failed') return 'operation_partial_failed'
@@ -30,7 +29,7 @@ export function runtimeToolFailureCode(name: string, data: Record<string, unknow
 // 只解释契约指定的状态字段；不能把远端正文中的 state、指令或工具名升级为运行时控制数据。
 export function runtimeToolOutcome(name: string, data: Record<string, unknown>, isError = false): ToolOutcome {
   if (runtimeToolFailureCode(name, data, isError)) return 'failed'
-  if (approvals(name, data).some((approval) => ['pending', 'waiting'].includes(String(approval.state)))) return 'waiting'
+  if (runtimeToolApprovals(name, data).some((approval) => ['pending', 'waiting', 'dispatching'].includes(String(approval.state)))) return 'waiting'
   const evidence = runtimeCapability(name)?.evidence
   const states = (evidence?.states ?? []).map((path) => capabilityValue(data, path)).filter((state): state is string => typeof state === 'string')
   if (states.some((state) => state === 'paused' || state.startsWith('waiting'))) return 'waiting'

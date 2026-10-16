@@ -1,6 +1,6 @@
 import { isAgentProgressData, type AgentProgressData } from '#common/contracts'
 import { isRecord } from '../contracts/validation.ts'
-import { confirmedDesktopAttachment, desktopGrantCurrent, desktopObservation, projectDesktopEvidence } from './runtimeDesktopObservation.ts'
+import { confirmedDesktopAttachment, desktopControlUnconfirmed, desktopGrantCurrent, desktopObservation, projectDesktopEvidence } from './runtimeDesktopObservation.ts'
 import { progressFact, progressResource } from './runtimeToolEvidence.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
 
@@ -27,6 +27,8 @@ export class RuntimeExecutionState {
     const key = factKey(fact)
     // 旧 grant 的失败回执不能把同一附着的新授权覆盖为失效。
     const previous = this.facts.get(key)
+    const grantChanged = desktop?.grant_status === 'held' && (previous?.origin !== origin
+      || projectDesktopEvidence(previous.values, false, timestamp).grant_status !== 'held' || previous.values.grant_id !== desktop.grant_id)
     if (desktop && previous?.origin === 'current' && previous.values.grant_id && desktop.grant_id && !desktop.grant_expires_at
       && previous.values.grant_id !== desktop.grant_id) return
     if (origin === 'historical' && previous?.origin === 'current') return
@@ -42,24 +44,38 @@ export class RuntimeExecutionState {
         && ['failed', 'stopping', 'closed', 'reconnecting', 'reattach_wait', 'not_found'].includes(String(desktop?.status))
       const changed = desktop?.session_id && desktop.session_id === session && ['connection_generation', 'execution_generation']
         .some((field) => desktop[field] !== undefined && existing.values[field] !== undefined && desktop[field] !== existing.values[field])
-      if (existing.values.grant_status === 'held' && (closed || changed || unavailable)) existing.values.grant_status = 'needs_verification'
+      if (['held', 'not_held'].includes(String(existing.values.grant_status)) && (closed || changed || unavailable)) existing.values.grant_status = 'needs_verification'
     }
     remember(this.facts, key, fact)
-    if (!failed && !['pending', 'waiting'].includes(runtimeToolOutcome(name, data))) this.resolveHistorical(name, resource)
+    if (!failed && !['pending', 'waiting'].includes(runtimeToolOutcome(name, data)) && !desktopControlUnconfirmed(name, data, timestamp)) this.resolveRecovery(name, resource)
+    return grantChanged
   }
 
-  resolveHistorical(name: string, resource: string) {
+  resolveRecovery(name: string, resource: string) {
     for (const [id, [scope, notice]] of this.historicalNotices) if (notice.tool_name === name && scope === resource) this.historicalNotices.delete(id)
     this.historicalRecoveries.delete(`${name}:${resource}`)
+    // 成功回执可能按附着保存；同一请求键下的旧错误不能继续占据摘要。
+    const key = `${name}:${resource}`
+    if (this.facts.get(key)?.outcome.startsWith('error:')) this.facts.delete(key)
   }
 
   historicalEmpty(name: string, resource: string) { return this.historicalRecoveries.get(`${name}:${resource}`)?.empty === true }
 
-  confirmedRecoveries(name: string, data: Record<string, unknown>, timestamp = this.now()) {
+  confirmedRecoveries(name: string, data: Record<string, unknown>, timestamp = this.now(), grantChanged = false) {
     const attachment = confirmedDesktopAttachment(name, data)
     if (!attachment) return []
     const resource = progressResource({ attachment_id: attachment.id })
-    return [{ tool: name, resource }, ...(desktopGrantCurrent(attachment, timestamp) ? [{ tool: 'termous.desktops.control.acquire', resource }] : [])]
+    const held = desktopGrantCurrent(attachment, timestamp)
+    if (name !== 'termous.desktops.get' && (!held || !grantChanged)) return []
+    return [{ tool: 'termous.desktops.get', resource },
+      ...(held ? [{ tool: 'termous.desktops.control.acquire', resource }] : []),
+      ...(held && grantChanged ? [{ tool: 'termous.desktops.get', resource: progressResource({}, { attachment }) }] : [])]
+  }
+
+  prerequisiteRecovery(name: string, data: Record<string, unknown>) {
+    const attachment = name === 'termous.desktops.get' ? confirmedDesktopAttachment(name, data) : undefined
+    return attachment && attachment.grant == null
+      ? { tool: 'termous.desktops.control.acquire', resource: progressResource({ attachment_id: attachment.id }) } : undefined
   }
 
   historicalRecovery(recovery: ExecutionRecovery) {
@@ -82,7 +98,7 @@ export class RuntimeExecutionState {
       ...[...this.historicalRecoveries.values()].reverse(), ...facts.filter((fact) => fact.origin === 'historical'),
     ]
     if (!entries.length) return ''
-    const lines = ['[TERMOUS_EXECUTION_STATE]', 'current 是本轮实际回执；historical 仅供参考，旧附着、授权和截图需重新核验。已登记任务保留原标识查询，不重新执行。']
+    const lines = ['[TERMOUS_EXECUTION_STATE]', 'current 是本轮实际回执；historical 仅供参考，旧附着、授权和截图需重新核验。not_held 表示最近查询未返回授权；needs_verification 表示尚待核验，均不代表应立即重新申请。先处理原错误或审批状态。已登记任务保留原标识查询，不重新执行。']
     for (const entry of entries) {
       // 完整反馈仍在原回执中；摘要给当前事实与未解决诊断各留空间。
       const line = JSON.stringify('next_tools' in entry ? { ...entry, guidance: entry.guidance.slice(0, 500), next_tools: entry.next_tools.filter(this.available).slice(0, 3) } : entry)

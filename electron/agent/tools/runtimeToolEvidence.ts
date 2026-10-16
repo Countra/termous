@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
-import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import { runtimeCapability, runtimeCapabilityStep } from './runtimeCapabilityCatalog.ts'
 import { runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
+
+export { runtimeToolResultData as progressData } from '../contracts/runtimeToolResult.ts'
 
 export const progressMetaTools = new Set(['read_skill_resource', 'discover_tools', 'read_history_image'])
 
@@ -11,21 +12,6 @@ export function progressDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value, (_key, item: unknown) => isRecord(item)
     ? Object.fromEntries(Object.keys(item).sort().filter((key) => key !== 'client_request_id' && key !== 'refresh').map((key) => [key, item[key]]))
     : item) ?? 'null').digest('hex')
-}
-
-export function progressData(result: AgentToolResult<unknown>): Record<string, unknown> {
-  if (isMCPToolDetails(result.details) && isRecord(result.details.result.structuredContent)) return result.details.result.structuredContent
-  // 历史只持久化内容块，恢复时仅读取结构，不将普通输出作为执行指令。
-  for (const part of result.content) {
-    if (part.type !== 'text') continue
-    const start = part.text.indexOf('{')
-    if (start < 0) continue
-    try {
-      const value: unknown = JSON.parse(part.text.slice(start))
-      if (isRecord(value)) return typeof value.screenshot_id === 'string' ? { capture: value } : value
-    } catch { /* 非结构化输出不恢复资源身份。 */ }
-  }
-  return {}
 }
 
 export function progressResource(args: unknown, data?: Record<string, unknown>): string {

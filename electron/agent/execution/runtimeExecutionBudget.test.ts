@@ -80,3 +80,16 @@ test('视觉失败跨重新截图计数，其他工具成功不抹掉该资源�
   }
   assert.equal(budget.failure()?.code, 'AGENT_RUNTIME_NO_PROGRESS')
 })
+
+test('嵌套审批冲突按实际错误归类，用户关闭预算时仍不限制重复调用', () => {
+  for (const budgetEnabled of [false, true]) {
+    const budget = new RuntimeExecutionBudget({ ...defaultExecutionBudget, enabled: budgetEnabled })
+    const conflict = (code: string) => observe(budget, 'termous.desktops.control.acquire', { attachment_id: 'a' },
+      { control: { approval: { state: 'dispatch_conflict', error_code: code } } })
+    for (const code of ['desktop_control_locked', 'desktop_control_already_held']) {
+      for (let index = 0; index < 2; index++) assert.equal(conflict(code).allowed, true)
+    }
+    assert.equal(conflict('desktop_control_already_held').allowed, !budgetEnabled)
+    assert.equal(budget.failure()?.code, budgetEnabled ? 'AGENT_RUNTIME_NO_PROGRESS' : undefined)
+  }
+})

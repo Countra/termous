@@ -1,6 +1,7 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { runtimeApprovalFailure, runtimeToolResultData } from '../contracts/runtimeToolResult.ts'
 
 export interface RuntimeStopReason { code: string; message: string }
 
@@ -9,22 +10,20 @@ const workflowResult = /^(?:termous\.desktop_workflows\.runs\.(?:start|get|contr
 const cleanupTools = new Set(['termous.desktops.control.release', 'termous.desktops.detach', 'termous.desktops.control.acquire', 'termous.desktops.close'])
 export const desktopCleanupGuidance = '控制清理尚未确认。本轮停止新的桌面接管、输入及脚本运行；可以只读查询状态、截图、查看报告或取消所属运行，然后说明已完成的步骤和清理问题。不要重复释放、重放步骤或声称已安全释放。'
 
-export function runtimeToolOutcome(result: AgentToolResult<unknown>, isError: boolean) {
+export function runtimeResultEvidence(name: string, result: AgentToolResult<unknown>, isError: boolean) {
   const details = isMCPToolDetails(result.details) ? result.details.result : undefined
-  let raw: unknown = details?.structuredContent
-  if (!raw) for (const part of result.content) {
-    if (part.type !== 'text') continue
-    try { raw = JSON.parse(part.text.slice(part.text.indexOf('{'))); break } catch { /* 仅结构化结果可用于判断，不解释普通正文。 */ }
-  }
-  const data = isRecord(raw) ? raw : {}
+  const data = runtimeToolResultData(result)
   const error = isRecord(data.error) ? data.error : data
   const diagnostic = isRecord(error.diagnostic) ? error.diagnostic : undefined
-  const code = typeof error.code === 'string' ? error.code : ''
-  return { data, code, error: isError || details?.isError === true, reason: typeof diagnostic?.reason === 'string' ? diagnostic.reason : code || 'tool_failed' }
+  // 保护、预算和导航共用可信错误分类，包括审批后执行冲突；本地参数错误仍保留原始 code。
+  const failure = runtimeApprovalFailure(name, data)
+  const code = typeof error.code === 'string' ? error.code : failure ?? ''
+  return { data, code, error: isError || details?.isError === true || failure !== undefined,
+    reason: typeof diagnostic?.reason === 'string' ? diagnostic.reason : code || 'tool_failed' }
 }
 
 export function runtimeDesktopSafetyOutcome(name: string, result: AgentToolResult<unknown>, isError: boolean) {
-  const outcome = runtimeToolOutcome(result, isError)
+  const outcome = runtimeResultEvidence(name, result, isError)
   const operation = isRecord(outcome.data.operation) ? outcome.data.operation : undefined
   const report = isRecord(outcome.data.report) ? outcome.data.report : undefined
   const run = report && isRecord(report.run) ? report.run : isRecord(outcome.data.run) ? outcome.data.run : undefined

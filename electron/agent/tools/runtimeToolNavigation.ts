@@ -3,7 +3,7 @@ import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import { desktopCleanupGuidance, runtimeDesktopSafetyOutcome } from '../execution/runtimeInputSafety.ts'
 import { capabilityTools, capabilityValue, recoveryNavigation, runtimeCapability, runtimeCapabilityStep, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
-import { roleGuidance, runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
+import { isFailedToolState, roleGuidance, runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import type { CapabilityTarget } from '../contracts/toolCapabilities.ts'
 import { progressData } from './runtimeToolEvidence.ts'
@@ -37,7 +37,7 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     const observed = { ...attachment, grant: undefined }
     data = isRecord(data.control) ? { ...data, control: { ...data.control, attachment: observed } } : { ...data, attachment: observed }
   }
-  const failed = isError || response?.isError === true || isRecord(data.error)
+  const failed = runtimeToolOutcome(name, data, isError || response?.isError === true) === 'failed'
   const safety = runtimeDesktopSafetyOutcome(name, result, failed)
   if (safety.cleanupUncertain && !safety.inputUncertain) return {
     names: [], guidance: desktopCleanupGuidance, recovery: true,
@@ -60,10 +60,12 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   if (outcome === 'waiting') return { names: capabilityTools(capability, capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
   for (const rule of capability.cases ?? []) {
     if (!capabilityTools(capability, rule.tools).includes(name)) continue
-    if (rule.errors ? !kind || !rule.errors.includes(kind) : failed) continue
+    const value = rule.path ? capabilityValue(data, rule.path) : undefined
+    // 状态型失败仍可采用契约中明确匹配该失败态的规则，不能落入 ready 等成功导航。
+    const failureState = rule.path && capability.evidence?.states?.includes(rule.path) && rule.values?.includes(String(value)) && isFailedToolState(value)
+    if (rule.errors ? !kind || !rule.errors.includes(kind) : failed && !failureState) continue
     if (rule.codes && (!code || !rule.codes.includes(code))) continue
     if (rule.targets && !rule.targets.includes(target)) continue
-    const value = rule.path ? capabilityValue(data, rule.path) : undefined
     if (rule.values && !rule.values.includes(String(value))) continue
     if (rule.exists !== undefined && rule.exists !== (value !== undefined && value !== null)) continue
     if (rule.empty !== undefined && rule.empty !== (Array.isArray(value) ? value.length === 0 : rule.omittedIsEmpty === true && value === undefined && isRecord(response?.structuredContent))) continue

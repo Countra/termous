@@ -12,7 +12,7 @@ const state = () => new RuntimeExecutionState(() => now, () => true)
 const facts = (value: RuntimeExecutionState) => value.snapshot([], []).facts
 
 test('审批未完成与失败回执均不投影为持有授权', () => {
-  for (const approval of ['pending', 'rejected', 'expired', 'cancelled']) {
+  for (const approval of ['pending', 'dispatching', 'dispatch_conflict', 'rejected', 'expired', 'cancelled']) {
     const value = state()
     value.observe(acquire, 'a', { control: { attachment, approval: { state: approval } } }, {}, approval !== 'pending')
     assert.equal(facts(value)[0]!.values.grant_status, 'needs_verification')
@@ -37,7 +37,7 @@ test('重新查询不含 grant 时清除旧授权，输入回执保留独立操�
   const args = { attachment_id: 'a', grant_id: 'g' }
   value.observe('termous.desktops.keyboard.key', 'a', { operation: { client_request_id: 'input-1', state: 'accepted' } }, args, false)
   const current = facts(value)[0]!.values
-  assert.equal(current.grant_status, 'needs_verification')
+  assert.equal(current.grant_status, 'not_held')
   assert.equal(current.operation_id, 'input-1')
   assert.equal(current.operation_state, 'accepted')
   assert.equal(current.grant_expires_at, undefined)
@@ -76,6 +76,17 @@ test('同运行检查点投影不改变内存授权，快照与摘要均有界',
   assert.equal(facts(value)[0]!.values.grant_status, 'held')
   assert.ok(value.summary([], []).length <= 2048)
   assert.ok(Buffer.byteLength(JSON.stringify(snapshot)) <= 48 * 1024)
+})
+
+test('无授权状态也只属于最近观察，重启后重新核验而不恢复为当前结论', () => {
+  const old = state()
+  old.observe(get, 'a', { attachment: { ...attachment, grant: undefined } }, {}, false)
+  const restored = state()
+  assert.ok(restored.restore(old.snapshot([], [])))
+  assert.equal(facts(restored)[0]!.values.grant_status, 'needs_verification')
+  assert.equal(facts(restored)[0]!.origin, 'historical')
+  restored.observe(get, 'a', { attachment: { ...attachment, grant: undefined } }, {}, false)
+  assert.equal(facts(restored)[0]!.values.grant_status, 'not_held')
 })
 
 test('长历史说明不能挤掉本轮授权与未解决问题', () => {

@@ -4,6 +4,7 @@ import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import { isRecord } from '../contracts/validation.ts'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { auditOutcome, auditParameters, auditResult } from './auditProjection.ts'
+import { runtimeToolFailureCode } from '../tools/runtimeToolOutcome.ts'
 
 interface Options {
   submit(events: RuntimeAuditEvent[], signal: AbortSignal): Promise<void>
@@ -45,11 +46,12 @@ export class RuntimeAuditWriter {
       } else {
         const start = this.started.get(event.toolCallId) ?? now
         this.started.delete(event.toolCallId)
-        const result = isMCPToolDetails(event.result.details)
-          ? auditResult(event.result.details.result.structuredContent)
-          : isRecord(event.result.details) ? auditResult(event.result.details) : {}
-        // Pi 的异常文本可能包含完整原始参数，只保留稳定错误摘要。
-        if (event.isError && !result.error) result.error = { code: 'AGENT_TOOL_FAILED', message: '工具未成功执行' }
+        const data = isMCPToolDetails(event.result.details) ? event.result.details.result.structuredContent : event.result.details
+        const result = auditResult(data)
+        // 语义失败标记不能覆盖已投影的拒绝、部分失败等终态；异常文本仍不进入审计。
+        if (event.isError && !result.error && ['succeeded', 'accepted'].includes(auditOutcome(result))) {
+          result.error = auditResult({ error: { code: isRecord(data) ? runtimeToolFailureCode(name, data) ?? 'AGENT_TOOL_FAILED' : 'AGENT_TOOL_FAILED', message: '工具未成功执行' } }).error
+        }
         const outcome = event.isError && this.options.isCancelled?.() ? 'cancelled' : auditOutcome(result)
         this.push({ id: `audit_${randomUUID()}`, tool_call_id: event.toolCallId, tool_name: name, phase: 'end', outcome, occurred_at: new Date(now).toISOString(), duration_ms: Math.max(0, now - start), result })
       }

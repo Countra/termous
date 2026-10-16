@@ -19,7 +19,10 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
   if (!name.startsWith('termous.desktops.')) return undefined
   const attachment = desktopAttachment(data)
   if (attachment && typeof attachment.id === 'string') {
-    const values: ExecutionValues = { attachment_id: attachment.id, grant_status: !['failed', 'waiting'].includes(runtimeToolOutcome(name, data, failed)) && desktopGrantCurrent(attachment, now) ? 'held' : 'needs_verification' }
+    const confirmed = !['failed', 'waiting'].includes(runtimeToolOutcome(name, data, failed)) && attachment.state === 'ready'
+    const values: ExecutionValues = { attachment_id: attachment.id,
+      grant_status: confirmed && desktopGrantCurrent(attachment, now) ? 'held'
+        : confirmed && attachment.grant == null ? 'not_held' : 'needs_verification' }
     for (const field of ['session_id', 'connection_generation', 'execution_generation', 'state'] as const) {
       const value = attachment[field]
       if (typeof value === 'string' && value.length <= 128 || typeof value === 'number' && Number.isSafeInteger(value)) values[field] = value
@@ -63,12 +66,21 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
 export function projectDesktopEvidence(values: ExecutionValues, historical: boolean, now: number): ExecutionValues {
   if (!values.grant_status) return values
   const expired = ['grant_expires_at', 'grant_idle_expires_at'].some((key) => typeof values[key] === 'string' && Date.parse(values[key]) <= now)
-  return { ...values, grant_status: values.grant_status === 'held' && (historical || expired) ? 'needs_verification' : values.grant_status }
+  return { ...values, grant_status: historical && ['held', 'not_held'].includes(String(values.grant_status))
+    || values.grant_status === 'held' && expired ? 'needs_verification' : values.grant_status }
 }
 
 // 就绪回执用于关联同一附着的查询诊断；控制授权仍需独立核验。
 export function confirmedDesktopAttachment(name: string, data: Record<string, unknown>) {
-  if (name !== 'termous.desktops.get' || ['failed', 'pending', 'waiting'].includes(runtimeToolOutcome(name, data))) return undefined
+  if (!['termous.desktops.get', 'termous.desktops.control.acquire'].includes(name)
+    || ['failed', 'pending', 'waiting'].includes(runtimeToolOutcome(name, data))) return undefined
   const attachment = desktopAttachment(data)
   return attachment?.state === 'ready' && typeof attachment.id === 'string' ? attachment : undefined
+}
+
+// 审批完成后可能没有可用授权；这样的申请回执不能消除先前的控制冲突。
+export function desktopControlUnconfirmed(name: string, data: Record<string, unknown>, now: number) {
+  if (name !== 'termous.desktops.control.acquire') return false
+  const attachment = confirmedDesktopAttachment(name, data)
+  return !attachment || !desktopGrantCurrent(attachment, now)
 }
