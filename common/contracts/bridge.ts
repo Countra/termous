@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  detachedWindows?: import('./detached-window').DetachedOwnerBridge
   fileSystemClipboard?: import("./file-system-clipboard").FileSystemClipboardBridge
   desktopFiles?: import('./desktop-files').DesktopFileBridge
   desktopWindow?: { open: (sessionId: string) => Promise<void> }

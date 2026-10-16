@@ -82,6 +82,8 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 Electron Agent 的模块归属、进程边界和外部入口见 [Electron Agent 架构](./electron-agent-architecture.md)。
 
+助手独立窗口采用独立 Renderer 与主 Renderer 唯一状态宿主。通用窗口层、消息协议、交接与后续模块接入见 [独立窗口与助手状态宿主](./detached-windows.md)。
+
 结构迁移必须保持以下合同：
 
 - Provider 顺序为 `TermousUi -> Update -> Shortcut -> FilesWorkspace -> Transfer -> Terminal -> CommandDispatch -> McpAccess -> AppShell`。

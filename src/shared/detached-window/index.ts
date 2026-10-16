@@ -1,0 +1,6 @@
+export { DetachedRequestPeer } from './requestPeer.ts'
+export { DetachedClient } from './client.ts'
+export { finishDetachedMotion } from './finishMotion.ts'
+export { settleDetachedRender } from './settleRender.ts'
+export { useDetachedOwner, type DetachedHostAdapter } from './useDetachedOwner.ts'
+export { DetachedStatePublisher, DetachedStateReceiver, type DetachedStateFrame } from './stateStream.ts'

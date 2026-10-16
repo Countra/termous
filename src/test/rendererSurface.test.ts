@@ -30,6 +30,7 @@ test('surface 分流只调用目标模块加载器', async () => {
     remote: async () => { calls.push('remote'); return 'remote' },
     'desktop-automation': async () => 'desktop-automation',
     desktop: async () => { calls.push('desktop'); return 'desktop' },
+    detached: async () => 'detached',
   })
 
   assert.equal(result, 'update')
@@ -79,6 +80,7 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
     update: '#app/update-surface',
     remote: '#app/remote-surface',
     desktop: '#app/desktop-surface',
+    detached: '#app/detached-surface',
   })
 })
 

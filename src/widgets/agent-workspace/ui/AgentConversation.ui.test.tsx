@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentWorkspaceMessage } from '../model/types.ts'
+import type { AgentWorkspaceMessage, AgentWorkspacePresentation } from '../model/types.ts'
 import { AgentConversation } from './AgentConversation.tsx'
 
 vi.mock('react-i18next', () => ({
@@ -48,6 +48,41 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it('返回过渡的可见视图在编辑锁解除前恢复位置，避免淡入结束后跳动', () => {
+    const geometry = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    try {
+      const presentation: AgentWorkspacePresentation = { conversations: { one: { top: 180, follow: false } } }
+      const view = render(<AgentConversation active={false} presentation={presentation}
+        messages={[message('历史正文')]} runStatus="completed" loading={false} sessionKey="one" />)
+      expect(view.container.querySelector('[role="log"]')!.scrollTop).toBe(180)
+    } finally { geometry.mockRestore() }
+  })
+
+  it('后台收回时保留滚动锚点，页面显示后才恢复位置', () => {
+    const saved = { top: 480, follow: false, anchor: 'message-one', offset: -20 }
+    const presentation: AgentWorkspacePresentation = { conversations: { one: saved } }
+    const props = { messages: [message('历史正文')], runStatus: 'completed' as const, loading: false, sessionKey: 'one', presentation }
+    const view = render(<AgentConversation {...props} active={false} />)
+    const viewport = view.container.querySelector('[role="log"]') as HTMLDivElement
+    const anchor = viewport.querySelector('article')!
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect)
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({ top: 420, bottom: 500 } as DOMRect)
+    fireEvent.scroll(viewport)
+    flushAnimationFrames()
+    expect(presentation.conversations!.one).toBe(saved)
+    expect(viewport.scrollTop).toBe(0)
+
+    view.rerender(<AgentConversation {...props} active />)
+    flushAnimationFrames()
+    expect(viewport.scrollTop).toBe(340)
+    expect(screen.getByRole('button', { name: 'agent.conversation.jumpToLatest' })).toBeInTheDocument()
+  })
+
   it('用户正文上方展示发送时关联的资源，旧消息与助手回复不显示关联标签', async () => {
     const linked: AgentWorkspaceMessage = {
       ...message('查看镜像'), id: 'user-linked', role: 'user', status: 'completed',

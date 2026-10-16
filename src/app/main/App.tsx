@@ -272,6 +272,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [snippetsDirty, setSnippetsDirty] = useState(false)
   const [workflowDirty, setWorkflowDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
+  const navigationResultRef = useRef<((accepted: boolean) => void) | undefined>(undefined)
+  const [agentDetached, setAgentDetached] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const smoothScroll = useSettingsModule('terminal_local', { gateway: localSettingsGateway })
   const sshSmoothScrollEnabled = smoothScroll.snapshot?.value.ssh_smooth_scroll === true
@@ -378,7 +380,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         const session = await gateways.agentWorkspace.session(target.session_id)
         if (session.archived_at || hostSavingRef.current || notificationNavigationBlocked.current) return false
         setNotificationSessionId(target.session_id)
-        setPage('agent')
+        if (!agentDetached) setPage('agent')
         return true
       }
       if (target.kind === 'transfer') {
@@ -390,7 +392,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
       return false
     } catch { return false }
-  }, [gateways, hostSavingRef, setPage, hostKeyApprovalBlocking])
+  }, [agentDetached, gateways, hostSavingRef, setPage, hostKeyApprovalBlocking])
 
   const clearAgentLaunchIntent = useCallback(() => {
     agentLaunchPendingRef.current = false
@@ -401,22 +403,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     nextPage: PageKey,
     options?: { settingsTab?: SettingsPageTabKey; accountTab?: CloudTab },
   ) => {
-    if (hostSavingRef.current) return
+    navigationResultRef.current?.(false)
+    navigationResultRef.current = undefined
+    setPendingPage(null)
+    // 主页面导航只撤销尚未送入嵌入助手的引用；独立窗口中的引用继续由宿主处理。
+    if (nextPage !== 'agent' && !agentDetached) clearAgentLaunchIntent()
+    if (hostSavingRef.current) return Promise.resolve(false)
     if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
     if (nextPage === 'account') setAccountTab(options?.accountTab ?? 'profile')
     if (nextPage === page) {
-      return
-    }
-    if (nextPage !== 'agent') {
-      clearAgentLaunchIntent()
+      return Promise.resolve(true)
     }
     if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty) || (page === 'remote-desktop' && workflowDirty)) {
       setPendingPage(nextPage)
-      return
+      return new Promise<boolean>(resolve => { navigationResultRef.current = resolve })
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowDirty])
+    return Promise.resolve(true)
+  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowDirty])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -430,8 +435,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       request,
       nextAgentLaunchIntentKeyRef.current,
     ))
-    navigateToPage('agent')
-  }, [navigateToPage])
+    if (!agentDetached) void navigateToPage('agent')
+  }, [agentDetached, navigateToPage])
 
   useEffect(() => {
     if (page !== 'files') {
@@ -1458,6 +1463,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         inert={page !== 'agent'}
                       >
                         <AgentPage
+                          appearance={{ theme, language: data.settings.language }}
+                          onDetachedChange={setAgentDetached}
+                          onReturnToPage={() => navigateToPage('agent')}
                           notificationSessionId={notificationSessionId}
                           onNotificationSessionHandled={() => setNotificationSessionId(undefined)}
                           gateway={gateways.agentWorkspace}
@@ -1473,7 +1481,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
-                          launchIntent={page === 'agent' ? agentLaunchIntent : null}
+                          launchIntent={page === 'agent' || agentDetached ? agentLaunchIntent : null}
                           onLaunchIntentHandled={(key) => {
                             if (agentLaunchIntent?.key === key) {
                               clearAgentLaunchIntent()
@@ -1726,7 +1734,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         cancelLabel={t('app.cancel')}
         danger
         onCancel={() => {
-          if (pendingPage === 'agent') {
+          navigationResultRef.current?.(false)
+          navigationResultRef.current = undefined
+          if (pendingPage === 'agent' && !agentDetached) {
             clearAgentLaunchIntent()
           }
           setPendingPage(null)
@@ -1745,6 +1755,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           if (nextPage) {
             setPage(nextPage)
           }
+          navigationResultRef.current?.(Boolean(nextPage))
+          navigationResultRef.current = undefined
         }}
       />
       <HostKeyCoordinator

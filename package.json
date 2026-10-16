@@ -34,6 +34,8 @@
     "test": "pnpm run test:node && pnpm run test:ui",
     "test:node": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"common/**/*.test.ts\" \"scripts/agent/**/*.test.mjs\" \"scripts/architecture/**/*.test.mjs\" \"scripts/ci/**/*.test.mjs\" \"scripts/styles/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
     "test:agent-fixture": "node --test scripts/agent/openai-compatible-fixture.test.mjs",
+    "test:detached": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs",
+    "test:detached:production": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs --production",
     "test:ui": "vitest run",
     "test:release": "node --test \"scripts/ci/**/*.test.mjs\"",
     "test:update-simulation": "node --test \"scripts/update-simulation/**/*.test.mjs\"",

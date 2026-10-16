@@ -2,6 +2,7 @@ import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DesktopWindows } from './desktopWindow'
+import { DetachedWindows } from './detached-windows/manager'
 import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
@@ -1762,6 +1763,12 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  const detachedWindows = new DetachedWindows({
+    trusted: isTrustedMainIPCEvent, host: () => win, reveal: revealMainWindow,
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    renderer: path.join(RENDERER_DIST, 'index.html'), preload: path.join(__dirname, 'detached-preload.cjs'), devURL: VITE_DEV_SERVER_URL,
+  })
+  app.once('before-quit', () => detachedWindows.close())
   const desktopWindows = new DesktopWindows({
     trusted: isTrustedMainIPCEvent,
     config: () => coreProcess.initialize(),

@@ -14,6 +14,7 @@ import type {
 import styles from './AgentWorkspace.module.scss'
 
 export function AgentWorkspaceHeader({
+  windowAction,
   selectedSession,
   runStatus,
   activeRunElsewhere,
@@ -27,6 +28,7 @@ export function AgentWorkspaceHeader({
   onReturnToQueuedSession,
   onStop,
 }: {
+  windowAction?: import('react').ReactNode
   selectedSession?: AgentWorkspaceSession
   runStatus: AgentWorkspaceRunStatus
   activeRunElsewhere?: AgentWorkspaceProps['active_run']
@@ -67,6 +69,7 @@ export function AgentWorkspaceHeader({
         </div>
       </div>
       <div className={styles['header-controls']}>
+        {windowAction}
         {activeRunElsewhere ? (
           <div className={styles['active-run-actions']}>
             <Tooltip title={t('agent.header.returnToActiveRun')}>

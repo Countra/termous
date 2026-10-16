@@ -14,6 +14,18 @@
   padding: 9px 10px 10px;
 }
 
+.new-session:global(.ant-btn) {
+  height: 34px;
+  justify-content: flex-start;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
 .session-sidebar-title,
 .session-sidebar-title > span {
   display: flex;

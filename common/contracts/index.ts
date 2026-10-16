@@ -144,6 +144,8 @@ export type { DesktopAutomationHost, DesktopAutomationBootstrap, DesktopAutomati
 export { isDesktopPointer, isDesktopPointerEvent } from './desktop-pointer.ts'
 export type { DesktopPointer, DesktopPointerControl, DesktopPointerEvent } from './desktop-pointer.ts'
 export * from './cloud.ts'
+export * from './detached-window.ts'
+export * from './agent-detached.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'
 export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboardState, SystemFileSelection } from './desktop-files'

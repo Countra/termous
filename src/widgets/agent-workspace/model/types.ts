@@ -190,7 +190,8 @@ export interface AgentWorkspaceDraftAttachment {
   name: string
   size_bytes: number
   kind: 'text' | 'image'
-  file: File
+  file?: File
+  mime_type?: string
   phase: 'uploading' | 'ready' | 'failed' | 'deleting'
   attachment?: AgentAttachment
   error_code?: string
@@ -273,6 +274,9 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  presentation?: AgentWorkspacePresentation
+  windowAction?: import('react').ReactNode
+  onLoadLocalAttachment?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
   composerFocusKey?: number
   composerActive?: boolean
   sessions: AgentWorkspaceSession[]
@@ -355,6 +359,13 @@ export interface AgentWorkspaceProps {
   onRetryProfileConnection?: () => Promise<boolean>
   onCancelProfileConnection?: () => Promise<boolean>
   onDismissProfileConnection?: () => void
+}
+
+export interface AgentWorkspacePresentation {
+  inspectorOpen?: boolean
+  sessionsOpen?: boolean
+  conversations?: Record<string, { top: number; follow: boolean; anchor?: string; offset?: number }>
+  selection?: { start: number; end: number; direction: 'forward' | 'backward' | 'none'; owner: string }
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

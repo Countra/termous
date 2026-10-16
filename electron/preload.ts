@@ -25,6 +25,7 @@ import type {
 import { agentRuntimeIPCChannels } from './agent/contracts/ipcChannels.ts'
 import { settingsIPCChannels, skillInstallIPCChannels } from '#common/contracts'
 import { createDesktopFileBridge } from './desktopFilesPreload'
+import { createDetachedOwnerBridge } from './detached-windows/preload'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -120,6 +121,7 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  detachedWindows: createDetachedOwnerBridge(),
   fileSystemClipboard: {
     importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
     status: () => ipcRenderer.invoke('file-system-clipboard:status'),

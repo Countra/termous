@@ -1,7 +1,7 @@
 import { AgentProgressActivity } from './AgentProgressActivity.tsx'
 import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   isActiveAgentRun,
@@ -24,6 +24,9 @@ import { agentMessageImageCatalogs } from '../model/agentImageResources.ts'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
+  active?: boolean
+  presentation?: import('../model/types.ts').AgentWorkspacePresentation
+  onPrompt?: (text: string) => void
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   loading: boolean
@@ -41,6 +44,9 @@ export const AgentConversation = memo(function AgentConversation(props: AgentCon
 })
 
 function AgentConversationSession({
+  active = true,
+  presentation,
+  onPrompt,
   messages,
   runStatus,
   loading,
@@ -52,15 +58,29 @@ function AgentConversationSession({
 }: AgentConversationProps) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
-  const followTailRef = useRef(true)
+  const followTailRef = useRef(presentation?.conversations?.[sessionKey]?.follow ?? true)
   const followTailFrameRef = useRef<number | undefined>(undefined)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const deferredMessages = useDeferredValue(messages)
   const latestSignature = latestMessageContentSignature(deferredMessages)
 
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    // 返回过渡中的可见视图虽被锁定，仍须先恢复位置；真正隐藏的页面等再次显示后恢复。
+    if (!active && !viewport?.getClientRects().length) return
+    const saved = presentation?.conversations?.[sessionKey]
+    if (viewport && saved && !saved.follow) {
+      const anchor = [...viewport.querySelectorAll<HTMLElement>('[data-agent-message]')]
+        .find(node => node.dataset.agentMessage === saved.anchor)
+      viewport.scrollTop = anchor ? viewport.scrollTop + anchor.getBoundingClientRect().top
+        - viewport.getBoundingClientRect().top - (saved.offset ?? 0) : saved.top
+      setShowJumpToLatest(true)
+    }
+  }, [active, presentation, sessionKey])
+
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || !followTailRef.current) return
+    if (!viewport || !followTailRef.current || !active && !viewport.getClientRects().length) return
     const frame = window.requestAnimationFrame(() => {
       if (followTailFrameRef.current === frame) followTailFrameRef.current = undefined
       if (!followTailRef.current) return
@@ -74,7 +94,7 @@ function AgentConversationSession({
       window.cancelAnimationFrame(frame)
       followTailFrameRef.current = undefined
     }
-  }, [latestSignature, runStatus, sessionKey, showTurnTokenUsage])
+  }, [active, latestSignature, runStatus, sessionKey, showTurnTokenUsage])
 
   const empty = !loading && deferredMessages.length === 0
 
@@ -88,9 +108,17 @@ function AgentConversationSession({
         aria-relevant="additions text"
         aria-busy={runStatus === 'queued' || runStatus === 'starting' || runStatus === 'running'}
         onScroll={(event) => {
+          if (!active) return
           const viewport = event.currentTarget
           const following = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 96
           followTailRef.current = following
+          if (presentation) {
+            const top = viewport.getBoundingClientRect().top
+            const anchor = [...viewport.querySelectorAll<HTMLElement>('[data-agent-message]')]
+              .find(node => node.getBoundingClientRect().bottom > top)
+            ;(presentation.conversations ??= {})[sessionKey] = { top: viewport.scrollTop, follow: following,
+              anchor: anchor?.dataset.agentMessage, offset: anchor ? anchor.getBoundingClientRect().top - top : undefined }
+          }
           setShowJumpToLatest(!following)
         }}
       >
@@ -98,6 +126,12 @@ function AgentConversationSession({
           <div className={styles['conversation-empty']}>
             <span><Bot size={21} aria-hidden="true" /></span>
             <h2>{t('agent.empty.title')}</h2>
+            <p>{t('agent.empty.description')}</p>
+            {onPrompt && <div className={styles['empty-prompts']}>
+              {['diagnose', 'logs', 'deploy'].map(key => <button type="button" key={key} onClick={() => onPrompt(t(`agent.empty.prompts.${key}.text`))}>
+                <strong>{t(`agent.empty.prompts.${key}.title`)}</strong><span>{t(`agent.empty.prompts.${key}.description`)}</span>
+              </button>)}
+            </div>}
           </div>
         ) : (
           <AgentMessageStack
@@ -121,6 +155,7 @@ function AgentConversationSession({
               const viewport = viewportRef.current
               if (!viewport) return
               followTailRef.current = true
+              if (presentation) (presentation.conversations ??= {})[sessionKey] = { top: viewport.scrollHeight, follow: true }
               setShowJumpToLatest(false)
               viewport.scrollTo({ top: viewport.scrollHeight })
             }}
@@ -154,7 +189,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
   return (
     <div className={styles['message-stack']}>
       {messagesWithImages.map(({ message, images }) => (
-        <article key={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
+        <article key={message.id} data-agent-message={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
           <header>
             <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
           </header>

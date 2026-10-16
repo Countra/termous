@@ -11,6 +11,7 @@ export function useAgentResourceBindingConnection(
   active: boolean,
   observationRevision: string,
   onCompleted?: (session: AgentSession) => void,
+  backgroundActive = false,
 ) {
   const onCompletedRef = useRef(onCompleted)
   onCompletedRef.current = onCompleted
@@ -22,7 +23,7 @@ export function useAgentResourceBindingConnection(
   ), [gateway, controller])
   const states = useSyncExternalStore(coordinator.subscribe, coordinator.getSnapshot, coordinator.getSnapshot)
   useEffect(() => {
-    const observe = () => coordinator.observe(session, active && document.visibilityState !== 'hidden')
+    const observe = () => coordinator.observe(session, active && (backgroundActive || document.visibilityState !== 'hidden'))
     observe()
     document.addEventListener('visibilitychange', observe)
     window.addEventListener('online', observe)
@@ -30,7 +31,7 @@ export function useAgentResourceBindingConnection(
       document.removeEventListener('visibilitychange', observe)
       window.removeEventListener('online', observe)
     }
-  }, [coordinator, session, active, observationRevision])
+  }, [coordinator, session, active, backgroundActive, observationRevision])
   useEffect(() => () => coordinator.dispose(), [coordinator])
   return { coordinator, state: session ? states[session.id] : undefined }
 }

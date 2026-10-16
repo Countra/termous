@@ -51,3 +51,24 @@ it('SSH 配置目录变更后重新检查恢复能力，不要求切换聊天', 
   expect(query).toHaveBeenCalledTimes(2)
   view.unmount()
 })
+
+it('独立视图活跃时主文档隐藏仍恢复资源，最后一个视图关闭后停止观察', async () => {
+  const previous = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+  const session = agentSessionFixture({ resource_bindings: [{ kind: 'ssh_session', session_id: 'ssh', ssh_profile_id: 'profile',
+    host_id: 'host', host_name: '主机', platform: 'linux', bound_at: '2026-09-10T00:00:00Z' }] })
+  const query = vi.fn().mockResolvedValue({ instance_id: 'core', kind: 'ssh_session', can_recover: true, operation: null })
+  const gateway = { resourceBindingRecovery: query } as unknown as AgentWorkspaceGateway
+  const controller = { acceptRecoveredResourceSession: vi.fn() } as unknown as AgentWorkspaceController
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+  const view = renderHook(({ detached }) => useAgentResourceRecovery(gateway, controller, session, true, undefined, undefined, undefined, undefined, detached), { initialProps: { detached: true } })
+  try {
+    await waitFor(() => expect(query).toHaveBeenCalledTimes(1))
+    view.rerender({ detached: false })
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(query).toHaveBeenCalledTimes(1)
+  } finally {
+    view.unmount()
+    if (previous) Object.defineProperty(document, 'visibilityState', previous)
+    else Reflect.deleteProperty(document, 'visibilityState')
+  }
+})

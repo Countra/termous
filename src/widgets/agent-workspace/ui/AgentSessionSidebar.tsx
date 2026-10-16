@@ -137,11 +137,11 @@ export function AgentSessionSidebar(props: AgentSessionSidebarProps) {
         <div className={styles['session-sidebar-title']}>
           <strong>{t('agent.sessions.title')}</strong>
           <span>
-            <Tooltip title={t('agent.sessions.new')}><Button type="text" disabled={disabled || props.createDisabled} aria-label={t('agent.sessions.new')} icon={<MessageSquarePlus size={15} />} onClick={() => props.onCreate()} /></Tooltip>
             {props.onCreateGroup ? <Tooltip title={t('agent.sessions.createGroup')}><Button type="text" disabled={disabled || pending.has('group-create')} aria-label={t('agent.sessions.createGroup')} icon={<FolderPlus size={15} />} onClick={() => setCreatingGroup(true)} /></Tooltip> : null}
             {props.onClose ? <Tooltip title={t('app.close')}><Button type="text" aria-label={t('app.close')} icon={<PanelLeftClose size={16} />} onClick={props.onClose} /></Tooltip> : null}
           </span>
         </div>
+        <Button className={styles['new-session']} block disabled={disabled || props.createDisabled} icon={<MessageSquarePlus size={15} />} onClick={() => props.onCreate()}>{t('agent.sessions.new')}</Button>
         <div className={styles['search-container']}><Input allowClear prefix={<Search size={14} aria-hidden="true" />} value={query} aria-label={t('agent.sessions.search')} placeholder={t('agent.sessions.search')} onChange={(event) => {
           resetDrag()
           if (props.onSearchQueryChange) props.onSearchQueryChange(event.target.value)

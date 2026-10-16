@@ -19,8 +19,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const { t } = useTranslation()
   const workspaceRef = useRef<HTMLDivElement>(null)
   const breakpoints = useAgentWorkspaceBreakpoints(workspaceRef)
-  const [sessionsOpen, setSessionsOpen] = useState(false)
-  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [sessionsOpen, setSessionsOpen] = useState(props.presentation?.sessionsOpen ?? false)
+  const [inspectorOpen, setInspectorOpen] = useState(props.presentation?.inspectorOpen ?? false)
+  useEffect(() => {
+    if (props.presentation) { props.presentation.sessionsOpen = sessionsOpen; props.presentation.inspectorOpen = inspectorOpen }
+  }, [inspectorOpen, props.presentation, sessionsOpen])
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
   const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
   const [previewLocalAttachment, setPreviewLocalAttachment] = useState<AgentWorkspaceProps['draft_attachments'][number]>()
@@ -130,6 +133,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       {!breakpoints.sessionsOverlay ? sidebar : null}
       <section className={styles.main}>
         <AgentWorkspaceHeader
+          windowAction={props.windowAction}
           selectedSession={selectedSession}
           runStatus={runStatus}
           activeRunElsewhere={activeRunElsewhere}
@@ -146,6 +150,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onStop={() => void props.onStop()}
         />
         <AgentConversation
+          active={props.composerActive}
+          presentation={props.presentation}
+          onPrompt={props.onDraftChange}
           messages={props.messages}
           runStatus={runStatus}
           loading={props.loading}
@@ -156,6 +163,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onLoadToolImage={onLoadToolImage}
         />
         <AgentComposer
+          onLoadLocalAttachment={props.onLoadLocalAttachment}
+          presentation={props.presentation}
           focusKey={props.composerFocusKey}
           paneActive={props.composerActive}
           value={props.draft}
@@ -274,6 +283,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       <AgentAttachmentPreview
         attachment={previewAttachment}
         local={previewLocalAttachment}
+        onLoadLocal={props.onLoadLocalAttachment}
         onClose={() => { setPreviewAttachment(undefined); setPreviewLocalAttachment(undefined) }}
         onLoad={props.onLoadAttachmentContent}
       />

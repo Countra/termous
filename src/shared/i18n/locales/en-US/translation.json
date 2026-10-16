@@ -883,6 +883,17 @@
     "settings": "Settings"
   },
   "agent": {
+    "window": {
+      "open": "Open in a separate window",
+      "return": "Return to main window",
+      "returnHere": "Return here",
+      "focus": "Focus window",
+      "detached": "Open in a separate window",
+      "detachedDescription": "Your assistant is working in its own window. Conversations, drafts and running tasks stay with you.",
+      "failed": "Window handoff did not finish. Please retry. Unconfirmed actions are not sent again automatically.",
+      "approvalWaiting": "Waiting for approval in the main window",
+      "approval": "Go to approval"
+    },
     "desktopResource": {
       "status": {
         "ready": "Available",
@@ -1005,7 +1016,24 @@
     },
     "empty": {
       "title": "What would you like to work on?",
-      "description": "Describe the outcome you need. The AI assistant uses Termous capabilities through MCP within the scopes you have granted."
+      "description": "Describe the outcome you need. The AI assistant uses Termous capabilities through MCP within the scopes you have granted.",
+      "prompts": {
+        "diagnose": {
+          "title": "Inspect a host",
+          "description": "Understand load and bottlenecks",
+          "text": "Help me inspect CPU, memory and disk usage on this host. Start with a diagnostic plan."
+        },
+        "logs": {
+          "title": "Analyze logs",
+          "description": "Find errors and likely causes",
+          "text": "Analyze the error logs in the linked terminal and suggest likely causes and next checks."
+        },
+        "deploy": {
+          "title": "Prepare a deployment",
+          "description": "Review a preflight checklist",
+          "text": "Prepare a checklist before deploying a service. Start with the environment details we need to confirm."
+        }
+      }
     },
     "conversation": {
       "jumpToLatest": "Jump to latest message"

@@ -149,8 +149,23 @@ vi.mock('#widgets/agent-workspace', () => ({
 }))
 
 import { AgentPage } from './AgentPage.tsx'
+import * as surfaceProjection from '../model/surface/agentSurfaceProjection.ts'
 
 describe('AgentPage', () => {
+  it.each([false, true])('未分离的助手不生成跨窗口历史投影（远控：%s）', async remote => {
+    const project = vi.spyOn(surfaceProjection, 'projectAgentSurface')
+    try {
+      renderPage({ remote })
+      await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+      act(() => {
+        ;(harness.workspaceProps!.onDraftChange as (value: string) => void)('继续检查')
+        publishState()
+      })
+      expect(harness.updateDraft).toHaveBeenCalled()
+      expect(project).not.toHaveBeenCalled()
+    } finally { project.mockRestore() }
+  })
+
   it('终端引用关联后追加已有草稿，不生成提问或运行任务', async () => {
     const source = sshResource('ssh-source')
     prepareTerminalReferenceMocks(source)

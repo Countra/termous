@@ -883,6 +883,17 @@
     "settings": "设置"
   },
   "agent": {
+    "window": {
+      "open": "在独立窗口打开",
+      "return": "返回主窗口",
+      "returnHere": "返回此页面",
+      "focus": "定位窗口",
+      "detached": "已在独立窗口打开",
+      "detachedDescription": "助手在独立窗口继续工作。会话、草稿与正在进行的任务会保留。",
+      "failed": "窗口交接未完成，请重试。未确认的操作不会自动重发。",
+      "approvalWaiting": "正在等待主窗口审批",
+      "approval": "前往审批"
+    },
     "desktopResource": {
       "status": {
         "ready": "可用",
@@ -1005,7 +1016,24 @@
     },
     "empty": {
       "title": "今天想处理什么？",
-      "description": "描述你希望完成的目标。AI 助手会在已授权范围内通过 MCP 调用 Termous 能力。"
+      "description": "描述你希望完成的目标。AI 助手会在已授权范围内通过 MCP 调用 Termous 能力。",
+      "prompts": {
+        "diagnose": {
+          "title": "排查主机",
+          "description": "梳理负载与资源瓶颈",
+          "text": "帮我检查当前主机的 CPU、内存和磁盘使用情况，先给出排查思路。"
+        },
+        "logs": {
+          "title": "分析日志",
+          "description": "定位异常及可能原因",
+          "text": "帮我分析关联终端中的错误日志，整理可能原因和下一步检查建议。"
+        },
+        "deploy": {
+          "title": "部署检查",
+          "description": "准备变更前的检查清单",
+          "text": "帮我整理服务部署前的检查清单，先说明需要确认哪些环境信息。"
+        }
+      }
     },
     "conversation": {
       "jumpToLatest": "回到最新消息"

@@ -11,34 +11,41 @@ export function AgentAttachmentPreview({
   local,
   onClose,
   onLoad,
+  onLoadLocal,
 }: {
   attachment?: AgentAttachment
-  local?: { file: File; origin?: AgentAttachment['origin'] }
+  local?: { file?: File; client_id?: string; name?: string; mime_type?: string; origin?: AgentAttachment['origin'] }
+  onLoadLocal?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
   onClose: () => void
   onLoad: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
 }) {
   const { t } = useTranslation()
   const imageSource = useMemo(() => {
-    if (local && !local.origin && isAgentDisplayImageMIMEType(local.file.type)) {
-      return { id: crypto.randomUUID(), title: local.file.name, load: async () => local.file }
+    if (local && !local.origin && isAgentDisplayImageMIMEType(local.file?.type ?? local.mime_type ?? '')) {
+      return { id: crypto.randomUUID(), title: local.file?.name ?? local.name ?? '', load: async (signal: AbortSignal) => {
+        if (local.file) return local.file
+        if (local.client_id && onLoadLocal) return onLoadLocal(local.client_id, signal)
+        throw new Error('AGENT_IMAGE_UNAVAILABLE')
+      } }
     }
     if (!local && attachment?.kind === 'image') {
       return { id: `${attachment.id}:${attachment.revision}`, title: attachment.original_name,
         load: (signal: AbortSignal) => onLoad(attachment, signal) }
     }
     return undefined
-  }, [attachment, local, onLoad])
+  }, [attachment, local, onLoad, onLoadLocal])
   if (imageSource) return <ImagePreview source={imageSource} onClose={onClose} />
   if (!attachment && !local) return null
   const origin = local?.origin ?? attachment?.origin
-  const title = origin ? t('agent.attachments.terminalReference', { host: origin.host_name }) : local?.file.name ?? attachment?.original_name
+  const title = origin ? t('agent.attachments.terminalReference', { host: origin.host_name }) : local?.file?.name ?? local?.name ?? attachment?.original_name
   return <TextAttachmentPreview key={attachment ? `${attachment.id}:${attachment.revision}` : title}
-    attachment={attachment} local={local} title={title} onClose={onClose} onLoad={onLoad} />
+    attachment={attachment} local={local} title={title} onClose={onClose} onLoad={onLoad} onLoadLocal={onLoadLocal} />
 }
 
-function TextAttachmentPreview({ attachment, local, title, onClose, onLoad }: {
+function TextAttachmentPreview({ attachment, local, title, onClose, onLoad, onLoadLocal }: {
   attachment?: AgentAttachment
-  local?: { file: File }
+  local?: { file?: File; client_id?: string }
+  onLoadLocal?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
   title?: string
   onClose: () => void
   onLoad: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
@@ -58,7 +65,10 @@ function TextAttachmentPreview({ attachment, local, title, onClose, onLoad }: {
     setFailed(false)
     void Promise.resolve().then(() => {
       controller.signal.throwIfAborted()
-      return local ? local.file : onLoad(attachment!, controller.signal)
+      if (!local) return onLoad(attachment!, controller.signal)
+      if (local.file) return local.file
+      if (local.client_id && onLoadLocal) return onLoadLocal(local.client_id, controller.signal)
+      throw new Error('AGENT_ATTACHMENT_UNAVAILABLE')
     }).then(async (blob) => {
       if (controller.signal.aborted) return
       const text = await blob.text()
@@ -69,7 +79,7 @@ function TextAttachmentPreview({ attachment, local, title, onClose, onLoad }: {
     return () => {
       controller.abort()
     }
-  }, [attachment, local, onLoad])
+  }, [attachment, local, onLoad, onLoadLocal])
 
   return (
     <Modal
