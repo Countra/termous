@@ -19,6 +19,32 @@ const defaults = [
   '/opt/homebrew/include/fuse',
 ]
 
+const nativeTargetProbe = source.match(/require_native_target\(\) \{[\s\S]*?\n\}/)?.[0]
+assert.ok(nativeTargetProbe, '未找到原生平台校验')
+for (const [hostOS, hostArch, targetOS, targetArch, allowed] of [
+  ['Linux', 'x86_64', 'linux', 'x86_64', true],
+  ['Darwin', 'x86_64', 'darwin', 'x86_64', true],
+  ['Darwin', 'arm64', 'darwin', 'arm64', true],
+  ['Linux', 'x86_64', 'darwin', 'x86_64', false],
+  ['Darwin', 'x86_64', 'linux', 'x86_64', false],
+  ['Darwin', 'arm64', 'darwin', 'x86_64', false],
+]) {
+  test(`原生构建校验 ${hostOS}/${hostArch} → ${targetOS}/${targetArch}`, { skip: !bash }, () => {
+    const result = spawnSync(bash, ['--noprofile', '--norc', '-c', `
+set -Eeuo pipefail
+uname() { if [[ "$1" == -s ]]; then printf '%s' "$FIXTURE_HOST_OS"; else printf '%s' "$FIXTURE_HOST_ARCH"; fi; }
+${nativeTargetProbe}
+require_native_target "$FIXTURE_TARGET_OS" "$FIXTURE_TARGET_ARCH"
+`], {
+      env: { PATH: process.env.PATH, LC_ALL: 'C', FIXTURE_HOST_OS: hostOS, FIXTURE_HOST_ARCH: hostArch,
+        FIXTURE_TARGET_OS: targetOS, FIXTURE_TARGET_ARCH: targetArch },
+      encoding: 'utf8', timeout: 10_000,
+    })
+    assert.ifError(result.error)
+    assert.equal(result.status, allowed ? 0 : 1, result.stderr)
+  })
+}
+
 function runProbe(cpath, cwd) {
   // 使用受控环境，避免加载调用者的 Bash 启动文件或继承其编译搜索路径。
   const env = { PATH: process.env.PATH, LC_ALL: 'C' }

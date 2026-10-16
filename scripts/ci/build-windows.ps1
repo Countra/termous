@@ -73,7 +73,7 @@ function Prepare-CoreOutputDirectory {
     New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
     Assert-OrdinaryDirectory -Path $OutputDirectory -Name "Core 输出目录"
   }
-  foreach ($binaryName in @("termous-core.exe", "termous-core")) {
+  foreach ($binaryName in @("termous-core.exe", "termous-core", "termous-rdp.exe", "termous-rdp")) {
     $binaryPath = Join-Path $OutputDirectory $binaryName
     if (Test-Path -LiteralPath $binaryPath) {
       if (Test-Path -LiteralPath $binaryPath -PathType Container) {
@@ -249,6 +249,9 @@ if ($phase -in @("all", "prepare")) {
   Enable-MingwIfAvailable
   # 复用 RDP 构建入口，统一执行 SDK 校验、工具链检查和静态库缓存失效处理。
   $rdpMsys2Root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Get-Command gcc).Source))
+  if ([string]::IsNullOrWhiteSpace($env:PYTHON)) {
+    $env:PYTHON = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source.Replace('\', '/')
+  }
   Invoke-Native -Name "Build Termous RDP" -FilePath (Join-Path $rdpDir "scripts/build.ps1") -Arguments @(
     "build", "-Msys2Root", $rdpMsys2Root
   ) -WorkingDirectory $rdpDir

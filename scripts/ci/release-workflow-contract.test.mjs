@@ -64,7 +64,7 @@ test("平台构建包装器把安装目录清理交给安全打包入口", async
   assert.match(unixSource, /node\s+\\[\s\S]*scripts\/ci\/build-local-package\.mjs/u);
   assert.match(windowsSource, /Prepare-CoreOutputDirectory/u);
   assert.match(unixSource, /prepare_core_output_directory/u);
-  assert.match(windowsSource, /@\("termous-core\.exe", "termous-core"\)/u);
+  assert.match(windowsSource, /@\("termous-core\.exe", "termous-core", "termous-rdp\.exe", "termous-rdp"\)/u);
   assert.match(unixSource, /termous-core\.exe termous-core/u);
   assert.match(windowsSource, /function Disable-CodeSigning/u);
   assert.match(unixSource, /disable_code_signing/u);
@@ -84,7 +84,7 @@ test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签"
   for (const workflow of [ci, release]) {
     const steps = stepsFor(workflow, "build");
     const linuxIndex = steps.findIndex(({ name }) => name === "Install Linux build and packaging dependencies");
-    const macIndex = steps.findIndex(({ name }) => name === "Install macFUSE SDK");
+    const macIndex = steps.findIndex(({ name }) => name === "Install macOS build dependencies");
     const windowsIndex = steps.findIndex(({ name }) => name === "Prepare Windows build");
     const unixIndex = steps.findIndex(({ name }) => name === "Prepare Unix build");
     const unixTestIndex = steps.findIndex(({ name }) => name === "Test Unix build prerequisites");
@@ -104,6 +104,8 @@ test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签"
     assert.match(linuxSdk.run, /libfuse3-dev/u);
     assert.equal(macSdk?.if, "matrix.platform == 'macos'");
     assert.match(macSdk.run, /brew install --cask macfuse/u);
+    assert.match(macSdk.run, /brew install bash/u);
+    assert.match(macSdk.run, /brew --prefix bash/u);
   }
 
   assert.match(windowsSource, /CGO_ENABLED = "1"/u);
@@ -120,28 +122,30 @@ test("全部 Actions 固定完整 SHA 并标注版本", async () => {
   const { source } = await loadWorkflow();
   const remoteActionUrl = new URL("../../.github/actions/remote-checkout/action.yml", import.meta.url);
   const { source: remoteSource, workflow: remoteAction } = await loadWorkflow(remoteActionUrl);
-  const usesLines = `${source}\n${remoteSource}`
+  const { source: rdpSource, workflow: rdpAction } = await loadWorkflow(new URL("../../.github/actions/rdp-checkout/action.yml", import.meta.url));
+  const usesLines = `${source}\n${remoteSource}\n${rdpSource}`
     .split(/\r?\n/u)
     .map((line) => line.trim().replace(/^- /u, ""))
     .filter((line) => line.startsWith("uses:"));
   assert.ok(usesLines.length > 0);
   for (const line of usesLines) {
     if (line === "uses: ./web/.github/actions/remote-checkout") continue;
+    if (line === "uses: ./web/.github/actions/rdp-checkout") continue;
     assert.match(
       line,
       /^uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[a-f0-9]{40} # v\d+\.\d+\.\d+$/u,
     );
   }
-  assert.equal(remoteAction.runs.using, "composite");
-  assert.match(remoteAction.runs.steps[0].run, /\^\[0-9a-f\]\{40\}\$/u);
-  const checkout = remoteAction.runs.steps.find(({ uses }) => uses?.startsWith("actions/checkout@"));
-  assert.deepEqual(checkout.with, {
-    repository: "${{ inputs.repository }}",
-    ref: "${{ inputs.revision }}",
-    token: "${{ inputs.token }}",
-    path: "termous-remote",
-    "persist-credentials": false,
-  });
+  for (const [name, action] of [["remote", remoteAction], ["rdp", rdpAction]]) {
+    const checkout = action.runs.steps.find(({ uses }) => uses?.startsWith("actions/checkout@"));
+    assert.deepEqual(checkout.with, {
+      repository: "${{ inputs.repository }}",
+      ref: "${{ inputs.revision }}",
+      token: "${{ inputs.token }}",
+      path: `termous-${name}`,
+      "persist-credentials": false,
+    });
+  }
 });
 
 test("Workflow、Job 与 checkout 保持最小权限", async () => {
@@ -176,7 +180,7 @@ test("Workflow、Job 与 checkout 保持最小权限", async () => {
   }
 });
 
-test("Metadata 在环境审批前固定标签与四个仓库提交", async () => {
+test("Metadata 在环境审批前固定标签与五个仓库提交", async () => {
   const { workflow } = await loadWorkflow();
   assert.deepEqual(workflow.concurrency, {
     group: "release",
@@ -189,6 +193,8 @@ test("Metadata 在环境审批前固定标签与四个仓库提交", async () =>
   assert.deepEqual(Object.keys(metadata.outputs).sort(), [
     "core_sha",
     "prerelease",
+    "rdp_repository",
+    "rdp_sha",
     "release_date",
     "remote_repository",
     "remote_sha",
@@ -213,26 +219,32 @@ test("Metadata 在环境审批前固定标签与四个仓库提交", async () =>
     skills_sha: "${{ needs.metadata.outputs.skills_sha }}",
     remote_repository: "${{ needs.metadata.outputs.remote_repository }}",
     remote_sha: "${{ needs.metadata.outputs.remote_sha }}",
+    rdp_repository: "${{ needs.metadata.outputs.rdp_repository }}",
+    rdp_sha: "${{ needs.metadata.outputs.rdp_sha }}",
     prerelease: "${{ needs.metadata.outputs.prerelease }}",
     release_date: "${{ needs.metadata.outputs.release_date }}",
     tag: "${{ needs.metadata.outputs.tag }}",
     termous_sha: "${{ needs.metadata.outputs.termous_sha }}",
     version: "${{ needs.metadata.outputs.version }}",
   });
-  const remote = metadata.steps.find(({ id }) => id === "remote");
-  assert.deepEqual(remote.env, {
-    REMOTE_REPOSITORY: "${{ vars.TERMOUS_REMOTE_REPOSITORY }}",
-    REMOTE_REVISION: "${{ vars.TERMOUS_REMOTE_SHA }}",
-  });
-  assert.match(remote.run, /\^\[0-9a-f\]\{40\}\$/u);
-  assert.match(remote.run, /sha=\$REMOTE_REVISION/u);
+  const dependencies = metadata.steps.find(({ id }) => id === "dependencies");
+  assert.equal(dependencies.run, "node web/scripts/ci/resolve-core-dependencies.mjs backend");
+  assert.equal(dependencies.env.GH_TOKEN, "${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}");
+  assert.ok(metadata.steps.indexOf(dependencies) > metadata.steps.findIndex(({ id }) => id === "core"));
+  for (const dependency of ["remote", "rdp"]) {
+    assert.equal(metadata.outputs[`${dependency}_sha`], `\${{ steps.dependencies.outputs.${dependency}_sha }}`);
+  }
+  assert.equal(metadataSource.includes("vars.TERMOUS_REMOTE_"), false);
+  assert.equal(metadataSource.includes("vars.TERMOUS_RDP_"), false);
   for (const [name, job] of Object.entries(workflow.jobs)) {
     if (name === "metadata") continue;
     assert.equal(JSON.stringify(job).includes("vars.TERMOUS_REMOTE_"), false);
-    for (const step of job.steps ?? []) {
-      if (step.uses !== "./web/.github/actions/remote-checkout") continue;
-      assert.equal(step.with.repository, "${{ needs.prepare-release.outputs.remote_repository }}");
-      assert.equal(step.with.revision, "${{ needs.prepare-release.outputs.remote_sha }}");
+    for (const dependency of ["remote", "rdp"]) {
+      for (const step of job.steps ?? []) {
+        if (step.uses !== `./web/.github/actions/${dependency}-checkout`) continue;
+        assert.equal(step.with.repository, `\${{ needs.prepare-release.outputs.${dependency}_repository }}`);
+        assert.equal(step.with.revision, `\${{ needs.prepare-release.outputs.${dependency}_sha }}`);
+      }
     }
   }
   const skillsCheckout = stepsFor(workflow, "build").find(
@@ -315,7 +327,9 @@ test("发布构建固定禁用代码签名且不读取签名 Secrets", async () 
     );
     for (const step of job.steps ?? []) {
       if (step.env?.GH_TOKEN !== undefined) {
-        assert.equal(step.env.GH_TOKEN, "${{ github.token }}");
+        assert.equal(step.env.GH_TOKEN, jobName === "metadata" && step.id === "dependencies"
+          ? "${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}"
+          : "${{ github.token }}");
       }
     }
   }

@@ -15,6 +15,7 @@ permissions:
 jobs:
   web:
     name: Web quality checks
+    needs: resolve-core
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,9 +30,16 @@ jobs:
       - name: Checkout pinned remote core
         uses: ./web/.github/actions/remote-checkout
         with:
-          repository: ${{ vars.TERMOUS_REMOTE_REPOSITORY }}
-          revision: ${{ vars.TERMOUS_REMOTE_SHA }}
-          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+          repository: ${{ needs.resolve-core.outputs.remote_repository }}
+          revision: ${{ needs.resolve-core.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+
+      - name: Checkout pinned RDP worker
+        uses: ./web/.github/actions/rdp-checkout
+        with:
+          repository: ${{ needs.resolve-core.outputs.rdp_repository }}
+          revision: ${{ needs.resolve-core.outputs.rdp_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -47,6 +55,9 @@ jobs:
 
       - name: Install shared protocol dependencies
         run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
+
+      - name: Install RDP protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -67,6 +78,10 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       sha: ${{ steps.core.outputs.sha }}
+      remote_repository: ${{ steps.dependencies.outputs.remote_repository }}
+      remote_sha: ${{ steps.dependencies.outputs.remote_sha }}
+      rdp_repository: ${{ steps.dependencies.outputs.rdp_repository }}
+      rdp_sha: ${{ steps.dependencies.outputs.rdp_sha }}
 
     steps:
       - name: Resolve platform matrix
@@ -124,12 +139,12 @@ jobs:
         env:
           DEFAULT_CORE_BRANCH: main
           FRONTEND_BRANCH: ${{ github.head_ref || github.ref_name }}
-          GH_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          GH_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
         run: |
           set -Eeuo pipefail
 
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "缺少读取 Termous Core 的 TERMOUS_CORE_READ_TOKEN。" >&2
+            echo "缺少读取 Termous Core 的 TERMOUS_REPOSITORIES_READ_TOKEN。" >&2
             exit 1
           fi
 
@@ -201,6 +216,40 @@ jobs:
           echo "Core commit: $selected_sha"
           echo "sha=$selected_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout Termous for dependency resolution
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: web
+          persist-credentials: false
+
+      - name: Checkout pinned Termous Core
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Countra/termous-core
+          ref: ${{ steps.core.outputs.sha }}
+          path: backend
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup Go for dependency resolution
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+
+      - name: Setup Node.js for dependency resolution
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: web/package.json
+          package-manager-cache: false
+
+      - name: Resolve shared dependencies from Core
+        id: dependencies
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+        run: node web/scripts/ci/resolve-core-dependencies.mjs backend
+
   resolve-skills:
     name: Resolve matching Termous Skills commit
     if: github.repository == 'Countra/termous'
@@ -267,9 +316,16 @@ jobs:
       - name: Checkout pinned remote core
         uses: ./web/.github/actions/remote-checkout
         with:
-          repository: ${{ vars.TERMOUS_REMOTE_REPOSITORY }}
-          revision: ${{ vars.TERMOUS_REMOTE_SHA }}
-          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+          repository: ${{ needs.resolve-core.outputs.remote_repository }}
+          revision: ${{ needs.resolve-core.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+
+      - name: Checkout pinned RDP worker
+        uses: ./web/.github/actions/rdp-checkout
+        with:
+          repository: ${{ needs.resolve-core.outputs.rdp_repository }}
+          revision: ${{ needs.resolve-core.outputs.rdp_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # 固定版本 v4.4.0
@@ -286,6 +342,9 @@ jobs:
       - name: Install shared protocol dependencies
         run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
+      - name: Install RDP protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -295,7 +354,7 @@ jobs:
           repository: Countra/termous-core
           ref: ${{ needs.resolve-core.outputs.sha }}
           path: backend
-          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
           persist-credentials: false
 
       - name: Checkout pinned Termous Skills
@@ -330,6 +389,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.resolve-core.outputs.matrix) }}
     env:
+      GOWORK: "off"
+      GOPRIVATE: github.com/Countra/termous-rdp,github.com/Countra/termous-remote
       TERMOUS_ARCH: ${{ matrix.arch }}
       TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
       TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/${{ matrix.platform }}-${{ matrix.arch }}
@@ -352,7 +413,7 @@ jobs:
           repository: Countra/termous-core
           ref: ${{ needs.resolve-core.outputs.sha }}
           path: backend
-          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
           persist-credentials: false
 
       - name: Checkout pinned Termous Skills
@@ -366,9 +427,16 @@ jobs:
       - name: Checkout pinned remote core
         uses: ./web/.github/actions/remote-checkout
         with:
-          repository: ${{ vars.TERMOUS_REMOTE_REPOSITORY }}
-          revision: ${{ vars.TERMOUS_REMOTE_SHA }}
-          token: ${{ secrets.TERMOUS_REMOTE_READ_TOKEN || github.token }}
+          repository: ${{ needs.resolve-core.outputs.remote_repository }}
+          revision: ${{ needs.resolve-core.outputs.remote_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+
+      - name: Checkout pinned RDP worker
+        uses: ./web/.github/actions/rdp-checkout
+        with:
+          repository: ${{ needs.resolve-core.outputs.rdp_repository }}
+          revision: ${{ needs.resolve-core.outputs.rdp_sha }}
+          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # 固定版本 v4.4.0
@@ -385,12 +453,29 @@ jobs:
       - name: Install shared protocol dependencies
         run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
 
+      - name: Install RDP protocol dependencies
+        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
+
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # 固定版本 v6.4.0
         with:
           go-version: ${{ vars.GO_VERSION }}
           go-version-file: ${{ !vars.GO_VERSION && 'backend/go.mod' || '' }}
           cache: false
+
+      - name: Download pinned private modules
+        shell: bash
+        working-directory: backend
+        env:
+          TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+        run: |
+          export GIT_TERMINAL_PROMPT=0
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TERMOUS_REPOSITORIES_READ_TOKEN" | base64 | tr -d '\r\n')"
+          printf '::add-mask::%s\n' "$auth_header"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/Countra/.extraheader
+          export GIT_CONFIG_VALUE_0="$auth_header"
+          go mod download termous/rdp termous/remote
 
       - name: Setup Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # 固定版本 v5.4.0
@@ -406,12 +491,14 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libfuse3-dev libopenjp2-tools
+          sudo apt-get install --no-install-recommends -y libfuse3-dev libopenjp2-tools libasound2-dev
 
-      - name: Install macFUSE SDK
+      - name: Install macOS build dependencies
         if: matrix.platform == 'macos'
         shell: bash
         run: |
+          brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
           if [[ ! -f /usr/local/include/fuse/fuse.h &&
                 ! -f /usr/local/include/osxfuse/fuse/fuse.h &&
                 ! -f /Library/Frameworks/macFUSE.framework/Headers/fuse.h &&

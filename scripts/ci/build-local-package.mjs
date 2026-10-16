@@ -207,37 +207,38 @@ export async function validatePackageArtifacts({
   const coreName = normalizedPlatform === 'win32'
     ? 'termous-core.exe'
     : 'termous-core'
-  const corePaths = await findNamedFiles(root, coreName, 8)
-  if (corePaths.length === 0) {
-    throw new Error(`未找到包内 ${coreName}: ${root}`)
-  }
-  for (const corePath of corePaths) {
-    await assertFile(corePath, `包内 Core ${coreName}`)
-    if (normalizedPlatform === 'win32') {
-      await assertFile(path.join(path.dirname(corePath), 'termous-rdp.exe'), 'Packaged RDP worker')
-    }
-  }
   const packagedResources = packagedResourcesDirectory(
     root,
     normalizedPlatform,
     normalizedArch,
   )
+  // 与 Electron 的实际启动位置一致：macOS 为 Contents，其他平台为应用根目录。
+  const packagedApplication = path.dirname(packagedResources)
+  const corePaths = [path.join(packagedApplication, coreName)]
+  const workerName = normalizedPlatform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'
+  for (const [binaryPath, label] of [
+    [corePaths[0], `包内 Core ${coreName}`],
+    [path.join(packagedApplication, workerName), '包内 RDP worker'],
+  ]) {
+    await assertFile(binaryPath, label)
+    if (normalizedPlatform !== 'win32' && process.platform !== 'win32'
+      && ((await lstat(binaryPath)).mode & 0o111) === 0) {
+      throw new Error(`${label}不可执行: ${binaryPath}`)
+    }
+  }
   const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
   const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
   await assertFile(skillsManifestPath, '包内 Agent Skills manifest')
   await validateAgentSkillsBundleDirectory(skillsDirectory)
   const skillsManifestPaths = [skillsManifestPath]
-  const packagedApplication = path.dirname(packagedResources)
   const thirdPartyNoticePaths = []
   for (const relativePath of packagedThirdPartyFiles) {
     const noticePath = path.join(packagedApplication, ...relativePath.split('/'))
     await assertFile(noticePath, `包内第三方声明 ${relativePath}`)
     thirdPartyNoticePaths.push(noticePath)
   }
-  if (normalizedPlatform === 'win32') {
-    for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {
-      await assertFile(path.join(packagedApplication, 'licenses', 'rdp', `${library}-LICENSE.txt`), `RDP license: ${library}`)
-    }
+  for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {
+    await assertFile(path.join(packagedApplication, 'licenses', 'rdp', `${library}-LICENSE.txt`), `RDP 许可证: ${library}`)
   }
 
   return {
