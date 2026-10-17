@@ -22,6 +22,7 @@ export interface CapabilityStep {
   next?: string[]
   cleanup?: string[]
   guidance?: string
+  preparation?: string
   evidence?: 'image'
   completion?: { fields: string[]; flag: string; next: string }
   progresses?: { tools: string[]; path: string; collection?: boolean }

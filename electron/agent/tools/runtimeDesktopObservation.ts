@@ -1,5 +1,5 @@
 import { isRecord } from '../contracts/validation.ts'
-import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
+import { runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
 
 export type ExecutionValues = Record<string, string | number | boolean>
 
@@ -11,6 +11,7 @@ export function desktopAttachment(data: Record<string, unknown>) {
 export function desktopGrantCurrent(attachment: Record<string, unknown>, now: number) {
   const grant = attachment.grant
   return attachment.state === 'ready' && isRecord(grant) && typeof grant.id === 'string' && grant.id.length > 0
+    && (!isRecord(attachment.control) || attachment.control.state === 'held')
     && ['expires_at', 'idle_expires_at'].every((key) => typeof grant[key] === 'string' && Date.parse(grant[key]) > now)
 }
 
@@ -23,6 +24,10 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
     const values: ExecutionValues = { attachment_id: attachment.id,
       grant_status: confirmed && desktopGrantCurrent(attachment, now) ? 'held'
         : confirmed && attachment.grant == null ? 'not_held' : 'needs_verification' }
+    if (confirmed && isRecord(attachment.control)) {
+      if (['held', 'available', 'takeover_required', 'blocked'].includes(String(attachment.control.state))) values.control_status = String(attachment.control.state)
+      if (typeof attachment.control.reason === 'string' && attachment.control.reason.length <= 128) values.control_reason = attachment.control.reason
+    }
     for (const field of ['session_id', 'connection_generation', 'execution_generation', 'state'] as const) {
       const value = attachment[field]
       if (typeof value === 'string' && value.length <= 128 || typeof value === 'number' && Number.isSafeInteger(value)) values[field] = value
@@ -43,8 +48,11 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
       const value = session[field]
       if (typeof value === 'string' && value.length <= 128 || typeof value === 'number' && Number.isSafeInteger(value)) values[field] = value
     }
-    if (isRecord(session.desktop) && typeof session.desktop.execution_generation === 'number' && Number.isSafeInteger(session.desktop.execution_generation)) {
-      values.execution_generation = session.desktop.execution_generation
+    if (isRecord(session.desktop)) {
+      if (typeof session.desktop.available === 'boolean') values.desktop_available = session.desktop.available
+      if (typeof session.desktop.execution_generation === 'number' && Number.isSafeInteger(session.desktop.execution_generation)) {
+        values.execution_generation = session.desktop.execution_generation
+      }
     }
     return values
   }
@@ -52,11 +60,13 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
     && isRecord(data.error) && data.error.code === 'REMOTE_DESKTOP_SESSION_NOT_FOUND') return { session_id: args.session_id, status: 'not_found' }
   if (!isRecord(args) || typeof args.attachment_id !== 'string') return undefined
   const released = !failed && data.completed === true && (name === 'termous.desktops.control.release' || name === 'termous.desktops.detach')
-  const code = isRecord(data.error) ? String(data.error.code) : ''
+  const code = runtimeToolFailureCode(name, data, failed) ?? ''
   const invalid = ['desktop_control_stale', 'desktop_generation_stale', 'desktop_cleanup_uncertain', 'desktop_not_found'].includes(code)
+    || name === 'termous.desktops.control.acquire' && ['desktop_control_locked', 'desktop_control_already_held'].includes(code)
   const operation = isRecord(data.operation) ? data.operation : undefined
   if (!released && !invalid && !operation) return undefined
   return { attachment_id: args.attachment_id, ...(released || invalid ? { grant_status: released ? 'released' : 'needs_verification' } : {}),
+    ...(released || invalid ? { control_status: 'needs_verification' } : {}),
     ...(typeof operation?.client_request_id === 'string' ? { operation_id: operation.client_request_id } : {}),
     ...(typeof operation?.state === 'string' ? { operation_state: operation.state } : {}),
     ...(typeof args.grant_id === 'string' ? { grant_id: args.grant_id } : {}) }
@@ -64,8 +74,10 @@ export function desktopObservation(name: string, data: Record<string, unknown>, 
 
 // 过期判断仅改变提示，不成为本地权限门禁；实际权限仍由 Core 在调用时检查。
 export function projectDesktopEvidence(values: ExecutionValues, historical: boolean, now: number): ExecutionValues {
+  if (historical && values.control_status) values = { ...values, control_status: 'needs_verification' }
   if (!values.grant_status) return values
   const expired = ['grant_expires_at', 'grant_idle_expires_at'].some((key) => typeof values[key] === 'string' && Date.parse(values[key]) <= now)
+  if (values.control_status === 'held' && (expired || values.grant_status !== 'held')) values = { ...values, control_status: 'needs_verification' }
   return { ...values, grant_status: historical && ['held', 'not_held'].includes(String(values.grant_status))
     || values.grant_status === 'held' && expired ? 'needs_verification' : values.grant_status }
 }

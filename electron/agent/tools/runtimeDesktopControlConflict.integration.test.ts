@@ -18,21 +18,22 @@ const release = 'termous.desktops.control.release'
 const attachment = { id: 'a', session_id: 's', connection_generation: 1, execution_generation: 1, state: 'ready' }
 const grant = { id: 'g', expires_at: '2099-01-01T00:00:00Z', idle_expires_at: '2099-01-01T00:00:00Z' }
 
-for (const api of ['responses', 'chat_completions'] as const) {
-  test(`${api} 真实审批冲突同时影响下一请求、时间线和持久结果，授权后恢复且不中断普通调用`, async () => {
+for (const { api, firstAttempt } of (['responses', 'chat_completions'] as const).flatMap((api) => [false, true].map((firstAttempt) => ({ api, firstAttempt })))) {
+  test(`${api} ${firstAttempt ? '已知占用时首次接管无需失败试探' : '真实审批冲突同时影响下一请求、时间线和持久结果，授权后恢复且不中断普通调用'}`, async () => {
     const bootstrap = runtimeBootstrap()
     bootstrap.model.snapshot.api_mode = api
     bootstrap.model.snapshot.context_window_tokens = 65536
     bootstrap.context.progress_supported = true
-    bootstrap.messages = [runtimeUserMessage([], { text: '在指定桌面输入目标应用名称。' })]
+    bootstrap.messages = [runtimeUserMessage([], { text: firstAttempt ? '允许接管指定桌面的当前控制入口并输入目标应用名称。' : '在指定桌面输入目标应用名称。' })]
     const executed: string[] = []
     let acquires = 0
     const mapped = mapMCPTools([acquire, get, input, release].map((name) => ({ name,
       inputSchema: { type: 'object' as const, properties: {} }, annotations: { readOnlyHint: name === get },
-    })), async (tool) => {
+    })), async (tool, args) => {
       executed.push(tool.name)
-      const data = tool.name === get ? { attachment }
-        : tool.name === acquire ? ++acquires < 4
+      if (firstAttempt && tool.name === acquire) assert.deepEqual(args, { attachment_id: 'a', client_request_id: 'takeover', takeover: true })
+      const data = tool.name === get ? { attachment: { ...attachment, ...(firstAttempt ? { control: { state: 'takeover_required', reason: 'control_occupied' } } : {}) } }
+        : tool.name === acquire ? ++acquires < (firstAttempt ? 1 : 4)
           ? { control: { approval: { state: 'dispatch_conflict', error_code: 'desktop_control_locked' } } }
           : { control: { attachment: { ...attachment, grant }, approval: { state: 'approved' } } }
           : tool.name === release ? { completed: true } : { operation: { client_request_id: 'input', state: 'accepted' } }
@@ -64,6 +65,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
       { name: input, args: { attachment_id: 'a', grant_id: 'g', client_request_id: 'input', text: '目标应用' } },
       { name: release, args: { attachment_id: 'a', grant_id: 'g', client_request_id: 'release' } },
     ]
+    if (firstAttempt) plan.splice(2, 6, { name: acquire, args: { attachment_id: 'a', client_request_id: 'takeover', takeover: true } })
     const requests: Array<{ names: string[]; summary: string }> = []
     const agent = createPiAgent({ bootstrap, events: writer, skills, audit,
       commitCheckpoint: async () => { throw new Error('不应压缩') },
@@ -76,6 +78,7 @@ for (const api of ['responses', 'chat_completions'] as const) {
         const summary = text.includes('[TERMOUS_EXECUTION_STATE]')
           ? text.slice(text.lastIndexOf('[TERMOUS_EXECUTION_STATE]')).split('[/TERMOUS_EXECUTION_STATE]')[0]! : ''
         const step = plan[requests.length]
+        if (firstAttempt && requests.length === 2) assert.match(JSON.stringify(body.tools), /调用前：.*takeover_required.*takeover=true/)
         requests.push({ names: body.tools.map((tool: { name?: string; function?: { name: string } }) => tool.name ?? tool.function!.name), summary })
         return step ? response(api, step.name === 'discover_tools' ? step.name : encodeMCPToolName(step.name), step.args, String(requests.length)) : response(api)
       },
@@ -85,6 +88,13 @@ for (const api of ['responses', 'chat_completions'] as const) {
       await writer.flush()
       await audit.flush()
       assert.deepEqual(executed, plan.slice(1).map((step) => step.name))
+      if (firstAttempt) {
+        assert.equal(acquires, 1)
+        assert.match(requests[2]!.summary, /"control_status":"takeover_required"/)
+        assert.match(requests[3]!.summary, /"grant_status":"held"/)
+        assert.equal(events.filter((event) => event.kind === 'tool_failed').length, 0)
+        return
+      }
       assert.match(requests[3]!.summary, /desktop_control_locked/)
       assert.match(requests[7]!.summary, /"status":"detected"/)
       assert.ok(!requests[7]!.names.includes(encodeMCPToolName(input)))

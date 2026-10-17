@@ -76,7 +76,7 @@ export function progressFingerprint(name: string, data: Record<string, unknown>,
 
 export function progressFact(name: string, resource: string, data: Record<string, unknown>, error: boolean, code?: string) {
   const values: Record<string, string | number | boolean> = {}
-  const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'operation_state', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'number', 'exit_code', 'error_code', 'cleanup_error', 'executed', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed', 'attachment_id', 'grant_id', 'grant_status', 'grant_expires_at', 'grant_idle_expires_at']
+  const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'operation_state', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'number', 'exit_code', 'error_code', 'cleanup_error', 'executed', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed', 'attachment_id', 'grant_id', 'grant_status', 'grant_expires_at', 'grant_idle_expires_at', 'control_status', 'control_reason', 'desktop_available']
   const capture = isRecord(data.capture) ? data.capture : isRecord(data.snapshot) ? data.snapshot : {}
   const detail = isRecord(data.detail) ? data.detail : {}
   // 当前脚本 revision 与所读版本 number 各自保留，不能把历史定义误作最新修改前置版本。

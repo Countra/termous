@@ -1,6 +1,6 @@
 import { isAgentProgressData, type AgentProgressData } from '#common/contracts'
 import { isRecord } from '../contracts/validation.ts'
-import { confirmedDesktopAttachment, desktopControlUnconfirmed, desktopGrantCurrent, desktopObservation, projectDesktopEvidence } from './runtimeDesktopObservation.ts'
+import { confirmedDesktopAttachment, desktopAttachment, desktopControlUnconfirmed, desktopGrantCurrent, desktopObservation, projectDesktopEvidence } from './runtimeDesktopObservation.ts'
 import { progressFact, progressResource } from './runtimeToolEvidence.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
 
@@ -32,7 +32,7 @@ export class RuntimeExecutionState {
     if (desktop && previous?.origin === 'current' && previous.values.grant_id && desktop.grant_id && !desktop.grant_expires_at
       && previous.values.grant_id !== desktop.grant_id) return
     if (origin === 'historical' && previous?.origin === 'current') return
-    if (desktop?.attachment_id && previous?.origin === origin && !desktop.grant_expires_at && !('attachment' in data) && !('control' in data)) {
+    if (desktop?.attachment_id && previous?.origin === origin && !desktop.grant_expires_at && !desktopAttachment(data)) {
       fact.values = { ...previous.values, ...fact.values }
     }
     // 关闭会话或代次变更使旧附着的授权提示失效，不影响其他会话。
@@ -41,10 +41,13 @@ export class RuntimeExecutionState {
       const closed = !failed && name === 'termous.desktops.close' && data.completed === true && isRecord(args) && session === args.session_id
         && (args.connection_generation === undefined || existing.values.connection_generation === undefined || args.connection_generation === existing.values.connection_generation)
       const unavailable = desktop?.session_id === session && !desktop?.attachment_id
-        && ['failed', 'stopping', 'closed', 'reconnecting', 'reattach_wait', 'not_found'].includes(String(desktop?.status))
+        && (desktop?.desktop_available === false || ['failed', 'stopping', 'closed', 'reconnecting', 'reattach_wait', 'not_found'].includes(String(desktop?.status)))
       const changed = desktop?.session_id && desktop.session_id === session && ['connection_generation', 'execution_generation']
         .some((field) => desktop[field] !== undefined && existing.values[field] !== undefined && desktop[field] !== existing.values[field])
-      if (['held', 'not_held'].includes(String(existing.values.grant_status)) && (closed || changed || unavailable)) existing.values.grant_status = 'needs_verification'
+      if (closed || changed || unavailable) {
+        if (['held', 'not_held'].includes(String(existing.values.grant_status))) existing.values.grant_status = 'needs_verification'
+        if (existing.values.control_status) existing.values.control_status = 'needs_verification'
+      }
     }
     remember(this.facts, key, fact)
     if (!failed && !['pending', 'waiting'].includes(runtimeToolOutcome(name, data)) && !desktopControlUnconfirmed(name, data, timestamp)) this.resolveRecovery(name, resource)

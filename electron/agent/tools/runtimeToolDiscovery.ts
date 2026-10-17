@@ -78,8 +78,9 @@ export class RuntimeToolDiscovery {
     const step = runtimeCapabilityStep(original)
     const boundary = capability && !tool.description.includes(capability.purpose) ? `\n职责：${capability.purpose}\n说明：${capability.skill}` : ''
     const guidance = step?.guidance && !tool.description.includes(step.guidance) ? `\n后续：${step.guidance}` : ''
+    const preparation = step?.preparation && !tool.description.includes(step.preparation) ? `\n调用前：${step.preparation}` : ''
     const action = step && !tool.description.includes('\n动作：') ? `\n动作：${runtimeToolOperations(original).join(', ')}` : ''
-    return { ...tool, description: tool.description + boundary + guidance + action }
+    return { ...tool, description: tool.description + boundary + preparation + guidance + action }
   }
 
   // 所有回执由运行时统一观察；这里只安排声明，不执行恢复操作。
