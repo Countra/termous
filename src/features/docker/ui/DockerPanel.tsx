@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { DockerResourceKind } from '#entities/docker'
 import { DockerContainersPanel, type DockerPanelProps } from './DockerContainersPanel'
 import { DockerResourcesPanel } from './DockerResourcesPanel'
-import styles from './DockerResources.module.scss'
+import styles from './DockerNavigation.module.scss'
 
 export type { DockerPanelProps } from './DockerContainersPanel'
 
@@ -28,6 +28,7 @@ export function DockerPanel(props: DockerPanelProps) {
       {modes.map(({ key, icon: Icon }, index) => <button key={key} type="button" role="tab" tabIndex={mode === key ? 0 : -1}
         id={`${id}-${key}`} aria-controls={`${id}-${key === 'containers' ? 'containers' : 'resources'}-panel`}
         aria-selected={mode === key} className={mode === key ? styles.selected : undefined}
+        title={t(`workbench.docker.resources.${key}`)}
         onKeyDown={(event) => {
           const next = event.key === 'ArrowRight' ? (index + 1) % modes.length : event.key === 'ArrowLeft' ? (index + modes.length - 1) % modes.length : event.key === 'Home' ? 0 : event.key === 'End' ? modes.length - 1 : -1
           if (next < 0) return

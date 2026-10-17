@@ -3016,7 +3016,16 @@
       "emptyHint": "连接 Linux SSH 会话后，可在这里管理容器、镜像、数据卷和网络。",
       "unsupportedTitle": "暂不支持 Docker 管理",
       "unsupportedHint": "第一版仅支持已连接的 Linux SSH 会话。",
-      "managerTitle": "Docker 管理",
+      "detectAgain": "重新检测",
+      "detectionFailed": "Docker 检测失败",
+      "detectionDetails": "查看检测详情",
+      "availabilityHints": {
+        "missing_cli": "在远端安装 Docker 后，重新检测即可。",
+        "daemon_unavailable": "无法连接 Docker 服务，请确认远端服务已启动。",
+        "permission_denied": "当前 SSH 用户没有 Docker 访问权限，请调整权限后重新检测。",
+        "unknown": "暂时无法确认 Docker 状态，请检查远端环境后重试。",
+        "failed": "未能读取远端 Docker 状态，请检查连接后重新检测。"
+      },
       "refresh": "刷新 Docker",
       "detecting": "正在检测 Docker",
       "available": "Docker 可用",

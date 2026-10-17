@@ -1,5 +1,5 @@
-import { Alert, Button, Input, Tooltip } from 'antd'
-import { ArrowLeft, ArrowRight, ChevronRight, HardDrive, Layers, Network, Plus, RefreshCw, Search } from 'lucide-react'
+import { Alert, Button, Input } from 'antd'
+import { ArrowLeft, ArrowRight, ChevronRight, HardDrive, Layers, Network, Plus, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DockerResourceKind } from '#entities/docker'
@@ -9,6 +9,7 @@ import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { useDockerResources } from '../model/useDockerResources'
 import { DockerResourceDetails } from './DockerResourceDetails'
 import { DockerResourceDialog, type DockerResourceIntent } from './DockerResourceDialog'
+import { DockerToolbar, DockerUnavailableState } from './DockerConnectionState'
 import styles from './DockerResources.module.scss'
 
 export function DockerResourcesPanel({ api, session, kind, enabled, invalidationRevision, onContainersChanged }: {
@@ -62,19 +63,15 @@ export function DockerResourcesPanel({ api, session, kind, enabled, invalidation
   }
 
   if (!resources.supported) return <WorkspaceEmptyState icon={<Icon size={20} />} title={t('workbench.docker.emptyTitle')} description={t('workbench.docker.emptyHint')} />
+  if (!resources.capability && !resources.capabilityFailed) return <WorkspaceDetectionLoading icon={<Icon size={15} />} label={t('workbench.docker.detecting')} />
+  if (!resources.capability?.available) return <DockerUnavailableState capability={resources.capability} error={resources.error} failed={resources.capabilityFailed}
+    loading={resources.loading} disabled={!enabled || resources.busy} onRetry={() => void resources.refresh(undefined, undefined, true)} />
+
   return <section className={styles.resources} aria-label={text(kind)}>
-    <header className={styles.toolbar}>
-      {resources.selectedRef ? <Button className={styles.back} type="text" size="small" icon={<ArrowLeft size={14} />} onClick={() => void resources.select('')}>{t('workbench.docker.backToList')}</Button>
-        : <div className={styles.heading}><span className={styles['heading-icon']}><Icon size={17} aria-hidden="true" /></span><strong>{text(kind)}</strong>
-          {resources.list && <span className={styles.count}>{resources.list.filtered}</span>}
-        </div>}
-      <div className={styles['toolbar-actions']}>
-        {kind !== 'images' && !resources.selectedRef && resources.capability?.available && <Button size="small" type="text" disabled={!enabled || resources.busy} icon={<Plus size={14} />} onClick={() => openAction({ action: 'create' })}>{text(`create_${kind}`)}</Button>}
-        <Tooltip title={t('workbench.docker.refresh')}><Button type="text" size="small" className={styles.refresh} aria-label={t('workbench.docker.refresh')}
-          loading={resources.loading || resources.detailLoading} disabled={!enabled || resources.busy}
-          icon={<RefreshCw size={14} />} onClick={() => { void resources.refresh(undefined, undefined, true); if (resources.selectedRef) void resources.select(resources.selectedRef, true) }} /></Tooltip>
-      </div>
-    </header>
+    <DockerToolbar capability={resources.capability} loading={resources.loading || resources.detailLoading} disabled={!enabled || resources.busy}
+      onRefresh={() => { void resources.refresh(undefined, undefined, true); if (resources.selectedRef) void resources.select(resources.selectedRef, true) }}
+      action={kind !== 'images' && !resources.selectedRef && <Button size="small" type="text" disabled={!enabled || resources.busy} icon={<Plus size={14} />} onClick={() => openAction({ action: 'create' })}>{text(`create_${kind}`)}</Button>} />
+    {resources.selectedRef && <Button className={styles.back} type="text" size="small" icon={<ArrowLeft size={14} />} onClick={() => void resources.select('')}>{t('workbench.docker.backToList')}</Button>}
     {!resources.selectedRef && <Input aria-label={text('search')} value={search} allowClear maxLength={256}
       className={`${uiStyles['search-input']} ${styles.search}`} variant="borderless" prefix={<Search size={14} />} placeholder={text('search')}
       onChange={(event) => { setSearch(event.target.value); if (!event.target.value) applyFilter('') }}
@@ -82,8 +79,6 @@ export function DockerResourcesPanel({ api, session, kind, enabled, invalidation
     {resources.error && <Alert type="error" showIcon title={text('loadFailed')} description={resources.error} />}
     {resources.actionError && !intent && <Alert type="error" showIcon title={resources.actionError} description={text('failureHint')} />}
     <div className={styles.content}>
-      {!resources.capability && !resources.error ? <WorkspaceDetectionLoading icon={<Icon size={15} />} label={t('workbench.docker.detecting')} /> : null}
-      {resources.capability && !resources.capability.available ? <WorkspaceEmptyState icon={<Icon size={20} />} title={t(`workbench.docker.status.${resources.capability.status}`)} description={resources.capability.message} /> : null}
       {resources.selectedRef ? <>
         {resources.detailLoading && !resources.detail && <WorkspaceDetectionLoading icon={<Icon size={15} />} label={t('workbench.docker.detailLoading')} />}
         {resources.detailError && <Alert type="error" title={text('loadFailed')} description={resources.detailError} />}

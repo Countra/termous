@@ -1,0 +1,229 @@
+.unavailable {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 20px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+}
+
+.icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
+  color: var(--text-secondary);
+}
+
+.warning {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  color: var(--warning);
+}
+
+.danger {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+}
+
+.copy {
+  min-width: 0;
+
+  h3 {
+    margin: 0 0 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.6;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+  }
+}
+
+.not-installed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 20px 0;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-subtle) 18%, transparent);
+  text-align: center;
+
+  .icon {
+    width: 48px;
+    height: 48px;
+    border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    color: color-mix(in srgb, var(--accent) 68%, var(--text-secondary));
+  }
+
+  .copy {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h3 {
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+
+  p {
+    max-width: 220px;
+  }
+
+  .retry:global(.ant-btn) {
+    height: 30px;
+    margin-top: 18px;
+    margin-bottom: 24px;
+    padding-inline: 14px;
+  }
+
+  .diagnostic {
+    width: 100%;
+    margin: 0;
+    padding: 11px 0;
+    border-top: 1px solid var(--border);
+    text-align: left;
+
+    summary {
+      width: 100%;
+    }
+  }
+}
+
+.diagnostic {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+
+  summary {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border-radius: 3px;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker { display: none; }
+
+    &:hover { color: var(--text-secondary); }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+  }
+
+  &[open] summary svg { transform: rotate(90deg); }
+
+  pre {
+    max-height: 130px;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    overflow: auto;
+    border-left: 2px solid var(--border-strong);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font: inherit;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    user-select: text;
+  }
+}
+
+.retry:global(.ant-btn) {
+  height: 29px;
+  margin-top: 16px;
+  padding-inline: 10px;
+  border-color: var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.toolbar {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.connection {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.ready {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.context {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+
+  > :global(.ant-btn) {
+    font-size: 11px;
+  }
+}
+
+.refresh:global(.ant-btn) {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-secondary);
+}

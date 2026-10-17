@@ -25,6 +25,7 @@ import { customSelectStyles, FilterPopover, uiStyles, WorkspaceDetectionLoading,
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
 import { buildDockerShellCommand } from '../model/dockerShellCommand'
+import { DockerToolbar, DockerUnavailableState } from './DockerConnectionState'
 import styles from './DockerPanel.module.scss'
 
 export interface DockerPanelProps {
@@ -49,12 +50,9 @@ export function DockerContainersPanel({ api, session, enabled, onOpenShell, inva
   const detail = docker.detail
   const showingDetail = Boolean(docker.selectedRef)
   const capability = docker.capability
-  const capabilityReady = Boolean(capability?.available)
-  const capabilityStatusText = capability ? getCapabilityTitle(capability.status, t) : t('workbench.docker.detecting')
   const updatedText = docker.lastUpdatedAt
     ? t('workbench.docker.collectedAt', { time: formatTime(docker.lastUpdatedAt) })
     : t('workbench.processes.updatedNever')
-  const capabilityMessage = capability?.message && capability.message !== capabilityStatusText ? capability.message : updatedText
   const listSummary = docker.list
     ? t('workbench.docker.filtered', { count: docker.list.filtered, total: docker.list.total })
     : t('workbench.docker.total', { count: 0 })
@@ -124,194 +122,149 @@ export function DockerContainersPanel({ api, session, enabled, onOpenShell, inva
     )
   }
 
-  if (!capability || (capability.available && !docker.list && !docker.error)) {
+  if ((!capability && !docker.capabilityFailed) || (capability?.available && !docker.list && !docker.error)) {
     return <WorkspaceDetectionLoading icon={<Boxes size={15} />} label={t('workbench.docker.detecting')} />
+  }
+
+  if (!capability?.available) {
+    return <DockerUnavailableState capability={capability} error={docker.error} failed={docker.capabilityFailed} loading={docker.loadingCapability}
+      disabled={!enabled} onRetry={() => void docker.refreshAll()} />
   }
 
   return (
     <section className={[styles['docker-panel'], styles.root].join(' ')}>
-      <div className={styles['docker-toolbar']}>
-        <div className={[
-          styles['docker-capability'],
-          capabilityReady
-            ? styles['is-ready']
-            : capability
-              ? styles['is-error']
-              : styles['is-loading'],
-        ].filter(Boolean).join(' ')}>
-          <span className={styles['docker-capability-icon']}>
-            {capabilityReady ? <Container size={17} /> : capability ? <AlertTriangle size={17} /> : <Boxes size={17} />}
-          </span>
-          <div className={styles['docker-capability-copy']}>
-            <strong>{t('workbench.docker.managerTitle')}</strong>
-            <span>{capabilityMessage}</span>
-          </div>
-          <span className={[
-            styles['docker-capability-status'],
-            capabilityReady
-              ? styles['is-ready']
-              : capability
-                ? styles['is-error']
-                : styles['is-loading'],
-          ].filter(Boolean).join(' ')}>
-            {capabilityStatusText}
-          </span>
-        </div>
-        <Tooltip title={t('workbench.docker.refresh')}>
+      <DockerToolbar capability={capability} loading={docker.loadingCapability || docker.loadingList}
+        disabled={!enabled || Boolean(docker.actionRef)} onRefresh={() => void docker.refreshAll()} />
+
+      <div className={styles['docker-filter-panel']}>
+        <Input
+          id="docker-container-search"
+          name="docker-container-search"
+          className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['docker-search-input']}`}
+          value={docker.query.text}
+          allowClear
+          variant="borderless"
+          prefix={<Search size={14} aria-hidden="true" />}
+          placeholder={t('workbench.docker.searchPlaceholder')}
+          onChange={(event) => docker.updateQuery({ text: event.target.value })}
+          onPressEnter={(event) => refreshWithQuery({ text: event.currentTarget.value })}
+        />
+        <FilterPopover
+          content={
+            <div className={styles['docker-filter-popover-content']}>
+              <div className={styles['docker-filter-popover-head']}>
+                <strong>{t('workbench.docker.filters')}</strong>
+                <Button type="text" size="small" onClick={resetFilters}>
+                  {t('workbench.docker.resetFilters')}
+                </Button>
+              </div>
+              <Input
+                id="docker-port-filter"
+                name="docker-port-filter"
+                className={styles['docker-compact-input']}
+                value={docker.query.port}
+                allowClear
+                variant="borderless"
+                prefix={<PlugZap size={13} aria-hidden="true" />}
+                placeholder={t('workbench.docker.portPlaceholder')}
+                onChange={(event) => docker.updateQuery({ port: event.target.value.replace(/[^\d]/g, '') })}
+                onPressEnter={(event) => refreshWithQuery({ port: event.currentTarget.value.replace(/[^\d]/g, '') })}
+              />
+              <DockerFilterOptionGroup
+                label={t('workbench.docker.state')}
+                value={docker.query.state}
+                options={stateOptions.map((value) => ({
+                  value,
+                  label: value ? formatDockerState(value) : t('workbench.docker.stateAll'),
+                }))}
+                onChange={(value) => refreshWithQuery({ state: value })}
+              />
+              <DockerFilterOptionGroup
+                label={t('workbench.docker.health')}
+                value={docker.query.health}
+                options={healthOptions.map((value) => ({
+                  value,
+                  label: value ? formatDockerState(value) : t('workbench.docker.healthAll'),
+                }))}
+                onChange={(value) => refreshWithQuery({ health: value })}
+              />
+            </div>
+          }
+        >
           <Button
             type="text"
-            className={styles['docker-icon-button']}
-            aria-label={t('workbench.docker.refresh')}
-            loading={docker.loadingCapability || docker.loadingList}
-            icon={<RotateCcw size={15} />}
-            onClick={() => void docker.refreshAll()}
-          />
-        </Tooltip>
+            className={[
+              styles['docker-filter-button'],
+              hasActiveFilters ? styles['is-active'] : '',
+            ].filter(Boolean).join(' ')}
+            icon={<ListFilter size={15} />}
+          >
+            {t('workbench.docker.filters')}
+          </Button>
+        </FilterPopover>
       </div>
 
-      {!capabilityReady && capability ? (
+      {docker.error ? (
         <WorkspaceEmptyState
-          className={styles['docker-unavailable-state']}
-          tone={capability.status === 'permission_denied' ? 'warning' : 'danger'}
+          className={styles['docker-error-state']}
+          tone="danger"
           icon={<AlertTriangle size={20} />}
-          title={getCapabilityTitle(capability.status, t)}
-          description={capability.message || t('workbench.docker.unknownStatus')}
+          title={t('workbench.docker.loadFailed')}
+          description={docker.error}
         />
       ) : null}
 
-      {capabilityReady ? (
-        <>
-          <div className={styles['docker-filter-panel']}>
-            <Input
-              id="docker-container-search"
-              name="docker-container-search"
-              className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['docker-search-input']}`}
-              value={docker.query.text}
-              allowClear
-              variant="borderless"
-              prefix={<Search size={14} aria-hidden="true" />}
-              placeholder={t('workbench.docker.searchPlaceholder')}
-              onChange={(event) => docker.updateQuery({ text: event.target.value })}
-              onPressEnter={(event) => refreshWithQuery({ text: event.currentTarget.value })}
-            />
-            <FilterPopover
-              content={
-                <div className={styles['docker-filter-popover-content']}>
-                  <div className={styles['docker-filter-popover-head']}>
-                    <strong>{t('workbench.docker.filters')}</strong>
-                    <Button type="text" size="small" onClick={resetFilters}>
-                      {t('workbench.docker.resetFilters')}
-                    </Button>
-                  </div>
-                  <Input
-                    id="docker-port-filter"
-                    name="docker-port-filter"
-                    className={styles['docker-compact-input']}
-                    value={docker.query.port}
-                    allowClear
-                    variant="borderless"
-                    prefix={<PlugZap size={13} aria-hidden="true" />}
-                    placeholder={t('workbench.docker.portPlaceholder')}
-                    onChange={(event) => docker.updateQuery({ port: event.target.value.replace(/[^\d]/g, '') })}
-                    onPressEnter={(event) => refreshWithQuery({ port: event.currentTarget.value.replace(/[^\d]/g, '') })}
-                  />
-                  <DockerFilterOptionGroup
-                    label={t('workbench.docker.state')}
-                    value={docker.query.state}
-                    options={stateOptions.map((value) => ({
-                      value,
-                      label: value ? formatDockerState(value) : t('workbench.docker.stateAll'),
-                    }))}
-                    onChange={(value) => refreshWithQuery({ state: value })}
-                  />
-                  <DockerFilterOptionGroup
-                    label={t('workbench.docker.health')}
-                    value={docker.query.health}
-                    options={healthOptions.map((value) => ({
-                      value,
-                      label: value ? formatDockerState(value) : t('workbench.docker.healthAll'),
-                    }))}
-                    onChange={(value) => refreshWithQuery({ health: value })}
-                  />
-                </div>
+      <div className={styles['docker-content']}>
+        {showingDetail ? (
+          <DockerDetailView
+            detail={detail}
+            loading={docker.detailLoading}
+            error={docker.detailError}
+            selectedRef={docker.selectedRef}
+            selectedLabel={selectedLabel}
+            actionRef={docker.actionRef}
+            logs={docker.logs?.lines ?? detail?.logs_preview ?? []}
+            logsLoading={docker.logsLoading}
+            logsError={docker.logsError}
+            logTail={docker.query.logTail}
+            logsCollectedAt={docker.logs?.collected_at ?? detail?.collected_at ?? ''}
+            enabled={enabled}
+            onBack={docker.clearSelection}
+            onRefreshLogs={(tail) => {
+              const nextTail = tail ?? docker.query.logTail
+              if (nextTail !== docker.query.logTail) {
+                docker.updateQuery({ logTail: nextTail })
               }
-            >
-              <Button
-                type="text"
-                className={[
-                  styles['docker-filter-button'],
-                  hasActiveFilters ? styles['is-active'] : '',
-                ].filter(Boolean).join(' ')}
-                icon={<ListFilter size={15} />}
-              >
-                {t('workbench.docker.filters')}
-              </Button>
-            </FilterPopover>
-          </div>
-
-          {docker.error ? (
-            <WorkspaceEmptyState
-              className={styles['docker-error-state']}
-              tone="danger"
-              icon={<AlertTriangle size={20} />}
-              title={t('workbench.docker.loadFailed')}
-              description={docker.error}
-            />
-          ) : null}
-
-          <div className={styles['docker-content']}>
-            {showingDetail ? (
-              <DockerDetailView
-                detail={detail}
-                loading={docker.detailLoading}
-                error={docker.detailError}
-                selectedRef={docker.selectedRef}
-                selectedLabel={selectedLabel}
-                actionRef={docker.actionRef}
-                logs={docker.logs?.lines ?? detail?.logs_preview ?? []}
-                logsLoading={docker.logsLoading}
-                logsError={docker.logsError}
-                logTail={docker.query.logTail}
-                logsCollectedAt={docker.logs?.collected_at ?? detail?.collected_at ?? ''}
-                enabled={enabled}
-                onBack={docker.clearSelection}
-                onRefreshLogs={(tail) => {
-                  const nextTail = tail ?? docker.query.logTail
-                  if (nextTail !== docker.query.logTail) {
-                    docker.updateQuery({ logTail: nextTail })
-                  }
-                  void docker.refreshLogs(undefined, nextTail)
-                }}
-                onAction={runAction}
-                onOpenShell={openShell}
+              void docker.refreshLogs(undefined, nextTail)
+            }}
+            onAction={runAction}
+            onOpenShell={openShell}
+          />
+        ) : (
+          <div className={styles['docker-list']} aria-label={t('workbench.docker.containerList')}>
+            <div className={styles['docker-list-summary']}>
+              <strong>{listSummary}</strong>
+              <span>{updatedText}</span>
+            </div>
+            {items.length === 0 && !docker.loadingList ? (
+              <WorkspaceEmptyState
+                className={styles['docker-empty-list']}
+                icon={<ListFilter size={20} />}
+                title={t(docker.list ? 'workbench.docker.noResults' : 'workbench.docker.loading')}
+                description={docker.list ? undefined : t('workbench.docker.emptyListHint')}
               />
-            ) : (
-              <div className={styles['docker-list']} aria-label={t('workbench.docker.containerList')}>
-                <div className={styles['docker-list-summary']}>
-                  <strong>{listSummary}</strong>
-                  <span>{updatedText}</span>
-                </div>
-                {items.length === 0 && !docker.loadingList ? (
-                  <WorkspaceEmptyState
-                    className={styles['docker-empty-list']}
-                    icon={<ListFilter size={20} />}
-                    title={t(docker.list ? 'workbench.docker.noResults' : 'workbench.docker.loading')}
-                    description={docker.list ? undefined : t('workbench.docker.emptyListHint')}
-                  />
-                ) : null}
-                {items.map((item) => (
-                  <DockerRow
-                    key={item.id || item.name}
-                    item={item}
-                    selected={docker.selectedRef === getContainerRef(item)}
-                    onSelect={() => void docker.selectContainer(getContainerRef(item))}
-                  />
-                ))}
-              </div>
-            )}
+            ) : null}
+            {items.map((item) => (
+              <DockerRow
+                key={item.id || item.name}
+                item={item}
+                selected={docker.selectedRef === getContainerRef(item)}
+                onSelect={() => void docker.selectContainer(getContainerRef(item))}
+              />
+            ))}
           </div>
-        </>
-      ) : null}
+        )}
+      </div>
     </section>
   )
 }
@@ -1031,21 +984,6 @@ function getSelectedContainerLabel(ref: string, items: DockerContainerSummary[],
   }
   const matched = items.find((item) => getContainerRef(item) === ref || item.id === ref || item.short_id === ref || item.name === ref)
   return matched?.name || matched?.short_id || matched?.id || ref
-}
-
-function getCapabilityTitle(status: string, t: (key: string) => string) {
-  switch (status) {
-    case 'available':
-      return t('workbench.docker.available')
-    case 'missing_cli':
-      return t('workbench.docker.missingCli')
-    case 'daemon_unavailable':
-      return t('workbench.docker.daemonUnavailable')
-    case 'permission_denied':
-      return t('workbench.docker.permissionDenied')
-    default:
-      return t('workbench.docker.unknownStatus')
-  }
 }
 
 function summarizePorts(ports: DockerContainerPort[], rawPorts?: string): string {

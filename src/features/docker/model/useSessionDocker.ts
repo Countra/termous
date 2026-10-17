@@ -23,6 +23,7 @@ export interface SessionDockerQueryState {
 export interface SessionDockerState {
   query: SessionDockerQueryState
   capability: DockerCapability | null
+  capabilityFailed: boolean
   list: DockerListResult | null
   detail: DockerContainerDetail | null
   stats: DockerContainerStats | null
@@ -64,6 +65,7 @@ const maxDockerLogTail = 1000
 const emptyDockerState: SessionDockerState = {
   query: defaultDockerQuery,
   capability: null,
+  capabilityFailed: false,
   list: null,
   detail: null,
   stats: null,
@@ -190,7 +192,7 @@ export function useSessionDocker({ api, session, enabled, invalidationRevision =
     capabilityAbortRef.current?.abort()
     const controller = new AbortController()
     capabilityAbortRef.current = controller
-    updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: true, error: '' }))
+    updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: true, capabilityFailed: false, error: '' }))
     try {
       const capability = await api.sessionDockerCapability(sessionId, { signal: controller.signal })
       if (capabilityRevisionRef.current[sessionId] !== revision) {
@@ -199,6 +201,7 @@ export function useSessionDocker({ api, session, enabled, invalidationRevision =
       updateSessionState(sessionId, (current) => ({
         ...current,
         capability,
+        capabilityFailed: false,
         loadingCapability: false,
         error: capability.available ? '' : capability.message ?? '',
       }))
@@ -212,7 +215,7 @@ export function useSessionDocker({ api, session, enabled, invalidationRevision =
         return null
       }
       const message = error instanceof Error ? error.message : ''
-      updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: false, error: message }))
+      updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: false, capabilityFailed: true, error: message }))
       return null
     } finally {
       if (capabilityAbortRef.current === controller) {
@@ -494,7 +497,8 @@ export function useSessionDocker({ api, session, enabled, invalidationRevision =
       return
     }
     if (!currentState.capability) {
-      void refreshAll()
+      // 探测失败后等待用户重试，避免状态变化触发连续请求。
+      if (!currentState.capabilityFailed) void refreshAll()
       return
     }
     if (currentState.refreshRequired) {
@@ -508,7 +512,7 @@ export function useSessionDocker({ api, session, enabled, invalidationRevision =
     if (currentState.capability.available && currentState.selectedRef && !currentState.detail && !currentState.detailLoading && !currentState.detailError) {
       void selectContainer(currentState.selectedRef)
     }
-  }, [currentState.capability, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.refreshRequired, currentState.selectedRef, enabled, refreshAll, refreshChangedContainer, refreshList, selectContainer, supported])
+  }, [currentState.capability, currentState.capabilityFailed, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.refreshRequired, currentState.selectedRef, enabled, refreshAll, refreshChangedContainer, refreshList, selectContainer, supported])
 
   return {
     ...currentState,

@@ -9,6 +9,7 @@ interface State {
   source?: DockerGateway
   sessionId: string
   capability: DockerCapability | null
+  capabilityFailed: boolean
   capabilityAt: number
   list: DockerResourceList | null
   listAt: number
@@ -25,7 +26,7 @@ interface State {
   actionError: string
 }
 const empty: State = {
-  sessionId: '', capability: null, capabilityAt: 0, list: null, listAt: 0, detail: null, detailAt: 0,
+  sessionId: '', capability: null, capabilityFailed: false, capabilityAt: 0, list: null, listAt: 0, detail: null, detailAt: 0,
   selectedRef: '', search: '', query: '', offset: 0, loading: false, detailLoading: false,
   error: '', detailError: '', actionError: '',
 }
@@ -82,19 +83,21 @@ export function useDockerResources(
     const previous = getState()
     const nextQuery = query ?? previous.query
     const nextOffset = offset ?? previous.offset
-    update({ loading: true, error: '', query: nextQuery, offset: nextOffset, listAt: 0 })
+    update({ loading: true, capabilityFailed: false, error: '', query: nextQuery, offset: nextOffset, listAt: 0 })
+    let checkingCapability = true
     try {
       const shared = [...cache.current.values()].find((value) => value.source === api && value.sessionId === id && fresh(value.capabilityAt))
       const capability = !forceCapability && shared?.capability
         ? shared.capability : await api.sessionDockerCapability(id, { signal: controller.signal })
       if (!active() || controller.signal.aborted) return
+      checkingCapability = false
       const capabilityAt = !forceCapability && shared?.capability ? shared.capabilityAt : Date.now()
       // 能力属于会话；一次新探测同时更新其他模式，不能继续展示已失效的可操作资源。
       for (const [key, value] of cache.current) {
         if (value.source !== api || value.sessionId !== id) continue
         cache.current.set(key, {
-          ...value, capability, capabilityAt,
-          ...(!capability.available ? { list: null, listAt: 0, detail: null, detailAt: 0, selectedRef: '', detailLoading: false, detailError: '' } : {}),
+          ...value, capability, capabilityAt, capabilityFailed: false,
+          ...(!capability.available ? { list: null, listAt: 0, detail: null, detailAt: 0, selectedRef: '', detailLoading: false, detailError: '', error: '' } : {}),
         })
       }
       publish()
@@ -110,7 +113,7 @@ export function useDockerResources(
       }
       if (!controller.signal.aborted) update({ list, listAt: Date.now(), offset: list.offset })
     } catch (error) {
-      if (!controller.signal.aborted) update({ error: error instanceof Error ? error.message : String(error) })
+      if (!controller.signal.aborted) update({ capabilityFailed: checkingCapability, error: error instanceof Error ? error.message : String(error) })
     } finally {
       if (!controller.signal.aborted) update({ loading: false })
     }

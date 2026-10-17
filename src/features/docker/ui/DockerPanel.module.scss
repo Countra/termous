@@ -4,139 +4,22 @@
 }
 
 .docker-panel {
-  display: grid;
+  display: flex;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  flex-direction: column;
   gap: 10px;
 }
 
-.docker-toolbar {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.docker-capability {
-  display: grid;
-  min-width: 0;
-  min-height: 48px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
-}
-
-.docker-capability.is-ready {
-  border-color: color-mix(in srgb, #31d0a0 30%, var(--border));
-}
-
-.docker-capability.is-error {
-  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
-}
-
-.docker-capability-icon {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  color: var(--accent);
-}
-
-.docker-capability-icon svg,
 .docker-row-icon svg,
 .docker-detail-icon svg {
   display: block;
 }
 
-.docker-capability.is-ready .docker-capability-icon {
-  background: color-mix(in srgb, #31d0a0 14%, var(--surface));
-  color: #31d0a0;
-}
-
-.docker-capability.is-error .docker-capability-icon {
-  background: color-mix(in srgb, #ff6b6b 14%, var(--surface));
-  color: #ff7b7b;
-}
-
-.docker-capability-copy,
-.docker-capability-copy strong,
-.docker-capability-copy span {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.docker-capability-copy strong {
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 780;
-}
-
-.docker-capability-copy span {
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 620;
-}
-
-.docker-capability-status {
-  display: inline-flex;
-  max-width: 92px;
-  height: 26px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 780;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.docker-capability-status.is-ready {
-  border-color: color-mix(in srgb, #31d0a0 34%, var(--border));
-  background: color-mix(in srgb, #31d0a0 11%, var(--surface));
-  color: #31d0a0;
-}
-
-.docker-capability-status.is-error {
-  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
-  background: color-mix(in srgb, #ff6b6b 11%, var(--surface));
-  color: #ff8585;
-}
-
-.docker-icon-button:global(.ant-btn) {
-  width: 36px;
-  height: 36px;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
-  color: var(--text-secondary);
-}
-
-.docker-icon-button:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
-  color: var(--accent);
-}
-
 .docker-filter-panel {
   display: grid;
+  flex: 0 0 auto;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -260,6 +143,7 @@
 }
 
 .docker-content {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -319,12 +203,12 @@
   position: relative;
   display: grid;
   width: 100%;
-  min-height: 92px;
-  margin: 0 0 8px;
-  padding: 11px 12px;
+  min-height: 86px;
+  margin: 0 0 6px;
+  padding: 10px 11px;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-subtle) 32%, transparent);
   color: inherit;
   font-family: inherit;
   text-align: left;
@@ -360,11 +244,12 @@
 
 .docker-row-icon {
   display: inline-grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   place-items: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
   color: var(--accent);
 }
 
@@ -406,10 +291,7 @@
   display: grid;
   min-width: 0;
   gap: 3px;
-  padding: 7px 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+  padding: 2px 0;
 }
 
 .docker-row-statline small {
@@ -1255,13 +1137,11 @@
 }
 
 .docker-empty-list,
-.docker-unavailable-state,
 .docker-error-state,
 .docker-detail-empty {
   min-height: 140px;
 }
 
-.docker-capability,
 .docker-row,
 .docker-detail-head,
 .docker-kpi,

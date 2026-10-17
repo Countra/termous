@@ -3019,7 +3019,16 @@
       "emptyHint": "Connect a Linux SSH session to manage containers, images, volumes and networks here.",
       "unsupportedTitle": "Docker management unavailable",
       "unsupportedHint": "The first version supports connected Linux SSH sessions only.",
-      "managerTitle": "Docker Manager",
+      "detectAgain": "Check again",
+      "detectionFailed": "Docker check failed",
+      "detectionDetails": "View diagnostic details",
+      "availabilityHints": {
+        "missing_cli": "Install Docker on the remote host, then check again.",
+        "daemon_unavailable": "Cannot reach Docker. Make sure the service is running on this host.",
+        "permission_denied": "The current SSH user cannot access Docker. Update permissions, then check again.",
+        "unknown": "Docker status could not be determined. Check the remote environment and try again.",
+        "failed": "Could not read Docker status. Check the connection and try again."
+      },
       "refresh": "Refresh Docker",
       "detecting": "Detecting Docker",
       "available": "Docker available",
