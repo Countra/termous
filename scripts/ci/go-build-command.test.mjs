@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -9,7 +9,7 @@ const bash = process.env.TERMOUS_TEST_BASH || (process.platform === 'win32' ? un
 const cacheKeys = ['GOCACHE', 'GOMODCACHE', 'GOTMPDIR', 'TEMP', 'TMP', 'TMPDIR']
 
 test('Windows RDP 构建把具名参数及含空格路径传给 PowerShell 脚本', { skip: process.platform !== 'win32' }, async (t) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous rdp command-'))
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'termous rdp command-')))
   t.after(() => rm(root, { recursive: true, force: true }))
   const source = (await readFile(new URL('./build-windows.ps1', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
   const invoke = source.match(/function Invoke-Native \{[\s\S]*?\n\}/)?.[0]
