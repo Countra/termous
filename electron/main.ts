@@ -123,7 +123,8 @@ async function initializeNotifications() {
   await preferences.load()
   notificationPreferences = preferences
   notificationRuntime = new NotificationRuntime({
-    background: (message) => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && (message.remote ? !remoteControlRuntime?.agentVisible(message) : win.isMinimized() || !win.isVisible())),
+    // 主界面和所有独立窗口共用应用级焦点，窗口间切换不按消息来源分别判断。
+    background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && !BrowserWindow.getFocusedWindow()),
     supported: () => Notification.isSupported(),
     preferences: () => preferences.get(), language: () => appLanguage,
     create: (title, body) => new Notification({ title, body, icon: APP_ICON }),

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { fromJson } from '@bufbuild/protobuf'
 import { RequestSchema } from '@termous/remote-protocol'
@@ -10,14 +10,10 @@ import { RemoteAgentSurface } from './RemoteAgentSurface'
 import { createRemoteAgentGateway } from '../api/agentGateway.ts'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'zh-CN' } }) }))
-vi.mock('#pages/agent', () => ({ AgentPage: function AgentPage({ remote, enabled, fileResources, sshResources, sshResourcesReady, onVisibleSessionChange }: {
-  remote: boolean; enabled: boolean; fileResources: unknown[]; sshResources: unknown[]; sshResourcesReady: boolean; onVisibleSessionChange?: (session?: string) => void
+vi.mock('#pages/agent', () => ({ AgentPage: function AgentPage({ remote, enabled, fileResources, sshResources, sshResourcesReady }: {
+  remote: boolean; enabled: boolean; fileResources: unknown[]; sshResources: unknown[]; sshResourcesReady: boolean
 }) {
   const [draft, setDraft] = useState('')
-  useEffect(() => {
-    onVisibleSessionChange?.('session-one')
-    return () => onVisibleSessionChange?.(undefined)
-  }, [onVisibleSessionChange])
   return <div>
     {remote && enabled ? '被控端会话' : '错误的会话来源'}
     <input aria-label="草稿" value={draft} onChange={event => setDraft(event.target.value)} />
@@ -49,10 +45,9 @@ function fixture(initialResources: unknown[] = []) {
       json: btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(kind === Q.STATUS ? readiness : { items: resources })))),
     } } }
   })
-  const setAgentView = vi.fn<NonNullable<RemoteWindowBridge['setAgentView']>>(async () => ({ ok: true, value: true }))
-  const bridge = { request, setAgentView } as unknown as RemoteWindowBridge
+  const bridge = { request } as unknown as RemoteWindowBridge
   const client = new RemoteClient(bridge, { id: 'remote-connection' } as RemoteConnection)
-  return { client, request, setAgentView, fail: (code: string) => { error = code }, failResources: (code: string) => { resourceError = code }, setResources: (items: unknown[]) => { resources = items } }
+  return { client, request, fail: (code: string) => { error = code }, failResources: (code: string) => { resourceError = code }, setResources: (items: unknown[]) => { resources = items } }
 }
 
 beforeEach(() => { vi.restoreAllMocks() })
@@ -151,20 +146,4 @@ test('非法文件身份仍拒绝，修正后可原地恢复资源', async () =>
   setResources([fileCandidate('ftp')])
   fireEvent.click(screen.getByRole('button', { name: 'app.retry' }))
   expect(await screen.findByText('资源就绪：1 个文件配置，0 个终端')).toBeVisible()
-})
-
-test('会话通知状态失败与资源读取分离，成功刷新资源不会掩盖失败', async () => {
-  const { client, request, setAgentView } = fixture()
-  setAgentView.mockResolvedValue({ ok: false, code: 'remote_operation_failed' })
-  render(<RemoteAgentSurface client={client} active />)
-  expect(await screen.findByText('资源就绪：0 个文件配置，0 个终端')).toBeVisible()
-  expect(await screen.findByRole('alert')).toHaveTextContent('会话通知更新失败。')
-  fireEvent.change(screen.getByRole('textbox', { name: '草稿' }), { target: { value: '保留草稿' } })
-  request.mockClear()
-  setAgentView.mockResolvedValue({ ok: true, value: true })
-  fireEvent.click(screen.getByRole('button', { name: 'app.retry' }))
-  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-  expect(screen.getByRole('textbox', { name: '草稿' })).toHaveValue('保留草稿')
-  expect(request).not.toHaveBeenCalled()
-  expect(setAgentView).toHaveBeenLastCalledWith('session-one', 'remote-connection')
 })

@@ -6805,7 +6805,7 @@
     "approvalMissing": "This request may be resolved or expired, or a higher-priority approval is open. Check the current approval dialog.",
     "settings": {
       "title": "System notifications",
-      "hint": "Notify only when minimized or hidden to tray. Results remain in the message centre.",
+      "hint": "Notify only when no Termous window has focus. Results remain in the message centre.",
       "desktopOnly": "System notifications are available in the desktop app. The message centre is still available.",
       "unsupported": "Native notifications are unavailable on this system. The message centre is still available.",
       "error": "Unable to read or save notification settings",

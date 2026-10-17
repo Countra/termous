@@ -64,7 +64,6 @@ export interface RemoteWindowBridge {
     isMaximized(): Promise<RemoteResult<boolean>>
     onMaximizeState(callback: (maximized: boolean) => void): () => void
   }
-  setAgentView?(sessionId: string | undefined, connectionId: string): Promise<RemoteResult<boolean>>
   agentUpload(data: Uint8Array, mime: string, connectionId: string): Promise<RemoteResult<{ id: string }>>
   agentDownload(id: string, connectionId: string): Promise<RemoteResult<Uint8Array>>
   bootstrap(): Promise<RemoteBootstrap>

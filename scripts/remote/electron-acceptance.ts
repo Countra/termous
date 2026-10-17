@@ -122,7 +122,6 @@ try {
   assert.equal(jsonUpload.ok, true)
   const badAttachment = await remote.webContents.executeJavaScript('window.termousRemote.agentUpload(new Uint8Array([65]), "invalid mime", "preview")')
   assert.equal(badAttachment.code, 'remote_invalid_request')
-  assert.equal((await remote.webContents.executeJavaScript('window.termousRemote.setAgentView("ags-session", "preview")')).ok, true)
   const invalid = await remote.webContents.executeJavaScript('window.termousRemote.request({hello:{}}, "preview")')
   assert.equal(invalid.code, 'remote_invalid_request')
   await until(() => remote.webContents.executeJavaScript('document.body.innerText.includes("远程工作台") && document.body.innerText.includes("Release bucket")'))

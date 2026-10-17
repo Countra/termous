@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { test } from 'node:test'
-import type { NotificationMessage } from '#common/contracts'
+import type { NotificationMessage, NotificationPreferences } from '#common/contracts'
 import { NotificationRuntime } from './runtime.ts'
 
 function message(sequence: number, patch: Partial<NotificationMessage> = {}): NotificationMessage {
@@ -12,6 +12,115 @@ class Native extends EventEmitter {
   closed = 0
   show() { this.shown++ }
   close() { this.closed++ }
+}
+
+for (const source of ['agent', 'file', 'approval', 'cloud', 'remote-agent', 'remote-approval'] as const) {
+  test(`${source} 消息统一按应用焦点提醒，前台或停用期间的消息不补发`, (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    let focusedWindow: string | null = 'main'
+    const natives: Native[] = []
+    const preferences: NotificationPreferences = { enabled: true, agent: true, file: true, cloud: true, approval: true }
+    let supported = true
+    const runtime = new NotificationRuntime({ background: () => focusedWindow === null, supported: () => supported,
+      preferences: () => preferences, language: () => 'zh-CN',
+      create: () => { const native = new Native(); natives.push(native); return native }, activate() {}, warn() {} })
+    t.after(() => runtime.close())
+    runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+    const kind = source === 'remote-agent' ? 'agent' : source === 'remote-approval' ? 'approval' : source
+    const patch: Partial<NotificationMessage> = { kind, operation: kind === 'agent' ? 'run' : kind === 'approval' ? 'command' : kind === 'cloud' ? 'cloud_sync' : 'upload_file',
+      outcome: kind === 'approval' ? 'attention' : 'success', session_id: 'session', expires_at: new Date(Date.now() + 60_000).toISOString(),
+      ...(source.startsWith('remote-') ? { remote: { account: 'account', device_id: 'device', device_name: '远程设备', instance_id: 'instance' } } : {}) }
+    let sequence = 0
+    for (const window of ['main', 'agent', 'desktop-workflow', 'remote', 'update']) {
+      focusedWindow = window
+      runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+      t.mock.timers.tick(2000)
+      assert.equal(natives.length, 0, `${window} 聚焦时不得发送系统通知`)
+    }
+    focusedWindow = null
+    t.mock.timers.tick(2000)
+    runtime.accept({ type: 'upsert', message: message(sequence, patch) })
+    assert.equal(natives.length, 0)
+    runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 1)
+    assert.equal(natives[0].shown, 1)
+    focusedWindow = 'agent'
+    runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 1)
+    focusedWindow = null
+    preferences.enabled = false
+    runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+    preferences.enabled = true
+    preferences[kind] = false
+    runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+    preferences[kind] = true
+    supported = false
+    runtime.accept({ type: 'upsert', message: message(++sequence, patch) })
+    supported = true
+    runtime.accept({ type: 'upsert', message: message(++sequence, { ...patch, read: true }) })
+    runtime.accept({ type: 'upsert', message: message(++sequence, { ...patch, native_eligible: false }) })
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 1)
+    runtime.accept({ type: 'upsert', message: message(sequence + 1, patch) })
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 2)
+  })
+}
+
+test('文件通知等待合并时重新聚焦子窗口，发送前取消提醒且之后不补发', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let focusedWindow: string | null = null
+  const natives: Native[] = []
+  const runtime = new NotificationRuntime({ background: () => focusedWindow === null, supported: () => true,
+    preferences: () => ({ enabled: true, agent: true, file: true, cloud: true, approval: true }), language: () => 'zh-CN',
+    create: () => { const native = new Native(); natives.push(native); return native }, activate() {}, warn() {} })
+  t.after(() => runtime.close())
+  runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+  let sequence = 0
+  for (const window of ['agent', 'desktop-workflow', 'remote']) {
+    focusedWindow = null
+    runtime.accept({ type: 'upsert', message: message(++sequence) })
+    t.mock.timers.tick(1000)
+    focusedWindow = window
+    t.mock.timers.tick(1000)
+    assert.equal(natives.length, 0)
+  }
+  focusedWindow = null
+  t.mock.timers.tick(2000)
+  assert.equal(natives.length, 0)
+  runtime.accept({ type: 'upsert', message: message(sequence + 1) })
+  t.mock.timers.tick(2000)
+  assert.equal(natives.length, 1)
+})
+
+for (const reason of ['disabled', 'file-disabled', 'unsupported', 'closed'] as const) {
+  test(`文件通知等待合并期间 ${reason}，清除待投递消息且恢复后不补发`, (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const natives: Native[] = []
+    const preferences: NotificationPreferences = { enabled: true, agent: true, file: true, cloud: true, approval: true }
+    let supported = true
+    const runtime = new NotificationRuntime({ background: () => true, supported: () => supported, preferences: () => preferences, language: () => 'zh-CN',
+      create: () => { const native = new Native(); natives.push(native); return native }, activate() {}, warn() {} })
+    t.after(() => runtime.close())
+    runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+    runtime.accept({ type: 'upsert', message: message(1) })
+    if (reason === 'disabled') preferences.enabled = false
+    if (reason === 'file-disabled') preferences.file = false
+    if (reason === 'unsupported') supported = false
+    if (reason === 'closed') runtime.close()
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 0)
+    preferences.enabled = true
+    preferences.file = true
+    supported = true
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, 0)
+    runtime.accept({ type: 'upsert', message: message(2) })
+    t.mock.timers.tick(2000)
+    assert.equal(natives.length, reason === 'closed' ? 0 : 1)
+  })
 }
 
 test('审批即时提醒、快照决策后释放原生通知且过期不补发', () => {

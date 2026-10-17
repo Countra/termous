@@ -13,7 +13,6 @@ const bridge: RemoteWindowBridge = {
       return () => ipcRenderer.removeListener('remote:maximize-state', listener)
     },
   },
-  setAgentView: (session, id) => ipcRenderer.invoke('remote:agent-view', session, id),
   agentUpload: (data, mime, id) => ipcRenderer.invoke('remote:agent-upload', data, mime, id),
   agentDownload: (content, id) => ipcRenderer.invoke('remote:agent-download', content, id),
   bootstrap: () => ipcRenderer.invoke('remote:bootstrap'),

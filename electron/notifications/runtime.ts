@@ -8,7 +8,7 @@ export interface NativeNotification {
   removeAllListeners(): unknown
 }
 interface Options {
-  background(message: NotificationMessage): boolean
+  background(): boolean
   supported(): boolean
   preferences(): NotificationPreferences
   language(): string
@@ -68,7 +68,7 @@ export class NotificationRuntime {
   private allowed(message: NotificationMessage) {
     const preferences = this.options.preferences()
     const expired = message.expires_at && Date.parse(message.expires_at) <= (this.options.now?.() ?? Date.now())
-    return !expired && preferences.enabled && preferences[message.kind] && this.options.background(message) && this.options.supported()
+    return !expired && preferences.enabled && preferences[message.kind] && this.options.background() && this.options.supported()
   }
   private deliver(messages: NotificationMessage[]) {
     if (this.closed || !messages.length || !this.allowed(messages[0])) return

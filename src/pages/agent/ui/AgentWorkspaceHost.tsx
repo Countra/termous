@@ -63,7 +63,6 @@ export function AgentWorkspaceHost({
   feedback,
   renderSurface,
   notificationSessionId,
-  onVisibleSessionChange,
   onNotificationSessionHandled,
   gateway,
   setupGateway,
@@ -103,7 +102,6 @@ export function AgentWorkspaceHost({
   enabled: boolean
   active: boolean
   notificationSessionId?: string
-  onVisibleSessionChange?: (sessionId?: string) => void
   onNotificationSessionHandled?: () => void
   launchIntent?: AgentLaunchIntent | null
   onLaunchIntentHandled?: (key: number) => void
@@ -148,10 +146,6 @@ export function AgentWorkspaceHost({
     setNotificationArchive(undefined)
     onNotificationSessionHandled?.()
   }, [notificationArchive, archives, onNotificationSessionHandled])
-  useEffect(() => {
-    onVisibleSessionChange?.(active ? archivesOpen ? archives.selectedSessionId : state.selected_session_id : undefined)
-    return () => onVisibleSessionChange?.(undefined)
-  }, [active, archivesOpen, archives.selectedSessionId, state.selected_session_id, onVisibleSessionChange])
   const [draftGroupId, setDraftGroupId] = useState<string>()
 
   const [operationsBySession, setOperationsBySession] = useState<Record<string, AgentOperationBusy>>({})

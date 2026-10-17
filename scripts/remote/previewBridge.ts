@@ -108,7 +108,6 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
     selectTransfer: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
     agentUpload: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
     agentDownload: async () => ({ ok: false, code: 'remote_operation_unsupported' }),
-    setAgentView: async () => ({ ok: true, value: true }),
     localTransfers: async () => ({ ok: true, value: query.has('progress') ? [
       { id: 'upload', state: query.get('progress') === 'completed' ? 'completed' : 'running', stage: query.get('progress') === 'sending' ? 'running' : 'publishing', remote_id: '', session_id: 'sftp-profile', name: 'release.tar.gz', direction: 'upload', confirmed_bytes: 8388608, total_bytes: 8388608, target_bytes: query.get('progress') === 'sending' ? 0 : query.get('progress') === 'writing' ? 4194304 : 8388608, resumable: false },
     ] : [{ id: 'transfer', state: 'paused', remote_id: '', name: 'release.tar.gz', direction: 'download', confirmed_bytes: 2097152, total_bytes: 8388608, resumable: true }] }),

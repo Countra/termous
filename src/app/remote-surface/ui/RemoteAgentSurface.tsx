@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Spin } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { RemoteClient } from '#entities/remote-control'
@@ -29,11 +29,8 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
   }, [quote, resources, handledQuote])
   const [ready, setReady] = useState(false)
   const [resourceFailed, setResourceFailed] = useState(false)
-  const [viewFailed, setViewFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [resourceAttempt, setResourceAttempt] = useState(0)
-  const visibleSessionRef = useRef<string | undefined>(undefined)
-  const viewRequestRef = useRef(0)
   const [handled, setHandled] = useState('')
   useEffect(() => {
     const abort = new AbortController()
@@ -47,16 +44,6 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
     return () => abort.abort()
   }, [setup, attempt])
   const handledNotification = useCallback(() => setHandled(target?.id ?? ''), [target?.id])
-  const visibleSession = useCallback((session?: string) => {
-    visibleSessionRef.current = session
-    const request = ++viewRequestRef.current
-    void client.bridge.setAgentView?.(session, client.connection.id).then(result => {
-      if (request === viewRequestRef.current) setViewFailed(!result.ok)
-    }).catch(() => {
-      if (request === viewRequestRef.current) setViewFailed(true)
-    })
-  }, [client])
-  useEffect(() => () => { viewRequestRef.current++ }, [client])
   useEffect(() => {
     if (access !== 'allowed') return
     const abort = new AbortController()
@@ -87,10 +74,9 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
   </section>
   return <section className={styles.surface}>
     <div className={styles.toolbar}><RemoteAgentApprovals transport={transport} target={target} /></div>
-    <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote onVisibleSessionChange={visibleSession} notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
+    <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
     <RemoteFeedbackStack>
       {resourceFailed ? <RemoteFeedback message={copy.agentResourcesUnavailable} action={<Button size="small" onClick={() => setResourceAttempt(value => value + 1)}>{t('app.retry')}</Button>} /> : null}
-      {viewFailed ? <RemoteFeedback message={copy.agentViewUnavailable} action={<Button size="small" onClick={() => visibleSession(visibleSessionRef.current)}>{t('app.retry')}</Button>} /> : null}
     </RemoteFeedbackStack>
   </section>
 }
