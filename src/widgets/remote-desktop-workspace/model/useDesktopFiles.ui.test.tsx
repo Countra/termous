@@ -141,3 +141,39 @@ test('侧栏隐藏期间操作完成后释放忙碌状态，再次打开仍能�
   expect(accepted).toBe(true)
   expect(result.current.busy).toBe(false)
 })
+
+test('文件选择将授权元数据交给调用方，操作失败仍释放授权并保留原错误', async () => {
+  const picker = vi.fn().mockResolvedValue(['C:/fixture/资料.txt'])
+  vi.stubGlobal('termous', { files: { pickPaths: picker } })
+  const grant = { id: 'selected-grant', source: 'picker' as const, items: [{ id: 'file', name: '资料.txt', kind: 'file' as const, size: 2048 }], created_at: '', expires_at: '' }
+  const api = { describe: vi.fn().mockResolvedValue({}), retained: vi.fn().mockResolvedValue([]), tasks: vi.fn().mockResolvedValue([]),
+    grant: vi.fn().mockResolvedValue(grant), releaseGrant: vi.fn().mockResolvedValue(undefined) } as unknown as DesktopFilesGateway
+  const view = renderHook(() => useDesktopFiles(api, 'session', 1))
+  try {
+    await waitFor(() => expect(view.result.current.state).toBeDefined())
+    const action = vi.fn().mockRejectedValue(new Error('传输准备失败'))
+    await expect(view.result.current.withGrant('files', true, action)).rejects.toThrow('传输准备失败')
+    expect(picker).toHaveBeenCalledWith({ mode: 'files', multiple: true })
+    expect(action).toHaveBeenCalledWith(grant.id, grant.items)
+    expect(api.releaseGrant).toHaveBeenCalledWith(grant.id)
+  } finally { view.unmount(); vi.unstubAllGlobals() }
+})
+
+test('授权申请期间连接换代，迟到的授权仍释放且不执行旧会话操作', async () => {
+  vi.stubGlobal('termous', { files: { pickPaths: vi.fn().mockResolvedValue(['C:/fixture/资料']) } })
+  let finish!: (value: Awaited<ReturnType<DesktopFilesGateway['grant']>>) => void
+  const api = { describe: vi.fn().mockResolvedValue({}), retained: vi.fn().mockResolvedValue([]), tasks: vi.fn().mockResolvedValue([]),
+    grant: vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve })), releaseGrant: vi.fn().mockResolvedValue(undefined) } as unknown as DesktopFilesGateway
+  const view = renderHook(({ generation }) => useDesktopFiles(api, 'session', generation), { initialProps: { generation: 1 } })
+  try {
+    await waitFor(() => expect(view.result.current.state).toBeDefined())
+    const action = vi.fn()
+    const pending = view.result.current.withGrant('directories', false, action)
+    await waitFor(() => expect(finish).toBeDefined())
+    view.rerender({ generation: 2 })
+    finish({ id: 'late-grant', source: 'picker', items: [], created_at: '', expires_at: '' })
+    await pending
+    expect(action).not.toHaveBeenCalled()
+    expect(api.releaseGrant).toHaveBeenCalledWith('late-grant')
+  } finally { view.unmount(); vi.unstubAllGlobals() }
+})

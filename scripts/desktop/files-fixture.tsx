@@ -35,6 +35,8 @@ const state: DesktopFilesState = {
 }
 const task: TransferTask = { id: 'task-active', desktop_session_id: 'fixture', type: 'upload_directory', status: 'running', source_paths: ['项目文档与发布说明.zip'], target_path: '/', total_bytes: 100 * 1024 * 1024, transferred_bytes: 42 * 1024 * 1024, remaining_bytes: 58 * 1024 * 1024, total_files: 8, completed_files: 3, progress_percent: 42, speed_bytes_per_sec: 1024 * 1024, average_speed_bytes_per_sec: 1024 * 1024, elapsed_seconds: 42, cancellable: true, retryable: false, overwrite_policy: 'rename', created_at: new Date().toISOString() }
 const clipboardFiles = [{ index: 0, name: '项目文档', directory: true, size: 0 }, { index: 1, name: '项目文档/这是一份用于验证长文件名截断与勾选排版的交付说明.txt', directory: false, size: 2048 }]
+const outgoingClipboardFiles = [{ name: '项目文档', kind: 'directory', size: 0 }, { name: '交付说明.txt', kind: 'file', size: 2048 },
+  ...Array.from({ length: dense ? 16 : 1 }, (_, index) => ({ name: `项目交付说明-包含中文与较长名称的归档文件-${index + 1}.zip`, kind: 'file', size: 100 * 1024 * 1024 }))]
 const unavailable = async (): Promise<never> => { throw new Error('fixture_operation_unavailable') }
 const refreshPreviewTransfers = async () => {}
 const api: DesktopFilesGateway = {
@@ -61,7 +63,10 @@ const api: DesktopFilesGateway = {
     return { ...task, id: 'clipboard-prepared', status: 'completed', cancellable: false }
   },
   clipboard: async (_id, query) => ({ available: true, huge_files: true, locking: true, offered: true, published, serving: false, provided_bytes: 0, content_generation: 1, total_files: clipboardFiles.length, files: query.limit ? clipboardFiles : [], operation: query.operation_id ? { id: query.operation_id, state: 'completed', completed_bytes: 0, completed_files: 0 } : undefined }),
-  requestClipboard: async (_id, query) => ({ id: query.operation_id!, state: 'completed', completed_bytes: 0, completed_files: 0 }),
+  requestClipboard: async (_id, query, action) => {
+    if (action === 'revoke') published = false
+    return { id: query.operation_id!, state: 'completed', completed_bytes: 0, completed_files: 0 }
+  },
 }
 
 // 系统剪贴板验收只使用模拟授权，不读取操作系统剪贴板或用户文件。
@@ -72,7 +77,7 @@ if (systemClipboardPreview) {
     importClipboard: async () => parameters.get('system-clipboard') === 'text'
       ? { ok: true, value: { kind: 'text' } }
       : parameters.get('system-clipboard') === 'failed' ? { ok: false, code: 'desktop_file_clipboard_failed' }
-        : { ok: true, value: { kind: 'files', sequence: 1, grant: { id: 'fixture-grant', items: [] } } },
+        : { ok: true, value: { kind: 'files', sequence: 1, grant: { id: 'fixture-grant', items: outgoingClipboardFiles } } },
     releaseSelection: async () => ({ ok: true, value: undefined }), consumeDrop: unavailable,
   }
   Object.defineProperty(window, 'termous', { configurable: true, value: { desktopFiles: bridge } })

@@ -1,9 +1,25 @@
-import type { SystemFileClipboardState } from '#common/contracts'
+import type { SystemFileClipboardContext, SystemFileClipboardState } from '#common/contracts'
 
-export interface DesktopSystemClipboardState extends SystemFileClipboardState { busy: boolean; dragging?: boolean; notice?: 'prepared' | 'failed' }
+export interface DesktopClipboardSelection {
+  context: SystemFileClipboardContext
+  taskId: string
+  items: { name: string; kind: string; size?: number }[]
+}
+export interface DesktopSystemClipboardState extends SystemFileClipboardState { busy: boolean; dragging?: boolean; notice?: 'prepared' | 'failed'; outgoing?: DesktopClipboardSelection }
 interface Entry { state: DesktopSystemClipboardState; listeners: Set<() => void>; owner?: symbol; prepare?: () => Promise<void> }
 const empty: DesktopSystemClipboardState = Object.freeze({ supported: false, enabled: false, files: [], busy: false })
 const entries = new Map<string, Entry>()
+
+export function rememberDesktopClipboardSelection(context: DesktopClipboardSelection['context'], taskId: string, items: DesktopClipboardSelection['items']) {
+  // 只保留展示所需元数据，不缓存授权、绝对路径或文件内容。
+  systemClipboardStore.update(context.sessionId, { outgoing: { context: { ...context }, taskId, items: items.map(({ name, kind, size }) => ({ name, kind, size })) } })
+}
+
+export function clearDesktopClipboardSelection(selection: DesktopClipboardSelection) {
+  // 异步撤销只能清理发起时的快照，不能覆盖随后建立的新清单。
+  if (systemClipboardStore.get(selection.context.sessionId).outgoing === selection) systemClipboardStore.update(selection.context.sessionId, { outgoing: undefined })
+}
+
 export const systemClipboardStore = {
   get: (id: string) => entries.get(id)?.state ?? empty,
   subscribe(id: string, listener: () => void) {

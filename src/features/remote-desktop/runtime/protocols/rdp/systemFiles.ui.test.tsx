@@ -8,7 +8,7 @@ import { createRdpSystemFiles } from './systemFiles.ts'
 
 const provider = vi.hoisted(() => ({ bridge: undefined as DesktopFileBridge | undefined }))
 vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ desktopFiles: provider.bridge }) }))
-const context: SystemFileClipboardContext = { sessionId: 'session', generation: 1, subscriptionId: 'viewer', controlGeneration: 2 }
+const context: SystemFileClipboardContext = { sessionId: 'test-session', generation: 1, subscriptionId: 'viewer', controlGeneration: 2 }
 const completed = { id: 'task', status: 'completed' } as TransferTask
 const state = (enabled: boolean): RemoteResult<SystemFileClipboardState> => ({ ok: true, value: { supported: true, enabled, import_enabled: enabled, publish_enabled: enabled, files: [] } })
 const disposers: (() => void)[] = []
@@ -191,6 +191,21 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     await expect(systemClipboardStore.prepare('test-session')).rejects.toThrow('desktop_not_ready')
   })
 
+  it('粘贴准备保留文件元数据，心跳不覆盖清单，手动选择替换后重新准备', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.bridge.importClipboard).mockResolvedValue({ ok: true, value: { kind: 'files', sequence: 10, grant: { id: 'grant', items: [{ name: '资料.txt', kind: 'file', size: 2048 }] } } })
+    await systemClipboardStore.prepare('test-session')
+    expect(systemClipboardStore.get('test-session').outgoing).toEqual({ context, taskId: 'task', items: [{ name: '资料.txt', kind: 'file', size: 2048 }] })
+    await f.runtime.changed()
+    expect(systemClipboardStore.get('test-session').outgoing?.items[0]?.name).toBe('资料.txt')
+    systemClipboardStore.update('test-session', { outgoing: { context, taskId: 'manual-task', items: [] } })
+    await systemClipboardStore.prepare('test-session')
+    expect(f.api.transferClipboard).toHaveBeenCalledTimes(2)
+    f.runtime.dispose()
+    expect(systemClipboardStore.get('test-session').outgoing).toBeUndefined()
+  })
+
   it.each(['text', 'same_session'] as const)('侧栏遇到 %s 不转发远程按键，提示先复制本机文件', async kind => {
     const f = fixture()
     await f.setEnabled(true)
@@ -221,14 +236,18 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     vi.useFakeTimers()
     const f = fixture()
     await f.setEnabled(true)
+    vi.mocked(f.bridge.importClipboard).mockResolvedValueOnce({ ok: true, value: { kind: 'files', grant: { id: 'grant', items: [{ name: '资料.txt', kind: 'file', size: 2048 }] } } })
     vi.mocked(f.api.transferClipboard).mockResolvedValueOnce({ ...completed, status: 'running' })
     vi.mocked(f.api.tasks).mockResolvedValueOnce([{ ...completed, status, error_code: status === 'failed' ? 'desktop_files_storage_failed' : undefined }])
     const pending = systemClipboardStore.prepare('test-session')
-    await vi.advanceTimersByTimeAsync(250)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(systemClipboardStore.get('test-session').outgoing?.items[0]?.name).toBe('资料.txt')
+    await vi.advanceTimersByTimeAsync(249)
     await pending
     expect(f.api.cancelTask).not.toHaveBeenCalled()
     expect(f.bridge.releaseSelection).toHaveBeenCalledWith('grant')
     expect(systemClipboardStore.get('test-session').busy).toBe(false)
+    expect(systemClipboardStore.get('test-session').outgoing).toBeUndefined()
     expect(systemClipboardStore.get('test-session').error_code).toBe(status === 'failed' ? 'desktop_files_storage_failed' : '')
     expect(f.paste).not.toHaveBeenCalled()
   })

@@ -14,3 +14,4 @@ export type {
 } from './runtime/core/viewerContracts.ts'
 export { RemoteDesktopViewport } from './ui/RemoteDesktopViewport.tsx'
 export { useSystemFileClipboard, prepareSystemFileClipboard } from './model/useSystemFileClipboard.ts'
+export { rememberDesktopClipboardSelection, clearDesktopClipboardSelection, type DesktopClipboardSelection } from './model/systemClipboardStore.ts'

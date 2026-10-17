@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import type { FilePickerMode } from '#common/contracts'
-import type { TransferTask } from '#entities/file'
+import type { LocalGrantItem, TransferTask } from '#entities/file'
 import type { DesktopExchange, DesktopFilesState } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
 import { TransferRuntimeContext } from '#features/transfers'
@@ -87,14 +87,14 @@ export function useDesktopFiles(api: DesktopFilesGateway, sessionId: string | un
     }
   }, [refresh])
 
-  const withGrant = useCallback(async (mode: FilePickerMode, multiple: boolean, action: (grantId: string) => Promise<unknown>) => {
+  const withGrant = useCallback(async (mode: FilePickerMode, multiple: boolean, action: (grantId: string, items: LocalGrantItem[]) => Promise<unknown>) => {
     const picker = getTermousBridge()?.files?.pickPaths
     if (!picker) throw new TermousApiError('请在桌面应用中选择文件', 'desktop_files_picker_unavailable', 0)
     const signal = alive.current?.signal
     const paths = await picker({ mode, multiple })
     if (!paths.length || signal?.aborted) return
     const grant = await api.grant(paths)
-    try { if (!signal?.aborted) await action(grant.id) } finally { await api.releaseGrant(grant.id) }
+    try { if (!signal?.aborted) await action(grant.id, grant.items) } finally { await api.releaseGrant(grant.id) }
   }, [api])
 
   return { state, retained, tasks, liveConnected, busy, error, run, refresh, withGrant }

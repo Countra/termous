@@ -76,7 +76,7 @@ test('上传菜单仅在选择文件夹后申请目录授权，沿用当前路�
   const user = userEvent.setup()
   const props = fixture(vi.fn<DesktopFilesGateway['entries']>().mockResolvedValue([]))
   vi.mocked(props.operations.run).mockImplementation(async action => { await action(); return true })
-  vi.mocked(props.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('directory-grant') })
+  vi.mocked(props.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('directory-grant', []) })
   render(<ConfigProvider theme={{ token: { motion: false } }}><App><DesktopExchangeBrowser {...props} overwrite="skip" /></App></ConfigProvider>)
   await waitFor(() => expect(screen.getByRole('button', { name: 'remoteDesktop.files.uploadOptions' })).toBeEnabled())
   await user.click(screen.getByRole('button', { name: 'remoteDesktop.files.uploadOptions' }))

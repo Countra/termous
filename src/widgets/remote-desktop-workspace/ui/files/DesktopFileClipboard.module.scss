@@ -74,6 +74,25 @@
   line-height: 1.6;
 }
 
+.send-content[data-populated] {
+  min-height: 0;
+  align-items: stretch;
+  gap: 20px;
+  padding: 18px 16px 16px;
+  text-align: start;
+}
+
+.send-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.send-toolbar p { margin: 6px 0 0; }
+
 .route {
   display: flex;
   align-items: center;
@@ -94,6 +113,7 @@
 .publication {
   display: flex;
   min-height: 50px;
+  flex-shrink: 0;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;

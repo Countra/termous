@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 import type { DesktopFileClipboard as ClipboardState, RemoteDesktopSession } from '#entities/remote-desktop'
-import type { DesktopFilesGateway, RemoteDesktopViewerState } from '#features/remote-desktop'
+import { rememberDesktopClipboardSelection, type DesktopFilesGateway, type RemoteDesktopViewerState } from '#features/remote-desktop'
 import type { useDesktopFiles } from '../../model/useDesktopFiles.ts'
 import { DesktopFileClipboard } from './DesktopFileClipboard.tsx'
 
@@ -98,7 +98,7 @@ test('切换传输方向保留已读取的文件选择，保存仍使用目录�
   input.api.requestClipboard = vi.fn().mockResolvedValue({ id: 'list', state: 'completed' })
   input.api.transferClipboard = vi.fn()
   vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
-  vi.mocked(input.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('save-folder') })
+  vi.mocked(input.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('save-folder', []) })
   render(<DesktopFileClipboard {...input} />)
   await screen.findByText('remoteDesktop.files.clipboardWaiting')
   fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.receiveFromDesktop' }))
@@ -136,11 +136,143 @@ test('本机选文件期间丢失控制权，授权返回后不会发送旧会�
   input.api.transferClipboard = vi.fn()
   vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
   vi.mocked(input.operations.withGrant).mockImplementation((_mode, _multiple, action) => new Promise(resolve => {
-    finish = async () => { await action('chosen-files'); resolve() }
+    finish = async () => { await action('chosen-files', []); resolve() }
   }))
   const view = render(<DesktopFileClipboard {...input} />)
   fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.publish' }))
   view.rerender(<DesktopFileClipboard {...input} viewer={{ ...viewer, controlOwned: false }} />)
   await act(async () => { await finish() })
   expect(input.api.transferClipboard).not.toHaveBeenCalled()
+})
+
+const selectionContext = { sessionId: session.id, generation: 3, subscriptionId: 'viewer', controlGeneration: 4 }
+const chosen = [{ id: 'file', name: '交付说明.txt', kind: 'file' as const, size: 2048 }, { id: 'folder', name: '项目文档', kind: 'directory' as const }]
+
+test('发送清单展示文件名称、类型与大小，切换方向后仍保留，撤销发布后隐藏', async () => {
+  let latest = state
+  const clipboard = vi.fn<DesktopFilesGateway['clipboard']>().mockImplementation(async () => latest)
+  render(<DesktopFileClipboard {...props(clipboard)} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  const list = screen.getByRole('list', { name: 'remoteDesktop.files.sendSelection' })
+  expect(list).toHaveTextContent('交付说明.txt')
+  expect(list).toHaveTextContent('2.0 KB')
+  expect(list).toHaveTextContent('remoteDesktop.files.folder')
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.receiveFromDesktop' }))
+  expect(screen.queryByRole('list', { name: 'remoteDesktop.files.sendSelection' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.sendToDesktop' }))
+  expect(screen.getByText('交付说明.txt')).toBeVisible()
+  latest = { ...state, published: false }
+  await waitFor(() => expect(screen.queryByRole('list', { name: 'remoteDesktop.files.sendSelection' })).not.toBeInTheDocument(), { timeout: 2500 })
+})
+
+test('手动选择文件也记录清单，仅将展示元数据交给当前控制会话', async () => {
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockResolvedValue(state))
+  input.api.transferClipboard = vi.fn().mockResolvedValue({ id: 'manual-task', status: 'completed' })
+  vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
+  vi.mocked(input.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('selected-grant', chosen) })
+  render(<DesktopFileClipboard {...input} />)
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.publish' }))
+  expect(await screen.findByText('交付说明.txt')).toBeVisible()
+  expect(input.api.transferClipboard).toHaveBeenCalledWith(session.id, expect.objectContaining({ generation: 3 }), 'publish', 'selected-grant', [], 'rename')
+})
+
+test('文件夹入口使用原目录授权流程，更换清单后不沿用原文件的展开状态', async () => {
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockResolvedValue(state))
+  input.api.transferClipboard = vi.fn().mockResolvedValue({ id: 'folder-task', status: 'completed' })
+  vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
+  vi.mocked(input.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('folder-grant', chosen) })
+  render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.publishFolder' }))
+  expect(input.operations.withGrant).toHaveBeenCalledWith('directories', true, expect.any(Function))
+  const file = await screen.findByRole('button', { name: '交付说明.txt' })
+  fireEvent.click(file)
+  expect(file).toHaveAttribute('aria-expanded', 'true')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'replacement-task', chosen))
+  expect(screen.getByRole('button', { name: '交付说明.txt' })).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.publish' }))
+  expect(input.operations.withGrant).toHaveBeenLastCalledWith('files', true, expect.any(Function))
+  await act(async () => {})
+})
+
+test('准备中展示清单，任务失败及控制租约换代后隐藏，不展示旧文件', async () => {
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockResolvedValue(state))
+  input.operations.tasks = [{ id: 'send-task', desktop_session_id: session.id, status: 'running', total_bytes: 4096 }] as typeof input.operations.tasks
+  const view = render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  expect(screen.getByText('remoteDesktop.files.clipboardPreparing')).toBeVisible()
+  expect(screen.getByText('交付说明.txt')).toBeVisible()
+  view.rerender(<DesktopFileClipboard {...input} operations={{ ...input.operations, tasks: [{ ...input.operations.tasks[0]!, status: 'failed' }] }} />)
+  expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
+  view.rerender(<DesktopFileClipboard {...input} viewer={{ ...viewer, controlLease: { id: 'other', generation: 5 } }} />)
+  expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
+})
+
+test('停止提供后，其他文件操作的忙碌状态不会让旧清单重新出现', async () => {
+  let latest = state
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockImplementation(async () => latest))
+  const view = render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  expect(screen.getByText('交付说明.txt')).toBeVisible()
+  latest = { ...state, published: false }
+  await waitFor(() => expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument(), { timeout: 2500 })
+  view.rerender(<DesktopFileClipboard {...input} operations={{ ...input.operations, busy: true }} />)
+  expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
+})
+
+test('停止提供成功立即清除清单，迟到的旧发布状态不会恢复已撤销文件', async () => {
+  let finish!: (value: ClipboardState) => void
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockResolvedValueOnce(state)
+    .mockImplementation(() => new Promise(resolve => { finish = resolve })))
+  input.api.requestClipboard = vi.fn().mockResolvedValue({ id: 'revoke', state: 'completed' })
+  vi.mocked(input.operations.run).mockImplementation(async action => { await action(); return true })
+  render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  await waitFor(() => expect(finish).toBeDefined(), { timeout: 2500 })
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.revoke' }))
+  await waitFor(() => expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument())
+  await act(async () => { finish(state) })
+  expect(screen.getByText('remoteDesktop.files.publicationIdle')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.revoke' })).toBeDisabled()
+})
+
+test.each(['completed', 'failed'] as const)('停止提供等待远程操作确认，%s 时分别清理或保留清单', async status => {
+  let finish!: (value: ClipboardState) => void
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockImplementation(async (_id, query) => query.operation_id
+    ? new Promise(resolve => { finish = resolve }) : state))
+  input.api.requestClipboard = vi.fn().mockResolvedValue({ id: 'revoke', state: 'running' })
+  const errors: unknown[] = []
+  vi.mocked(input.operations.run).mockImplementation(async action => {
+    try { await action(); return true } catch (error) { errors.push(error); return false }
+  })
+  render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.revoke' }))
+  await waitFor(() => expect(finish).toBeDefined())
+  expect(screen.getByText('交付说明.txt')).toBeVisible()
+  await act(async () => { finish({ ...state, operation: { id: 'revoke', state: status, error_code: 'rdp_file_clipboard_failed', completed_bytes: 0, completed_files: 0 } }) })
+  if (status === 'completed') {
+    expect(errors).toHaveLength(0)
+    expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
+  } else {
+    expect(errors).toEqual([new Error('rdp_file_clipboard_failed')])
+    expect(screen.getByText('交付说明.txt')).toBeVisible()
+  }
+})
+
+test.each(['failed', 'cancelled'] as const)('发送任务 %s 后清除元数据，删除任务记录也不会恢复旧清单', async status => {
+  const input = props(vi.fn<DesktopFilesGateway['clipboard']>().mockResolvedValue(state))
+  const view = render(<DesktopFileClipboard {...input} />)
+  await screen.findByText('remoteDesktop.files.clipboardWaiting')
+  act(() => rememberDesktopClipboardSelection(selectionContext, 'send-task', chosen))
+  expect(screen.getByText('交付说明.txt')).toBeVisible()
+  view.rerender(<DesktopFileClipboard {...input} operations={{ ...input.operations, tasks: [{ id: 'send-task', desktop_session_id: session.id, status }] as typeof input.operations.tasks }} />)
+  expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
+  view.rerender(<DesktopFileClipboard {...input} />)
+  expect(screen.queryByText('交付说明.txt')).not.toBeInTheDocument()
 })

@@ -1,7 +1,7 @@
 import type { SystemFileClipboardContext } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
 import { getSystemClipboardOperation, systemClipboardCapabilities } from '#entities/system-clipboard'
-import { systemClipboardStore } from '../../../model/systemClipboardStore.ts'
+import { rememberDesktopClipboardSelection, systemClipboardStore } from '../../../model/systemClipboardStore.ts'
 import type { DesktopFilesGateway } from '../../../api/DesktopFilesClient.ts'
 
 export function createRdpSystemFiles(options: {
@@ -14,7 +14,7 @@ export function createRdpSystemFiles(options: {
   let configuring: Promise<void> | undefined
   let registered: SystemFileClipboardContext | undefined
   let operationError: string | undefined
-  let prepared: { sequence: number; context: string; content: number } | undefined
+  let prepared: { sequence: number; context: string; content: number; taskId: string } | undefined
   const capabilityReady = () => getSystemClipboardOperation('import_files').available || getSystemClipboardOperation('publish_files').available
   const canImport = () => enabled && getSystemClipboardOperation('import_files').available
   const update = (patch: Parameters<typeof systemClipboardStore.update>[1]) => { if (!disposed) systemClipboardStore.update(options.id, patch) }
@@ -93,6 +93,8 @@ export function createRdpSystemFiles(options: {
     }
     let grant: string | undefined
     let taskId: string | undefined
+    let selectionTask: string | undefined
+    let completed = false
     try {
       const result = await (drop ? bridge.consumeDrop(context) : bridge.importClipboard(context))
       if (!result.ok) throw new Error(result.code)
@@ -103,9 +105,10 @@ export function createRdpSystemFiles(options: {
         if (!drop && options.focused() && options.inputEpoch() === epoch) options.paste()
         return
       }
-      if (!grant) throw new Error('desktop_files_invalid_selection')
+      const selection = result.value.grant
+      if (!selection?.id) throw new Error('desktop_files_invalid_selection')
       const sequence = result.value.sequence
-      if (!drop && sequence !== undefined && prepared?.sequence === sequence && prepared.context === key) {
+      if (!drop && sequence !== undefined && prepared?.sequence === sequence && prepared.context === key && prepared.taskId === systemClipboardStore.get(options.id).outgoing?.taskId) {
         const state = await api.clipboard(context.sessionId, { generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, content_generation: 0 })
         if (!current()) return
         if (state.published && state.content_generation === prepared.content) {
@@ -114,8 +117,12 @@ export function createRdpSystemFiles(options: {
         }
       }
       const query = { generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, content_generation: 0, operation_id: crypto.randomUUID() }
-      const task = await api.transferClipboard(context.sessionId, query, 'publish', grant, [], 'rename')
+      const task = await api.transferClipboard(context.sessionId, query, 'publish', selection.id, [], 'rename')
       taskId = ['running', 'queued'].includes(task.status) ? task.id : undefined
+      if (current()) {
+        selectionTask = task.id
+        rememberDesktopClipboardSelection(context, task.id, selection.items)
+      }
       const deadline = Date.now() + 2 * 60 * 60 * 1000
       let status = task
       while (taskId && current() && Date.now() < deadline) {
@@ -130,14 +137,16 @@ export function createRdpSystemFiles(options: {
       if (!current()) return
       if (status.status === 'cancelled') return
       if (status.status !== 'completed') throw new Error(status.error_code ?? 'desktop_file_clipboard_failed')
+      completed = true
       if (!drop && sequence !== undefined) {
         const state = await api.clipboard(context.sessionId, query)
         if (!current()) return
-        if (state.published) prepared = { sequence, context: key, content: state.content_generation }
+        if (state.published) prepared = { sequence, context: key, content: state.content_generation, taskId: task.id }
       }
       finish()
     } catch (error) { if (current()) operationFailed(error instanceof Error ? error.message : 'desktop_system_clipboard_failed') }
     finally {
+      if (!completed && selectionTask && systemClipboardStore.get(options.id).outgoing?.taskId === selectionTask) update({ outgoing: undefined })
       if (taskId) { try { await api.cancelTask(taskId) } catch { if (current()) operationFailed('desktop_system_clipboard_failed') } }
       if (grant) { try { const result = await bridge.releaseSelection(grant); if (!result.ok && current()) operationFailed(result.code) } catch { if (current()) operationFailed('desktop_system_clipboard_failed') } }
       busy = false; update({ busy: false })
