@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShortcutRuntimeProvider } from '#app/shortcut-runtime'
 import type { RemoteFileEntry } from '#entities/file'
 import type { ShortcutSettings } from '#entities/shortcuts'
+import { clipboardCapabilitiesFixture } from '../../../test/systemClipboard'
 import { WorkbenchFileList } from './WorkbenchFileList'
 
 vi.mock('react-i18next', () => ({
@@ -182,7 +183,9 @@ describe('工作台文件列表定位', () => {
     expect(onRevealSettled).toHaveBeenCalledTimes(2)
   })
 
-  it('Ctrl+C 优先复制多选，未选择时复制焦点项，并忽略输入法组合按键', () => {
+  it('Ctrl+C 优先复制多选，未选择时复制焦点项，并忽略输入法组合按键', (context) => {
+    const capabilities = clipboardCapabilitiesFixture('unsupported', 'ready')
+    context.onTestFinished(() => capabilities.disconnect())
     const copy = vi.fn()
     const view = render(<FileListHarness revealPath={null} initialSelectedPaths={entries.map(entry => entry.path)} onCopyToSystem={copy} />)
     const row = screen.getByRole('option', { name: 'target.txt' })

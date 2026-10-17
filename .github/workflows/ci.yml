@@ -15,7 +15,9 @@ permissions:
 jobs:
   web:
     name: Web quality checks
-    needs: resolve-core
+    needs:
+      - resolve-core
+      - resolve-skills
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,6 +28,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: web
+
+      - name: Checkout pinned Termous Skills
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 固定版本 v6.0.2
+        with:
+          repository: Countra/termous-skills
+          ref: ${{ needs.resolve-skills.outputs.sha }}
+          path: termous-skills
+          persist-credentials: false
 
       - name: Checkout pinned remote core
         uses: ./web/.github/actions/remote-checkout
@@ -505,6 +515,11 @@ jobs:
                 ! -f /opt/homebrew/include/fuse/fuse.h ]]; then
             brew install --cask macfuse
           fi
+
+      - name: Test Windows build prerequisites
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: node --test web/scripts/ci/go-build-command.test.mjs
 
       - name: Prepare Windows build
         if: matrix.platform == 'windows'

@@ -252,8 +252,9 @@ if ($phase -in @("all", "prepare")) {
   if ([string]::IsNullOrWhiteSpace($env:PYTHON)) {
     $env:PYTHON = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source.Replace('\', '/')
   }
-  Invoke-Native -Name "Build Termous RDP" -FilePath (Join-Path $rdpDir "scripts/build.ps1") -Arguments @(
-    "build", "-Msys2Root", $rdpMsys2Root
+  Invoke-Native -Name "Build Termous RDP" -FilePath "pwsh" -Arguments @(
+    "-NoProfile", "-NonInteractive", "-File", (Join-Path $rdpDir "scripts/build.ps1"),
+    "-Action", "build", "-Msys2Root", $rdpMsys2Root
   ) -WorkingDirectory $rdpDir
   Copy-Item -LiteralPath (Join-Path $rdpDir "build/termous-rdp.exe") -Destination $rdpExe -Force
   # 显式 SDK 配置优先，其次保留调用方 CPATH，仅未配置时使用仓库头文件。

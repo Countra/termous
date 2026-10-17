@@ -1,12 +1,50 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
 const bash = process.env.TERMOUS_TEST_BASH || (process.platform === 'win32' ? undefined : '/bin/bash')
 const cacheKeys = ['GOCACHE', 'GOMODCACHE', 'GOTMPDIR', 'TEMP', 'TMP', 'TMPDIR']
+
+test('Windows RDP 构建把具名参数及含空格路径传给 PowerShell 脚本', { skip: process.platform !== 'win32' }, async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous rdp command-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const source = (await readFile(new URL('./build-windows.ps1', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
+  const invoke = source.match(/function Invoke-Native \{[\s\S]*?\n\}/)?.[0]
+  const command = source.match(/^ {2}Invoke-Native -Name "Build Termous RDP"[\s\S]*?^ {2}\) -WorkingDirectory \$rdpDir/m)?.[0]
+  assert.ok(invoke)
+  assert.ok(command)
+  await mkdir(path.join(root, 'scripts'))
+  await writeFile(path.join(root, 'scripts', 'build.ps1'), `
+param([ValidateSet('help', 'build', 'test')][string]$Action, [string]$Msys2Root)
+ConvertTo-Json -Compress @{ action = $Action; root = $Msys2Root; extra = @($args) }
+exit 0
+`)
+  const shellArguments = ['-NoProfile', '-NonInteractive', '-Command', `
+$ErrorActionPreference = 'Stop'
+$rdpDir = $PWD.Path
+$rdpMsys2Root = Join-Path $PWD 'MSYS2 directory'
+${invoke}
+${command}
+Write-Output 'build-completed'
+`]
+  const options = { cwd: root, encoding: 'utf8', timeout: 15_000 }
+  const result = spawnSync('pwsh', shellArguments, options)
+  assert.ifError(result.error)
+  assert.equal(result.status, 0, result.stderr)
+  const record = result.stdout.split(/\r?\n/).find((line) => line.startsWith('{'))
+  assert.ok(record, result.stdout)
+  assert.deepEqual(JSON.parse(record), { action: 'build', root: path.join(root, 'MSYS2 directory'), extra: [] })
+  assert.match(result.stdout, /build-completed/)
+  await writeFile(path.join(root, 'scripts', 'build.ps1'), 'exit 7\n')
+  const failed = spawnSync('pwsh', shellArguments, options)
+  assert.ifError(failed.error)
+  assert.equal(failed.status, 1, failed.stderr)
+  assert.match(failed.stderr, /退出码: 7/)
+  assert.doesNotMatch(failed.stdout, /build-completed/)
+})
 
 for (const windows of [false, true]) {
   const shell = windows ? (process.platform === 'win32' ? 'pwsh' : undefined) : bash

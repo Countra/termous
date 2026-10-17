@@ -86,11 +86,15 @@ test("Web CI 与 Release 的 Core 构建包含原生挂载依赖和平台标签"
     const linuxIndex = steps.findIndex(({ name }) => name === "Install Linux build and packaging dependencies");
     const macIndex = steps.findIndex(({ name }) => name === "Install macOS build dependencies");
     const windowsIndex = steps.findIndex(({ name }) => name === "Prepare Windows build");
+    const windowsTestIndex = steps.findIndex(({ name }) => name === "Test Windows build prerequisites");
     const unixIndex = steps.findIndex(({ name }) => name === "Prepare Unix build");
     const unixTestIndex = steps.findIndex(({ name }) => name === "Test Unix build prerequisites");
     assert.ok(linuxIndex >= 0 && linuxIndex < unixIndex);
     assert.ok(macIndex >= 0 && macIndex < unixIndex);
     assert.ok(windowsIndex >= 0);
+    assert.ok(windowsTestIndex >= 0 && windowsTestIndex < windowsIndex);
+    assert.equal(steps[windowsTestIndex].if, "matrix.platform == 'windows'");
+    assert.equal(steps[windowsTestIndex].run, "node --test web/scripts/ci/go-build-command.test.mjs");
     assert.ok(unixTestIndex >= 0 && unixTestIndex < unixIndex);
     assert.equal(steps[unixTestIndex].if, "matrix.platform != 'windows'");
     assert.equal(steps[unixTestIndex].run, "node --test web/scripts/ci/build-unix.test.mjs");

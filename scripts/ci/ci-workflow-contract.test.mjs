@@ -77,7 +77,7 @@ test("全部前端分支 push 都会触发 CI", async () => {
   assert.deepEqual(workflow.on.push.branches, ["**"]);
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.ok(Object.hasOwn(workflow.on, "workflow_dispatch"));
-  assert.equal(workflow.jobs.web.needs, "resolve-core");
+  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
   assert.ok(
     stepsFor(workflow, "web").some(({ name }) => name === "Typecheck"),
     "基础 Web 质量门禁必须保留",
@@ -171,7 +171,7 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
   assert.match(step.run, /\^\[0-9a-f\]\{40\}\$/u);
   assert.equal(resolver.outputs.sha, "${{ steps.skills.outputs.sha }}");
 
-  for (const jobName of ["web-renderer", "build"]) {
+  for (const jobName of ["web", "web-renderer", "build"]) {
     const checkout = stepsFor(workflow, jobName).find(
       ({ name }) => name === "Checkout pinned Termous Skills",
     );
@@ -184,6 +184,8 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
     assert.equal(checkout.with.path, "termous-skills");
     assert.equal(checkout.with.token, undefined);
     assert.equal(checkout.with["persist-credentials"], false);
+    const testIndex = stepsFor(workflow, jobName).findIndex(({ name }) => name === "Test");
+    if (testIndex >= 0) assert.ok(stepsFor(workflow, jobName).indexOf(checkout) < testIndex);
   }
   const rendererBuild = stepsFor(workflow, "web-renderer").find(
     ({ name }) => name === "Build renderer",
@@ -198,7 +200,7 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
 
 test("fork PR 跳过依赖私有 Core 和共享协议的任务", async () => {
   const { workflow } = await loadWorkflow();
-  assert.equal(workflow.jobs.web.needs, "resolve-core");
+  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
   assert.deepEqual(workflow.jobs["web-renderer"].needs, [
     "resolve-core",
     "resolve-skills",

@@ -393,6 +393,11 @@ jobs:
             brew install --cask macfuse
           fi
 
+      - name: Test Windows build prerequisites
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: node --test web/scripts/ci/go-build-command.test.mjs
+
       - name: Prepare Windows build
         if: matrix.platform == 'windows'
         shell: pwsh
