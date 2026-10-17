@@ -215,6 +215,13 @@ test('文件入口按能力显示，使用键盘打开工具菜单后进入既�
   await userEvent.click(await screen.findByRole('menuitem', { name: /remoteDesktop.tools.files/ }))
   expect(await screen.findByRole('dialog')).toHaveTextContent('remoteDesktop.files.workspaceTitle')
   await waitFor(() => expect(retained).toHaveBeenCalled())
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.taskTitle' }))
+  fireEvent.click(screen.getByRole('button', { name: 'app.close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await userEvent.click(trigger)
+  await userEvent.click(await screen.findByRole('menuitem', { name: /remoteDesktop.tools.files/ }))
+  expect(await screen.findByRole('dialog')).toHaveTextContent('remoteDesktop.files.workspaceTitle')
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.taskTitle' })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('RDP 工具菜单只提供文件和自动化的单行入口', async () => {
@@ -230,6 +237,39 @@ test('RDP 工具菜单只提供文件和自动化的单行入口', async () => {
   expect(menu.querySelector('small')).toBeNull()
   expect(runtimeMock.value.createSession).not.toHaveBeenCalled()
   expect(runtimeMock.value.closeSession).not.toHaveBeenCalled()
+})
+
+test('RDP 底部文件入口直达传输任务，关闭后普通入口保留页签，重连换代重置', async () => {
+  const session = remoteDesktopSession('transfers')
+  session.protocol = 'rdp'
+  runtimeMock.value.sessions = [session]
+  runtimeMock.value.activeSessionId = session.id
+  runtimeMock.value.desktopFiles = { describe: vi.fn(async () => ({ capabilities: {}, exchanges: [], mappings: [] })),
+    retained: vi.fn(async () => []), tasks: vi.fn(async () => []) } as unknown as DesktopFilesGateway
+  const view = render(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  const transfer = screen.getByRole('button', { name: 'remoteDesktop.files.transferStatus.open' })
+  expect(transfer.closest('footer')).toHaveTextContent('连接质量')
+  fireEvent.click(transfer)
+  expect(await screen.findByRole('dialog')).toHaveTextContent('remoteDesktop.files.workspaceTitle')
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.taskTitle' })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.files.mappings' }))
+  fireEvent.click(screen.getByRole('button', { name: 'app.close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await userEvent.click(screen.getByRole('button', { name: 'remoteDesktop.tools.title' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /remoteDesktop.tools.files/ }))
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.mappings' })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'app.close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(transfer)
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.taskTitle' })).toHaveAttribute('aria-pressed', 'true')
+  runtimeMock.value.sessions = [{ ...session, connection_generation: 2 }]
+  view.rerender(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  expect(screen.getByRole('button', { name: 'remoteDesktop.files.exchange' })).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'app.close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  runtimeMock.value.sessions = [{ ...session, protocol: 'vnc' }]
+  view.rerender(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  expect(screen.queryByRole('button', { name: 'remoteDesktop.files.transferStatus.open' })).not.toBeInTheDocument()
 })
 
 test('远程桌面凭据弹窗断开失败时显示错误且不产生未处理拒绝', async () => {

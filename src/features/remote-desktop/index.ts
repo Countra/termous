@@ -13,4 +13,4 @@ export type {
   RemoteDesktopViewerState,
 } from './runtime/core/viewerContracts.ts'
 export { RemoteDesktopViewport } from './ui/RemoteDesktopViewport.tsx'
-export { useSystemFileClipboard } from './model/useSystemFileClipboard.ts'
+export { useSystemFileClipboard, prepareSystemFileClipboard } from './model/useSystemFileClipboard.ts'

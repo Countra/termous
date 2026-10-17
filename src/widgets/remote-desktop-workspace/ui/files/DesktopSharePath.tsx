@@ -2,7 +2,7 @@ import { Button, Tooltip } from 'antd'
 import { Check, Copy, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styles from './DesktopFilesPanel.module.scss'
+import styles from './DesktopFileTools.module.scss'
 
 export function DesktopSharePath({ path }: { path: string }) {
   const { t } = useTranslation()

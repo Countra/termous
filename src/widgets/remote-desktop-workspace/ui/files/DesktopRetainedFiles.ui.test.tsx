@@ -3,7 +3,7 @@ import { App } from 'antd'
 import { expect, test, vi } from 'vitest'
 import type { DesktopExchange } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
-import type { useDesktopFiles } from '../model/useDesktopFiles'
+import type { useDesktopFiles } from '../../model/useDesktopFiles'
 import { DesktopRetainedFiles } from './DesktopRetainedFiles'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))

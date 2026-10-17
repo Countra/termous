@@ -1,9 +1,9 @@
-import { Button, Empty, Input, Modal, Select, Skeleton, Table } from 'antd'
-import { File, Folder, Search } from 'lucide-react'
+import { Button, Dropdown, Input, Modal, Skeleton, Table } from 'antd'
+import { ArrowDownWideNarrow, ChevronDown, File, Folder, FolderOpen, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatBytes, formatDate } from '#shared/format'
-import { confirmDialogStyles, customSelectStyles } from '#shared/ui'
+import { confirmDialogStyles, contextActionMenuPopupClassName } from '#shared/ui'
 import styles from './DesktopFileList.module.scss'
 
 export interface DesktopListItem {
@@ -24,10 +24,11 @@ interface Props {
   loading?: boolean
   disabled?: boolean
   empty?: ReactNode
+  footerAction?: ReactNode
 }
 
 // 文件名始终是可读内容；目录导航与文件详情分开处理，不使用禁用按钮显示文件。
-export function DesktopFileList({ entries, selected, onSelect, onOpenDirectory, actions, loading, disabled, empty }: Props) {
+export function DesktopFileList({ entries, selected, onSelect, onOpenDirectory, actions, loading, disabled, empty, footerAction }: Props) {
   const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('name')
@@ -55,17 +56,19 @@ export function DesktopFileList({ entries, selected, onSelect, onOpenDirectory, 
   return <div className={styles.list} ref={root}>
     <div className={styles.filters}>
       <Input allowClear prefix={<Search size={15} />} placeholder={t('remoteDesktop.files.search')} aria-label={t('remoteDesktop.files.search')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
-      <Select aria-label={t('remoteDesktop.files.sort')} value={sort} onChange={value => { setSort(value); setPage(1) }} className={customSelectStyles.select} classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-        options={['name', 'modified', 'size'].map(value => ({ value, label: t(`remoteDesktop.files.sortBy.${value}`) }))} />
+      <Dropdown trigger={['click']} classNames={{ root: contextActionMenuPopupClassName }} menu={{ selectable: true, selectedKeys: [sort],
+        items: ['name', 'modified', 'size'].map(key => ({ key, label: t(`remoteDesktop.files.sortBy.${key}`) })), onClick: ({ key }) => { setSort(key); setPage(1) } }}>
+        <Button className={styles.sort} icon={<ArrowDownWideNarrow size={15} />} aria-label={t('remoteDesktop.files.sort')} title={t(`remoteDesktop.files.sortBy.${sort}`)}><span className={styles['sort-label']}>{t(`remoteDesktop.files.sortBy.${sort}`)}</span><ChevronDown size={12} /></Button>
+      </Dropdown>
     </div>
     <div className={styles.table} aria-label={t('remoteDesktop.files.entries')} aria-busy={loading}>
-      {loading ? <div className={styles.skeleton}><Skeleton active paragraph={{ rows: 6 }} title={false} /></div> : <Table<DesktopListItem>
-        rowKey="path" dataSource={visible} pagination={{ pageSize: 100, current: Math.min(page, Math.max(1, Math.ceil(visible.length / 100))), hideOnSinglePage: true, showSizeChanger: false, onChange: setPage }} size="middle" tableLayout="fixed"
+      {loading ? <div className={styles.skeleton}><Skeleton active paragraph={{ rows: 6 }} title={false} /></div> : <Table<DesktopListItem> className={styles.grid} scroll={{ scrollToFirstRowOnChange: true }}
+        rowKey="path" dataSource={visible} pagination={{ pageSize: 100, current: Math.min(page, Math.max(1, Math.ceil(visible.length / 100))), hideOnSinglePage: true, showSizeChanger: false, onChange: setPage }} tableLayout="fixed"
         rowSelection={{ columnWidth: 36, selectedRowKeys: selected, preserveSelectedRowKeys: true, onChange: keys => onSelect(keys.map(String)), getCheckboxProps: entry => ({ disabled: disabled || !['file', 'directory'].includes(entry.kind), 'aria-label': t('remoteDesktop.files.select', { name: entry.name }) }) }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={search ? t('remoteDesktop.files.noResults') : empty ?? t('remoteDesktop.files.empty')} /> }}
+        locale={{ emptyText: <div className={styles.empty} role="status"><span><FolderOpen size={24} strokeWidth={1.5} /></span><p>{search ? t('remoteDesktop.files.noResults') : empty ?? t('remoteDesktop.files.empty')}</p></div> }}
         columns={[
-          { title: t('remoteDesktop.files.name'), key: 'name', render: (_, entry) => <button className={styles.filename} title={entry.name} onClick={() => open(entry)}>
-            <span className={`${styles.icon} ${entry.kind === 'directory' ? styles.folder : ''}`}>{entry.kind === 'directory' ? <Folder size={19} /> : <File size={19} />}</span>
+          { title: t('remoteDesktop.files.name'), key: 'name', render: (_, entry) => <button type="button" className={styles.filename} title={entry.name} onClick={() => open(entry)}>
+            <span className={`${styles.icon} ${entry.kind === 'directory' ? styles.folder : ''}`}>{entry.kind === 'directory' ? <Folder size={17} /> : <File size={17} />}</span>
             <span className={styles.label}>{entry.name}</span>
           </button> },
           { title: t('remoteDesktop.files.size'), key: 'size', width: width < 440 ? 72 : 92, className: styles.size, render: (_, entry) => entry.kind === 'directory' ? t('remoteDesktop.files.folder') : formatBytes(entry.size) },
@@ -74,8 +77,10 @@ export function DesktopFileList({ entries, selected, onSelect, onOpenDirectory, 
         ]} />}
     </div>
     <div className={styles.status} aria-live="polite">
-      <span>{t('remoteDesktop.files.itemCount', { count: visible.length })}</span>
-      {selected.length > 0 && <><span>{t('remoteDesktop.files.selectedCount', { count: selected.length })}</span><Button type="text" size="small" disabled={disabled} onClick={() => onSelect([])}>{t('remoteDesktop.files.clearSelection')}</Button></>}
+      <div><span>{t('remoteDesktop.files.itemCount', { count: visible.length })}</span>
+        {selected.length > 0 && <><span>{t('remoteDesktop.files.selectedCount', { count: selected.length })}</span><Button type="text" size="small" aria-label={t('remoteDesktop.files.clearSelection')} title={t('remoteDesktop.files.clearSelection')} icon={footerAction ? <X size={13} /> : undefined} disabled={disabled} onClick={() => onSelect([])}>{footerAction ? undefined : t('remoteDesktop.files.clearSelection')}</Button></>}
+      </div>
+      {footerAction}
     </div>
     <Modal open={!!details} title={t('remoteDesktop.files.properties')} footer={null} onCancel={() => setDetails(undefined)} centered className={confirmDialogStyles.modal} rootClassName={confirmDialogStyles['modal-root']}>
       {details && <dl className={styles.details}>

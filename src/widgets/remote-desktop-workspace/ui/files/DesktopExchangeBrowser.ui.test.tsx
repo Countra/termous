@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
+import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { TransferTask } from '#entities/file'
 import type { DesktopExchange, DesktopFileEntry } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
-import type { useDesktopFiles } from '../model/useDesktopFiles.ts'
+import type { useDesktopFiles } from '../../model/useDesktopFiles.ts'
 import { DesktopExchangeBrowser } from './DesktopExchangeBrowser.tsx'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, args?: { name?: string }) => args?.name ? `${key}:${args.name}` : key }) }))
@@ -69,4 +70,18 @@ test('文件名在对话框内校验，空白包裹的上级路径不能提交',
   fireEvent.click(screen.getByRole('button', { name: 'app.confirm' }))
   await waitFor(() => expect(props.api.mutate).toHaveBeenCalledWith(exchange, 'mkdir', '/新目录', undefined, ''))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('上传菜单仅在选择文件夹后申请目录授权，沿用当前路径和同名策略', async () => {
+  const user = userEvent.setup()
+  const props = fixture(vi.fn<DesktopFilesGateway['entries']>().mockResolvedValue([]))
+  vi.mocked(props.operations.run).mockImplementation(async action => { await action(); return true })
+  vi.mocked(props.operations.withGrant).mockImplementation(async (_mode, _multiple, action) => { await action('directory-grant') })
+  render(<ConfigProvider theme={{ token: { motion: false } }}><App><DesktopExchangeBrowser {...props} overwrite="skip" /></App></ConfigProvider>)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'remoteDesktop.files.uploadOptions' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.files.uploadOptions' }))
+  expect(props.operations.withGrant).not.toHaveBeenCalled()
+  await user.click(await screen.findByRole('menuitem', { name: 'remoteDesktop.files.uploadFolder' }))
+  expect(props.operations.withGrant).toHaveBeenCalledWith('directories', true, expect.any(Function))
+  expect(props.api.transfer).toHaveBeenCalledWith(exchange, 'upload', 'directory-grant', [], '/', 'skip')
 })

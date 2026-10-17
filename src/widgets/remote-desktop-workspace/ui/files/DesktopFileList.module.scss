@@ -1,0 +1,259 @@
+.list {
+  display: flex;
+  min-width: 0;
+  min-height: 200px;
+  flex: 1;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+
+.filters :global(.ant-input-affix-wrapper) {
+  background: var(--surface-subtle);
+}
+
+.sort {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.table {
+  --file-list-bg: color-mix(in srgb, var(--app-bg-elevated) 66%, var(--app-bg));
+  --file-list-header-bg: color-mix(in srgb, var(--app-bg-elevated) 96%, var(--text-secondary));
+
+  display: flex;
+  flex: 1;
+  min-height: 160px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--file-list-bg);
+}
+
+// 仅表格内容滚动，分页和选择统计留在视口内；空目录撑满剩余空间。
+.table .grid,
+.table .grid :global(.ant-spin),
+.table .grid :global(.ant-spin-container) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.table .grid::before,
+.table .grid::after,
+.table .grid :global(.ant-spin-container)::after { display: none; }
+
+.table .grid :global(.ant-table) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.table .grid :global(.ant-table-container) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+}
+
+.table .grid :global(.ant-table-container) > :global(.ant-table-content) {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border-radius: 0;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.table .grid :global(.ant-table-cell)::before { display: none; }
+
+.table .grid :global(.ant-table-container table > thead > tr:first-child) > th { border-radius: 0; }
+
+.table .grid :global(.ant-table-thead) > tr > th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  height: 36px;
+  padding: 6px 8px;
+  border-radius: 0;
+  background: var(--file-list-header-bg);
+  color: var(--text-secondary);
+  border-color: var(--border);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.table .grid :global(.ant-table-tbody) > tr > td {
+  height: 40px;
+  padding: 4px 8px;
+  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+  background: transparent;
+}
+
+.table .grid :global(.ant-table-tbody) > tr > td:global(.ant-table-cell-row-hover) { background: var(--row-hover-bg); }
+.table .grid :global(.ant-table-tbody) > tr:global(.ant-table-row-selected) > td { background: var(--row-active-bg); }
+.table .grid :global(.ant-table-tbody) > tr:global(.ant-table-row-selected) > td:global(.ant-table-cell-row-hover) { background: var(--row-active-bg); }
+
+.table .grid :global(.ant-table-row-selected) > td:first-child { box-shadow: inset 2px 0 var(--accent); }
+
+.table .grid :global(.ant-table-tbody) > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.table .grid :global(.ant-table-empty table) { height: 100%; }
+
+.table .grid :global(.ant-table-tbody) > tr:global(.ant-table-placeholder) > td {
+  height: auto;
+  transition: none;
+}
+
+.table .grid :global(.ant-table-tbody) > tr:global(.ant-table-placeholder):hover > td,
+.table .grid :global(.ant-table-tbody) > tr:global(.ant-table-placeholder) > td:global(.ant-table-cell-row-hover) { background: transparent; }
+
+.table .grid :global(.ant-pagination) {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.empty {
+  display: flex;
+  min-height: 100px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-secondary);
+}
+
+.empty > span {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.filename {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.filename:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  display: grid;
+  width: 22px;
+  height: 24px;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+.folder {
+  color: var(--accent);
+}
+
+.size,
+.modified {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton {
+  padding: 20px;
+}
+
+.status {
+  display: flex;
+  min-height: 42px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding-block: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px 20px;
+  font-size: 13px;
+}
+
+.details dt {
+  color: var(--text-secondary);
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+@container (max-width: 360px) {
+  .sort-label { display: none; }
+  .table { min-height: 100px; }
+  .status > div { gap: 6px; }
+}

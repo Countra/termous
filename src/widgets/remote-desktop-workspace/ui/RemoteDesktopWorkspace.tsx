@@ -45,7 +45,7 @@ import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.
 import { RemoteDesktopStatusBar } from './RemoteDesktopStatusBar.tsx'
 import { RemoteDesktopSessionTabs, type RemoteDesktopSessionTabsProps } from './RemoteDesktopSessionTabs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
-import { DesktopFilesPanel } from './DesktopFilesPanel.tsx'
+import { DesktopFilesPanel, type DesktopFilesTab } from './files/DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 
@@ -69,6 +69,9 @@ export function RemoteDesktopWorkspace({
   const [filesOpen, setFilesOpen] = useState(false)
   const wasFullscreenRef = useRef(false)
   const activeSession = runtime.sessions.find((session) => session.id === runtime.activeSessionId) ?? null
+  const filesSessionKey = `${activeSession?.id ?? ''}:${activeSession?.connection_generation ?? 0}`
+  const [filesSelection, setFilesSelection] = useState<{ sessionKey: string; tab: DesktopFilesTab }>()
+  const filesTab = filesSelection?.sessionKey === filesSessionKey ? filesSelection.tab : undefined
   const viewerState = activeSession ? runtime.viewerStates[activeSession.id] : undefined
   const fullscreen = useRemoteDesktopFullscreen()
 
@@ -231,9 +234,14 @@ export function RemoteDesktopWorkspace({
         </main>
       )}
 
-      {activeSession && <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} />}
+      {activeSession && <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} filesOpen={filesOpen}
+        onOpenTransfers={runtime.desktopFiles ? () => {
+          setFilesSelection({ sessionKey: filesSessionKey, tab: 'tasks' })
+          setFilesOpen(true)
+        } : undefined} />}
 
-      {filesOpen && runtime.desktopFiles && <DesktopFilesPanel key={`${activeSession?.id ?? ''}:${activeSession?.connection_generation ?? 0}`} api={runtime.desktopFiles} session={activeSession} viewer={viewerState} onClose={() => setFilesOpen(false)} />}
+      {runtime.desktopFiles && <DesktopFilesPanel key={filesSessionKey} open={filesOpen} api={runtime.desktopFiles} session={activeSession} viewer={viewerState}
+        activeTab={filesTab} onTabChange={tab => setFilesSelection({ sessionKey: filesSessionKey, tab })} onClose={() => setFilesOpen(false)} />}
     </section>
   )
 }

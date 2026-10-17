@@ -289,3 +289,9 @@
     display: none;
   }
 }
+
+@container remote-desktop-workspace (inline-size <= 560px) {
+  .summary-metric.is-compact {
+    display: none;
+  }
+}

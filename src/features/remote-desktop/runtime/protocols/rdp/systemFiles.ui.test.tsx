@@ -173,6 +173,84 @@ describe('本机 RDP 文件快捷键与异步发布', () => {
     expect(f.bridge.releaseSelection).toHaveBeenCalledTimes(3)
   })
 
+  it('侧栏复用系统文件准备与去重，不向远程发送按键，随后在画布粘贴正常', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    await systemClipboardStore.prepare('test-session')
+    await systemClipboardStore.prepare('test-session')
+    expect(f.bridge.importClipboard).toHaveBeenCalledTimes(2)
+    expect(f.api.transferClipboard).toHaveBeenCalledTimes(1)
+    expect(f.api.transferClipboard).toHaveBeenCalledWith(context.sessionId, expect.objectContaining({ generation: 1, subscription_id: 'viewer', control_generation: 2 }), 'publish', 'grant', [], 'rename')
+    expect(f.bridge.releaseSelection).toHaveBeenCalledTimes(2)
+    expect(f.paste).not.toHaveBeenCalled()
+    expect(systemClipboardStore.get('test-session').notice).toBe('prepared')
+    await f.runtime.prepare(false)
+    expect(f.api.transferClipboard).toHaveBeenCalledTimes(1)
+    expect(f.paste).toHaveBeenCalledOnce()
+    f.runtime.dispose()
+    await expect(systemClipboardStore.prepare('test-session')).rejects.toThrow('desktop_not_ready')
+  })
+
+  it.each(['text', 'same_session'] as const)('侧栏遇到 %s 不转发远程按键，提示先复制本机文件', async kind => {
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.bridge.importClipboard).mockResolvedValueOnce({ ok: true, value: { kind } })
+    await systemClipboardStore.prepare('test-session')
+    expect(f.paste).not.toHaveBeenCalled()
+    expect(f.api.transferClipboard).not.toHaveBeenCalled()
+    expect(systemClipboardStore.get('test-session').error_code).toBe('desktop_system_clipboard_empty')
+    expect(systemClipboardStore.get('test-session').busy).toBe(false)
+  })
+
+  it('系统授权返回前丢失控制权，不发布迟到选择并释放授权', async () => {
+    const f = fixture()
+    await f.setEnabled(true)
+    let finish!: (value: Awaited<ReturnType<DesktopFileBridge['importClipboard']>>) => void
+    vi.mocked(f.bridge.importClipboard).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const pending = systemClipboardStore.prepare('test-session')
+    f.loseControl()
+    finish({ ok: true, value: { kind: 'files', grant: { id: 'late-grant', items: [] } } })
+    await pending
+    expect(f.api.transferClipboard).not.toHaveBeenCalled()
+    expect(f.bridge.releaseSelection).toHaveBeenCalledWith('late-grant')
+    expect(f.paste).not.toHaveBeenCalled()
+    expect(systemClipboardStore.get('test-session').busy).toBe(false)
+  })
+
+  it.each(['failed', 'cancelled'] as const)('系统准备任务进入 %s 后保留历史并释放授权', async status => {
+    vi.useFakeTimers()
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.api.transferClipboard).mockResolvedValueOnce({ ...completed, status: 'running' })
+    vi.mocked(f.api.tasks).mockResolvedValueOnce([{ ...completed, status, error_code: status === 'failed' ? 'desktop_files_storage_failed' : undefined }])
+    const pending = systemClipboardStore.prepare('test-session')
+    await vi.advanceTimersByTimeAsync(250)
+    await pending
+    expect(f.api.cancelTask).not.toHaveBeenCalled()
+    expect(f.bridge.releaseSelection).toHaveBeenCalledWith('grant')
+    expect(systemClipboardStore.get('test-session').busy).toBe(false)
+    expect(systemClipboardStore.get('test-session').error_code).toBe(status === 'failed' ? 'desktop_files_storage_failed' : '')
+    expect(f.paste).not.toHaveBeenCalled()
+  })
+
+  it('失去控制时取消尚未完成的准备任务，清理失败不覆盖新会话状态', async () => {
+    vi.useFakeTimers()
+    const f = fixture()
+    await f.setEnabled(true)
+    vi.mocked(f.api.transferClipboard).mockResolvedValueOnce({ ...completed, status: 'running' })
+    vi.mocked(f.api.cancelTask).mockRejectedValueOnce(new Error('旧任务取消失败'))
+    vi.mocked(f.bridge.releaseSelection).mockResolvedValueOnce({ ok: false, code: 'desktop_files_invalid_selection' })
+    const pending = systemClipboardStore.prepare('test-session')
+    await vi.advanceTimersByTimeAsync(1)
+    f.loseControl()
+    await vi.advanceTimersByTimeAsync(250)
+    await pending
+    expect(f.api.cancelTask).toHaveBeenCalledWith('task')
+    expect(f.bridge.releaseSelection).toHaveBeenCalledWith('grant')
+    expect(systemClipboardStore.get('test-session').error_code).toBe('')
+    expect(systemClipboardStore.get('test-session').busy).toBe(false)
+  })
+
   it('准备期间焦点改变时不延迟粘贴，重复请求不额外准备', async () => {
     const f = fixture()
     let finish!: (task: TransferTask) => void

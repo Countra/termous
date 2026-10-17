@@ -67,7 +67,8 @@ export function createRdpSystemFiles(options: {
     })().finally(() => { configuring = undefined })
     return configuring
   }
-  const unbind = systemClipboardStore.bind(options.id)
+  // 文件侧栏复用观看端的授权与准备流程，但不向远程发送粘贴按键。
+  const unbind = systemClipboardStore.bind(options.id, () => prepare(false, false))
   update({ enabled: false, import_enabled: false, publish_enabled: false })
   let timer: ReturnType<typeof setInterval> | undefined
   const synchronizeCapabilities = () => {
@@ -79,55 +80,66 @@ export function createRdpSystemFiles(options: {
   const unsubscribeCapabilities = systemClipboardCapabilities.subscribe(synchronizeCapabilities)
   synchronizeCapabilities()
   function operationFailed(code: string) { operationError = code; update({ error_code: code, notice: 'failed' }) }
-  async function prepare(drop: boolean) {
+  async function prepare(drop: boolean, paste = true) {
     const context = options.context(), api = options.api
     if (!context || !bridge || !api || disposed || busy || !drop && !canImport()) return
     busy = true; operationError = undefined; update({ busy: true, error_code: '', notice: undefined })
     const epoch = options.inputEpoch()
+    const key = JSON.stringify(context)
+    const current = () => !disposed && JSON.stringify(options.context()) === key
+    const finish = () => {
+      if (paste && !drop && canImport() && current() && options.focused() && options.inputEpoch() === epoch) options.paste()
+      else update({ notice: 'prepared' })
+    }
     let grant: string | undefined
     let taskId: string | undefined
     try {
       const result = await (drop ? bridge.consumeDrop(context) : bridge.importClipboard(context))
       if (!result.ok) throw new Error(result.code)
+      grant = result.value.grant?.id
+      if (!current() || !drop && !canImport()) return
       if (result.value.kind !== 'files') {
-        if (!drop && enabled && !disposed && options.focused() && options.inputEpoch() === epoch) options.paste()
+        if (!paste) throw new Error('desktop_system_clipboard_empty')
+        if (!drop && options.focused() && options.inputEpoch() === epoch) options.paste()
         return
       }
-      grant = result.value.grant?.id
       if (!grant) throw new Error('desktop_files_invalid_selection')
-      const key = JSON.stringify(context), sequence = result.value.sequence
+      const sequence = result.value.sequence
       if (!drop && sequence !== undefined && prepared?.sequence === sequence && prepared.context === key) {
         const state = await api.clipboard(context.sessionId, { generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, content_generation: 0 })
+        if (!current()) return
         if (state.published && state.content_generation === prepared.content) {
-          if (enabled && !disposed && options.focused() && options.inputEpoch() === epoch) options.paste()
+          finish()
           return
         }
       }
       const query = { generation: context.generation, subscription_id: context.subscriptionId, control_generation: context.controlGeneration, content_generation: 0, operation_id: crypto.randomUUID() }
       const task = await api.transferClipboard(context.sessionId, query, 'publish', grant, [], 'rename')
-      taskId = task.id
+      taskId = ['running', 'queued'].includes(task.status) ? task.id : undefined
       const deadline = Date.now() + 2 * 60 * 60 * 1000
       let status = task
-      while (['running', 'queued'].includes(status.status) && !disposed && Date.now() < deadline) {
+      while (taskId && current() && Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, 250))
+        if (!current()) break
         const next = (await api.tasks()).find(value => value.id === task.id)
-        if (!next) throw new Error('desktop_file_clipboard_failed')
+        if (!next) { taskId = undefined; throw new Error('desktop_file_clipboard_failed') }
         status = next
+        // DELETE 同时承担取消和删除历史的职责，已终结的任务不能进入清理取消流程。
+        if (!['running', 'queued'].includes(status.status)) taskId = undefined
       }
-      if (disposed) { await api.cancelTask(task.id); taskId = undefined; return }
-      if (status.status !== 'completed') throw new Error('desktop_file_clipboard_failed')
-      taskId = undefined
+      if (!current()) return
+      if (status.status === 'cancelled') return
+      if (status.status !== 'completed') throw new Error(status.error_code ?? 'desktop_file_clipboard_failed')
       if (!drop && sequence !== undefined) {
         const state = await api.clipboard(context.sessionId, query)
+        if (!current()) return
         if (state.published) prepared = { sequence, context: key, content: state.content_generation }
       }
-      const latest = options.context()
-      if (!drop && enabled && options.focused() && epoch === options.inputEpoch() && latest?.controlGeneration === context.controlGeneration && latest.subscriptionId === context.subscriptionId) options.paste()
-      else update({ notice: 'prepared' })
-    } catch (error) { operationFailed(error instanceof Error ? error.message : 'desktop_system_clipboard_failed') }
+      finish()
+    } catch (error) { if (current()) operationFailed(error instanceof Error ? error.message : 'desktop_system_clipboard_failed') }
     finally {
-      if (taskId) { try { await api.cancelTask(taskId) } catch { operationFailed('desktop_system_clipboard_failed') } }
-      if (grant) { try { const result = await bridge.releaseSelection(grant); if (!result.ok) operationFailed(result.code) } catch { operationFailed('desktop_system_clipboard_failed') } }
+      if (taskId) { try { await api.cancelTask(taskId) } catch { if (current()) operationFailed('desktop_system_clipboard_failed') } }
+      if (grant) { try { const result = await bridge.releaseSelection(grant); if (!result.ok && current()) operationFailed(result.code) } catch { if (current()) operationFailed('desktop_system_clipboard_failed') } }
       busy = false; update({ busy: false })
     }
   }

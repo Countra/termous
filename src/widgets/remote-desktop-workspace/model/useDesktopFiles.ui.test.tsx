@@ -1,7 +1,55 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
+import type { ReactNode } from 'react'
+import type { TransferTask } from '#entities/file'
+import { TransferRuntimeContext, type TransferRuntimeValue } from '#features/transfers'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
 import { desktopFileError, useDesktopFiles } from './useDesktopFiles.ts'
+
+test('侧栏复用全局实时任务，隐藏时仍接收更新，断流才补查快照', async () => {
+  const api = { describe: vi.fn().mockResolvedValue({ capabilities: {}, mappings: [], exchanges: [] }),
+    retained: vi.fn().mockResolvedValue([]), tasks: vi.fn() } as unknown as DesktopFilesGateway
+  const refresh = vi.fn(async () => {})
+  const first = { id: 'one', desktop_session_id: 'session', status: 'running', transferred_bytes: 10 } as TransferTask
+  let source: TransferRuntimeValue = { transfers: [first, { ...first, id: 'other', desktop_session_id: 'other' }], connected: true, refresh,
+    activeTransfers: [first], initialized: true, remoteCopyRefreshVersion: 0, upsertTransfer: vi.fn(), removeTransfer: vi.fn(), consumeRemoteCopyRefreshEvents: () => [] }
+  const wrapper = ({ children }: { children: ReactNode }) => <TransferRuntimeContext.Provider value={source}>{children}</TransferRuntimeContext.Provider>
+  const { result, rerender } = renderHook(({ enabled }) => useDesktopFiles(api, 'session', 1, enabled), { wrapper, initialProps: { enabled: true } })
+  await waitFor(() => expect(result.current.state).toBeDefined())
+  expect(result.current.tasks).toEqual([first])
+  expect(api.tasks).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
+  const signal = vi.mocked(api.describe).mock.calls[0]![2]!
+  source = { ...source, transfers: [{ ...first, transferred_bytes: 60 }] }
+  rerender({ enabled: true })
+  expect(result.current.tasks[0]?.transferred_bytes).toBe(60)
+  expect(signal.aborted).toBe(false)
+  expect(api.describe).toHaveBeenCalledTimes(1)
+  rerender({ enabled: false })
+  source = { ...source, transfers: [{ ...first, status: 'completed' }] }
+  rerender({ enabled: false })
+  expect(result.current.tasks[0]?.status).toBe('completed')
+  source = { ...source, connected: false }
+  rerender({ enabled: true })
+  await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+  expect(result.current.liveConnected).toBe(false)
+  expect(api.tasks).not.toHaveBeenCalled()
+  await act(async () => { await result.current.refresh() })
+  expect(refresh).toHaveBeenCalledTimes(2)
+  refresh.mockRejectedValueOnce(new Error('刷新失败'))
+  await act(async () => { expect(await result.current.run(async () => {})).toBe(false) })
+  expect(result.current.error).toBe('desktop_files_storage_failed')
+  let fail!: (error: Error) => void
+  let pending!: Promise<boolean>
+  act(() => { pending = result.current.run(() => new Promise((_, reject) => { fail = reject })) })
+  const calls = vi.mocked(api.describe).mock.calls
+  const activeSignal = calls[calls.length - 1]![2]!
+  source = { ...source, connected: true }
+  rerender({ enabled: true })
+  expect(activeSignal.aborted).toBe(false)
+  await act(async () => { fail(new Error('rdp_clipboard_busy')); await pending })
+  expect(result.current.error).toBe('desktop_busy')
+})
 
 test.each([
   ['rdp_file_clipboard_empty', 'desktop_file_clipboard_empty'],
@@ -68,4 +116,28 @@ test('未显式传入 signal 的刷新绑定当前会话，换代后拒绝旧结
   await act(async () => { resolveOld(initial); await refresh })
   expect(signal?.aborted).toBe(true)
   expect(result.current.state).toEqual(current)
+})
+
+test('侧栏隐藏期间操作完成后释放忙碌状态，再次打开仍能执行新操作', async () => {
+  const describe = vi.fn<DesktopFilesGateway['describe']>().mockResolvedValue({
+    capabilities: { directory_mapping: true, exchange: true, file_clipboard: true }, mappings: [], exchanges: [],
+  })
+  const api = { describe, retained: vi.fn().mockResolvedValue([]), tasks: vi.fn().mockResolvedValue([]) } as unknown as DesktopFilesGateway
+  const { result, rerender } = renderHook(({ enabled }) => useDesktopFiles(api, 'session', 1, enabled), { initialProps: { enabled: true } })
+  await waitFor(() => expect(result.current.state).toBeDefined())
+  let finish!: () => void
+  const action = new Promise<void>(resolve => { finish = resolve })
+  let pending!: Promise<boolean>
+  act(() => { pending = result.current.run(() => action) })
+  expect(result.current.busy).toBe(true)
+  rerender({ enabled: false })
+  expect(describe.mock.calls[0]![2]!.aborted).toBe(true)
+  await act(async () => { finish(); await pending })
+  expect(result.current.busy).toBe(false)
+  rerender({ enabled: true })
+  await waitFor(() => expect(describe).toHaveBeenCalledTimes(2))
+  let accepted = false
+  await act(async () => { accepted = await result.current.run(async () => undefined) })
+  expect(accepted).toBe(true)
+  expect(result.current.busy).toBe(false)
 })
