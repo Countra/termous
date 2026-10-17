@@ -84,8 +84,10 @@ export function RemoteAgentApprovals({ transport, target }: { transport: RemoteA
       {!items.length ? <Empty className={styles.empty} image={Empty.PRESENTED_IMAGE_SIMPLE} description={copy.agentNoApprovals} /> : <div className={styles.list}>{items.map(item => {
         const seconds = Math.max(0, Math.ceil((Date.parse(item.value.expires_at) - now) / 1000))
         return <section className={styles.card} key={`${item.instance}:${item.value.id}`}>
-          <div className={mcpApprovalStyles.client}><ServerCog size={15} /><span>{t('settings.mcp.approval.client')}</span><strong>{item.value.client_name || item.value.client_id}</strong></div>
-          <McpApprovalDetails approval={item.value} />
+          <div className={mcpApprovalStyles.content}>
+            <div className={mcpApprovalStyles.client}><ServerCog size={15} /><span>{t('settings.mcp.approval.client')}</span><strong>{item.value.client_name || item.value.client_id}</strong></div>
+            <McpApprovalDetails approval={item.value} />
+          </div>
           <div className={`${mcpApprovalStyles.footer} ${styles.footer}`}><McpApprovalExpiry expired={!seconds} remainingSeconds={seconds} /><div className={mcpApprovalStyles.actions}>
             <Button danger icon={<ShieldX size={15} />} disabled={!!busy || failed || !seconds} onClick={() => void decide(item, false)}>{t('settings.mcp.approval.reject')}</Button>
             <Button type="primary" icon={<ShieldCheck size={15} />} loading={busy === item.value.id} disabled={!!busy || failed || !seconds} onClick={() => void decide(item, true)}>{t('settings.mcp.approval.allowOnce')}</Button>

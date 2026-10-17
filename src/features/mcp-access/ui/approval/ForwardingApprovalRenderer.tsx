@@ -2,7 +2,7 @@ import { Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { McpApprovalOperation } from '#entities/mcp-access'
 import { ApprovalScrollableValue, ApprovalValue } from './ApprovalDetailFields'
-import styles from '../McpApprovalCoordinator.module.scss'
+import styles from './ApprovalDetails.module.scss'
 
 export function ForwardingApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()

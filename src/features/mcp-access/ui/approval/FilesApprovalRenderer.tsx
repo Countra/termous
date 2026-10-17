@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import type { McpApprovalOperation } from '#entities/mcp-access'
 import { formatBytes } from '#shared/format'
 import { ApprovalPaths, ApprovalRenameMappings } from './ApprovalDetailFields'
-import styles from '../McpApprovalCoordinator.module.scss'
+import styles from './ApprovalDetails.module.scss'
 
 export function FilesApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()

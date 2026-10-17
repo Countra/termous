@@ -90,7 +90,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
           </span>
           <div>
             <h2>{t('settings.mcp.approval.title')}</h2>
-            <p>{t('settings.mcp.approval.description')}</p>
+            <p>{t(approvalClient?.source === 'builtin_agent' ? 'settings.mcp.approval.descriptionAgent' : 'settings.mcp.approval.description')}</p>
           </div>
         </header>
       )}
@@ -101,16 +101,19 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
       destroyOnHidden
       rootClassName={styles['approval-modal-root']}
       className={styles['approval-modal']}
+      classNames={{ container: styles['modal-container'], header: styles['modal-header'], body: styles['modal-body'] }}
     >
       {approval ? (
         <section className={styles.dialog}>
-          <div className={styles.client}>
-            <ServerCog size={17} aria-hidden="true" />
-            <span>{t('settings.mcp.approval.client')}</span>
-            <strong>{approvalClientName}</strong>
-          </div>
+          <div className={styles.content}>
+            <div className={styles.client}>
+              <ServerCog size={17} aria-hidden="true" />
+              <span>{t('settings.mcp.approval.client')}</span>
+              <strong>{approvalClientName}</strong>
+            </div>
 
-          <McpApprovalDetails approval={approval} />
+            <McpApprovalDetails approval={approval} />
+          </div>
 
           <footer className={styles.footer}>
             <McpApprovalExpiry expired={expired} remainingSeconds={remainingSeconds} />

@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { McpApprovalOperation } from '#entities/mcp-access'
 import { ApprovalScrollableCode, ApprovalValue } from './ApprovalDetailFields'
-import styles from '../McpApprovalCoordinator.module.scss'
+import styles from './ApprovalDetails.module.scss'
 
 export function RemoteOpsApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
