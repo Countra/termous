@@ -79,9 +79,9 @@ export function SessionProfileQuickConnectPanel({
           )
         })}
       </div>
-      <footer className={`${styles.footer} ${styles['profile-footer']}`}>
+      <footer className={`${styles.footer} ${onOpenLauncher ? styles['launcher-footer'] : ''}`}>
         {onOpenLauncher && <button type="button" disabled={pendingId !== null} onClick={onOpenLauncher}>
-          {t('workbench.quickConnect.profiles.openLauncher')}<ArrowUpRight size={13} aria-hidden="true" />
+          {t('workbench.quickConnect.moreConnections')}<ArrowUpRight size={13} aria-hidden="true" />
         </button>}
         <small>{t('workbench.quickConnect.profiles.count', { count: totalCount })}</small>
       </footer>

@@ -2246,6 +2246,7 @@
       "empty": "No hosts available",
       "noResults": "No matching hosts",
       "count": "{{count}} hosts",
+      "moreConnections": "More connections",
       "details": {
         "host": "Host",
         "standalone": "Standalone file connection"
@@ -2257,7 +2258,6 @@
         "empty": "No connection profiles",
         "noResults": "No matching profiles",
         "count": "{{count}} profiles",
-        "openLauncher": "Open connection launcher",
         "connectFailed": "Connection failed",
         "hostMissing": "The linked host no longer exists"
       }

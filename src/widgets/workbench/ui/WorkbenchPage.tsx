@@ -1327,6 +1327,7 @@ export function WorkbenchPage({
               onQuickConnectOpenChange={setQuickConnectOpen}
               onQuickConnectQueryChange={setQuickConnectQuery}
               onQuickConnect={connectQuickHost}
+              onOpenConnectionLauncher={onOpenConnectionLauncher}
               onMenuAction={handleSessionTabMenuAction}
               onColorPopoverOpenChange={(sessionId, open) => {
                 if (!open && colorSessionId === sessionId) {

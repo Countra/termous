@@ -93,7 +93,7 @@ test('空列表和无匹配分开显示，连接器保留为显式入口', async
   const { props } = renderConnect({ profiles: [] })
   await user.click(screen.getByRole('button', { name: 'new-session' }))
   await waitFor(() => expect(screen.getByText('workbench.quickConnect.profiles.empty')).toBeVisible())
-  await user.click(screen.getByRole('button', { name: 'workbench.quickConnect.profiles.openLauncher' }))
+  await user.click(screen.getByRole('button', { name: 'workbench.quickConnect.moreConnections' }))
   expect(props.onOpenLauncher).toHaveBeenCalledTimes(1)
   expect(props.onConnect).not.toHaveBeenCalled()
 })

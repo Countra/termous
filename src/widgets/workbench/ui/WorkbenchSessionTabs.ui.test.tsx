@@ -219,6 +219,7 @@ function createTabs(
       onQuickConnectOpenChange={vi.fn()}
       onQuickConnectQueryChange={vi.fn()}
       onQuickConnect={vi.fn(async () => undefined)}
+      onOpenConnectionLauncher={vi.fn()}
       onMenuAction={overrides.onMenuAction ?? vi.fn<(action: SessionTabMenuAction, session: Session) => void>()}
       onColorPopoverOpenChange={vi.fn()}
       onColorSelect={vi.fn()}

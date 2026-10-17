@@ -1,4 +1,4 @@
-import { Search, Star } from 'lucide-react'
+import { ArrowUpRight, Search, Star } from 'lucide-react'
 import { Input, Popover } from 'antd'
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ export interface SessionQuickConnectProps {
   onOpenChange: (open: boolean) => void
   onQueryChange: (query: string) => void
   onConnect: (hostId: string) => Promise<void>
+  onOpenLauncher?: () => void
   getHostIconUrl: (iconId: string) => string
 }
 
@@ -30,6 +31,7 @@ export function SessionQuickConnect({
   onOpenChange,
   onQueryChange,
   onConnect,
+  onOpenLauncher,
   getHostIconUrl,
 }: SessionQuickConnectProps) {
   const [connecting, setConnecting] = useState(false)
@@ -75,6 +77,11 @@ export function SessionQuickConnect({
           active={open}
           onQueryChange={onQueryChange}
           onConnect={connectHost}
+          onOpenLauncher={onOpenLauncher ? () => {
+            onOpenChange(false)
+            onQueryChange('')
+            onOpenLauncher()
+          } : undefined}
           getHostIconUrl={getHostIconUrl}
         />
       )}
@@ -92,6 +99,7 @@ function QuickConnectHostPanel({
   active,
   onQueryChange,
   onConnect,
+  onOpenLauncher,
   getHostIconUrl,
 }: {
   hosts: Host[]
@@ -101,6 +109,7 @@ function QuickConnectHostPanel({
   active: boolean
   onQueryChange: (value: string) => void
   onConnect: (hostId: string) => Promise<void>
+  onOpenLauncher?: () => void
   getHostIconUrl: (iconId: string) => string
 }) {
   const { t } = useTranslation()
@@ -156,7 +165,10 @@ function QuickConnectHostPanel({
           ))
         )}
       </div>
-      <footer className={styles.footer}>
+      <footer className={`${styles.footer} ${onOpenLauncher ? styles['launcher-footer'] : ''}`}>
+        {onOpenLauncher && <button type="button" disabled={actionBusy} onClick={onOpenLauncher}>
+          {t('workbench.quickConnect.moreConnections')}<ArrowUpRight size={13} aria-hidden="true" />
+        </button>}
         <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
       </footer>
     </section>

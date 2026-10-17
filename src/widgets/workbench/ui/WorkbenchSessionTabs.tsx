@@ -57,6 +57,7 @@ interface WorkbenchSessionTabsProps extends AgentConnectionReferenceProps {
   onQuickConnectOpenChange: (open: boolean) => void
   onQuickConnectQueryChange: (query: string) => void
   onQuickConnect: (hostId: string) => Promise<void>
+  onOpenConnectionLauncher: () => void
   onMenuAction: (action: SessionTabMenuAction, session: Session) => void
   onColorPopoverOpenChange: (sessionId: string, open: boolean) => void
   onColorSelect: (sessionId: string, color: string, options?: { keepOpen?: boolean }) => void
@@ -84,6 +85,7 @@ export function WorkbenchSessionTabs({
   onQuickConnectOpenChange,
   onQuickConnectQueryChange,
   onQuickConnect,
+  onOpenConnectionLauncher,
   onMenuAction,
   onColorPopoverOpenChange,
   onColorSelect,
@@ -119,6 +121,7 @@ export function WorkbenchSessionTabs({
           onOpenChange={onQuickConnectOpenChange}
           onQueryChange={onQuickConnectQueryChange}
           onConnect={onQuickConnect}
+          onOpenLauncher={onOpenConnectionLauncher}
           getHostIconUrl={getHostIconUrl}
         />
       )}

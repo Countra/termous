@@ -260,12 +260,12 @@
   font-weight: 600;
 }
 
-.profile-footer {
+.launcher-footer {
   justify-content: space-between;
   gap: 12px;
 }
 
-.profile-footer button {
+.launcher-footer button {
   display: inline-flex;
   min-height: 28px;
   align-items: center;
@@ -280,13 +280,13 @@
   font-size: 11px;
 }
 
-.profile-footer button:hover,
-.profile-footer button:focus-visible {
+.launcher-footer button:hover,
+.launcher-footer button:focus-visible {
   background: var(--quick-connect-field-bg);
   color: var(--text-primary);
 }
 
-.profile-footer button:disabled {
+.launcher-footer button:disabled {
   cursor: default;
   opacity: 0.5;
 }

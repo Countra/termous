@@ -119,7 +119,7 @@ test('无远程桌面会话时加号打开快捷配置菜单，空状态仍打�
   await user.click(openButtons[0]!)
   await waitFor(() => expect(screen.getByRole('dialog', { name: 'workbench.quickConnect.profiles.remoteDesktop' })).toBeVisible())
   expect(onOpenConnectionLauncher).not.toHaveBeenCalled()
-  await user.click(screen.getByRole('button', { name: 'workbench.quickConnect.profiles.openLauncher' }))
+  await user.click(screen.getByRole('button', { name: 'workbench.quickConnect.moreConnections' }))
   expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(1)
   await user.click(openButtons[1]!)
 
