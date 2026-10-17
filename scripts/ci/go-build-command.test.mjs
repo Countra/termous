@@ -13,32 +13,59 @@ test('Windows RDP 构建把具名参数及含空格路径传给 PowerShell 脚�
   t.after(() => rm(root, { recursive: true, force: true }))
   const source = (await readFile(new URL('./build-windows.ps1', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
   const invoke = source.match(/function Invoke-Native \{[\s\S]*?\n\}/)?.[0]
+  const resolveDirectory = source.match(/function Resolve-ExistingDirectory \{[\s\S]*?\n\}/)?.[0]
+  const toolchain = source.match(/function Enable-MingwToolchain \{[\s\S]*?\n\}/)?.[0]
   const command = source.match(/^ {2}Invoke-Native -Name "Build Termous RDP"[\s\S]*?^ {2}\) -WorkingDirectory \$rdpDir/m)?.[0]
   assert.ok(invoke)
+  assert.ok(resolveDirectory)
+  assert.ok(toolchain)
   assert.ok(command)
+  const msys2Root = path.join(root, 'MSYS2 directory')
+  const requiredTools = ['usr/bin/bash.exe', 'mingw64/bin/gcc.exe', 'mingw64/bin/g++.exe']
+  for (const tool of requiredTools) {
+    const target = path.join(msys2Root, tool)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, '')
+  }
+  const standalone = path.join(root, 'standalone', 'bin')
+  await mkdir(standalone, { recursive: true })
+  await writeFile(path.join(standalone, 'gcc.exe'), '')
   await mkdir(path.join(root, 'scripts'))
   await writeFile(path.join(root, 'scripts', 'build.ps1'), `
 param([ValidateSet('help', 'build', 'test')][string]$Action, [string]$Msys2Root)
-ConvertTo-Json -Compress @{ action = $Action; root = $Msys2Root; extra = @($args) }
+ConvertTo-Json -Compress @{ action = $Action; root = $Msys2Root; compiler = (Get-Command gcc).Source; extra = @($args) }
 exit 0
 `)
   const shellArguments = ['-NoProfile', '-NonInteractive', '-Command', `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $rdpDir = $PWD.Path
-$rdpMsys2Root = Join-Path $PWD 'MSYS2 directory'
+${resolveDirectory}
+${toolchain}
+$env:Path = "$(Join-Path $PWD 'standalone/bin');$env:Path"
+$rdpMsys2Root = Enable-MingwToolchain
 ${invoke}
 ${command}
 Write-Output 'build-completed'
 `]
-  const options = { cwd: root, encoding: 'utf8', timeout: 15_000 }
+  const options = { cwd: root, encoding: 'utf8', timeout: 15_000, env: { ...process.env, TERMOUS_MSYS2_ROOT: msys2Root } }
   const result = spawnSync('pwsh', shellArguments, options)
   assert.ifError(result.error)
   assert.equal(result.status, 0, result.stderr)
   const record = result.stdout.split(/\r?\n/).find((line) => line.startsWith('{'))
   assert.ok(record, result.stdout)
-  assert.deepEqual(JSON.parse(record), { action: 'build', root: path.join(root, 'MSYS2 directory'), extra: [] })
+  assert.deepEqual(JSON.parse(record), { action: 'build', root: msys2Root, compiler: path.join(msys2Root, 'mingw64/bin/gcc.exe'), extra: [] })
   assert.match(result.stdout, /build-completed/)
+  for (const tool of requiredTools) {
+    const target = path.join(msys2Root, tool)
+    await rm(target)
+    const missing = spawnSync('pwsh', shellArguments, options)
+    assert.ifError(missing.error)
+    assert.equal(missing.status, 1, missing.stderr)
+    assert.ok(missing.stderr.includes(`MSYS2 缺少 ${tool}`), missing.stderr)
+    assert.doesNotMatch(missing.stdout, /build-completed/)
+    await writeFile(target, '')
+  }
   await writeFile(path.join(root, 'scripts', 'build.ps1'), 'exit 7\n')
   const failed = spawnSync('pwsh', shellArguments, options)
   assert.ifError(failed.error)

@@ -516,6 +516,16 @@ jobs:
             brew install --cask macfuse
           fi
 
+      - name: Setup Windows MSYS2 toolchain
+        if: matrix.platform == 'windows'
+        id: msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: true
+          cache: false
+          install: mingw-w64-x86_64-gcc
+
       - name: Test Windows build prerequisites
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -526,6 +536,7 @@ jobs:
         shell: pwsh
         env:
           TERMOUS_BUILD_PHASE: prepare
+          TERMOUS_MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
         run: ./web/scripts/ci/build-windows.ps1
 
       - name: Test Unix build prerequisites

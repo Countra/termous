@@ -136,18 +136,32 @@ function Read-PackageVersion {
   return [string]$package.version
 }
 
-function Enable-MingwIfAvailable {
-  $mingwBin = "C:\msys64\mingw64\bin"
-  $gccPath = Join-Path $mingwBin "gcc.exe"
-  if ((Test-Path -LiteralPath $gccPath -PathType Leaf) -and ($env:Path -notlike "*$mingwBin*")) {
-    $env:Path = "$mingwBin;$env:Path"
+function Enable-MingwToolchain {
+  $candidate = $env:TERMOUS_MSYS2_ROOT
+  if ([string]::IsNullOrWhiteSpace($candidate)) {
+    $candidate = "C:\msys64"
+    $gcc = Get-Command gcc -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $gcc) {
+      $mingwDirectory = Split-Path -Parent (Split-Path -Parent $gcc.Source)
+      if (-not [string]::IsNullOrWhiteSpace($mingwDirectory) -and (Split-Path -Leaf $mingwDirectory) -eq "mingw64") {
+        $compilerRoot = Split-Path -Parent $mingwDirectory
+        if (Test-Path -LiteralPath (Join-Path $compilerRoot "usr/bin/bash.exe") -PathType Leaf) {
+          $candidate = $compilerRoot
+        }
+      }
+    }
   }
-  if (Get-Command gcc -ErrorAction SilentlyContinue) {
-    $env:CGO_ENABLED = "1"
-    $env:CC = "gcc"
-    return
+  $msys2Root = Resolve-ExistingDirectory -Value $candidate -Fallback "C:\msys64" -Name "TERMOUS_MSYS2_ROOT"
+  foreach ($tool in @("usr/bin/bash.exe", "mingw64/bin/gcc.exe", "mingw64/bin/g++.exe")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $msys2Root $tool) -PathType Leaf)) {
+      throw "MSYS2 缺少 $tool，请通过 TERMOUS_MSYS2_ROOT 指定包含 MINGW64 工具链的安装目录: $msys2Root"
+    }
   }
-  throw "未找到 gcc。Termous Core 使用 SQLite CGO 驱动，Windows 构建需要可用的 MinGW gcc。"
+  $env:Path = "$(Join-Path $msys2Root 'mingw64/bin');$env:Path"
+  $env:CGO_ENABLED = "1"
+  $env:CC = "gcc"
+  $env:CXX = "g++"
+  return $msys2Root
 }
 
 function Disable-CodeSigning {
@@ -246,9 +260,8 @@ if ($phase -in @("all", "prepare")) {
   Prepare-CoreOutputDirectory `
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir
-  Enable-MingwIfAvailable
+  $rdpMsys2Root = Enable-MingwToolchain
   # 复用 RDP 构建入口，统一执行 SDK 校验、工具链检查和静态库缓存失效处理。
-  $rdpMsys2Root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Get-Command gcc).Source))
   if ([string]::IsNullOrWhiteSpace($env:PYTHON)) {
     $env:PYTHON = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source.Replace('\', '/')
   }
