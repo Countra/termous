@@ -34,7 +34,7 @@ export function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorksp
             <AgentImage key={image.id} image={image} onLoad={onLoadToolImage} title={t('agent.images.result', { index: index + 1 })} />
           ))}
         </div> : null}
-        {tool.detail ? <pre>{tool.detail}</pre> : null}
+        {expanded && tool.detail ? <pre>{tool.detail}</pre> : null}
       </details>
     </div>
   )

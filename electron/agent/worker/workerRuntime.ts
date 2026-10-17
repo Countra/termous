@@ -16,6 +16,7 @@ import { isRecord, validClientRequestID, validGeneration, validRunID } from '../
 import { validAgentWorkerStartMessage } from '../contracts/protocol.ts'
 import { RuntimeEventWriter } from '../runtime/runtimeEventWriter.ts'
 import { RuntimeAuditWriter } from '../runtime/runtimeAuditWriter.ts'
+import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import { projectWorkerMCPFailure } from './workerMCPFailure.ts'
 import { WorkerCoreClient } from './workerCoreClient.ts'
 import { type RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
@@ -120,7 +121,7 @@ export class AgentWorkerRuntime {
     let fatal: 'bootstrap_failed' | 'runtime_failed' | null = null
     try {
       // start 已签发一次性 Ticket 后必须尝试消费；取消由 bootstrap 后的终态事件收口。
-      const bootstrap = await this.core.bootstrap(start)
+      let bootstrap = await this.core.bootstrap(start)
       this.bootstrap = bootstrap
       this.events = new RuntimeEventWriter({
         core: this.core,
@@ -164,6 +165,8 @@ export class AgentWorkerRuntime {
         ),
         onFailure: (error) => this.failRuntime(error),
       })
+      bootstrap = runtimeBootstrapConfiguration(bootstrap)
+      this.bootstrap = bootstrap
       this.events.push('status', { status: { status: 'running' } })
       await this.events.flush()
       if (this.abortRequested) {

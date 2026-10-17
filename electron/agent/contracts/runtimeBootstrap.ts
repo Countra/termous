@@ -156,6 +156,12 @@ function isRuntimeMessageView(value: unknown): value is RuntimeMessageView {
       && value.parts[value.parts.length - 1]?.kind !== 'tool_result'))
 }
 
+export function runtimeBootstrapConfiguration(bootstrap: RuntimeBootstrap): RuntimeBootstrap {
+  const checkpoint = bootstrap.context.checkpoint
+  return { ...bootstrap, messages: [], context: { ...bootstrap.context,
+    ...(checkpoint ? { checkpoint: { ...checkpoint, retained_tail: [], image_sources: [] } } : {}) } }
+}
+
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
   return isRecord(value)
     && typeof value.id === 'string'

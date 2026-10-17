@@ -32,14 +32,18 @@ function serialize(value: unknown): unknown {
 
 export function projectAgentSurface(model: AgentSurfaceModel): Record<string, unknown> {
   const partitions: Record<string, unknown> = { capabilities: [...agentSurfaceActions(model).keys()] }
-  // 分区分别比较；流式更新只传递当前对话及实际发生变化的投影。
+  // 长工具轮按 Part 分区，流式文字不反复携带整条消息的全部历史步骤。
   for (const [group, value] of Object.entries(model)) {
     if (!value || typeof value !== 'object') { if (typeof value !== 'function') partitions[group] = value; continue }
     for (const [key, entry] of Object.entries(value)) {
       if (typeof entry === 'function') continue
       if (key === 'messages' && Array.isArray(entry)) {
         partitions[`${group}.messageIds`] = entry.map(message => message.id)
-        for (const message of entry) partitions[`message:${group}:${message.id}`] = serialize(message)
+        for (const message of entry) {
+          const { parts, ...metadata } = message
+          partitions[`message:${group}:${message.id}`] = serialize({ ...metadata, partIds: parts.map((part: { id: string }) => part.id) })
+          for (const part of parts) partitions[`part:${group}:${message.id}:${part.id}`] = serialize(part)
+        }
       } else partitions[`${group}.${key}`] = serialize(entry)
     }
   }
@@ -57,14 +61,19 @@ export function restoreAgentSurface(partitions: Record<string, unknown>): AgentS
     else {
       const target = (model[group] ??= {}) as Record<string, unknown>
       if (key === 'messageIds') target.messages = (value as string[]).flatMap(id => {
-        const message = partitions[`message:${group}:${id}`]
-        return message ? [message] : []
+        const message = partitions[`message:${group}:${id}`] as { partIds: string[] } | undefined
+        if (!message) return []
+        const { partIds, ...metadata } = message
+        return [{ ...metadata, parts: partIds.map(partId => partitions[`part:${group}:${id}:${partId}`]).filter(Boolean) }]
       })
       else target[key] = value
     }
   }
   const result = model as AgentSurfaceModel
-  if (result.workspace?.session_management) result.workspace.session_management.pendingIds = new Set(result.workspace.session_management.pendingIds as unknown as string[])
+  if (result.workspace?.session_management) result.workspace.session_management = {
+    ...result.workspace.session_management,
+    pendingIds: new Set(result.workspace.session_management.pendingIds as unknown as string[]),
+  }
   if (result.archive?.pendingIds) result.archive.pendingIds = new Set(result.archive.pendingIds as unknown as string[])
   return result
 }

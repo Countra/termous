@@ -32,6 +32,8 @@ import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoin
 import type { RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { RuntimeContextImages } from '../context/runtimeContextImages.ts'
+import { ownRuntimeImageMessages } from '../context/runtimeImageLifetime.ts'
+import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import { createRuntimeContextGate, runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { createRuntimeRetryStreamFunction } from '../provider/runtimeProviderRetry.ts'
 import { bindRuntimeResourceTools } from '../tools/runtimeResourceRouting.ts'
@@ -67,6 +69,10 @@ export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
 }
 
 export function createPiAgent(options: CreatePiAgentOptions): PiAgentController {
+  const restoredCheckpoint = options.bootstrap.context.checkpoint
+  if (restoredCheckpoint?.retained_tail) options = { ...options, bootstrap: { ...options.bootstrap,
+    context: { ...options.bootstrap.context, checkpoint: { ...restoredCheckpoint,
+      retained_tail: ownRuntimeImageMessages(restoredCheckpoint.retained_tail) } } } }
   const model = createRuntimeModel(options.bootstrap)
   const providerFetch = createRestrictedProviderFetch(
     model.baseUrl,
@@ -221,6 +227,9 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   // 旧检查点没有执行状态时，从其保留历史重建；只有已恢复的快照才跳过该段，避免重复计数。
   toolProgress.replay(initialMessages.slice(options.bootstrap.context.checkpoint ? 1 + (restoredProgress ? options.bootstrap.context.checkpoint.retained_tail?.length ?? 0 : 0) : 0),
     (name) => options.mcp.readOnly?.(name) ?? /\.(?:get|list|capture|view|match)$/u.test(name))
+  // 启动历史已在 Core 落盘；移交给运行工作集后不再让配置闭包保留整份图片正文。
+  imageWorkingSet.releasePersisted(initialMessages)
+  options = { ...options, bootstrap: runtimeBootstrapConfiguration(options.bootstrap) }
   const steerSources = new WeakMap<AgentMessage, Pick<RuntimeSteerResult, 'message_id' | 'part_id'>>()
   const agent = new Agent({
     initialState: {
@@ -245,13 +254,17 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       }
       return { context: { ...context, tools } }
     },
-    finishTurn: async ({ toolResults }, signal) => {
+    finishTurn: async ({ toolResults, context }, signal) => {
       if (signal?.aborted) { aborted = true; return { action: 'end' } }
       for (const result of toolResults) {
         observeToolResult(result.toolCallId, result.toolName, callArguments.get(result.toolCallId), { content: result.content, details: result.details }, result.isError)
         observedCalls.delete(result.toolCallId)
         validatedCalls.delete(result.toolCallId)
         callArguments.delete(result.toolCallId)
+      }
+      if (toolResults.length) {
+        await options.events.flush()
+        imageWorkingSet.releasePersisted(context.messages)
       }
       const failure = executionFailure()
       if (failure) { bridge.stopLocally(failure); return { action: 'end' } }
@@ -328,6 +341,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
             : agent.state.messages
           await compaction.observeContext(standardMessages(contextMessages), providerUsage)
         }
+        await options.events.waitForCapacity()
       },
     }, options.onFailure, () => { aborted = true; agent.abort() })
   )

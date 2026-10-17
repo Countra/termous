@@ -5,13 +5,14 @@ import { createContext, memo, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { isAgentToolImageReference } from '#common/contracts'
-import type { AgentImageLoader, AgentWorkspaceImage } from '../model/types.ts'
+import type { AgentImageLoader } from '../model/types.ts'
+import type { AgentImageCatalog } from '../model/agentImageResources.ts'
 import { AgentImage } from './AgentImage.tsx'
 import styles from './AgentMarkdown.module.scss'
 
 const markdownRemarkPlugins = [remarkGfm]
 type MarkdownImages = {
-  images?: ReadonlyMap<string, AgentWorkspaceImage>
+  images?: AgentImageCatalog
   onLoadToolImage?: AgentImageLoader
 }
 const MarkdownImageContext = createContext<MarkdownImages>({})

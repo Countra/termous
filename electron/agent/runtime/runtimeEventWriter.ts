@@ -43,6 +43,7 @@ export class RuntimeEventWriter {
   private readonly pending: PendingRuntimeEvent[] = []
   private readonly requestEnvelopeBytes: number
   private sequence: number
+  private queuedBytes = 0
   private timer: ReturnType<typeof setTimeout> | null = null
   private sendTail: Promise<void> = Promise.resolve()
   private backgroundFlushActive = false
@@ -87,6 +88,7 @@ export class RuntimeEventWriter {
     }
     this.sequence = event.sequence
     this.pending.push({ value: event, serializedBytes })
+    this.queuedBytes += serializedBytes
     if (this.pending.length >= maxEventBatchSize) {
       this.flushInBackground()
     } else {
@@ -101,6 +103,12 @@ export class RuntimeEventWriter {
     this.enqueuePendingBatches()
     await this.sendTail
     this.assertHealthy()
+  }
+
+  async waitForCapacity() {
+    this.assertHealthy()
+    // SDK 等待事件监听器；包括在途批次的字节水位将慢 Core 的压力传回生产者，不丢弃事件。
+    if (this.queuedBytes >= maxEventRequestBytes) await this.flush()
   }
 
   currentSequence() {
@@ -209,6 +217,7 @@ export class RuntimeEventWriter {
     if (this.requestEnvelopeBytes + serializedBytes > maxEventRequestBytes) {
       return null
     }
+    this.queuedBytes += serializedBytes - previous.serializedBytes
     previous.value = value
     previous.serializedBytes = serializedBytes
     return value
@@ -218,6 +227,7 @@ export class RuntimeEventWriter {
     while (this.pending.length > 0) {
       const batch: RuntimeEventInput[] = []
       let batchBytes = this.requestEnvelopeBytes
+      let queuedBytes = 0
       while (batch.length < maxEventBatchSize && this.pending.length > 0) {
         const next = this.pending[0]
         if (!next) {
@@ -230,6 +240,7 @@ export class RuntimeEventWriter {
         }
         this.pending.shift()
         batch.push(next.value)
+        queuedBytes += next.serializedBytes
         batchBytes += separatorBytes + next.serializedBytes
       }
       const expectedSequence = batch[batch.length - 1]?.sequence
@@ -243,7 +254,7 @@ export class RuntimeEventWriter {
         if (persisted !== expectedSequence) {
           throw new Error('AGENT_RUNTIME_EVENT_SEQUENCE_INVALID')
         }
-      })
+      }).finally(() => { this.queuedBytes -= queuedBytes })
       this.trackOperation(operation)
     }
   }

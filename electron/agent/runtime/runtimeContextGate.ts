@@ -7,6 +7,7 @@ import type { RuntimeContextImages } from '../context/runtimeContextImages.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { isRuntimeCheckpointInput } from '../contracts/runtimeCheckpoint.ts'
 import { projectRuntimeToolHistory } from '../context/runtimeToolHistory.ts'
+import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from '../contracts/runtimeCheckpoint.ts'
 import type { RuntimeReasoningLevel } from '../contracts/modelSnapshot.ts'
@@ -36,7 +37,7 @@ interface CompactionSource {
 }
 
 export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
-  let persistedCheckpoint = options.bootstrap.context.checkpoint
+  const persistedCheckpoint = options.bootstrap.context.checkpoint
   let active: CompactionSource | undefined
   const retryPositions = new Map<string, number>()
   const now = options.now ?? Date.now
@@ -48,6 +49,8 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     timestamp: now(),
     details: persistedCheckpoint.details,
   }
+  let persistedCheckpointID = persistedCheckpoint?.id ?? ''
+  options = { ...options, bootstrap: runtimeBootstrapConfiguration(options.bootstrap) }
   return createRuntimeCompactionController({
     model: options.model,
     systemPrompt: options.systemPrompt,
@@ -69,7 +72,7 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
         id: `agc_${randomUUID()}`,
         coveredSequence: options.events.currentSequence(),
         partSequence: options.bridge.partSequence(),
-        baseCheckpointID: persistedCheckpoint?.id ?? '',
+        baseCheckpointID: persistedCheckpointID,
       }
       return active
     },
@@ -100,7 +103,7 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
         })
         return { lastSequence: result.last_sequence, value: result.checkpoint }
       })
-      persistedCheckpoint = committed
+      persistedCheckpointID = committed.id ?? ''
     },
     onActivity: async (activity) => {
       if (activity.status === 'completed') {

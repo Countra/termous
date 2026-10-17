@@ -58,6 +58,20 @@ test('无法引用或非规范图片明确失败，不静默删掉 retainedTail'
   }
 })
 
+test('恢复的 MCP 详情含空内容项时仍能去除重复图片，其他诊断信息保持原样', () => {
+  const details = { kind: 'mcp', originalToolName: 'termous.desktops.capture', result: {
+    content: [null, image, { type: 'text', text: '诊断信息' }], isError: true,
+  } }
+  const message: ToolResultMessage = { role: 'toolResult', toolCallId: 'call_restore', toolName: 'capture',
+    content: [image], timestamp: 1, isError: true, details }
+  const before = structuredClone(message)
+  const registry = new RuntimeContextImages({ context: { estimated_tokens: 0, warning: false }, messages: [] })
+  registry.registerToolResult('agp_restore', message)
+  const serialized = registry.serialize([message]) as ToolResultMessage[]
+  assert.deepEqual(serialized[0]!.details, { ...details, result: { ...details.result, content: [null, { type: 'text', text: '诊断信息' }] } })
+  assert.deepEqual(message, before)
+})
+
 function userMessage(): RuntimeBootstrap['messages'][number] {
   return {
     id: 'agm_user', role: 'user', sequence: 1, status: 'completed',

@@ -61,9 +61,13 @@ test('桌面图片只保留两个观察组及待确认预览，持久化原消�
   const confirmCall: AgentMessage = { role: 'assistant', content: [{ type: 'toolCall', id: 'confirmed', name: encodeMCPToolName('termous.desktop_workflows.templates.confirm'), arguments: { preview_id: 'other' } }], api: 'openai-completions', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: 'toolUse', timestamp: 6 }
   messages.push(confirmCall, { role: 'toolResult', toolCallId: 'confirmed', toolName: encodeMCPToolName('termous.desktop_workflows.templates.confirm'), content: [{ type: 'text', text: 'confirmed' }], isError: false, timestamp: 6 })
   assert.equal(count(working.project(messages).messages), 3)
+  working.releasePersisted(messages)
+  assert.equal(count(messages), 3)
   const call = confirmCall.content[0]!
   if (call.type === 'toolCall') call.arguments = { preview_id: 'preview' }
   assert.equal(count(working.project(messages).messages), 2)
+  working.releasePersisted(messages)
+  assert.equal(count(messages), 2)
 })
 
 test('上下文压缩保留尚待确认预览的完整调用组，已确认后允许继续压缩', () => {

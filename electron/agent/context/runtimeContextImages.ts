@@ -4,6 +4,7 @@ import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import type { RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { runtimeMessageDetails } from './runtimeImageLifetime.ts'
 
 export class RuntimeContextImages {
   private readonly sources = new Map<string, RuntimeContextImageReference>()
@@ -44,6 +45,7 @@ export class RuntimeContextImages {
       if (typeof message.content === 'string') return { ...message }
       return {
         ...message,
+        ...(message.role === 'toolResult' && message.details !== undefined ? { details: runtimeMessageDetails(message.details) } : {}),
         content: message.content.map((block) => {
           if (block.type !== 'image') return structuredClone(block)
           const source = this.sources.get(sourceKey(block.mimeType, imageHash(block.data)))

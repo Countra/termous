@@ -81,7 +81,7 @@ function SurfacePublication({ model, adapter, publisher, feedback, presentation,
     // 嵌入和远控页面无需序列化整段历史；收回后及时释放独立窗口的投影副本。
     if (!publishing) { publisher.clear(); return }
     const update = publisher.update({ ...projectAgentSurface(model), inputSequence: adapter.inputSequence,
-      feedback: feedback.getSnapshot(), presentation })
+      feedback: feedback.getSnapshot(), presentation: structuredClone(presentation) })
     if (update) publish(update)
   })
   return children

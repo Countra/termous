@@ -17,6 +17,30 @@ const start: AgentWorkerStartMessage = {
   skills: testAgentSkillBundle(),
 }
 
+test('在途图片计入背压水位，确认落盘后恢复生产且不丢失事件', async () => {
+  const core = new RecordingCore()
+  const append = core.appendEvents.bind(core)
+  let finish!: () => void
+  const blocked = new Promise<void>(resolve => { finish = resolve })
+  core.appendEvents = async (...args) => { await blocked; return append(...args) }
+  const writer = new RuntimeEventWriter({ core, start, runtimeBearer: 'fixture', initialSequence: 0,
+    onFailure: error => assert.fail(String(error)), flushDelayMs: 60_000 })
+  writer.push('message_part', { message_part: { kind: 'tool_result', content: { tool_result: {
+    content: [{ type: 'image', mimeType: 'image/png', data: Buffer.alloc(600 * 1024).toString('base64') }],
+  } } } })
+  const flushing = writer.flush()
+  let resumed = false
+  const capacity = writer.waitForCapacity().then(() => { resumed = true })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(resumed, false)
+  finish()
+  await Promise.all([flushing, capacity])
+  assert.equal(resumed, true)
+  await writer.waitForCapacity()
+  assert.deepEqual(core.batches.flat().map(event => event.sequence), [1])
+  await writer.close()
+})
+
 test('大截图单独发送，普通批次保持原预算与顺序', async () => {
   const core = new RecordingCore()
   const writer = new RuntimeEventWriter({ core, start, runtimeBearer: 'fixture', initialSequence: 0, onFailure: error => assert.fail(String(error)), flushDelayMs: 60_000 })

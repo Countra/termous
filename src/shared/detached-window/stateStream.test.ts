@@ -55,3 +55,26 @@ test('增量移除消息分区后释放内容，再次出现时仍能恢复', ()
   receiver.accept(publisher.update({ message: '重新加载' })!)
   assert.deepEqual(receiver.snapshot(), { message: '重新加载' })
 })
+
+test('内容比较覆盖相同长度的文字、数组重排与字段移除', () => {
+  const publisher = new DetachedStatePublisher()
+  publisher.update({ part: { text: '甲', ids: ['one', 'two'], pending: true } })
+  assert.equal(publisher.update({ part: { pending: true, ids: ['one', 'two'], text: '甲' } }), undefined)
+  assert.deepEqual(publisher.update({ part: { text: '乙', ids: ['two', 'one'] } })?.partitions,
+    { part: { text: '乙', ids: ['two', 'one'] } })
+})
+
+test('未设置的可选分区不反复发送删除帧，实际删除只通知一次', () => {
+  const publisher = new DetachedStatePublisher()
+  const receiver = new DetachedStateReceiver()
+  assert.equal(publisher.update({ warning: undefined, archive: null }), undefined)
+  publisher.update({ warning: 'reconnecting', archive: undefined })
+  receiver.accept(publisher.snapshot())
+  const cleared = publisher.update({ warning: undefined, archive: null })!
+  assert.deepEqual(cleared.partitions, { warning: null })
+  receiver.accept(cleared)
+  assert.deepEqual(receiver.snapshot(), {})
+  assert.deepEqual(publisher.snapshot().partitions, {})
+  assert.equal(publisher.update({ warning: undefined, archive: undefined }), undefined)
+  assert.equal(publisher.update({}), undefined)
+})

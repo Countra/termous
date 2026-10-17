@@ -7,27 +7,36 @@ export interface DetachedStateFrame {
 export class DetachedStatePublisher {
   private sequence = 0
   private values: Record<string, unknown> = {}
-  private signatures = new Map<string, string>()
 
   update(partitions: Record<string, unknown>): DetachedStateFrame | undefined {
     const changes: Record<string, unknown> = {}
-    const signatures = new Map<string, string>()
+    const values: Record<string, unknown> = {}
     for (const key of new Set([...Object.keys(this.values), ...Object.keys(partitions)])) {
       const value = partitions[key] ?? null
-      const signature = JSON.stringify(value)
-      if (Object.prototype.hasOwnProperty.call(partitions, key)) signatures.set(key, signature)
-      if (signature === this.signatures.get(key)) continue
+      // 空值统一表示移除；快照不保留空分区，避免未设置字段反复产生删除帧。
+      if (value !== null) values[key] = value
+      if (sameStateValue(value, this.values[key] ?? null)) continue
       changes[key] = value
     }
-    this.signatures = signatures
-    this.values = partitions
+    this.values = values
     if (!Object.keys(changes).length) return
     return { sequence: ++this.sequence, full: false, partitions: changes }
   }
 
   snapshot(): DetachedStateFrame { return { sequence: this.sequence, full: true, partitions: this.values } }
 
-  clear() { this.values = {}; this.signatures.clear() }
+  clear() { this.values = {} }
+}
+
+// 输入是窗口适配器生成的 JSON 数据树；直接比较，避免常驻另一份完整历史 JSON 字符串。
+function sameStateValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) !== Array.isArray(right)) return false
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  return keys.every(key => Object.prototype.hasOwnProperty.call(right, key)
+    && sameStateValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]))
 }
 
 export class DetachedStateReceiver {

@@ -53,18 +53,24 @@ describe('Agent 图片资源', () => {
     await expect(loadAgentImage(image, load, cancelled.signal)).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('工具折叠时不挂载或下载图片，展开后加载，收起时取消并释放资源', async () => {
-    const view = render(<AgentToolTimeline tool={{ id: 'call', kind: 'tool', name: 'capture', status: 'completed', images: [image] }} onLoadToolImage={load} />)
+  it('工具折叠时不挂载详情或下载图片，展开后完整加载，收起时释放资源', async () => {
+    const detail = '完整工具结果\n'.repeat(10000)
+    const view = render(<AgentToolTimeline tool={{ id: 'call', kind: 'tool', name: 'capture', status: 'completed', detail, images: [image] }} onLoadToolImage={load} />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(view.container.querySelector('pre')).toBeNull()
     expect(load).not.toHaveBeenCalled()
     const details = view.container.querySelector('details')!
     fireEvent.click(view.container.querySelector('summary')!)
     await waitFor(() => expect(view.container.querySelector('img')).toHaveAttribute('src', 'blob:image'))
     expect(details).toHaveAttribute('open')
     expect(load).toHaveBeenCalledTimes(1)
+    expect(view.container.querySelector('pre')?.textContent).toBe(detail)
     fireEvent.click(view.container.querySelector('summary')!)
     await waitFor(() => expect(screen.queryByRole('button')).not.toBeInTheDocument())
     expect(revokeURL).toHaveBeenCalled()
+    expect(view.container.querySelector('pre')).toBeNull()
+    fireEvent.click(view.container.querySelector('summary')!)
+    await waitFor(() => expect(view.container.querySelector('pre')?.textContent).toBe(detail))
   })
 
   it('结论中的图片直接显示并可查看大图，工具图片仍折叠；切换会话关闭预览', async () => {
