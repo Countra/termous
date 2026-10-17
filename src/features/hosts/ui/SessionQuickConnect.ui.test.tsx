@@ -50,8 +50,11 @@ test('SSH 更多连接收起快捷菜单并清空搜索，打开完整连接页�
   expect(onConnect).not.toHaveBeenCalled()
   await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
   await user.click(trigger)
-  expect(await screen.findByRole('textbox')).toHaveValue('')
-  expect(screen.getByRole('option', { name: /Production server/ })).toBeVisible()
+  // 重开后先等待入场准备完成，同时确认搜索重置与候选项可见。
+  await waitFor(() => {
+    expect(screen.getByRole('textbox')).toHaveValue('')
+    expect(screen.getByRole('option', { name: /Production server/ })).toBeVisible()
+  })
 })
 
 test('SSH 连接进行中禁用更多连接，完成后恢复入口', async () => {
