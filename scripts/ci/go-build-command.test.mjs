@@ -24,6 +24,7 @@ exit 0
 `)
   const shellArguments = ['-NoProfile', '-NonInteractive', '-Command', `
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $rdpDir = $PWD.Path
 $rdpMsys2Root = Join-Path $PWD 'MSYS2 directory'
 ${invoke}

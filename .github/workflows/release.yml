@@ -347,8 +347,7 @@ jobs:
         with:
           go-version: ${{ vars.GO_VERSION }}
           go-version-file: ${{ !vars.GO_VERSION && 'backend/go.mod' || '' }}
-          cache: true
-          cache-dependency-path: backend/go.sum
+          cache: false
 
       - name: Download pinned private modules
         shell: bash

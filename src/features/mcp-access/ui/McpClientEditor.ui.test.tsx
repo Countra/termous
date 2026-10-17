@@ -414,7 +414,7 @@ describe('McpClientEditor', () => {
 })
 
 function scopeCheckbox(scopeKey: string) {
-  return screen.getByRole('checkbox', { name: new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`) })
+  return screen.getByLabelText(new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`), { selector: 'input[type="checkbox"]' })
 }
 
 function permissionGroup(groupKey: string) {

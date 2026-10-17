@@ -8,8 +8,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    // 每个 UI 进程独立加载 jsdom 与组件库；限制并发，避免多核机器资源争抢造成假超时。
-    maxWorkers: Math.min(4, availableParallelism()),
+    // 每个 UI 进程独立加载 jsdom 与组件库；CI 降低并发，为共享 Runner 留出资源。
+    maxWorkers: Math.min(process.env.CI ? 2 : 4, availableParallelism()),
+    // 完整 UI 交互包含多次渲染与可访问性查询，统一给予有限的执行余量。
+    testTimeout: 15_000,
     include: ['src/**/*.ui.test.tsx'],
     setupFiles: ['./src/test/setup.ts'],
   },
