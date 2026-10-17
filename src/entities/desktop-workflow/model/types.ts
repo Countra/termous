@@ -2,8 +2,11 @@ import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
 
 export interface Point { x: number; y: number }
 export interface Region extends Point { width: number; height: number }
+// 模板来源仅用于编辑器回显，不限制运行时的图像查找区域。
+export interface TemplateSource { region: Region; reference_width: number; reference_height: number }
 export interface ImageTarget {
   asset_id: string
+  template_source?: TemplateSource
   region?: Region
   reference_width?: number
   reference_height?: number

@@ -27,6 +27,20 @@ function fixture() {
   return { controller, host, remote, request, deliver, connect, report }
 }
 
+it('模板来源随草稿跨窗口传递，并在宿主回执后保留独立查找区域', async () => {
+  const f = fixture()
+  const source = { region: { x: 100, y: 50, width: 200, height: 100 }, reference_width: 1000, reference_height: 500 }
+  const definition = { schema_version: 1 as const, parameters: [], steps: [{ id: 'image', name: '', kind: 'image.assert' as const, action: {},
+    image: { asset_id: 'template', offset: { x: 0, y: 0 }, template_source: source, region: { x: 0, y: 0, width: 900, height: 400 }, reference_width: 1000, reference_height: 500 } }] }
+  try {
+    const actions = f.connect().actions
+    await actions.change({ definition })
+    await f.remote.flush()
+    expect(f.controller.getSnapshot().state.draft?.definition).toEqual(definition)
+    expect(f.connect().state.draft?.definition).toEqual(definition)
+  } finally { f.controller.dispose() }
+})
+
 it('输入发送失败后阻止后续补丁越过，显式重试保留每条修改和请求标识', async () => {
   const f = fixture()
   f.request.mockRejectedValueOnce(new Error('发送失败'))

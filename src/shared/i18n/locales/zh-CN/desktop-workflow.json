@@ -8,12 +8,26 @@
   "saveForHistory": "保存流程后可查看版本",
   "selectionMode": "画面选择模式",
   "previewTemplate": "预览模板",
+  "previewTools": {
+    "title": "画面视图与选区操作",
+    "viewport": "桌面截图视图",
+    "wheel": "滚轮缩放 · Ctrl + 拖动平移",
+    "hint": "直接拖动可框选、移动选区或调整边框；Ctrl + 左键拖动始终平移画面。0 恢复适应，1 原始尺寸。视图变化不修改配置。"
+  },
   "selection": {
     "canvas": "画面选区编辑器",
-    "drawHint": "拖动框选 · 选区内移动 · 边缘调整大小",
-    "move": "移动选区（方向键微调，Shift 加速）",
+    "drawHint": "拖动框选 · 框内拖动移动 · 边缘调整大小",
+    "templateSourceMissing": "此模板未记录来源选区，重新框选后可保存位置",
+    "move": "移动选区（左键拖动，方向键微调，Shift 加速）",
     "reset": "重置选区",
+    "undo": "撤销选区编辑",
+    "redo": "重做选区编辑",
+    "delete": "删除选区",
+    "undoHint": "撤销（Ctrl / ⌘ + Z）",
+    "redoHint": "重做（Ctrl / ⌘ + Shift + Z，或 Ctrl + Y）",
+    "deleteHint": "删除选框（Delete），保留已应用的配置",
     "useTemplate": "设为模板",
+    "updateTemplate": "更新模板",
     "useRegion": "应用区域",
     "applied": "已应用",
     "resize": {

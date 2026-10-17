@@ -22,6 +22,7 @@ export function WorkflowWindowPreview() {
       <main style={{ position: 'relative', minHeight: 0, padding: 12 }}>
         <div hidden={!active} inert={!active} style={{ height: '100%' }}>
           <WorkflowWorkspace gateway={fixture.gateway} sessions={fixture.sessions} activeSessionId="desktop" profiles={[]} appearance={{ theme, language }} onDirtyChange={() => {}}
+            headerActions={<Button size="small" onClick={() => setActive(false)}>返回远程桌面</Button>}
             onViewDesktop={() => {}} onReturnToPage={() => active ? Promise.resolve(true) : new Promise<boolean>(resolve => setConfirm({ resolve }))} />
         </div>
         {!active && <p style={{ color: 'var(--text-primary)' }}>模拟主页面：有未保存的修改</p>}

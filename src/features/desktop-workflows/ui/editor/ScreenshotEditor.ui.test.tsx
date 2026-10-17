@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { App, ConfigProvider } from 'antd'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Step, WorkflowGateway } from '#entities/desktop-workflow'
@@ -47,7 +48,7 @@ describe('模板预览与选区应用', () => {
     expect(revoke).toHaveBeenCalledWith('blob:template-1')
   })
 
-  it('微调完成后才裁剪上传，失败保留原模板与选区，重试只替换对应图像资产', async () => {
+  it('微调完成后才裁剪上传，失败保留原模板，成功保存来源且重新打开后恢复选框', async () => {
     let sequence = 0
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:image-${++sequence}`)
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
@@ -86,17 +87,24 @@ describe('模板预览与选区应用', () => {
     await waitFor(() => expect(change).toHaveBeenCalledOnce())
     const [id, update] = change.mock.calls[0] as [string, (value: Step) => Step]
     expect(id).toBe(step.id)
-    expect(update(step).image).toEqual({ ...step.image, asset_id: 'cropped', anchor: undefined })
+    const updated = update(step)
+    expect(updated.image).toEqual({ ...step.image, asset_id: 'cropped', anchor: undefined,
+      template_source: { region: { x: 100, y: 100, width: 201, height: 101 }, reference_width: 1000, reference_height: 500 } })
     expect(drawImage).toHaveBeenCalledWith(image, 100, 100, 201, 101, 0, 0, 201, 101)
     expect(api.asset).toHaveBeenCalledOnce()
     view.rerender(<ScreenshotEditor {...props} step={{ ...step, id: 'next' }} />)
     expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+    expect(screen.getByText('desktopWorkflow.selection.templateSourceMissing')).toBeVisible()
+    view.rerender(<ScreenshotEditor {...props} step={JSON.parse(JSON.stringify(updated)) as Step} />)
+    expect(screen.getByText('201 × 101')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_template' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('desktopWorkflow.selection.templateSourceMissing')).not.toBeInTheDocument()
     view.unmount()
     expect(api.closePreview).toHaveBeenCalledWith('preview')
     host.dispose()
   })
 
-  it('已有查找区域可继续微调，配置被清除或参考尺寸失效时不会显示旧选框', async () => {
+  it('打开配置直接还原查找区域，可继续微调，配置清除或参考尺寸失效时不显示旧框', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     const api = gateway()
@@ -107,7 +115,9 @@ describe('模板预览与选区应用', () => {
       sessions: [{ id: 'session', profile_name: '合成桌面', protocol: 'vnc' as const, connection_generation: 1, status: 'streaming' as const }], step: configured }
     const view = render(<ScreenshotEditor {...props} />, { wrapper })
     await screen.findByRole('img', { name: 'desktopWorkflow.readonlyScreen' })
-    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.select_region' }))
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_region' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.selection.move' }).parentElement).toHaveStyle({ left: '10%', top: '20%', width: '20%', height: '20%' })
+    expect(change).not.toHaveBeenCalled()
     fireEvent.load(screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' }))
     fireEvent.keyDown(screen.getByRole('button', { name: 'desktopWorkflow.selection.move' }), { key: 'ArrowRight' })
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.selection.useRegion' }))
@@ -122,5 +132,97 @@ describe('模板预览与选区应用', () => {
     expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
     view.rerender(<ScreenshotEditor {...props} step={{ ...configured, image: { ...configured.image, reference_width: 2000 } }} />)
     expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+    view.rerender(<ScreenshotEditor {...props} step={{ ...configured, image: { ...configured.image, region: { x: 900, y: 100, width: 200, height: 100 } } }} />)
+    expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+  })
+
+  it('模板来源与查找区域独立回显，失效来源隐藏，导入替换模板后清除旧来源', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const api = gateway()
+    vi.mocked(api.capture).mockResolvedValue({ blob: new Blob(['screen']), metadata: { width: 1000, height: 500, desktop_width: 1000, desktop_height: 500, connection_generation: 1, display_epoch: 1, frame_sequence: 1, region: { x: 0, y: 0, width: 1000, height: 500 }, captured_at: '' } })
+    vi.mocked(api.upload).mockResolvedValue({ id: 'imported', width: 20, height: 10, size: 10, sha256: '', created_at: '' })
+    const source = { region: { x: 100, y: 100, width: 200, height: 100 }, reference_width: 1000, reference_height: 500 }
+    const configured = { ...step, image: { ...step.image!, template_source: source, region: { x: 0, y: 0, width: 900, height: 400 }, reference_width: 1000, reference_height: 500 } }
+    const change = vi.fn()
+    const props = { gateway: api, target: { mode: 'session' as const, id: 'session', connectionGeneration: 1 }, onTargetChange: vi.fn(), onChange: change,
+      sessions: [{ id: 'session', profile_name: '合成桌面', protocol: 'vnc' as const, connection_generation: 1, status: 'streaming' as const }], step: configured }
+    const view = render(<ScreenshotEditor {...props} />, { wrapper })
+    await screen.findByRole('img', { name: 'desktopWorkflow.readonlyScreen' })
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_template' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.select_region' }))
+    expect(screen.getByText('900 × 400')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.select_template' }))
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    for (const template_source of [{ ...source, reference_width: 2000 }, { ...source, region: { ...source.region, x: 950 } }]) {
+      view.rerender(<ScreenshotEditor {...props} step={{ ...configured, image: { ...configured.image, template_source } }} />)
+      expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+    }
+    view.rerender(<ScreenshotEditor {...props} />)
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    expect(change).not.toHaveBeenCalled()
+    const file = new File(['import'], 'template.png', { type: 'image/png' })
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [file] } })
+    await waitFor(() => expect(change).toHaveBeenCalledOnce())
+    const edit = change.mock.calls[0]![1] as (value: Step) => Step
+    const updated = edit(configured)
+    expect(updated.image).toEqual({ ...configured.image, asset_id: 'imported', anchor: undefined, template_source: undefined })
+    view.rerender(<ScreenshotEditor {...props} step={updated} />)
+    expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+  })
+
+  it.each(['image.wait', 'if', 'pointer.click'] as const)('%s 按配置还原区域，手动模式只作用于当前步骤', async kind => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const api = gateway()
+    vi.mocked(api.capture).mockResolvedValue({ blob: new Blob(['screen']), metadata: { width: 1000, height: 500, desktop_width: 1000, desktop_height: 500, connection_generation: 1, display_epoch: 1, frame_sequence: 1, region: { x: 0, y: 0, width: 1000, height: 500 }, captured_at: '' } })
+    const image = { ...step.image!, region: { x: 100, y: 100, width: 200, height: 100 }, reference_width: 1000, reference_height: 500 }
+    const configured: Step = { ...step, kind, ...(kind === 'pointer.click' ? { image: undefined, target: { kind: 'image', image } } : { image }) }
+    const props = { gateway: api, target: { mode: 'session' as const, id: 'session', connectionGeneration: 1 }, onTargetChange: vi.fn(), onChange: vi.fn(),
+      sessions: [{ id: 'session', profile_name: '合成桌面', protocol: 'vnc' as const, connection_generation: 1, status: 'streaming' as const }], step: configured }
+    const view = render(<ScreenshotEditor {...props} />, { wrapper })
+    await screen.findByRole('img', { name: 'desktopWorkflow.readonlyScreen' })
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_region' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.select_template' }))
+    view.rerender(<ScreenshotEditor {...props} step={{ ...configured, name: '修改步骤名称' }} />)
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_template' })).toHaveAttribute('aria-pressed', 'true')
+    view.rerender(<ScreenshotEditor {...props} step={{ ...configured, id: 'next' }} />)
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_region' })).toHaveAttribute('aria-pressed', 'true')
+    view.rerender(<ScreenshotEditor {...props} />)
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_region' })).toHaveAttribute('aria-pressed', 'true')
+    view.rerender(<ScreenshotEditor {...props} step={{ id: 'point', kind: 'pointer.click', name: '', action: {}, target: { kind: 'point', x: 50, y: 30, reference_width: 1000, reference_height: 500 } }} />)
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_point' })).toHaveAttribute('aria-pressed', 'true')
+    expect(props.onChange).not.toHaveBeenCalled()
+    expect(api.upload).not.toHaveBeenCalled()
+  })
+
+  it('拖拽起终点分别还原各自区域，目标改为坐标定位时切回选点', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const user = userEvent.setup()
+    const api = gateway()
+    vi.mocked(api.capture).mockResolvedValue({ blob: new Blob(['screen']), metadata: { width: 1000, height: 500, desktop_width: 1000, desktop_height: 500, connection_generation: 1, display_epoch: 1, frame_sequence: 1, region: { x: 0, y: 0, width: 1000, height: 500 }, captured_at: '' } })
+    const image = { ...step.image!, region: { x: 100, y: 100, width: 200, height: 100 }, reference_width: 1000, reference_height: 500 }
+    const configured: Step = { id: 'drag', kind: 'pointer.drag', name: '', action: {}, target: { kind: 'image', image },
+      end_target: { kind: 'image', image: { ...image, region: { x: 400, y: 200, width: 150, height: 75 } } } }
+    const props = { gateway: api, target: { mode: 'session' as const, id: 'session', connectionGeneration: 1 }, onTargetChange: vi.fn(), onChange: vi.fn(),
+      sessions: [{ id: 'session', profile_name: '合成桌面', protocol: 'vnc' as const, connection_generation: 1, status: 'streaming' as const }], step: configured }
+    const view = render(<ScreenshotEditor {...props} />, { wrapper })
+    await screen.findByRole('img', { name: 'desktopWorkflow.readonlyScreen' })
+    expect(screen.getByText('200 × 100')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'desktopWorkflow.select_template' }))
+    await user.click(screen.getByRole('combobox', { name: 'desktopWorkflow.target' }))
+    await user.click(screen.getByText('desktopWorkflow.endTarget', { exact: true }))
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_region' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('150 × 75')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.selection.move' }).parentElement).toHaveStyle({ left: '40%', top: '40%', width: '15%', height: '15%' })
+    view.rerender(<ScreenshotEditor {...props} step={{ ...configured, end_target: { kind: 'point', x: 40, y: 20, reference_width: 1000, reference_height: 500 } }} />)
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.select_point' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'desktopWorkflow.selection.move' })).not.toBeInTheDocument()
+    expect(props.onChange).not.toHaveBeenCalled()
+    expect(api.upload).not.toHaveBeenCalled()
   })
 })

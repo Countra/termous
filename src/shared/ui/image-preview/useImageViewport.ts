@@ -131,7 +131,7 @@ export function useImageViewport(size: Size | undefined, enabled: boolean) {
   }
   return {
     viewport, zoom: view.zoom, scale, offset, dragging, canPan, canZoomIn: scale < maximum, canZoomOut: scale > minimum,
-    adjustZoom, changeZoom,
+    adjustZoom, changeZoom, stopPanning: stopDragging,
     handlers: { onPointerDown: start, onPointerMove: move, onPointerUp: finish, onPointerCancel: finish, onLostPointerCapture: finish,
       onBlur: stopDragging, onKeyDown: keyDown, onDoubleClick: () => { if (enabled) changeZoom(metrics.current.zoom === 1 ? 'fit' : 1) } },
   }

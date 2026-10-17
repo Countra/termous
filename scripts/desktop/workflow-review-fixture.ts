@@ -11,7 +11,8 @@ export const reviewDefinition: Definition = { schema_version: 1, parameters: [{ 
     { id: 'wait', kind: 'delay', name: '等待页面加载', action: {}, delay_ms: 1000 },
     { id: 'capture', kind: 'capture', name: '保存检查结果', action: {} },
   ] },
-  { id: 'assert', kind: 'image.assert', name: '确认服务健康', action: {}, image: { asset_id: 'review-image', offset: { x: 0, y: 0 }, threshold: 0.9 } },
+  { id: 'assert', kind: 'image.assert', name: '确认服务健康', action: {}, image: { asset_id: 'review-image', offset: { x: 0, y: 0 }, threshold: 0.9,
+    region: { x: 240, y: 108, width: 990, height: 108 }, reference_width: 1280, reference_height: 720 } },
 ] }
 
 export function createReviewHistory(now: string) {

@@ -60,3 +60,4 @@ export { useSessionTargetMenu, type SessionTarget, type SessionTargetOption } fr
 export { SessionTargetDropdown } from './session-target-menu/SessionTargetDropdown.tsx'
 export { DetachedWindowButton, DetachedWindowPlaceholder } from './DetachedWindowChrome.tsx'
 export { default as detachedWindowStyles } from './DetachedWindow.module.scss'
+export { useImageViewport } from './image-preview/useImageViewport'

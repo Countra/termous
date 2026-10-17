@@ -84,7 +84,7 @@ export function WorkflowWorkspace({ gateway, sessions, activeSessionId, profiles
       <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask}
         windowAction={windowState.available ? <DetachedWindowButton label={t('desktopWorkflow.window.open')} busy={windowState.phase === 'opening'} onClick={() => void windowState.open(root.current)} /> : undefined} />
     </div>}
-    {detached && <DetachedWindowPlaceholder ref={placeholder} capture={windowState.capture} busy={windowState.phase === 'returning'} restoring={windowState.restoring}
+    {detached && <DetachedWindowPlaceholder ref={placeholder} capture={windowState.capture} busy={windowState.phase === 'returning'} restoring={windowState.restoring} headerActions={headerActions}
       title={t('desktopWorkflow.window.detached')} description={t('desktopWorkflow.window.description')} returnLabel={t('desktopWorkflow.window.returnHere')} focusLabel={t('desktopWorkflow.window.focus')}
       onReturn={() => void windowState.returnWindow(true)} onFocus={() => void windowState.focus()} />}
   </div>

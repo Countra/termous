@@ -111,9 +111,23 @@ export function useDetachedOwner(identity: DetachedIdentity, adapter: DetachedHo
     if (bridge && connection) bridge.send({ connection, kind: 'appearance', payload: appearance })
   }, [appearance, bridge])
 
+  const focus = useCallback(async () => {
+    if (!bridge || !state.current.connection) return false
+    const focusing = state.current
+    try {
+      const focused = await bridge.focus(identity)
+      if (state.current === focusing) setError(!focused)
+      return focused
+    } catch {
+      // 聚焦失败保留当前交接状态；旧窗口的迟到结果不能覆盖新窗口的提示。
+      if (state.current === focusing) setError(true)
+      return false
+    }
+  }, [bridge, identity])
+
   const open = useCallback(async (element: HTMLElement | null) => {
     if (!bridge) return
-    if (state.current.phase !== 'embedded') { await bridge.focus(identity); return }
+    if (state.current.phase !== 'embedded') { await focus(); return }
     setError(false)
     setLifecycle('opening')
     const opening = state.current
@@ -133,13 +147,12 @@ export function useDetachedOwner(identity: DetachedIdentity, adapter: DetachedHo
       bridge.send({ connection, kind: 'initialize' })
       bridge.send({ connection, kind: 'appearance', payload: current.current.appearance })
     } catch { if (state.current === opening) { reset(); setError(true) } }
-  }, [bridge, identity, reset, setLifecycle])
+  }, [bridge, identity, focus, reset, setLifecycle])
 
   const publish = useCallback((payload: unknown) => {
     const connection = state.current.connection
     if (bridge && connection) bridge.send({ connection, kind: 'state', payload })
   }, [bridge])
-  const focus = useCallback(() => bridge?.focus(identity), [bridge, identity])
   const reveal = useCallback(() => bridge?.reveal(), [bridge])
 
   return { phase, capture, error, frozen, restoring, available: !!bridge, open, returnWindow, publish,

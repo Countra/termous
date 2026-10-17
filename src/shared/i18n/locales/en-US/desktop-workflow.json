@@ -8,12 +8,26 @@
   "saveForHistory": "Save the workflow to view versions",
   "selectionMode": "Screen selection mode",
   "previewTemplate": "Preview template",
+  "previewTools": {
+    "title": "View and selection controls",
+    "viewport": "Desktop screenshot view",
+    "wheel": "Scroll to zoom · Ctrl + drag to pan",
+    "hint": "Drag to draw or move the selection, or resize it at the edges. Ctrl + left drag always pans the image. 0 to fit, 1 for actual size. View changes do not modify the configuration."
+  },
   "selection": {
     "canvas": "Screen selection editor",
-    "drawHint": "Drag to select · Move inside · Resize at edges",
-    "move": "Move selection (arrow keys to nudge, Shift for larger steps)",
+    "drawHint": "Drag to select · Drag inside to move · Resize at edges",
+    "templateSourceMissing": "This template has no source selection. Select it again to save its position.",
+    "move": "Move selection (left drag, arrow keys to nudge, Shift for larger steps)",
     "reset": "Reset selection",
+    "undo": "Undo selection edit",
+    "redo": "Redo selection edit",
+    "delete": "Delete selection",
+    "undoHint": "Undo (Ctrl / ⌘ + Z)",
+    "redoHint": "Redo (Ctrl / ⌘ + Shift + Z, or Ctrl + Y)",
+    "deleteHint": "Delete selection (Delete), keeping the applied configuration",
     "useTemplate": "Use as template",
+    "updateTemplate": "Update template",
     "useRegion": "Apply region",
     "applied": "Applied",
     "resize": {

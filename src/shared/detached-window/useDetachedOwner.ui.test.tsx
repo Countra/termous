@@ -14,6 +14,7 @@ let adapter: DetachedHostAdapter
 beforeEach(() => {
   vi.resetAllMocks()
   bridge.open.mockResolvedValue({ ...connection, capture: 'data:image/png;base64,fixture' })
+  bridge.focus.mockResolvedValue(true)
   bridge.close.mockResolvedValue(undefined)
   bridge.subscribe.mockImplementation(listener => { receive = listener; return () => undefined })
   adapter = { snapshot: vi.fn(() => ({})), command: vi.fn(), prepare: vi.fn(async () => undefined),
@@ -91,6 +92,69 @@ it('初始化超时或窗口启动失败恢复嵌入视图并允许重试', asyn
   expect(result.current.phase).toBe('embedded')
   expect(result.current.frozen).toBe(false)
   expect(result.current.error).toBe(true)
+})
+
+it('重复打开聚焦已有窗口，聚焦失败保留交接状态并显示错误，不能重复创建窗口', async () => {
+  const { result } = renderHook(() => useDetachedOwner(identity, adapter, appearance, true))
+  await act(async () => { await result.current.open(null) })
+  act(() => receive({ connection, kind: 'ready' }))
+  bridge.focus.mockRejectedValueOnce(new Error('focus_failed'))
+  await act(async () => { await expect(result.current.open(null)).resolves.toBeUndefined() })
+  expect(result.current.phase).toBe('detached')
+  expect(result.current.error).toBe(true)
+  expect(bridge.open).toHaveBeenCalledOnce()
+  await act(async () => { await result.current.open(null) })
+  expect(result.current.error).toBe(false)
+  expect(bridge.open).toHaveBeenCalledOnce()
+})
+
+it('准备交接期间重复打开不聚焦尚未创建的窗口，也不重复准备', async () => {
+  let prepared!: () => void
+  adapter.prepare = vi.fn(() => new Promise<void>(resolve => { prepared = resolve }))
+  const { result } = renderHook(() => useDetachedOwner(identity, adapter, appearance, true))
+  let opening!: Promise<void>
+  act(() => { opening = result.current.open(null) })
+  await act(async () => { await result.current.open(null) })
+  expect(adapter.prepare).toHaveBeenCalledOnce()
+  expect(bridge.focus).not.toHaveBeenCalled()
+  expect(result.current.error).toBe(false)
+  await act(async () => { prepared(); await opening })
+  act(() => receive({ connection, kind: 'ready' }))
+  expect(result.current.phase).toBe('detached')
+  expect(bridge.open).toHaveBeenCalledOnce()
+})
+
+it('占位页直接聚焦处理 IPC 拒绝及窗口不存在，成功重试后清除错误', async () => {
+  const { result } = renderHook(() => useDetachedOwner(identity, adapter, appearance, true))
+  await act(async () => { await result.current.open(null) })
+  act(() => receive({ connection, kind: 'ready' }))
+  bridge.focus.mockRejectedValueOnce(new Error('focus_failed')).mockResolvedValueOnce(false)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await act(async () => { await expect(result.current.focus()).resolves.toBe(false) })
+    expect(result.current.error).toBe(true)
+    expect(result.current.phase).toBe('detached')
+  }
+  await act(async () => { expect(await result.current.focus()).toBe(true) })
+  expect(result.current.error).toBe(false)
+  expect(bridge.open).toHaveBeenCalledOnce()
+  expect(bridge.close).not.toHaveBeenCalled()
+})
+
+it('旧窗口聚焦的迟到失败不会影响重新打开的窗口', async () => {
+  let reject!: (reason: Error) => void
+  bridge.focus.mockImplementationOnce(() => new Promise<boolean>((_resolve, fail) => { reject = fail }))
+  const { result } = renderHook(() => useDetachedOwner(identity, adapter, appearance, true))
+  await act(async () => { await result.current.open(null) })
+  act(() => receive({ connection, kind: 'ready' }))
+  let focusing!: Promise<boolean>
+  act(() => { focusing = result.current.focus() })
+  act(() => receive({ connection, kind: 'closed' }))
+  bridge.open.mockResolvedValueOnce({ ...connection, generation: 'two' })
+  await act(async () => { await result.current.open(null) })
+  await act(async () => { reject(new Error('focus_failed')); expect(await focusing).toBe(false) })
+  expect(result.current.phase).toBe('opening')
+  expect(result.current.error).toBe(false)
+  expect(bridge.open).toHaveBeenCalledTimes(2)
 })
 
 it('取消导航保留小窗，交接失败保留编辑权，重试成功后才关闭', async () => {

@@ -29,6 +29,17 @@
   height: 100%;
 }
 
+.placeholder-header {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.placeholder-header[inert] { opacity: 0.5; }
+
 .capture, .fallback {
   z-index: -2;
   object-fit: fill;
