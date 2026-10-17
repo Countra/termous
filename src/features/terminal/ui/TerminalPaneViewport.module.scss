@@ -119,6 +119,9 @@
 }
 
 .empty-state.has-action {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
   pointer-events: auto;
 }
 

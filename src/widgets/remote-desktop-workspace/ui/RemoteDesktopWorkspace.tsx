@@ -18,7 +18,6 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
-  Plus,
   RefreshCw,
   Scaling,
   Scan,
@@ -32,8 +31,7 @@ import type {
 } from '#entities/remote-desktop'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
 import {
-  ConnectionActionButton,
-  WorkspaceEmptyState,
+  ConnectionEmptyState,
   termousNotificationClassName,
   contextActionMenuPopupClassName,
   uiStyles,
@@ -224,20 +222,11 @@ export function RemoteDesktopWorkspace({
         </>
       ) : (
         <main className={styles['empty-workspace']}>
-          <WorkspaceEmptyState
-            className={styles['empty-state']}
+          <ConnectionEmptyState
             icon={<MonitorPlay size={20} aria-hidden="true" />}
             title={t('remoteDesktop.emptyTitle')}
             description={t('remoteDesktop.emptyDescription')}
-            action={onOpenConnectionLauncher ? (
-              <ConnectionActionButton
-                className={styles['empty-action']}
-                icon={<Plus size={16} />}
-                onClick={onOpenConnectionLauncher}
-              >
-                {t('remoteDesktop.newConnection')}
-              </ConnectionActionButton>
-            ) : undefined}
+            onConnect={onOpenConnectionLauncher}
           />
         </main>
       )}

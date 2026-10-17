@@ -8,6 +8,7 @@ export {
   type AssociationSelectProps,
 } from './AssociationSelect'
 export { ConnectionActionButton } from './ConnectionActionButton'
+export { ConnectionEmptyState } from './ConnectionEmptyState'
 export { connectionActionButtonClassName } from './connectionActionButtonStyles'
 export { ContextActionMenu } from './ContextActionMenu'
 export { contextActionMenuPopupClassName } from './contextActionMenuStyles'

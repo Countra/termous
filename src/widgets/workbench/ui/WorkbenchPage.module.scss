@@ -96,34 +96,6 @@
   height: 100%;
 }
 
-.terminal-empty-connect:global(.workbench-empty-state) {
-  min-height: 0;
-  gap: 10px;
-  border: 0;
-  background: transparent;
-  padding: 18px;
-}
-
-.terminal-empty-connect :global(.workbench-empty-state-icon) {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 1px;
-}
-
-.terminal-empty-connect :global(.workbench-empty-state-description) {
-  max-width: 320px;
-  color: var(--text-muted);
-}
-
-.terminal-empty-connect-button:global(.connection-action-button.ant-btn) {
-  min-width: 126px;
-  height: 36px;
-  min-height: 36px;
-  margin-top: 2px;
-  border-radius: 10px;
-  font-size: 13px;
-}
-
 .terminal-statusbar {
   display: grid;
   grid-template-columns:

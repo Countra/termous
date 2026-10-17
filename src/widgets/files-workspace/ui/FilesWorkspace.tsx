@@ -25,7 +25,6 @@ import {
   MoreHorizontal,
   PanelRight,
   Pencil,
-  Plus,
   RefreshCw,
   Scissors,
   ShieldCheck,
@@ -54,7 +53,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import { confirmDialogStyles, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, ConnectionEmptyState, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -3786,21 +3785,12 @@ function FilesWorkspaceContent({
             onKeyDown={handleFileTableKeyDown}
           >
             {!activeFileSession ? (
-              <div className={styles['files-workspace-empty']}>
-                <span className={styles['files-workspace-empty-icon']}>
-                  <Folder size={28} aria-hidden="true" />
-                </span>
-                <strong>{t('files.noFileSession')}</strong>
-                <p>{t('files.noFileSessionHint')}</p>
-                <Button
-                  type="primary"
-                  className={styles['files-upload-button']}
-                  icon={<Plus size={16} aria-hidden="true" />}
-                  onClick={onOpenFileSessionLauncher}
-                >
-                  {t('files.openFileSession')}
-                </Button>
-              </div>
+              <ConnectionEmptyState
+                icon={<Folder size={20} aria-hidden="true" />}
+                title={t('files.emptySessionTitle')}
+                description={t('files.noFileSessionHint')}
+                onConnect={onOpenFileSessionLauncher}
+              />
             ) : activeFileSession.status !== 'connected' && !activeFileSessionHasCachedDirectory ? (
               <FileSessionProgress
                 fileSession={activeFileSession}
