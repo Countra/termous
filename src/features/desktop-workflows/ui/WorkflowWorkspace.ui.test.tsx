@@ -1,13 +1,15 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
 import { describe, expect, it, vi } from 'vitest'
-import type { Run, Script, WorkflowGateway } from '#entities/desktop-workflow'
+import type { Definition, Run, Script, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { sessionTarget, type WorkflowTarget } from '../model/target'
-import { RunDialog } from './execution/RunDialog'
+import { RunDialogView } from './execution/RunDialog'
 import { WorkflowWorkspace } from './WorkflowWorkspace'
-import { RunReport } from './execution/RunReport'
+import { RunReportView } from './execution/RunReport'
+import { WorkflowExecution } from '../model/workspace/WorkflowExecution'
+import type { WorkflowProfile, WorkflowSession } from '../model/workspace/types'
 import { ParameterDialog } from './editor/ParameterDialog'
 import { ScreenshotEditor } from './editor/ScreenshotEditor'
 
@@ -23,7 +25,120 @@ function gateway(): WorkflowGateway {
 }
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 
+// 测试装配真实执行模型与展示组件；生产环境统一由流程宿主持有状态。
+function RunDialog({ target, onTargetChange, gateway, script, definition, sessions, profiles, debug, onStarted, onClose }: {
+  target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowGateway; script: Script; definition: Definition
+  sessions: WorkflowSession[]; profiles: WorkflowProfile[]; debug: boolean; onStarted: (run: Run) => void; onClose: () => void
+}) {
+  const started = useRef(onStarted); started.current = onStarted
+  const controller = useMemo(() => new WorkflowExecution(gateway, run => started.current(run)), [gateway])
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  const opening = useRef({ script, definition, target, debug }); opening.current = { script, definition, target, debug }
+  useLayoutEffect(() => { const value = opening.current; controller.open(value.script, value.definition, value.target, value.debug) }, [controller])
+  useLayoutEffect(() => { controller.environment = { sessions, profiles }; controller.change({ target }) }, [controller, sessions, profiles, target])
+  useEffect(() => () => controller.dispose(), [controller])
+  return state.launch && <RunDialogView launch={state.launch} environment={{ sessions, profiles }} onTargetChange={value => { controller.change({ target: value }); onTargetChange(value) }} onChange={controller.change} onSubmit={controller.start} onClose={onClose} />
+}
+
+function RunReport({ gateway, id, revision, active = true, onView }: { gateway: WorkflowGateway; id?: string; revision: number; active?: boolean; onView: (session: string) => void | Promise<void> }) {
+  const controller = useMemo(() => new WorkflowExecution(gateway, () => {}), [gateway])
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
+  const scope = useRef({ id, active }); scope.current = { id, active }
+  useEffect(() => { controller.selectReport(id, active); return () => controller.dispose() }, [controller, id, active, revision])
+  const viewDesktop = async (session: string) => {
+    const current = scope.current
+    try { await onView(session) } catch (reason) { if (scope.current === current) controller.reportError(reason) }
+  }
+  return <RunReportView gateway={gateway} id={id} active={active} report={state.report} onControl={controller.control} onRefresh={() => controller.refreshReport(true)} onView={viewDesktop} />
+}
+
 describe('桌面脚本手动管理', () => {
+  it('校验反馈使用消息提示，重复校验可再次显示，诊断可以定位步骤且不占据编排区域', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const script: Script = { id: 'validation', name: '校验流程', description: '', tags: [], revision: 1, created_at: '', updated_at: '' }
+    vi.mocked(api.list).mockResolvedValue([script])
+    vi.mocked(api.get).mockResolvedValue({ script, version: { script_id: script.id, number: 1, created_at: '', definition: { schema_version: 1, parameters: [], steps: [{ id: 'delay', name: '等待服务', kind: 'delay', action: {}, delay_ms: 1000 }] } } })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    const validate = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.moreActions' }))
+      fireEvent.click(await screen.findByText('desktopWorkflow.validate'))
+    }
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: /校验流程/ }))
+      await screen.findByRole('button', { name: 'desktopWorkflow.editName' })
+      await validate()
+      expect(await screen.findByText('desktopWorkflow.validationPassed')).toBeVisible()
+      expect(within(screen.getByRole('main')).queryByText('desktopWorkflow.validationPassed')).not.toBeInTheDocument()
+      vi.mocked(api.validate).mockResolvedValue([{ step_id: 'delay', field: 'delay_ms', code: 'invalid_delay' }])
+      for (let i = 0; i < 2; i++) {
+        await validate()
+        const diagnostic = await screen.findByRole('button', { name: /等待服务.*desktopWorkflow.diagnostics.invalid_delay/ })
+        fireEvent.click(diagnostic)
+        expect(screen.getByRole('textbox', { name: 'desktopWorkflow.stepName' })).toHaveValue('等待服务')
+        expect(within(screen.getByRole('main')).queryByText('desktopWorkflow.validationFailed')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.closeValidation' }))
+        await waitFor(() => expect(screen.queryByText('desktopWorkflow.validationFailed')).not.toBeInTheDocument())
+      }
+      expect(api.validate).toHaveBeenCalledTimes(3)
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+
+  it('保存失败通过消息提示且保留草稿，重试后可正常保存', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    vi.mocked(api.save).mockRejectedValueOnce(new Error('保存失败，请重试')).mockResolvedValue({ id: 'saved', revision: 1 } as Script)
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.create' }))
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.save' }))
+      expect(await screen.findByText('保存失败，请重试')).toBeVisible()
+      expect(within(screen.getByRole('main')).queryByText('保存失败，请重试')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'desktopWorkflow.editName' })).toHaveTextContent('desktopWorkflow.newScript')
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.save' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeEnabled())
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+
+  it('折叠流程库后保留草稿和搜索，展开不会重新加载或发起执行', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.create' }))
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.editName' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '折叠后保留草稿' } })
+      fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.search' }), { target: { value: '保留筛选' } })
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.collapseLibrary' }))
+      expect(screen.queryByRole('textbox', { name: 'desktopWorkflow.search' })).not.toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' })).toHaveValue('折叠后保留草稿')
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.expandLibrary' }))
+      expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('保留筛选')
+      expect(api.get).not.toHaveBeenCalled()
+      expect(api.start).not.toHaveBeenCalled()
+      expect(api.save).not.toHaveBeenCalled()
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+
+  it('收起步骤属性后保留编辑结果，重新打开仍显示同一步骤', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const script: Script = { id: 'layout', name: '属性面板流程', description: '', tags: [], revision: 1, created_at: '', updated_at: '' }
+    vi.mocked(api.list).mockResolvedValue([script])
+    vi.mocked(api.get).mockResolvedValue({ script, version: { script_id: script.id, number: 1, created_at: '', definition: { schema_version: 1, parameters: [], steps: [{ id: 'delay', name: '延时步骤', kind: 'delay', action: {}, delay_ms: 1000 }] } } })
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: /属性面板流程/ }))
+      fireEvent.click(await screen.findByRole('button', { name: /延时步骤/ }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.stepName' }), { target: { value: '新步骤名称' } })
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.collapseProperties' }))
+      expect(screen.queryByRole('textbox', { name: 'desktopWorkflow.stepName' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.properties' }))
+      expect(screen.getByRole('textbox', { name: 'desktopWorkflow.stepName' })).toHaveValue('新步骤名称')
+      expect(api.get).toHaveBeenCalledTimes(1)
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+
   it('执行记录归属流程内部，查看报告后返回仍保留未保存草稿', async () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway()
@@ -33,6 +148,7 @@ describe('桌面脚本手动管理', () => {
     vi.mocked(api.run).mockResolvedValue({ run, steps: [] })
     const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.editName' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '保留中的草稿' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.search' }), { target: { value: '流程库筛选' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'desktopWorkflow.executionHistory' })[0]!)
@@ -40,7 +156,7 @@ describe('桌面脚本手动管理', () => {
     fireEvent.click(await screen.findByRole('button', { name: /最近任务/ }))
     expect(await screen.findByText('desktopWorkflow.executionCompleted')).toBeVisible()
     fireEvent.click(within(screen.getByRole('complementary', { name: 'desktopWorkflow.runs' })).getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
-    expect(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' })).toHaveValue('保留中的草稿')
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.editName' })).toHaveTextContent('保留中的草稿')
     expect(screen.getByRole('textbox', { name: 'desktopWorkflow.search' })).toHaveValue('流程库筛选')
     expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeDisabled()
     expect(dirty).toHaveBeenLastCalledWith(true)
@@ -167,7 +283,8 @@ describe('桌面脚本手动管理', () => {
     vi.mocked(api.get).mockResolvedValue({ script, version: { script_id: 'script', number: 1, created_at: '', definition: { schema_version: 1, parameters: [], steps: [] } } })
     const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /原脚本/ }))
-    const input = await screen.findByRole('textbox', { name: 'desktopWorkflow.scriptName' })
+    fireEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.editName' }))
+    const input = screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' })
     fireEvent.change(input, { target: { value: '未保存草稿' } })
     vi.mocked(api.list).mockResolvedValue([{ ...script, revision: 2, name: 'MCP 更新' }])
     act(() => SocketFixture.current.onmessage?.())
@@ -191,6 +308,7 @@ describe('桌面脚本手动管理', () => {
     const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={dirty} onViewDesktop={() => undefined} />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /图像脚本/ }))
     fireEvent.click(await screen.findByRole('button', { name: /图像校验/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.editName' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '更新名称' } })
     fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(['fixture'], 'template.png', { type: 'image/png' })] } })
     await waitFor(() => expect(api.upload).toHaveBeenCalledOnce())
@@ -272,6 +390,7 @@ describe('桌面脚本手动管理', () => {
     await waitFor(() => expect(api.list).toHaveBeenCalled())
     fireEvent.click(screen.getAllByRole('button', { name: 'desktopWorkflow.create' })[0]!)
     expect(screen.getByRole('button', { name: 'desktopWorkflow.run' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.editName' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'desktopWorkflow.scriptName' }), { target: { value: '回归' } })
     await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(true))
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.save' }))
@@ -299,6 +418,19 @@ describe('桌面脚本手动管理', () => {
     expect(await screen.findByText('desktopWorkflow.executionCompleted')).toBeVisible()
     expect(screen.queryByText('desktopWorkflow.assertionsPassed')).not.toBeInTheDocument()
   })
+})
+
+it('切换执行记录回到报告顶部，当前记录的进度更新保留滚动位置', () => {
+  const run: Run = { id: 'first', script_id: 'script', version: 1, name: '夹具', state: 'completed', phase: 'finished', executed: 1, assertions: 0, revision: 1, started_at: '' }
+  const props = { gateway: gateway(), onControl: vi.fn(), onRefresh: vi.fn(), onView: vi.fn() }
+  const report = { value: { run, steps: [] }, busy: false, loading: false }
+  const view = render(<RunReportView {...props} id={run.id} report={report} />, { wrapper })
+  const region = screen.getByRole('region', { name: 'desktopWorkflow.report' })
+  region.scrollTop = 240
+  view.rerender(<RunReportView {...props} id={run.id} report={{ ...report, value: { run: { ...run, revision: 2 }, steps: [] } }} />)
+  expect(region.scrollTop).toBe(240)
+  view.rerender(<RunReportView {...props} id="second" report={{ ...report, value: { run: { ...run, id: 'second' }, steps: [] } }} />)
+  expect(region.scrollTop).toBe(0)
 })
 
 function desktopSession(id: string, name: string): RemoteDesktopSession {

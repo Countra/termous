@@ -8,6 +8,7 @@ import styles from './DetachedSurfaceRoot.module.scss'
 
 const modules = {
   agent: lazy(() => import('#pages/agent').then(module => ({ default: module.DetachedAgentSurface }))),
+  'desktop-workflow': lazy(() => import('#features/desktop-workflows').then(module => ({ default: module.DetachedWorkflowSurface }))),
 }
 
 export default function DetachedSurfaceRoot() {

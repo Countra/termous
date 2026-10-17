@@ -273,6 +273,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [hostsDirty, setHostsDirty] = useState(false)
   const [snippetsDirty, setSnippetsDirty] = useState(false)
   const [workflowDirty, setWorkflowDirty] = useState(false)
+  const [workflowDetached, setWorkflowDetached] = useState(false)
+  const workflowNavigationBlocked = page === 'remote-desktop' && workflowDirty && !workflowDetached
+  const [workflowResetKey, setWorkflowResetKey] = useState(0)
+  const [remoteDesktopOpened, setRemoteDesktopOpened] = useState(page === 'remote-desktop')
+  useEffect(() => { if (page === 'remote-desktop') setRemoteDesktopOpened(true) }, [page])
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const navigationResultRef = useRef<((accepted: boolean) => void) | undefined>(undefined)
   const [agentDetached, setAgentDetached] = useState(false)
@@ -350,7 +355,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [gateways.cloud])
   useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
-  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowDirty }, [hostsDirty, vaultDirty, snippetsDirty, workflowDirty])
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
     if (target.kind === 'remote_agent') {
       const generation = gateways.cloud.getStatus()?.generation
@@ -416,14 +421,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (nextPage === page) {
       return Promise.resolve(true)
     }
-    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty) || (page === 'remote-desktop' && workflowDirty)) {
+    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty) || workflowNavigationBlocked) {
       setPendingPage(nextPage)
       return new Promise<boolean>(resolve => { navigationResultRef.current = resolve })
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
     return Promise.resolve(true)
-  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowDirty])
+  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -1686,8 +1691,16 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       ) : null}
 
-                      {page === 'remote-desktop' ? (
+                      {page === 'remote-desktop' || remoteDesktopOpened ? <div
+                        className={`${styles['app-keepalive-page']} ${page === 'remote-desktop' ? styles['is-active'] : styles['is-hidden']}`}
+                        inert={page !== 'remote-desktop'}
+                      >
                         <RemoteDesktopPage
+                          active={page === 'remote-desktop'}
+                          appearance={{ theme, language: data.settings.language }}
+                          workflowResetKey={workflowResetKey}
+                          onDetachedChange={setWorkflowDetached}
+                          onReturnToPage={() => navigateToPage('remote-desktop')}
                           workflow={gateways.desktopWorkflow}
                           profiles={data.remoteDesktopProfiles}
                           hosts={data.hostAssets}
@@ -1698,7 +1711,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
                           onReferenceAgentConnection={referenceAgentConnection}
                         />
-                      ) : null}
+                      </div> : null}
                     </AppShell>
                     <ProductTourController
                       ready={productTourReady && !accountWelcomePending}
@@ -1770,6 +1783,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             setVaultDirty(false)
           } else if (page === 'remote-desktop') {
             setWorkflowDirty(false)
+            setWorkflowResetKey(value => value + 1)
           }
           if (nextPage) {
             setPage(nextPage)

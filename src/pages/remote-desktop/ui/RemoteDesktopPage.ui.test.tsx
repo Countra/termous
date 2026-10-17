@@ -58,3 +58,28 @@ it('从自动化查看桌面时先唤起自动化宿主，再选择原会话', a
   expect(runtime.automation.show.mock.invocationCallOrder[0]).toBeLessThan(runtime.selectSession.mock.invocationCallOrder[0]!)
   expect(screen.getByLabelText('桌面会话状态')).toBeVisible()
 })
+
+it('主页面隐藏释放观看视图但保留流程宿主，明确放弃修改时重置草稿', () => {
+  const props = { workflow: {} as WorkflowGateway, profiles: [], onDirtyChange: () => undefined }
+  const view = render(<RemoteDesktopPage {...props} />)
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.workflow' }))
+  fireEvent.change(screen.getByLabelText('流程草稿'), { target: { value: '跨页面保留' } })
+  view.rerender(<RemoteDesktopPage {...props} active={false} />)
+  expect(screen.queryByLabelText('桌面会话状态')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('流程草稿')).toHaveValue('跨页面保留')
+  view.rerender(<RemoteDesktopPage {...props} active />)
+  expect(screen.getByLabelText('流程草稿')).toHaveValue('跨页面保留')
+  view.rerender(<RemoteDesktopPage {...props} workflowResetKey={1} />)
+  expect(screen.getByLabelText('流程草稿')).toHaveValue('')
+})
+
+it('查看桌面经过主页面导航守卫，取消后不切换观看入口或会话', async () => {
+  const navigate = vi.fn().mockResolvedValue(false)
+  render(<RemoteDesktopPage workflow={{} as WorkflowGateway} profiles={[]} onDirtyChange={() => undefined} onReturnToPage={navigate} />)
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.workflow' }))
+  fireEvent.click(screen.getByRole('button', { name: '查看目标桌面' }))
+  await waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  expect(runtime.automation.show).not.toHaveBeenCalled()
+  expect(runtime.selectSession).not.toHaveBeenCalled()
+  expect(screen.getByLabelText('流程草稿')).toBeVisible()
+})

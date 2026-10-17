@@ -27,7 +27,7 @@
     "failed": "Unable to display this image",
     "retry": "Reload",
     "loading": "Loading image",
-    "hint": "Scroll to explore when zoomed in · Esc to close"
+    "hint": "Scroll to zoom · Drag to pan · Double-click for actual size / fit · Esc to close"
   },
   "cloud": {
     "qr": {

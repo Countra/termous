@@ -10,7 +10,7 @@ import type { AgentFeedbackSnapshot } from '../model/surface/agentFeedback.ts'
 import { AgentSurfaceView } from './AgentSurfaceView.tsx'
 import { AgentSurfaceFeedback } from './AgentSurfaceFeedback.tsx'
 import { AgentWindowButton } from './AgentWindowButton.tsx'
-import styles from './AgentWindow.module.scss'
+import { detachedWindowStyles as styles } from '#shared/ui'
 
 export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   const { t } = useTranslation()

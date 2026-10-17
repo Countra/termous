@@ -27,6 +27,19 @@ test('截图缩放和裁剪始终使用原始像素并限制边界', () => {
   assert.deepEqual(imageRegion({ x: 45, y: 30 }, { x: 20, y: 10 }), { x: 20, y: 10, width: 26, height: 21 })
 })
 
+test('跨多个位置拖动采用插入排序，保留中间步骤顺序和分支边界', () => {
+  const a = newStep('delay'); const b = newStep('keyboard.text'); const c = newStep('capture'); const d = newStep('keyboard.key')
+  const source = [a, b, c, d]
+  assert.deepEqual(moveStep(source, a.id, 3).map(step => step.id), [b.id, c.id, d.id, a.id])
+  assert.deepEqual(moveStep(source, d.id, -3).map(step => step.id), [d.id, a.id, b.id, c.id])
+  assert.deepEqual(moveStep(source, a.id, -1), source)
+  const branch = { ...newStep('if'), steps: source, else: [newStep('capture')] }
+  const [moved] = moveStep([branch], b.id, 2)
+  assert.deepEqual(moved!.steps!.map(step => step.id), [a.id, c.id, d.id, b.id])
+  assert.deepEqual(moved!.else, branch.else)
+  assert.deepEqual(source.map(step => step.id), [a.id, b.id, c.id, d.id])
+})
+
 test('图像定位移除旧坐标绑定，但保留动作参数和拖动起点绑定', () => {
   const step = { ...newStep('pointer.click'), bindings: { x: 'px', y: 'py', count: 'clicks' } }
   assert.deepEqual(setStepImage(step, 'target', blankImage()).bindings, { count: 'clicks' })

@@ -1,7 +1,8 @@
 import { Button, Modal, Spin, Tooltip } from 'antd'
 import { ImageOff, Scan, ZoomIn, ZoomOut } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useImageViewport } from './image-preview/useImageViewport'
 import styles from './ImagePreview.module.scss'
 
 export interface ImagePreviewSource {
@@ -23,10 +24,11 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
   const [size, setSize] = useState<{ width: number; height: number }>()
-  const [zoom, setZoom] = useState<number | 'fit'>('fit')
   const [trigger] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : undefined)
-  const viewportRef = useRef<HTMLDivElement>(null)
   const ownershipRef = useRef<string | undefined>(undefined)
+  const hintID = useId()
+  const ready = Boolean(size && !failed)
+  const view = useImageViewport(size, ready)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -34,7 +36,6 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
     setURL(undefined)
     setFailed(false)
     setSize(undefined)
-    setZoom('fit')
     void Promise.resolve().then(() => {
       controller.signal.throwIfAborted()
       return sourceRef.current.load(controller.signal)
@@ -51,7 +52,6 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
     }
   }, [revision])
 
-  const ready = Boolean(size && !failed)
   const close = () => {
     onClose()
     // 对话框随资源卸载时，Ant Design 的关闭动画不会负责恢复触发按钮焦点。
@@ -60,14 +60,6 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
         trigger.focus({ preventScroll: true })
       }
     })
-  }
-  const adjustZoom = (direction: number) => {
-    if (!size) return
-    const viewport = viewportRef.current
-    const current = zoom === 'fit' && viewport
-      ? Math.min(1, viewport.clientWidth / size.width, viewport.clientHeight / size.height)
-      : zoom === 'fit' ? 1 : zoom
-    setZoom(Math.max(0.1, Math.min(4, Math.round((current + direction * 0.25) * 100) / 100)))
   }
 
   return (
@@ -79,22 +71,24 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
       <div className={styles.toolbar} role="toolbar" aria-label={t('imagePreview.controls')}>
         <span className={styles.dimensions}>{size ? `${size.width} × ${size.height}` : t('imagePreview.title')}</span>
         <div className={styles.actions}>
-          <Tooltip title={t('imagePreview.zoomOut')}><Button type="text" disabled={!ready || zoom === 0.1} aria-label={t('imagePreview.zoomOut')} icon={<ZoomOut size={16} />} onClick={() => adjustZoom(-1)} /></Tooltip>
-          <span className={styles.scale} aria-live="polite">{zoom === 'fit' ? t('imagePreview.fit') : `${Math.round(zoom * 100)}%`}</span>
-          <Tooltip title={t('imagePreview.zoomIn')}><Button type="text" disabled={!ready || zoom === 4} aria-label={t('imagePreview.zoomIn')} icon={<ZoomIn size={16} />} onClick={() => adjustZoom(1)} /></Tooltip>
-          <Button type="text" disabled={!ready} aria-pressed={zoom === 1} onClick={() => setZoom(1)}>{t('imagePreview.actualSize')}</Button>
-          <Tooltip title={t('imagePreview.fit')}><Button type="text" disabled={!ready} aria-pressed={zoom === 'fit'} aria-label={t('imagePreview.fit')} icon={<Scan size={16} />} onClick={() => setZoom('fit')} /></Tooltip>
+          <Tooltip title={t('imagePreview.zoomOut')}><Button type="text" disabled={!ready || !view.canZoomOut} aria-label={t('imagePreview.zoomOut')} icon={<ZoomOut size={16} />} onClick={() => view.adjustZoom(-1)} /></Tooltip>
+          <span className={styles.scale} aria-live="polite">{view.zoom === 'fit' ? t('imagePreview.fit') : `${Math.round(view.scale * 100)}%`}</span>
+          <Tooltip title={t('imagePreview.zoomIn')}><Button type="text" disabled={!ready || !view.canZoomIn} aria-label={t('imagePreview.zoomIn')} icon={<ZoomIn size={16} />} onClick={() => view.adjustZoom(1)} /></Tooltip>
+          <Button type="text" disabled={!ready} aria-pressed={view.zoom === 1} onClick={() => view.changeZoom(1)}>{t('imagePreview.actualSize')}</Button>
+          <Tooltip title={t('imagePreview.fit')}><Button type="text" disabled={!ready} aria-pressed={view.zoom === 'fit'} aria-label={t('imagePreview.fit')} icon={<Scan size={16} />} onClick={() => view.changeZoom('fit')} /></Tooltip>
         </div>
       </div>
-      <div ref={viewportRef} className={styles.viewport} aria-busy={!ready && !failed} tabIndex={0} aria-label={t('imagePreview.canvas')}>
+      <div ref={view.viewport} className={styles.viewport} role="region" aria-busy={!ready && !failed} tabIndex={0}
+        aria-label={t('imagePreview.canvas')} aria-describedby={hintID} data-pannable={view.canPan} data-dragging={view.dragging} data-ready={ready} {...view.handlers}>
         {failed ? <div className={styles.status} role="alert">
           <ImageOff size={26} aria-hidden="true" /><span>{t('imagePreview.failed')}</span>
           <Button onClick={() => setRevision((value) => value + 1)}>{t('imagePreview.retry')}</Button>
         </div> : <>
           {!size ? <div className={styles.status} role="status"><Spin size="small" /><span>{t('imagePreview.loading')}</span></div> : null}
-          {url ? <div className={styles.canvas} data-fit={zoom === 'fit'}>
+          {url ? <div className={styles.canvas}>
             <img key={url} src={url} alt={source.title} decoding="async" draggable={false}
-              style={size && zoom !== 'fit' ? { width: size.width * zoom, height: size.height * zoom } : undefined}
+              style={{ visibility: ready ? 'visible' : 'hidden', width: size ? size.width * view.scale : undefined, height: size ? size.height * view.scale : undefined,
+                transform: `translate(-50%, -50%) translate(${view.offset.x}px, ${view.offset.y}px)` }}
               onLoad={(event) => {
                 if (ownershipRef.current !== url) return
                 const { naturalWidth: width, naturalHeight: height } = event.currentTarget
@@ -106,7 +100,7 @@ function ImagePreviewDialog({ source, onClose }: { source: ImagePreviewSource; o
           </div> : null}
         </>}
       </div>
-      <div className={styles.hint}>{t('imagePreview.hint')}</div>
+      <div id={hintID} className={styles.hint}>{t('imagePreview.hint')}</div>
     </Modal>
   )
 }

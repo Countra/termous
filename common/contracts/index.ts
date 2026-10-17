@@ -146,6 +146,7 @@ export type { DesktopPointer, DesktopPointerControl, DesktopPointerEvent } from 
 export * from './cloud.ts'
 export * from './detached-window.ts'
 export * from './agent-detached.ts'
+export * from './workflow-detached.ts'
 export * from './cloud-security.ts'
 export * from './cloud-recovery.ts'
 export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboardState, SystemFileSelection } from './desktop-files'

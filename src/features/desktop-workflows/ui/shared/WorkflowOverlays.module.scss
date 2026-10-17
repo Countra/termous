@@ -1,0 +1,67 @@
+.menu :global(.ant-dropdown-menu) {
+  min-width: 196px;
+  max-height: min(620px, 72vh);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--termous-dropdown-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.menu :global(.ant-dropdown-menu-item) {
+  min-height: 32px;
+  gap: 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.menu :global(.ant-dropdown-menu-item-group-title) {
+  padding: 8px 10px 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.menu :global(.ant-dropdown-menu-item-icon) {
+  color: var(--text-muted);
+}
+
+.select :global(.ant-select-item) {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.select {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--termous-dropdown-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.drawer[class], .dialog[class] {
+  color: var(--text-primary);
+  background: rgb(from var(--surface) r g b / 100%);
+}
+
+.drawer[class] {
+  border-left: 1px solid var(--border);
+}
+
+.dialog[class] {
+  border: 1px solid var(--border-strong);
+}
+
+.dialog-header[class] {
+  background: transparent;
+}
+
+.overlay-header[class] {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-body[class] {
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}

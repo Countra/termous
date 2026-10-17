@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { AgentPendingReceipts } from './agentPendingReceipts.ts'
+import { DetachedPendingReceipts } from './pendingReceipts.ts'
 
 test('接收超时后保留请求，显式重试沿用原 ID', async () => {
-  const receipts = new AgentPendingReceipts()
+  const receipts = new DetachedPendingReceipts()
   const ids: string[] = []
   await assert.rejects(receipts.start('file', async id => {
     ids.push(id)
@@ -18,7 +18,7 @@ test('接收超时后保留请求，显式重试沿用原 ID', async () => {
 })
 
 test('同一草稿的新输入可覆盖旧失败，但其他附件仍需要确认', async () => {
-  const receipts = new AgentPendingReceipts()
+  const receipts = new DetachedPendingReceipts()
   await assert.rejects(receipts.start('draft', async () => { throw new Error('timeout') }))
   await receipts.start('draft', async () => undefined)
   let received = false

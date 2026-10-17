@@ -1,0 +1,111 @@
+.details {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.details h5 {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.details dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.field {
+  min-width: 0;
+}
+
+.template {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.template > dt {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.template-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  margin: 0;
+}
+
+.template-content > dl {
+  min-width: 0;
+  flex: 1 1 190px;
+}
+
+.field[data-wide] {
+  grid-column: 1 / -1;
+}
+
+.field dt {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.field dd {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.field small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.field pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.binding, .keys {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.binding {
+  color: var(--text-secondary);
+}
+
+.keys kbd {
+  padding: 1px 7px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.details p {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.7;
+}

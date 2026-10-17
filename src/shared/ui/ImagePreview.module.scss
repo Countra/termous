@@ -41,11 +41,24 @@
   position: relative;
   height: min(70vh, 800px);
   min-height: 180px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--surface-subtle);
   overscroll-behavior: contain;
+}
+
+.viewport[data-ready='true'] {
+  touch-action: none;
+  user-select: none;
+}
+
+.viewport[data-pannable='true'] {
+  cursor: grab;
+}
+
+.viewport[data-dragging='true'] {
+  cursor: grabbing;
 }
 
 .viewport:focus-visible {
@@ -54,27 +67,20 @@
 }
 
 .canvas {
-  display: grid;
-  width: max-content;
-  min-width: 100%;
-  min-height: 100%;
-  place-items: center;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .canvas img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
-  flex-shrink: 0;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
-}
-
-.canvas[data-fit='true'] {
-  width: 100%;
-  height: 100%;
-}
-
-.canvas[data-fit='true'] img {
-  max-width: 100%;
-  max-height: min(70vh - 2px, 798px);
+  user-select: none;
 }
 
 .status {

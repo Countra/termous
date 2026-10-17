@@ -1,35 +1,32 @@
-import { Alert, Button, Empty, Select, Segmented, Spin } from 'antd'
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { Alert, Button, Select, Spin, Tooltip } from 'antd'
+import { ImagePlus, LockKeyhole, Monitor, RefreshCw, ScanSearch } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Located, Point, Region, Snapshot, Step, WorkflowGateway } from '#entities/desktop-workflow'
-import type { RemoteDesktopSession } from '#entities/remote-desktop'
-import { ImagePreview, ImageThumbnail, type ImagePreviewSource } from '#shared/ui'
-import { imagePoint, imageRegion } from '../../model/coordinates'
+import type { Located, Point, Region, Snapshot, Step } from '#entities/desktop-workflow'
+import type { WorkflowMediaGateway, WorkflowSession } from '../../model/workspace/types'
 import { blankImage, setStepImage, stepImage, type ImageSlot } from '../../model/images'
 import { workflowError } from '../../model/messages'
 import { isTargetAvailable, sessionTarget, type WorkflowTarget } from '../../model/target'
 import styles from './ScreenshotEditor.module.scss'
+import { PreviewModeControl, type PreviewMode } from './PreviewModeControl'
+import { ScreenshotCanvas } from './ScreenshotCanvas'
+import { ScreenshotTemplatePreview } from './ScreenshotTemplatePreview'
 
-interface Props { target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowGateway; sessions: RemoteDesktopSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void }
-type Mode = 'point' | 'template' | 'region'
+interface Props { target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
 
-export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange }: Props) {
+export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask }: Props) {
   const { t } = useTranslation()
   const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
   const [snapshot, setSnapshot] = useState<Snapshot>()
   const [url, setURL] = useState<string>()
-  const [mode, setMode] = useState<Mode>('point')
+  const [mode, setMode] = useState<PreviewMode>('point')
   const [slot, setSlot] = useState<ImageSlot>('target')
   const [zoom, setZoom] = useState('fit')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()
-  const [selection, setSelection] = useState<Region>()
   const [matched, setMatched] = useState<Located>()
-  const [large, setLarge] = useState<ImagePreviewSource>()
   const [previewRevision, setPreviewRevision] = useState(0)
-  const drag = useRef<Point | undefined>(undefined)
-  const image = useRef<HTMLImageElement>(null)
   const request = useRef<AbortController | undefined>(undefined)
   const working = useRef(false)
   const epoch = useRef(0)
@@ -42,10 +39,15 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
 
   useEffect(() => {
     let closed = false; let id: string | undefined
+    const close = () => {
+      if (!id) return
+      const closing = id; id = undefined
+      void gateway.closePreview(closing).catch(() => { console.warn('[termous:workflow] 截图观察清理失败，将由预览租约回收') })
+    }
     const controller = new AbortController(); const version = ++epoch.current
     request.current?.abort(); request.current = controller
     working.current = false
-    setPreview(undefined); setSnapshot(undefined); setMatched(undefined); setSelection(undefined); setError(undefined)
+    setPreview(undefined); setSnapshot(undefined); setMatched(undefined); setError(undefined)
     if (!session || !generation) { setBusy(false); return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort() } }
     setBusy(true)
     void gateway.openPreview(session, generation).then(async (value) => {
@@ -56,9 +58,9 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       if (!closed) setSnapshot(shot)
     }).catch((reason) => { if (!closed) setError(reason) }).finally(() => {
       if (!closed) setBusy(false)
-      else if (id) void gateway.closePreview(id).catch(() => undefined)
+      else close()
     })
-    return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort(); if (id) void gateway.closePreview(id).catch(() => undefined) }
+    return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort(); close() }
   }, [gateway, session, generation, previewRevision])
 
   useEffect(() => {
@@ -67,13 +69,19 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     return () => URL.revokeObjectURL(value)
   }, [snapshot])
 
-  const perform = async (work: (signal: AbortSignal) => Promise<void>) => {
-    if (busy || working.current) return
+  const perform = (work: (signal: AbortSignal) => Promise<void>) => {
+    if (busy || working.current) return Promise.resolve(false)
     working.current = true
     const version = epoch.current; const controller = new AbortController()
     request.current?.abort(); request.current = controller; setBusy(true); setError(undefined)
-    try { await work(controller.signal) } catch (reason) { if (!controller.signal.aborted && version === epoch.current) setError(reason) }
-    finally { if (version === epoch.current) { working.current = false; setBusy(false) } }
+    const task = (async () => {
+      try { await work(controller.signal); return !controller.signal.aborted && version === epoch.current }
+      catch (reason) { if (!controller.signal.aborted && version === epoch.current) setError(reason); return false }
+      finally { if (version === epoch.current) { working.current = false; setBusy(false) } }
+    })()
+    // 窗口交接需等待裁剪编码、上传和草稿写入全部完成，不能只等待网络上传。
+    onMediaTask?.(task)
+    return task
   }
   const upload = (blob: Blob) => {
     if (!step || !selectable) return
@@ -83,30 +91,25 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       if (!signal.aborted && version === epoch.current) onChange(savedStep.id, (existing) => setStepImage(existing, savedSlot, { ...(stepImage(existing, savedSlot) ?? blankImage()), asset_id: asset.id, anchor: undefined }))
     })
   }
-  const position = (event: PointerEvent<HTMLDivElement>) => {
-    const rect = image.current?.getBoundingClientRect()
-    return rect && snapshot ? imagePoint({ x: event.clientX, y: event.clientY }, rect, snapshot.metadata) : undefined
+  const selectPoint = (point: Point) => {
+    if (!step || !snapshot || !selectable || busy) return
+    const field = activeSlot === 'end_target' ? 'end_target' : 'target'
+    const meta = snapshot.metadata
+    onChange(step.id, (existing) => ({ ...existing, [field]: { kind: 'point', ...point, reference_width: meta.desktop_width, reference_height: meta.desktop_height } }))
   }
-  const select = async (event: PointerEvent<HTMLDivElement>) => {
-    const end = position(event); const start = drag.current; drag.current = undefined
-    if (!step || !selectable || !snapshot || !end || !start || busy) return
-    const meta = snapshot.metadata; const region = imageRegion(start, end)
-    if (selectionMode === 'point') {
-      const field = activeSlot === 'end_target' ? 'end_target' : 'target'
-      onChange(step.id, (existing) => ({ ...existing, [field]: { kind: 'point', ...end, reference_width: meta.desktop_width, reference_height: meta.desktop_height } }))
-      setSelection({ ...end, width: 1, height: 1 }); return
-    }
-    setSelection(region)
+  const applySelection = async (region: Region, image: HTMLImageElement) => {
+    if (!step || !selectable || !snapshot || busy) return false
+    const meta = snapshot.metadata
     if (selectionMode === 'region') {
-      onChange(step.id, (existing) => setStepImage(existing, activeSlot, { ...(stepImage(existing, activeSlot) ?? blankImage()), region, reference_width: meta.desktop_width, reference_height: meta.desktop_height })); return
+      onChange(step.id, (existing) => setStepImage(existing, activeSlot, { ...(stepImage(existing, activeSlot) ?? blankImage()), region, reference_width: meta.desktop_width, reference_height: meta.desktop_height }))
+      return true
     }
-    if (!image.current) return
-    const canvas = document.createElement('canvas'); canvas.width = region.width; canvas.height = region.height
-    const context = canvas.getContext('2d')
-    if (!context) { setError(new Error(t('desktopWorkflow.cropFailed'))); return }
-    context.drawImage(image.current, region.x, region.y, region.width, region.height, 0, 0, region.width, region.height)
     const version = epoch.current; const stepID = step.id; const selectedSlot = activeSlot
-    void perform(async (signal) => {
+    return perform(async (signal) => {
+      const canvas = document.createElement('canvas'); canvas.width = region.width; canvas.height = region.height
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error(t('desktopWorkflow.cropFailed'))
+      context.drawImage(image, region.x, region.y, region.width, region.height, 0, 0, region.width, region.height)
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
       if (signal.aborted || version !== epoch.current) return
       if (!blob) throw new Error(t('desktopWorkflow.cropFailed'))
@@ -115,37 +118,38 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     })
   }
   const sameFrame = matched && snapshot && matched.capture.metadata.frame_sequence === snapshot.metadata.frame_sequence && matched.capture.metadata.display_epoch === snapshot.metadata.display_epoch
-  const boxStyle = (box: Region) => ({ left: `${box.x * 100 / snapshot!.metadata.width}%`, top: `${box.y * 100 / snapshot!.metadata.height}%`, width: `${Math.max(2, box.width) * 100 / snapshot!.metadata.width}%`, height: `${Math.max(2, box.height) * 100 / snapshot!.metadata.height}%` })
+  // Core 在参考桌面尺寸变化后拒绝旧坐标；画面中也不能将旧选区伪装成当前坐标。
+  const referenceMatches = (value?: { reference_width?: number; reference_height?: number }) => !!snapshot && value?.reference_width === snapshot.metadata.desktop_width && value.reference_height === snapshot.metadata.desktop_height
+  const region = selectionMode === 'region' && referenceMatches(target) ? target?.region : undefined
+  const validRegion = region && snapshot && region.x >= 0 && region.y >= 0 && region.width > 0 && region.height > 0 && region.x + region.width <= snapshot.metadata.width && region.y + region.height <= snapshot.metadata.height ? region : undefined
+  const pointTarget = step?.[activeSlot === 'end_target' ? 'end_target' : 'target']
+  const point = pointTarget?.kind === 'point' && referenceMatches(pointTarget) && pointTarget.x != null && pointTarget.y != null ? { x: pointTarget.x, y: pointTarget.y } : undefined
+  const canvasKey = [url, step?.id, activeSlot, selectionMode, validRegion?.x, validRegion?.y, validRegion?.width, validRegion?.height].join(':')
   return <section className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
     <header className={styles['screen-toolbar']}>
+      <Monitor size={16} className={styles['screen-icon']} />
       <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
-      <Button disabled={!preview || busy} onClick={() => void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined); setSelection(undefined) } })}>{t('desktopWorkflow.refresh')}</Button>
-      <Select aria-label={t('desktopWorkflow.zoom')} value={zoom} options={['fit', '0.5', '1', '2'].map((value) => ({ value, label: value === 'fit' ? t('desktopWorkflow.fit') : `${Number(value) * 100}%` }))} onChange={setZoom} />
+      <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } })} /></Tooltip>
+      <Select className={styles['zoom-select']} aria-label={t('desktopWorkflow.zoom')} value={zoom} options={['fit', '0.5', '1', '2'].map((value) => ({ value, label: value === 'fit' ? t('desktopWorkflow.fit') : `${Number(value) * 100}%` }))} onChange={setZoom} />
     </header>
     {session && !generation && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
     {error != null && <Alert type="error" title={workflowError(error, t)} closable onClose={() => setError(undefined)} action={<Button size="small" disabled={busy || !session} onClick={() => setPreviewRevision((v) => v + 1)}>{t('desktopWorkflow.refresh')}</Button>} />}
     <div className={styles['screen-tools']}>
       {step?.kind === 'pointer.drag' && <Select aria-label={t('desktopWorkflow.target')} value={slot} options={['target', 'end_target'].map((value) => ({ value, label: t(`desktopWorkflow.${value === 'target' ? 'target' : 'endTarget'}`) }))} onChange={setSlot} />}
-      <Segmented size="small" disabled={!selectable || busy} value={selectionMode} options={(['point', 'template', 'region'] as const).map((value) => ({ value, label: t(`desktopWorkflow.select_${value}`), disabled: value === 'point' && !step?.kind.startsWith('pointer.') }))} onChange={setMode} />
-      <Button size="small" disabled={!selectable || busy} onClick={() => fileInput.current?.click()}>{t('desktopWorkflow.importTemplate')}</Button>
+      <PreviewModeControl disabled={!selectable || busy} value={selectionMode} pointDisabled={!step?.kind.startsWith('pointer.')} onChange={setMode} />
+      <div className={styles['tool-actions']}>
+      <Tooltip title={t('desktopWorkflow.importTemplate')}><Button type="text" size="small" aria-label={t('desktopWorkflow.importTemplate')} icon={<ImagePlus size={15} />} disabled={!selectable || busy} onClick={() => fileInput.current?.click()} /></Tooltip>
       <input ref={fileInput} type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = '' }} />
-      <Button size="small" disabled={!preview || !target?.asset_id || busy} onClick={() => void perform(async (signal) => { const value = await gateway.match(preview!, target!, signal); if (!signal.aborted) { setMatched(value); setSnapshot({ metadata: value.capture.metadata, blob: value.image }); setSelection(undefined) } })}>{t('desktopWorkflow.testMatch')}</Button>
+      <Tooltip title={t('desktopWorkflow.testMatch')}><Button type="text" size="small" aria-label={t('desktopWorkflow.testMatch')} icon={<ScanSearch size={15} />} disabled={!preview || !target?.asset_id || busy} onClick={() => void perform(async (signal) => { const value = await gateway.match(preview!, target!, signal); if (!signal.aborted) { setMatched(value); setSnapshot({ metadata: value.capture.metadata, blob: value.image }) } })} /></Tooltip>
+      </div>
     </div>
-    <div className={styles['canvas-scroll']}>
-      {busy && <div className={styles['canvas-busy']}><Spin /></div>}
-      {url && snapshot ? <div className={styles.canvas} style={{ width: zoom === 'fit' ? '100%' : snapshot.metadata.width * Number(zoom), maxWidth: zoom === 'fit' ? snapshot.metadata.width : undefined }}
-        onPointerDown={(event) => { if (event.button !== 0 || !selectable || busy) return; drag.current = position(event); event.currentTarget.setPointerCapture(event.pointerId) }}
-        onPointerMove={(event) => { const point = position(event); if (drag.current && point && selectionMode !== 'point') setSelection(imageRegion(drag.current, point)) }}
-        onPointerUp={(event) => void select(event)} onPointerCancel={() => { drag.current = undefined }}>
-        <img ref={image} src={url} alt={t('desktopWorkflow.readonlyScreen')} draggable={false} />
-        {selection && <span className={styles.selection} style={boxStyle(selection)} />}
-        {sameFrame && matched.result.candidates.map((candidate, index) => <span key={index} className={styles['match-box']} style={boxStyle(candidate)}><span>{candidate.score.toFixed(3)}</span></span>)}
-      </div> : <Empty description={t('desktopWorkflow.previewHint')} />}
-    </div>
+    {url && snapshot ? <ScreenshotCanvas key={canvasKey} url={url} size={snapshot.metadata} zoom={zoom} mode={selectionMode} disabled={!selectable || busy} busy={busy}
+      initialRegion={validRegion} point={point} matches={sameFrame ? matched.result.candidates : undefined} onPoint={selectPoint} onApply={applySelection} />
+      : <div className={styles['canvas-scroll']}>{busy && <Spin size="small" />}<div className={styles['screen-empty']}><span><Monitor size={30} strokeWidth={1.2} /></span><strong>{t('desktopWorkflow.screenPreview')}</strong><p>{t('desktopWorkflow.previewHint')}</p></div></div>}
     <footer className={styles['screen-footer']}>
-      {target?.asset_id && <button className={styles['template-button']} onClick={() => setLarge({ id: target.asset_id, title: t('desktopWorkflow.template'), load: (signal) => gateway.asset(target.asset_id, signal) })}><ImageThumbnail source={{ kind: 'remote', key: target.asset_id, load: (signal) => gateway.asset(target.asset_id, signal) }} alt={t('desktopWorkflow.template')} /></button>}
+      <span className={styles['readonly-badge']}><LockKeyhole size={12} />{t('desktopWorkflow.readonly')}</span>
+      {target?.asset_id && <ScreenshotTemplatePreview key={target.asset_id} assetID={target.asset_id} gateway={gateway} />}
       <div className={styles.hint} role="status">{matched ? <>{t(`desktopWorkflow.match.${matched.result.state}`)}{matched.result.candidates.map((c, i) => <span key={i}> · {c.x}, {c.y} ({c.score.toFixed(3)})</span>)}{!sameFrame && <div>{t('desktopWorkflow.frameChanged')}</div>}</> : t('desktopWorkflow.readonlyHint')}</div>
     </footer>
-    <ImagePreview source={large} onClose={() => setLarge(undefined)} />
   </section>
 }

@@ -20,6 +20,10 @@
   color: var(--danger);
 }
 
+.status[data-tone='warning'] {
+  color: var(--warning);
+}
+
 .dot {
   width: 6px;
   height: 6px;

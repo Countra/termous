@@ -13,7 +13,7 @@ import { AgentSurfaceAdapter } from '../model/surface/agentSurfaceAdapter.ts'
 import { projectAgentSurface } from '../model/surface/agentSurfaceProjection.ts'
 import { waitForAgentComposition, type AgentPresentation } from '../model/surface/agentPresentation.ts'
 import type { AgentSurfaceModel } from '../model/surface/agentSurfaceModel.ts'
-import styles from './AgentWindow.module.scss'
+import { detachedWindowStyles as styles } from '#shared/ui'
 
 const identity = { module: 'agent', instance: 'workspace' }
 type Props = Omit<ComponentProps<typeof AgentWorkspaceHost>, 'renderSurface' | 'feedback'> & {

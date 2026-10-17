@@ -19,7 +19,14 @@ export function cloneStep(step: Step): Step {
 }
 export function moveStep(steps: Step[], id: string, delta: number): Step[] {
   const index = steps.findIndex((step) => step.id === id)
-  if (index >= 0) { const next = [...steps]; const destination = index + delta; if (destination >= 0 && destination < next.length) [next[index], next[destination]] = [next[destination]!, next[index]!]; return next }
+  if (index >= 0) {
+    const destination = index + delta
+    if (!Number.isInteger(destination) || destination < 0 || destination >= steps.length) return steps
+    const next = [...steps]
+    const [moving] = next.splice(index, 1)
+    next.splice(destination, 0, moving!)
+    return next
+  }
   return steps.map((step) => ({ ...step, ...(step.steps ? { steps: moveStep(step.steps, id, delta) } : {}), ...(step.else ? { else: moveStep(step.else, id, delta) } : {}) }))
 }
 export function insertStep(steps: Step[], step: Step, parent?: string, branch: 'steps' | 'else' = 'steps'): Step[] {
