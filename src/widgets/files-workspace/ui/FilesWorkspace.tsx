@@ -53,7 +53,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import { confirmDialogStyles, ConnectionEmptyState, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, ConnectionEmptyState, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -829,7 +829,7 @@ function FilesWorkspaceContent({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: () => finish(true),
       onCancel: () => finish(false),
       afterClose: () => finish(false),
@@ -1822,7 +1822,7 @@ function FilesWorkspaceContent({
       okText: t('app.create'),
       cancelText: t('app.cancel'),
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
@@ -2011,7 +2011,7 @@ function FilesWorkspaceContent({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         await api.deleteFileSessionFiles(fileSessionId, paths, true)

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import { useRemoteDesktopRuntime } from '#features/remote-desktop'
 import { writeClipboardText } from '#shared/clipboard'
-import { termousNotificationClassName } from '#shared/ui'
+import { modalSurfaceStyles, termousNotificationClassName } from '#shared/ui'
 import styles from './RemoteDesktopServerVerificationDialog.module.scss'
 
 export function RemoteDesktopServerVerificationDialog({ session, visible = true }: { session: RemoteDesktopSession; visible?: boolean }) {
@@ -81,6 +81,7 @@ function ServerVerificationPrompt({ session, visible, verification, onApprove, o
       centered
       width={560}
       zIndex={3950}
+      rootClassName={modalSurfaceStyles.root}
       title={<span className={styles.title}><Fingerprint size={20} aria-hidden="true" />{title}</span>}
       okText={t('remoteDesktop.trustAndContinue')}
       cancelText={t('remoteDesktop.rejectServer')}

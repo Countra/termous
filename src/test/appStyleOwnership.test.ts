@@ -64,7 +64,8 @@ test('共享表单和弹层样式通过显式 Module root 消费', () => {
   assert.match(customSelectStyles, /\.select-popup:global\(\.ant-select-dropdown\)/)
   assert.match(customSelectStyles, /\.select-dropdown:global\(\.ant-select-dropdown\)/)
   assert.match(confirmDialogStyles, /\.modal-root\s*\{[^}]*z-index:\s*3600;/s)
-  assert.match(confirmDialogStyles, /\.modal\s+:global\(\.ant-modal-content\)/)
+  assert.match(source('../shared/ui/ConfirmDialog.tsx'), /import modalSurfaceStyles from '\.\/ModalSurface\.module\.scss'/)
+  assert.match(confirmDialogStyles, /\.dialog-modal:global\(\.ant-modal\)\s+:global\(\.ant-modal-container\)/)
   assert.match(emptyStateStyles, /\.empty-state\s*\{[^}]*min-height:\s*170px;[^}]*background:\s*var\(--surface-subtle\);/s)
 
   for (const selector of [

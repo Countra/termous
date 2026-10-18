@@ -1,0 +1,33 @@
+.root {
+  --termous-modal-bg: #1d2028;
+  --termous-modal-border: rgb(255 255 255 / 13%);
+  --termous-modal-shadow: 0 20px 64px rgb(0 0 0 / 36%);
+  --termous-modal-mask: rgb(5 8 13 / 58%);
+  --termous-modal-radius: 14px;
+
+  :global(:root[data-theme='light']) & {
+    --termous-modal-bg: #fff;
+    --termous-modal-border: rgb(30 42 58 / 14%);
+    --termous-modal-shadow: 0 20px 64px rgb(30 44 64 / 16%);
+    --termous-modal-mask: rgb(20 28 42 / 30%);
+  }
+}
+
+// 仅统一确认与授权弹窗的外观，内边距和滚动布局由业务组件决定。
+.root:global(.ant-modal-root) :global(.ant-modal-container) {
+  border: 1px solid var(--termous-modal-border);
+  border-radius: var(--termous-modal-radius);
+  background: var(--termous-modal-bg);
+  box-shadow: var(--termous-modal-shadow);
+}
+
+.root:global(.ant-modal-root) :global(.ant-modal-header) {
+  border-start-start-radius: var(--termous-modal-radius);
+  border-start-end-radius: var(--termous-modal-radius);
+  background: var(--termous-modal-bg);
+}
+
+.root:global(.ant-modal-root) :global(.ant-modal-mask) {
+  background: var(--termous-modal-mask);
+  backdrop-filter: none;
+}

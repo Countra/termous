@@ -26,7 +26,7 @@ import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
-import { confirmDialogStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
 import rowStyles from './TransferQueueRows.module.scss'
 import { TransferSummary } from './TransferSummary'
 import type { TransferTask } from '#entities/file'
@@ -145,7 +145,7 @@ export function TransferQueuePanel({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       centered: true,
       onOk: async () => {
         setClearing(true)

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Checkbox, Input, Modal, Popconfirm, Skeleton, Switch, Tabs, Tag } from 'antd'
 import { Bot, Folder, FolderPlus, Monitor, Search, Server, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import type { RemotePolicy } from '#common/contracts'
-import { termousPopconfirmProps, WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
+import { modalSurfaceStyles, termousPopconfirmProps, WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { type RemoteCopy, remoteErrorText } from '../model/copy'
 import styles from './RemoteAccessDialog.module.scss'
 
@@ -120,7 +120,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
     </dl>
   </section>
 
-  return <Modal open={open} centered width={760} className={styles.modal} destroyOnHidden closable={!working} mask={{ closable: !working }} keyboard={!working} onCancel={onClose}
+  return <Modal open={open} centered width={760} rootClassName={modalSurfaceStyles.root} className={styles.modal} destroyOnHidden closable={!working} mask={{ closable: !working }} keyboard={!working} onCancel={onClose}
     title={<div className={styles.title}><span className={styles['title-icon']}><Settings2 size={19} aria-hidden="true" /></span><div><strong>{copy.configure}</strong><p><ShieldCheck size={13} aria-hidden="true" />{copy.accessHint}</p></div></div>}
     footer={<div className={styles.footer}>
       <span className={`${styles['footer-hint']} ${dirty ? styles.pending : ''}`}>{dirty ? copy.pendingHosts : copy.hostSaveHint}</span>

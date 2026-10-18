@@ -2,7 +2,7 @@ import { Button, Modal, Tooltip } from 'antd'
 import { ArrowRightLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resourceBindingMatchesSource, resourceReference, resourceReferenceId, resourceProfileName, type AgentResourceBinding, type AgentResourceState } from '#entities/agent'
-import { confirmDialogStyles, uiStyles } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, uiStyles } from '#shared/ui'
 import styles from './AgentTerminalReferenceConfirmDialog.module.scss'
 
 export function AgentTerminalReferenceConfirmDialog({ binding, source, resources, connectionOnly = false, onConfirm, onCancel }: {
@@ -29,7 +29,7 @@ export function AgentTerminalReferenceConfirmDialog({ binding, source, resources
       destroyOnHidden onCancel={onCancel} getContainer={() => document.body}
       className={`${confirmDialogStyles.modal} ${styles.modal} confirm-modal`}
       wrapClassName={`${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`}
-      rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}>
+      rootClassName={`${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`}>
       <section className={styles.content}>
         <div className={styles.comparison}>
           <ConnectionSummary label={t('agent.terminalReference.currentAssociation')}

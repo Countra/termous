@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { DesktopExchange, DesktopFileEntry } from '#entities/remote-desktop'
 import type { OverwritePolicy } from '#entities/file'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
-import { confirmDialogStyles, contextActionMenuPopupClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, contextActionMenuPopupClassName } from '#shared/ui'
 import type { useDesktopFiles } from '../../model/useDesktopFiles.ts'
 import { DesktopFileList } from './DesktopFileList'
 import section from './DesktopFileSection.module.scss'
@@ -69,7 +69,7 @@ export function DesktopExchangeBrowser({ api, exchange, retained = false, operat
   }
   const remove = (entry: DesktopFileEntry) => modal.confirm({
     title: t('remoteDesktop.files.deleteConfirm'), content: entry.name, centered: true,
-    className: confirmDialogStyles.modal, rootClassName: confirmDialogStyles['modal-root'],
+    className: confirmDialogStyles.modal, rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
     okText: t('remoteDesktop.files.delete'), cancelText: t('app.cancel'), okButtonProps: { danger: true },
     onOk: () => operations.run(async () => { await api.mutate(exchange, 'remove', entry.path, entry.version); refresh() }),
   })

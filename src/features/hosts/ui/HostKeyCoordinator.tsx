@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Button, Modal, Tag, Typography } from 'antd'
 import { Clock3, Server, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
-import { uiStyles, termousNotificationClassName } from '#shared/ui'
+import { modalSurfaceStyles, uiStyles, termousNotificationClassName } from '#shared/ui'
 import type { Host } from '#entities/host'
 import type {
   HostKeyChallenge,
@@ -187,7 +187,7 @@ export function HostKeyCoordinator({ api, enabled, hosts, onBlockingChange }: Ho
       closable={false}
       keyboard={false}
       mask={{ closable: false }}
-      rootClassName={styles['host-key-modal-root']}
+      rootClassName={`${modalSurfaceStyles.root} ${styles['host-key-modal-root']}`}
       className={styles['host-key-modal']}
     >
       {challenge ? (

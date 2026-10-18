@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { App as AntdApp, Button, Modal } from 'antd'
 import { ServerCog, ShieldCheck, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { termousNotificationClassName } from '#shared/ui'
+import { modalSurfaceStyles, termousNotificationClassName } from '#shared/ui'
 import { useMcpAccessRuntime } from '../runtime/mcpAccessContext'
 import { McpApprovalDetails } from './approval/McpApprovalDetails'
 import { McpApprovalExpiry } from './approval/McpApprovalExpiry'
@@ -99,7 +99,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
       keyboard={false}
       mask={{ closable: false }}
       destroyOnHidden
-      rootClassName={styles['approval-modal-root']}
+      rootClassName={`${modalSurfaceStyles.root} ${styles['approval-modal-root']}`}
       className={styles['approval-modal']}
       classNames={{ container: styles['modal-container'], header: styles['modal-header'], body: styles['modal-body'] }}
     >

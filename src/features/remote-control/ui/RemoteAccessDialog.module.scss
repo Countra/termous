@@ -1,8 +1,6 @@
 .modal {
   :global(.ant-modal-container) {
     overflow: hidden;
-    border: 1px solid var(--border);
-    background: var(--app-bg-elevated);
   }
 
   :global(.ant-modal-header) {

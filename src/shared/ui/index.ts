@@ -1,4 +1,5 @@
 export { ConfirmDialog } from './ConfirmDialog'
+export { default as modalSurfaceStyles } from './ModalSurface.module.scss'
 export { SettingsSaveBar } from './SettingsSaveBar'
 export { ImageThumbnail, type ImageThumbnailSource } from './ImageThumbnail.tsx'
 export { ImagePreview, type ImagePreviewSource } from './ImagePreview.tsx'

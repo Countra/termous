@@ -8,11 +8,7 @@
   overflow: hidden;
   max-height: calc(100dvh - 32px);
   flex-direction: column;
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  background: rgb(from var(--surface) r g b / 100%);
   padding: 0;
-  box-shadow: var(--shadow);
 }
 
 .modal-header:global(.ant-modal-header) {

@@ -6,7 +6,7 @@ import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import type { OverwritePolicy } from '#entities/file'
 import type { DesktopFilesGateway, RemoteDesktopViewerState } from '#features/remote-desktop'
 import { isActiveTransferTask, TransferQueueDock, TransferQueuePanel } from '#features/transfers'
-import { confirmDialogStyles, customSelectStyles } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, customSelectStyles } from '#shared/ui'
 import { useDesktopFiles } from '../../model/useDesktopFiles'
 import { DesktopExchangeFiles } from './DesktopExchangeFiles'
 import { DesktopFileClipboard } from './DesktopFileClipboard'
@@ -47,7 +47,7 @@ export function DesktopFilesPanel({ api, session, viewer, open = true, activeTab
       <Select size="small" aria-label={t('remoteDesktop.files.conflicts')} value={overwrite} className={customSelectStyles.select} classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
         options={['rename', 'skip', 'overwrite'].map(value => ({ value, label: t(`remoteDesktop.files.conflict.${value === 'overwrite' ? 'replace' : value}`) }))}
         onChange={value => {
-          if (value === 'overwrite') modal.confirm({ title: t('remoteDesktop.files.overwriteConfirm'), className: confirmDialogStyles.modal, rootClassName: confirmDialogStyles['modal-root'], centered: true, onOk: () => setOverwrite(value) })
+          if (value === 'overwrite') modal.confirm({ title: t('remoteDesktop.files.overwriteConfirm'), className: confirmDialogStyles.modal, rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`, centered: true, onOk: () => setOverwrite(value) })
           else setOverwrite(value)
         }} /></label>}</>}>
     {/* 缓存内容状态并在隐藏时清理副作用；抽屉本身保持挂载，避免动画恢复时重建文件列表。 */}

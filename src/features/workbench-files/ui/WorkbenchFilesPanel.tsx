@@ -94,7 +94,7 @@ import type {
 } from '#entities/file'
 import { joinPath, normalizeRemotePath, normalizeRemotePosixPath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
-import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
@@ -264,7 +264,7 @@ function WorkbenchFilesPanelContent({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: () => finish(true),
       onCancel: () => finish(false),
       afterClose: () => finish(false),
@@ -1056,7 +1056,7 @@ function WorkbenchFilesPanelContent({
       okText: t('app.create'),
       cancelText: t('app.cancel'),
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         if (!name.trim() || !files.fileSession?.id) {
           throw new Error(t('files.nameRequired'))
@@ -1079,7 +1079,7 @@ function WorkbenchFilesPanelContent({
     cancelText: t('app.cancel'),
     okButtonProps: { danger: true },
     className: `${confirmDialogStyles.modal} confirm-modal`,
-    rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+    rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
     onOk: async () => {
       if (files.fileSession?.id) {
         await api.deleteFileSessionFiles(files.fileSession.id, [entry.path], true)

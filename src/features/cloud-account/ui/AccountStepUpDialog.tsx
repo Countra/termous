@@ -3,6 +3,7 @@ import { Button, Form, Modal } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { CloudMFAProof, CloudMFAStatus } from '#common/contracts'
 import { isCloudMFAUncertainError, type CloudGateway } from '#entities/cloud'
+import { modalSurfaceStyles } from '#shared/ui'
 import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
 import { buildCloudStepUpProof } from '../model/stepUpProof'
 import { useCloudDeadline } from '../model/useCloudDeadline'
@@ -36,7 +37,7 @@ export function AccountStepUpDialog({ api, generation, mfa, unavailable, busy, t
   const { expired } = useCloudDeadline(mfa?.verified_until)
   const verified = Boolean(mfa?.verified_until && !expired)
   useEffect(() => () => { form.setFieldsValue({ password: undefined, code: undefined }) }, [generation, form])
-  return <Modal open title={title} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={onClose}>
+  return <Modal open rootClassName={modalSurfaceStyles.root} title={title} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={onClose}>
     <p>{description}</p>
     <AccountOperationError code={feedback.errorCode} />
     <Form form={form} layout="vertical" requiredMark={false} onFinish={values => void feedback.perform(async current => {

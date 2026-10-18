@@ -3,6 +3,7 @@ import { Button, Modal } from 'antd'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import styles from './ConfirmDialog.module.scss'
+import modalSurfaceStyles from './ModalSurface.module.scss'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -60,9 +61,9 @@ export function ConfirmDialog({
       afterClose={onAfterClose}
       mask={{ closable: !busy }}
       keyboard={!busy}
-      className={`${styles.modal} confirm-modal`}
+      className={`${styles.modal} ${styles['dialog-modal']} confirm-modal`}
       wrapClassName={`${styles['modal-wrap']} confirm-modal-wrap`}
-      rootClassName={`${styles['modal-root']} termous-modal-root`}
+      rootClassName={`${styles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`}
       getContainer={() => document.body}
       onCancel={() => {
         if (!busy) {

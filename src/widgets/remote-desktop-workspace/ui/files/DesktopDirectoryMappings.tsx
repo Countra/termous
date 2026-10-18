@@ -3,7 +3,7 @@ import { Folder, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
-import { confirmDialogStyles, termousPopconfirmProps } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, termousPopconfirmProps } from '#shared/ui'
 import type { useDesktopFiles } from '../../model/useDesktopFiles'
 import { DesktopSharePath } from './DesktopSharePath'
 import section from './DesktopFileSection.module.scss'
@@ -16,7 +16,7 @@ export function DesktopDirectoryMappings({ api, session, operations, unavailable
   const { modal } = App.useApp()
   const { state, busy, run, withGrant } = operations
   const add = () => modal.confirm({ title: t('remoteDesktop.files.addMapping'), content: t('remoteDesktop.files.mappingConsent'), centered: true,
-    className: confirmDialogStyles.modal, rootClassName: confirmDialogStyles['modal-root'],
+    className: confirmDialogStyles.modal, rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
     okText: t('remoteDesktop.files.selectFolder'), cancelText: t('app.cancel'),
     onOk: () => run(() => withGrant('directories', false, grant => api.mapping(session.id, session.connection_generation, 'add', grant))),
   })

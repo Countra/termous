@@ -1,4 +1,4 @@
-import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
+import { FeedbackMessage, FeedbackMessageScope, modalSurfaceStyles } from '#shared/ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Checkbox, Form, Modal, Tag } from 'antd'
 import { Clock3, Laptop, ShieldCheck } from 'lucide-react'
@@ -118,7 +118,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
   const retryClaim = requester && approved && !current.keys_verified && allowed('claim')
     && status?.phase === 'blocked' && Boolean(status.error_code) && !['login_required', 'refresh_unconfirmed'].includes(status.error_code ?? '')
   // 临时让位主机密钥审批时保留表单；真正关闭由父组件卸载并清理秘密。
-  return <Modal open={open} title={t(`cloud.authorization.${title}`)} footer={null} width={560} centered onCancel={onClose} mask={{ closable: !disabled }} closable={!disabled} keyboard={!disabled}><FeedbackMessageScope active={open}>
+  return <Modal open={open} rootClassName={modalSurfaceStyles.root} title={t(`cloud.authorization.${title}`)} footer={null} width={560} centered onCancel={onClose} mask={{ closable: !disabled }} closable={!disabled} keyboard={!disabled}><FeedbackMessageScope active={open}>
     <div className={styles.flow}>
       <div className={styles.summary}>
         <span className={styles['device-icon']} aria-hidden="true"><Laptop size={22} /></span>
