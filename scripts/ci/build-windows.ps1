@@ -284,7 +284,8 @@ if ($phase -in @("all", "prepare")) {
     $env:CPATH = if ([string]::IsNullOrWhiteSpace($env:CPATH)) { $mountInclude } else { "$mountInclude;$env:CPATH" }
   }
 
-  Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "-tags", "mountfuse", "./...") -WorkingDirectory $coreDir
+  # 与后端 Windows CI 保持一致，降低真实文件库测试的磁盘竞争并保留整包执行余量。
+  Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "-tags", "mountfuse", "-p=2", "-timeout=20m", "./...") -WorkingDirectory $coreDir
   Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
     "build",
     "-tags", "mountfuse",

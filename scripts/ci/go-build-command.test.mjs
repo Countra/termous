@@ -137,7 +137,7 @@ printf '\\n'
       assert.equal(records.length, 3, result.stdout)
       const [tests, build, caches] = records
       const tags = windows ? 'mountfuse' : 'mountfuse,fuse3'
-      assert.deepEqual(tests, ['test', '-tags', tags, './...'])
+      assert.deepEqual(tests, ['test', '-tags', tags, ...(windows ? ['-p=2', '-timeout=20m'] : []), './...'])
       assert.deepEqual(build, ['build', '-tags', tags, '-mod=readonly', '-trimpath', '-buildvcs=false',
         '-ldflags', '-s -w -X termous/backend/internal/platform/buildinfo.Version=1.2.3-review',
         '-o', build.at(-2), './cmd/termous-core'])
