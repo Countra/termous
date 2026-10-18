@@ -5742,7 +5742,7 @@
         "immediate": "立即连接",
         "onDemand": "按需连接"
       },
-      "requestMetrics": {"title": "模型请求明细", "note": "每次实际请求分别统计，当前展示最近 {{limit}} 条；累计用量包含全部请求。工具 Token 为估算，图片尺寸不等于计费 Token。", "request": "请求", "tools": "工具", "schema": "Schema 估算", "images": "图片", "tokens": "Token", "duration": "耗时", "response": "回答", "compaction": "压缩", "status": "状态", "completed": "完成", "failed": "失败", "cancelled": "取消"},
+      "requestMetrics": {"title": "请求明细", "help": "统计说明", "note": "最多显示最近 {{limit}} 次请求，本轮用量包含全部请求。工具定义为估算 Token；图片数量与尺寸不代表计费 Token。", "request": "请求", "tools": "可用工具", "schema": "工具定义", "images": "图片", "tokens": "Token", "duration": "耗时", "response": "生成", "compaction": "上下文压缩", "status": "状态", "completed": "完成", "failed": "失败", "cancelled": "取消"},
       "turnUsage": {
         "title": "每轮 Token 用量",
         "description": "在每次 AI 助手回复末尾显示本轮的总量、输入、输出和缓存用量。",

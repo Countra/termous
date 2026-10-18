@@ -57,6 +57,7 @@ export interface RemoteLauncher {
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  debugMode?: boolean
   desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
   windowControls?: {
     minimize(): Promise<RemoteResult<boolean>>

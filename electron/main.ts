@@ -7,7 +7,7 @@ import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
-import { settingsIPCChannels } from '#common/contracts'
+import { appDebugModeArgument, settingsIPCChannels } from '#common/contracts'
 import { notificationIPCChannels } from '#common/contracts'
 import { NotificationRuntime } from './notifications/runtime'
 import { NotificationPreferencesStore } from './notifications/preferences'
@@ -1022,7 +1022,7 @@ function tryCompleteStartup() {
   }
 }
 
-function shouldAutoOpenDevTools() {
+function isAppDebugMode() {
   if (VITE_DEV_SERVER_URL) {
     return true
   }
@@ -1086,6 +1086,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: isAppDebugMode() ? [appDebugModeArgument] : [],
     },
   })
   registerDevToolsShortcut(win)
@@ -1100,7 +1101,7 @@ function createWindow() {
     } else {
       tryCompleteStartup()
     }
-    if (win && shouldAutoOpenDevTools()) {
+    if (win && isAppDebugMode()) {
       openDevTools(win)
     }
     const fatal = coreProcess.getFatal()
@@ -1771,6 +1772,7 @@ async function initializeApplication() {
     trusted: isTrustedMainIPCEvent, host: () => win, reveal: revealMainWindow,
     appearance: () => ({ theme: appTheme, language: appLanguage }),
     renderer: path.join(RENDERER_DIST, 'index.html'), preload: path.join(__dirname, 'detached-preload.cjs'), devURL: VITE_DEV_SERVER_URL,
+    debugMode: isAppDebugMode(),
   })
   app.once('before-quit', () => detachedWindows.close())
   const desktopAutomation = new DesktopAutomationRuntime({
@@ -1797,6 +1799,7 @@ async function initializeApplication() {
     preload: path.join(__dirname, 'remote-preload.cjs'),
     renderer: path.join(RENDERER_DIST, 'index.html'),
     devURL: VITE_DEV_SERVER_URL,
+    debugMode: isAppDebugMode(),
     icon: APP_ICON,
     appearance: () => ({ theme: appTheme, language: appLanguage }),
     warn: code => reportElectronProcessEvent(code, {}),

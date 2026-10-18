@@ -21,6 +21,7 @@ export interface DetachedOwnerBridge {
   subscribe: (listener: (packet: DetachedPacket) => void) => () => void
 }
 export interface DetachedWindowBridge {
+  debugMode?: boolean
   bootstrap: () => Promise<DetachedBootstrap>
   send: (packet: DetachedPacket) => void
   subscribe: (listener: (packet: DetachedPacket) => void) => () => void

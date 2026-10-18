@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import { AgentRequestUsageDetails } from './AgentRequestUsageDetails.tsx'
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { resolvedLanguage: 'zh-CN' } }) }))
 
 it('请求明细默认不创建表格，展开后区分估算用量、压缩和错误状态', async () => {
   const { container } = render(<AgentRequestUsageDetails requests={[{

@@ -5767,7 +5767,7 @@
         "immediate": "Connect now",
         "onDemand": "On demand"
       },
-      "requestMetrics": {"title": "Model request details", "note": "Showing the latest {{limit}} requests; cumulative usage includes all requests. Schema tokens are estimates; image dimensions are not billed tokens.", "request": "Request", "tools": "Tools", "schema": "Schema estimate", "images": "Images", "tokens": "Tokens", "duration": "Duration", "response": "Response", "compaction": "Compaction", "status": "Status", "completed": "Completed", "failed": "Failed", "cancelled": "Cancelled"},
+      "requestMetrics": {"title": "Request details", "help": "About these counts", "note": "Up to {{limit}} recent requests are shown; turn usage includes all requests. Tool definitions show estimated tokens. Image counts and dimensions do not represent billed tokens.", "request": "Request", "tools": "Available tools", "schema": "Tool definitions", "images": "Images", "tokens": "Tokens", "duration": "Duration", "response": "Generation", "compaction": "Compaction", "status": "Status", "completed": "Completed", "failed": "Failed", "cancelled": "Cancelled"},
       "turnUsage": {
         "title": "Per-turn token usage",
         "description": "Show total, input, output, and cache usage below each AI assistant response.",

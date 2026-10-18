@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  debugMode?: boolean
   systemClipboard?: import('./system-clipboard').SystemClipboardCapabilitiesBridge
   detachedWindows?: import('./detached-window').DetachedOwnerBridge
   fileSystemClipboard?: import("./file-system-clipboard").FileSystemClipboardBridge

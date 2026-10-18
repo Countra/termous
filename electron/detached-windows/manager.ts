@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, screen, type IpcMainInvokeEvent } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
-import { detachedChannels as channels, isDetachedIdentity, isDetachedPacket, sameDetachedConnection,
+import { appDebugModeArgument, detachedChannels as channels, isDetachedIdentity, isDetachedPacket, sameDetachedConnection,
   type DetachedAppearance, type DetachedConnection, type DetachedIdentity, type DetachedRect } from '#common/contracts'
 import { detachedModules, type DetachedModuleRegistration } from './registry.ts'
 import { clampDetachedBounds } from './geometry.ts'
@@ -16,6 +16,7 @@ interface Options {
   renderer: string
   preload: string
   devURL?: string
+  debugMode?: boolean
   modules?: readonly DetachedModuleRegistration[]
 }
 
@@ -90,7 +91,8 @@ export class DetachedWindows {
     const window = new BrowserWindow({ ...clampDetachedBounds(saved, work, size), minWidth: Math.min(size.minWidth, work.width), minHeight: Math.min(size.minHeight, work.height),
       title: registration.title, show: false, autoHideMenuBar: true,
       backgroundColor: this.options.appearance().theme === 'dark' ? '#0f1116' : '#f4f5f7',
-      webPreferences: { preload: this.options.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
+      webPreferences: { preload: this.options.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
+        additionalArguments: this.options.debugMode ? [appDebugModeArgument] : [] },
     })
     const connection = { ...identity, generation: randomUUID() }
     const url = this.options.devURL ? new URL(this.options.devURL) : pathToFileURL(this.options.renderer)

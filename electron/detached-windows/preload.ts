@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron'
-import { detachedChannels as channels, type DetachedOwnerBridge, type DetachedWindowBridge, type DetachedPacket } from '#common/contracts'
+import { appDebugModeArgument, detachedChannels as channels, type DetachedOwnerBridge, type DetachedWindowBridge, type DetachedPacket } from '#common/contracts'
 
 function subscribe(listener: (packet: DetachedPacket) => void) {
   const handler = (_event: Electron.IpcRendererEvent, packet: DetachedPacket) => listener(packet)
@@ -18,5 +18,5 @@ export function createDetachedOwnerBridge(): DetachedOwnerBridge {
 }
 
 export function createDetachedWindowBridge(): DetachedWindowBridge {
-  return { bootstrap: () => ipcRenderer.invoke(channels.bootstrap), send: packet => ipcRenderer.send(channels.packet, packet), subscribe }
+  return { debugMode: process.argv.includes(appDebugModeArgument), bootstrap: () => ipcRenderer.invoke(channels.bootstrap), send: packet => ipcRenderer.send(channels.packet, packet), subscribe }
 }

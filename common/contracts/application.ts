@@ -4,6 +4,8 @@ export type AppLanguage = 'zh-CN' | 'en-US'
 
 export type AppTheme = 'dark' | 'light'
 
+export const appDebugModeArgument = '--termous-debug'
+
 export interface AppConfig {
   apiBaseUrl: string
   apiToken: string

@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RemoteBootstrap, RemoteWindowBridge } from '#common/contracts'
+import { appDebugModeArgument } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
+  debugMode: process.argv.includes(appDebugModeArgument),
   desktopICE: id => ipcRenderer.invoke('remote:desktop-ice', id),
   windowControls: {
     minimize: () => ipcRenderer.invoke('remote:window-minimize'),

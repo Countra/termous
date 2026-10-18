@@ -1,4 +1,4 @@
-import { notificationIPCChannels as notificationChannels } from '#common/contracts'
+import { appDebugModeArgument, notificationIPCChannels as notificationChannels } from '#common/contracts'
 import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -104,6 +104,7 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  debugMode: process.argv.includes(appDebugModeArgument),
   systemClipboard: createSystemClipboardCapabilitiesBridge(),
   detachedWindows: createDetachedOwnerBridge(),
   fileSystemClipboard: {

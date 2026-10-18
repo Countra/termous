@@ -3,6 +3,7 @@ import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electro
 import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf'
 import { RequestSchema } from '@termous/remote-protocol'
 import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDevice, RemotePolicy, RemoteLocalTask, RemoteLocalSelection } from '#common/contracts'
+import { appDebugModeArgument } from '#common/contracts'
 import { RemoteCore, RemoteCoreError, result, validId } from './core'
 import { RemoteTerminalStream } from './stream'
 import { RemoteLocalTransfers } from './files'
@@ -11,7 +12,7 @@ import { RemoteAgentContent } from './agentContent'
 interface Options {
   core: RemoteCore
   trusted(event: IpcMainInvokeEvent): boolean
-  preload: string; renderer: string; devURL?: string; icon?: string
+  preload: string; renderer: string; devURL?: string; icon?: string; debugMode?: boolean
   appearance(): { language: AppLanguage; theme: AppTheme }
   warn(code: string): void
 }
@@ -252,7 +253,7 @@ export class RemoteControlRuntime {
     }
     const appearance = this.options.appearance()
     const isMac = process.platform === 'darwin'
-    const window = new BrowserWindow({ width: 1220, height: 800, minWidth: 860, minHeight: 560, frame: isMac, titleBarStyle: isMac ? 'hiddenInset' : 'default', show: false, title: `Termous · ${name}`, icon: this.options.icon, autoHideMenuBar: true, backgroundColor: appearance.theme === 'dark' ? '#0f1116' : '#f4f5f7', webPreferences: { preload: this.options.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } })
+    const window = new BrowserWindow({ width: 1220, height: 800, minWidth: 860, minHeight: 560, frame: isMac, titleBarStyle: isMac ? 'hiddenInset' : 'default', show: false, title: `Termous · ${name}`, icon: this.options.icon, autoHideMenuBar: true, backgroundColor: appearance.theme === 'dark' ? '#0f1116' : '#f4f5f7', webPreferences: { preload: this.options.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, additionalArguments: this.options.debugMode ? [appDebugModeArgument] : [] } })
     const opening = this.options.core.request<RemoteConnection>('/remote-control/connections', { generation, device_id: deviceId, operation_id: randomUUID() })
     const entry: Entry = { window, bootstrap: { generation, deviceId, deviceName: name, agentTarget, platform: process.platform, ...appearance }, opening, files: new RemoteLocalTransfers(this.options.core, this.options.warn) }
     this.entries.set(key, entry)

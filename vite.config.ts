@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import path from 'node:path'
-import electron from 'vite-plugin-electron'
+import electron, { type ElectronOptions } from 'vite-plugin-electron'
 import electronRenderer from 'vite-plugin-electron-renderer'
 import react from '@vitejs/plugin-react'
 
@@ -30,7 +30,6 @@ export default defineConfig({
               input: {
                 preload: path.join(__dirname, 'electron/preload.ts'),
                 'update-preload': path.join(__dirname, 'electron/update-preload.ts'),
-                'remote-preload': path.join(__dirname, 'electron/remote-preload.ts'),
                 'desktop-automation-preload': path.join(__dirname, 'electron/desktop-automation-preload.ts'),
                 'startup-preload': path.join(__dirname, 'electron/startup-preload.ts'),
               },
@@ -44,19 +43,19 @@ export default defineConfig({
           },
         },
       },
-      {
+      ...['detached-preload', 'remote-preload'].map<ElectronOptions>((entry) => ({
         onstart({ reload }) { reload() },
         vite: {
           build: {
             // 沙箱 preload 不能 require 本地共享 chunk，使用单独构建确保入口自包含。
             rolldownOptions: {
-              input: { 'detached-preload': path.join(__dirname, 'electron/detached-preload.ts') },
+              input: { [entry]: path.join(__dirname, `electron/${entry}.ts`) },
               platform: 'node',
               output: { format: 'cjs', codeSplitting: false, entryFileNames: '[name].cjs' },
             },
           },
         },
-      },
+      })),
     ]),
     // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
     ...(process.env.NODE_ENV === 'test' ? [] : [electronRenderer()]),

@@ -2,6 +2,7 @@ import { ChartNoAxesColumnIncreasing } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AgentRequestUsageDetails } from './AgentRequestUsageDetails.tsx'
 import type { AgentRequestUsage, AgentUsage } from '#entities/agent'
+import { isAppDebugMode } from '#shared/bridge'
 import { AgentCacheUsagePopover } from './AgentCacheUsagePopover.tsx'
 import { formatAgentTokenCount } from './agentTokenUsageFormat.ts'
 import styles from './AgentTurnUsage.module.scss'
@@ -41,7 +42,7 @@ export function AgentTurnUsage({ usage, requests }: { usage: AgentUsage; request
           <dd>{formatAgentTokenCount(usage.cache_read_tokens, language)}</dd>
         </div>
       </dl>
-      {requests?.length ? <AgentRequestUsageDetails requests={requests} /> : null}
+      {isAppDebugMode() && requests?.length ? <AgentRequestUsageDetails requests={requests} /> : null}
     </footer>
   )
 }

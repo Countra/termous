@@ -49,6 +49,7 @@ export type {
   TrayMenuState,
   TrayRecentHost,
 } from './application'
+export { appDebugModeArgument } from './application'
 export type {
   AppearanceSettings,
   ConnectionSettings,
