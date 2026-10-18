@@ -288,8 +288,6 @@ test('快捷键动作目录、作用域和管理交互拥有完整双语文案',
 
   for (const key of [
     'settings.tabShortcuts',
-    'settings.shortcuts.title',
-    'settings.shortcuts.description',
     'settings.shortcuts.searchPlaceholder',
     'settings.shortcuts.customizedCount',
     'settings.shortcuts.resetAll',

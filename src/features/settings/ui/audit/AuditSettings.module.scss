@@ -1,62 +1,61 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .body {
+  @include settings.panel;
+
   display: grid;
-  gap: 16px;
-  padding-top: 16px;
 }
 
-.toggle,
-.footer {
+.body > :global(.ant-alert) {
+  margin: 16px 18px;
+}
+
+.toggle {
+  @include settings.row;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
 }
 
 .toggle > div {
   min-width: 0;
 }
 
-.toggle > button,
-.footer > button {
+.toggle > button {
   flex-shrink: 0;
 }
 
 .toggle label,
 .row label {
   color: var(--text-primary);
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .retention {
   display: grid;
-  gap: 16px;
-  border-block: 1px solid var(--border);
-  padding-block: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .row {
-  display: grid;
+  @include settings.row;
+
   grid-template-columns: minmax(0, 1fr) 160px;
   align-items: center;
-  gap: 18px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
 }
 
 .row > :last-child {
   width: 100%;
 }
 
-.retention > p,
-.footer > p {
+.retention > p {
   margin: 0;
-}
-
-.footer {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.footer > p {
-  flex: 1;
+  padding: 0 18px 17px;
 }
 
 .loading {

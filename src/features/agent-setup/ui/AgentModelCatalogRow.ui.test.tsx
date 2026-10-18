@@ -11,6 +11,32 @@ vi.mock('react-i18next', () => ({
 import { AgentModelCatalogRow } from './AgentModelCatalogRow.tsx'
 
 describe('AgentModelCatalogRow', () => {
+  it('可从目录直接编辑指定模型', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    const model = modelFixture()
+    renderRow(model, { onEdit })
+
+    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.editModel' }))
+
+    expect(onEdit).toHaveBeenCalledWith(model)
+  })
+
+  it('忙碌时禁用直接编辑入口，已移除模型不提供该入口', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    const model = modelFixture()
+    const view = renderRow(model, { onEdit, disabled: true })
+    const edit = screen.getByRole('button', { name: 'settings.agent.catalog.editModel' })
+    expect(edit).toBeDisabled()
+    await user.click(edit)
+    expect(onEdit).not.toHaveBeenCalled()
+    view.unmount()
+
+    renderRow({ ...model, removed_at: '2026-08-30T01:00:00Z' })
+    expect(screen.queryByRole('button', { name: 'settings.agent.catalog.editModel' })).not.toBeInTheDocument()
+  })
+
   it('活动模型通过更多菜单触发逻辑移除', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
@@ -52,7 +78,7 @@ describe('AgentModelCatalogRow', () => {
   it('键盘聚焦模型行时也能读取完整模型详情', async () => {
     const user = userEvent.setup()
     renderRow(modelFixture())
-    const modelDetails = screen.getByText('remote-model').parentElement
+    const modelDetails = screen.getByText('remote-model').closest('[tabindex]')
 
     await user.tab()
 
@@ -63,6 +89,8 @@ describe('AgentModelCatalogRow', () => {
 })
 
 function renderRow(model: AgentModel, overrides: {
+  onEdit?: (model: AgentModel) => void
+  disabled?: boolean
   onRemove?: (model: AgentModel) => void
   onRestore?: (model: AgentModel) => void
 } = {}) {
@@ -71,8 +99,8 @@ function renderRow(model: AgentModel, overrides: {
       <AgentModelCatalogRow
         provider={providerFixture()}
         model={model}
-        disabled={false}
-        onEdit={vi.fn()}
+        disabled={overrides.disabled ?? false}
+        onEdit={overrides.onEdit ?? vi.fn()}
         onTest={vi.fn()}
         onSetDefault={vi.fn()}
         onRemove={overrides.onRemove ?? vi.fn()}

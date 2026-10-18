@@ -6,6 +6,17 @@ import { RemoteDesktopSettings } from './RemoteDesktopSettings'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
+test('隧道恢复归属远程桌面设置，只提交自身字段', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn(async () => undefined)
+  render(<RemoteDesktopSettings value={defaultConnectionSettings} disabled={false} onChange={onChange} />)
+  const toggle = screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' })
+  expect(toggle).toBeChecked()
+  expect(toggle).toHaveAccessibleDescription('settings.remoteDesktopAutoReconnectHint')
+  await user.click(toggle)
+  expect(onChange).toHaveBeenCalledExactlyOnceWith({ remote_desktop_auto_reconnect_enabled: false })
+})
+
 test('RDP 保留时间允许编辑后按回车保存，只提交变动字段', async () => {
   const user = userEvent.setup()
   const onChange = vi.fn(async () => undefined)

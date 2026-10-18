@@ -1,150 +1,41 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react'
-import { Alert, Button, InputNumber, Select, Tooltip } from 'antd'
-import { CircleHelp, Save } from 'lucide-react'
+import { useId, useMemo } from 'react'
+import { Alert, InputNumber, Select, Tooltip } from 'antd'
+import { CircleHelp, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  agentReasoningLevels,
-  isAgentModelRunnable,
-  type AgentModel,
-  type AgentModelProvider,
-  type AgentReasoningLevel,
-  type AgentSettings,
-} from '#entities/agent'
-import {
-  customSelectStyles,
-  uiStyles,
-} from '#shared/ui'
-import type { AgentSetupController } from '../model/useAgentSetupController.ts'
+import { agentReasoningLevels, isAgentModelRunnable, type AgentModel, type AgentModelProvider } from '#entities/agent'
+import { customSelectStyles, uiStyles } from '#shared/ui'
+import type { AgentConfigurationDraft } from '../model/agentConfigurationDraft'
 import styles from './AgentGlobalModelDefaults.module.scss'
-import { AgentTokenLimitInput } from './AgentTokenLimitInput.tsx'
-
-interface DefaultsDraft {
-  defaultModelId: string
-  defaultReasoningLevel: AgentReasoningLevel
-  contextWindowTokens: number | null
-  maxOutputTokens: number | null
-  compactionThreshold: number | null
-}
-
-interface DefaultsValidation {
-  contextWindow?: string
-  maxOutput?: string
-  compactionThreshold?: string
-}
+import { AgentTokenLimitInput } from './AgentTokenLimitInput'
 
 const contextWindowPresets = [16_384, 32_768, 65_536, 131_072, 262_144]
 const maxOutputPresets = [2_048, 4_096, 8_192, 16_384, 32_768]
 
-export function AgentGlobalModelDefaults({
-  runtime,
-  onConflictVisibilityChange,
-}: {
-  runtime: AgentSetupController
-  onConflictVisibilityChange: (visible: boolean) => void
+export function AgentGlobalModelDefaults({ draft, errors, providers, models, busy, onChange }: {
+  draft: AgentConfigurationDraft
+  errors: Partial<Record<keyof AgentConfigurationDraft, string>>
+  providers: AgentModelProvider[]
+  models: AgentModel[]
+  busy: boolean
+  onChange(patch: Partial<AgentConfigurationDraft>): void
 }) {
   const { t } = useTranslation()
   const contextErrorId = useId()
   const outputErrorId = useId()
   const compactionErrorId = useId()
-  const settings = runtime.readiness?.settings
-  const [baselineRevision, setBaselineRevision] = useState(settings?.revision)
-  const [baseline, setBaseline] = useState<DefaultsDraft>(() => createDraft(settings))
-  const [draft, setDraft] = useState<DefaultsDraft>(() => createDraft(settings))
-  const [externalChange, setExternalChange] = useState(false)
-  const [feedback, setFeedback] = useState<'saved' | 'draftPreserved' | null>(null)
-  const providerById = useMemo(
-    () => new Map(runtime.providers.map((provider) => [provider.id, provider])),
-    [runtime.providers],
-  )
-  const modelById = useMemo(
-    () => new Map(runtime.models.map((model) => [model.id, model])),
-    [runtime.models],
-  )
-  const options = useMemo(
-    () => buildModelOptions(runtime.providers, runtime.models),
-    [runtime.models, runtime.providers],
-  )
-  const dirty = settings ? !sameDraft(draft, baseline) : false
-  const selectedModel = draft.defaultModelId ? modelById.get(draft.defaultModelId) : undefined
-  const busy = runtime.loading || runtime.mutation !== null
-  const validation = validateDraft(draft, t)
-  const invalid = Boolean(validation.contextWindow || validation.maxOutput || validation.compactionThreshold)
-  const runtimeSettingsConflict = runtime.conflict?.kind === 'settings'
-  const ownsRuntimeSettingsConflict = dirty && runtimeSettingsConflict
-  const conflictVisible = externalChange || ownsRuntimeSettingsConflict
-
-  useEffect(() => {
-    if (!settings || settings.revision === baselineRevision) return
-    if (dirty) {
-      setExternalChange(true)
-      return
-    }
-    const next = createDraft(settings)
-    setBaselineRevision(settings.revision)
-    setBaseline(next)
-    setDraft(next)
-    setExternalChange(false)
-    setFeedback(null)
-  }, [baselineRevision, dirty, settings])
-
-  useLayoutEffect(() => {
-    onConflictVisibilityChange(ownsRuntimeSettingsConflict)
-  }, [onConflictVisibilityChange, ownsRuntimeSettingsConflict])
-
-  if (!settings) return null
-
-  const reloadLatest = async () => {
-    const snapshot = runtimeSettingsConflict ? await runtime.resolveConflict() : null
-    if (runtimeSettingsConflict && !snapshot) return
-    const latestSettings = snapshot?.readiness.settings ?? settings
-    const next = createDraft(latestSettings)
-    setBaselineRevision(latestSettings.revision)
-    setBaseline(next)
-    setExternalChange(false)
-    setFeedback('draftPreserved')
-  }
-
-  const reset = () => {
-    const next = createDraft(settings)
-    setBaselineRevision(settings.revision)
-    setBaseline(next)
-    setDraft(next)
-    setExternalChange(false)
-    setFeedback(null)
-  }
-
-  const save = () => {
-    if (
-      !dirty
-      || invalid
-      || conflictVisible
-      || busy
-      || draft.contextWindowTokens === null
-      || draft.maxOutputTokens === null
-      || draft.compactionThreshold === null
-    ) return
-    setFeedback(null)
-    void runtime.updateSettings({
-      default_model_id: draft.defaultModelId,
-      default_reasoning_level: draft.defaultReasoningLevel,
-      global_context_window_tokens: draft.contextWindowTokens,
-      global_max_output_tokens: draft.maxOutputTokens,
-      context_compaction_threshold_percent: draft.compactionThreshold,
-    }).then((saved) => {
-      const next = createDraft(saved)
-      setBaselineRevision(saved.revision)
-      setBaseline(next)
-      setDraft(next)
-      setExternalChange(false)
-      setFeedback('saved')
-    }).catch(() => undefined)
-  }
-
+  const providerById = useMemo(() => new Map(providers.map(provider => [provider.id, provider])), [providers])
+  const modelById = useMemo(() => new Map(models.map(model => [model.id, model])), [models])
+  const options = useMemo(() => buildModelOptions(providers, models), [providers, models])
+  const selectedModel = modelById.get(draft.defaultModelId)
+  const validation = { contextWindow: errors.contextWindowTokens, maxOutput: errors.maxOutputTokens, compactionThreshold: errors.compactionThreshold }
   return (
     <section className={styles.defaults} aria-labelledby="agent-defaults-title">
       <header className={styles.heading}>
+        <SlidersHorizontal size={16} aria-hidden="true" />
+        <div>
         <h3 id="agent-defaults-title">{t('settings.agent.defaults.title')}</h3>
         <p>{t('settings.agent.defaults.description')}</p>
+        </div>
       </header>
       <div className={styles.controls}>
         <div className={styles['primary-controls']}>
@@ -200,7 +91,7 @@ export function AgentGlobalModelDefaults({
                   </Tooltip>
                 )
               }}
-              onChange={(value) => setDraft((current) => ({ ...current, defaultModelId: value ?? '' }))}
+              onChange={(value) => onChange({ defaultModelId: value ?? '' })}
             />
           </Field>
           <Field label={t('settings.agent.defaults.reasoning')}>
@@ -214,10 +105,7 @@ export function AgentGlobalModelDefaults({
                 value,
                 label: t(`settings.agent.reasoning.${value}`),
               }))}
-              onChange={(defaultReasoningLevel) => setDraft((current) => ({
-                ...current,
-                defaultReasoningLevel,
-              }))}
+              onChange={(defaultReasoningLevel) => onChange({ defaultReasoningLevel })}
             />
           </Field>
         </div>
@@ -240,10 +128,7 @@ export function AgentGlobalModelDefaults({
               errorId={contextErrorId}
               label={t('settings.agent.defaults.contextBudget')}
               quickSelectLabel={t('settings.agent.defaults.contextQuickSelect')}
-              onChange={(contextWindowTokens) => setDraft((current) => ({
-                ...current,
-                contextWindowTokens,
-              }))}
+              onChange={(contextWindowTokens) => onChange({ contextWindowTokens })}
             />
           </Field>
           <Field
@@ -263,10 +148,7 @@ export function AgentGlobalModelDefaults({
               errorId={outputErrorId}
               label={t('settings.agent.defaults.maxOutput')}
               quickSelectLabel={t('settings.agent.defaults.outputQuickSelect')}
-              onChange={(maxOutputTokens) => setDraft((current) => ({
-                ...current,
-                maxOutputTokens,
-              }))}
+              onChange={(maxOutputTokens) => onChange({ maxOutputTokens })}
             />
           </Field>
         </div>
@@ -288,59 +170,15 @@ export function AgentGlobalModelDefaults({
               aria-label={t('settings.agent.compaction.threshold')}
               aria-invalid={Boolean(validation.compactionThreshold)}
               aria-describedby={validation.compactionThreshold ? compactionErrorId : undefined}
-              onChange={(compactionThreshold) => setDraft((current) => ({ ...current, compactionThreshold }))}
+              onChange={(compactionThreshold) => onChange({ compactionThreshold })}
             />
           </Field>
           <p className={styles['compaction-hint']}>{t('settings.agent.compaction.hint')}</p>
         </div>
       </div>
-      {conflictVisible ? (
-        <Alert
-          className={styles.alert}
-          type="warning"
-          showIcon
-          title={t('settings.agent.conflict.title')}
-          description={t('settings.agent.conflict.defaultsDescription')}
-          action={(
-            <Button size="small" loading={runtime.loading} disabled={busy} onClick={() => void reloadLatest()}>
-              {t('settings.agent.conflict.refresh')}
-            </Button>
-          )}
-        />
-      ) : null}
-      {selectedModel && !isAgentModelRunnable(selectedModel, providerById.get(selectedModel.provider_id)) ? (
-        <Alert
-          className={styles.alert}
-          type="warning"
-          showIcon
-          title={t('settings.agent.defaults.unavailableTitle')}
-          description={t('settings.agent.defaults.unavailableDescription')}
-        />
-      ) : null}
-      <footer className={styles.footer}>
-        <span className={styles.feedback} role="status" aria-live="polite">
-          {conflictVisible ? null : feedback === 'draftPreserved' && dirty
-            ? t('settings.agent.defaults.draftPreserved')
-            : dirty ? t('settings.agent.defaults.unsaved')
-              : feedback === 'saved' ? t('settings.agent.defaults.saved') : null}
-        </span>
-        <div className={styles.actions}>
-          <Button disabled={busy || !dirty} onClick={reset}>
-            {t('settings.agent.defaults.reset')}
-          </Button>
-          <Button
-            className={styles.save}
-            type="primary"
-            icon={<Save size={14} />}
-            aria-label={t('settings.agent.defaults.save')}
-            loading={runtime.mutation === 'settings'}
-            disabled={busy || !dirty || invalid || conflictVisible}
-            onClick={save}
-          >
-            {t('app.save')}
-          </Button>
-        </div>
-      </footer>
+      {selectedModel && !isAgentModelRunnable(selectedModel, providerById.get(selectedModel.provider_id)) &&
+        <Alert className={styles.alert} type="warning" showIcon title={t('settings.agent.defaults.unavailableTitle')}
+          description={t('settings.agent.defaults.unavailableDescription')} />}
     </section>
   )
 }
@@ -378,58 +216,6 @@ function Field({ label, help, error, errorId, children }: {
       ) : null}
     </div>
   )
-}
-
-function createDraft(settings?: AgentSettings | null): DefaultsDraft {
-  return {
-    defaultModelId: settings?.default_model_id ?? '',
-    defaultReasoningLevel: settings?.default_reasoning_level ?? 'off',
-    contextWindowTokens: settings?.global_context_window_tokens ?? 16_384,
-    maxOutputTokens: settings?.global_max_output_tokens ?? 4_096,
-    compactionThreshold: settings?.context_compaction_threshold_percent ?? 80,
-  }
-}
-
-function sameDraft(left: DefaultsDraft, right: DefaultsDraft) {
-  return left.defaultModelId === right.defaultModelId
-    && left.defaultReasoningLevel === right.defaultReasoningLevel
-    && left.contextWindowTokens === right.contextWindowTokens
-    && left.maxOutputTokens === right.maxOutputTokens
-    && left.compactionThreshold === right.compactionThreshold
-}
-
-function validateDraft(draft: DefaultsDraft, t: (key: string) => string): DefaultsValidation {
-  const validation: DefaultsValidation = {}
-  if (!Number.isInteger(draft.compactionThreshold)
-    || draft.compactionThreshold === null
-    || draft.compactionThreshold < 50
-    || draft.compactionThreshold > 95) {
-    validation.compactionThreshold = t('settings.agent.compaction.validation')
-  }
-  if (!Number.isInteger(draft.contextWindowTokens) || !Number.isInteger(draft.maxOutputTokens)) {
-    if (!Number.isInteger(draft.contextWindowTokens)) {
-      validation.contextWindow = t('settings.agent.validation.integerTokens')
-    }
-    if (!Number.isInteger(draft.maxOutputTokens)) {
-      validation.maxOutput = t('settings.agent.validation.integerTokens')
-    }
-  }
-  if (
-    draft.contextWindowTokens !== null
-    && (draft.contextWindowTokens < 1024 || draft.contextWindowTokens > 2_000_000)
-  ) {
-    validation.contextWindow = t('settings.agent.validation.contextWindow')
-  }
-  if (
-    draft.maxOutputTokens !== null
-    && (
-      draft.maxOutputTokens < 1
-      || (draft.contextWindowTokens !== null && draft.maxOutputTokens > draft.contextWindowTokens)
-    )
-  ) {
-    validation.maxOutput = t('settings.agent.validation.tokenLimit')
-  }
-  return validation
 }
 
 function buildModelOptions(providers: AgentModelProvider[], models: AgentModel[]) {

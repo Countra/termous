@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { ConfigProvider } from 'antd'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSettingsEditor } from '#entities/settings'
 import type {
   AppearanceSettings,
   CompletionSettings,
@@ -16,6 +18,8 @@ const childState = vi.hoisted(() => ({
   dataPortabilityGateway: null as unknown,
   auditSettingsGateway: null as unknown,
   platform: 'darwin' as const,
+  protectDraft: false,
+  editorBusy: false,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -35,6 +39,8 @@ vi.mock('#features/mcp-access', () => ({
 vi.mock('#features/agent-setup', () => ({
   AgentSettingsPanel: function AgentSettingsPanel({ gateway }: { gateway: unknown }) {
     const [draft, setDraft] = useState('')
+    useSettingsEditor({ dirty: childState.protectDraft && Boolean(draft), busy: childState.editorBusy,
+      invalid: false, save: () => setDraft(''), reset: () => setDraft('') })
     return (
       <div data-testid="agent-settings" ref={() => { childState.agentSetupGateway = gateway }}>
         <input aria-label="agent-draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
@@ -164,7 +170,7 @@ vi.mock('#features/settings', () => ({
   ),
 }))
 
-import { SettingsPage } from '#pages/settings'
+import { SettingsDialog } from '#pages/settings'
 
 const terminalSettings: TerminalSettings = {
   font_family: 'jetbrains_mono',
@@ -189,8 +195,9 @@ const completionSettings: CompletionSettings = {
   },
 }
 
-function renderSettingsPage(overrides: Record<string, unknown> = {}) {
+function renderSettingsDialog(overrides: Record<string, unknown> = {}) {
   const handlers = {
+    onClose: vi.fn(),
     auditSettingsGateway: {
       getModule: vi.fn(), readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: vi.fn(() => () => {}),
     },
@@ -219,8 +226,12 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
     })),
     onWindowSettingsChange: vi.fn(async () => undefined),
   }
-  render(
-    <SettingsPage
+  function Harness() {
+    const [open, setOpen] = useState(true)
+    return <ConfigProvider theme={{ token: { motion: false } }}>
+    <button onClick={() => setOpen(true)}>open-settings</button>
+    <SettingsDialog
+      open={open}
       language="zh-CN"
       appearanceSettings={{ theme: 'dark' }}
       terminalSettings={terminalSettings}
@@ -248,15 +259,101 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       actionBusy={false}
       {...handlers}
       {...overrides}
-    />,
-  )
+      onClose={() => { handlers.onClose(); setOpen(false) }}
+    /></ConfigProvider>
+  }
+  render(<Harness />)
   return handlers
 }
 
-describe('设置页面装配合同', () => {
+describe('设置弹层装配合同', () => {
+  beforeEach(() => { childState.protectDraft = false; childState.editorBusy = false })
+
+  it('关闭弹层需要确认未保存修改，取消保留草稿，放弃后重新打开重置草稿', async () => {
+    childState.protectDraft = true
+    const user = userEvent.setup()
+    const handlers = renderSettingsDialog({ initialTab: 'agent' })
+    await user.type(screen.getByRole('textbox', { name: 'agent-draft' }), '草稿')
+    await user.click(screen.getByRole('button', { name: 'app.close' }))
+    expect(screen.getByText('settings.editor.leaveDescription')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(handlers.onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('草稿')
+    await user.click(screen.getByRole('button', { name: 'app.close' }))
+    await user.click(screen.getByRole('button', { name: 'settings.editor.discard' }))
+    await waitFor(() => expect(screen.queryByRole('tab')).not.toBeInTheDocument())
+    expect(handlers.onClose).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'open-settings' }))
+    expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('')
+  })
+
+  it('遮罩不关闭设置，空闲时 Esc 关闭并归还入口焦点', async () => {
+    const user = userEvent.setup()
+    const handlers = renderSettingsDialog()
+    await user.click(document.querySelector('.ant-modal-wrap')!)
+    expect(handlers.onClose).not.toHaveBeenCalled()
+    screen.getByRole('button', { name: 'app.close' }).focus()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(handlers.onClose).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole('button', { name: 'open-settings' }))
+    screen.getByRole('button', { name: 'app.close' }).focus()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'open-settings' })).toHaveFocus())
+  })
+
+  it('保存或内部确认期间，关闭按钮与 Esc 都不能关闭外层设置', async () => {
+    childState.editorBusy = true
+    const user = userEvent.setup()
+    const handlers = renderSettingsDialog({ initialTab: 'agent' })
+    expect(screen.getByRole('button', { name: 'app.close' })).toBeDisabled()
+    screen.getByRole('textbox', { name: 'agent-draft' }).focus()
+    await user.keyboard('{Escape}')
+    expect(handlers.onClose).not.toHaveBeenCalled()
+  })
+
+  it('统一保存栏接管业务草稿，取消离开保留修改，放弃后恢复保存边界', async () => {
+    childState.protectDraft = true
+    const user = userEvent.setup()
+    const onDirtyChange = vi.fn()
+    renderSettingsDialog({ initialTab: 'agent', onDirtyChange })
+    await user.type(screen.getByRole('textbox', { name: 'agent-draft' }), '新参数')
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    expect(screen.getAllByRole('button', { name: 'app.save' })).toHaveLength(1)
+    await user.click(screen.getByRole('tab', { name: 'settings.tabGeneral' }))
+    expect(screen.getByText('settings.editor.leaveDescription')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('新参数')
+    await user.click(screen.getByRole('tab', { name: 'settings.tabGeneral' }))
+    await user.click(screen.getByRole('button', { name: 'settings.editor.discard' }))
+    expect(screen.getByRole('tab', { name: 'settings.tabGeneral' })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+    await user.click(screen.getByRole('tab', { name: 'settings.tabAgent' }))
+    expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('')
+  })
+
+  it('业务保存期间禁用页面导航并向外报告忙碌状态', () => {
+    childState.editorBusy = true
+    const onBusyChange = vi.fn()
+    renderSettingsDialog({ initialTab: 'agent', onBusyChange })
+    expect(onBusyChange).toHaveBeenLastCalledWith(true)
+    for (const tab of screen.getAllByRole('tab')) expect(tab).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+  })
+
+  it('侧导航方向键移动焦点，按回车才切换当前页面', async () => {
+    const user = userEvent.setup()
+    renderSettingsDialog()
+    screen.getByRole('tab', { name: 'settings.tabGeneral' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('tab', { name: 'settings.tabShortcuts' })).toHaveFocus()
+    expect(screen.getByRole('tab', { name: 'settings.tabGeneral' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('tab', { name: 'settings.tabShortcuts' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('审计使用独立标签和专用接口，切换标签保留草稿', async () => {
     const user = userEvent.setup()
-    const handlers = renderSettingsPage({ initialTab: 'audit' })
+    const handlers = renderSettingsDialog({ initialTab: 'audit' })
     expect(screen.getByRole('tab', { name: 'settings.tabAudit' })).toHaveAttribute('aria-selected', 'true')
     expect(childState.auditSettingsGateway).toBe(handlers.auditSettingsGateway)
     await user.type(screen.getByRole('textbox', { name: 'audit-draft' }), '30')
@@ -266,14 +363,14 @@ describe('设置页面装配合同', () => {
   })
 
   it('审计设置遵守全局忙碌状态', () => {
-    renderSettingsPage({ initialTab: 'audit', actionBusy: true })
+    renderSettingsDialog({ initialTab: 'audit', actionBusy: true })
     expect(screen.getByRole('textbox', { name: 'audit-draft' })).toBeDisabled()
   })
 
   it('终端页读取默认模型，前往 AI 设置后再返回会刷新且保留设置草稿', async () => {
     const user = userEvent.setup()
     const getDefaultModelStatus = vi.fn().mockResolvedValue({ available: true, model_id: 'm1', model_name: 'Model one', provider_name: 'Provider' })
-    renderSettingsPage({ initialTab: 'terminal', defaultModelStatusGateway: { getDefaultModelStatus } })
+    renderSettingsDialog({ initialTab: 'terminal', defaultModelStatusGateway: { getDefaultModelStatus } })
     await waitFor(() => expect(screen.getByTestId('completion-model')).toHaveTextContent('Model one'))
     await user.click(screen.getByRole('button', { name: 'completion-open-agent-settings' }))
     expect(screen.getByRole('tab', { name: 'settings.tabAgent' })).toHaveAttribute('aria-selected', 'true')
@@ -286,20 +383,21 @@ describe('设置页面装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('提供十一个页签并保持通用设置默认页签和命令委托', async () => {
+  it('提供十二个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
-    const handlers = renderSettingsPage()
+    const handlers = renderSettingsDialog()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(11)
+    expect(tabs).toHaveLength(12)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
+      'settings.tabShortcuts',
       'settings.tabTerminal',
       'settings.tabConnection',
       'settings.tabRemoteDesktop',
       'settings.tabMount',
-      'settings.tabShortcuts',
       'settings.tabAgent',
+      'settings.tabModels',
       'settings.tabMcp',
       'settings.tabAudit',
       'settings.tabData',
@@ -319,7 +417,7 @@ describe('设置页面装配合同', () => {
   })
 
   it('支持从 Agent 工作区直接打开 Agent 设置页签', () => {
-    renderSettingsPage({ initialTab: 'agent' })
+    renderSettingsDialog({ initialTab: 'agent' })
 
     expect(screen.getByRole('tab', { name: 'settings.tabAgent' }))
       .toHaveAttribute('aria-selected', 'true')
@@ -328,7 +426,7 @@ describe('设置页面装配合同', () => {
 
   it('向导页签锚点激活对应面板并保留懒挂载实例及未保存草稿', async () => {
     const user = userEvent.setup()
-    const handlers = renderSettingsPage()
+    const handlers = renderSettingsDialog()
     const tabs = ['terminal', 'mcp', 'agent', 'data'] as const
     const panels = new Map<string, Element>()
 
@@ -368,7 +466,7 @@ describe('设置页面装配合同', () => {
 
   it('保持终端、连接、快捷键、Agent、MCP、数据和更新子模块的 Props 与命令委托', async () => {
     const user = userEvent.setup()
-    const handlers = renderSettingsPage()
+    const handlers = renderSettingsDialog()
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabTerminal' }))
     expect(screen.getByTestId('terminal-style')).toHaveAttribute('data-smooth-scroll', 'false')

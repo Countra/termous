@@ -1753,7 +1753,7 @@
       "claimNote": "Clean up retained files after saving them.",
       "clipboardNote": "Transfer files and folders through the remote clipboard.",
       "systemClipboard": "System file clipboard",
-      "systemClipboardHint": "Enable in Settings → Remote desktop → RDP. Applies to all local RDP sessions; control is required.",
+      "systemClipboardHint": "Enable in Settings → Remote desktop. Shared by local RDP sessions; control is required.",
       "systemClipboardEnabled": "Enabled",
       "systemClipboardInactive": "Inactive",
       "systemClipboardFailed": "System file clipboard operation did not finish. Manual transfers remain available.",
@@ -5314,24 +5314,63 @@
     }
   },
   "settings": {
+    "tabModels": "Model providers",
+    "groups": {
+      "basics": "Preferences",
+      "connections": "Connections & terminal",
+      "intelligence": "AI & integrations",
+      "maintenance": "Data & maintenance"
+    },
+    "editor": {
+      "processing": "Waiting for the current action",
+      "loading": "Loading settings…",
+      "unavailable": "Current settings are unavailable",
+      "save": "Save changes",
+      "reset": "Discard changes",
+      "saving": "Saving…",
+      "unsaved": "Unsaved changes",
+      "saved": "Changes saved",
+      "upToDate": "Settings are up to date",
+      "leaveTitle": "Discard unsaved changes?",
+      "leaveDescription": "Changes on this page have not been saved. Leaving restores the saved settings.",
+      "discard": "Discard and leave"
+    },
+    "descriptions": {
+      "general": "Appearance, window behavior and system notifications.",
+      "shortcuts": "Customize shortcuts for common actions.",
+      "terminal": "Terminal appearance and command completion.",
+      "connection": "SSH keepalive and background forward recovery.",
+      "remote-desktop": "RDP session retention, tunnel recovery and file clipboard.",
+      "mount": "Mount cache location and disk usage.",
+      "agent": "Default model, runtime behavior and task limits.",
+      "models": "Manage providers, credentials and available models.",
+      "mcp": "MCP service and authorized clients.",
+      "audit": "Operation logging and retention.",
+      "data": "Back up configuration or restore from a backup.",
+      "updates": "Background update checks and downloads."
+    },
     "conflict": "Settings changed elsewhere. The latest version is loaded and your draft is preserved. Review it before saving again.",
     "title": "Settings",
-    "subtitle": "Application preferences, language, terminal, and data management",
     "tabGeneral": "General",
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
     "tabRemoteDesktop": "Remote desktop",
-    "rdpSettings": "RDP settings",
-    "systemFileClipboard": "System file copy and paste",
-    "systemFileClipboardHint": "Remember on this device and apply to all local RDP sessions, including open sessions and separate windows. Copy and paste files and folders between the local file manager and the target desktop.",
-    "systemFileClipboardBoundary": "Copying files on the target replaces your local clipboard. Receiving requires an active connection and control. Content is read on demand; clipboard viewers may also trigger transfers.",
+    "rdpSettings": "Connection & sessions",
+    "rdpFileExchange": "File exchange",
+    "systemFileClipboard": "System file clipboard",
+    "systemFileClipboardHint": "Copy and paste files and folders between this device and the RDP desktop.",
+    "systemFileClipboardBoundary": "Copying remote files replaces your local clipboard.",
+    "systemFileClipboardDetailsTitle": "Usage details",
+    "systemFileClipboardDetails": "Shared by all local RDP sessions, including open sessions and separate windows. Receiving files requires an active connection and control. Files transfer on demand; clipboard viewers may also trigger reads.",
     "systemFileClipboardUnavailable": "Requires the Windows desktop app and an available system file clipboard service.",
     "systemFileClipboardFailed": "Could not load or save this setting. Try again.",
-    "rdpUnattendedTimeout": "Session retention period",
-    "rdpUnattendedTimeoutHint": "Starts when all session windows close. On expiry, the connection closes and resources are released. Reattaching cancels the timer; minimizing or switching tabs keeps the connection active.",
+    "rdpUnattendedTimeout": "Session retention",
+    "rdpUnattendedTimeoutHint": "Keep the connection after all windows for this session close, then disconnect when the time expires.",
     "rdpUnattendedMinutes": "minutes",
-    "rdpUnattendedRange": "1–30 minutes; default: 10. Press Enter or leave the field to save. Changes do not reset the timer.",
+    "rdpUnattendedRange": "1–30 min · Default 10",
+    "rdpRetentionDetailsTitle": "Timer & saving rules",
+    "rdpRetentionDetails": "Press Enter or leave the field to save. Reattaching cancels the timer. Minimizing or switching tabs does not start it. Changing the duration does not reset an active timer.",
     "connectionSaveFailed": "Failed to save connection settings. Please try again.",
     "rdpUnattendedInvalid": "Enter a whole number from 1 to 30 minutes.",
     "rdpUnattendedSaveFailed": "Could not save. Please try again.",
@@ -5346,14 +5385,13 @@
       "records": "Maximum retained records",
       "recordsHint": "0 for no limit; otherwise 1,000–1,000,000 records.",
       "retentionHint": "Records beyond either limit are permanently deleted, even when recording is disabled.",
-      "saved": "Saved",
       "loadFailed": "Unable to load audit settings. Try again.",
       "saveFailed": "Unable to confirm the saved changes. Try again."
     },
     "mount": {
       "title": "Mount cache",
       "directory": "Cache location",
-      "default": "Core data directory",
+      "default": "Default location",
       "custom": "Custom directory",
       "placeholder": "Enter an absolute path to a local folder",
       "choose": "Browse",
@@ -5365,7 +5403,7 @@
       "active": "Current cache directory",
       "next": "Cache directory after restart",
       "pending": "Restart required",
-      "restartHint": "Restart Core to apply changes. Changing location does not delete the old directory.",
+      "restartHint": "Restart the background service after saving to apply changes. The previous cache directory is retained.",
       "usage": "Current cache",
       "clean": "Clean content",
       "private": "Private writes and reservations",
@@ -5379,7 +5417,7 @@
         "failed": "Cleanup did not finish. Review the error before retrying."
       },
       "saved": "Saved.",
-      "savedPending": "Saved. Restart Core to apply.",
+      "savedPending": "Saved. Restart the background service to apply.",
       "failed": "Could not read or save mount settings. Please retry.",
       "unavailable": "Mount settings are unavailable in this environment."
     },
@@ -5413,18 +5451,18 @@
     "chinese": "Simplified Chinese",
     "english": "English",
     "terminalSection": "Terminal style",
-    "connectionSection": "Connection reliability",
+    "connectionSection": "SSH connections",
+    "forwardSettings": "Background forwards",
     "sshKeepalive": "SSH keepalive",
-    "sshKeepaliveHint": "Probe every long-lived SSH connection every 30 seconds and mark it disconnected after a 10-second timeout. Terminals and file operations are not restored or replayed.",
-    "forwardAutoReconnect": "Reconnect background forwards",
-    "forwardAutoReconnectHint": "Recover interrupted background forwards after 2, 4, and 8 seconds, with independent connection probes. Current-session forwards are not recreated automatically.",
-    "remoteDesktopAutoReconnect": "Reconnect remote desktops",
-    "remoteDesktopAutoReconnectHint": "Retry an interrupted SSH tunnel route up to three times. VNC performs a new handshake; existing frames and input streams cannot resume. Direct connections do not use this SSH recovery policy.",
-    "connectionLimits": "Existing terminal state, in-progress file work, and established TCP connections cannot be resumed or restored automatically.",
+    "sshKeepaliveHint": "Check SSH connections periodically to detect disconnections.",
+    "forwardAutoReconnect": "Auto reconnect",
+    "forwardAutoReconnectHint": "Retry background forwards up to 3 times. Session forwards are not recreated.",
+    "remoteDesktopAutoReconnect": "SSH tunnel recovery",
+    "remoteDesktopAutoReconnectHint": "Rebuild interrupted SSH tunnels. Direct connections and desktop sessions are not resumed.",
+    "connectionLimits": "Reconnecting does not restore terminal state, file operations or existing TCP connections.",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
     "completionAiEnabled": "Enable AI command completion",
-    "completionAiHint": "Use the default AI model to turn natural language into a command, then confirm to insert it.",
     "completionHint": "Suggest commands using Bash completion, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
@@ -5453,8 +5491,6 @@
       }
     },
     "shortcuts": {
-      "title": "Keyboard shortcuts",
-      "description": "Customize keys for common Termous actions. Unmatched keys remain available to the active terminal or component.",
       "searchPlaceholder": "Search actions, descriptions, or scopes",
       "customizedCount": "{{count}} customized",
       "resetAll": "Restore all defaults",
@@ -5642,7 +5678,6 @@
     "fontDeleted": "Font deleted",
     "update": {
       "title": "Update settings",
-      "description": "Choose background check and download preferences for new versions.",
       "automaticCheck": "Automatically check for updates",
       "automaticCheckHint": "Check for new versions in the background at the selected interval without interrupting your work.",
       "checkInterval": "Check interval",
@@ -5659,12 +5694,18 @@
     },
     "tabAgent": "AI assistant",
     "agent": {
+      "configuration": {
+        "behavior": "Runtime behavior",
+        "invalidConcurrency": "Choose between 1 and 8 concurrent sessions.",
+        "saveBeforeCheck": "Save or discard your changes first.",
+        "saveFailed": "Saving did not complete. Unsaved changes are preserved; please retry."
+      },
       "loadFailed": "AI assistant settings could not be loaded",
-      "operationFailed": "The AI assistant setting operation failed",
+      "operationFailed": "Action failed",
       "readiness": {
         "title": "Runtime readiness",
-      "description": "Check MCP, Skills, and the default model to prepare or repair the AI assistant runtime.",
-        "mcpRuntime": "MCP Runtime",
+        "description": "Check MCP, Skills, and the default model to prepare or repair the AI assistant runtime.",
+        "mcpRuntime": "MCP service",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
         "defaultModel": "Default model",
@@ -5689,10 +5730,13 @@
         "hint": "50–95%, default 80%. Recent conversation is retained. Changes apply to new runs.",
         "validation": "Enter a whole percentage from 50 to 95."
       },
-      "concurrency": {"title": "Concurrent AI sessions", "description": "Default: 4. Choose 1–8. Lowering the limit does not stop running tasks."},
+      "concurrency": {
+        "title": "Concurrent AI sessions",
+        "description": "Default: 4. Choose 1–8. Lowering the limit does not stop running tasks."
+      },
       "executionLimits": {
-        "title": "Execution budget",
-        "description": "Off by default for long, complex tasks. Enable limits on requests, tokens and repeated attempts per run. Changes apply to newly created runs; turning this off preserves your limits.",
+        "title": "Task execution limits",
+        "description": "Limit requests, tokens and retries for new tasks. Limits are retained when disabled.",
         "toggle": "Enable execution budget",
         "validation": "Enter a whole number from {{min}} to {{max}}.",
         "model_requests": {
@@ -5713,8 +5757,8 @@
         }
       },
       "profileBinding": {
-        "title": "SSH Profile association",
-        "description": "When off, only associate the Profile so the AI assistant can create an SSH session on demand. When on, connect immediately during association.",
+        "title": "Connect when linking an SSH profile",
+        "description": "Connect immediately when enabled, or let the assistant connect when a task needs it.",
         "toggle": "Connect when associating an SSH Profile",
         "immediate": "Connect now",
         "onDemand": "On demand"
@@ -5728,8 +5772,8 @@
         "hidden": "Hidden"
       },
       "policy": {
-        "title": "MCP approval policy",
-        "description": "The built-in AI assistant always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
+        "title": "Skip tool execution approval",
+        "description": "Applies to the built-in assistant. Allow authorized tools to run without approval; confirmation is required when saving.",
         "approval": "Tool execution approval",
         "review": "Ask every time",
         "bypass": "No confirmation",
@@ -5742,32 +5786,32 @@
         "test": "Test connection"
       },
       "providers": {
-      "title": "Model providers",
-      "count": "{{count}} providers",
-      "modelCount": "{{count}} models",
-        "search": "Search providers",
-        "add": "Add provider",
-        "noResults": "No matching providers",
-        "empty": "No providers have been added",
-        "emptyEditor": "Add a provider to discover its model catalog",
-        "new": "New provider",
+        "refresh": "Refresh services",
+        "backToServices": "Back to services",
+        "service": "Current service",
+        "title": "Model services",
+        "modelCount": "{{count}} models",
+        "search": "Search or select a service",
+        "add": "Add service",
+        "empty": "No services added",
+        "new": "New service",
         "connectionTab": "Connection",
         "catalogTab": "Model catalog",
-        "saved": "Provider settings saved",
-        "test": "Test provider",
-        "testSuccess": "Provider is available, {{latency}} ms, {{count}} models found",
-        "testFailed": "Provider test failed",
+        "saved": "Service configuration saved",
+        "test": "Test connection",
+        "testSuccess": "Connected · {{latency}} ms · {{count}} models",
+        "testFailed": "Connection test failed",
         "testReady": "The model catalog endpoint responded successfully.",
         "testUnavailable": "The model catalog request failed. Review the address and authentication.",
-        "discardTitle": "Discard unsaved provider changes?",
+        "discardTitle": "Discard unsaved service changes?",
         "discardDescription": "Switching now will discard the current form changes.",
         "discard": "Discard changes",
-        "deleteDefaultBlocked": "This provider contains the default model. Choose another default first"
+        "deleteDefaultBlocked": "This service contains the default model. Select another default first."
       },
-    "providerEditor": {
-      "basicSection": "General",
-      "connectionSection": "Connection and authentication",
-      "name": "Provider name",
+      "providerEditor": {
+        "basicSection": "General",
+        "connectionSection": "Connection and authentication",
+        "name": "Provider name",
         "namePlaceholder": "For example: Company OpenAI gateway",
         "apiMode": "API mode",
         "enabled": "Usage",
@@ -5776,7 +5820,6 @@
         "baseUrl": "Base URL",
         "optionalApiKey": "API key (optional)",
         "testRequiresSave": "Save the changes before testing this configuration",
-        "reset": "Discard changes",
         "httpRiskTitle": "This provider uses plain HTTP",
         "httpRisk": "Model requests, context, and credentials may be read or changed on the network path. Saving requires explicit confirmation.",
         "provisionFailure": {
@@ -5787,6 +5830,8 @@
         }
       },
       "catalog": {
+        "pendingDefault": "Pending default",
+        "pendingDefaultUnavailable": "The selected model is no longer available. Choose another model or discard changes.",
         "search": "Search model ID, name, or owner",
         "stateFilter": "Model state",
         "sourceFilter": "Model source",
@@ -5822,6 +5867,7 @@
         "remove": "Remove model",
         "restore": "Restore model",
         "moreActions": "More actions for {{model}}",
+        "editModel": "Edit {{model}}",
         "inheritsGlobal": "Uses global defaults",
         "customParameters": "Model-specific",
         "confirmRemoveTitle": "Remove this model?",
@@ -5875,14 +5921,9 @@
           "catalog_fetch_failed": "The model catalog could not be fetched. Check the provider status, then retry."
         }
       },
-    "defaults": {
-      "title": "New session defaults",
-      "description": "Used for new sessions. Model-specific settings take precedence.",
-        "save": "Save defaults",
-        "reset": "Discard changes",
-        "unsaved": "Unsaved changes",
-        "saved": "Defaults saved",
-        "draftPreserved": "Latest settings loaded. Your changes are preserved.",
+      "defaults": {
+        "title": "Model & context",
+        "description": "The default model applies to new sessions; model-specific limits take priority. The compaction threshold applies from the next turn.",
         "model": "Default model",
         "modelPlaceholder": "Select a model",
         "modelDetail": "{{provider}} · Display name: {{alias}}",
@@ -5910,11 +5951,12 @@
         "max": "Maximum"
       },
       "modelEditor": {
+        "backToModels": "Back to models",
         "addTitle": "Add model",
         "editTitle": "Edit model",
         "identitySection": "Model identity",
         "parametersSection": "Runtime parameters",
-        "capabilitiesSection": "Capability declaration",
+        "capabilitiesSection": "Model capabilities",
         "modelId": "Model ID",
         "modelIdPlaceholder": "Enter the model ID accepted by the provider",
         "displayName": "Display name",
@@ -5922,19 +5964,19 @@
         "contextBudget": "Context window",
         "maxOutput": "Output limit per response",
         "defaultReasoning": "Default reasoning effort",
-        "parameterMode": "Runtime parameter source",
-        "inheritGlobal": "Use global settings",
-        "customParameters": "Use model-specific settings",
+        "parameterMode": "Parameter source",
+        "inheritGlobal": "Global defaults",
+        "customParameters": "Custom values",
         "images": "Supports image input",
         "reasoningControl": "Model reasoning",
         "reasoningLevels": "Supported reasoning effort",
         "reasoningNone": "Not supported",
-        "reasoningEffort": "Reasoning effort",
+        "reasoningEffort": "Supported",
         "selectAllReasoningLevels": "Select all",
         "conservativeTitle": "Model capabilities not yet confirmed",
         "conservativeDescription": "These defaults enable image input and reasoning. Verify them against the provider documentation.",
-        "discardTitle": "Discard model capability changes?",
-        "discardDescription": "Closing now will discard the unsaved capability changes."
+        "discardTitle": "Discard model changes?",
+        "discardDescription": "Unsaved model configuration changes will be lost."
       },
       "apiKey": {
         "optionalPlaceholder": "Leave blank for services without authentication",
@@ -5979,13 +6021,13 @@
       "conflict": {
         "title": "This configuration changed elsewhere",
         "description": "Load the latest configuration, review it, and confirm the operation again.",
-        "editorDescription": "Loading the latest revision preserves this local draft. Review it and save again.",
+        "editorDescription": "Your draft is preserved. Load the latest configuration, review it and save again.",
         "providerDeleted": "This provider was deleted elsewhere. The local draft is preserved; discard it or choose another provider.",
         "modelDeleted": "This model was deleted with its provider elsewhere. The local capability draft is preserved and must be discarded explicitly before closing.",
         "modelRemoved": "This model was removed elsewhere. The local draft is preserved and must be discarded explicitly before closing.",
-        "defaultsDescription": "Global defaults changed elsewhere. Load the latest values before saving this draft.",
+        "defaultsDescription": "These settings have changed. Load the latest configuration, review and save your changes.",
         "refresh": "Load latest",
-        "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again."
+        "draftPreserved": "Latest configuration loaded. Your draft is preserved; review it and save again."
       },
       "validation": {
         "providerName": "Enter a provider name",
@@ -6066,7 +6108,7 @@
         }
       },
       "title": "MCP access",
-      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, file management, port forwarding, code snippets, and remote operations.",
+      "description": "Give external MCP clients access to authorized hosts and remote operations.",
       "state": {
         "disabled": "Disabled",
         "enabled": "Enabled"
@@ -6805,15 +6847,16 @@
     "approvalMissing": "This request may be resolved or expired, or a higher-priority approval is open. Check the current approval dialog.",
     "settings": {
       "title": "System notifications",
-      "hint": "Notify only when no Termous window has focus. Results remain in the message centre.",
-      "desktopOnly": "System notifications are available in the desktop app. The message centre is still available.",
-      "unsupported": "Native notifications are unavailable on this system. The message centre is still available.",
+      "hint": "Notify only while Termous is in the background.",
+      "desktopOnly": "System notifications are available in the desktop app.",
+      "unsupported": "Native notifications are unavailable on this system.",
+      "loading": "Loading notification settings…",
+      "unavailable": "Notification settings are temporarily unavailable.",
+      "categories": "Notification types",
+      "paused": "System notifications are paused. Your selections are kept.",
+      "centreHint": "All messages remain available in the message centre.",
       "error": "Unable to read or save notification settings",
-      "enabled": "Allow system notifications",
-      "agent": "AI assistant results",
-      "file": "File transfer results",
-      "approval": "Pending approvals",
-      "cloud": "Cloud service"
+      "enabled": "Allow system notifications"
     }
   }
 }

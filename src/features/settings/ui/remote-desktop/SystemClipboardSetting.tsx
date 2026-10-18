@@ -4,7 +4,8 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { settingsErrorCode, useSettingsModule } from '#entities/settings'
 import { useSystemClipboardOperation, systemClipboardReasonKey } from '#entities/system-clipboard'
-import styles from './RemoteDesktopSettings.module.scss'
+import { SettingsDetails, SettingsField, SettingsGroup } from '../controls/SettingsGroup'
+import styles from '../controls/SettingsGroup.module.scss'
 
 export function SystemClipboardSetting({ disabled }: { disabled: boolean }) {
   const importing = useSystemClipboardOperation('import_files')
@@ -27,23 +28,21 @@ function SystemClipboardPreference({ disabled, capabilityUnavailable, reason }: 
   const locked = disabled || module.busy || unavailable || capabilityUnavailable || typeof value !== 'boolean'
   const conflict = settingsErrorCode(module.error) === 'SETTINGS_REVISION_CONFLICT'
 
-  return <div className={styles.row}>
-    <ClipboardCopy size={18} className={styles.icon} aria-hidden="true" />
-    <div className={styles.copy}>
-      <label htmlFor={id}>{t('settings.systemFileClipboard')}</label>
-      <p id={`${id}-hint`}>{t('settings.systemFileClipboardHint')}</p>
-      <p id={`${id}-boundary`}>{t('settings.systemFileClipboardBoundary')}</p>
-    </div>
-    <div className={styles.control}>
-      <Switch id={id} checked={value === true} disabled={locked} loading={module.busy}
+  return <SettingsGroup title={t('settings.rdpFileExchange')} icon={<ClipboardCopy size={16} aria-hidden="true" />}>
+    <SettingsField label={t('settings.systemFileClipboard')} htmlFor={id}
+      description={t('settings.systemFileClipboardHint')} descriptionId={`${id}-hint`}
+      control={<Switch id={id} checked={value === true} disabled={locked} loading={module.busy}
         aria-describedby={`${id}-hint ${id}-boundary`}
-        onChange={enabled => { if (!locked) void module.update({ enabled }) }} />
-    </div>
-    {unavailable && <p className={styles.note}>{t('settings.systemFileClipboardUnavailable')}</p>}
-    {capabilityUnavailable && <p className={styles.note}>{t(systemClipboardReasonKey(reason))}</p>}
-    {module.error && <p role="alert" className={styles.error}>
-      {t(conflict ? 'settings.conflict' : 'settings.systemFileClipboardFailed')}
-      <Button type="link" size="small" disabled={disabled || module.busy} onClick={() => void module.refresh()}>{t('app.retry')}</Button>
-    </p>}
-  </div>
+        onChange={enabled => { if (!locked) void module.update({ enabled }) }} />}>
+      <p id={`${id}-boundary`} className={styles.hint}>{t('settings.systemFileClipboardBoundary')}</p>
+      <SettingsDetails summary={t('settings.systemFileClipboardDetailsTitle')}>{t('settings.systemFileClipboardDetails')}</SettingsDetails>
+      {(unavailable || capabilityUnavailable) && <p className={styles.hint} role="status">
+        {t(unavailable ? 'settings.systemFileClipboardUnavailable' : systemClipboardReasonKey(reason))}
+      </p>}
+      {module.error && <p role="alert" className={styles.error}>
+        {t(conflict ? 'settings.conflict' : 'settings.systemFileClipboardFailed')}
+        <Button type="link" size="small" disabled={disabled || module.busy} onClick={() => void module.refresh()}>{t('app.retry')}</Button>
+      </p>}
+    </SettingsField>
+  </SettingsGroup>
 }

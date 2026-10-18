@@ -15,13 +15,12 @@ import { loadAgentModelCatalog } from './loadAgentModelCatalog.ts'
 export type AgentSetupMutation =
   | 'setup'
   | 'settings'
-  | 'policy'
   | `provider:${string}`
   | `model:${string}`
   | null
 
 export type AgentSetupConflict =
-  | { kind: 'settings' | 'policy' }
+  | { kind: 'settings' | 'configuration' }
   | {
       kind: 'provider'
       operation: 'edit' | 'delete' | 'test' | 'refresh'
@@ -100,6 +99,11 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     mounted.current = true
     mutationRef.current = null
     setMutation(null)
+    setReadiness(null)
+    setProviders([])
+    setModels([])
+    setConflict(null)
+    setError(null)
     const controller = new AbortController()
     void load(controller.signal)
     return () => {
@@ -217,27 +221,31 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     )
   }, [execute, gateway, readiness])
 
-  const updatePolicy = useCallback((approvalBypass: boolean) => {
-    const policy = readiness?.mcp_policy
-    if (!policy) return Promise.reject(new Error('Agent MCP policy is unavailable'))
-    return execute(
-      'policy',
-      {
-        conflict: { kind: 'policy' },
-        reconcileAfterSuccess: true,
-        reconcileAfterFailure: true,
-      },
-      async (signal, isCurrent) => {
-        const next = await gateway.updateMcpPolicy({
-          approval_bypass: approvalBypass,
-          sync_scopes: false,
-          expected_revision: policy.revision,
-        }, signal)
-        if (isCurrent()) setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
-        return next
-      },
-    )
-  }, [execute, gateway, readiness?.mcp_policy])
+  const clearConfigurationFeedback = useCallback(() => {
+    setError(null)
+    setConflict(current => current?.kind === 'configuration' ? null : current)
+  }, [])
+
+  const saveConfiguration = useCallback((
+    settingsInput?: Parameters<AgentSetupGateway['updateSettings']>[0],
+    policyInput?: Parameters<AgentSetupGateway['updateMcpPolicy']>[0],
+  ) => execute('settings', { conflict: { kind: 'configuration' }, reconcileAfterSuccess: true, reconcileAfterFailure: true }, async (signal, isCurrent) => {
+    if (!readiness) throw new Error('AI 助手设置尚未加载')
+    let settings = readiness.settings
+    let policy = readiness.mcp_policy
+    // 两个协议资源不具备事务；逐项回写确认值，后续失败时仅保留未完成的草稿。
+    if (settingsInput) {
+      settings = await gateway.updateSettings(settingsInput, signal)
+      if (!isCurrent()) throw requestAbortedError()
+      setReadiness(current => current ? { ...current, settings } : current)
+    }
+    if (policyInput) {
+      policy = await gateway.updateMcpPolicy(policyInput, signal)
+      if (!isCurrent()) throw requestAbortedError()
+      setReadiness(current => current ? { ...current, mcp_policy: policy } : current)
+    }
+    return { settings, policy }
+  }), [execute, gateway, readiness])
 
   const saveProvider = useCallback((
     input: AgentModelProviderInput,
@@ -403,14 +411,14 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
 
   return useMemo(() => ({
     readiness, providers, models, loading, mutation, error, conflict,
-    load, resolveConflict, setup, updateSettings, updatePolicy,
+    load, resolveConflict, setup, updateSettings, saveConfiguration, clearConfigurationFeedback,
     saveProvider, deleteProvider, testProvider, refreshProvider,
     createModel, saveModel, removeModel, restoreModel, testModel,
   }), [
     conflict, deleteProvider, error, load, loading, models, mutation, providers,
     readiness, refreshProvider, removeModel, resolveConflict, restoreModel,
     createModel, saveModel, saveProvider, setup, testModel, testProvider,
-    updatePolicy, updateSettings,
+    updateSettings, saveConfiguration, clearConfigurationFeedback,
   ])
 }
 

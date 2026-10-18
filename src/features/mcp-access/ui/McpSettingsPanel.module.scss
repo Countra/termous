@@ -1,26 +1,29 @@
+@use '../../../shared/styles/settings' as settings;
+
 .stack {
   display: grid;
-  gap: 12px;
+  gap: 0;
 }
 
 .surface {
   display: grid;
-  gap: 15px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  padding: 16px;
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(18px) saturate(1.12);
+  gap: 10px;
+  padding-top: 22px;
+}
+
+.settings-body {
+  @include settings.panel;
+
+  display: grid;
+  gap: 14px;
+  padding: 17px 18px;
 }
 
 .heading,
 .section-header {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 13px;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .heading h2,
@@ -32,7 +35,7 @@
 
 .heading h2,
 .section-header h2 {
-  font-size: 15px;
+  @include settings.heading;
 }
 
 .heading p,
@@ -53,13 +56,14 @@
 }
 
 .heading-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .state-pill {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
   margin-left: auto;
@@ -69,6 +73,7 @@
   padding: 4px 9px;
   color: var(--text-secondary);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .state-pill > span {
@@ -91,16 +96,17 @@
 }
 
 .setting-row p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
+  @include settings.hint;
+}
+
+.setting-row strong {
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .endpoint-row {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-subtle);
-  padding: 11px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
 }
 
 .endpoint-row > div {
@@ -149,8 +155,9 @@
 }
 
 .client-list {
+  @include settings.panel;
+
   display: grid;
-  gap: 7px;
 }
 
 .client {
@@ -158,10 +165,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface-subtle);
-  padding: 11px 12px;
+  padding: 17px 18px;
+}
+
+.client + .client {
+  border-top: 1px solid var(--border);
 }
 
 .client.is-muted {
@@ -269,8 +277,6 @@
 }
 
 .empty {
-  border: 1px dashed var(--border-strong);
-  border-radius: 10px;
   padding: 24px;
   color: var(--text-muted);
   font-size: 12px;

@@ -134,4 +134,51 @@ describe('挂载本机缓存设置', () => {
     expect(screen.queryByText('settings.mount.savedPending')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
   })
+
+  it('未编辑时同步外部版本，撤销脏草稿恢复最新目录和预算', async () => {
+    const gateway = setup()
+    await screen.findByDisplayValue('C:/data')
+    gateway.mountSettings.mockResolvedValue({ ...initial, cache_max_bytes: 15 * 2 ** 30 })
+    await act(async () => { await gateway.readModule('mount') })
+    expect(screen.getByLabelText('settings.mount.capacity')).toHaveValue('15')
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('settings.mount.capacity'), { target: { value: '20' } })
+    gateway.mountSettings.mockResolvedValue({ ...initial, cache_directory: 'E:/cache', cache_max_bytes: 30 * 2 ** 30 })
+    await act(async () => { await gateway.readModule('mount') })
+    expect(screen.getByLabelText('settings.mount.capacity')).toHaveValue('20')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
+    expect(screen.getByLabelText('settings.mount.capacity')).toHaveValue('30')
+    expect(screen.getByDisplayValue('E:/cache')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(gateway.updateMountSettings).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('settings.mount.capacity'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(gateway.updateMountSettings).toHaveBeenCalledWith({
+      cache_directory: 'E:/cache', cache_max_bytes: 40 * 2 ** 30, cache_min_free_bytes: 512 * 2 ** 20,
+    }))
+  })
+
+  it('冲突后撤销采用最新快照并清除错误，后续保存保留最新目录', async () => {
+    const gateway = setup()
+    const update = vi.spyOn(gateway, 'updateModule')
+    await screen.findByDisplayValue('C:/data')
+    gateway.updateMountSettings.mockRejectedValueOnce(new Error('SETTINGS_REVISION_CONFLICT'))
+    gateway.mountSettings.mockResolvedValue({ ...initial, cache_directory: 'E:/cache', cache_max_bytes: 30 * 2 ** 30 })
+    fireEvent.change(screen.getByLabelText('settings.mount.capacity'), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    await screen.findByRole('alert')
+    expect(screen.getByLabelText('settings.mount.capacity')).toHaveValue('20')
+    const revision = gateway.getModule('mount')!.revision
+    fireEvent.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
+    expect(screen.getByLabelText('settings.mount.capacity')).toHaveValue('30')
+    expect(screen.getByDisplayValue('E:/cache')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('settings.mount.capacity'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith('mount', {
+      cache_directory: 'E:/cache', cache_max_bytes: 40 * 2 ** 30, cache_min_free_bytes: 512 * 2 ** 20,
+    }, { expectedRevision: revision, signal: expect.any(AbortSignal) }))
+  })
 })

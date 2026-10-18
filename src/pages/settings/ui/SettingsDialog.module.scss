@@ -1,0 +1,68 @@
+.root {
+  -webkit-app-region: no-drag;
+}
+
+.root :global(.ant-modal-mask) {
+  background: rgb(0 0 0 / 38%);
+  backdrop-filter: blur(5px);
+}
+
+.dialog {
+  max-width: calc(100vw - 64px);
+  padding-bottom: 0;
+}
+
+.dialog .container {
+  display: flex;
+  height: min(86dvh, 860px);
+  max-height: calc(100dvh - 48px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+}
+
+.dialog .header {
+  flex-shrink: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 17px 56px 17px 22px;
+  color: var(--text-primary);
+}
+
+.dialog .close {
+  top: 13px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+
+.dialog .close:hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.dialog .body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 0;
+}
+
+@media (width <= 760px) {
+  .dialog {
+    max-width: calc(100vw - 24px);
+    margin-inline: auto;
+  }
+
+  .dialog .container {
+    height: calc(100dvh - 24px);
+    max-height: none;
+  }
+}

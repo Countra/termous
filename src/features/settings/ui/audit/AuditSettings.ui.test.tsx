@@ -52,6 +52,7 @@ describe('审计设置页', () => {
     const read = vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue(initial)
     render(<AuditSettings gateway={gateway({ auditSettings: read })} disabled={false} />)
     await screen.findByText('无法读取审计设置，请重试')
+    expect(screen.queryByText('当前设置已保存')).not.toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
@@ -122,5 +123,52 @@ describe('审计设置页', () => {
     } finally {
       await act(async () => { await changeLanguage('zh-CN') })
     }
+  })
+
+  it('未编辑时跟随外部版本，编辑中保留草稿，撤销采用最新确认值', async () => {
+    const api = gateway()
+    render(<AuditSettings gateway={api} disabled={false} />)
+    const days = await screen.findByRole('spinbutton', { name: '最长保留天数' })
+    vi.mocked(api.auditSettings).mockResolvedValue({ ...initial, retention_days: 60 })
+    await act(async () => { await api.readModule('audit') })
+    expect(days).toHaveValue('60')
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+
+    fireEvent.change(days, { target: { value: '30' } })
+    vi.mocked(api.auditSettings).mockResolvedValue({ ...initial, enabled: false, retention_days: 45 })
+    await act(async () => { await api.readModule('audit') })
+    expect(days).toHaveValue('30')
+    fireEvent.click(screen.getByRole('button', { name: '撤销更改' }))
+    expect(days).toHaveValue('45')
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+    expect(api.updateAuditSettings).not.toHaveBeenCalled()
+
+    fireEvent.change(days, { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(api.updateAuditSettings).toHaveBeenCalledWith({ retention_days: 20 }, expect.any(AbortSignal)))
+  })
+
+  it('冲突后撤销清除过期反馈，后续保存使用最新版本和字段基线', async () => {
+    const api = gateway({ updateAuditSettings: vi.fn().mockRejectedValueOnce(new Error('SETTINGS_REVISION_CONFLICT'))
+      .mockImplementation(async patch => ({ ...initial, enabled: false, ...patch })) })
+    const update = vi.spyOn(api, 'updateModule')
+    render(<AuditSettings gateway={api} disabled={false} />)
+    const days = await screen.findByRole('spinbutton', { name: '最长保留天数' })
+    fireEvent.change(days, { target: { value: '30' } })
+    vi.mocked(api.auditSettings).mockResolvedValue({ ...initial, enabled: false, retention_days: 60 })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await screen.findByRole('alert')
+    expect(days).toHaveValue('30')
+    const revision = api.getModule('audit')!.revision
+    fireEvent.click(screen.getByRole('button', { name: '撤销更改' }))
+    expect(days).toHaveValue('60')
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.change(days, { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith('audit', { retention_days: 20 }, {
+      expectedRevision: revision, signal: expect.any(AbortSignal),
+    }))
   })
 })

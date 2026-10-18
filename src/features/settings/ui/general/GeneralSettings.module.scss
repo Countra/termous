@@ -1,6 +1,8 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .language-switch:global(.ant-segmented) {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 7px;
   background: var(--surface-subtle);
   padding: 3px;
 }
@@ -13,11 +15,14 @@
 }
 
 .login-item-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 18px;
-  padding-top: 14px;
+  @include settings.row;
+
+  border-top: 1px solid var(--border);
+}
+
+.login-item-heading strong {
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .login-item-control {

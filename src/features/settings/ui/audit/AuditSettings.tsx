@@ -3,7 +3,8 @@ import { ClipboardList } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { decodeAuditSettings, type AuditSettings as Settings } from '#entities/audit'
-import { useSettingsModule, settingsErrorCode } from '#entities/settings'
+import { useSettingsModule, useSettingsEditor, settingsErrorCode } from '#entities/settings'
+import { SettingsSaveBar } from '#shared/ui'
 import type { AuditSettingsGateway } from '../../api/auditSettingsGateway'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './AuditSettings.module.scss'
@@ -23,23 +24,23 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
   const unavailable = module.snapshot?.state.status === 'unavailable'
   const failed = module.error !== null || unavailable
   const conflict = settingsErrorCode(module.error) === 'SETTINGS_REVISION_CONFLICT'
+  const dirty = saved !== null && (saved.enabled !== enabled || saved.retention_days !== days || saved.max_records !== records)
 
   useEffect(() => { setSaved(null); setSavedRevision(undefined); setSavedNotice(false) }, [gateway])
   useEffect(() => {
-    if (!module.snapshot || module.snapshot.state.status === 'unavailable' || saved !== null) return
+    if (!module.snapshot || module.snapshot.state.status === 'unavailable') return
+    if (saved !== null && (dirty || module.busy || module.snapshot.revision === savedRevision)) return
     const value = decodeAuditSettings(module.snapshot.value)
     setSaved(value)
     setSavedRevision(module.snapshot.revision)
     setEnabled(value.enabled)
     setDays(value.retention_days)
     setRecords(value.max_records)
-  }, [module.snapshot, saved])
-
-  useEffect(() => { if (conflict && module.snapshot) setSavedRevision(module.snapshot.revision) }, [conflict, module.snapshot])
+    setSavedNotice(false)
+  }, [module.snapshot, module.busy, dirty, saved, savedRevision])
 
   const validDays = days !== null && Number.isInteger(days) && days >= 1 && days <= 3650
   const validRecords = records !== null && Number.isInteger(records) && (records === 0 || (records >= 1000 && records <= 1_000_000))
-  const dirty = saved !== null && (saved.enabled !== enabled || saved.retention_days !== days || saved.max_records !== records)
   const locked = disabled || loading || saving || !saved || unavailable
   const save = async () => {
     if (locked || !saved || !validDays || !validRecords || !dirty) return
@@ -48,7 +49,7 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
     if (enabled !== saved.enabled) patch.enabled = enabled
     if (days !== saved.retention_days) patch.retention_days = days
     if (records !== saved.max_records) patch.max_records = records
-    const snapshot = await module.update(patch, savedRevision)
+    const snapshot = await module.update(patch, conflict ? module.snapshot?.revision ?? savedRevision : savedRevision)
     if (!snapshot) return
     const value = decodeAuditSettings(snapshot.value)
     setSaved(value)
@@ -58,6 +59,17 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
     setRecords(value.max_records)
     setSavedNotice(true)
   }
+  const reset = () => {
+    if (!saved) return
+    const snapshot = module.snapshot
+    const value = snapshot && snapshot.state.status !== 'unavailable' ? decodeAuditSettings(snapshot.value) : saved
+    setSaved(value)
+    if (snapshot && snapshot.state.status !== 'unavailable') setSavedRevision(snapshot.revision)
+    setEnabled(value.enabled); setDays(value.retention_days); setRecords(value.max_records); setSavedNotice(false)
+    module.clearError()
+  }
+  const managed = useSettingsEditor({ dirty, busy: loading || saving, invalid: locked || !validDays || !validRecords,
+    ready: Boolean(saved) && !unavailable, saved: savedNotice, save: () => { void save() }, reset })
 
   return (
     <section className={surfaceStyles.surface} aria-labelledby={`${id}-title`}>
@@ -85,10 +97,8 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
             <p className={surfaceStyles.hint}>{t('settings.audit.retentionHint')}</p>
           </div>
         </>}
-        <div className={styles.footer}>
-          {savedNotice && !dirty && <p className={surfaceStyles.hint} role="status">{t('settings.audit.saved')}</p>}
-          <Button aria-label={t('app.save')} type="primary" loading={saving} disabled={locked || !dirty || !validDays || !validRecords} onClick={() => void save()}>{t('app.save')}</Button>
-        </div>
+        {!managed && <SettingsSaveBar dirty={dirty} ready={Boolean(saved) && !unavailable} busy={loading || saving} invalid={locked || !validDays || !validRecords}
+          saved={savedNotice} onSave={() => { void save() }} onReset={reset} />}
       </div>
     </section>
   )

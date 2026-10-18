@@ -1,4 +1,5 @@
 export { ConfirmDialog } from './ConfirmDialog'
+export { SettingsSaveBar } from './SettingsSaveBar'
 export { ImageThumbnail, type ImageThumbnailSource } from './ImageThumbnail.tsx'
 export { ImagePreview, type ImagePreviewSource } from './ImagePreview.tsx'
 export { default as confirmDialogStyles } from './ConfirmDialog.module.scss'

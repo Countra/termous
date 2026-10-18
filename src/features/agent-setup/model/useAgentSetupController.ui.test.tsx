@@ -33,7 +33,7 @@ describe('useAgentSetupController', () => {
     expect(view.result.current.readiness).toEqual(server)
   })
 
-  it.each([false, true])('审批开关只保存模式 %s，兼容字段 sync_scopes 始终为 false', async (approvalBypass) => {
+  it.each([false, true])('统一保存仅修改审批模式 %s 时不写普通参数，sync_scopes 始终为 false', async (approvalBypass) => {
     const initial = readinessFixture()
     initial.mcp_policy = { ...initial.mcp_policy!, revision: 7, approval_bypass: !approvalBypass }
     const updated = { ...initial.mcp_policy, revision: 8, approval_bypass: approvalBypass }
@@ -43,7 +43,7 @@ describe('useAgentSetupController', () => {
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))
 
-    await act(async () => { await view.result.current.updatePolicy(approvalBypass) })
+    await act(async () => { await view.result.current.saveConfiguration(undefined, { approval_bypass: approvalBypass, sync_scopes: false, expected_revision: 7 }) })
 
     expect(gateway.updateMcpPolicy).toHaveBeenCalledExactlyOnceWith({
       approval_bypass: approvalBypass, sync_scopes: false, expected_revision: 7,

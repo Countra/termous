@@ -1,33 +1,45 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .section {
+  container-name: terminal-style;
+  container-type: inline-size;
   min-height: 0;
   align-items: stretch;
 }
 
 .grid {
+  @include settings.panel;
+
   display: grid;
   min-height: 0;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
   gap: 18px;
+  padding: 16px 18px;
 }
 
 .controls {
   display: grid;
   min-width: 0;
-  gap: 10px;
+  gap: 0;
 }
 
 .setting-line {
   display: grid;
-  min-height: 42px;
+  min-height: 50px;
   grid-template-columns: 118px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
+  padding-block: 12px;
+}
+
+.setting-line + .setting-line {
+  border-top: 1px solid var(--border);
 }
 
 .setting-line > span {
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .select {
@@ -37,8 +49,8 @@
 .font-collapse:global(.ant-collapse) {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+  border-radius: 6px;
+  background: transparent;
 }
 
 .font-collapse:global(.ant-collapse) > :global(.ant-collapse-item) {
@@ -174,7 +186,7 @@
   align-content: start;
   overflow: hidden;
   border: 1px solid var(--terminal-border);
-  border-radius: 14px;
+  border-radius: 8px;
   background: #080a0f;
   color: #e6ebf4;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
@@ -264,7 +276,7 @@
   }
 }
 
-@media (width <= 980px) {
+@container terminal-style (width <= 820px) {
   .grid {
     grid-template-columns: 1fr;
   }
@@ -280,8 +292,7 @@
   }
 }
 
-@media (width <= 1240px) {
-  .grid,
+@container terminal-style (width <= 400px) {
   .setting-line {
     grid-template-columns: 1fr;
   }

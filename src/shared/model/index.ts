@@ -3,4 +3,4 @@ export {
   calculateFixedVirtualWindow,
   type FixedVirtualWindow,
 } from './fixedVirtualWindow.ts'
-export type { PageKey } from './navigation.ts'
+export type { NavigationTarget, PageKey } from './navigation.ts'

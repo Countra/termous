@@ -1,5 +1,6 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useId, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Button, Checkbox, Input, InputNumber, Segmented, Select, Switch } from 'antd'
+import { CircleOff, Fingerprint, Globe2, Image, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { agentReasoningLevels, type AgentModel, type AgentSettings } from '#entities/agent'
 import { customSelectStyles } from '#shared/ui'
@@ -7,7 +8,7 @@ import {
   resolveEffectiveReasoningLevel,
   type AgentModelDraft,
 } from '../model/agentModelEditorDraft.ts'
-import styles from './AgentModelEditorDialog.module.scss'
+import styles from './AgentModelConfigurationFields.module.scss'
 
 interface AgentModelConfigurationFieldsProps {
   draft: AgentModelDraft
@@ -74,11 +75,13 @@ export function AgentModelConfigurationFields({
   }
 
   return (
-    <>
-      <EditorSection title={t('settings.agent.modelEditor.identitySection')}>
+    <div className={styles.configuration}>
+      <EditorSection title={t('settings.agent.modelEditor.identitySection')}
+        icon={<Fingerprint size={14} aria-hidden="true" />} className={styles.identity}>
         <div className={styles.grid}>
-          <Field label={t('settings.agent.modelEditor.modelId')} wide>
+          <Field label={t('settings.agent.modelEditor.modelId')}>
             <Input
+              className={styles['model-id']}
               autoFocus={!editing}
               value={draft.remoteModelId}
               maxLength={200}
@@ -90,7 +93,7 @@ export function AgentModelConfigurationFields({
               }))}
             />
           </Field>
-          <Field label={t('settings.agent.modelEditor.displayName')} wide>
+          <Field label={t('settings.agent.modelEditor.displayName')}>
             <Input
               value={draft.displayName}
               maxLength={200}
@@ -105,8 +108,66 @@ export function AgentModelConfigurationFields({
         </div>
       </EditorSection>
 
-      <EditorSection title={t('settings.agent.modelEditor.parametersSection')}>
-        <FieldGroup label={t('settings.agent.modelEditor.parameterMode')}>
+      <EditorSection title={t('settings.agent.modelEditor.capabilitiesSection')}
+        icon={<Sparkles size={14} aria-hidden="true" />}>
+        <div className={styles['capability-row']}>
+          <span><Image size={14} aria-hidden="true" />{t('settings.agent.modelEditor.images')}</span>
+          <Switch
+            size="small"
+            checked={draft.supportsImages}
+            disabled={busy}
+            aria-label={t('settings.agent.modelEditor.images')}
+            onChange={(supportsImages) => setDraft((current) => ({ ...current, supportsImages }))}
+          />
+        </div>
+        <FieldGroup label={t('settings.agent.modelEditor.reasoningControl')} inline>
+          <Segmented
+            block
+            value={draft.reasoningControl}
+            disabled={busy}
+            className={styles['editor-segmented']}
+            aria-label={t('settings.agent.modelEditor.reasoningControl')}
+            options={[
+              { value: 'none', icon: <CircleOff size={13} aria-hidden="true" />, label: t('settings.agent.modelEditor.reasoningNone') },
+              { value: 'openai_effort', icon: <Sparkles size={13} aria-hidden="true" />, label: t('settings.agent.modelEditor.reasoningEffort') },
+            ]}
+            onChange={(value) => updateReasoningControl(value as AgentModelDraft['reasoningControl'])}
+          />
+        </FieldGroup>
+        {draft.reasoningControl === 'openai_effort' ? (
+          <div className={styles['reasoning-options']}>
+            <div className={styles['reasoning-options-header']}>
+              <span>{t('settings.agent.modelEditor.reasoningLevels')}</span>
+              <Button
+                type="text"
+                size="small"
+                disabled={busy || allReasoningLevelsSelected}
+                className={styles['reasoning-select-all']}
+                onClick={() => updateSupportedLevels([...agentReasoningLevels])}
+              >
+                {t('settings.agent.modelEditor.selectAllReasoningLevels')}
+              </Button>
+            </div>
+            <Checkbox.Group
+              className={styles['reasoning-levels']}
+              value={draft.supportedReasoningLevels}
+              disabled={busy}
+              aria-label={t('settings.agent.modelEditor.reasoningLevels')}
+              onChange={updateSupportedLevels}
+            >
+              {agentReasoningLevels.map((level) => (
+                <Checkbox key={level} value={level}>
+                  {t(`settings.agent.reasoning.${level}`)}
+                </Checkbox>
+              ))}
+            </Checkbox.Group>
+          </div>
+        ) : null}
+      </EditorSection>
+
+      <EditorSection title={t('settings.agent.modelEditor.parametersSection')}
+        icon={<SlidersHorizontal size={14} aria-hidden="true" />}>
+        <FieldGroup label={t('settings.agent.modelEditor.parameterMode')} inline>
           <Segmented
             block
             value={draft.parameterMode}
@@ -114,8 +175,8 @@ export function AgentModelConfigurationFields({
             className={styles['editor-segmented']}
             aria-label={t('settings.agent.modelEditor.parameterMode')}
             options={[
-              { value: 'inherit_global', label: t('settings.agent.modelEditor.inheritGlobal') },
-              { value: 'custom', label: t('settings.agent.modelEditor.customParameters') },
+              { value: 'inherit_global', icon: <Globe2 size={13} aria-hidden="true" />, label: t('settings.agent.modelEditor.inheritGlobal') },
+              { value: 'custom', icon: <SlidersHorizontal size={13} aria-hidden="true" />, label: t('settings.agent.modelEditor.customParameters') },
             ]}
             onChange={(parameterMode) => setDraft((current) => ({
               ...current,
@@ -187,70 +248,21 @@ export function AgentModelConfigurationFields({
           </div>
         )}
       </EditorSection>
-
-      <EditorSection title={t('settings.agent.modelEditor.capabilitiesSection')}>
-        <div className={styles['capability-row']}>
-          <span>{t('settings.agent.modelEditor.images')}</span>
-          <Switch
-            checked={draft.supportsImages}
-            disabled={busy}
-            aria-label={t('settings.agent.modelEditor.images')}
-            onChange={(supportsImages) => setDraft((current) => ({ ...current, supportsImages }))}
-          />
-        </div>
-        <FieldGroup label={t('settings.agent.modelEditor.reasoningControl')}>
-          <Segmented
-            block
-            value={draft.reasoningControl}
-            disabled={busy}
-            className={styles['editor-segmented']}
-            aria-label={t('settings.agent.modelEditor.reasoningControl')}
-            options={[
-              { value: 'none', label: t('settings.agent.modelEditor.reasoningNone') },
-              { value: 'openai_effort', label: t('settings.agent.modelEditor.reasoningEffort') },
-            ]}
-            onChange={(value) => updateReasoningControl(value as AgentModelDraft['reasoningControl'])}
-          />
-        </FieldGroup>
-        {draft.reasoningControl === 'openai_effort' ? (
-          <div className={styles['reasoning-options']}>
-            <div className={styles['reasoning-options-header']}>
-              <span>{t('settings.agent.modelEditor.reasoningLevels')}</span>
-              <Button
-                type="text"
-                size="small"
-                disabled={busy || allReasoningLevelsSelected}
-                className={styles['reasoning-select-all']}
-                onClick={() => updateSupportedLevels([...agentReasoningLevels])}
-              >
-                {t('settings.agent.modelEditor.selectAllReasoningLevels')}
-              </Button>
-            </div>
-            <Checkbox.Group
-              className={styles['reasoning-levels']}
-              value={draft.supportedReasoningLevels}
-              disabled={busy}
-              aria-label={t('settings.agent.modelEditor.reasoningLevels')}
-              onChange={updateSupportedLevels}
-            >
-              {agentReasoningLevels.map((level) => (
-                <Checkbox key={level} value={level}>
-                  {t(`settings.agent.reasoning.${level}`)}
-                </Checkbox>
-              ))}
-            </Checkbox.Group>
-          </div>
-        ) : null}
-      </EditorSection>
-    </>
+    </div>
   )
 }
 
-function EditorSection({ title, children }: { title: string; children: React.ReactNode }) {
+function EditorSection({ title, icon, className = '', children }: {
+  title: string
+  icon: ReactNode
+  className?: string
+  children: ReactNode
+}) {
+  const titleId = useId()
   return (
-    <section className={styles.section}>
-      <h3>{title}</h3>
-      <div>{children}</div>
+    <section className={`${styles.section} ${className}`} aria-labelledby={titleId}>
+      <h4 id={titleId}>{icon}{title}</h4>
+      <div className={styles.panel}>{children}</div>
     </section>
   )
 }
@@ -258,7 +270,7 @@ function EditorSection({ title, children }: { title: string; children: React.Rea
 function Field({ label, wide = false, children }: {
   label: string
   wide?: boolean
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <label className={`${styles.field} ${wide ? styles['is-wide'] : ''}`}>
@@ -268,9 +280,9 @@ function Field({ label, wide = false, children }: {
   )
 }
 
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldGroup({ label, inline = false, children }: { label: string; inline?: boolean; children: ReactNode }) {
   return (
-    <div className={`${styles.field} ${styles['is-wide']}`}>
+    <div className={`${styles.field} ${inline ? styles['inline-field'] : ''}`}>
       <span>{label}</span>
       {children}
     </div>

@@ -1751,7 +1751,7 @@
       "claimNote": "保存后可清理留存文件。",
       "clipboardNote": "通过远程剪贴板传递文件与文件夹。",
       "systemClipboard": "系统文件剪贴板",
-      "systemClipboardHint": "在设置 → 远程桌面 → RDP 中统一开启。所有本机 RDP 会话继承，仅控制者可使用。",
+      "systemClipboardHint": "在设置 → 远程桌面中开启。本机 RDP 会话共用，仅控制者可使用。",
       "systemClipboardEnabled": "已启用",
       "systemClipboardInactive": "暂不可用",
       "systemClipboardFailed": "系统文件剪贴板操作未完成，仍可使用手动传输",
@@ -5289,24 +5289,63 @@
     }
   },
   "settings": {
+    "tabModels": "模型服务",
+    "groups": {
+      "basics": "基础偏好",
+      "connections": "连接与终端",
+      "intelligence": "AI 与集成",
+      "maintenance": "数据与维护"
+    },
+    "editor": {
+      "processing": "等待当前操作完成",
+      "loading": "正在读取设置…",
+      "unavailable": "尚未读取当前设置",
+      "save": "保存更改",
+      "reset": "撤销更改",
+      "saving": "正在保存…",
+      "unsaved": "有未保存的更改",
+      "saved": "已保存",
+      "upToDate": "当前设置已保存",
+      "leaveTitle": "放弃未保存的更改？",
+      "leaveDescription": "当前页面的更改尚未保存。离开后将恢复已保存的设置。",
+      "discard": "放弃并离开"
+    },
+    "descriptions": {
+      "general": "界面、窗口行为与系统通知。",
+      "shortcuts": "为常用操作设置快捷键。",
+      "terminal": "调整终端显示与命令补全。",
+      "connection": "SSH 保活与后台转发恢复。",
+      "remote-desktop": "RDP 会话保留、隧道恢复与文件剪贴板。",
+      "mount": "管理挂载缓存的位置与磁盘用量。",
+      "agent": "统一配置默认模型、运行行为与任务限制。",
+      "models": "管理模型服务商、访问凭据与可用模型。",
+      "mcp": "管理 MCP 服务与客户端授权。",
+      "audit": "设置操作记录与历史保留策略。",
+      "data": "备份配置，或从备份中恢复数据。",
+      "updates": "设置后台更新检查与下载偏好。"
+    },
     "conflict": "设置已在其他位置更新。已读取最新版本并保留你的修改，请核对后再次保存。",
     "title": "设置",
-    "subtitle": "应用偏好、语言、终端与数据管理",
     "tabGeneral": "通用",
     "tabLanguage": "语言",
     "tabTerminal": "终端",
     "tabConnection": "连接",
     "tabRemoteDesktop": "远程桌面",
-    "rdpSettings": "RDP 设置",
-    "systemFileClipboard": "系统文件复制粘贴",
-    "systemFileClipboardHint": "在此设备记住，对所有本机 RDP 会话生效，包括已打开的会话和独立窗口。根据本机平台能力，支持本机文件管理器与目标桌面之间复制粘贴文件、文件夹。",
-    "systemFileClipboardBoundary": "目标复制文件会替换本机剪贴板；粘贴接收需保持连接和控制权。文件内容按需读取，剪贴板查看器也可能触发传输。",
+    "rdpSettings": "连接与会话",
+    "rdpFileExchange": "文件交换",
+    "systemFileClipboard": "系统文件剪贴板",
+    "systemFileClipboardHint": "在本机与 RDP 桌面间复制粘贴文件和文件夹。",
+    "systemFileClipboardBoundary": "复制远端文件会替换本机剪贴板。",
+    "systemFileClipboardDetailsTitle": "使用须知",
+    "systemFileClipboardDetails": "本机全部 RDP 会话共用此设置，包括已打开的会话和独立窗口。接收文件时需保持连接和控制权；文件按需传输，剪贴板查看器也可能触发读取。",
     "systemFileClipboardUnavailable": "此功能需要 Windows 桌面版及可用的系统文件剪贴板服务。",
     "systemFileClipboardFailed": "设置读取或保存失败，请重试。",
-    "rdpUnattendedTimeout": "会话保留时长",
-    "rdpUnattendedTimeoutHint": "关闭全部会话窗口后开始计时，到期断开连接并释放资源。重新接入取消计时；最小化或切换标签页不影响连接。",
+    "rdpUnattendedTimeout": "会话保留时间",
+    "rdpUnattendedTimeoutHint": "关闭该会话的全部窗口后保留连接，到期自动断开。",
     "rdpUnattendedMinutes": "分钟",
-    "rdpUnattendedRange": "1～30 分钟，默认 10 分钟。回车或移开焦点保存；调整时长不重置计时。",
+    "rdpUnattendedRange": "1～30 分钟 · 默认 10",
+    "rdpRetentionDetailsTitle": "计时与保存规则",
+    "rdpRetentionDetails": "回车或移开焦点保存。重新接入会取消计时；最小化、切换标签不开始计时；修改时长不重置已有计时。",
     "connectionSaveFailed": "连接设置保存失败，请重试。",
     "rdpUnattendedInvalid": "请输入 1～30 的整数。",
     "rdpUnattendedSaveFailed": "保存失败，请稍后重试。",
@@ -5321,14 +5360,13 @@
       "records": "最多保留条数",
       "recordsHint": "0 为不限；上限范围为 1,000–1,000,000 条。",
       "retentionHint": "超期或超量记录会永久清理，关闭审计后仍生效。",
-      "saved": "已保存",
       "loadFailed": "无法读取审计设置，请重试",
       "saveFailed": "保存失败，修改尚未确认，请重试"
     },
     "mount": {
       "title": "挂载缓存",
       "directory": "缓存位置",
-      "default": "Core 数据目录",
+      "default": "默认位置",
       "custom": "自定义目录",
       "placeholder": "输入本机文件夹的绝对路径",
       "choose": "浏览",
@@ -5340,7 +5378,7 @@
       "active": "当前缓存目录",
       "next": "重启后缓存目录",
       "pending": "重启后生效",
-      "restartHint": "保存后重启 Core 生效，切换位置不会删除旧目录。",
+      "restartHint": "保存后重启后台服务生效，旧缓存目录不会被删除。",
       "usage": "当前缓存",
       "clean": "清洁内容",
       "private": "私有写入及预留",
@@ -5354,7 +5392,7 @@
         "failed": "清理未完成，请查看错误后重试。"
       },
       "saved": "已保存。",
-      "savedPending": "已保存，重启 Core 后生效。",
+      "savedPending": "已保存，重启后台服务后生效。",
       "failed": "无法读取或保存挂载设置，请重试。",
       "unavailable": "当前环境无法读取挂载设置。"
     },
@@ -5388,18 +5426,18 @@
     "chinese": "简体中文",
     "english": "英语",
     "terminalSection": "终端样式",
-    "connectionSection": "连接可靠性",
+    "connectionSection": "SSH 连接",
+    "forwardSettings": "后台转发",
     "sshKeepalive": "SSH 保活",
-    "sshKeepaliveHint": "每 30 秒探测所有长期 SSH 连接，10 秒无响应即标记断开；不会恢复终端或重放文件操作。",
-    "forwardAutoReconnect": "后台转发自动恢复",
-    "forwardAutoReconnectHint": "后台转发意外中断后按 2、4、8 秒最多恢复 3 次，并独立探测连接状态；当前会话转发不会被自动重建。",
-    "remoteDesktopAutoReconnect": "远程桌面自动恢复",
-    "remoteDesktopAutoReconnectHint": "SSH 隧道路由异常后最多恢复 3 次；VNC 会重新握手，既有画面与输入流无法续接。直连模式不使用此 SSH 恢复策略。",
-    "connectionLimits": "既有终端状态、正在进行的文件操作和已建立的 TCP 连接均无法续传或自动恢复。",
+    "sshKeepaliveHint": "定期检测 SSH 连接，及时发现断线。",
+    "forwardAutoReconnect": "自动重连",
+    "forwardAutoReconnectHint": "意外断开后最多重试 3 次，不自动重建会话转发。",
+    "remoteDesktopAutoReconnect": "SSH 隧道恢复",
+    "remoteDesktopAutoReconnectHint": "隧道中断后尝试重建；不适用于直连，也不续接桌面会话。",
+    "connectionLimits": "重连不会恢复终端状态、文件操作或已建立的 TCP 连接。",
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
     "completionAiEnabled": "启用 AI 命令补全",
-    "completionAiHint": "使用默认 AI 模型将自然语言转换为命令，确认后填入终端。",
     "completionHint": "使用 Bash 补全、命令别名、代码片段、远端历史和当前目录提供建议。",
     "completionProviders": "补全来源",
     "completionProvidersHint": "按需选择参与候选生成的数据来源。",
@@ -5428,8 +5466,6 @@
       }
     },
     "shortcuts": {
-      "title": "快捷键",
-      "description": "自定义 Termous 中常用操作的按键组合。未匹配的按键仍由当前终端或组件处理。",
       "searchPlaceholder": "搜索操作、说明或作用范围",
       "customizedCount": "已自定义 {{count}} 项",
       "resetAll": "恢复全部默认",
@@ -5617,7 +5653,6 @@
     "fontDeleted": "字体已删除",
     "update": {
       "title": "更新设置",
-      "description": "设置新版本的后台检查与下载偏好。",
       "automaticCheck": "自动检查更新",
       "automaticCheckHint": "按所选频率在后台检查新版本，不会打断当前操作。",
       "checkInterval": "检查频率",
@@ -5634,12 +5669,18 @@
     },
     "tabAgent": "AI 助手",
     "agent": {
+      "configuration": {
+        "behavior": "运行行为",
+        "invalidConcurrency": "请选择 1 至 8 个并发会话。",
+        "saveBeforeCheck": "请先保存或撤销当前修改。",
+        "saveFailed": "保存未完成，未保存的更改已保留，请重试。"
+      },
       "loadFailed": "无法读取 AI 助手设置",
-      "operationFailed": "AI 助手设置操作失败",
+      "operationFailed": "操作未完成",
       "readiness": {
         "title": "运行准备",
-      "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
-        "mcpRuntime": "MCP Runtime",
+        "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
+        "mcpRuntime": "MCP 服务",
         "mcpClient": "托管客户端",
         "skills": "Skills 资源",
         "defaultModel": "默认模型",
@@ -5664,10 +5705,13 @@
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
       },
-      "concurrency": {"title": "同时运行的 AI 会话", "description": "默认 4 个，可设为 1–8 个。降低上限不会中断正在运行的任务。"},
+      "concurrency": {
+        "title": "同时运行的 AI 会话",
+        "description": "默认 4 个，可设为 1–8 个。降低上限不会中断正在运行的任务。"
+      },
       "executionLimits": {
-        "title": "执行预算",
-        "description": "默认关闭，允许长时间复杂任务。开启后按单次任务限制请求、Token 和重复尝试；设置只对之后创建的任务生效，关闭时保留限额。",
+        "title": "任务执行限制",
+        "description": "限制新任务的请求数、Token 用量和重复尝试；关闭时保留限额。",
         "toggle": "启用执行预算",
         "validation": "请输入 {{min}} 至 {{max}} 的整数。",
         "model_requests": {
@@ -5688,8 +5732,8 @@
         }
       },
       "profileBinding": {
-        "title": "SSH Profile 关联方式",
-        "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
+        "title": "关联 SSH 配置时自动连接",
+        "description": "开启后立即连接；关闭时由 AI 助手按任务需要连接。",
         "toggle": "关联 SSH Profile 时自动连接",
         "immediate": "立即连接",
         "onDemand": "按需连接"
@@ -5703,8 +5747,8 @@
         "hidden": "隐藏"
       },
       "policy": {
-        "title": "MCP 审批策略",
-        "description": "内置 AI 始终具备全部 MCP 能力，新增能力自动更新；执行遵循此审批策略，外部客户端不受影响。",
+        "title": "跳过工具执行审批",
+        "description": "仅影响内置 AI 助手。开启后可直接执行已授权工具，保存时需要确认。",
         "approval": "工具执行确认",
         "review": "逐次审批",
         "bypass": "无需确认",
@@ -5717,32 +5761,32 @@
         "test": "测试连接"
       },
       "providers": {
-      "title": "模型提供商",
-      "count": "{{count}} 个 Provider",
-      "modelCount": "{{count}} 个模型",
-        "search": "搜索 Provider",
-        "add": "添加 Provider",
-        "noResults": "没有匹配的 Provider",
-        "empty": "尚未添加 Provider",
-        "emptyEditor": "添加 Provider 后自动同步模型目录",
-        "new": "新增 Provider",
+        "refresh": "刷新服务列表",
+        "backToServices": "返回服务",
+        "service": "当前服务",
+        "title": "模型服务",
+        "modelCount": "{{count}} 个模型",
+        "search": "搜索或选择服务",
+        "add": "添加服务",
+        "empty": "尚未添加服务",
+        "new": "新增服务",
         "connectionTab": "连接设置",
         "catalogTab": "模型目录",
-        "saved": "Provider 设置已保存",
-        "test": "测试 Provider",
-        "testSuccess": "Provider 可访问，{{latency}} ms，发现 {{count}} 个模型",
-        "testFailed": "Provider 测试未通过",
+        "saved": "服务配置已保存",
+        "test": "测试连接",
+        "testSuccess": "连接正常，{{latency}} ms，{{count}} 个模型",
+        "testFailed": "连接测试未通过",
         "testReady": "模型目录接口响应正常。",
         "testUnavailable": "模型目录接口未能完成请求，请检查地址和认证。",
-        "discardTitle": "放弃未保存的 Provider 修改？",
+        "discardTitle": "放弃未保存的服务配置？",
         "discardDescription": "切换后当前表单中的修改将丢失。",
         "discard": "放弃修改",
-        "deleteDefaultBlocked": "该 Provider 包含默认模型，请先切换默认模型"
+        "deleteDefaultBlocked": "此服务包含默认模型，请先切换默认模型"
       },
-    "providerEditor": {
-      "basicSection": "基本信息",
-      "connectionSection": "连接与认证",
-      "name": "Provider 名称",
+      "providerEditor": {
+        "basicSection": "基本信息",
+        "connectionSection": "连接与认证",
+        "name": "服务名称",
         "namePlaceholder": "例如：公司 OpenAI 网关",
         "apiMode": "API 模式",
         "enabled": "使用状态",
@@ -5750,18 +5794,19 @@
         "disabledState": "暂停用于新会话",
         "baseUrl": "Base URL",
         "optionalApiKey": "API Key（可选）",
-        "testRequiresSave": "请先保存修改，再测试当前配置",
-        "reset": "撤销更改",
+        "testRequiresSave": "先保存更改，再测试连接。",
         "httpRiskTitle": "当前使用明文 HTTP",
-        "httpRisk": "模型请求、上下文和认证信息可能被链路上的其他方读取或篡改。保存时需要再次确认。",
+        "httpRisk": "请求内容与密钥可能被读取或篡改，保存时需确认。",
         "provisionFailure": {
           "refresh": {
-            "title": "Provider 已保存，但模型目录同步失败",
-            "description": "Provider 和 API Key（如有）已经保存，密钥输入已清除。最近一次成功目录仍会保留，请检查地址、认证或网络后重试同步。"
+            "title": "配置已保存，模型目录同步失败",
+            "description": "配置已保存，密钥输入已清空。检查连接后，可在模型目录重新同步。"
           }
         }
       },
       "catalog": {
+        "pendingDefault": "待设为默认",
+        "pendingDefaultUnavailable": "待设为默认的模型已不可用，请重新选择或撤销更改。",
         "search": "搜索模型 ID、名称或所有者",
         "stateFilter": "模型状态",
         "sourceFilter": "模型来源",
@@ -5779,11 +5824,11 @@
         "add": "添加模型",
         "refreshSuccess": "模型目录已同步",
         "refreshFailed": "模型目录同步未完成",
-        "refreshFailedDescription": "已保留最近一次成功目录，请检查 Provider 配置后重试。",
+        "refreshFailedDescription": "已保留上次成功同步的目录，检查服务配置后重试。",
         "noResults": "没有匹配的模型",
         "clearFilters": "清除筛选",
         "noRemoved": "没有已移除的模型",
-        "neverEmpty": "同步 Provider 后将在这里显示模型",
+        "neverEmpty": "同步服务后显示可用模型",
         "empty": "当前目录没有模型",
         "missing": "服务端已移除",
         "manual": "手工",
@@ -5797,6 +5842,7 @@
         "remove": "移除模型",
         "restore": "恢复模型",
         "moreActions": "{{model}} 的更多操作",
+        "editModel": "编辑 {{model}}",
         "inheritsGlobal": "跟随全局",
         "customParameters": "单独设置",
         "confirmRemoveTitle": "移除此模型？",
@@ -5805,7 +5851,7 @@
         "unavailable": "不可用于新会话",
         "lastSynced": "上次同步 {{time}}",
         "detail": {
-          "provider": "Provider",
+          "provider": "服务",
           "alias": "显示名称",
           "source": "来源",
           "catalogStatus": "目录状态",
@@ -5826,38 +5872,33 @@
           "failed": "同步失败"
         },
         "stateTitle": {
-          "disabled": "Provider 已暂停用于新会话",
+          "disabled": "服务已停用",
           "never": "尚未同步模型目录",
           "readyWarning": "最近一次同步失败，正在使用缓存目录",
-          "stale": "Provider 配置已变化",
+          "stale": "服务配置已变更",
           "failed": "模型目录同步失败"
         },
         "stateDescription": {
           "disabled": "仍可测试连接或手工同步目录，重新启用后才能创建新会话。",
           "never": "测试连接或同步目录后，Termous 会自动发现模型。",
           "readyWarning": "已有模型仍可使用；建议检查网络或认证后再次同步。",
-          "stale": "旧目录仍会保留，但重新同步前不能用于新 Run。",
-          "failed": "请检查 Provider 地址、API Key 和网络后重试。"
+          "stale": "已保留旧目录，重新同步前无法开始新任务。",
+          "failed": "检查服务地址、API Key 和网络后重试。"
         },
         "errorDescription": {
-          "invalid_config": "Provider 配置无效。请检查 Base URL 和 API 模式后重试。",
-          "timeout": "Provider 未在时限内响应。请检查服务状态和网络后重试。",
-          "connect_failed": "无法连接 Provider。请检查地址、代理、证书和网络。",
-          "authentication_failed": "Provider 拒绝了认证。请更新 API Key 后重试。",
-          "rate_limited": "Provider 暂时限制了请求。请稍后再同步。",
-          "invalid_response": "Provider 返回了无法识别的模型目录。请确认其兼容 OpenAI 模型列表接口。",
-          "response_too_large": "Provider 返回的模型目录超过安全上限。请缩小网关目录后重试。",
-          "catalog_fetch_failed": "模型目录获取失败。请检查 Provider 状态后重试。"
+          "invalid_config": "服务配置无效，请检查 Base URL 和 API 模式后重试。",
+          "timeout": "服务响应超时，请检查网络状态后重试。",
+          "connect_failed": "无法连接服务，请检查地址、本机证书和网络。",
+          "authentication_failed": "认证失败，请检查 API Key 后重试。",
+          "rate_limited": "服务请求过于频繁，请稍后重新同步。",
+          "invalid_response": "无法识别返回的模型目录，请确认服务兼容 OpenAI 模型列表接口。",
+          "response_too_large": "返回的模型目录超过安全上限，请缩小目录后重试。",
+          "catalog_fetch_failed": "模型目录获取失败，请检查服务状态后重试。"
         }
       },
-    "defaults": {
-      "title": "新会话默认值",
-      "description": "用于新建会话；模型专属设置优先。",
-        "save": "保存默认设置",
-        "reset": "撤销更改",
-        "unsaved": "有未保存的更改",
-        "saved": "已保存默认设置",
-        "draftPreserved": "已读取最新配置，当前修改已保留",
+      "defaults": {
+        "title": "模型与上下文",
+        "description": "默认模型用于新会话，模型专属参数优先；上下文整理阈值从下一轮对话生效。",
         "model": "默认模型",
         "modelPlaceholder": "选择模型",
         "modelDetail": "{{provider}} · 显示名称：{{alias}}",
@@ -5869,7 +5910,7 @@
         "outputQuickSelect": "选择常用输出上限",
         "reasoning": "推理强度",
         "unavailableTitle": "当前默认模型不可用于新会话",
-        "unavailableDescription": "模型记录会继续保留，请同步目录、启用 Provider 或选择其他默认模型。"
+        "unavailableDescription": "模型记录会继续保留，请同步目录、启用 服务 或选择其他默认模型。"
       },
       "apiMode": {
         "responses": "Responses API",
@@ -5885,31 +5926,32 @@
         "max": "最大"
       },
       "modelEditor": {
+        "backToModels": "返回模型目录",
         "addTitle": "新增模型",
         "editTitle": "编辑模型",
         "identitySection": "模型标识",
         "parametersSection": "运行参数",
-        "capabilitiesSection": "能力声明",
+        "capabilitiesSection": "模型能力",
         "modelId": "模型 ID",
-        "modelIdPlaceholder": "输入 Provider 接受的模型 ID",
+        "modelIdPlaceholder": "输入服务支持的模型 ID",
         "displayName": "显示名称",
         "displayNamePlaceholder": "可选；留空时使用模型 ID",
         "contextBudget": "上下文窗口",
         "maxOutput": "单次输出上限",
         "defaultReasoning": "默认推理强度",
-        "parameterMode": "运行参数来源",
-        "inheritGlobal": "跟随全局设置",
-        "customParameters": "使用模型专属设置",
+        "parameterMode": "参数来源",
+        "inheritGlobal": "跟随全局",
+        "customParameters": "自定义参数",
         "images": "支持图片输入",
         "reasoningControl": "模型推理",
         "reasoningLevels": "支持的推理强度",
         "reasoningNone": "不支持",
-        "reasoningEffort": "Reasoning effort",
+        "reasoningEffort": "支持推理",
         "selectAllReasoningLevels": "全选",
         "conservativeTitle": "模型能力尚未确认",
-        "conservativeDescription": "当前使用默认能力配置，请根据服务文档确认图片输入和推理能力。",
-        "discardTitle": "放弃模型能力修改？",
-        "discardDescription": "关闭后当前未保存的能力配置将丢失。"
+        "conservativeDescription": "请按服务文档确认图片输入与推理选项。",
+        "discardTitle": "放弃模型修改？",
+        "discardDescription": "当前未保存的模型配置将丢失。"
       },
       "apiKey": {
         "optionalPlaceholder": "无鉴权服务可留空",
@@ -5919,7 +5961,7 @@
         "addPending": "保存后配置密钥",
         "replacePending": "保存后替换当前密钥",
         "removePending": "保存后删除密钥",
-        "removePendingHint": "Provider 配置和模型目录会保留，保存后将按无密钥方式重新同步。",
+        "removePendingHint": "保留服务配置和模型目录，保存后将使用无密钥方式连接。",
         "undoRemove": "撤销删除",
         "configured": "已配置密钥",
         "notConfigured": "无密钥",
@@ -5943,7 +5985,7 @@
       },
       "confirmDelete": {
         "title": "删除模型配置？",
-        "description": "Provider“{{name}}”、模型目录及已保存 API Key 将被删除。被默认模型或会话引用时无法删除。"
+        "description": "服务“{{name}}”、模型目录及已保存 API Key 将被删除。被默认模型或会话引用时无法删除。"
       },
       "testSuccess": "模型连接正常，延迟 {{latency}} ms",
       "testFailed": "模型连接测试未通过",
@@ -5954,16 +5996,16 @@
       "conflict": {
         "title": "配置已在其他位置更新",
         "description": "请读取最新配置并核对后再次执行操作。",
-        "editorDescription": "读取最新 revision 后会保留当前编辑草稿，仍需再次确认保存。",
-        "providerDeleted": "此 Provider 已在其他位置删除。当前草稿仍保留；请放弃草稿或选择其他 Provider。",
-        "modelDeleted": "此模型已随 Provider 在其他位置删除。当前能力草稿仍保留，关闭前需要确认放弃。",
+        "editorDescription": "已保留当前修改。读取最新配置并核对后，再次保存。",
+        "providerDeleted": "此服务已在其他位置删除。草稿仍保留，放弃后可选择其他服务。",
+        "modelDeleted": "此模型或所属服务已被删除。草稿仍保留，离开时需确认放弃。",
         "modelRemoved": "此模型已在其他位置移除。当前草稿仍保留，关闭前需要确认放弃。",
-        "defaultsDescription": "全局默认设置已在其他位置更新。读取最新值后再保存当前修改。",
+        "defaultsDescription": "这些设置已有更新。读取最新配置后，核对并保存当前修改。",
         "refresh": "读取最新配置",
-        "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。"
+        "draftPreserved": "已读取最新配置，当前修改已保留，请核对后重新保存。"
       },
       "validation": {
-        "providerName": "请输入 Provider 名称",
+        "providerName": "请输入服务名称",
         "modelId": "请输入模型 ID",
         "modelIdInvalid": "模型 ID 必须是不含控制字符且不超过 200 字节的 UTF-8 文本",
         "nameTooLarge": "配置名称不能超过 80 字节",
@@ -5981,11 +6023,11 @@
         "generic": "操作未完成，请检查 Core、Vault 和模型配置后重试。",
         "conflict": "配置已在其他位置更新。当前草稿已保留，请重新载入后核对再保存。",
         "vaultLocked": "Vault 当前已锁定，请先解锁后重试。",
-        "providerInUse": "该 Provider 仍被默认设置、会话或历史任务引用，无法删除。",
-        "providerLimit": "Provider 数量已达到上限，请删除不再使用的配置后重试。",
-        "providerNameConflict": "该 Provider 名称已存在，请使用其他名称。",
-        "providerNotFound": "所属 Provider 已不存在，请关闭当前编辑并重新选择。",
-        "modelIdConflict": "该 Provider 中已存在相同的模型 ID，请使用其他模型 ID。",
+        "providerInUse": "该服务仍被默认设置、会话或历史任务引用，无法删除。",
+        "providerLimit": "服务数量已达到上限，请删除不再使用的配置后重试。",
+        "providerNameConflict": "该服务名称已存在，请使用其他名称。",
+        "providerNotFound": "所属服务已不存在，请关闭当前编辑并重新选择。",
+        "modelIdConflict": "该服务中已存在相同的模型 ID，请使用其他模型 ID。",
         "modelInUse": "该模型仍被默认设置、会话或历史任务引用，无法移除。",
         "modelUnavailable": "该模型当前不可用于新请求，请同步目录或选择其他模型。",
         "modelCapabilityConflict": "该模型仍被启用了推理的默认设置或会话使用。请先关闭这些位置的推理等级，再停用模型推理能力。"
@@ -6041,7 +6083,7 @@
         }
       },
       "title": "MCP 访问",
-      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、文件管理、端口转发、代码片段和远程运维能力。",
+      "description": "向外部 MCP 客户端提供已授权的主机与远程操作能力。",
       "state": {
         "disabled": "未启用",
         "enabled": "已启用"
@@ -6774,15 +6816,16 @@
     "approvalMissing": "该审批可能已处理或过期，或当前正在处理优先审批。请查看现有审批窗口。",
     "settings": {
       "title": "系统通知",
-      "hint": "仅在 Termous 所有窗口均失去焦点时提醒；消息中心始终保留任务结果。",
-      "desktopOnly": "系统通知仅在桌面版可用，消息中心仍可正常使用。",
-      "unsupported": "当前系统不支持原生通知，消息中心仍可正常使用。",
+      "hint": "仅在 Termous 位于后台时提醒。",
+      "desktopOnly": "系统通知仅在桌面版可用。",
+      "unsupported": "当前系统不支持原生通知。",
+      "loading": "正在读取通知设置…",
+      "unavailable": "通知设置暂不可用。",
+      "categories": "提醒内容",
+      "paused": "已暂停系统提醒，保留已选内容。",
+      "centreHint": "消息中心始终保留全部消息。",
       "error": "无法读取或保存通知设置",
-      "enabled": "允许系统通知",
-      "agent": "AI 助手运行结果",
-      "file": "文件传输结果",
-      "approval": "待审批操作",
-      "cloud": "云服务"
+      "enabled": "允许系统通知"
     }
   }
 }

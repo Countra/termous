@@ -1,8 +1,8 @@
-import { Button, Input, Select, Tooltip } from 'antd'
+import { Button, Input, Select } from 'antd'
 import { Plus, RefreshCw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AgentModelListState, AgentModelSource } from '#entities/agent'
-import { customSelectStyles, uiStyles } from '#shared/ui'
+import { customSelectStyles } from '#shared/ui'
 import styles from './AgentModelCatalog.module.scss'
 
 interface AgentModelCatalogToolbarProps {
@@ -33,14 +33,19 @@ export function AgentModelCatalogToolbar({
   const { t } = useTranslation()
   return (
     <div className={styles['catalog-toolbar']} data-testid="agent-model-catalog-toolbar">
-      <Input
-        allowClear
-        value={query}
-        prefix={<Search size={14} aria-hidden="true" />}
-        aria-label={t('settings.agent.catalog.search')}
-        placeholder={t('settings.agent.catalog.search')}
-        onChange={(event) => onQueryChange(event.target.value)}
-      />
+      <div className={styles['catalog-search']}>
+        <Input
+          allowClear
+          value={query}
+          prefix={<Search size={14} aria-hidden="true" />}
+          aria-label={t('settings.agent.catalog.search')}
+          placeholder={t('settings.agent.catalog.search')}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+        <Button type="primary" icon={<Plus size={15} aria-hidden="true" />} disabled={disabled} onClick={onAdd}>
+          {t('settings.agent.catalog.add')}
+        </Button>
+      </div>
       <div className={styles['catalog-filters']}>
         <Select
           value={state}
@@ -64,18 +69,14 @@ export function AgentModelCatalogToolbar({
           }))}
           onChange={onSourceChange}
         />
-        <Tooltip title={t('settings.agent.catalog.refresh')} rootClassName={uiStyles.tooltip}>
-          <Button
-            aria-label={t('settings.agent.catalog.refresh')}
-            icon={<RefreshCw size={15} />}
-            loading={refreshing}
-            disabled={disabled}
-            onClick={onRefresh}
-          />
-        </Tooltip>
-        <Button type="primary" icon={<Plus size={15} />} disabled={disabled} onClick={onAdd}>
-          {t('settings.agent.catalog.add')}
-        </Button>
+        <Button
+          type="text"
+          aria-label={t('settings.agent.catalog.refresh')}
+          icon={<RefreshCw size={14} aria-hidden="true" />}
+          loading={refreshing}
+          disabled={disabled}
+          onClick={onRefresh}
+        >{t('settings.agent.catalog.refresh')}</Button>
       </div>
     </div>
   )

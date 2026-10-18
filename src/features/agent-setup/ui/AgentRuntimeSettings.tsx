@@ -1,194 +1,52 @@
-import { useState } from 'react'
-import { Button, Select, Switch } from 'antd'
-import {
-  RefreshCw,
-  Wrench,
-} from 'lucide-react'
+import { useLayoutEffect, useState } from 'react'
+import { Alert, Button } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { AgentReadinessComponent } from '#entities/agent'
-import { ConfirmDialog } from '#shared/ui'
-import type { AgentSetupController } from '../model/useAgentSetupController.ts'
-import { AgentExecutionBudgetSettings } from './AgentExecutionBudgetSettings.tsx'
-import { AgentGlobalModelDefaults } from './AgentGlobalModelDefaults.tsx'
+import { useSettingsEditor } from '#entities/settings'
+import { ConfirmDialog, SettingsSaveBar } from '#shared/ui'
+import type { AgentSetupController } from '../model/useAgentSetupController'
+import { useAgentConfiguration } from '../model/useAgentConfiguration'
+import { agentSetupErrorKey } from '../model/agentSetupError'
+import { AgentExecutionBudgetSettings } from './AgentExecutionBudgetSettings'
+import { AgentGlobalModelDefaults } from './AgentGlobalModelDefaults'
+import { AgentBehaviorSettings } from './AgentBehaviorSettings'
+import { AgentReadinessSection } from './AgentReadinessSection'
 import styles from './AgentSetup.module.scss'
 
-export function AgentRuntimeSettings({
-  runtime,
-  onDefaultsConflictVisibilityChange,
-}: {
-  runtime: AgentSetupController
-  onDefaultsConflictVisibilityChange: (visible: boolean) => void
-}) {
+export function AgentRuntimeSettings({ runtime, onErrorVisibilityChange }: { runtime: AgentSetupController; onErrorVisibilityChange?: (visible: boolean) => void }) {
   const { t } = useTranslation()
+  const editor = useAgentConfiguration(runtime, runtime.readiness!)
   const [confirmBypass, setConfirmBypass] = useState(false)
-  const readiness = runtime.readiness
-  if (!readiness) return null
-
-  const busy = runtime.loading || runtime.mutation !== null
-  const readinessState = readiness.status === 'ready'
-    ? 'ready'
-    : readiness.status === 'blocked'
-      ? 'unavailable'
-      : readiness.status === 'needs_repair'
-        ? 'outdated'
-        : 'missing'
-
-  return (
-    <>
-      <section className={styles.surface}>
-        <header className={`${styles['section-header']} ${styles['runtime-header']}`}>
-          <div className={styles['runtime-heading']}>
-            <div className={styles['section-title']}>
-              <h2>{t('settings.agent.readiness.title')}</h2>
-            </div>
-            <p className={styles['section-hint']}>{t('settings.agent.readiness.description')}</p>
-          </div>
-          <div className={styles['runtime-controls']}>
-            <span
-              className={`${styles['runtime-status']} ${styles[`is-${readinessState}`]}`}
-              role="status"
-            >
-              <i aria-hidden="true" />
-              {t(`settings.agent.componentState.${readinessState}`)}
-            </span>
-            <Button
-              type={readiness.status === 'ready' ? 'default' : 'primary'}
-              icon={readiness.status === 'ready' ? <RefreshCw size={15} /> : <Wrench size={15} />}
-              loading={runtime.mutation === 'setup'}
-              disabled={busy && runtime.mutation !== 'setup'}
-              onClick={() => consume(runtime.setup())}
-            >
-              {t(readiness.status === 'ready'
-                ? 'settings.agent.readiness.checkAgain'
-                : 'settings.agent.readiness.setup')}
-            </Button>
-          </div>
-        </header>
-
-        <div className={styles['readiness-grid']}>
-          <ReadinessItem label={t('settings.agent.readiness.mcpRuntime')} component={readiness.mcp_runtime} />
-          <ReadinessItem label={t('settings.agent.readiness.mcpClient')} component={readiness.mcp_client} />
-          <ReadinessItem label={t('settings.agent.readiness.skills')} component={readiness.skills_bundle} />
-          <ReadinessItem label={t('settings.agent.readiness.defaultModel')} component={readiness.default_model} />
-        </div>
-
-        <div className={styles['agent-setting-list']}>
-          <AgentGlobalModelDefaults
-            runtime={runtime}
-            onConflictVisibilityChange={onDefaultsConflictVisibilityChange}
-          />
-
-          <section className={styles['agent-setting-row']} aria-labelledby="agent-concurrency-title">
-            <div className={styles['agent-setting-copy']}>
-              <strong id="agent-concurrency-title">{t('settings.agent.concurrency.title')}</strong>
-              <span>{t('settings.agent.concurrency.description')}</span>
-            </div>
-            <Select aria-label={t('settings.agent.concurrency.title')} value={readiness.settings.max_concurrent_runs}
-              disabled={busy} options={Array.from({ length: 8 }, (_, index) => ({ value: index + 1, label: String(index + 1) }))}
-              onChange={(value) => consume(runtime.updateSettings({ max_concurrent_runs: value }))} />
-          </section>
-
-          <section className={styles['agent-setting-row']} aria-labelledby="agent-profile-binding-title">
-            <div className={styles['agent-setting-copy']}>
-              <strong id="agent-profile-binding-title">{t('settings.agent.profileBinding.title')}</strong>
-              <span>{t('settings.agent.profileBinding.description')}</span>
-            </div>
-            <div className={styles['toggle-control']}>
-              <span>{t(readiness.settings.connect_ssh_profile_on_bind
-                ? 'settings.agent.profileBinding.immediate'
-                : 'settings.agent.profileBinding.onDemand')}</span>
-              <Switch
-                aria-label={t('settings.agent.profileBinding.toggle')}
-                checked={readiness.settings.connect_ssh_profile_on_bind}
-                loading={runtime.mutation === 'settings'}
-                disabled={busy}
-                onChange={(checked) => consume(runtime.updateSettings({
-                  connect_ssh_profile_on_bind: checked,
-                }))}
-              />
-            </div>
-          </section>
-
-          <section className={styles['agent-setting-row']} aria-labelledby="agent-turn-usage-title">
-            <div className={styles['agent-setting-copy']}>
-              <strong id="agent-turn-usage-title">{t('settings.agent.turnUsage.title')}</strong>
-              <span>{t('settings.agent.turnUsage.description')}</span>
-            </div>
-            <div className={styles['toggle-control']}>
-              <span>{t(readiness.settings.show_turn_token_usage
-                ? 'settings.agent.turnUsage.visible'
-                : 'settings.agent.turnUsage.hidden')}</span>
-              <Switch
-                aria-label={t('settings.agent.turnUsage.toggle')}
-                checked={readiness.settings.show_turn_token_usage}
-                loading={runtime.mutation === 'settings'}
-                disabled={busy}
-                onChange={(checked) => consume(runtime.updateSettings({
-                  show_turn_token_usage: checked,
-                }))}
-              />
-            </div>
-          </section>
-
-          <section className={styles['agent-setting-row']} aria-labelledby="agent-policy-title">
-            <div className={styles['agent-setting-copy']}>
-              <strong id="agent-policy-title">{t('settings.agent.policy.title')}</strong>
-              <span>{t('settings.agent.policy.description')}</span>
-            </div>
-            {readiness.mcp_policy ? (
-              <div className={styles['toggle-control']}>
-                <span>{t(readiness.mcp_policy.approval_bypass
-                  ? 'settings.agent.policy.bypass'
-                  : 'settings.agent.policy.review')}</span>
-                <Switch
-                  aria-label={t('settings.agent.policy.approval')}
-                  checked={readiness.mcp_policy.approval_bypass}
-                  loading={runtime.mutation === 'policy'}
-                  disabled={busy}
-                  onChange={(checked) => checked
-                    ? setConfirmBypass(true)
-                    : consume(runtime.updatePolicy(false))}
-                />
-              </div>
-            ) : <p className={styles.empty}>{t('settings.agent.policy.unavailable')}</p>}
-          </section>
-        </div>
-      </section>
-
-      <AgentExecutionBudgetSettings runtime={runtime} />
-
-      <ConfirmDialog
-        open={confirmBypass}
-        title={t('settings.agent.confirmBypass.title')}
-        description={t('settings.agent.confirmBypass.description')}
-        confirmLabel={t('settings.agent.confirmBypass.confirm')}
-        danger
-        confirmLoading={runtime.mutation === 'policy'}
-        onCancel={() => setConfirmBypass(false)}
-        onConfirm={() => consume(runtime.updatePolicy(true).then(() => setConfirmBypass(false)))}
-      />
-    </>
-  )
-}
-
-function ReadinessItem({ label, component }: {
-  label: string
-  component: AgentReadinessComponent
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className={styles['readiness-item']}>
-      <span className={styles['readiness-copy']}>
-        <strong>{label}</strong>
-        <span className={`${styles['readiness-state']} ${styles[`is-${component.status}`]}`}>
-          <i aria-hidden="true" />
-          {t(`settings.agent.componentState.${component.status}`)}
-        </span>
-      </span>
-    </div>
-  )
-}
-
-function consume(promise: Promise<unknown>) {
-  void promise.catch(() => undefined)
+  useLayoutEffect(() => { onErrorVisibilityChange?.(editor.failed) }, [editor.failed, onErrorVisibilityChange])
+  const save = () => {
+    if (editor.needsBypassConfirmation) setConfirmBypass(true)
+    else void editor.save()
+  }
+  const invalid = Boolean(Object.keys(editor.errors).length || editor.conflict)
+  const errorKey = runtime.error ? agentSetupErrorKey(runtime.error) : null
+  const managed = useSettingsEditor({ dirty: editor.dirty, busy: editor.busy || confirmBypass, invalid,
+    saving: editor.saving, saved: editor.saved, save, reset: editor.reset })
+  return <div className={styles['configuration-layout']} onKeyDown={event => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault()
+      if (editor.dirty && !editor.busy && !invalid) save()
+    }
+  }}>
+    <AgentReadinessSection runtime={runtime} dirty={editor.dirty} />
+    <AgentGlobalModelDefaults draft={editor.draft} errors={editor.errors} providers={runtime.providers}
+      models={runtime.models} busy={editor.busy} onChange={editor.change} />
+    <AgentBehaviorSettings editor={editor} policyAvailable={Boolean(runtime.readiness?.mcp_policy)} />
+    <AgentExecutionBudgetSettings editor={editor} />
+    {editor.conflict && <Alert type="warning" showIcon title={t('settings.agent.conflict.title')}
+      description={<>{t('settings.agent.conflict.defaultsDescription')}
+        {errorKey && errorKey !== 'settings.agent.error.conflict' && <p>{t(errorKey)}</p>}</>}
+      action={<Button size="small" disabled={editor.busy} onClick={() => void editor.refresh()}>{t('settings.agent.conflict.refresh')}</Button>} />}
+    {editor.failed && !editor.conflict && <Alert type="error" showIcon title={t('settings.agent.configuration.saveFailed')}
+      description={errorKey ? t(errorKey) : undefined} />}
+    {!managed && <SettingsSaveBar dirty={editor.dirty} busy={editor.busy || confirmBypass} saving={editor.saving} invalid={invalid} saved={editor.saved}
+      onSave={save} onReset={editor.reset} />}
+    <ConfirmDialog open={confirmBypass} title={t('settings.agent.confirmBypass.title')}
+      description={t('settings.agent.confirmBypass.description')} confirmLabel={t('settings.agent.confirmBypass.confirm')}
+      danger confirmLoading={editor.busy} onCancel={() => setConfirmBypass(false)}
+      onConfirm={() => { void editor.save().then(() => setConfirmBypass(false)) }} />
+  </div>
 }

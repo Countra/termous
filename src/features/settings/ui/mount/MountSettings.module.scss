@@ -1,13 +1,16 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .body {
   display: grid;
   gap: 16px;
-  padding-top: 16px;
 }
 
 .directory {
+  @include settings.panel;
+
   display: grid;
   gap: 10px;
-  min-width: 0;
+  padding: 17px 18px;
 }
 
 .heading,
@@ -21,7 +24,8 @@
 
 .heading > label,
 .budget label {
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .location-switch:global(.ant-segmented) {
@@ -29,7 +33,7 @@
   width: 280px;
   max-width: 100%;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 7px;
   background: var(--surface-subtle);
   padding: 3px;
   color: var(--text-secondary);
@@ -85,17 +89,20 @@
 }
 
 .budgets {
+  @include settings.panel;
+
   display: grid;
-  gap: 16px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
 }
 
 .budget {
-  display: grid;
+  @include settings.row;
+
   grid-template-columns: minmax(0, 1fr) 160px;
   align-items: center;
-  gap: 16px;
+}
+
+.budget + .budget {
+  border-top: 1px solid var(--border);
 }
 
 .budget > :last-child {
@@ -103,11 +110,11 @@
 }
 
 .status {
+  @include settings.panel;
+
   display: grid;
   gap: 6px;
-  min-width: 0;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding: 17px 18px;
   color: var(--text-muted);
   font-size: 12px;
 }

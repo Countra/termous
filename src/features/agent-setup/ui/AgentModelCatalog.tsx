@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Empty } from 'antd'
+import { Button, Empty } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AgentModel,
@@ -9,11 +9,13 @@ import type {
 } from '#entities/agent'
 import { AgentModelCatalogRow } from './AgentModelCatalogRow.tsx'
 import { AgentModelCatalogToolbar } from './AgentModelCatalogToolbar.tsx'
+import { AgentServiceNotice } from './model-services/AgentServiceNotice.tsx'
 import styles from './AgentModelCatalog.module.scss'
 
 interface AgentModelCatalogProps {
   provider: AgentModelProvider
   models: AgentModel[]
+  pendingDefaultModelId?: string
   defaultModelId?: string
   disabled: boolean
   refreshing: boolean
@@ -30,6 +32,7 @@ export function AgentModelCatalog({
   provider,
   models,
   defaultModelId,
+  pendingDefaultModelId,
   disabled,
   refreshing,
   onRefresh,
@@ -89,6 +92,7 @@ export function AgentModelCatalog({
             provider={provider}
             model={model}
             defaultModelId={defaultModelId}
+            pendingDefaultModelId={pendingDefaultModelId}
             disabled={disabled}
             onEdit={onEdit}
             onTest={onTest}
@@ -141,9 +145,8 @@ function CatalogState({ provider, status }: { provider: AgentModelProvider; stat
   }
   const errorDescription = warning ? catalogErrorDescription(provider.last_refresh_error_code) : undefined
   return (
-    <Alert
+    <AgentServiceNotice
       type={warning ? 'warning' : 'info'}
-      showIcon
       title={t(`settings.agent.catalog.stateTitle.${status}`)}
       description={t(errorDescription ?? `settings.agent.catalog.stateDescription.${status}`)}
     />

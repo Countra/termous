@@ -7,7 +7,6 @@ import {
 } from 'antd'
 import {
   CircleAlert,
-  Keyboard,
   PencilLine,
   RotateCcw,
   Search,
@@ -24,6 +23,7 @@ import type {
   ShortcutSettings,
 } from '#common/contracts'
 import { termousPopconfirmProps } from '#shared/ui'
+import { useSettingsEditor } from '#entities/settings'
 import {
   formatShortcutChord,
   useShortcutAvailability,
@@ -44,7 +44,6 @@ import {
   type ShortcutRowStatus,
   type ShortcutSettingsRow,
 } from '../../model/shortcutSettingsPanel.ts'
-import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './ShortcutSettings.module.scss'
 
 const shortcutRowStatusClassNames = {
@@ -86,6 +85,8 @@ export function ShortcutSettingsPanel({
   const [resetFailed, setResetFailed] = useState(false)
   const busyActionIdsRef = useRef(new Set<ShortcutActionId>())
   const resetBusyRef = useRef(false)
+  useSettingsEditor({ dirty: false, busy: resetBusy || busyActionIds.size > 0 || editor !== null,
+    invalid: true, save: () => undefined, reset: () => undefined })
 
   const rows = useMemo(() => buildShortcutSettingsRows(value, platform).filter(row => availability?.[row.definition.id]?.visible !== false), [platform, value, availability])
   const filteredRows = useMemo(() => filterShortcutSettingsRows(
@@ -202,18 +203,8 @@ export function ShortcutSettingsPanel({
   }
 
   return (
-    <section className={`${surfaceStyles.surface} ${styles['shortcut-settings-panel']}`}>
-      <div className={styles['shortcut-settings-header']}>
-        <header className={styles['shortcut-settings-heading']}>
-          <div className={styles['shortcut-settings-title']}>
-            <Keyboard size={18} aria-hidden="true" />
-            <div>
-              <h2>{t('settings.shortcuts.title')}</h2>
-              <p>{t('settings.shortcuts.description')}</p>
-            </div>
-          </div>
-        </header>
-
+    <section className={styles['shortcut-settings-panel']} aria-label={t('settings.tabShortcuts')}>
+      <header className={styles['shortcut-settings-header']}>
         <div className={styles['shortcut-settings-toolbar']}>
           <Input
             id="settings-shortcuts-search"
@@ -222,6 +213,7 @@ export function ShortcutSettingsPanel({
             value={query}
             prefix={<Search size={15} aria-hidden="true" />}
             placeholder={t('settings.shortcuts.searchPlaceholder')}
+            aria-label={t('settings.shortcuts.searchPlaceholder')}
             className={styles['shortcut-settings-search']}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -255,7 +247,7 @@ export function ShortcutSettingsPanel({
             {t('settings.shortcuts.resetAllFailed')}
           </div>
         )}
-      </div>
+      </header>
 
       {groups.length === 0 ? (
         <Empty

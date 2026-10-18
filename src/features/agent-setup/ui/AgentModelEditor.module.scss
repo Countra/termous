@@ -1,0 +1,70 @@
+.editor {
+  min-width: 0;
+  container-name: agent-model-editor;
+  container-type: inline-size;
+}
+
+.header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 18px 0 16px;
+}
+
+.header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.provider {
+  max-width: 180px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.actions :global(.ant-btn) {
+  height: 30px;
+  padding-inline: 8px;
+  font-size: 12px;
+}
+
+.feedback {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  outline: none;
+}
+
+.feedback:empty { display: none; }
+
+.feedback:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@container agent-model-editor (width <= 380px) {
+  .header { flex-wrap: wrap; }
+  .actions { margin-left: auto; }
+  .provider { max-width: 140px; }
+}

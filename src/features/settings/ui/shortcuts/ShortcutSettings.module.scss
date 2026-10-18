@@ -1,51 +1,17 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .shortcut-settings-panel {
   display: grid;
   min-width: 0;
   gap: 0;
   padding: 0;
   overflow: hidden;
+  container-name: shortcut-settings;
+  container-type: inline-size;
 }
 
 .shortcut-settings-header {
   min-width: 0;
-}
-
-.shortcut-settings-heading {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  padding: 18px 18px 12px;
-}
-
-.shortcut-settings-title {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.shortcut-settings-title > svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--accent);
-}
-
-.shortcut-settings-title > div {
-  min-width: 0;
-}
-
-.shortcut-settings-title h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 720;
-  line-height: 1.35;
-}
-
-.shortcut-settings-title p {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .shortcut-settings-summary {
@@ -59,6 +25,7 @@
 .shortcut-settings-summary > span {
   color: var(--text-muted);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -94,14 +61,15 @@
   min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  border-bottom: 1px solid var(--border);
-  padding: 0 18px 16px;
+  gap: 16px;
+  padding: 18px 0 16px;
 }
 
 .shortcut-settings-search:global(.ant-input-affix-wrapper) {
-  width: min(440px, 100%);
-  min-height: 36px;
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: 440px;
+  min-height: 34px;
   border-color: color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 8px;
   background: var(--surface-subtle);
@@ -129,25 +97,18 @@
 .shortcut-settings-groups {
   display: grid;
   min-width: 0;
-}
-
-.shortcut-settings-group + .shortcut-settings-group {
-  border-top: 1px solid var(--border);
+  gap: 22px;
 }
 
 .shortcut-settings-group-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
-  background: var(--surface-subtle);
-  padding: 0 18px;
+  margin-bottom: 10px;
 }
 
 .shortcut-settings-group-heading strong {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 760;
+  @include settings.heading;
 }
 
 .shortcut-settings-group-heading span {
@@ -159,7 +120,10 @@
 }
 
 .shortcut-settings-list {
+  @include settings.panel;
+
   display: grid;
+  overflow: hidden;
 }
 
 .shortcut-settings-row {
@@ -169,7 +133,7 @@
   grid-template-columns: minmax(210px, 1.35fr) minmax(104px, 0.62fr) minmax(138px, 0.82fr) auto auto;
   align-items: center;
   gap: 14px;
-  min-height: 72px;
+  min-height: 64px;
   padding: 10px 12px 10px 18px;
   transition: background-color 140ms ease;
 }
@@ -597,7 +561,7 @@
   }
 }
 
-@media (width <= 680px) {
+@container shortcut-settings (width <= 560px) {
   .shortcut-settings-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -605,14 +569,18 @@
   }
 
   .shortcut-settings-search:global(.ant-input-affix-wrapper) {
+    flex-basis: auto;
     width: 100%;
+    max-width: none;
   }
 
   .shortcut-settings-summary {
     width: 100%;
     justify-content: space-between;
   }
+}
 
+@media (width <= 680px) {
   .shortcut-settings-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px 12px;

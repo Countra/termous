@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { CloudTab, WindowCloseBehavior } from '#common/contracts'
 import type { LocalShell } from '#entities/session'
-import type { PageKey } from '#shared/model'
+import type { NavigationTarget, PageKey } from '#shared/model'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import { BrandVersionControl, useOpenUpdateWindow } from '#features/update'
 import { WindowControls } from './WindowControls'
@@ -41,8 +41,9 @@ export interface AppShellProps {
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
   sidebarCollapsed: boolean
+  contentInert?: boolean
   actionBusy: boolean
-  onNavigate: (page: PageKey) => void
+  onNavigate: (target: NavigationTarget) => void
   onOpenConnectionLauncher: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
   onOpenProductTour: () => void
@@ -83,6 +84,7 @@ export function AppShell({
   appVersion,
   windowCloseBehavior,
   sidebarCollapsed,
+  contentInert = false,
   actionBusy,
   onNavigate,
   onOpenConnectionLauncher,
@@ -196,7 +198,7 @@ export function AppShell({
         </nav>
         <div className={styles['sidebar-footer']}>
           <div ref={sidebarFooterActionsRef} className={styles['sidebar-footer-actions']}>
-            <SidebarAccountMenu identity={account} collapsed={sidebarCollapsed} active={page === 'account' || page === 'settings'}
+            <SidebarAccountMenu identity={account} collapsed={sidebarCollapsed} active={page === 'account'}
               getPopupWidth={() => sidebarFooterActionsRef.current?.getBoundingClientRect().width}
               onAccount={(tab) => onOpenAccount ? onOpenAccount(tab) : onNavigate('account')} onSettings={() => onNavigate('settings')} />
             <span className={styles['product-tour-trigger']} data-tour="product-tour-trigger">
@@ -328,7 +330,7 @@ export function AppShell({
             ) : null}
           </div>
         </header>
-        <main className={styles['content-frame']}>{children}</main>
+        <main className={styles['content-frame']} inert={contentInert}>{children}</main>
       </div>
     </div>
   )

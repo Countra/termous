@@ -59,9 +59,10 @@ export function TerminalStyleSettings({
   const [uploadingFont, setUploadingFont] = useState(false)
   const [fontManagerOpen, setFontManagerOpen] = useState(false)
   const timerRef = useRef<number | null>(null)
+  const pendingCommit = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    setDraft(normalizeTerminalSettings(value))
+    if (!pendingCommit.current) setDraft(normalizeTerminalSettings(value))
   }, [value])
 
   useEffect(() => {
@@ -69,6 +70,9 @@ export function TerminalStyleSettings({
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
       }
+      // 自动保存的最后一次输入在离开页面时立即提交，避免预览已变化却丢失设置。
+      pendingCommit.current?.()
+      pendingCommit.current = null
     }
   }, [])
 
@@ -83,10 +87,12 @@ export function TerminalStyleSettings({
     if (timerRef.current) {
       window.clearTimeout(timerRef.current)
     }
-    timerRef.current = window.setTimeout(() => {
+    pendingCommit.current = () => {
       timerRef.current = null
+      pendingCommit.current = null
       void onChange(next)
-    }, delay)
+    }
+    timerRef.current = window.setTimeout(() => pendingCommit.current?.(), delay)
   }
 
   const updateDraft = (patch: Partial<TerminalSettings>, delay = 0) => {

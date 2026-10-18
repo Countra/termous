@@ -30,56 +30,57 @@ export function McpServerSettings({ runtime, onFailure }: McpServerSettingsProps
           {t(`settings.mcp.state.${runtime.status?.state ?? 'disabled'}`)}
         </span>
       </header>
+      <div className={styles['settings-body']}>
+        {unavailable ? (
+          <Alert
+            type="warning"
+            showIcon
+            title={t('settings.mcp.unavailable')}
+            description={runtime.errorCode}
+            action={(
+              <Button size="small" type="text" icon={<RefreshCw size={14} />} onClick={() => void runtime.reload()}>
+                {t('app.retry')}
+              </Button>
+            )}
+          />
+        ) : null}
 
-      {unavailable ? (
-        <Alert
-          type="warning"
-          showIcon
-          title={t('settings.mcp.unavailable')}
-          description={runtime.errorCode}
-          action={(
-            <Button size="small" type="text" icon={<RefreshCw size={14} />} onClick={() => void runtime.reload()}>
-              {t('app.retry')}
-            </Button>
-          )}
-        />
-      ) : null}
-
-      <div className={styles['setting-row']}>
-        <div>
-          <strong>{t('settings.mcp.enable')}</strong>
-          <p>{t('settings.mcp.enableHint')}</p>
+        <div className={styles['setting-row']}>
+          <div>
+            <strong>{t('settings.mcp.enable')}</strong>
+            <p>{t('settings.mcp.enableHint')}</p>
+          </div>
+          <Switch
+            checked={runtime.status?.enabled ?? false}
+            loading={runtime.phase === 'loading' || statusBusy}
+            disabled={!runtime.status || unavailable || Boolean(runtime.mutationKey)}
+            aria-label={t('settings.mcp.enable')}
+            onChange={(checked) => void runtime.setEnabled(checked).catch(onFailure)}
+          />
         </div>
-        <Switch
-          checked={runtime.status?.enabled ?? false}
-          loading={runtime.phase === 'loading' || statusBusy}
-          disabled={!runtime.status || unavailable || Boolean(runtime.mutationKey)}
-          aria-label={t('settings.mcp.enable')}
-          onChange={(checked) => void runtime.setEnabled(checked).catch(onFailure)}
-        />
-      </div>
 
-      <div className={styles['endpoint-row']}>
-        <div>
-          <small>{t('settings.mcp.endpoint')}</small>
-          <code>{runtime.status?.endpoint || '—'}</code>
+        <div className={styles['endpoint-row']}>
+          <div>
+            <small>{t('settings.mcp.endpoint')}</small>
+            <code>{runtime.status?.endpoint || '—'}</code>
+          </div>
+          <Button
+            icon={<Clipboard size={15} />}
+            disabled={!runtime.status?.endpoint}
+            onClick={() => void copyText(runtime.status?.endpoint ?? '')
+              .then(() => notification.success({
+                title: t('settings.mcp.copied'),
+                duration: 2,
+                className: termousNotificationClassName,
+              }))
+              .catch(onFailure)}
+          >
+            {t('app.copy')}
+          </Button>
         </div>
-        <Button
-          icon={<Clipboard size={15} />}
-          disabled={!runtime.status?.endpoint}
-          onClick={() => void copyText(runtime.status?.endpoint ?? '')
-            .then(() => notification.success({
-              title: t('settings.mcp.copied'),
-              duration: 2,
-              className: termousNotificationClassName,
-            }))
-            .catch(onFailure)}
-        >
-          {t('app.copy')}
-        </Button>
+        <p className={styles['endpoint-hint']}>{t('settings.mcp.endpointHint')}</p>
+        <p className={styles.protocol}>MCP {runtime.status?.protocol_version ?? '2025-11-25'}</p>
       </div>
-      <p className={styles['endpoint-hint']}>{t('settings.mcp.endpointHint')}</p>
-      <p className={styles.protocol}>MCP {runtime.status?.protocol_version ?? '2025-11-25'}</p>
     </section>
   )
 }

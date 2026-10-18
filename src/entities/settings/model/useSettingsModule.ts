@@ -48,5 +48,5 @@ export function useSettingsModule(id: SettingsModuleId, options: { refreshOnFocu
     if (options.refreshOnFocus) window.addEventListener('focus', refresh)
     return () => { controller.abort(); pending.current = false; window.removeEventListener('focus', refresh) }
   }, [request, options.refreshOnFocus])
-  return { snapshot, error, busy, available: Boolean(gateway), refresh: () => request(), update: (patch: Record<string, unknown>, expectedRevision?: number) => request(patch, expectedRevision) }
+  return { snapshot, error, busy, available: Boolean(gateway), clearError: () => setError(null), refresh: () => request(), update: (patch: Record<string, unknown>, expectedRevision?: number) => request(patch, expectedRevision) }
 }

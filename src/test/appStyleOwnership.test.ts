@@ -89,10 +89,10 @@ test('共享表单和弹层样式通过显式 Module root 消费', () => {
   assert.match(source('../features/local-download/ui/LocalDownloadMappingPane.tsx'), /confirmDialogStyles\.modal/)
 })
 
-test('共享操作按钮与设置页标题不再依赖全局基础选择器', () => {
+test('共享操作按钮与设置弹层不依赖全局基础选择器', () => {
   const primitiveStyles = source('../shared/ui/Primitives.module.scss')
-  const settingsStyles = source('../pages/settings/ui/SettingsPage.module.scss')
-  const settingsSource = source('../pages/settings/ui/SettingsPage.tsx')
+  const settingsStyles = source('../pages/settings/ui/SettingsDialog.module.scss')
+  const settingsSource = source('../pages/settings/ui/SettingsDialog.tsx')
 
   for (const className of ['primary-button', 'secondary-button', 'danger-button']) {
     assert.match(primitiveStyles, new RegExp(`\\.${className}:global\\(\\.ant-btn\\)`))
@@ -103,10 +103,8 @@ test('共享操作按钮与设置页标题不再依赖全局基础选择器', ()
   assert.match(primitiveStyles, /--main-action-bg-active:/)
   assert.doesNotMatch(globalStyles, /^\.page-actions\s*\{/m)
 
-  assert.match(settingsStyles, /\.page-title-row\s*\{[^}]*align-items:\s*center;/s)
-  assert.match(settingsStyles, /\.page-title-row h1\s*\{[^}]*font-size:\s*22px;[^}]*font-weight:\s*760;/s)
-  assert.match(settingsSource, /className=\{styles\['page-title-row'\]\}/)
-  assert.doesNotMatch(settingsSource, /styles\['page-title-row'\][^\n]*page-title-row/)
+  assert.match(settingsStyles, /\.dialog \.container\s*\{[^}]*overflow:\s*hidden;/s)
+  assert.match(settingsSource, /className=\{styles\.dialog\}/)
   assert.doesNotMatch(globalStyles, /^\.page-title-row(?:\s|\{)/m)
 })
 

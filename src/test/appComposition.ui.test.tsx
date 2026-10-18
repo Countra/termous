@@ -548,15 +548,18 @@ vi.mock('#pages/forwards', () => ({
   },
 }))
 vi.mock('#pages/settings', () => ({
-  SettingsPage: ({ initialTab = 'general' }: { initialTab?: string }) => {
+  SettingsDialog: ({ open, onClose, initialTab = 'general' }: { open: boolean; onClose(): void; initialTab?: string }) => {
     const [activeTab, setActiveTab] = useState(initialTab)
+    useEffect(() => { if (open) setActiveTab(initialTab) }, [initialTab, open])
     const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'data']
+    if (!open) return null
     return (
       <div
         data-testid="settings-page"
         data-tour={testState.productTourPageHarness ? 'settings-workspace' : undefined}
       >
         Settings
+        <button onClick={onClose}>close-settings</button>
         {testState.productTourPageHarness ? (
           <>
             <div role="tablist">
@@ -889,6 +892,35 @@ describe('应用运行时组合合同', () => {
       await user.click(screen.getByRole('button', { name: page }))
       expect(screen.getAllByTestId('desktop-connection-coordinator')).toEqual([coordinator])
     }
+  })
+
+  it('设置覆盖当前文件页，打开和关闭都不重建原页面', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    const filesPage = screen.getByTestId('files-page')
+    const mounts = testState.filesPageMounts
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.getByTestId('files-page')).toBe(filesPage)
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
+    expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('files-page')).toBe(filesPage)
+    expect(testState.filesPageMounts).toBe(mounts)
+    expect(testState.filesPageUnmounts).toBe(0)
+  })
+
+  it('打开设置不要求放弃主机草稿，关闭后仍保留原页面的离开保护', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    expect(screen.queryByText('hosts.unsavedTitle')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    expect(screen.getByText('hosts.unsavedTitle')).toBeInTheDocument()
   })
 
   it('只向各页面和工作区传递声明的数据视图', async () => {
@@ -1308,7 +1340,7 @@ describe('应用运行时组合合同', () => {
     await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
   })
 
-  it('命令片段草稿阻止向导离开独立管理页', async () => {
+  it('命令片段草稿允许打开设置弹层，仍阻止向导离开独立管理页', async () => {
     const user = userEvent.setup()
     testState.apiReady = true
     render(<App />)
@@ -1319,7 +1351,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.productTourProps?.isTransitionBlocked?.(
       { id: 'snippets', title: '', description: '', route: 'snippets' },
       { id: 'settings', title: '', description: '', route: 'settings' },
-    )).toBe(true)
+    )).toBe(false)
     expect(testState.productTourProps?.isTransitionBlocked?.(
       { id: 'snippets', title: '', description: '', route: 'snippets' },
       { id: 'snippets', title: '', description: '', route: 'snippets' },
@@ -1399,12 +1431,14 @@ describe('应用运行时组合合同', () => {
 
     await act(async () => testState.onLauncherClose?.())
     await user.click(screen.getByRole('button', { name: 'settings' }))
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('blocked') })
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
     await user.click(screen.getByRole('button', { name: 'global-connect' }))
-    expect(testState.launcherIntent).toBe('terminal')
+    expect(testState.launcherIntent).toBe('remote_desktop')
     await act(async () => testState.onLauncherClose?.())
     act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
     expect(testState.launcherOpen).toBe(true)
-    expect(testState.launcherIntent).toBe('terminal')
+    expect(testState.launcherIntent).toBe('remote_desktop')
   })
 
   it('Launcher 连接失败会保留拒绝语义并交给统一错误提示', async () => {

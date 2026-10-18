@@ -1,7 +1,9 @@
-import { SettingsGatewayContext, type SettingsGateway } from '#entities/settings'
-import { Tabs } from 'antd'
+import { SettingsGatewayContext, type SettingsEditor, type SettingsGateway } from '#entities/settings'
 import { useTranslation } from 'react-i18next'
-import { useState, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useState, type ReactNode } from 'react'
+import { ConfirmDialog, SettingsSaveBar } from '#shared/ui'
+import { SettingsNavigation } from './SettingsNavigation'
+import { SettingsPanelBoundary } from './SettingsPanelBoundary'
 import { useAgentDefaultModelStatus, type AgentDefaultModelStatusGateway } from '#entities/agent'
 import type {
   AppLanguage,
@@ -36,13 +38,14 @@ import {
   type DataPortabilityGateway,
   type UpdatePreferencesRuntime,
 } from '#features/settings'
-import styles from './SettingsPage.module.scss'
+import styles from './SettingsWorkspace.module.scss'
 
 import { settingsPages, type SettingsPageTabKey } from '../model/registry'
-export type { SettingsPageTabKey } from '../model/registry'
 
-export interface SettingsPageProps {
+export interface SettingsWorkspaceProps {
   settingsGateway?: SettingsGateway
+  onDirtyChange?: (dirty: boolean) => void
+  onBusyChange?: (busy: boolean) => void
   initialTab?: SettingsPageTabKey
   language: AppLanguage
   appearanceSettings: AppearanceSettings
@@ -73,9 +76,11 @@ export interface SettingsPageProps {
   onDeleteTerminalFont: (id: string) => Promise<void>
 }
 
-export function SettingsPage({
+export function SettingsWorkspace({
   settingsGateway,
   initialTab = 'general',
+  onDirtyChange,
+  onBusyChange,
   language,
   appearanceSettings,
   terminalSettings,
@@ -103,10 +108,37 @@ export function SettingsPage({
   onWindowSettingsChange,
   onUploadTerminalFont,
   onDeleteTerminalFont,
-}: SettingsPageProps) {
+}: SettingsWorkspaceProps) {
   const { t } = useTranslation()
   const { platform } = useShortcutRuntime()
   const [activeTab, setActiveTab] = useState(initialTab)
+  const [visited, setVisited] = useState(() => new Set<SettingsPageTabKey>([initialTab]))
+  const [editors, setEditors] = useState<Partial<Record<SettingsPageTabKey, SettingsEditor>>>({})
+  const [pendingTab, setPendingTab] = useState<SettingsPageTabKey | null>(null)
+  const registerEditor = useCallback((id: SettingsPageTabKey, editor: SettingsEditor | null) => {
+    setEditors(current => {
+      if (current[id] === (editor ?? undefined)) return current
+      const next = { ...current }
+      if (editor) next[id] = editor
+      else delete next[id]
+      return next
+    })
+  }, [])
+  const currentEditor = editors[activeTab]
+  const dirty = Object.values(editors).some(editor => editor?.dirty)
+  const busy = Object.values(editors).some(editor => editor?.busy)
+  const navigationBusy = busy || pendingTab !== null
+  useLayoutEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useLayoutEffect(() => { onBusyChange?.(navigationBusy) }, [navigationBusy, onBusyChange])
+  useLayoutEffect(() => () => { onDirtyChange?.(false); onBusyChange?.(false) }, [onDirtyChange, onBusyChange])
+  const selectTab = (id: SettingsPageTabKey) => {
+    if (id === activeTab || busy) return
+    if (currentEditor?.dirty) { setPendingTab(id); return }
+    setVisited(current => new Set([...current, id]))
+    setActiveTab(id)
+  }
+  const entry = settingsPages.find(page => page.id === activeTab)!
+
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   const panels: Record<SettingsPageTabKey, ReactNode> = {
@@ -144,7 +176,7 @@ export function SettingsPage({
             disabled={actionBusy}
             onChange={onCompletionSettingsChange}
             modelStatus={modelStatus}
-            onOpenAgentSettings={() => setActiveTab('agent')}
+            onOpenAgentSettings={() => selectTab('agent')}
           />
         </div>
       </div>
@@ -176,9 +208,10 @@ export function SettingsPage({
     ),
     agent: (
       <div className={styles['tab-scroll']} data-tour="settings-agent">
-        <AgentSettingsPanel gateway={agentSetupGateway} />
+        <AgentSettingsPanel gateway={agentSetupGateway} active={activeTab === 'agent'} />
       </div>
     ),
+    models: <div className={styles['tab-scroll']}><AgentSettingsPanel gateway={agentSetupGateway} view="models" active={activeTab === 'models'} /></div>,
     mcp: (
       <div className={styles['tab-scroll']} data-tour="settings-mcp">
         <McpSettingsPanel />
@@ -202,22 +235,31 @@ export function SettingsPage({
 
   return (
     <SettingsGatewayContext.Provider value={settingsGateway ?? null}>
-      <section className={styles.page}>
-        <div className={styles['page-title-row']} data-tour="settings-workspace">
-          <div>
-            <h1>{t('settings.title')}</h1>
-            <p>{t('settings.subtitle')}</p>
+      <section className={styles.workspace} data-tour="settings-workspace">
+        <SettingsNavigation active={activeTab} disabled={busy} onSelect={selectTab} />
+        <div className={styles.canvas}>
+          <header className={styles['panel-header']}>
+            <div><h2>{t(entry.title)}</h2><p>{t(`settings.descriptions.${entry.id}`)}</p></div>
+          </header>
+          <div className={styles.panels}>
+            {settingsPages.filter(page => visited.has(page.id)).map(page =>
+              <SettingsPanelBoundary key={page.id} id={page.id} active={activeTab === page.id} onChange={registerEditor}>
+                {panels[page.id]}
+              </SettingsPanelBoundary>)}
           </div>
+          {entry.mode === 'manual' && currentEditor && <SettingsSaveBar dirty={currentEditor.dirty}
+            busy={currentEditor.busy} saving={currentEditor.saving} invalid={currentEditor.invalid} ready={currentEditor.ready} saved={currentEditor.saved}
+            onSave={currentEditor.save} onReset={currentEditor.reset} />}
         </div>
-        <Tabs
-          className={styles.tabs}
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as SettingsPageTabKey)}
-          items={settingsPages.map((entry) => {
-            const Icon = entry.icon
-            return { key: entry.id, children: panels[entry.id], label: <span className={styles['tab-label']} data-tour={'tour' in entry ? entry.tour : undefined}><Icon size={15} aria-hidden="true" />{t(entry.title)}</span> }
-          })}
-        />
+        <ConfirmDialog open={pendingTab !== null} title={t('settings.editor.leaveTitle')}
+          description={t('settings.editor.leaveDescription')} confirmLabel={t('settings.editor.discard')}
+          onCancel={() => setPendingTab(null)} danger onConfirm={() => {
+            if (!pendingTab || busy) return
+            currentEditor?.reset()
+            setVisited(current => new Set([...current].filter(id => id !== activeTab).concat(pendingTab)))
+            setActiveTab(pendingTab)
+            setPendingTab(null)
+          }} />
       </section>
     </SettingsGatewayContext.Provider>
   )

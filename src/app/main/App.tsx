@@ -39,7 +39,7 @@ import { MountsPage } from '#pages/mounts'
 import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
-import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
+import { SettingsDialog, type SettingsPageTabKey } from '#pages/settings'
 import { AccountPage } from '#pages/account'
 import { AccountApprovalCoordinator, useCloudProfile } from '#features/cloud-account'
 import { useAccountWelcome } from './model/useAccountWelcome'
@@ -96,7 +96,7 @@ import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
 import type { HostGroup, HostIcon, HostIconReorderItem } from '#entities/host'
-import type { GroupReorderItem, PageKey } from '#shared/model'
+import type { GroupReorderItem, NavigationTarget, PageKey } from '#shared/model'
 import type { LocalShell, Session, SessionSnapshotEvent } from '#entities/session'
 import styles from './App.module.scss'
 import {
@@ -258,13 +258,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [page, setCurrentPage] = useState<PageKey>(() => accountWelcomePending ? 'account' : 'workbench')
   const [hostSaving, setHostSaving] = useState(false)
   const hostSavingRef = useRef(false)
+  const settingsBoundary = useRef({ dirty: false, busy: false })
+  const [settingsDirty, setSettingsDirty] = useState(false)
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const handleSettingsDirtyChange = useCallback((dirty: boolean) => {
+    settingsBoundary.current.dirty = dirty
+    setSettingsDirty(dirty)
+  }, [])
+  const handleSettingsBusyChange = useCallback((busy: boolean) => {
+    settingsBoundary.current.busy = busy
+    setSettingsBusy(busy)
+  }, [])
   const handleHostSavingChange = useCallback((saving: boolean) => {
     hostSavingRef.current = saving
     setHostSaving(saving)
   }, [])
   const setPage = useCallback((nextPage: PageKey) => {
     // 聚合创建提交后无法撤回，异步连接回调也不能在此期间卸载草稿页。
-    if (hostSavingRef.current) return
+    if (hostSavingRef.current || settingsBoundary.current.busy || settingsBoundary.current.dirty) return
     if (nextPage !== 'account') completeAccountWelcome()
     setCurrentPage(nextPage)
   }, [completeAccountWelcome])
@@ -355,7 +367,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [gateways.cloud])
   useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
-  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked])
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked || settingsOpen }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked, settingsOpen])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
     if (target.kind === 'remote_agent') {
       const generation = gateways.cloud.getStatus()?.generation
@@ -407,16 +419,27 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   const navigateToPage = useCallback((
-    nextPage: PageKey,
+    nextPage: NavigationTarget,
     options?: { settingsTab?: SettingsPageTabKey; accountTab?: CloudTab },
   ) => {
+    if (nextPage === 'settings') {
+      if (hostSavingRef.current) return Promise.resolve(false)
+      if (!settingsOpen) {
+        setSettingsInitialTab(options?.settingsTab ?? 'general')
+        setSettingsOpen(true)
+      }
+      return Promise.resolve(true)
+    }
+    if (settingsOpen) {
+      if (settingsBoundary.current.busy || settingsBoundary.current.dirty) return Promise.resolve(false)
+      setSettingsOpen(false)
+    }
     navigationResultRef.current?.(false)
     navigationResultRef.current = undefined
     setPendingPage(null)
     // 主页面导航只撤销尚未送入嵌入助手的引用；独立窗口中的引用继续由宿主处理。
     if (nextPage !== 'agent' && !agentDetached) clearAgentLaunchIntent()
-    if (hostSavingRef.current) return Promise.resolve(false)
-    if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
+    if (hostSavingRef.current || settingsBoundary.current.busy) return Promise.resolve(false)
     if (nextPage === 'account') setAccountTab(options?.accountTab ?? 'profile')
     if (nextPage === page) {
       return Promise.resolve(true)
@@ -428,7 +451,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
     return Promise.resolve(true)
-  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked])
+  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -1324,6 +1347,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     _currentStep: ProductTourStep,
     nextStep: ProductTourStep,
   ) => {
+    if (settingsDirty || settingsBusy) return true
+    if (nextStep.route === 'settings') return false
     if (page === 'vault' && vaultDirty) {
       return nextStep.preparation === 'vaultCatalog'
         || (nextStep.route !== undefined && nextStep.route !== 'vault')
@@ -1336,7 +1361,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return nextStep.route !== undefined && nextStep.route !== 'snippets'
     }
     return false
-  }, [hostsDirty, page, snippetsDirty, vaultDirty])
+  }, [hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy])
   const showProductTourBlocked = useCallback(() => {
     notification.warning({
       title: t('productTour.menuLabel'),
@@ -1352,7 +1377,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       {apiReady && !coreFatal && <FileSystemClipboardNotification />}
       <ShortcutWindowAdapter handlers={{
         'app.host_launcher.open': () => {
-          if (actionBusy || hostSavingRef.current) {
+          if (actionBusy || hostSavingRef.current || settingsOpen) {
             return 'blocked'
           }
           openPageConnectionLauncher()
@@ -1409,6 +1434,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       appVersion={appVersion}
                       windowCloseBehavior={data.settings.window.close_behavior}
                       sidebarCollapsed={sidebarCollapsed}
+                      contentInert={settingsOpen}
                       actionBusy={actionBusy || hostSaving}
                       onNavigate={navigateToPage}
                       onOpenConnectionLauncher={openPageConnectionLauncher}
@@ -1657,39 +1683,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
                       {page === 'account' ? <AccountPage api={gateways.cloud} settingsGateway={gateways.settings} profile={cloudProfile} authorizationTarget={authorizationTarget} onOpenAuthorization={openAccountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
-                      {page === 'settings' ? (
-                        <SettingsPage
-                          settingsGateway={gateways.settings}
-                          initialTab={settingsInitialTab}
-                          language={data.settings.language}
-                          appearanceSettings={data.settings.appearance}
-                          terminalSettings={data.settings.terminal}
-                          sshSmoothScrollEnabled={sshSmoothScrollEnabled}
-                          completionSettings={data.settings.completion}
-                          connectionSettings={data.settings.connection}
-                          shortcutSettings={data.settings.shortcuts}
-                          windowSettings={data.settings.window}
-                          terminalFonts={data.terminalFonts}
-                          appVersion={appVersion}
-                          dataPortabilityGateway={gateways.dataPortability}
-                          mountSettingsGateway={gateways.settings}
-                          auditSettingsGateway={gateways.settings}
-                          agentSetupGateway={gateways.agentSetup}
-                          defaultModelStatusGateway={gateways.terminal}
-                          updatePreferencesRuntime={updatePreferencesRuntime}
-                          actionBusy={actionBusy}
-                          onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
-                          onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
-                          onTerminalSettingsChange={saveTerminalSettings}
-                          onSshSmoothScrollChange={(enabled) => { void smoothScroll.update({ ssh_smooth_scroll: enabled }) }}
-                          onCompletionSettingsChange={saveCompletionSettings}
-                          onConnectionSettingsChange={saveConnectionSettings}
-                          onShortcutSettingsChange={saveShortcutSettings}
-                          onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
-                          onUploadTerminalFont={uploadTerminalFont}
-                          onDeleteTerminalFont={deleteTerminalFont}
-                        />
-                      ) : null}
 
                       {page === 'remote-desktop' || remoteDesktopOpened ? <div
                         className={`${styles['app-keepalive-page']} ${page === 'remote-desktop' ? styles['is-active'] : styles['is-hidden']}`}
@@ -1713,6 +1706,26 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       </div> : null}
                     </AppShell>
+                    <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
+                      settingsGateway={gateways.settings} initialTab={settingsInitialTab}
+                      onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}
+                      language={data.settings.language} appearanceSettings={data.settings.appearance}
+                      terminalSettings={data.settings.terminal} sshSmoothScrollEnabled={sshSmoothScrollEnabled}
+                      completionSettings={data.settings.completion} connectionSettings={data.settings.connection}
+                      shortcutSettings={data.settings.shortcuts} windowSettings={data.settings.window}
+                      terminalFonts={data.terminalFonts} appVersion={appVersion}
+                      dataPortabilityGateway={gateways.dataPortability} mountSettingsGateway={gateways.settings}
+                      auditSettingsGateway={gateways.settings} agentSetupGateway={gateways.agentSetup}
+                      defaultModelStatusGateway={gateways.terminal} updatePreferencesRuntime={updatePreferencesRuntime}
+                      actionBusy={actionBusy}
+                      onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+                      onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
+                      onTerminalSettingsChange={saveTerminalSettings}
+                      onSshSmoothScrollChange={(enabled) => { void smoothScroll.update({ ssh_smooth_scroll: enabled }) }}
+                      onCompletionSettingsChange={saveCompletionSettings} onConnectionSettingsChange={saveConnectionSettings}
+                      onShortcutSettingsChange={saveShortcutSettings}
+                      onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
+                      onUploadTerminalFont={uploadTerminalFont} onDeleteTerminalFont={deleteTerminalFont} />
                     <ProductTourController
                       ready={productTourReady && !accountWelcomePending}
                       autoStartEligible={
@@ -1774,7 +1787,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           setPendingPage(null)
         }}
         onConfirm={() => {
-          if (hostSavingRef.current) return
+          if (hostSavingRef.current || settingsBoundary.current.busy) return
           const nextPage = pendingPage
           setPendingPage(null)
           if (page === 'hosts') {

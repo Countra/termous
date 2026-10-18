@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TermousApiError } from '#shared/api'
-import styles from './AgentModelEditorDialog.module.scss'
+import styles from './AgentModelEditor.module.scss'
 import {
   agentReasoningLevels,
   type AgentModel,
@@ -16,9 +16,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-import { AgentModelEditorDialog } from './AgentModelEditorDialog.tsx'
+import { AgentModelEditor } from './AgentModelEditor.tsx'
 
-describe('AgentModelEditorDialog', () => {
+describe('AgentModelEditor', () => {
   it('新增模型默认跟随全局参数并以模型 ID 回落显示名称', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn(async () => undefined)
@@ -126,14 +126,10 @@ describe('AgentModelEditorDialog', () => {
     }), expect.objectContaining({ id: 'model' }))
   })
 
-  it.each(['validation', 'save'] as const)('新的 %s 错误只滚动弹窗内部，保留底部保存与关闭动作', async (failure) => {
+  it.each(['validation', 'save'] as const)('新的 %s 错误聚焦反馈并保留统一保存入口', async (failure) => {
     const user = userEvent.setup()
     const onSave = vi.fn(async () => { throw new TermousApiError('model exists', 'AGENT_MODEL_ID_CONFLICT', 409) })
     renderEditor({ onSave })
-    const body = document.querySelector(`.${styles.body}`) as HTMLElement
-    const feedback = document.querySelector(`.${styles.feedback}`) as HTMLElement
-    Object.defineProperty(body, 'getBoundingClientRect', { value: () => new DOMRect(0, 100, 660, 250) })
-    Object.defineProperty(feedback, 'getBoundingClientRect', { value: () => new DOMRect(0, 550, 660, 120) })
     if (failure === 'validation') {
       await user.type(screen.getByLabelText('settings.agent.modelEditor.displayName'), '未填写模型 ID')
     } else {
@@ -143,9 +139,10 @@ describe('AgentModelEditorDialog', () => {
 
     expect(await screen.findByText(failure === 'validation'
       ? 'settings.agent.validation.modelId' : 'settings.agent.error.modelIdConflict')).toBeInTheDocument()
-    expect(body.scrollTop).toBe(320)
+    const feedback = document.querySelector(`.${styles.feedback}`)
+    expect(feedback).toHaveFocus()
     expect(document.documentElement.scrollTop).toBe(0)
-    expect(body).not.toContainElement(screen.getByRole('button', { name: 'app.save' }))
+    expect(screen.getAllByRole('button', { name: 'app.save' })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeEnabled()
     expect(onSave).toHaveBeenCalledTimes(failure === 'validation' ? 0 : 1)
@@ -178,12 +175,11 @@ function renderEditor({
   onSave = vi.fn(async () => undefined),
 }: {
   model?: AgentModel
-  onSave?: ComponentProps<typeof AgentModelEditorDialog>['onSave']
+  onSave?: ComponentProps<typeof AgentModelEditor>['onSave']
 } = {}) {
   return render(
     <AntdApp>
-      <AgentModelEditorDialog
-        open
+      <AgentModelEditor
         provider={providerFixture()}
         model={model}
         settings={settingsFixture()}

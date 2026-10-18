@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -31,6 +31,25 @@ const fonts: TerminalFont[] = [
 ]
 
 describe('Terminal 字体与配置合同', () => {
+  it('离开页面时提交最后一次防抖输入，且不会再次重复写入', () => {
+    vi.useFakeTimers()
+    try {
+      const onChange = vi.fn(async () => undefined)
+      const view = render(<TerminalStyleSettings value={defaultTerminalSettings} sshSmoothScrollEnabled={false}
+        fonts={fonts} disabled={false} onChange={onChange} onSshSmoothScrollChange={vi.fn()}
+        onUploadFont={vi.fn()} onDeleteFont={vi.fn()} />)
+      const input = screen.getAllByRole('spinbutton')[0]
+      fireEvent.change(input, { target: { value: '18' } })
+      expect(onChange).not.toHaveBeenCalled()
+      view.unmount()
+      expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultTerminalSettings, font_size: 18 })
+      vi.runAllTimers()
+      expect(onChange).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   afterEach(() => {
     document.getElementById(importedFontStyleId)?.remove()
     if (originalDocumentFonts) {
