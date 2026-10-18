@@ -22,7 +22,7 @@ export const settingsPages = [
   { id: 'remote-desktop', title: 'settings.tabRemoteDesktop', icon: MonitorPlay, modules: ['connection'], group: 'connections', mode: 'automatic' },
   { id: 'mount', title: 'settings.tabMount', icon: HardDrive, modules: ['mount'], tour: 'settings-mount-tab', group: 'connections', mode: 'manual' },
   { id: 'agent', title: 'settings.tabAgent', icon: Bot, modules: ['agent'], tour: 'settings-agent-tab', group: 'intelligence', mode: 'manual' },
-  { id: 'models', title: 'settings.tabModels', icon: CloudCog, modules: ['agent'], group: 'intelligence', mode: 'manual' },
+  { id: 'models', title: 'settings.tabModels', tour: 'settings-models-tab', icon: CloudCog, modules: ['agent'], group: 'intelligence', mode: 'manual' },
   { id: 'mcp', title: 'settings.tabMcp', icon: McpIcon, modules: ['mcp'], tour: 'settings-mcp-tab', group: 'intelligence', mode: 'resources' },
   { id: 'audit', title: 'settings.tabAudit', icon: ClipboardList, modules: ['audit'], group: 'maintenance', mode: 'manual' },
   { id: 'data', title: 'settings.tabData', icon: DatabaseBackup, modules: [], tour: 'settings-data-tab', group: 'maintenance', mode: 'resources' },

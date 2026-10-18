@@ -211,7 +211,7 @@ export function SettingsWorkspace({
         <AgentSettingsPanel gateway={agentSetupGateway} active={activeTab === 'agent'} />
       </div>
     ),
-    models: <div className={styles['tab-scroll']}><AgentSettingsPanel gateway={agentSetupGateway} view="models" active={activeTab === 'models'} /></div>,
+    models: <div className={styles['tab-scroll']} data-tour="settings-models"><AgentSettingsPanel gateway={agentSetupGateway} view="models" active={activeTab === 'models'} /></div>,
     mcp: (
       <div className={styles['tab-scroll']} data-tour="settings-mcp">
         <McpSettingsPanel />

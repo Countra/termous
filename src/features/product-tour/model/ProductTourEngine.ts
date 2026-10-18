@@ -11,7 +11,7 @@ import {
 } from './productTourSteps.ts'
 import type { ProductTourCompletionStore } from './productTourStorage.ts'
 
-type ProductTourCompletionReason = 'completed' | 'skipped' | 'closed'
+export type ProductTourCompletionReason = 'completed' | 'skipped' | 'closed'
 
 type ProductTourPreparationOutcome = 'ready' | 'blocked' | 'cancelled' | 'failed'
 
@@ -31,6 +31,7 @@ export interface ProductTourEngineOptions {
   labels: ProductTourLabels
   styles: ProductTourStyleClasses
   completionStore: ProductTourCompletionStore
+  persistOnDismiss?: boolean
   prepareStep: (step: ProductTourStep, signal: AbortSignal) => boolean | void | Promise<boolean | void>
   isBlocked: () => boolean
   isTransitionBlocked: (currentStep: ProductTourStep, nextStep: ProductTourStep) => boolean
@@ -245,7 +246,8 @@ export class ProductTourEngine {
     return {
       steps: this.content.steps.map((step, index) => ({
         element: step.element
-          ? () => findVisibleTourTarget(step.element!) as Element
+          ? () => (findVisibleTourTarget(step.element!)
+            ?? (step.fallbackElement ? findVisibleTourTarget(step.fallbackElement) : undefined)) as Element
           : undefined,
         waitForElement: 2500,
         skipMissingElement: false,
@@ -391,7 +393,9 @@ export class ProductTourEngine {
     let persisted = false
     try {
       try {
-        persisted = this.options.completionStore.writeCompletedVersion(PRODUCT_TOUR_VERSION)
+        if (reason === 'completed' || this.options.persistOnDismiss !== false) {
+          persisted = this.options.completionStore.writeCompletedVersion(PRODUCT_TOUR_VERSION)
+        }
       } catch (error) {
         this.options.onError(error)
       }
@@ -526,6 +530,7 @@ export class ProductTourEngine {
     const tourOwnsFocus = activeElement === null
       || activeElement === document.body
       || activeElement === popover.closeButton
+      || (activeElement instanceof Element && Boolean(activeElement.closest('.termous-product-tour-surface')))
       || (activeElement instanceof Node && popover.wrapper.contains(activeElement))
     if (tourOwnsFocus) {
       popover.nextButton.focus({ preventScroll: true })
@@ -717,6 +722,7 @@ function collectFocusableElements(roots: HTMLElement[]) {
 }
 
 function isVisibleElement(element: Element) {
+  if (element.closest('[hidden], [inert], [aria-hidden="true"]')) return false
   const style = window.getComputedStyle(element)
   const rect = element.getBoundingClientRect()
   return style.display !== 'none'
@@ -728,7 +734,8 @@ function isVisibleElement(element: Element) {
 const dropdownPortalSelector = '.ant-dropdown:not(.ant-dropdown-hidden)'
 
 const blockingPortalSelector = [
-  '.ant-modal-root',
+  // 被讲解的设置弹层处于向导下方；其他弹层（特别是审批）继续优先处理。
+  '.ant-modal-root:not(.termous-product-tour-surface)',
   '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
   '.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)',
   '.ant-popover:not(.ant-popover-hidden)',
@@ -749,11 +756,15 @@ function hasVisiblePortal(selector: string, target: EventTarget | null) {
   }
   return Array.from(document.querySelectorAll<HTMLElement>(selector))
     .some((element) => {
-      const style = window.getComputedStyle(element)
-      const rect = element.getBoundingClientRect()
+      // Modal 根节点可能在关闭后继续保留且只有页面宽度，应检查实际可见的包裹层。
+      const surface = element.matches('.ant-modal-root')
+        ? element.querySelector<HTMLElement>('.ant-modal-wrap') ?? element
+        : element
+      const style = window.getComputedStyle(surface)
+      const rect = surface.getBoundingClientRect()
       return style.display !== 'none'
         && style.visibility !== 'hidden'
-        && (rect.width > 0 || rect.height > 0)
+        && rect.width > 0 && rect.height > 0
     })
 }
 

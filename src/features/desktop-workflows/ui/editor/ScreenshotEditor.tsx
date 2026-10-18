@@ -12,9 +12,9 @@ import { PreviewModeControl, type PreviewMode } from './PreviewModeControl'
 import { ScreenshotCanvas } from './ScreenshotCanvas'
 import { ScreenshotTemplatePreview } from './ScreenshotTemplatePreview'
 
-interface Props { target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
+interface Props { enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
 
-export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask }: Props) {
+export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true }: Props) {
   const { t } = useTranslation()
   const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
@@ -52,7 +52,7 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     request.current?.abort(); request.current = controller
     working.current = false
     setPreview(undefined); setSnapshot(undefined); setMatched(undefined); setError(undefined)
-    if (!session || !generation) { setBusy(false); return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort() } }
+    if (!enabled || !session || !generation) { setBusy(false); return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort() } }
     setBusy(true)
     void gateway.openPreview(session, generation).then(async (value) => {
       id = value.id
@@ -65,7 +65,7 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       else close()
     })
     return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort(); close() }
-  }, [gateway, session, generation, previewRevision])
+  }, [enabled, gateway, session, generation, previewRevision])
 
   useEffect(() => {
     if (!snapshot) { setURL(undefined); return }
@@ -130,7 +130,7 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
   const validRegion = region && snapshot && region.x >= 0 && region.y >= 0 && region.width > 0 && region.height > 0 && region.x + region.width <= snapshot.metadata.width && region.y + region.height <= snapshot.metadata.height ? region : undefined
   const point = pointTarget?.kind === 'point' && referenceMatches(pointTarget) && pointTarget.x != null && pointTarget.y != null ? { x: pointTarget.x, y: pointTarget.y } : undefined
   const canvasKey = [url, step?.id, activeSlot, selectionMode].join(':')
-  return <section className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
+  return <section data-tour="automation-preview" className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
     <header className={styles['screen-toolbar']}>
       <Monitor size={16} className={styles['screen-icon']} />
       <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />

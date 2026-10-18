@@ -13,6 +13,7 @@ import {
 } from '#entities/agent'
 import { mcpScopeGroups } from '../features/mcp-access/model/mcpScopeCatalog.ts'
 import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
+import { productTourTopics } from '../features/product-tour/model/productTourTopics.ts'
 import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
 type TranslationTree = Record<string, unknown>
@@ -46,7 +47,12 @@ test('使用向导动态步骤键拥有完整双语翻译', () => {
       assert.equal(typeof value, 'string', `${locale}: ${key}`)
       return value as string
     })
-    assert.equal(steps.length, 28, locale)
+    assert.equal(new Set(steps.map((step) => step.id)).size, steps.length, locale)
+    for (const topic of productTourTopics) {
+      for (const field of ['title', 'description']) {
+        assert.equal(typeof translationValue(translations, `productTour.topics.${topic.id}.${field}`), 'string', `${locale}: ${topic.id}.${field}`)
+      }
+    }
   }
 })
 

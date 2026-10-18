@@ -34,7 +34,7 @@ import {
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { FileSystemClipboardNotification } from '#features/files'
-import { ProductTourController, type ProductTourStep } from '#features/product-tour'
+import { ProductTourGuide, type ProductTourStep } from '#features/product-tour'
 import { MountsPage } from '#pages/mounts'
 import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
@@ -334,6 +334,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [actionBusy, setActionBusy] = useState(false)
   const [productTourRequestKey, setProductTourRequestKey] = useState(0)
   const [productTourActive, setProductTourActive] = useState(false)
+  const [productTourDesktopIntent, setProductTourDesktopIntent] = useState<{ key: number; view: 'desktops' | 'workflow' }>()
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [desktopConnectionBlocking, setDesktopConnectionBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
@@ -1318,13 +1319,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     || actionBusy
     || hostSaving
     || Boolean(pendingPage)
-  const prepareProductTourStep = (step: ProductTourStep) => {
+  const prepareProductTourStep = async (step: ProductTourStep, signal: AbortSignal) => {
     if (
       actionBusy
       || hostSavingRef.current
       || pendingPage
       || !apiReady
       || coreFatal
+      || signal.aborted
+      || isProductTourTransitionBlocked(step, step)
     ) {
       return false
     }
@@ -1339,7 +1342,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           requestHostEntry({ mode: 'create' })
         }
       }
-      navigateToPage(step.route)
+      if (!await navigateToPage(step.route, { accountTab: step.accountTab }) || signal.aborted) return false
+      if (step.desktopView) {
+        const view = step.desktopView
+        setProductTourDesktopIntent((previous) => ({ key: (previous?.key ?? 0) + 1, view }))
+      }
     }
     return true
   }
@@ -1349,6 +1356,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   ) => {
     if (settingsDirty || settingsBusy) return true
     if (nextStep.route === 'settings') return false
+    if (workflowNavigationBlocked && nextStep.route && nextStep.route !== 'remote-desktop') return true
     if (page === 'vault' && vaultDirty) {
       return nextStep.preparation === 'vaultCatalog'
         || (nextStep.route !== undefined && nextStep.route !== 'vault')
@@ -1361,7 +1369,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return nextStep.route !== undefined && nextStep.route !== 'snippets'
     }
     return false
-  }, [hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy])
+  }, [hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy, workflowNavigationBlocked])
   const showProductTourBlocked = useCallback(() => {
     notification.warning({
       title: t('productTour.menuLabel'),
@@ -1689,6 +1697,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         inert={page !== 'remote-desktop'}
                       >
                         <RemoteDesktopPage
+                          guideIntent={productTourDesktopIntent}
+                          guided={productTourActive}
                           active={page === 'remote-desktop'}
                           appearance={{ theme, language: data.settings.language }}
                           workflowResetKey={workflowResetKey}
@@ -1726,7 +1736,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onShortcutSettingsChange={saveShortcutSettings}
                       onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
                       onUploadTerminalFont={uploadTerminalFont} onDeleteTerminalFont={deleteTerminalFont} />
-                    <ProductTourController
+                    <ProductTourGuide
                       ready={productTourReady && !accountWelcomePending}
                       autoStartEligible={
                         data.credentials.length === 0

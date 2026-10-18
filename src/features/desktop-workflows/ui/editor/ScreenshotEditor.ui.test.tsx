@@ -14,6 +14,23 @@ const gateway = (): WorkflowMediaGateway => ({ openPreview: vi.fn().mockResolved
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('模板预览与选区应用', () => {
+  it('引导暂停截图观察，退出后按原目标恢复且不修改配置', async () => {
+    const api = gateway()
+    const change = vi.fn()
+    const props = { gateway: api, target: { mode: 'session' as const, id: 'session', connectionGeneration: 1 }, onTargetChange: vi.fn(), onChange: change,
+      sessions: [{ id: 'session', profile_name: '合成桌面', protocol: 'vnc' as const, connection_generation: 1, status: 'streaming' as const }] }
+    vi.mocked(api.capture).mockImplementation(() => new Promise(() => {}))
+    const view = render(<ScreenshotEditor {...props} enabled={false} />, { wrapper })
+    await act(async () => {})
+    expect(api.openPreview).not.toHaveBeenCalled()
+    expect(api.capture).not.toHaveBeenCalled()
+    view.rerender(<ScreenshotEditor {...props} />)
+    await waitFor(() => expect(api.capture).toHaveBeenCalledOnce())
+    view.rerender(<ScreenshotEditor {...props} enabled={false} />)
+    await waitFor(() => expect(api.closePreview).toHaveBeenCalledExactlyOnceWith('preview'))
+    expect(change).not.toHaveBeenCalled()
+  })
+
   it('截图读取期间卸载只关闭一次观察，迟到响应不会重新显示画面', async () => {
     const api = gateway()
     let finish!: (value: Awaited<ReturnType<WorkflowMediaGateway['capture']>>) => void

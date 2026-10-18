@@ -19,10 +19,11 @@ export interface WorkflowWorkspaceProps {
   activeSessionId?: string; headerActions?: ReactNode; appearance?: DetachedAppearance
   onDirtyChange: (dirty: boolean) => void; onViewDesktop: (session: string) => void | Promise<void>
   onReturnToPage?: () => Promise<boolean>; onDetachedChange?: (detached: boolean) => void
+  guided?: boolean
 }
 
 export function WorkflowWorkspace({ gateway, sessions, activeSessionId, profiles, headerActions, appearance,
-  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange }: WorkflowWorkspaceProps) {
+  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, guided }: WorkflowWorkspaceProps) {
   const { t, i18n } = useTranslation()
   const root = useRef<HTMLDivElement>(null)
   const placeholder = useRef<HTMLElement>(null)
@@ -76,12 +77,12 @@ export function WorkflowWorkspace({ gateway, sessions, activeSessionId, profiles
     controller.dispose()
     void adapter.media.reset().catch(() => { console.warn('[termous:workflow] 独立窗口截图观察清理失败，将由预览租约回收') })
   }, [adapter, controller])
-  return <div ref={root} className={styles.surface}>
+  return <div ref={root} className={styles.surface} data-tour="automation-workspace">
     {windowState.error && <Alert className={styles.error} type="warning" showIcon title={t('desktopWorkflow.window.failed')}
       action={<Button size="small" onClick={() => { if (background) void windowState.focus(); else void windowState.open(root.current) }}>{t(background ? 'desktopWorkflow.window.focus' : 'app.retry')}</Button>} />}
     {(!detached || windowState.restoring) && <div className={styles.content} data-motion={windowState.restoring ? 'restoring' : undefined}
       inert={windowState.restoring || windowState.phase === 'opening' && windowState.frozen}>
-      <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask}
+      <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask} guided={guided}
         windowAction={windowState.available ? <DetachedWindowButton label={t('desktopWorkflow.window.open')} busy={windowState.phase === 'opening'} onClick={() => void windowState.open(root.current)} /> : undefined} />
     </div>}
     {detached && <DetachedWindowPlaceholder ref={placeholder} capture={windowState.capture} busy={windowState.phase === 'returning'} restoring={windowState.restoring} headerActions={headerActions}

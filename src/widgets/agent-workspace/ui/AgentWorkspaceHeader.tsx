@@ -46,7 +46,7 @@ export function AgentWorkspaceHeader({
   const showStatus = shouldShowRunStatus(runStatus)
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-tour="agent-header">
       <div className={styles['header-title']}>
         {sessionsOverlay ? (
           <Tooltip title={t('agent.sessions.title')}>

@@ -54,9 +54,9 @@ export function AccountPage({ api, settingsGateway, profile, onUseOffline, activ
   const name = profile.profile?.name || status.email || t('nav.account')
   const deviceLabel = t(status.device_status === 'active' ? 'cloud.trusted' : status.device_status === 'revoked' ? 'cloud.deviceStates.revoked' : 'cloud.pendingApproval')
   const label = (tab: CloudTab, icon: ReactNode) => <span className={styles['tab-label']}><span aria-hidden="true">{icon}</span>{t(`cloud.tabs.${tab}`)}</span>
-  const panel = (tab: CloudTab, content: ReactNode) => <FeedbackMessageScope active={activeTab === tab}><div className={styles['tab-scroll']}><div className={styles['tab-content']}>{content}</div></div></FeedbackMessageScope>
+  const panel = (tab: CloudTab, content: ReactNode) => <FeedbackMessageScope active={activeTab === tab}><div className={styles['tab-scroll']} data-tour={`account-${tab}`}><div className={styles['tab-content']}>{content}</div></div></FeedbackMessageScope>
 
-  return <FeedbackMessageScope scope={status.generation}><div className={styles.page}>
+  return <FeedbackMessageScope scope={status.generation}><div className={styles.page} data-tour="account-workspace">
     <header className={styles.header}>
       <div className={styles.identity}>
         <Avatar className={styles.avatar} size={48} src={profile.profile?.avatar || undefined} icon={<UserRound size={24} />} />

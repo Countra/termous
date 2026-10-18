@@ -20,8 +20,9 @@ import styles from './WorkflowWorkspace.module.scss'
 import overlays from './shared/WorkflowOverlays.module.scss'
 import { useWorkflowFeedback } from './shared/useWorkflowFeedback'
 
-export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask }: {
+export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask, guided = false }: {
   model: WorkflowSurfaceModel; gateway: WorkflowMediaGateway; headerActions?: ReactNode; windowAction?: ReactNode; onMediaTask: (task: Promise<unknown>) => void
+  guided?: boolean
 }) {
   const { t } = useTranslation(); const { modal } = App.useApp()
   useWorkflowFeedback(model)
@@ -83,9 +84,9 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
   ><div ref={root} className={styles.workspace} data-narrow={narrow || undefined}>
     <header className={styles['workspace-header']}>
       <div className={styles.breadcrumb}><Workflow size={18} /><strong>{t('desktopWorkflow.workflow')}</strong><ChevronRight size={13} /><span>{t(view === 'scripts' ? 'desktopWorkflow.compose' : 'desktopWorkflow.executionHistory')}</span></div>
-      <div className={styles['workspace-actions']}>
+      <div className={styles['workspace-actions']} data-tour="automation-actions">
         {activeCount > 0 && <button type="button" className={styles['active-runs']} onClick={() => { const first = model.runs.find((run) => isRunActive(run.state)); if (first) showRun(first.id) }}>{t('desktopWorkflow.activeRuns', { count: activeCount })}</button>}
-        <Button size="small" type="text" icon={<History size={15} />} onClick={() => actions.view(view === 'scripts' ? 'runs' : 'scripts')}>{t(view === 'scripts' ? 'desktopWorkflow.executionHistory' : 'desktopWorkflow.backToEditor')}</Button>
+        <Button data-tour="automation-history" size="small" type="text" icon={<History size={15} />} onClick={() => actions.view(view === 'scripts' ? 'runs' : 'scripts')}>{t(view === 'scripts' ? 'desktopWorkflow.executionHistory' : 'desktopWorkflow.backToEditor')}</Button>
         {windowAction}{headerActions && <div className={styles['header-extension']}>{headerActions}</div>}
       </div>
     </header>
@@ -104,7 +105,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
               onCopy={(id) => change({ definition: { ...draft.definition, steps: copyStep(draft.definition.steps, id) } })}
               onRemove={(id) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, () => undefined) } })}
               onToggle={(id, disabled) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, (value) => ({ ...value, disabled })) } })} />
-            <ScreenshotEditor key={draft.editingID} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
+            <ScreenshotEditor key={draft.editingID} enabled={!guided} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
               const latest = current.current.state.draft
               if (latest?.editingID === draft.editingID) current.current.actions.change({ definition: { ...latest.definition, steps: editStep(latest.definition.steps, id, edit) } })
             }} />

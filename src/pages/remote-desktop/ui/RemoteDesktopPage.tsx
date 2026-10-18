@@ -21,15 +21,22 @@ export type RemoteDesktopPageProps = Omit<RemoteDesktopWorkspaceProps, 'tools' |
   workflowResetKey?: number
   onReturnToPage?: () => Promise<boolean>
   onDetachedChange?: (detached: boolean) => void
+  guideIntent?: { key: number; view: 'desktops' | 'workflow' }
+  guided?: boolean
 }
 
-export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, ...props }: RemoteDesktopPageProps) {
+export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, guideIntent, guided, ...props }: RemoteDesktopPageProps) {
   const { t } = useTranslation()
   const runtime = useRemoteDesktopRuntime()
   const [view, setView] = useState<'desktops' | 'workflow'>('desktops')
   const [workflowOpened, setWorkflowOpened] = useState(false)
   const entry = useRef<HTMLButtonElement>(null)
   const automation = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!guideIntent) return
+    if (guideIntent.view === 'workflow') setWorkflowOpened(true)
+    setView(guideIntent.view)
+  }, [guideIntent])
   useEffect(() => {
     if (!active) return
     if (view === 'workflow') automation.current?.focus({ preventScroll: true })
@@ -40,7 +47,7 @@ export function RemoteDesktopPage({ workflow, profiles, onDirtyChange, active = 
       { key: 'automation', label: t('desktopWorkflow.workflow'), icon: <Workflow size={17} />, onClick: () => { setWorkflowOpened(true); setView('workflow') } },
     ]} />}</div>
     {workflowOpened && <div ref={automation} id="remote-desktop-workflow" className={styles.content} role="region" aria-label={t('desktopWorkflow.workflow')} tabIndex={-1} hidden={view !== 'workflow'} inert={view !== 'workflow'}><WorkflowWorkspace key={workflowResetKey} gateway={workflow} sessions={runtime.sessions} activeSessionId={runtime.activeSessionId ?? undefined} profiles={profiles} onDirtyChange={onDirtyChange}
-      appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
+      guided={guided} appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
         if (onReturnToPage && !await onReturnToPage()) return false
         setView('workflow'); return true
       }} headerActions={

@@ -6702,14 +6702,16 @@
     "done": "Finish",
     "skip": "Skip tour",
     "close": "Close tour",
+    "backToTopics": "All topics",
+    "finishTopic": "Finish & return",
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Termous brings terminals, file management, and AI operations into one workbench. Explore connection setup, file profiles, filesystem mounts, and where to configure MCP and install Skills."
+        "description": "Manage terminals, remote desktops and files in one workspace, with AI assistance and desktop automation. This short overview covers the main entry points; focused guides explain the details."
       },
       "vaultNav": {
-        "title": "Start with credentials",
-        "description": "Credentials are the first step toward an SSH connection. The vault keeps passwords and private keys together for use in connection profiles."
+        "title": "Manage credentials",
+        "description": "Add a password or SSH key to the vault, then select it in a host's connection profile. Multiple connections can share the same credential."
       },
       "vaultActions": {
         "title": "Choose how to create a credential",
@@ -6724,20 +6726,20 @@
         "description": "A host organizes a device you manage and contains one or more connection profiles. Add the host first, then configure how to reach it."
       },
       "hostEditor": {
-        "title": "Organize host details",
-        "description": "Set a name, group, tags, and icon so the host is easy to find and recognize, then continue by adding an SSH connection profile."
+        "title": "Organize a host",
+        "description": "Set a name, group, tags and icon, then add SSH, desktop or file profiles as needed. A host can provide desktop or file access without an SSH profile."
       },
       "hostConnections": {
-        "title": "Configure an SSH connection",
-        "description": "On the Connections tab, enter the SSH endpoint, choose a credential and optional proxy, and set the default connection. Saving an SSH profile automatically creates its matching SFTP profile."
+        "title": "Manage connection profiles",
+        "description": "Manage SSH, desktop and file profiles in the Connections tab. SSH profiles support credentials and proxies and include an SFTP profile; other protocols use their own options."
       },
       "fileProfiles": {
         "title": "Set up file access for a host",
         "description": "After saving a host, add SFTP, S3, WebDAV, FTP, or SMB profiles under file access on its Connections tab. SFTP uses an existing SSH connection; other engines provide their own connection options. Reuse saved profiles in Files, AI resource references, and mounts."
       },
       "topbarConnect": {
-        "title": "Connect quickly",
-        "description": "Open the host launcher in the workbench top bar to choose a configured host connection, or start a local terminal from the same menu."
+        "title": "Connect in context",
+        "description": "The top Connect button opens desktop or file connections in those workspaces, and SSH elsewhere. Use the session ＋ menu for saved profiles or More connections for the full list. The connection shortcut follows the same rule."
       },
       "workbench": {
         "title": "Work in the workbench",
@@ -6784,12 +6786,12 @@
         "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
       },
       "settings": {
-        "title": "Tune key preferences",
-        "description": "Explore terminal options, mount caching, MCP access, Skills installation, and the AI assistant. Close the tour whenever you're ready to change settings."
+        "title": "Adjust preferences",
+        "description": "Settings opens as a dialog. General, terminal and connection preferences apply automatically. Pages such as AI assistant and Model services use the Save action at the bottom; resource operations have their own confirmation."
       },
       "settingsTerminal": {
-        "title": "Make the terminal your own",
-        "description": "Adjust fonts, cursor, theme, and scrollback. Completion supports commands, aliases, snippets, history, and directories. To enable AI command suggestions, first configure a default model in AI Assistant settings."
+        "title": "Tune your terminal",
+        "description": "Adjust fonts, cursor, theme and scrollback, and choose completion sources. AI command suggestions require an available model in Model services."
       },
       "settingsMount": {
         "title": "Manage the local mount cache",
@@ -6804,16 +6806,143 @@
         "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
       },
       "settingsAgent": {
-        "title": "Set up the built-in AI assistant",
-        "description": "Configure providers and a default model, then adjust context compaction and Token usage display. In the AI assistant, type / for quick commands and SSH or file connection references, or continue working with content referenced from the terminal."
+        "title": "Set assistant preferences",
+        "description": "Choose a default model and adjust context and session preferences, then use Save at the bottom. Manage service URLs, API keys and model lists separately in Model services."
       },
       "settingsData": {
         "title": "Back up your workspace",
         "description": "Export hosts, credentials, settings, and local resources as an encrypted backup. Preview an import before choosing replacement, merge, or selective restore, then restart after applying it."
       },
       "finish": {
-        "title": "You're ready",
-        "description": "You have explored connections, file engines, mounts, auditing, and AI access. Close the tour to start configuring and using them. You can replay it anytime from the Help menu."
+        "title": "Ready to explore",
+        "description": "You've explored the main entry points. Choose Finish & return to browse guides on connections, desktop automation, AI assistance and more, or close the tour to get started."
+      },
+      "desktop": {
+        "title": "Remote desktop workspace",
+        "description": "Manage RDP and VNC sessions here. Add a desktop profile to a host, then select it using Connect or the session ＋ menu. Desktop automation is also accessible before connecting."
+      },
+      "desktopConnect": {
+        "title": "Choose a desktop profile",
+        "description": "Connect opens the desktop connection page, prioritizing hosts with desktop profiles. The session ＋ menu lists available profiles; hover a profile to inspect its connection details."
+      },
+      "desktopTools": {
+        "title": "Desktop tools & retained sessions",
+        "description": "Desktop tools provides file and automation entry points. Reopen retained sessions after closing their tabs. Available tools depend on the protocol and connection state."
+      },
+      "desktopFiles": {
+        "title": "RDP file exchange",
+        "description": "With an RDP connection, open Files from Desktop tools for file exchange and clipboard access. Ctrl+V accepts files from the local clipboard. The bottom transfer entry opens progress and shows the rate during transfers."
+      },
+      "automationEntry": {
+        "title": "Open desktop automation",
+        "description": "Open Desktop automation from Desktop tools to build and run desktop tasks. Choose the Desktop automation guide to explore templates and execution steps. The tour never creates templates or starts a run."
+      },
+      "automationLibrary": {
+        "title": "Templates & run history",
+        "description": "The collapsible left panel contains templates and run history. Select or create a template to display its steps and configuration; the overview appears when none is selected."
+      },
+      "automationEditor": {
+        "title": "Compose task steps",
+        "description": "After opening a template, add, reorder and configure steps, and manage parameters in Flow settings. Validate checks the configuration, Save keeps changes, and Run asks for a target and parameters. The guide performs none of these actions."
+      },
+      "automationPreview": {
+        "title": "Select points & regions",
+        "description": "With a template and connected desktop selected, refresh the screenshot to pick points or regions. Scroll to zoom, Ctrl+drag to pan, and drag regions directly to adjust them. Ctrl+Z / Ctrl+Shift+Z undo and redo; Delete removes a selection. Zoom leaves configuration coordinates unchanged. New captures are paused during the guide."
+      },
+      "automationHistory": {
+        "title": "Review task runs",
+        "description": "Switch to run history here. Select a run to inspect its state, step details, keys, input and screenshots, with controls to expand or collapse all details. History and template editing share the same workspace."
+      },
+      "automationWindow": {
+        "title": "Use a separate window",
+        "description": "On desktop, open automation in a separate window and return it to the main interface when needed. Desktop sessions stay in place. Use Back to remote desktop to view them."
+      },
+      "settingsModels": {
+        "title": "Prepare model services",
+        "description": "Add a service, enter its API URL and key, and choose or edit available models, then Save at the bottom. Select the assistant’s default model and preferences in the next step."
+      },
+      "agent": {
+        "title": "AI assistant workspace",
+        "description": "When the assistant is not ready, this page lists the remaining setup tasks. Complete model and runtime setup to start chatting. The guide does not prepare the environment, send messages or call models."
+      },
+      "agentContext": {
+        "title": "Reference resources & context",
+        "description": "When ready, reference SSH, file or desktop resources in the composer, or bring in text selected in a terminal. Type / to view shortcuts and provide a clear task target and context."
+      },
+      "agentApproval": {
+        "title": "Review operations before approval",
+        "description": "Operations requiring approval show their target and details before continuing. Review pending approvals in the message center and inspect results in Audit. Grant access according to the task."
+      },
+      "agentWindow": {
+        "title": "Work in a separate assistant window",
+        "description": "On desktop, a ready assistant can open separately and return to the main interface while keeping the conversation. Complete setup first if it is not ready. Remote-device assistants follow the remote device’s readiness state."
+      },
+      "account": {
+        "title": "Account & devices",
+        "description": "Use Account at the bottom of the sidebar for cloud sync and devices. Sign in to access sync, device and security settings. Local terminal, file and desktop features also work offline."
+      },
+      "cloudSync": {
+        "title": "Choose encrypted sync data",
+        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
+      },
+      "cloudSecurity": {
+        "title": "Manage account security",
+        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
+      },
+      "remoteDevices": {
+        "title": "Open device remote control",
+        "description": "After signing in, choose a trusted, online device in Devices to open remote control. Access depends on the remote device’s settings and availability, separately from host SSH or RDP profiles."
+      },
+      "remotePermissions": {
+        "title": "Limit remote access",
+        "description": "The controlled device manages access permissions. Enable only the features and file roots you need; remote AI access also requires its own permission. The guide does not grant access or connect to a device."
+      },
+      "notifications": {
+        "title": "Find results & approvals",
+        "description": "The message center collects task results, file transfers and pending approvals. Open a message to visit its content. Enabled system notifications appear only when the entire app is unfocused, not when switching between Termous windows."
+      }
+    },
+    "chooseTopic": "Start with the basics or choose a topic. Return to this list during any guide, or close it and reopen it from Help.",
+    "topicCompleted": "You've explored {{topic}}",
+    "continueTopic": "Choose another topic, or close the tour to get started.",
+    "completed": "Completed",
+    "stepCount": "{{count}} steps",
+    "topics": {
+      "basics": {
+        "title": "Getting started",
+        "description": "Explore workspaces, connections and everyday tools"
+      },
+      "connections": {
+        "title": "Hosts & connections",
+        "description": "Credentials, profiles and quick connections"
+      },
+      "files": {
+        "title": "Files & mounts",
+        "description": "File profiles, bookmarks, transfers and mounts"
+      },
+      "desktop": {
+        "title": "Remote desktop",
+        "description": "Desktop profiles, tools and RDP file exchange"
+      },
+      "automation": {
+        "title": "Desktop automation",
+        "description": "Templates, steps, screen selection and run history"
+      },
+      "agent": {
+        "title": "AI assistant",
+        "description": "Models, resource references and approvals"
+      },
+      "cloud": {
+        "title": "Sync & backup",
+        "description": "Encrypted sync, device trust and local backups"
+      },
+      "remote": {
+        "title": "Device remote control",
+        "description": "Device access, permissions and remote work"
+      },
+      "tools": {
+        "title": "Tools & integrations",
+        "description": "Session tools, forwarding, snippets, MCP and audit"
       }
     }
   },

@@ -11,11 +11,12 @@ type StorageProvider = () => Pick<Storage, 'getItem' | 'setItem'>
 
 export function createProductTourCompletionStore(
   storageProvider: StorageProvider = () => window.localStorage,
+  key = PRODUCT_TOUR_STORAGE_KEY,
 ): ProductTourCompletionStore {
   return {
     readCompletedVersion: () => {
       try {
-        return parseCompletedVersion(storageProvider().getItem(PRODUCT_TOUR_STORAGE_KEY))
+        return parseCompletedVersion(storageProvider().getItem(key))
       } catch {
         return null
       }
@@ -24,12 +25,12 @@ export function createProductTourCompletionStore(
       try {
         const storage = storageProvider()
         const completedVersion = parseCompletedVersion(
-          storage.getItem(PRODUCT_TOUR_STORAGE_KEY),
+          storage.getItem(key),
         )
         if (completedVersion !== null && completedVersion >= version) {
           return true
         }
-        storage.setItem(PRODUCT_TOUR_STORAGE_KEY, String(version))
+        storage.setItem(key, String(version))
         return true
       } catch {
         return false

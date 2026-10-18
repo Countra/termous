@@ -31,7 +31,7 @@ export function WorkflowEditorToolbar(props: Props) {
   const { t } = useTranslation()
   const [settings, setSettings] = useState(false)
   return <>
-    <header className={styles.header}>
+    <header className={styles.header} data-tour="automation-editor">
       <div className={styles.identity}>
         <WorkflowNameEditor value={props.name} disabled={props.busy} onChange={name => props.onChange({ name })} />
         <div className={styles.revision}><span>{props.revision ? `v${props.revision}` : t('desktopWorkflow.draft')}</span><span className={styles['save-state']} data-dirty={props.dirty || undefined} role="status">{t(props.dirty ? 'desktopWorkflow.unsaved' : 'desktopWorkflow.saved')}</span></div>

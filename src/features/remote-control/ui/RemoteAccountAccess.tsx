@@ -124,7 +124,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     }
   }
   return <>
-    {api && trusted ? <section className={styles.settings}><div><h2><Monitor size={18} />{copy.hostSettings}</h2><p>{copy.settingsHint}</p></div><Button icon={<Settings2 size={15} />} disabled={loading || !!working} onClick={() => void edit()}>{copy.configure}</Button></section> : null}
+    {api && trusted ? <section className={styles.settings} data-tour="remote-permissions"><div><h2><Monitor size={18} />{copy.hostSettings}</h2><p>{copy.settingsHint}</p></div><Button icon={<Settings2 size={15} />} disabled={loading || !!working} onClick={() => void edit()}>{copy.configure}</Button></section> : null}
     {children(device => {
       const state = devices.find(item => item.id === device.id)
       if (device.id === currentDevice) return null

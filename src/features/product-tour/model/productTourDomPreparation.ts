@@ -7,6 +7,7 @@ const settingsTabActions = {
   settingsMcp: '[data-tour="settings-mcp-tab"]',
   settingsAgent: '[data-tour="settings-agent-tab"]',
   settingsData: '[data-tour="settings-data-tab"]',
+  settingsModels: '[data-tour="settings-models-tab"]',
 } as const
 
 export async function prepareProductTourDom(
@@ -48,6 +49,7 @@ export async function prepareProductTourDom(
     case 'settingsMcp':
     case 'settingsAgent':
     case 'settingsData':
+    case 'settingsModels':
       // 通过原页签动作展示设置，保留已经挂载的表单、编辑稿和导入会话。
       await ensureTarget(step.element, settingsTabActions[step.preparation], signal)
       if (!signal.aborted && step.element) {

@@ -32,9 +32,11 @@ export function SettingsDialog({ open, onClose, onDirtyChange, onBusyChange, gui
     else onClose()
   }
   return <Modal open={open} centered width={1100} title={t('settings.title')} footer={null} transitionName=""
+    zIndex={guided ? 2970 : undefined}
+    focusable={{ trap: !guided }}
     destroyOnHidden mask={{ closable: false }} keyboard={!busy && !confirmClose && !guided}
     closable={{ disabled: busy || guided, 'aria-label': t('app.close') }} closeIcon={<X size={18} aria-hidden="true" />}
-    className={styles.dialog} rootClassName={`termous-modal-root ${styles.root}`}
+    className={styles.dialog} rootClassName={`termous-modal-root ${styles.root}${guided ? ' termous-product-tour-surface' : ''}`}
     classNames={{ container: styles.container, header: styles.header, body: styles.body, close: styles.close }}
     afterClose={() => setConfirmClose(false)} onCancel={requestClose}>
     <SettingsWorkspace {...props} onDirtyChange={handleDirty} onBusyChange={handleBusy} />

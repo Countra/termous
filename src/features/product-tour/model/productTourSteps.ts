@@ -1,95 +1,9 @@
-import type { Alignment, Side } from 'driver.js'
+import type { ProductTourStep, ProductTourLabels, ProductTourTranslate, ProductTourStepBlueprint } from './productTourTypes.ts'
+export type { ProductTourStep, ProductTourStepId, ProductTourLabels } from './productTourTypes.ts'
+import { productTourFeatureSteps } from './productTourFeatureSteps.ts'
+import { getProductTourTopic, type ProductTourTopicId } from './productTourTopics.ts'
 
-export const PRODUCT_TOUR_VERSION = 4
-
-export type ProductTourStepId =
-  | 'welcome'
-  | 'vaultNav'
-  | 'vaultActions'
-  | 'credentialEditor'
-  | 'hostsNav'
-  | 'hostEditor'
-  | 'hostConnections'
-  | 'fileProfiles'
-  | 'topbarConnect'
-  | 'workbench'
-  | 'workbenchTools'
-  | 'files'
-  | 'filesBookmarks'
-  | 'filesLocalDirectory'
-  | 'filesTransfers'
-  | 'mounts'
-  | 'mountsRuntime'
-  | 'forwards'
-  | 'snippets'
-  | 'audit'
-  | 'settings'
-  | 'settingsTerminal'
-  | 'settingsMount'
-  | 'settingsMcp'
-  | 'settingsSkills'
-  | 'settingsAgent'
-  | 'settingsData'
-  | 'finish'
-
-type ProductTourRoute =
-  | 'vault'
-  | 'hosts'
-  | 'workbench'
-  | 'files'
-  | 'mounts'
-  | 'forwards'
-  | 'snippets'
-  | 'audit'
-  | 'settings'
-
-type ProductTourPreparation =
-  | 'vaultCatalog'
-  | 'credentialEditor'
-  | 'hostCatalog'
-  | 'hostEditor'
-  | 'hostConnections'
-  | 'settingsTerminal'
-  | 'settingsMount'
-  | 'settingsMcp'
-  | 'settingsAgent'
-  | 'settingsData'
-
-export interface ProductTourStep {
-  id: ProductTourStepId
-  title: string
-  description: string
-  element?: string
-  route?: ProductTourRoute
-  preparation?: ProductTourPreparation
-  disableActiveInteraction?: boolean
-  side?: Side
-  align?: Alignment
-}
-
-export interface ProductTourLabels {
-  progress: string
-  next: string
-  previous: string
-  done: string
-  skip: string
-  close: string
-}
-
-type ProductTourTranslate = (
-  key: string,
-  options?: Record<string, unknown>,
-) => string
-
-interface ProductTourStepBlueprint {
-  id: ProductTourStepId
-  element?: string
-  route?: ProductTourRoute
-  preparation?: ProductTourPreparation
-  disableActiveInteraction?: boolean
-  side?: Side
-  align?: Alignment
-}
+export const PRODUCT_TOUR_VERSION = 5
 
 const stepBlueprints: ProductTourStepBlueprint[] = [
   { id: 'welcome' },
@@ -300,22 +214,24 @@ const stepBlueprints: ProductTourStepBlueprint[] = [
   },
   {
     id: 'finish',
-    element: '[data-tour="product-tour-trigger"]',
-    route: 'settings',
-    side: 'right',
-    align: 'end',
   },
 ]
 
-export function buildProductTourSteps(t: ProductTourTranslate): ProductTourStep[] {
-  return stepBlueprints.map((step) => ({
+export function buildProductTourSteps(t: ProductTourTranslate, topic?: ProductTourTopicId): ProductTourStep[] {
+  const catalog = [...stepBlueprints.slice(0, -1), ...productTourFeatureSteps, stepBlueprints[stepBlueprints.length - 1]]
+  const blueprints = topic
+    ? getProductTourTopic(topic).steps.map((id) => catalog.find((step) => step.id === id)!)
+    : catalog
+  return blueprints.map((step) => ({
     ...step,
+    // 专题引导只讲解；编辑、连接与授权交由用户退出向导后主动进行。
+    ...(topic ? { disableActiveInteraction: true } : {}),
     title: t(`productTour.steps.${step.id}.title`),
     description: t(`productTour.steps.${step.id}.description`),
   }))
 }
 
-export function buildProductTourLabels(t: ProductTourTranslate): ProductTourLabels {
+export function buildProductTourLabels(t: ProductTourTranslate, topic?: ProductTourTopicId): ProductTourLabels {
   return {
     progress: t('productTour.progress', {
       current: '{{current}}',
@@ -324,8 +240,8 @@ export function buildProductTourLabels(t: ProductTourTranslate): ProductTourLabe
     }),
     next: t('productTour.next'),
     previous: t('productTour.previous'),
-    done: t('productTour.done'),
-    skip: t('productTour.skip'),
+    done: t(topic ? 'productTour.finishTopic' : 'productTour.done'),
+    skip: t(topic ? 'productTour.backToTopics' : 'productTour.skip'),
     close: t('productTour.close'),
   }
 }

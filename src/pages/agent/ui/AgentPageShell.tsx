@@ -64,7 +64,7 @@ export function AgentPage({ onReturnToPage, onDetachedChange, appearance, ...pro
       restoring={window.restoring} onReturn={() => void window.returnWindow(true)} onFocus={() => void window.focus()} />}
   </SurfacePublication>, [adapter, detached, feedback, notices, publisher, window])
   const openSettings = () => { void window.reveal(); props.onOpenSettings?.() }
-  return <div className={styles.surface} ref={root}>
+  return <div className={styles.surface} ref={root} data-tour="agent-workspace">
     {window.error && <Alert className={styles.error} type="warning" showIcon closable title={t('agent.window.failed')} />}
     <AgentWorkspaceHost {...props} active={props.active || detached || window.phase === 'opening'}
       backgroundActive={detached}

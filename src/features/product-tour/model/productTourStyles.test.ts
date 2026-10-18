@@ -43,6 +43,15 @@ test('Popover 的关键操作满足文本对比度和最小点击尺寸合同', 
   assert.match(tourStyles, /\.skip-button:focus-visible\s*\{[^}]*outline:\s*2px solid/s)
 })
 
+test('只有被讲解的设置弹层位于向导下方，普通弹层继续使用公共层级', () => {
+  const settings = readSource('../../../pages/settings/ui/SettingsDialog.tsx')
+  const globalStyles = readSource('../../../shared/styles/global.scss')
+  const overlay = Number(globalStyles.match(/\.driver-overlay\s*\{[^}]*z-index:\s*(\d+)/s)?.[1])
+  const guided = Number(settings.match(/zIndex=\{guided \? (\d+) : undefined\}/)?.[1])
+  assert.ok(guided > 0 && guided < overlay)
+  assert.match(settings, /guided \? ' termous-product-tour-surface'/)
+})
+
 test('Popover 关闭按钮居中且箭头与卡片共享连续表面', () => {
   const tourStyles = readSource('../ui/ProductTour.module.scss')
 

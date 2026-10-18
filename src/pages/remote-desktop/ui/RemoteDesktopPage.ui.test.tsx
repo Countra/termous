@@ -59,6 +59,18 @@ it('从自动化查看桌面时先唤起自动化宿主，再选择原会话', a
   expect(screen.getByLabelText('桌面会话状态')).toBeVisible()
 })
 
+it('向导仅切换展示视图，往返后保留桌面会话和流程草稿', () => {
+  const props = { workflow: {} as WorkflowGateway, profiles: [], onDirtyChange: vi.fn() }
+  const view = render(<RemoteDesktopPage {...props} guideIntent={{ key: 1, view: 'workflow' }} guided />)
+  fireEvent.change(screen.getByLabelText('流程草稿'), { target: { value: '保留草稿' } })
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={{ key: 2, view: 'desktops' }} guided />)
+  expect(screen.getByLabelText('桌面会话状态')).toBeVisible()
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={{ key: 3, view: 'workflow' }} guided />)
+  expect(screen.getByLabelText('流程草稿')).toHaveValue('保留草稿')
+  expect(runtime.automation.show).not.toHaveBeenCalled()
+  expect(runtime.selectSession).not.toHaveBeenCalled()
+})
+
 it('主页面隐藏释放观看视图但保留流程宿主，明确放弃修改时重置草稿', () => {
   const props = { workflow: {} as WorkflowGateway, profiles: [], onDirtyChange: () => undefined }
   const view = render(<RemoteDesktopPage {...props} />)

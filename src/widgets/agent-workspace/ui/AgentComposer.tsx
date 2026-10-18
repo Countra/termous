@@ -256,7 +256,7 @@ export const AgentComposer = memo(function AgentComposer({
     else onSend(inputValue, attachmentIds)
   }
   return (
-    <div className={styles.composer}>
+    <div className={styles.composer} data-tour="agent-composer">
       <AgentQueuedTurnList
         turns={queuedTurns}
         queueState={queueState}

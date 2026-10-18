@@ -16,7 +16,7 @@ export function RemoteDesktopStatusBar({ session, viewerState, filesOpen, onOpen
   const { t } = useTranslation()
   const reconnectAttempt = session?.reconnect_attempt ?? 0
   const reconnectMaxAttempts = session?.reconnect_max_attempts ?? 0
-  return <footer className={styles.statusbar}>
+  return <footer className={styles.statusbar} data-tour="desktop-status">
     <div className={styles['status-context']}>
       <span className={styles.dot} data-status={session?.status} />
       <strong>{t(session ? `remoteDesktop.status.${session.status}` : 'app.noSessions')}</strong>

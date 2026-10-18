@@ -185,7 +185,7 @@ export function AppShell({
                 <Button
                   type="text"
                   className={`${styles['nav-item']} ${page === item.key ? styles['is-active'] : ''}`}
-                  data-tour={item.key === 'vault' ? 'nav-vault' : undefined}
+                  data-tour={`nav-${item.key}`}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
                   icon={<Icon size={18} aria-hidden="true" />}
@@ -319,7 +319,7 @@ export function AppShell({
             </div>
             {notificationControl ? <>
               <span className={styles['topbar-action-divider']} aria-hidden="true" />
-              <span className={styles['topbar-notifications']}>{notificationControl}</span>
+              <span className={styles['topbar-notifications']} data-tour="notification-entry">{notificationControl}</span>
             </> : null}
             {showWindowControls ? (
               <WindowControls

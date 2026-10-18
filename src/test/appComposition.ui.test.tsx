@@ -265,9 +265,9 @@ vi.mock('#app/app-shell', () => ({
 }))
 
 vi.mock('#pages/account', () => ({
-  AccountPage: ({ onUseOffline, settingsGateway }: { onUseOffline: () => void; settingsGateway: unknown }) => {
+  AccountPage: ({ onUseOffline, settingsGateway, activeTab }: { onUseOffline: () => void; settingsGateway: unknown; activeTab: string }) => {
     expect(settingsGateway).toBe(testState.settingsGateway)
-    return <button type="button" onClick={onUseOffline}>continue-offline</button>
+    return <div data-testid="account-page" data-active-tab={activeTab}><button type="button" onClick={onUseOffline}>continue-offline</button></div>
   },
 }))
 
@@ -492,18 +492,23 @@ vi.mock('#pages/files', () => ({
 vi.mock('#pages/remote-desktop', () => ({
   RemoteDesktopPage: ({
     onOpenConnectionLauncher,
+    onDirtyChange,
+    guideIntent,
   }: {
     onOpenConnectionLauncher: () => void
+    onDirtyChange: (dirty: boolean) => void
+    guideIntent?: { view: string }
   }) => (
-    <div data-testid="remote-desktop-page">
+    <div data-testid="remote-desktop-page" data-view={guideIntent?.view}>
       Remote Desktop
       <button type="button" onClick={onOpenConnectionLauncher}>remote-desktop-connect</button>
+      <button type="button" onClick={() => onDirtyChange(true)}>workflow-dirty</button>
     </div>
   ),
 }))
 
 vi.mock('#features/product-tour', () => ({
-  ProductTourController: (props: import('#features/product-tour').ProductTourControllerProps) => {
+  ProductTourGuide: (props: import('#features/product-tour').ProductTourControllerProps) => {
     testState.productTourProps = props
     return null
   },
@@ -551,7 +556,7 @@ vi.mock('#pages/settings', () => ({
   SettingsDialog: ({ open, onClose, initialTab = 'general' }: { open: boolean; onClose(): void; initialTab?: string }) => {
     const [activeTab, setActiveTab] = useState(initialTab)
     useEffect(() => { if (open) setActiveTab(initialTab) }, [initialTab, open])
-    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'data']
+    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'models', 'data']
     if (!open) return null
     return (
       <div
@@ -1234,7 +1239,7 @@ describe('应用运行时组合合同', () => {
 
     try {
       render(<App />)
-      const steps = buildProductTourSteps((key) => key)
+      const steps = buildProductTourSteps((key) => key).filter((step) => !['remote-desktop', 'agent', 'account'].includes(step.route ?? '') && step.id !== 'notifications')
       const preparationController = new AbortController()
       const settingsSteps = steps.filter((step) => step.preparation?.startsWith('settings'))
       const settingsPanels = new Map<string, Element>()
@@ -1297,6 +1302,7 @@ describe('应用运行时组合合同', () => {
         'settingsSkills',
         'settingsAgent',
         'settingsData',
+        'settingsModels',
         'finish',
       ])
       expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
@@ -1338,6 +1344,40 @@ describe('应用运行时组合合同', () => {
 
     act(() => testState.productTourProps?.onActiveChange?.(false))
     await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
+  })
+
+  it('新增专题按目标打开桌面视图和账户页签，不建立连接或写配置', async () => {
+    testState.apiReady = true
+    render(<App />)
+    const signal = new AbortController().signal
+    for (const step of buildProductTourSteps((key) => key).filter(step => ['remote-desktop', 'account'].includes(step.route ?? ''))) {
+      let allowed: unknown
+      await act(async () => { allowed = await testState.productTourProps?.onPrepareStep(step, signal) })
+      expect(allowed).toBe(true)
+      if (step.desktopView) expect(screen.getByTestId('remote-desktop-page')).toHaveAttribute('data-view', step.desktopView)
+      if (step.accountTab) expect(screen.getByTestId('account-page')).toHaveAttribute('data-active-tab', step.accountTab)
+    }
+    expect(testState.launcherOpen).toBe(false)
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('自动化草稿阻止向导首步绕过离开保护，同页讲解和设置弹层仍可使用', async () => {
+    testState.apiReady = true
+    render(<App />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'remote-desktop' }))
+    await user.click(screen.getByRole('button', { name: 'workflow-dirty' }))
+    const next = { id: 'agent' as const, title: '', description: '', route: 'agent' as const }
+    await expect(testState.productTourProps?.onPrepareStep(next, new AbortController().signal)).resolves.toBe(false)
+    expect(screen.getByTestId('remote-desktop-page')).toBeInTheDocument()
+    const same = { ...next, id: 'automationLibrary' as const, route: 'remote-desktop' as const, desktopView: 'workflow' as const }
+    await act(async () => { expect(await testState.productTourProps?.onPrepareStep(same, new AbortController().signal)).toBe(true) })
+    const cancelled = new AbortController(); cancelled.abort()
+    await expect(testState.productTourProps?.onPrepareStep({ ...next, route: 'settings' }, cancelled.signal)).resolves.toBe(false)
+    expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+    await act(async () => { expect(await testState.productTourProps?.onPrepareStep({ ...next, route: 'settings' }, new AbortController().signal)).toBe(true) })
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    expect(testState.action).not.toHaveBeenCalled()
   })
 
   it('命令片段草稿允许打开设置弹层，仍阻止向导离开独立管理页', async () => {

@@ -13,7 +13,7 @@ interface Props {
 
 export function AccountLoginLayout({ busy, onUseOffline, securityAction, children }: Props) {
   const { t } = useTranslation()
-  return <div className={styles.page}>
+  return <div className={styles.page} data-tour="account-workspace">
     <section className={styles.surface} aria-label={t('cloud.signInAccount')}>
       <div className={styles.story}>
         <div className={styles.brand}><img src="./termous-icon.png" alt="" /><span>Termous</span></div>

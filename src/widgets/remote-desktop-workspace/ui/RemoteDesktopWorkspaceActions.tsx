@@ -76,7 +76,7 @@ export function RemoteDesktopWorkspaceActions({ retainedSessions, onSelectSessio
         onKeyDown: (event) => { if (event.key === 'Escape') { setOpen(undefined); toolsTrigger.current?.focus() } },
         onClick: ({ key }) => { setOpen(undefined); actions.find((action) => action.key === key)?.onClick() } }}
     >
-      <button ref={setToolsTrigger} type="button" className={styles.trigger} aria-label={t('remoteDesktop.tools.title')} title={t('remoteDesktop.tools.title')} aria-haspopup="menu" aria-expanded={open === 'tools'} onKeyDown={(event) => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen('tools') } }}>
+      <button data-tour="desktop-tools" ref={setToolsTrigger} type="button" className={styles.trigger} aria-label={t('remoteDesktop.tools.title')} title={t('remoteDesktop.tools.title')} aria-haspopup="menu" aria-expanded={open === 'tools'} onKeyDown={(event) => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen('tools') } }}>
         <Wrench size={14} aria-hidden="true" /><span className={styles['trigger-label']}>{t('remoteDesktop.tools.title')}</span><ChevronDown size={12} className={styles.chevron} aria-hidden="true" />
       </button>
     </Dropdown>}

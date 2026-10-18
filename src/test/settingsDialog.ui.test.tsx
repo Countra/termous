@@ -427,7 +427,7 @@ describe('设置弹层装配合同', () => {
   it('向导页签锚点激活对应面板并保留懒挂载实例及未保存草稿', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsDialog()
-    const tabs = ['terminal', 'mcp', 'agent', 'data'] as const
+    const tabs = ['terminal', 'mcp', 'agent', 'models', 'data'] as const
     const panels = new Map<string, Element>()
 
     for (const tab of tabs) {

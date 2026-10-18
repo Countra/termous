@@ -234,6 +234,63 @@ function renderController(element: ReactElement) {
 }
 
 describe('核心使用向导控制器', () => {
+  it('专题区分关闭、返回列表与完成，只在完整结束时记录当前专题', async () => {
+    const records: FakeDriverRecord[] = []
+    const store = createStore()
+    const onFinished = vi.fn()
+    const props = createProps({ topic: 'desktop', autoStartEligible: false, manualRequestKey: 1, completionStore: store, onFinished, driverFactory: createFakeDriverFactory(records) })
+    const view = renderController(<ProductTourController {...props} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.close' }))
+    expect(store.writeCompletedVersion).not.toHaveBeenCalled()
+    expect(onFinished).toHaveBeenCalledOnce()
+    expect(onFinished).toHaveBeenLastCalledWith('closed')
+    view.rerender(<ProductTourController {...props} manualRequestKey={2} />)
+    await waitFor(() => expect(records).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.backToTopics' }))
+    expect(store.writeCompletedVersion).not.toHaveBeenCalled()
+    expect(onFinished).toHaveBeenLastCalledWith('skipped')
+    view.rerender(<ProductTourController {...props} manualRequestKey={3} />)
+    await waitFor(() => expect(records).toHaveLength(3))
+    for (let index = 1; index < 5; index++) {
+      act(() => invokeConfigHook(records[2], 'next'))
+      await waitFor(() => expect(records[2].activeIndex()).toBe(index))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'productTour.finishTopic' }))
+    expect(store.writeCompletedVersion).toHaveBeenCalledExactlyOnceWith(PRODUCT_TOUR_VERSION)
+    expect(onFinished).toHaveBeenLastCalledWith('completed')
+    expect(records[2].destroyCount()).toBe(1)
+  })
+
+  it('专题准备被拒绝时反馈未启动，不写入完成记录', async () => {
+    const records: FakeDriverRecord[] = []
+    const store = createStore()
+    const onFinished = vi.fn()
+    renderController(<ProductTourController {...createProps({ topic: 'connections', autoStartEligible: false, manualRequestKey: 1,
+      onPrepareStep: vi.fn(async () => false), completionStore: store, onFinished, driverFactory: createFakeDriverFactory(records) })} />)
+    await waitFor(() => expect(onFinished).toHaveBeenCalledExactlyOnceWith('not-started'))
+    expect(records).toHaveLength(0)
+    expect(store.writeCompletedVersion).not.toHaveBeenCalled()
+  })
+
+  it('条件区域缺失或被隐藏时回退入口锚点，有可见目标时优先详细区域', async () => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 100, height: 30 } as DOMRect)
+    const fixture = document.createElement('div')
+    fixture.innerHTML = '<button data-tour="desktop-tools"></button><div hidden><footer data-tour="desktop-status"></footer></div>'
+    document.body.append(fixture)
+    const records: FakeDriverRecord[] = []
+    renderController(<ProductTourController {...createProps({ topic: 'desktop', driverFactory: createFakeDriverFactory(records) })} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+    const resolveTarget = records[0].config.steps?.[3].element
+    expect(typeof resolveTarget).toBe('function')
+    if (typeof resolveTarget !== 'function') throw new Error('缺少锚点定位器')
+    expect(resolveTarget()).toBe(fixture.querySelector('button'))
+    fixture.querySelector('div')!.hidden = false
+    expect(resolveTarget()).toBe(fixture.querySelector('footer'))
+    fixture.querySelector('footer')!.remove()
+    expect(resolveTarget()).toBe(fixture.querySelector('button'))
+  })
+
   beforeEach(() => {
     translationState.language = 'zh-CN'
     document.body.replaceChildren()
@@ -690,6 +747,24 @@ describe('核心使用向导控制器', () => {
     expect(store.writeCompletedVersion).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(modalButton)
     modalRoot.remove()
+  })
+
+  it('被讲解的设置弹层与已关闭的空 Modal 根节点不阻断向导键盘', async () => {
+    installVisibleGeometry()
+    const records: FakeDriverRecord[] = []
+    renderController(<ProductTourController {...createProps({ topic: 'desktop', driverFactory: createFakeDriverFactory(records) })} />)
+    await waitFor(() => expect(records).toHaveLength(1))
+    const guided = document.createElement('div')
+    guided.className = 'ant-modal-root termous-product-tour-surface'
+    const close = document.createElement('button'); guided.append(close)
+    const closed = document.createElement('div')
+    closed.className = 'ant-modal-root'
+    vi.spyOn(closed, 'getBoundingClientRect').mockReturnValue({ width: 1280, height: 0 } as DOMRect)
+    document.body.append(guided, closed)
+    close.focus()
+    fireEvent.keyDown(close, { key: 'ArrowRight' })
+    await waitFor(() => expect(records[0].activeIndex()).toBe(1))
+    guided.remove(); closed.remove()
   })
 
   it('真实 Driver 的 Tab 循环可到达密码框和组合选择输入', async () => {
@@ -1191,7 +1266,7 @@ function installPreparedTourTargets() {
   const settingsPanel = document.createElement('section')
   settingsPanel.setAttribute('role', 'tabpanel')
   settingsPanel.setAttribute('aria-hidden', 'false')
-  for (const tab of ['terminal', 'mount', 'mcp', 'skills-install', 'agent', 'data']) {
+  for (const tab of ['terminal', 'mount', 'mcp', 'skills-install', 'agent', 'models', 'data']) {
     const content = document.createElement('div')
     content.dataset.tour = `settings-${tab}`
     settingsPanel.appendChild(content)

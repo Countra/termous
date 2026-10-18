@@ -165,6 +165,7 @@ export function RemoteDesktopWorkspace({
     <section
       className={workspaceClassName}
       data-remote-desktop-workspace=""
+      data-tour="desktop-workspace"
       onPointerMoveCapture={(event) => {
         if (fullscreen.isFullscreen && !fullscreen.toolbarVisible && event.clientY <= 8) {
           fullscreen.revealToolbar()
