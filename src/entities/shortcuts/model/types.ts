@@ -17,6 +17,8 @@ export const SHORTCUT_ACTION_IDS = [
   'terminal.search.open',
   'terminal.select_all',
   'terminal.session.reconnect',
+  'files.copy_to_system',
+  'files.paste',
   'files.select_all',
   'files.open_focused',
   'files.rename_focused',

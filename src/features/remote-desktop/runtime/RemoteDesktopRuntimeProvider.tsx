@@ -27,6 +27,8 @@ import type {
   RemoteDesktopViewerState,
 } from './core/viewerContracts.ts'
 import { RemoteDesktopViewerLifecycle } from './core/viewerLifecycle.ts'
+import { AutomationPointerStore } from './core/automationPointerState.ts'
+import type { DesktopPointerEvent } from '#common/contracts'
 import { resolveRemoteDesktopSessionDrivers } from './core/sessionDriverResolver.ts'
 import {
   remoteDesktopProtocolRegistry,
@@ -54,14 +56,20 @@ export function RemoteDesktopRuntimeProvider({
   onSessionsChange,
 }: RemoteDesktopRuntimeProviderProps) {
   const [sessions, setSessions] = useState<RemoteDesktopSession[]>([])
+  const pendingSessionActionsRef = useRef(new Set<string>())
+  const [pendingSessionActionIds, setPendingSessionActionIds] = useState<ReadonlySet<string>>(new Set())
+  const [hiddenSessionIds, setHiddenSessionIds] = useState<string[]>([])
+  const hiddenSessionIdsRef = useRef(new Set<string>())
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [viewerStates, setViewerStates] = useState<Record<string, RemoteDesktopViewerState>>({})
   const sessionsRef = useRef(new Map<string, RemoteDesktopSession>())
+  const approvedCertificatesRef = useRef(new Map<string, { generation: number; challengeId: string }>())
   const profilesRef = useRef(new Map<string, RemoteDesktopAccessProfile>())
   const viewerStatesRef = useRef(viewerStates)
   const initialSessionsRef = useRef(initialSessions)
   const apiRef = useRef(api)
   const metricsStoreRef = useRef(new RemoteDesktopConnectionMetricsStore())
+  const [pointerStore] = useState(() => new AutomationPointerStore())
   const lifecycleRef = useRef<RemoteDesktopViewerLifecycle | null>(null)
 
   apiRef.current = api
@@ -89,6 +97,7 @@ export function RemoteDesktopRuntimeProvider({
       protocolRegistry: remoteDesktopProtocolRegistry,
       routeRegistry: remoteDesktopRouteRegistry,
       metrics: metricsStoreRef.current,
+      pointers: pointerStore,
       surfaceClassName: styles.surface,
       session: (sessionId) => sessionsRef.current.get(sessionId),
       profile: (profileId) => profilesRef.current.get(profileId),
@@ -97,7 +106,7 @@ export function RemoteDesktopRuntimeProvider({
     })
   }
 
-  const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
+  const commitSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
     const normalized = sortSessions(nextSessions)
     const previousSessions = sessionsRef.current
     const generationChanged = lifecycleRef.current?.reconcileSessions(
@@ -105,7 +114,16 @@ export function RemoteDesktopRuntimeProvider({
       normalized,
     ) ?? new Set<string>()
     sessionsRef.current = new Map(normalized.map((session) => [session.id, session]))
+    for (const [id, approved] of approvedCertificatesRef.current) {
+      const session = sessionsRef.current.get(id)
+      if (!session || session.connection_generation !== approved.generation
+        || (session.certificate && session.certificate.challenge_id !== approved.challengeId)) {
+        approvedCertificatesRef.current.delete(id)
+      }
+    }
     const nextIds = new Set(sessionsRef.current.keys())
+    hiddenSessionIdsRef.current = new Set([...hiddenSessionIdsRef.current].filter((id) => nextIds.has(id)))
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
 
     setViewerStates((current) => {
       const next: Record<string, RemoteDesktopViewerState> = {}
@@ -129,14 +147,29 @@ export function RemoteDesktopRuntimeProvider({
             errorCode: '',
           }
         }
-        if (session.status === 'failed') {
+        // 拒绝决定优先于同一代次的在途快照，直到会话移除或显式重连。
+        const rejected = session.protocol === 'rdp' && next[session.id].errorCode === 'server_identity_rejected'
+        if (session.status === 'failed' || session.status === 'stopping') {
           next[session.id] = {
             ...next[session.id],
             connection: 'disconnected',
             credentialFields: [],
             verification: null,
-            errorCode: '',
+            errorCode: rejected ? 'server_identity_rejected' : '',
           }
+        }
+        const approved = approvedCertificatesRef.current.get(session.id)
+        const certificateAccepted = approved?.generation === session.connection_generation
+          && approved?.challengeId === session.certificate?.challenge_id
+        if (session.protocol === 'rdp' && session.status === 'waiting_host_trust' && session.certificate && !rejected && !certificateAccepted) {
+          next[session.id] = { ...next[session.id], connection: 'verifying_server', verification: { type: 'RDP TLS', fingerprint: session.certificate.fingerprint } }
+        } else if (session.protocol === 'rdp' && next[session.id].connection === 'verifying_server') {
+          next[session.id] = { ...next[session.id], connection: 'connecting', verification: null }
+        }
+        if (session.protocol === 'rdp' && session.credentials_required && session.status !== 'failed' && session.status !== 'stopping' && !rejected) {
+          next[session.id] = { ...next[session.id], connection: 'credentials_required', credentialFields: [{ id: 'password', kind: 'secret', required: true }] }
+        } else if (session.protocol === 'rdp' && next[session.id].connection === 'credentials_required') {
+          next[session.id] = { ...next[session.id], connection: 'connecting', credentialFields: [] }
         }
       }
       viewerStatesRef.current = next
@@ -144,25 +177,34 @@ export function RemoteDesktopRuntimeProvider({
     })
     setSessions(normalized)
     setActiveSessionId((current) => (
-      current && nextIds.has(current) ? current : normalized[0]?.id ?? null
+      current && nextIds.has(current) && !hiddenSessionIdsRef.current.has(current)
+        ? current : normalized.find((session) => !hiddenSessionIdsRef.current.has(session.id))?.id ?? null
     ))
   }, [])
+
+  const reconcileSessions = useCallback((nextSessions: RemoteDesktopSession[]) => {
+    pointerStore.reconcile(nextSessions)
+    commitSessions(nextSessions)
+  }, [commitSessions, pointerStore])
 
   const upsertSession = useCallback((next: RemoteDesktopSession) => {
     if (!shouldAcceptSessionSnapshot(sessionsRef.current.get(next.id), next)) {
       return
     }
-    reconcileSessions([
+    // 增量事件只更新对应指针，不能用其他会话的缓存快照恢复已挂起的视觉状态。
+    pointerStore.upsert(next)
+    commitSessions([
       ...[...sessionsRef.current.values()].filter((session) => session.id !== next.id),
       next,
     ])
-  }, [reconcileSessions])
+  }, [commitSessions, pointerStore])
 
   const removeSession = useCallback((sessionId: string) => {
-    reconcileSessions(
+    pointerStore.remove(sessionId)
+    commitSessions(
       [...sessionsRef.current.values()].filter((session) => session.id !== sessionId),
     )
-  }, [reconcileSessions])
+  }, [commitSessions, pointerStore])
 
   const initialSessionSnapshot = useCallback(() => initialSessionsRef.current, [])
   const handleTelemetry = useCallback((event: RemoteDesktopTelemetryEvent) => {
@@ -183,7 +225,9 @@ export function RemoteDesktopRuntimeProvider({
     }
   }, [])
 
-  useRemoteDesktopSessionFeed({
+  const handlePointer = useCallback((event: DesktopPointerEvent) => pointerStore.publish(event), [pointerStore])
+  const disconnectPointer = useCallback(() => pointerStore.suspend(), [pointerStore])
+  const sessionsReady = useRemoteDesktopSessionFeed({
     api,
     enabled,
     initialSessions: initialSessionSnapshot,
@@ -191,6 +235,8 @@ export function RemoteDesktopRuntimeProvider({
     onUpsert: upsertSession,
     onRemove: removeSession,
     onTelemetry: handleTelemetry,
+    onPointer: handlePointer,
+    onPointerDisconnect: disconnectPointer,
   })
 
   useEffect(() => {
@@ -214,35 +260,93 @@ export function RemoteDesktopRuntimeProvider({
     onSessionsChange?.(sessions)
   }, [onSessionCountChange, onSessionsChange, sessions])
 
+  const selectSession = useCallback((sessionId: string) => {
+    hiddenSessionIdsRef.current.delete(sessionId)
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
+    setActiveSessionId(sessionId)
+  }, [])
+
+  const closeViewer = useCallback((sessionId: string) => {
+    hiddenSessionIdsRef.current.add(sessionId)
+    setHiddenSessionIds([...hiddenSessionIdsRef.current])
+    lifecycleRef.current?.disposeViewer(sessionId, true)
+    setActiveSessionId((current) => current === sessionId
+      ? [...sessionsRef.current.values()].find((session) => !hiddenSessionIdsRef.current.has(session.id))?.id ?? null : current)
+  }, [])
+
   const createSession = useCallback(async (profileId: string) => {
+    const existing = [...sessionsRef.current.values()].find((s) => s.protocol === 'rdp' && s.profile_id === profileId && s.status !== 'stopping')
+    if (existing) { selectSession(existing.id); return existing }
     const session = await apiRef.current.createRemoteDesktopSession(profileId)
     upsertSession(session)
     setActiveSessionId(session.id)
     return session
-  }, [upsertSession])
+  }, [selectSession, upsertSession])
+
+  const duplicateSession = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.get(sessionId)
+    // RDP 按配置复用桌面；自动化宿主管理的会话也不能通过标签菜单另建连接。
+    if (!session || session.protocol !== 'vnc' || !session.profile_id || session.automation_host_id
+      || session.status === 'stopping' || pendingSessionActionsRef.current.has(sessionId)) return null
+    pendingSessionActionsRef.current.add(sessionId)
+    setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    try {
+      return await createSession(session.profile_id)
+    } finally {
+      pendingSessionActionsRef.current.delete(sessionId)
+      setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    }
+  }, [createSession])
 
   const closeSession = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (!session) return
     await apiRef.current.deleteRemoteDesktopSession(sessionId)
+    const current = sessionsRef.current.get(sessionId)
+    // 关闭响应仅回收发起请求时的会话，不能清除已进入重连的新生命周期。
+    if (current?.connection_generation !== session.connection_generation || current.status === 'reconnecting') return
     lifecycleRef.current?.disposeViewer(sessionId, true)
     removeSession(sessionId)
   }, [removeSession])
 
   const reconnectSession = useCallback(async (sessionId: string) => {
     const session = sessionsRef.current.get(sessionId)
-    if (!session) {
+    if (!session || pendingSessionActionsRef.current.has(sessionId)) {
       return
     }
-    lifecycleRef.current?.resetForReconnect(sessionId, session.connection_generation)
-    commitViewerState(sessionId, {
-      connection: 'idle',
-      credentialFields: [],
-      verification: null,
-      errorCode: '',
-    })
-    upsertSession(await apiRef.current.reconnectRemoteDesktopSession(
-      sessionId,
-      session.connection_generation,
-    ))
+    pendingSessionActionsRef.current.add(sessionId)
+    setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    const previousErrorCode = viewerStatesRef.current[sessionId]?.errorCode
+    try {
+      lifecycleRef.current?.resetForReconnect(sessionId, session.connection_generation)
+      commitViewerState(sessionId, {
+        connection: 'idle',
+        credentialFields: [],
+        verification: null,
+        errorCode: '',
+      })
+      const result = await apiRef.current.reconnectRemoteDesktopSession(sessionId, session.connection_generation)
+      // 请求期间会话可能已关闭，迟到响应不能重新创建标签和 Viewer。
+      if (sessionsRef.current.has(sessionId)) upsertSession(result)
+    } catch (error) {
+      const current = sessionsRef.current.get(sessionId)
+      // 仅恢复未推进的连接；失败回执不能打断事件流已建立的新代次。
+      if (current?.connection_generation === session.connection_generation
+        && current.status !== 'reconnecting' && current.status !== 'stopping') {
+        const rejected = previousErrorCode === 'server_identity_rejected'
+        commitViewerState(sessionId, {
+          connection: rejected ? 'security_failed' : 'disconnected',
+          errorCode: rejected ? previousErrorCode : 'reconnect_failed',
+        })
+        if (current.status !== 'failed' && !rejected) {
+          lifecycleRef.current?.resumeAfterReconnectFailure(sessionId, session.connection_generation)
+        }
+      }
+      throw error
+    } finally {
+      pendingSessionActionsRef.current.delete(sessionId)
+      setPendingSessionActionIds(new Set(pendingSessionActionsRef.current))
+    }
   }, [commitViewerState, upsertSession])
 
   const registerViewport = useCallback((sessionId: string, host: HTMLDivElement) => (
@@ -263,7 +367,28 @@ export function RemoteDesktopRuntimeProvider({
     commitViewerState(sessionId, { viewOnly })
   }, [commitViewerState])
 
-  const submitCredentials = useCallback((sessionId: string, credentials: RemoteDesktopCredentials) => {
+  const reclaimRemoteViewer = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (!session || !apiRef.current.execution) return
+    await apiRef.current.execution.reclaim(sessionId, session.connection_generation, false)
+    reconcileSessions(await apiRef.current.remoteDesktopSessions())
+  }, [reconcileSessions])
+
+  const submitCredentials = useCallback(async (sessionId: string, credentials: RemoteDesktopCredentials) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (session?.protocol === 'rdp' && session.credentials_required) {
+      await apiRef.current.supplyRemoteDesktopCredentials(sessionId, session.connection_generation, credentials.password ?? '')
+      setViewerStates((states) => {
+        const current = sessionsRef.current.get(sessionId)
+        const previous = states[sessionId]
+        // 凭据响应不能复活已关闭会话，也不能覆盖新连接或后续证书确认。
+        if (current?.connection_generation !== session.connection_generation
+          || current.status === 'stopping' || current.status === 'failed' || current.status === 'reconnecting'
+          || previous?.connection !== 'credentials_required') return states
+        return { ...states, [sessionId]: { ...previous, connection: 'connecting', credentialFields: [] } }
+      })
+      return
+    }
     if (!lifecycleRef.current?.submitCredentials(sessionId, credentials)) {
       return
     }
@@ -274,7 +399,31 @@ export function RemoteDesktopRuntimeProvider({
     })
   }, [commitViewerState])
 
-  const approveServer = useCallback((sessionId: string) => {
+  const approveServer = useCallback(async (sessionId: string, remember = false) => {
+    const session = sessionsRef.current.get(sessionId)
+    if (session?.protocol === 'rdp' && session.certificate) {
+      const challengeId = session.certificate.challenge_id
+      await apiRef.current.resolveRemoteDesktopCertificate(sessionId, session.connection_generation, challengeId, true, remember)
+      const current = sessionsRef.current.get(sessionId)
+      // 已确认挑战在权威状态推进前仍可能重复到达，只抑制当前代次的同一挑战。
+      if (current?.connection_generation !== session.connection_generation
+        || current.certificate?.challenge_id !== challengeId
+        || current.status !== 'waiting_host_trust') return
+      approvedCertificatesRef.current.set(sessionId, {
+        generation: session.connection_generation, challengeId,
+      })
+      setViewerStates((states) => {
+        const previous = states[sessionId]
+        const latest = sessionsRef.current.get(sessionId)
+        // 响应返回期间可能已拒绝连接、进入凭据验证或连接成功，不能覆盖后续状态。
+        if (previous?.connection !== 'verifying_server'
+          || latest?.connection_generation !== session.connection_generation
+          || latest.certificate?.challenge_id !== challengeId
+          || latest.status !== 'waiting_host_trust') return states
+        return { ...states, [sessionId]: { ...previous, connection: 'connecting', verification: null } }
+      })
+      return
+    }
     const verification = viewerStatesRef.current[sessionId]?.verification
     if (!verification || !lifecycleRef.current?.approveServer(sessionId, verification.fingerprint)) {
       return
@@ -283,16 +432,15 @@ export function RemoteDesktopRuntimeProvider({
   }, [commitViewerState])
 
   const rejectServer = useCallback(async (sessionId: string) => {
+    if (!sessionsRef.current.has(sessionId)) return
     lifecycleRef.current?.rejectServer(sessionId)
     commitViewerState(sessionId, {
       connection: 'security_failed',
       verification: null,
       errorCode: 'server_identity_rejected',
     })
-    await apiRef.current.deleteRemoteDesktopSession(sessionId)
-    lifecycleRef.current?.disposeViewer(sessionId, true)
-    removeSession(sessionId)
-  }, [commitViewerState, removeSession])
+    await closeSession(sessionId)
+  }, [closeSession, commitViewerState])
 
   const focusViewer = useCallback((sessionId: string) => {
     lifecycleRef.current?.focus(sessionId)
@@ -311,16 +459,24 @@ export function RemoteDesktopRuntimeProvider({
   }, [])
 
   const value = useMemo(() => ({
+    automation: api.automation,
+    desktopFiles: api.desktopFiles,
     sessions,
+    sessionsReady,
+    hiddenSessionIds,
+    closeViewer,
     activeSessionId,
     viewerStates,
-    selectSession: setActiveSessionId,
+    selectSession,
     createSession,
+    duplicateSession,
+    pendingSessionActionIds,
     closeSession,
     reconnectSession,
     registerViewport,
     setDisplayMode,
     setViewOnly,
+    reclaimRemoteViewer,
     focusViewer,
     blurViewer,
     submitCredentials,
@@ -329,11 +485,18 @@ export function RemoteDesktopRuntimeProvider({
     sendCtrlAltDel,
     sendClipboard,
   }), [
+    api.desktopFiles,
+    api.automation,
+    hiddenSessionIds,
+    closeViewer,
+    selectSession,
     activeSessionId,
     approveServer,
     blurViewer,
     closeSession,
     createSession,
+    duplicateSession,
+    pendingSessionActionIds,
     focusViewer,
     reconnectSession,
     registerViewport,
@@ -341,8 +504,10 @@ export function RemoteDesktopRuntimeProvider({
     sendClipboard,
     sendCtrlAltDel,
     sessions,
+    sessionsReady,
     setDisplayMode,
     setViewOnly,
+    reclaimRemoteViewer,
     submitCredentials,
     viewerStates,
   ])

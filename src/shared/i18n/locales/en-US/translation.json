@@ -1,6 +1,573 @@
 {
+  "systemClipboard": {
+    "unavailable": "System file clipboard is temporarily unavailable. It will resume when the connection recovers.",
+    "initializationFailed": "System file clipboard initialization failed. Retrying automatically.",
+    "serviceStopped": "System file clipboard has stopped. Waiting to reconnect.",
+    "invalidResponse": "System file clipboard capabilities could not be synchronized. Retrying."
+  },
+  "storageStatus": {
+    "title": "Local storage unavailable",
+    "unavailable": "{{modules}} is currently unavailable. Existing data has not been replaced with empty data. Check startup diagnostics and restart after resolving the issue. Codes: {{codes}}",
+    "checkFailed": "Could not read local storage status. Check the Core connection and startup diagnostics.",
+    "domains": {
+      "core": "Configuration",
+      "agent": "AI assistant",
+      "workflows": "Desktop workflows",
+      "audit": "Audit"
+    }
+  },
+  "imagePreview": {
+    "title": "Image preview",
+    "controls": "Image controls",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fit": "Fit to window",
+    "actualSize": "Actual size",
+    "canvas": "Image viewing area",
+    "failed": "Unable to display this image",
+    "retry": "Reload",
+    "loading": "Loading image",
+    "hint": "Scroll to zoom · Drag to pan · Double-click for actual size / fit · Esc to close"
+  },
+  "cloud": {
+    "qr": {
+      "password": "Password",
+      "login": "QR code",
+      "loading": "Preparing QR code",
+      "pending": "Waiting to scan",
+      "scanned": "Scanned",
+      "preparing": "Preparing device",
+      "ready": "Confirm on your phone",
+      "approved": "Completing sign-in",
+      "issued": "Completing sign-in",
+      "completed": "Signed in",
+      "expired": "QR code expired",
+      "cancelled": "Sign-in cancelled",
+      "rejected": "Sign-in declined",
+      "invalidated": "Request no longer valid",
+      "hint": "Scan with Termous on a trusted phone.",
+      "confirmHint": "Compare the codes, then confirm on your phone.",
+      "completingHint": "Please wait while the cloud connection is established.",
+      "refreshHint": "Refresh the code to start again.",
+      "checkCode": "Verification code",
+      "remaining": "Expires in {{seconds}}s",
+      "refresh": "Refresh QR code",
+      "retry": "Retry"
+    },
+    "syncFlow": {
+      "enable": "Enable sync",
+      "settingsUnavailable": "Sync settings are unavailable. Please retry.",
+      "enableHint": "Review changes before first use",
+      "setupRecovery": "Set up recovery",
+      "resolve": "Resolve conflicts",
+      "refreshPreview": "Refresh preview",
+      "loadingPreview": "Comparing changes…",
+      "previewEnableHint": "Confirm to sync and turn on automatic sync.",
+      "confirmOnce": "Confirm sync",
+      "retryEnable": "Enable automatic sync",
+      "enableFailed": "Synced. Automatic sync is off.",
+      "enableRetryHint": "Retry saving the setting. No need to sync again.",
+      "total": "Total",
+      "scopeHint": "End-to-end encrypted · No remote files"
+    },
+    "safeguards": {
+      "checkKey": "Verify and continue",
+      "pasteLegacyKey": "Use a legacy text key",
+      "checkingKeyFile": "Verifying recovery key…",
+      "dropKeyFile": "Or drop a .torkey file here to verify automatically",
+      "chooseKeyFile": "Choose recovery key file",
+      "savedActivate": "Saved, enable recovery",
+      "showKey": "View or copy the text key",
+      "keyFileHint": ".torkey · Select or drop the file to recover",
+      "keyFile": "Personal recovery key file",
+      "restartDevices": "The previous workspace will stop authorizing {{count}} devices.",
+      "personalTitle": "Personal recovery key",
+      "personalHint": "Decrypt cloud data with a recovery key when your devices are unavailable. Two-step verification is optional; account login still requires verification.",
+      "enabled": "Configured",
+      "notSet": "Not configured",
+      "unavailable": "Unavailable",
+      "readFailed": "Recovery safeguards are unavailable. Retry to read their state.",
+      "initializeFirst": "Review and confirm your trusted device list on the Devices tab first.",
+      "replaceKey": "Replace recovery key",
+      "setupKey": "Set up recovery key",
+      "replaceAndRotate": "Replace and rotate data keys",
+      "rotateAfterReplace": "Rotate data keys",
+      "rotateAfterReplaceHint": "Your recovery key has been replaced. Continue rotating data keys to protect future content; verify again only if identity verification expired.",
+      "registrationBlocked": "Device registration is unavailable. You can still restart cloud sync after verifying your account.",
+      "verifyIdentity": "Verify identity",
+      "saveKey": "Save key",
+      "replaceWarning": "The old key can no longer authorize devices after replacement. Replacing it cannot reclaim previously downloaded data.",
+      "generate": "Generate recovery key",
+      "cancelPrevious": "Cancel previous unfinished request",
+      "saveWarning": "Keep your recovery key file safe",
+      "saveHint": "This file can restore your cloud data. Store it securely; the cloud service cannot recover it for you.",
+      "downloadKey": "Download key file",
+      "noOptions": "Unable to use these options?",
+      "restartTitle": "Start cloud sync again",
+      "restartImpact": "Review impact",
+      "restartReview": "Confirm switch",
+      "restartEmailTitle": "Email confirmation",
+      "restartConfirm": "Confirm immediate restart",
+      "restartImmediate": "Takes effect when you confirm the switch",
+      "restartEffects": {
+        "local": "Local configuration is kept. The old workspace is not overwritten.",
+        "access": "Old devices and other sessions lose online access. A workspace with data is archived for 30 days; retrieval still requires its old keys.",
+        "next": "Set up recovery safeguards and review sync changes in the new workspace."
+      },
+      "createRestart": "Create restart request",
+      "resumeOperation": "Continue previous operation",
+      "expired": "The request expired. Cancel it and start again.",
+      "queryResult": "Query operation status",
+      "operationFailed": "The operation did not complete. Check the error or query its status before retrying.",
+      "errorCode": "Error code: {{code}}",
+      "setupPending": "Recovery is not enabled yet. Save your key, then choose “Saved, enable recovery”. If expired, cancel and verify again.",
+      "cancelOperation": "Cancel request",
+      "sendEmail": "Send independent email confirmation",
+      "resendEmail": "Resend confirmation email",
+      "emailToken": "Confirmation code from email",
+      "localPending": "Cloud switched; local binding is pending",
+      "restartDone": "New workspace created. Set up recovery safeguards next.",
+      "restartAccept": "I understand that archived data requires the old keys. Create a new workspace immediately and revoke old devices' online access.",
+      "finishLocal": "Complete local binding",
+      "usePersonal": "Use personal recovery key",
+      "personalAuthorizeHint": "Import your recovery key file to authorize this device",
+      "noAutoUpload": "Authorization still requires a sync preview and confirmation. Configuration is never uploaded automatically.",
+      "replaceDevices": "Old devices to replace (optional)",
+      "replaceDevicesHint": "If your trusted device quota is full, explicitly select old devices to revoke. Revocation and activation commit together; downloaded data cannot be deleted.",
+      "recover": "Recover device access",
+      "replacedTitle": "Original workspace archived",
+      "replacedHint": "The old local identity remains for historical verification and archive access. Joining the current workspace creates a new online device identity and requires authorization.",
+      "joinCurrent": "Join current workspace",
+      "archivesTitle": "Archived data",
+      "archiveHint": "A previous workspace with data is retained for 30 days. Access stops at expiry before cleanup. One archive is allowed per account.",
+      "archiveReadFailed": "Archive state is unavailable. Refresh to retry.",
+      "noArchives": "No workspace archives to retrieve",
+      "cleaning": "Cleaning up; access has stopped",
+      "archiveUntil": "Retained until {{date}}",
+      "retrieve": "Retrieve to local",
+      "deleteArchive": "Permanently delete archive",
+      "retrieveHint": "Verify the archive, resources and references before reviewing local differences",
+      "retrieveNoDelete": "Archive deletions do not delete local configuration. Competing content with the same ID requires a choice. Retrieval pauses automatic sync and requires a new preview before upload.",
+      "archiveLocalKey": "This device has the archive key. Preview directly or import a recovery file.",
+      "archiveKeyRequired": "Select the archived workspace’s recovery key file to verify and preview its data.",
+      "previewRetrieve": "Preview retrieval",
+      "useArchive": "Use archive",
+      "applyRetrieve": "Retrieve and pause automatic sync",
+      "deleteArchiveHint": "Access stops immediately and background cleanup removes ciphertext and resources. Cleanup must finish before another restart. This cannot be undone.",
+      "firstTitle": "Recovery safeguards required for first sync",
+      "firstHint": "Set up a personal recovery key or enable 2FA cloud recovery on the Security tab. You can still preview differences, sign in and use offline features.",
+      "advancedTitle": "Advanced operations",
+      "advancedHint": "If old data is unrecoverable, verify your email and identity to create a new workspace."
+    },
+    "authorization": {
+      "switchTitle": "Change authorization method",
+      "switchHint": "Cancel the unfinished request before starting a new authorization flow. An approved device will not be revoked.",
+      "remaining": "Time remaining {{time}}",
+      "disableRotate": "Disable and rotate data keys",
+      "rotatePending": "Recovery issuance has stopped. Continue rotating data keys; verify again only if identity verification expired. You can continue from Security if you leave.",
+      "approvalTitle": "Authorize new device",
+      "waitingTitle": "Waiting for authorization",
+      "completedTitle": "Authorization complete",
+      "recoveryTitle": "Cloud recovery",
+      "enablementTitle": "Enable cloud recovery",
+      "readFailed": "Authorization status is temporarily unavailable",
+      "expired": "This request expired. Start a new one.",
+      "pairingCode": "Pairing code",
+      "pairingUnavailable": "Pairing code unavailable",
+      "pairingRequestHint": "The other device shows the same pairing code.",
+      "pairingApproveHint": "Match this code with the new device. Only authorize a device you recognize.",
+      "waitingHint": "Approve on a trusted device. This page will update automatically.",
+      "approvedTitle": "Device authorized",
+      "approvedHint": "The new device will finish authorization automatically.",
+      "finishingLocal": "Finishing authorization on this device…",
+      "localRetryHint": "Approved, but not yet saved on this device. Retry without verifying again.",
+      "retryLocal": "Retry local authorization",
+      "verified": "Device authorized",
+      "previewNext": "Confirm your sync scope in Cloud sync to start syncing.",
+      "platformTrust": "I understand that enabling cloud recovery gives this platform the ability to recover workspace data keys.",
+      "verify": "Verify this operation",
+      "approve": "Authorize device",
+      "complete": "Verify material and finish",
+      "claim": "Verify and claim authorization",
+      "reject": "Reject",
+      "cancel": "Cancel request",
+      "chooseHint": "Signing in does not authorize this device or enable sync. Choose how to verify it.",
+      "useTrusted": "Approve with a trusted device",
+      "useRecovery": "Use cloud recovery",
+      "initialize": "Confirm trusted devices",
+      "initializeHint": "Review existing devices and remove those no longer in use. Confirmation establishes a signed membership checkpoint.",
+      "reviewMembers": "Review device list",
+      "requests": "Device authorization requests",
+      "details": "View details",
+      "noRequests": "No pending requests",
+      "recoveryHint": "Once enabled in advance, a new device can recover authorization using your authenticator. Off by default.",
+      "cooldown": "Recovery protection until {{date}}",
+      "enable": "Enable cloud recovery",
+      "continue": "Continue setup",
+      "disable": "Disable cloud recovery",
+      "freeze": "Pause recovery issuance",
+      "unfreeze": "Resume issuance",
+      "disableHint": "Stop new issuance and invalidate unfinished recovery. Without a personal recovery key, this removes your recovery safeguard; you can set one up on the security page first. Downloaded keys cannot be recalled. Rotate data keys after disabling to protect future content.",
+      "freezeHint": "Only a signed-in trusted device can resume issuance. Existing device sync continues.",
+      "totpRequired": "Enable two-factor authentication, then enable cloud recovery on a trusted device.",
+      "moreActions": "More actions",
+      "securityOptions": "Security options",
+      "emergency": "Emergency pause of cloud recovery",
+      "emergencyIdentity": "Use this device's retained trusted identity",
+      "emergencyConfirm": "Pause cloud key issuance and invalidate unfinished recovery flows. Existing device sync continues. Sign in on a trusted device to resume issuance.",
+      "emergencySubmit": "Pause recovery",
+      "emergencyCompleted": "Cloud recovery paused",
+      "targetUnavailable": "This request expired or belongs to another account. Read its retained message summary.",
+      "states": {
+        "pending": "Waiting",
+        "verifying": "Awaiting confirmation",
+        "verified": "Identity verified",
+        "processing": "Processing",
+        "approved": "Approved",
+        "acknowledged": "Completed",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled",
+        "expired": "Expired",
+        "invalidated": "Invalidated",
+        "failed": "Incomplete"
+      },
+      "policyStates": {
+        "disabled": "Off",
+        "enabling": "Enabling",
+        "enabled": "On",
+        "frozen": "Paused"
+      },
+      "reasons": {
+        "service_disabled": "Cloud recovery is unavailable on this service",
+        "recovery_frozen": "Recovery issuance is paused. A trusted device must resume it.",
+        "recovery_cooling_down": "Recovery is unavailable during authenticator replacement protection",
+        "not_enabled": "Cloud recovery was not enabled in advance",
+        "recovery_unavailable": "Recovery material is unavailable. Contact the service operator or use trusted-device approval.",
+        "service_epoch_changed": "Service security state changed. Use a trusted device."
+      }
+    },
+    "local": "Local",
+    "localHint": "Offline mode",
+    "accountMenu": "{{name}} · Account and settings",
+    "signInAccount": "Sign in",
+    "useOffline": "Continue offline",
+    "welcome": "Sign in to your account",
+    "welcomeHint": "Use your email and password, or scan with a trusted phone.",
+    "login": {
+      "storyTitle": "Your configuration.",
+      "storySubtitle": "Across your devices.",
+      "trustTitle": "Trusted device access",
+      "trustHint": "Approve each new device before granting access",
+      "encryptionTitle": "Encrypted sync",
+      "encryptionHint": "Configuration is encrypted before upload",
+      "scopeHint": "After signing in, you choose devices and sync scope.",
+      "offlineLabel": "Not signing in?",
+      "reconnectTitle": "Verify your current account",
+      "reconnectHint": "Local features remain available. Sign in to reconnect.",
+      "emailPlaceholder": "Enter your account email",
+      "passwordPlaceholder": "Enter your password",
+      "newPasswordPlaceholder": "Choose a new password"
+    },
+    "backToLogin": "Back to sign in",
+    "authOptions": "Other account actions",
+    "authHints": {
+      "register": "Create an account with your email, then verify it before signing in.",
+      "verify-email": "Paste the token from your verification email to verify your address.",
+      "resend-verification": "Enter your registered email to receive a new verification email.",
+      "password-reset/request": "Enter your account email to receive a password reset email.",
+      "password-reset/confirm": "Paste the token from your reset email and choose a new password."
+    },
+    "loading": "Loading…",
+    "accountConnected": "Signed in to Termous",
+    "unconfiguredTitle": "Cloud service not configured",
+    "email": "Email",
+    "password": "Password",
+    "passwordRequired": "Enter your password",
+    "passwordRule": "Use 12–256 UTF-8 bytes",
+    "verificationCode": "Email verification token",
+    "authSent": "Request accepted. Check your email or try signing in.",
+    "logout": "Sign out",
+    "connectionUnavailable": "Can't connect to the cloud",
+    "connectionRetryHint": "Reconnecting. You can keep using local features.",
+    "reconnectAccount": "Sign in again",
+    "loadFailed": "Could not load account information",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "operationFailed": "The operation did not complete. Try again.",
+    "unconfigured": "Cloud service is not configured. Offline features remain available.",
+    "trusted": "Trusted device",
+    "pendingApproval": "Awaiting device approval",
+    "syncTitle": "Cloud sync",
+    "syncHint": "Sync hosts, credentials and settings across devices.",
+    "profile": {
+      "name": "Name",
+      "organization": "Company / organization",
+      "bio": "Bio",
+      "chooseAvatar": "Change avatar",
+      "avatarLabel": "Avatar",
+      "removeAvatar": "Remove avatar",
+      "avatarHint": "PNG or JPEG, up to 2 MB. Automatically cropped to a centered square.",
+      "privateHint": "Profile details are stored by the cloud service. Local configuration is unaffected.",
+      "save": "Save profile",
+      "saved": "Profile saved",
+      "unavailable": "Profile details are unavailable",
+      "unsaved": "Unsaved changes",
+      "editHint": "Save your changes to update your profile.",
+      "reload": "Reload",
+      "discard": "Discard unsaved changes and load the latest profile?"
+    },
+    "tabs": {
+      "profile": "Profile",
+      "sync": "Cloud sync",
+      "devices": "Devices",
+      "security": "Security"
+    },
+    "auth": {
+      "login": "Sign in",
+      "register": "Create account",
+      "verify-email": "Verify email",
+      "resend-verification": "Resend verification",
+      "password-reset/request": "Forgot password",
+      "password-reset/confirm": "Reset password",
+      "reauthenticate": "Verify identity"
+    },
+    "mfa": {
+      "title": "Two-step verification",
+      "hint": "Protect sign-in with an authenticator. Account verification does not replace device authorization.",
+      "enabled": "Enabled",
+      "disabled": "Not enabled",
+      "disabledHint": "Add another verification step when signing in.",
+      "enable": "Enable two-step verification",
+      "disable": "Disable two-step verification",
+      "replace": "Change authenticator",
+      "regenerate": "Generate new backup codes",
+      "refresh": "Refresh verification status",
+      "loadFailed": "Could not load two-step verification status. Refresh to try again.",
+      "loading": "Loading two-step verification status…",
+      "codesRemaining": "{{count}} backup codes remaining",
+      "code": "Authenticator code",
+      "codeRequired": "Enter a verification or backup code",
+      "codeRule": "Enter a six-digit code",
+      "codePlaceholder": "Six-digit code",
+      "backupCode": "Backup code",
+      "backupCodePlaceholder": "Enter an unused backup code",
+      "useBackupCode": "Use a backup code instead",
+      "useAuthenticator": "Use an authenticator code",
+      "loginTitle": "Complete two-step verification",
+      "loginHint": "Enter an authenticator code or use one backup code. Each backup code works once.",
+      "verifyAndLogin": "Verify and sign in",
+      "challengeExpired": "This sign-in challenge expired. Go back and sign in again.",
+      "loginUncertain": "Sign-in could not be confirmed. Go back and sign in again rather than resubmitting this code.",
+      "enableHint": "Verify your password, then link an authenticator. Enabling this will sign out other sessions.",
+      "replaceHint": "Verify with your current authenticator or a backup code before linking a new authenticator. The current one stays valid until confirmed. Confirmation invalidates old backup codes and signs out other sessions.",
+      "disableHint": "Verify with your authenticator or a backup code to disable two-step verification. Backup codes become invalid and other sessions are signed out. This also stops cloud recovery issuance and invalidates unfinished recovery. Enabling 2FA again does not re-enable recovery. Without a personal recovery key, this also removes your recovery safeguard; you can set one up first.",
+      "regenerateHint": "Verify with your authenticator or a backup code to generate 10 new backup codes. All old codes become invalid. Sessions stay signed in.",
+      "continue": "Next",
+      "confirm": "Confirm and enable",
+      "confirmDisable": "Confirm disable",
+      "cancel": "Cancel",
+      "scanHint": "Scan this QR code with your authenticator, then enter its new verification code.",
+      "scanTitle": "Scan with your authenticator",
+      "manualKey": "Can't scan? Enter the key manually",
+      "manualHint": "Add an account manually in your authenticator, paste the key below, and select Time-based.",
+      "secretLabel": "Setup key",
+      "copyKey": "Copy key",
+      "saveCodes": "Save backup codes",
+      "saveCodesHint": "These codes are shown once. Each works once. Keep them in a safe place. They cannot decrypt cloud data.",
+      "backupCodes": "One-time backup codes",
+      "downloadCodes": "Download backup codes",
+      "codesSaved": "I have stored the backup codes safely",
+      "copied": "Copied",
+      "done": "Done",
+      "exportFailed": "Copy or download failed. Save the codes manually.",
+      "outcomeUncertain": "The outcome could not be confirmed",
+      "outcomeUncertainHint": "A status refresh was attempted. If verification is enabled but no codes arrived, verify again to generate new codes. Do not resubmit the original code.",
+      "verifiedUntil": "Valid until {{time}}",
+      "steps": { "identity": "Verify identity", "authenticator": "Link authenticator", "save": "Save backup codes" }
+    },
+    "errors": {
+      "qr_expired": "This QR code has expired. Generate a new one.",
+      "qr_state_changed": "The sign-in request changed. Reload it.",
+      "qr_already_scanned": "Another phone has already scanned this code.",
+      "qr_account_mismatch": "Scan with the original account.",
+      "qr_invalid": "Invalid QR code.",
+      "qr_origin_mismatch": "This code belongs to another service.",
+      "device_not_trusted": "Trust this phone before scanning.",
+      "client_upgrade_required": "Update the cloud service to use QR sign-in.",
+      "qr_claimed": "Another phone has already scanned this code.",
+      "local_failed": "Could not complete QR sign-in. Try again.",
+      "CLOUD_PERSONAL_SAVE_REQUIRED": "Save your recovery key before enabling recovery.",
+      "CLOUD_PERSONAL_FILE_INVALID": "Choose a valid .torkey recovery key file (up to 4 KiB).",
+      "CLOUD_PERSONAL_FILE_VERSION": "This key file version is not supported. Update your client.",
+      "CLOUD_PERSONAL_FILE_MISMATCH": "This file belongs to a different service, account or workspace. Choose the matching key file.",
+      "CLOUD_PERSONAL_FILE_STALE": "The key version does not match. Choose the recovery file for the target workspace’s key version.",
+      "CLOUD_PERSONAL_FILE_READ_FAILED": "Could not read the key file. Select it again.",
+      "CLOUD_PERSONAL_KEY_INVALID": "The recovery key is invalid or does not match the cloud material. Check your saved key.",
+      "CLOUD_PERSONAL_KEY_REQUIRED": "Select a recovery key file or paste a legacy text key first.",
+      "recovery_safeguard_required": "Set up a personal recovery key or cloud recovery before your first sync.",
+      "CLOUD_PERSONAL_SETUP_MISSING": "The local recovery key draft does not match this request. Check the operation status first.",
+      "CLOUD_PERSONAL_LOCAL_PENDING": "The recovery key is enabled in the cloud, but local key verification or storage is unfinished. Check the operation status to continue without generating a new key.",
+      "authorization_expired": "The request or identity verification expired. Check its status, cancel the unfinished request, and verify your identity again.",
+      "authorization_stale": "Your account, trusted members, or recovery settings changed. Check the status before starting again.",
+      "membership_conflict": "The operation version changed. Check the latest result before continuing.",
+      "protocol_invalid": "The recovery response does not match the current protocol. Check the client and service versions.",
+      "workspace_replaced": "Your previous workspace was archived. Join the current workspace or retrieve its data.",
+      "workspace_binding_pending": "The cloud switch is complete. Query the result to finish binding this device.",
+      "personal_recovery_unavailable": "Personal recovery is not set up or its key has changed.",
+      "archive_expired": "The archive has expired or is being cleaned up.",
+      "archive_cleanup_required": "Explicitly delete the previous archive and wait for cleanup before restarting again.",
+      "email_confirmation_failed": "The email confirmation code is invalid. Use the complete code from the latest email for this request.",
+      "mfa_invalid_code": "The verification or backup code is invalid. Check it and try again.",
+      "mfa_code_reused": "This code was already used. Wait for the next authenticator code.",
+      "mfa_challenge_expired": "The sign-in challenge expired. Sign in again.",
+      "mfa_challenge_exhausted": "Too many attempts. Sign in again.",
+      "mfa_setup_expired": "Authenticator setup expired. Start again.",
+      "mfa_setup_exhausted": "Too many attempts. Start authenticator setup again.",
+      "mfa_revision_conflict": "Two-step verification changed elsewhere. Refresh before trying again.",
+      "CLOUD_MFA_CONFLICT": "Two-step verification changed elsewhere. Refresh before trying again.",
+      "mfa_copy_failed": "Could not copy the key. Enter it manually.",
+      "reauthentication_failed": "Verification failed. Check your verification details.",
+      "CLOUD_MFA_UNAVAILABLE": "Your verification method is unavailable. Refresh security status and try again.",
+      "CLOUD_RESPONSE_INVALID": "Invalid verification response. Refresh and try again.",
+      "CLOUD_STALE": "Account state changed. Try again.",
+      "profile_conflict": "Your profile changed on another device. Your draft is preserved. Reload the latest profile before editing again.",
+      "device_name_conflict": "The device name changed. Your draft is preserved. Load the latest name before editing again.",
+      "profile_invalid": "Check the field lengths and special characters.",
+      "avatar_invalid": "Choose a valid PNG or JPEG image.",
+      "avatar_file_size": "Avatar files must be no larger than 2 MB.",
+      "resource_in_use": "A connection or mount is using this configuration. Close the related sessions and retry.",
+      "login_required": "Your session expired. Sign in again.",
+      "network_unavailable": "Can't connect to the cloud. Try again later.",
+      "response_incomplete": "Connection interrupted. Try again.",
+      "service_unavailable": "The cloud service is temporarily unavailable. Try again later.",
+      "rate_limited": "Please wait a moment and try again.",
+      "refresh_unconfirmed": "Sign in again to reconnect to the cloud.",
+      "unauthorized": "Sign-in failed. Check your email, password and email verification.",
+      "configuration_invalid": "The cloud address configuration is invalid. Check the local configuration file.",
+      "local_keys_unavailable": "Local keys are unavailable. Restore access to your keyring and try again.",
+      "session_revoke_unconfirmed": "Signed out locally. Remote session revocation could not be confirmed.",
+      "reauthentication_required": "Your identity verification expired. Verify again to continue.",
+      "conflicts_pending": "Resolve conflicts in the sync preview.",
+      "preview_required": "Local data was restored. Preview and confirm sync again.",
+      "device_approval_required": "Authorize this device first.",
+      "dataset_upgrade_required": "The cloud service does not support some data versions. Upgrade the service before syncing.",
+      "batch_reference_limit": "Related changes exceed the safe batch limit. Nothing was uploaded. Reduce the size of this change.",
+      "rekey_other_device": "Resume this rotation on the device that started it.",
+      "recovery_epoch_changed": "Cloud recovery state changed. Sign in and reconcile your data again.",
+      "local_store_unavailable": "Local cloud state is unavailable. Offline features remain available.",
+      "protocol_unsupported": "Cloud protocol mismatch. Update the app or service.",
+      "revision_conflict": "Cloud data changed. Sync again and resolve any conflicts."
+    },
+    "deviceList": "Registered devices",
+    "deviceColumns": {
+      "name": "Device name",
+      "authorization": "Authorization",
+      "created": "Registered",
+      "actions": "Remote access & management"
+    },
+    "deviceListHint": "Manage devices with access to your cloud configuration.",
+    "deviceName": {
+      "edit": "Edit name",
+      "title": "Rename device",
+      "label": "Device name",
+      "invalid": "Enter 1–100 characters without control characters.",
+      "reload": "Load latest name",
+      "save": "Save name",
+      "cancel": "Cancel"
+    },
+    "devicesLoadFailed": "Could not load devices. Refresh to try again.",
+    "authorizeDevice": "Authorize this device",
+    "noDevices": "No registered devices",
+    "currentDevice": "This device",
+    "currentSession": "Current sign-in",
+    "revoke": "Revoke",
+    "copy": "Copy",
+    "revokeHint": "Revocation removes this device from the list and ends its cloud authorization and associated sessions. Downloaded data is kept. Sign in again on that device to request authorization through the same flow as a first sign-in. Recent identity verification is required.",
+    "reauthenticateHint": "Use your authenticator or a backup code for sensitive actions, or your password if 2FA is off. Some actions can reuse verification for 5 minutes; device approval and recovery always verify separately.",
+    "securityVerification": "Verify sensitive actions",
+    "verified": "Identity verified",
+    "sessions": "Sign-in sessions",
+    "sessionsHint": "Review sign-ins and revoke sessions you no longer use.",
+    "noSessions": "No sign-in sessions",
+    "sessionsLoadFailed": "Could not load sign-in sessions. Refresh to try again.",
+    "refreshSessions": "Refresh sessions",
+    "sessionCreated": "Signed in {{date}}",
+    "unboundSession": "Sign-in without a bound device",
+    "revokeSession": "Revoke this sign-in session?",
+    "revokeSessionHint": "This session will be signed out. Data already downloaded by the device will remain.",
+    "keySafetyHint": "Keep at least one trusted device, and back up your personal recovery key or enable cloud recovery in advance. If all trusted devices and recovery methods become unavailable, cloud data cannot be decrypted. Resetting your password cannot restore it.",
+    "approvalNeeded": "Authorize this device in the Devices tab first",
+    "autoSync": "Automatic sync",
+    "autoSyncHint": "Automatically sync future changes",
+    "settingsFailed": "Sync preferences could not be saved. Please retry.",
+    "lastSuccess": "Last successful sync",
+    "neverSynced": "Not synced yet",
+    "pendingChanges": "Pending changes",
+    "conflicts": "Conflicts",
+    "preview": "Preview sync",
+    "syncNow": "Sync now",
+    "previewTitle": "Sync preview",
+    "previewBlocked": "Resolve the blocking issues before confirming sync.",
+    "noChanges": "Local and cloud data match",
+    "dataset": "Configuration",
+    "upload": "Upload",
+    "download": "Download",
+    "deletion": "Deletions",
+    "conflictHint": "Both copies changed. Choose which version to keep.",
+    "deleteConflict": "Includes a deletion",
+    "rekeyTitle": "Rotate data keys",
+    "rekeyLoadFailed": "Could not load key rotation status. Refresh to try again.",
+    "refreshRekey": "Refresh status",
+    "noRekey": "No key rotation is in progress.",
+    "rekeyHint": "Re-encrypt cloud configuration and assets. Regular uploads pause during rotation. Interrupted work can resume. Revoke untrusted devices first.",
+    "rekeyConfirm": "Re-encrypt cloud data with new keys?",
+    "rekeyStart": "Start rotation",
+    "rekeyResume": "Resume rotation",
+    "rekeyCancel": "Cancel rotation",
+    "rekeyCancelHint": "Cancel unfinished rotation and keep the existing keys?",
+    "deviceStates": {
+      "pending": "Pending",
+      "active": "Trusted",
+      "revoked": "Revoked"
+    },
+    "keep": {
+      "local": "Keep local",
+      "remote": "Use cloud"
+    },
+    "phases": {
+      "ready": "Ready",
+      "blocked": "Action needed",
+      "syncing": "Syncing",
+      "signed_out": "Signed out",
+      "unconfigured": "Not configured",
+      "unavailable": "Unavailable"
+    },
+    "rekeyStates": {
+      "staging": "Rotation in progress; resume or cancel",
+      "complete": "Rotation complete",
+      "cancelled": "Rotation cancelled"
+    },
+    "datasets": {
+      "connection_proxies": "Connection proxies",
+      "host_groups": "Host groups",
+      "host_icons": "Host icons",
+      "credentials": "Credentials",
+      "hosts": "Hosts",
+      "ssh_access_profiles": "SSH profiles",
+      "file_access_profiles": "File profiles",
+      "terminal_fonts": "Terminal fonts",
+      "code_snippet_groups": "Snippet groups",
+      "code_snippets": "Snippets",
+      "file_bookmark_groups": "Bookmark groups",
+      "file_bookmarks": "File bookmarks",
+      "file_rename_presets": "Rename presets",
+      "forward_profiles": "Port forwarding",
+      "remote_desktop_profiles": "Remote desktop profiles",
+      "remote_desktop_credential_bindings": "Remote desktop credentials"
+    }
+  },
   "audit": {
-    "description": "AI assistant and external MCP operations · Stored locally for 90 days",
+    "paused": "Recording paused",
     "detail": "Audit details",
     "loadFailed": "Could not load audit records. Refresh to retry.",
     "relatedFailed": "Could not load related events. Loaded records are preserved.",
@@ -76,7 +643,7 @@
     "from": "From",
     "until": "Until",
     "lastSevenDays": "Last 7 days by default",
-    "scope": "Scope",
+    "scope": "Module",
     "level": "Level",
     "moreFilters": "More filters",
     "reset": "Reset",
@@ -111,7 +678,7 @@
       "unknown": "Uncertain"
     },
     "producers": {
-      "agent_runtime": "AI Worker",
+      "agent_runtime": "AI assistant runtime",
       "mcp_server": "MCP server",
       "application_service": "Application service"
     },
@@ -121,6 +688,8 @@
     "scopes": {
       "hosts": "Hosts",
       "sessions": "SSH sessions",
+      "desktops": "Remote desktops",
+      "desktop_workflows": "Desktop scripts",
       "files": "Files",
       "commands": "Commands",
       "forwarding": "Port forwarding",
@@ -182,6 +751,17 @@
       "termous_remoteops_crontab_jobs_delete": "Delete scheduled task",
       "termous_remoteops_crontab_jobs_update": "Update scheduled task",
       "termous_remoteops_docker_capability": "Check Docker support",
+      "termous_remoteops_docker_images_list": "List images",
+      "termous_remoteops_docker_images_get": "Inspect image",
+      "termous_remoteops_docker_images_action": "Manage images",
+      "termous_remoteops_docker_volumes_list": "List volumes",
+      "termous_remoteops_docker_volumes_get": "Inspect volume",
+      "termous_remoteops_docker_volumes_create": "Create volume",
+      "termous_remoteops_docker_volumes_action": "Manage volumes",
+      "termous_remoteops_docker_networks_list": "List networks",
+      "termous_remoteops_docker_networks_get": "Inspect network",
+      "termous_remoteops_docker_networks_create": "Create network",
+      "termous_remoteops_docker_networks_action": "Manage networks",
       "termous_remoteops_docker_containers_action": "Run container action",
       "termous_remoteops_docker_containers_get": "Inspect container",
       "termous_remoteops_docker_containers_list": "List containers",
@@ -278,6 +858,7 @@
     "loading": "Loading",
     "empty": "No data",
     "noSessions": "No sessions",
+    "newConnection": "New connection",
     "error": "Error",
     "retry": "Retry",
     "copy": "Copy",
@@ -286,12 +867,19 @@
     "no": "No"
   },
   "sessionOrigin": {
-    "mcp": "Created by MCP"
+    "mcp": "Created by MCP",
+    "remote": "Created by remote control"
+  },
+  "remoteControl": {
+    "controlled": "Remotely controlled",
+    "takeover": "Take back input",
+    "takeoverFailed": "Unable to take back input. Check your connection."
   },
   "nav": {
+    "account": "Account",
     "audit": "Audit center",
     "workbench": "Workbench",
-    "agent": "Agent",
+    "agent": "AI assistant",
     "remote-desktop": "Remote Desktop",
     "hosts": "Hosts",
     "vault": "Credential Vault",
@@ -302,7 +890,40 @@
     "settings": "Settings"
   },
   "agent": {
+    "window": {
+      "open": "Open in a separate window",
+      "return": "Return to main window",
+      "returnHere": "Return here",
+      "focus": "Focus window",
+      "detached": "Open in a separate window",
+      "detachedDescription": "Your assistant is working in its own window. Conversations, drafts and running tasks stay with you.",
+      "failed": "Window handoff did not finish. Please retry. Unconfirmed actions are not sent again automatically.",
+      "approvalWaiting": "Waiting for approval in the main window",
+      "approval": "Go to approval"
+    },
+    "desktopResource": {
+      "confirmTitle": "Replace the desktop connection reference?",
+      "confirmDescription": "Replace the current desktop connection reference while keeping other references and the existing draft.",
+      "status": {
+        "ready": "Available",
+        "checking": "Checking",
+        "stale": "Reference expired",
+        "unavailable": "Unavailable"
+      },
+      "details": "Desktop resource reference",
+      "type": "Type",
+      "protocol": "Protocol",
+      "select": "Choose a replacement",
+      "fixedVersion": "This version is pinned. Select again to reference a newer version.",
+      "referenceOnly": "Reference only. Connections and actions still require their usual permissions and approval.",
+      "unavailable": "Reference unavailable. Check the target or select it again.",
+      "removeTitle": "Remove reference?",
+      "removeDescription": "Remove from this conversation without closing the desktop or deleting the script.",
+      "errorTitle": "Desktop resource unavailable"
+    },
+    "remoteApprovals": "Approvals",
     "sessions": {
+      "remoteOrigin": "Created remotely",
       "title": "Sessions",
       "new": "New session",
       "untitled": "New session",
@@ -382,10 +1003,10 @@
       },
       "modelUnavailableHint": {
         "removed": "This model was removed from the Termous model catalog. Select another available model for the session.",
-        "provider_disabled": "Enable this provider in Agent settings, or select another available model for the session.",
-        "catalog_stale": "Sync this provider's model catalog in Agent settings, or select another available model for the session.",
+        "provider_disabled": "Enable this provider in AI assistant settings, or select another available model for the session.",
+        "catalog_stale": "Sync this provider's model catalog in AI assistant settings, or select another available model for the session.",
         "missing": "The remote provider does not currently return this model. Sync the catalog or select another available model.",
-        "unknown": "Check the provider and model catalog in Agent settings, or select another available model."
+        "unknown": "Check the provider and model catalog in AI assistant settings, or select another available model."
       },
       "returnToActiveRun": "Return to running session",
       "returnToQueuedSession": "Return to queued session"
@@ -404,7 +1025,24 @@
     },
     "empty": {
       "title": "What would you like to work on?",
-      "description": "Describe the outcome you need. The Agent uses Termous capabilities through MCP within the scopes you have granted."
+      "description": "Describe the outcome you need. The AI assistant uses Termous capabilities through MCP within the scopes you have granted.",
+      "prompts": {
+        "diagnose": {
+          "title": "Inspect a host",
+          "description": "Understand load and bottlenecks",
+          "text": "Help me inspect CPU, memory and disk usage on this host. Start with a diagnostic plan."
+        },
+        "logs": {
+          "title": "Analyze logs",
+          "description": "Find errors and likely causes",
+          "text": "Analyze the error logs in the linked terminal and suggest likely causes and next checks."
+        },
+        "deploy": {
+          "title": "Prepare a deployment",
+          "description": "Review a preflight checklist",
+          "text": "Prepare a checklist before deploying a service. Start with the environment details we need to confirm."
+        }
+      }
     },
     "conversation": {
       "jumpToLatest": "Jump to latest message"
@@ -440,15 +1078,24 @@
       }
     },
     "launch": {
-      "action": "Ask Agent"
+      "action": "Ask AI assistant"
     },
     "message": {
+      "resources": "Resources linked when sent",
+      "resourceKind": {
+        "desktop_session": "Desktop session",
+        "desktop_profile": "Desktop profile",
+        "desktop_workflow": "Desktop workflow",
+        "ssh_session": "SSH session",
+        "ssh_profile": "SSH profile",
+        "file_profile": "File profile"
+      },
       "copied": "Copied",
       "copyFailed": "Copy failed. Try again.",
       "duration": "Took {{duration}}",
       "durationHint": "Total time from the start of this run to its end, including tool execution and waiting",
       "you": "You",
-      "agent": "Agent",
+      "agent": "AI assistant",
       "failed": "This response failed",
       "failure": {
         "mcpProtocolMismatch": "The AI assistant and MCP tool service use incompatible protocol versions.",
@@ -498,6 +1145,11 @@
       "contextWindow": "This run's model context window: {{tokens}} tokens.",
       "duration": "Duration: {{duration}}."
     },
+    "progress": {
+      "detected": "Repeated operations detected ({{count}}); guidance provided",
+      "progressed": "New meaningful results observed",
+      "candidates": "Suggested operations"
+    },
     "retry": {
       "waiting": "Waiting to reconnect · {{attempt}}/{{max}}",
       "requesting": "Reconnecting · {{attempt}}/{{max}}",
@@ -524,7 +1176,7 @@
       }
     },
     "composer": {
-      "placeholder": "Message Agent",
+      "placeholder": "Message AI assistant",
       "queuePlaceholder": "Type the next message",
       "queue": "Add to queue",
       "send": "Send",
@@ -582,7 +1234,7 @@
       "confirmReplaceImmediate": "Connect and replace",
       "remove": "Remove link",
       "removeTitle": "Remove SSH profile link?",
-      "removeDescription": "This Agent session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
+      "removeDescription": "This AI assistant session will no longer use the SSH profile for “{{host}}” on demand. The draft and message history are unchanged.",
       "status": {
         "checking": "Checking profile",
         "ready": "On demand",
@@ -638,14 +1290,13 @@
       "noCandidates": "No other connections are available",
       "remove": "Detach connection",
       "removeTitle": "Detach SSH connection?",
-      "removeDescription": "This Agent session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
+      "removeDescription": "This AI assistant session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
       "activeRunLocked": "Connections cannot be replaced or detached while a task is running",
       "recovery": {
         "details": "Recover the referenced SSH connection",
         "title": "Connection recovery",
         "completed": "SSH connection recovered",
         "completedDescription": "The reference has been updated. Queued messages remain paused until you resume them.",
-        "infrastructureUnavailable": "The AI runtime is not ready, so new sessions and tasks are disabled. Existing sessions remain accessible, and the connection service checks SSH recovery independently.",
         "recover": "Recover connection",
         "retry": "Retry recovery",
         "cancel": "Cancel recovery",
@@ -672,7 +1323,7 @@
       "error": {
         "unavailableTitle": "Referenced SSH connection unavailable",
         "conflictTitle": "Connection reference changed",
-        "conflictDescription": "This Agent session was updated. Wait for it to synchronize, then select the connection again.",
+        "conflictDescription": "This AI assistant session was updated. Wait for it to synchronize, then select the connection again.",
         "activeRunTitle": "A task is running",
         "activeRunDescription": "Stop or wait for the current task to finish before replacing or detaching the connection.",
         "reason": {
@@ -737,14 +1388,18 @@
     "slash": {
       "title": "Slash commands",
       "commands": {
+        "workflow": {
+          "title": "Choose desktop workflow",
+          "description": "Reference a fixed desktop workflow version"
+        },
         "title": "Commands",
         "session": {
           "title": "Choose session type",
-          "description": "Link an existing SSH or file session"
+          "description": "Reference an SSH, file or desktop session"
         },
         "profile": {
           "title": "Choose profile type",
-          "description": "Link through an SSH or file profile"
+          "description": "Reference an SSH, file or desktop profile"
         },
         "compact": {
           "title": "Compact context",
@@ -756,6 +1411,14 @@
         "context": "Context"
       },
       "resourceKind": {
+        "desktop": {
+          "title": "Remote desktop",
+          "description": "RDP / VNC sessions and profiles"
+        },
+        "workflow": {
+          "title": "Desktop workflows",
+          "description": "Reference a fixed version"
+        },
         "title": "Choose resource type",
         "ssh": {
           "title": "SSH connection",
@@ -815,7 +1478,7 @@
       },
       "binding": {
         "completed": "Resource linked",
-        "completedDescription": "The resource link for this Agent session has been updated."
+        "completedDescription": "The resource link for this AI assistant session has been updated."
       },
       "connection": {
         "title": "SSH profile connection",
@@ -826,7 +1489,7 @@
         "retry": "Retry",
         "dismiss": "Dismiss connection status",
         "completed": "SSH profile connected",
-        "completedDescription": "The SSH connection for this Agent session has been updated.",
+        "completedDescription": "The SSH connection for this AI assistant session has been updated.",
         "status": {
           "connecting": "Establishing the SSH connection…",
           "waiting_host_trust": "Waiting for host key confirmation…",
@@ -862,14 +1525,14 @@
     },
     "approvalMode": {
       "label": "Approval mode",
-      "title": "How should Agent actions be approved?",
+      "title": "How should AI assistant actions be approved?",
       "review": "Ask for approval",
       "reviewHint": "Request approval before sensitive operations",
       "bypass": "No confirmation",
       "bypassHint": "Run tools directly within the granted scopes",
       "unavailable": "Approval mode unavailable",
-      "confirmBypassTitle": "Allow the Agent to run without confirmation?",
-      "confirmBypassDescription": "The Agent will be able to execute MCP tools within the managed client's granted scopes. This setting cannot be changed while a task is running.",
+      "confirmBypassTitle": "Allow the AI assistant to run without confirmation?",
+      "confirmBypassDescription": "The AI assistant will be able to execute MCP tools within the managed client's granted scopes. This setting cannot be changed while a task is running.",
       "confirmBypass": "Enable no confirmation"
     },
     "inspector": {
@@ -879,6 +1542,8 @@
       "measured": "Measured usage",
       "contentEstimate": "Content estimate",
       "providerBasis": "Model-calibrated estimate",
+      "belowThreshold": "Automatic compaction starts at {{tokens}} tokens; current usage is below this threshold. Repetition alone does not trigger compaction.",
+      "atThreshold": "The {{tokens}} token threshold has been reached. Context will be compacted after the current tool operations finish and before the next request.",
       "providerBasisHint": "Based on model-reported usage and content added since then.",
       "contextPending": "Current model awaiting assessment",
       "currentContextWindow": "Current model window: {{window}} tokens",
@@ -924,31 +1589,272 @@
     "markdown": {
       "remoteImageBlocked": "Remote image blocked"
     },
+    "images": {
+      "toolResults": "Images returned by the tool",
+      "result": "Image {{index}}",
+      "expand": "View full size",
+      "unavailable": "This image is not in the current conversation"
+    },
     "readiness": {
-      "title": "Prepare the Agent runtime",
-      "description": "The Agent uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > Agent.",
-      "prepare": "Set up or repair",
-      "loadFailed": "Agent runtime status is temporarily unavailable"
+      "remoteDescription": "Complete setup on the controlled computer, then refresh the status.",
+      "remoteTitle": "Remote assistant isn’t ready",
+      "checking": "Checking the runtime",
+      "unavailableTitle": "Runtime status unavailable",
+      "refreshStatus": "Refresh status",
+      "title": "AI assistant isn’t ready",
+      "description": "Complete runtime setup to start a conversation.",
+      "prepare": "Set up runtime",
+      "modelHint": "Choose a default model in Settings · AI assistant.",
+      "loadFailed": "Status is unavailable. Refresh to try again."
     },
     "error": {
-      "reconnecting": "Reconnecting Agent live status",
+      "reconnecting": "Reconnecting AI assistant live status",
       "reconnectingDescription": "Session content is preserved and will reconcile with Core after reconnecting.",
-      "degraded": "Some Agent state is temporarily unavailable",
+      "degraded": "Some AI assistant state is temporarily unavailable",
       "degradedDescription": "Session content is preserved. Retry to load Core's authoritative state.",
-      "operation": "The Agent operation did not complete",
+      "operation": "The AI assistant operation did not complete",
+      "uncertain": "Operation result is not confirmed",
+      "conflict": "The conversation has changed",
+      "conflictDescription": "Check the latest state before trying again. Unsubmitted drafts are preserved.",
+      "uncertainDescription": "The operation may have run on the controlled computer. Refresh and check its result before submitting again.",
       "operationDescription": "Check Core, the model profile, and runtime status, then try again."
     }
   },
   "remoteDesktop": {
+    "tools": {
+      "title": "Desktop tools",
+      "files": "File manager",
+      "retainedCount": "Retained sessions, {{count}}"
+    },
+    "automation": {
+      "pointerStandby": "In control",
+      "hostHint": "Hosted view · Closing this window hides it; automation continues",
+      "hostFailed": "Executor ended. Attach again and request control.",
+      "view": "View desktop",
+      "credentials": "VNC credentials",
+      "verify": "Verify VNC server identity",
+      "trustOnce": "Trust this time",
+      "actionFailed": "Action failed. Check desktop status before retrying.",
+      "observing": "Desktop view hosted",
+      "aiControlling": "AI is operating",
+      "workflowControlling": "Workflow running",
+      "releasesIn": "Control releases in {{time}}",
+      "expired": "Awaiting control release",
+      "expiryUnknown": "Authorization expiry unavailable",
+      "controlDetails": "View control details",
+      "approvalTitle": "Remote desktop control",
+      "reclaim": "Reclaim control",
+      "active": "Desktop in control",
+      "target": "Target",
+      "protocol": "Protocol",
+      "connection": "Connection",
+      "duration": "Authorization",
+      "limits": "Up to 30 minutes; released after 15 minutes without a successful capture or input",
+      "takeoverApproval": "Allow takeover of desktop control",
+      "takeoverVncHint": "The VNC connection will switch its viewing endpoint.",
+      "controlApproval": "Allow pointer, keyboard and target text clipboard operations on this connection",
+      "shares": "The operator can access personal mappings and exchange areas currently visible to the target. Your local system clipboard is not read. You can reclaim control at any time."
+    },
+    "files": {
+      "title": "Files",
+      "workspaceTitle": "Desktop files",
+      "taskTitle": "Transfers",
+      "transferStatus": {
+        "open": "View file transfers",
+        "idle": "No active transfers",
+        "queued": "Queued",
+        "syncing": "Syncing",
+        "totalRate": "Combined transfer speed",
+        "active": "{{count}} active",
+        "upload": "Upload",
+        "download": "Download"
+      },
+      "targetLocation": "Remote path",
+      "copyPath": "Copy access path",
+      "copied": "Copied",
+      "copyFailed": "Could not copy. Select the path and copy it manually.",
+      "search": "Search this folder",
+      "sort": "Sort order",
+      "sortBy": { "name": "Name", "modified": "Recently modified", "size": "Largest first" },
+      "size": "Size",
+      "modified": "Modified",
+      "folder": "Folder",
+      "noResults": "No matching files. Try another name.",
+      "itemCount": "{{count}} items",
+      "selectedCount": "{{count}} selected",
+      "clearSelection": "Clear selection",
+      "properties": "File details",
+      "location": "Location",
+      "fileActions": "Actions for {{name}}",
+      "mappingEmpty": "No local folders are shared",
+      "mappingEmptyHint": "Share a local folder to access it from the remote desktop.",
+      "readWrite": "Read and write · Changes affect local files",
+      "rememberShort": "Remember on this device",
+      "chooseExchange": "Choose exchange folder",
+      "chooseRetained": "Choose retained files",
+      "retainedTitle": "Retained files",
+      "retainedEmptyHint": "Retained files appear here, ready to save before expiry.",
+      "exchangeEmptyHint": "Create an exchange folder to transfer files between desktops.",
+      "transferDirection": "Transfer direction",
+      "chooseFilesToSend": "Choose files to send",
+      "sendToDesktop": "Send to remote",
+      "receiveFromDesktop": "Save locally",
+      "sendHint": "Choose files, then press Ctrl+V in a remote folder.",
+      "systemPasteHint": "Press Ctrl+V here or choose files, then paste in a remote folder.",
+      "receiveHint": "Copy files remotely, then read and save them here.",
+      "publicationIdle": "No files ready to paste",
+      "sendSelection": "Files to send",
+      "file": "File",
+      "type": "Type",
+      "byteSize": "{{size}} bytes",
+      "totalSize": "{{size}} total",
+      "clipboardPreparing": "Preparing files",
+      "clipboardPasteHint": "Press Ctrl+V in a remote folder to paste.",
+      "clipboardChanged": "The target clipboard changed. Read the file list again.",
+      "exchange": "Exchange",
+      "mappings": "Shared folders",
+      "clipboard": "Copy & paste",
+      "retained": "Retained",
+      "conflicts": "Name conflicts",
+      "conflict": {
+        "rename": "Rename duplicates",
+        "skip": "Skip duplicates",
+        "replace": "Replace duplicates"
+      },
+      "operationFailed": "The file operation could not finish. Check its state before retrying.",
+      "selectFolder": "Choose folder",
+      "mappingConsent": "The target Windows desktop will have read and write access to this folder. Sharing pauses during remote access and lasts for this session by default.",
+      "mappingNote": "Access local folders directly from the remote desktop, with read and write access.",
+      "rememberMapping": "Remember on this device (resume sharing in each new session)",
+      "addMapping": "Add folder",
+      "removeMappingConfirm": "Remove this folder share? Existing file access must finish first.",
+      "pause": "Pause sharing",
+      "resume": "Resume sharing",
+      "remove": "Remove",
+      "pausedTitle": "Local file access is paused",
+      "pausedNote": "Personal folders and local file clipboard publications are suspended while a remote viewer is attached.",
+      "exchangeNote": "Upload here, then use the path below on the remote desktop.",
+      "exchangeEmpty": "No local exchange folder yet",
+      "openExchange": "Create exchange",
+      "upload": "Upload files",
+      "uploadOptions": "More upload options",
+      "uploadFolder": "Upload folder",
+      "newFolder": "New folder",
+      "saveSelected": "Save locally",
+      "name": "Name",
+      "rename": "Rename",
+      "invalidName": "Names cannot contain path separators or special paths.",
+      "parent": "Parent folder",
+      "refresh": "Refresh",
+      "entries": "Exchange files",
+      "empty": "This folder is empty",
+      "readFailed": "Unable to read this folder. Refresh to try again.",
+      "select": "Select {{name}}",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this item? Empty folders before deleting them.",
+      "snapshotNote": "Copy exchange files to the remote disk to keep them there.",
+      "snapshotDownloadHint": "Saving briefly pauses remote writes to prepare a file snapshot.",
+      "claimNote": "Clean up retained files after saving them.",
+      "clipboardNote": "Transfer files and folders through the remote clipboard.",
+      "systemClipboard": "System file clipboard",
+      "systemClipboardHint": "Enable in Settings → Remote desktop. Shared by local RDP sessions; control is required.",
+      "systemClipboardEnabled": "Enabled",
+      "systemClipboardInactive": "Inactive",
+      "systemClipboardFailed": "System file clipboard operation did not finish. Manual transfers remain available.",
+      "systemClipboardReady": "{{count}} items ready to paste locally. Contents transfer when pasted.",
+      "clipboardReceiving": "Receiving file contents",
+      "clipboardReceiveQueued": "Waiting to receive",
+      "clipboardReceiveProvided": "Requested contents provided",
+      "clipboardReceiveStopped": "Receiving stopped",
+      "clipboardReceiveCancel": "Cancel receiving",
+      "clipboardReceivePartial": "Incomplete files may remain. Check before copying and pasting again.",
+      "clipboardReceiveResult": "Contents provided. Confirm the saved result in Explorer.",
+      "clipboardWaiting": "Ready to paste remotely",
+      "clipboardServing": "Providing file content",
+      "clipboardProvided": "{{size}} provided",
+      "clipboardProvidedHint": "Provided contents do not confirm the files were saved. Check the remote destination.",
+      "controllerRequired": "Take control of this desktop and disable view-only mode first.",
+      "publish": "Choose files",
+      "publishFolder": "Choose folder",
+      "readClipboard": "Read copied files",
+      "revoke": "Stop sharing",
+      "receive": "Save selected files",
+      "clipboardUnread": "No remote files read yet",
+      "clipboardEmpty": "Copy files remotely, then use the button above to read them.",
+      "retainedNote": "Kept for up to 24 hours; see the expiry below.",
+      "retainedEmpty": "No retained files",
+      "clean": "Clean up",
+      "cleanConfirm": "Permanently remove this exchange's retained files? This cannot be undone.",
+      "expires": "Expires: {{time}}",
+      "taskNote": "Transfers continue after closing",
+      "overwriteConfirm": "Allow replacing files with matching names? Transfers still check target versions.",
+      "states": {
+        "preparing": "Preparing",
+        "registering": "Registering",
+        "registered": "Shared",
+        "paused": "Paused",
+        "pausing": "Pausing",
+        "resuming": "Resuming",
+        "revoking": "Revoking",
+        "removed": "Removed",
+        "failed": "Failed"
+      },
+      "errors": {
+        "desktop_files_unsupported": "The protocol or worker version does not support files.",
+        "desktop_files_stale": "The file resource has changed. Refresh to continue.",
+        "desktop_files_revoking": "File access is being revoked. Wait for completion.",
+        "desktop_files_unauthorized": "File authorization is unavailable. Choose again or check permissions.",
+        "desktop_files_expired": "Retained files have expired.",
+        "desktop_files_picker_unavailable": "Use the Electron desktop app to choose local files.",
+        "desktop_files_storage_failed": "Storage operation failed. Check free space and file state.",
+        "desktop_files_uncertain": "The file operation result is uncertain. Refresh and check the directory before trying again.",
+        "desktop_directory_operation_failed": "Directory mapping failed. Check its state before retrying.",
+        "desktop_directory_path_too_long": "The local directory path exceeds the RDP mapping limit. Choose a shorter path.",
+        "desktop_file_clipboard_empty": "The target clipboard has no files. Copy files or folders in the target Explorer first.",
+        "desktop_system_clipboard_empty": "Copy files or folders in your local file manager first.",
+        "desktop_file_clipboard_failed": "File clipboard operation failed. Copy the files again and retry.",
+        "desktop_file_clipboard_desynchronized": "File clipboard responses are out of sync. Reconnect the desktop to recover.",
+        "desktop_file_clipboard_pending": "The target has not returned its file list yet. Try again shortly.",
+        "desktop_busy": "The desktop is handling another operation. Try again shortly.",
+        "desktop_control_stale": "Control has changed. Take control and try again.",
+        "desktop_not_ready": "The desktop is not ready."
+      }
+    },
+    "rdp": {
+      "retained": "Retained sessions", "closeViewer": "Close viewer and keep session", "rememberCertificate": "Remember this certificate on this device",
+      "rememberCertificateHint": "Trust applies only to this session by default. Remembering verifies the same certificate automatically; a changed certificate requires confirmation.",
+      "protocol": "Desktop protocol", "route": "Connection", "direct": "Direct", "tunnel": "SSH tunnel", "target": "Target address", "port": "Port",
+      "serverName": "Server name (certificate and authentication)", "username": "Username", "domain": "Domain (optional)", "width": "Desktop width", "height": "Desktop height",
+      "audio": "Play audio locally", "viewOnly": "View only by default", "display": "Display mode", "fit": "Fit window", "resize": "Resize remote desktop", "actual": "Original size",
+      "required": "Enter a valid value", "targetInvalid": "Enter a valid target; direct connections require an IP address", "portInvalid": "Enter an integer from 1 to 65535", "sizeInvalid": "Use even dimensions from 200 to 8192, with at most 16M pixels",
+      "hostInvalid": "Enter a valid hostname or IP address without a scheme, path, or port.",
+      "accountInvalid": "Use at most 256 bytes without newlines or null characters.",
+      "noSSH": "Add an SSH profile to this host to enable SSH tunneling.",
+      "tunnelTargetPlaceholder": "For example: 127.0.0.1 or a hostname reachable from the SSH host",
+      "serverNameHint": "Optional; defaults to the target address. For tunneled connections, use the Windows server's actual name for certificate verification and sign-in.",
+      "displayHint": "Width and height set the initial desktop size. Follow window adjusts the remote resolution after you gain control.",
+      "audioHint": "Play sound on this computer once, shared by all viewer windows.",
+      "viewOnlyHint": "Open new viewers without control. Request control when you need to interact.",
+      "targetAuth": {
+        "password": "RDP password",
+        "savedHint": "Use the saved password to sign in to the Windows account.",
+        "removePendingHint": "Saving this profile will remove the saved RDP password.",
+        "profileSavedCredentialFailed": "The profile was saved, but its RDP password was not updated: {{error}}",
+        "errors": {
+          "required": "Enter the RDP password.",
+          "too_large": "The RDP password must not exceed 4096 bytes."
+        }
+      }
+    },
     "launcherTitle": "Connect Remote Desktop",
-    "launcherDescription": "Reach a VNC service through an SSH tunnel or a direct network connection.",
+    "launcherDescription": "Reach a VNC or RDP desktop through an SSH tunnel or a direct network connection.",
     "profiles": "Remote desktop profiles",
     "searchProfiles": "Search profiles or hosts",
     "noProfiles": "No matching remote desktop profile",
     "noProfilesHint": "Adjust the search terms or clear the search to view every profile.",
     "clearSearch": "Clear search",
     "emptyProfilesTitle": "No remote desktop profiles yet",
-    "emptyProfilesDescription": "Create a VNC profile to connect through an SSH tunnel or target IP.",
+    "emptyProfilesDescription": "Create a remote desktop profile to connect through an SSH tunnel or target IP.",
     "emptyProfilesNoHostsDescription": "Add a host before creating a remote desktop profile for it.",
     "newProfile": "New profile",
     "editProfile": "Edit profile",
@@ -1035,12 +1941,13 @@
     "scrollTabsLeft": "Scroll remote desktop sessions left",
     "scrollTabsRight": "Scroll remote desktop sessions right",
     "emptyTitle": "No remote desktop connected",
-    "emptyDescription": "Choose a VNC profile to open a remote desktop through its configured connection method.",
+    "emptyDescription": "Choose a desktop profile to connect to your remote desktop.",
     "disconnect": "Disconnect",
     "disconnectTitle": "Disconnect remote desktop?",
     "disconnectDescription": "This closes the viewer and current connection for “{{name}}”.",
     "disconnectFailed": "Could not disconnect the remote desktop",
     "disableInput": "Disable local input",
+    "reclaimControl": "Reclaim control",
     "sendClipboard": "Send local clipboard to remote",
     "receiveClipboard": "Copy remote clipboard locally",
     "clipboardSent": "Clipboard sent",
@@ -1057,6 +1964,7 @@
     "unpinToolbar": "Auto-hide top bar",
     "reconnect": "Reconnect",
     "reconnectFailed": "Remote desktop reconnection failed",
+    "duplicateFailed": "Could not duplicate the remote desktop session",
     "reconnectProgress": "Recovery {{current}}/{{total}}",
     "connectionQuality": {
       "details": "View connection details",
@@ -1071,26 +1979,33 @@
       "sent": "Total sent",
       "sendQueue": "Pending outbound"
     },
-    "preparingViewer": "Preparing the VNC data channel.",
-    "credentialsTitle": "VNC authentication",
-    "credentialsHint": "Credentials stay only in the current viewer memory and are not saved after closing the session.",
+    "preparingViewer": "Preparing the remote desktop data channel.",
+    "credentialsTitle": "{{protocol}} authentication",
+    "credentialsHint": "These credentials are used for this connection and are not automatically saved to the credential store.",
     "credentials": {
       "username": "Username",
       "password": "Password",
       "target": "Target"
     },
-    "verifyServerTitle": "Verify VNC server identity",
-    "verifyServerHint": "Compare this fingerprint through a trusted channel. Termous remembers it only for this session.",
+    "verifyServerTitle": "Verify {{protocol}} server identity",
+    "verifyServerHint": "Compare the server fingerprint through a trusted channel before continuing.",
+    "serverAddress": "Server address",
+    "certificateSubject": "Certificate subject",
+    "certificateServerName": "Verified name",
+    "sessionTrustHint": "This verification applies only to the current session.",
+    "fingerprintCopied": "Copied",
+    "copyFingerprintFailed": "Could not copy the fingerprint",
     "verificationType": "Verification type",
     "trustAndContinue": "Verify and continue",
     "rejectServer": "Reject connection",
     "viewerErrors": {
-      "stream_disconnected": "The VNC data channel disconnected unexpectedly.",
+      "stream_disconnected": "The remote desktop data channel disconnected unexpectedly.",
       "attach_failed": "Could not attach the remote desktop viewer.",
+      "reconnect_failed": "Reconnection failed. Please try again.",
       "security_failure": "VNC authentication failed.",
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
       "server_identity_unverifiable": "Could not verify the VNC service identity.",
-      "server_identity_rejected": "The VNC service identity was rejected.",
+      "server_identity_rejected": "The remote desktop server identity was rejected.",
       "clipboard_too_large": "Clipboard text cannot exceed 256 KiB."
     },
     "status": {
@@ -1217,9 +2132,8 @@
     "saveAndConnect": "Save and connect",
     "terminalReady": "Terminal ready",
     "terminalHint": "Select a host, then connect",
-    "emptyTerminalTitle": "Start a remote session",
-    "emptyTerminalHint": "Choose a host to establish an SSH connection. The terminal will open here.",
-    "connectHost": "Connect host",
+    "emptyTerminalTitle": "No SSH session yet",
+    "emptyTerminalHint": "Choose a host to start an SSH terminal session.",
     "closeSession": "Disconnect current session",
     "closeDisconnectedSession": "Close session",
     "closingSession": "Closing session",
@@ -1364,7 +2278,22 @@
       "hostList": "Quick connect host list",
       "empty": "No hosts available",
       "noResults": "No matching hosts",
-      "count": "{{count}} hosts"
+      "count": "{{count}} hosts",
+      "moreConnections": "More connections",
+      "details": {
+        "host": "Host",
+        "standalone": "Standalone file connection"
+      },
+      "profiles": {
+        "files": "Quick file connection",
+        "remoteDesktop": "Quick desktop connection",
+        "search": "Search profiles, hosts or addresses",
+        "empty": "No connection profiles",
+        "noResults": "No matching profiles",
+        "count": "{{count}} profiles",
+        "connectFailed": "Connection failed",
+        "hostMissing": "The linked host no longer exists"
+      }
     },
     "detailsTabs": {
       "overview": "Overview",
@@ -2063,11 +2992,76 @@
       }
     },
     "docker": {
+      "resources": {
+        "modes": "Docker resource type",
+        "containers": "Containers",
+        "images": "Images",
+        "volumes": "Volumes",
+        "networks": "Networks",
+        "search": "Search name, ID, tag or driver",
+        "loading": "Loading resources",
+        "loadFailed": "Could not load resources",
+        "empty": "No resources yet",
+        "empty_images": "This Docker host has no images yet.",
+        "empty_volumes": "Create a volume to persist container data.",
+        "empty_networks": "This Docker host has no networks yet.",
+        "noMatches": "No matching resources",
+        "searchHint": "Try another keyword or clear the search.",
+        "create_volumes": "New volume",
+        "create_networks": "New network",
+        "createVolumeHint": "Create a volume with the local driver.",
+        "createNetworkHint": "Create a bridge network. Internal networks isolate external connectivity.",
+        "name": "Name",
+        "id": "ID",
+        "fullId": "Full ID",
+        "tagCount": "{{count}} tags",
+        "created": "Created",
+        "size": "Size",
+        "platform": "Platform",
+        "driver": "Driver",
+        "scope": "Scope",
+        "mountpoint": "Mountpoint",
+        "internal": "Internal network",
+        "attachable": "Attachable",
+        "yes": "Yes",
+        "no": "No",
+        "tags": "Image tags",
+        "untagged": "Untagged image",
+        "tag": "Add tag",
+        "tagName": "Full image tag",
+        "tagHint": "Enter a repository and tag. An existing tag will be reassigned to this image.",
+        "subnets": "Subnets",
+        "gateway": "Gateway",
+        "noSubnets": "No subnets configured",
+        "attachedContainers": "Connected containers",
+        "noContainers": "No containers connected",
+        "containerName": "Container name or ID",
+        "connect": "Connect container",
+        "disconnect": "Disconnect",
+        "disconnectHint": "Disconnect {{name}} from this network? This may interrupt container communication.",
+        "remove": "Remove resource",
+        "removeHint": "Remove this resource? Docker will refuse to remove resources that are in use.",
+        "removeVolumeHint": "Removing this volume permanently deletes its data. Volumes in use will not be forcibly removed.",
+        "builtin": "Built-in Docker network",
+        "failureHint": "Review the error and refresh to confirm the remote state before retrying.",
+        "previous": "Previous page",
+        "next": "Next page",
+        "pageSummary": "{{start}}–{{end}} of {{total}}"
+      },
       "emptyTitle": "No Docker manager",
-      "emptyHint": "Connect a Linux SSH session to inspect and manage remote containers here.",
+      "emptyHint": "Connect a Linux SSH session to manage containers, images, volumes and networks here.",
       "unsupportedTitle": "Docker management unavailable",
       "unsupportedHint": "The first version supports connected Linux SSH sessions only.",
-      "managerTitle": "Docker Manager",
+      "detectAgain": "Check again",
+      "detectionFailed": "Docker check failed",
+      "detectionDetails": "View diagnostic details",
+      "availabilityHints": {
+        "missing_cli": "Install Docker on the remote host, then check again.",
+        "daemon_unavailable": "Cannot reach Docker. Make sure the service is running on this host.",
+        "permission_denied": "The current SSH user cannot access Docker. Update permissions, then check again.",
+        "unknown": "Docker status could not be determined. Check the remote environment and try again.",
+        "failed": "Could not read Docker status. Check the connection and try again."
+      },
       "refresh": "Refresh Docker",
       "detecting": "Detecting Docker",
       "available": "Docker available",
@@ -2133,6 +3127,10 @@
       "restart": "Restart",
       "pause": "Pause",
       "unpause": "Resume",
+      "openShell": "Enter container terminal",
+      "shellRunningOnly": "Start the container to enter its terminal.",
+      "shellSendFailed": "Could not enter the container terminal",
+      "shellTerminalUnavailable": "The terminal cannot accept input. Check its connection and input lock, then retry.",
       "actionSuccess": "Container action executed",
       "actionFailed": "Container action failed",
       "confirmStopTitle": "Stop container?",
@@ -2601,7 +3599,8 @@
     },
     "platform": {
       "label": "Platform",
-      "linux": "Linux"
+      "linux": "Linux",
+      "windows": "Windows"
     },
     "password": "Password",
     "privateKey": "Private key",
@@ -2611,7 +3610,7 @@
     },
     "noJumpHost": "No jump host",
     "ungrouped": "Ungrouped",
-    "deleteHint": "Only the host config is deleted. Referenced credentials stay intact.",
+    "deleteHint": "Deletes the host and its profiles. Shared credentials and remote files are preserved.",
     "searchPlaceholder": "Search name, address, user, or tags",
     "allTags": "All tags",
     "filterResult": "{{count}} / {{total}} hosts shown",
@@ -2689,7 +3688,14 @@
       "conflict": "The server configuration changed. Your draft is preserved; review it and try again.",
       "unsavedDescription": "Continuing will discard the unsaved changes in the current access profile.",
       "deleteHostTitle": "Delete this host?",
-      "deleteHostDescription": "This deletes “{{name}}”. Termous blocks the operation and reports references when access profiles or active sessions still depend on it.",
+      "deleteHostDescription": "Deleting “{{name}}” cannot be undone.",
+      "deleteHostIncludes": "Also deleted",
+      "deleteHostProfiles": "All SSH, file, and remote desktop profiles",
+      "deleteHostRelated": "Associated port forwarding, mount configurations, and local records",
+      "deleteHostPreserves": "Preserved",
+      "deleteHostPreservedItems": "Shared credentials and remote files",
+      "deleteHostPrerequisites": "First close related connections and remove jump-host references from other hosts and file-profile links in Agent chats.",
+      "deleteHostConfirm": "Delete host",
       "deleteProfileTitle": "Delete this access profile?",
       "reachability": {
         "unknown": "Not checked",
@@ -2721,7 +3727,7 @@
         "addressPlaceholder": "Hostname or IP address",
         "usernamePlaceholder": "Remote login username",
         "deleteBlockedTitle": "This SSH profile is still in use",
-        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{independentFiles}} independent file profiles, {{companionAgents}} Agent references to companion file profiles, {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile. Also remove {{mounts}} saved mount references.",
+        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{independentFiles}} independent file profiles, {{companionAgents}} AI assistant references to companion file profiles, {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the SSH profile and its {{files}} companion SFTP profile(s). Termous rechecks persistent dependencies and active connections before deletion."
       },
       "file": {
@@ -2738,7 +3744,7 @@
         "sshRequired": "Select an available SSH profile",
         "unsupportedEditor": "This version cannot edit the configuration for this file engine",
         "deleteBlockedTitle": "This file profile is still in use",
-        "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} Agent session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
+        "deleteBlocked": "Close {{sessions}} active file session(s) and remove {{agents}} AI assistant session reference(s) before deleting it. Also remove {{mounts}} saved mount references.",
         "deleteDescription": "This deletes the file access profile. Existing sessions are not closed automatically, and references are checked again before deletion.",
         "missingSSH": "SSH profile unavailable",
         "missingSSHDescription": "The binding is no longer valid. Refresh and inspect this host."
@@ -2999,6 +4005,52 @@
     }
   },
   "files": {
+    "systemClipboard": {
+      "itemCount": "{{count}} items",
+      "pasteFailed": "Could not paste files",
+      "pasteEmpty": "Copy files or folders in File Explorer first",
+      "task": "System copy",
+      "provided": "File contents read",
+      "copy": "Copy to system clipboard",
+      "preparing": "Preparing to copy",
+      "preparingHint": "Preparing the files for pasting.",
+      "ready": "{{count}} items copied",
+      "readyHint": "Paste in File Explorer. Keep the file connection open until finished.",
+      "receiving": "Copying to this device",
+      "receivingHint": "Wait for File Explorer to finish pasting.",
+      "progress": "Read {{current}} / {{total}}",
+      "cancelling": "Cancelling copy",
+      "cancellingHint": "Ending this copy. Please wait.",
+      "replaced": "Clipboard updated",
+      "replacedHint": "Copy these files again if you still need to paste them.",
+      "stopped": "Copy cancelled",
+      "stoppedHint": "Files already pasted will not be deleted.",
+      "cleanup_pending": "Could not cancel",
+      "failed": "Copy incomplete",
+      "retryHint": "Select the files and copy again.",
+      "cancel": "Cancel copy",
+      "retryCancel": "Retry cancellation",
+      "errors": {
+        "FILE_CLIPBOARD_CANCEL_FAILED": "Unable to cancel right now. Try again.",
+        "FILE_CLIPBOARD_CLEANUP_FAILED": "Cancellation is incomplete. Try again.",
+        "FILE_CLIPBOARD_CHANGED": "The clipboard changed. Copy the files again.",
+        "FILE_CLIPBOARD_STALE": "Reconnect the file list, then copy these files again.",
+        "FILE_CLIPBOARD_SOURCE_CHANGED": "The file changed. Copy it again.",
+        "FILE_CLIPBOARD_UNAVAILABLE": "System file clipboard is temporarily unavailable. It will resume when the connection recovers.",
+        "FILE_CLIPBOARD_UNSUPPORTED": "This system or file connection does not support this action.",
+        "FILE_CLIPBOARD_NO_SPACE": "Not enough disk space on this device. Free some space and try again.",
+        "FILE_CLIPBOARD_LIMIT": "The selection exceeds copy limits. Copy smaller batches.",
+        "FILE_CLIPBOARD_NAME_INVALID": "File names or paths do not meet Windows requirements.",
+        "FILE_CLIPBOARD_ENTRY_UNSUPPORTED": "Links and special files cannot be copied. Select regular files or folders.",
+        "FILE_CLIPBOARD_PASTE_EXTERNAL": "Paste in File Explorer. To copy between file lists, use Copy in the menu.",
+        "FILE_CLIPBOARD_TIMEOUT": "Reading timed out. Check the connection and copy again."
+      }
+    },
+
+    "tabMenu": {
+      "duplicateFailed": "Could not duplicate the file session",
+      "restartFailed": "Could not restart the file session"
+    },
     "smb": {
       "name": "Profile name",
       "host": "Server address",
@@ -3129,7 +4181,8 @@
     "reconnectFailed": "Failed to reconnect the file session",
     "sessions": "File sessions",
     "noFileSession": "No file session",
-    "noFileSessionHint": "Use the plus button to choose a host and its file access profile.",
+    "emptySessionTitle": "No file session yet",
+    "noFileSessionHint": "Choose a file profile to browse and manage remote files.",
     "fileSessionCreated": "File session created",
     "noHost": "Select a host",
     "noHostHint": "Choose a host's file access profile to browse remote directories.",
@@ -3823,7 +4876,8 @@
     },
     "transfers": "Transfers",
     "transferOrigin": {
-      "mcp": "MCP-managed transfer"
+      "mcp": "MCP-managed transfer",
+      "remote": "Remote-controlled transfer"
     },
     "transferScope": "Transfer scope",
     "transferFilter": "Filter transfer tasks",
@@ -4264,17 +5318,84 @@
     }
   },
   "settings": {
+    "tabModels": "Model providers",
+    "groups": {
+      "basics": "Preferences",
+      "connections": "Connections & terminal",
+      "intelligence": "AI & integrations",
+      "maintenance": "Data & maintenance"
+    },
+    "editor": {
+      "processing": "Waiting for the current action",
+      "loading": "Loading settings…",
+      "unavailable": "Current settings are unavailable",
+      "save": "Save changes",
+      "reset": "Discard changes",
+      "saving": "Saving…",
+      "unsaved": "Unsaved changes",
+      "saved": "Changes saved",
+      "upToDate": "Settings are up to date",
+      "leaveTitle": "Discard unsaved changes?",
+      "leaveDescription": "Changes on this page have not been saved. Leaving restores the saved settings.",
+      "discard": "Discard and leave"
+    },
+    "descriptions": {
+      "general": "Appearance, window behavior and system notifications.",
+      "shortcuts": "Customize shortcuts for common actions.",
+      "terminal": "Terminal appearance and command completion.",
+      "connection": "SSH keepalive and background forward recovery.",
+      "remote-desktop": "RDP session retention, tunnel recovery and file clipboard.",
+      "mount": "Mount cache location and disk usage.",
+      "agent": "Default model, runtime behavior and task limits.",
+      "models": "Manage providers, credentials and available models.",
+      "mcp": "MCP service and authorized clients.",
+      "audit": "Operation logging and retention.",
+      "data": "Back up configuration or restore from a backup.",
+      "updates": "Background update checks and downloads."
+    },
+    "conflict": "Settings changed elsewhere. The latest version is loaded and your draft is preserved. Review it before saving again.",
     "title": "Settings",
-    "subtitle": "Application preferences, language, terminal, and data management",
     "tabGeneral": "General",
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
     "tabConnection": "Connection",
+    "tabRemoteDesktop": "Remote desktop",
+    "rdpSettings": "Connection & sessions",
+    "rdpFileExchange": "File exchange",
+    "systemFileClipboard": "System file clipboard",
+    "systemFileClipboardHint": "Copy and paste files and folders between this device and the RDP desktop.",
+    "systemFileClipboardBoundary": "Copying remote files replaces your local clipboard.",
+    "systemFileClipboardDetailsTitle": "Usage details",
+    "systemFileClipboardDetails": "Shared by all local RDP sessions, including open sessions and separate windows. Receiving files requires an active connection and control. Files transfer on demand; clipboard viewers may also trigger reads.",
+    "systemFileClipboardUnavailable": "Requires the Windows desktop app and an available system file clipboard service.",
+    "systemFileClipboardFailed": "Could not load or save this setting. Try again.",
+    "rdpUnattendedTimeout": "Session retention",
+    "rdpUnattendedTimeoutHint": "Keep the connection after all windows for this session close, then disconnect when the time expires.",
+    "rdpUnattendedMinutes": "minutes",
+    "rdpUnattendedRange": "1–30 min · Default 10",
+    "rdpRetentionDetailsTitle": "Timer & saving rules",
+    "rdpRetentionDetails": "Press Enter or leave the field to save. Reattaching cancels the timer. Minimizing or switching tabs does not start it. Changing the duration does not reset an active timer.",
+    "connectionSaveFailed": "Failed to save connection settings. Please try again.",
+    "rdpUnattendedInvalid": "Enter a whole number from 1 to 30 minutes.",
+    "rdpUnattendedSaveFailed": "Could not save. Please try again.",
     "tabMount": "Mounts",
+    "tabAudit": "Audit",
+    "audit": {
+      "title": "Audit recording",
+      "enabled": "Enable audit recording",
+      "enabledHint": "Record AI assistant and MCP operations. History remains available when disabled.",
+      "days": "Maximum retention days",
+      "dayUnit": "days",
+      "records": "Maximum retained records",
+      "recordsHint": "0 for no limit; otherwise 1,000–1,000,000 records.",
+      "retentionHint": "Records beyond either limit are permanently deleted, even when recording is disabled.",
+      "loadFailed": "Unable to load audit settings. Try again.",
+      "saveFailed": "Unable to confirm the saved changes. Try again."
+    },
     "mount": {
       "title": "Mount cache",
       "directory": "Cache location",
-      "default": "Core data directory",
+      "default": "Default location",
       "custom": "Custom directory",
       "placeholder": "Enter an absolute path to a local folder",
       "choose": "Browse",
@@ -4286,7 +5407,7 @@
       "active": "Current cache directory",
       "next": "Cache directory after restart",
       "pending": "Restart required",
-      "restartHint": "Restart Core to apply changes. Changing location does not delete the old directory.",
+      "restartHint": "Restart the background service after saving to apply changes. The previous cache directory is retained.",
       "usage": "Current cache",
       "clean": "Clean content",
       "private": "Private writes and reservations",
@@ -4300,13 +5421,13 @@
         "failed": "Cleanup did not finish. Review the error before retrying."
       },
       "saved": "Saved.",
-      "savedPending": "Saved. Restart Core to apply.",
+      "savedPending": "Saved. Restart the background service to apply.",
       "failed": "Could not read or save mount settings. Please retry.",
       "unavailable": "Mount settings are unavailable in this environment."
     },
     "tabShortcuts": "Shortcuts",
     "tabUpdates": "Updates",
-    "generalSection": "General",
+    "generalSection": "Appearance and behavior",
     "languageSection": "Language",
     "interfaceLanguage": "Interface language",
     "appVersion": "App version",
@@ -4334,18 +5455,18 @@
     "chinese": "Simplified Chinese",
     "english": "English",
     "terminalSection": "Terminal style",
-    "connectionSection": "Connection reliability",
+    "connectionSection": "SSH connections",
+    "forwardSettings": "Background forwards",
     "sshKeepalive": "SSH keepalive",
-    "sshKeepaliveHint": "Probe every long-lived SSH connection every 30 seconds and mark it disconnected after a 10-second timeout. Terminals and file operations are not restored or replayed.",
-    "forwardAutoReconnect": "Reconnect background forwards",
-    "forwardAutoReconnectHint": "Recover interrupted background forwards after 2, 4, and 8 seconds, with independent connection probes. Current-session forwards are not recreated automatically.",
-    "remoteDesktopAutoReconnect": "Reconnect remote desktops",
-    "remoteDesktopAutoReconnectHint": "Retry an interrupted SSH tunnel route up to three times. VNC performs a new handshake; existing frames and input streams cannot resume. Direct connections do not use this SSH recovery policy.",
-    "connectionLimits": "Existing terminal state, in-progress file work, and established TCP connections cannot be resumed or restored automatically.",
+    "sshKeepaliveHint": "Check SSH connections periodically to detect disconnections.",
+    "forwardAutoReconnect": "Auto reconnect",
+    "forwardAutoReconnectHint": "Retry background forwards up to 3 times. Session forwards are not recreated.",
+    "remoteDesktopAutoReconnect": "SSH tunnel recovery",
+    "remoteDesktopAutoReconnectHint": "Rebuild interrupted SSH tunnels. Direct connections and desktop sessions are not resumed.",
+    "connectionLimits": "Reconnecting does not restore terminal state, file operations or existing TCP connections.",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
     "completionAiEnabled": "Enable AI command completion",
-    "completionAiHint": "Use the default AI model to turn natural language into a command, then confirm to insert it.",
     "completionHint": "Suggest commands using Bash completion, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
@@ -4374,8 +5495,6 @@
       }
     },
     "shortcuts": {
-      "title": "Keyboard shortcuts",
-      "description": "Customize keys for common Termous actions. Unmatched keys remain available to the active terminal or component.",
       "searchPlaceholder": "Search actions, descriptions, or scopes",
       "customizedCount": "{{count}} customized",
       "resetAll": "Restore all defaults",
@@ -4436,6 +5555,14 @@
         "terminal_session_reconnect": {
           "name": "Reconnect session",
           "description": "Reconnects the current disconnected SSH session."
+        },
+        "files_paste": {
+          "name": "Paste files",
+          "description": "Upload files from the system clipboard to this folder, or paste files copied in the app."
+        },
+        "files_copy_to_system": {
+          "name": "Copy to system clipboard",
+          "description": "Copy selected files for pasting in File Explorer."
         },
         "files_select_all": {
           "name": "Select all files",
@@ -4555,7 +5682,6 @@
     "fontDeleted": "Font deleted",
     "update": {
       "title": "Update settings",
-      "description": "Choose background check and download preferences for new versions.",
       "automaticCheck": "Automatically check for updates",
       "automaticCheckHint": "Check for new versions in the background at the selected interval without interrupting your work.",
       "checkInterval": "Check interval",
@@ -4570,14 +5696,20 @@
       "unavailableHint": "Saved update preferences could not be loaded. Try again in a moment.",
       "retryLoading": "Try again"
     },
-    "tabAgent": "Agent",
+    "tabAgent": "AI assistant",
     "agent": {
-      "loadFailed": "Agent settings could not be loaded",
-      "operationFailed": "The Agent setting operation failed",
+      "configuration": {
+        "behavior": "Runtime behavior",
+        "invalidConcurrency": "Choose between 1 and 8 concurrent sessions.",
+        "saveBeforeCheck": "Save or discard your changes first.",
+        "saveFailed": "Saving did not complete. Unsaved changes are preserved; please retry."
+      },
+      "loadFailed": "AI assistant settings could not be loaded",
+      "operationFailed": "Action failed",
       "readiness": {
         "title": "Runtime readiness",
-      "description": "Check MCP, Skills, and the default model to prepare or repair the Agent runtime.",
-        "mcpRuntime": "MCP Runtime",
+        "description": "Check MCP, Skills, and the default model to prepare or repair the AI assistant runtime.",
+        "mcpRuntime": "MCP service",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
         "defaultModel": "Default model",
@@ -4602,28 +5734,55 @@
         "hint": "50–95%, default 80%. Recent conversation is retained. Changes apply to new runs.",
         "validation": "Enter a whole percentage from 50 to 95."
       },
+      "concurrency": {
+        "title": "Concurrent AI sessions",
+        "description": "Default: 4. Choose 1–8. Lowering the limit does not stop running tasks."
+      },
+      "executionLimits": {
+        "title": "Task execution limits",
+        "description": "Limit requests, tokens and retries for new tasks. Limits are retained when disabled.",
+        "toggle": "Enable execution budget",
+        "validation": "Enter a whole number from {{min}} to {{max}}.",
+        "model_requests": {
+          "title": "Model requests per run",
+          "description": "Includes response rounds, retries and compaction. Stops new requests at the limit."
+        },
+        "total_tokens": {
+          "title": "Cumulative tokens per run",
+          "description": "Includes cache tokens, separate from session totals. One in-flight request may exceed the budget."
+        },
+        "consecutive_failures": {
+          "title": "Repeated failure limit",
+          "description": "Stops after consecutive failures of the same operation kind on the same resource."
+        },
+        "selection_attempts": {
+          "title": "Selection attempts per desktop flow",
+          "description": "New request IDs and captures do not reset the selection limit."
+        }
+      },
       "profileBinding": {
-        "title": "SSH Profile association",
-        "description": "When off, only associate the Profile so the Agent can create an SSH session on demand. When on, connect immediately during association.",
+        "title": "Connect when linking an SSH profile",
+        "description": "Connect immediately when enabled, or let the assistant connect when a task needs it.",
         "toggle": "Connect when associating an SSH Profile",
         "immediate": "Connect now",
         "onDemand": "On demand"
       },
+      "requestMetrics": {"title": "Request details", "help": "About these counts", "note": "Up to {{limit}} recent requests are shown; turn usage includes all requests. Tool definitions show estimated tokens. Image counts and dimensions do not represent billed tokens.", "request": "Request", "tools": "Available tools", "schema": "Tool definitions", "images": "Images", "tokens": "Tokens", "duration": "Duration", "response": "Generation", "compaction": "Compaction", "status": "Status", "completed": "Completed", "failed": "Failed", "cancelled": "Cancelled"},
       "turnUsage": {
         "title": "Per-turn token usage",
-        "description": "Show total, input, output, and cache usage below each Agent response.",
+        "description": "Show total, input, output, and cache usage below each AI assistant response.",
         "toggle": "Show per-turn token usage",
         "visible": "Shown",
         "hidden": "Hidden"
       },
       "policy": {
-        "title": "MCP approval policy",
-        "description": "The built-in Agent always has all MCP capabilities and receives new ones automatically. Execution follows this approval policy; external clients are unaffected.",
+        "title": "Skip tool execution approval",
+        "description": "Applies to the built-in assistant. Allow authorized tools to run without approval; confirmation is required when saving.",
         "approval": "Tool execution approval",
         "review": "Ask every time",
         "bypass": "No confirmation",
         "reviewHint": "Sensitive operations continue to use the global MCP approval interface.",
-        "bypassHint": "The Agent can execute tools within its granted scopes without confirmation. Use with care.",
+        "bypassHint": "The AI assistant can execute tools within its granted scopes without confirmation. Use with care.",
         "unavailable": "Complete initial setup to manage the approval policy."
       },
       "models": {
@@ -4631,32 +5790,32 @@
         "test": "Test connection"
       },
       "providers": {
-      "title": "Model providers",
-      "count": "{{count}} providers",
-      "modelCount": "{{count}} models",
-        "search": "Search providers",
-        "add": "Add provider",
-        "noResults": "No matching providers",
-        "empty": "No providers have been added",
-        "emptyEditor": "Add a provider to discover its model catalog",
-        "new": "New provider",
+        "refresh": "Refresh services",
+        "backToServices": "Back to services",
+        "service": "Current service",
+        "title": "Model services",
+        "modelCount": "{{count}} models",
+        "search": "Search or select a service",
+        "add": "Add service",
+        "empty": "No services added",
+        "new": "New service",
         "connectionTab": "Connection",
         "catalogTab": "Model catalog",
-        "saved": "Provider settings saved",
-        "test": "Test provider",
-        "testSuccess": "Provider is available, {{latency}} ms, {{count}} models found",
-        "testFailed": "Provider test failed",
+        "saved": "Service configuration saved",
+        "test": "Test connection",
+        "testSuccess": "Connected · {{latency}} ms · {{count}} models",
+        "testFailed": "Connection test failed",
         "testReady": "The model catalog endpoint responded successfully.",
         "testUnavailable": "The model catalog request failed. Review the address and authentication.",
-        "discardTitle": "Discard unsaved provider changes?",
+        "discardTitle": "Discard unsaved service changes?",
         "discardDescription": "Switching now will discard the current form changes.",
         "discard": "Discard changes",
-        "deleteDefaultBlocked": "This provider contains the default model. Choose another default first"
+        "deleteDefaultBlocked": "This service contains the default model. Select another default first."
       },
-    "providerEditor": {
-      "basicSection": "General",
-      "connectionSection": "Connection and authentication",
-      "name": "Provider name",
+      "providerEditor": {
+        "basicSection": "General",
+        "connectionSection": "Connection and authentication",
+        "name": "Provider name",
         "namePlaceholder": "For example: Company OpenAI gateway",
         "apiMode": "API mode",
         "enabled": "Usage",
@@ -4665,7 +5824,6 @@
         "baseUrl": "Base URL",
         "optionalApiKey": "API key (optional)",
         "testRequiresSave": "Save the changes before testing this configuration",
-        "reset": "Discard changes",
         "httpRiskTitle": "This provider uses plain HTTP",
         "httpRisk": "Model requests, context, and credentials may be read or changed on the network path. Saving requires explicit confirmation.",
         "provisionFailure": {
@@ -4676,6 +5834,8 @@
         }
       },
       "catalog": {
+        "pendingDefault": "Pending default",
+        "pendingDefaultUnavailable": "The selected model is no longer available. Choose another model or discard changes.",
         "search": "Search model ID, name, or owner",
         "stateFilter": "Model state",
         "sourceFilter": "Model source",
@@ -4711,6 +5871,7 @@
         "remove": "Remove model",
         "restore": "Restore model",
         "moreActions": "More actions for {{model}}",
+        "editModel": "Edit {{model}}",
         "inheritsGlobal": "Uses global defaults",
         "customParameters": "Model-specific",
         "confirmRemoveTitle": "Remove this model?",
@@ -4764,14 +5925,9 @@
           "catalog_fetch_failed": "The model catalog could not be fetched. Check the provider status, then retry."
         }
       },
-    "defaults": {
-      "title": "New session defaults",
-      "description": "Used for new sessions. Model-specific settings take precedence.",
-        "save": "Save defaults",
-        "reset": "Discard changes",
-        "unsaved": "Unsaved changes",
-        "saved": "Defaults saved",
-        "draftPreserved": "Latest settings loaded. Your changes are preserved.",
+      "defaults": {
+        "title": "Model & context",
+        "description": "The default model applies to new sessions; model-specific limits take priority. The compaction threshold applies from the next turn.",
         "model": "Default model",
         "modelPlaceholder": "Select a model",
         "modelDetail": "{{provider}} · Display name: {{alias}}",
@@ -4799,11 +5955,12 @@
         "max": "Maximum"
       },
       "modelEditor": {
+        "backToModels": "Back to models",
         "addTitle": "Add model",
         "editTitle": "Edit model",
         "identitySection": "Model identity",
         "parametersSection": "Runtime parameters",
-        "capabilitiesSection": "Capability declaration",
+        "capabilitiesSection": "Model capabilities",
         "modelId": "Model ID",
         "modelIdPlaceholder": "Enter the model ID accepted by the provider",
         "displayName": "Display name",
@@ -4811,19 +5968,19 @@
         "contextBudget": "Context window",
         "maxOutput": "Output limit per response",
         "defaultReasoning": "Default reasoning effort",
-        "parameterMode": "Runtime parameter source",
-        "inheritGlobal": "Use global settings",
-        "customParameters": "Use model-specific settings",
+        "parameterMode": "Parameter source",
+        "inheritGlobal": "Global defaults",
+        "customParameters": "Custom values",
         "images": "Supports image input",
         "reasoningControl": "Model reasoning",
         "reasoningLevels": "Supported reasoning effort",
         "reasoningNone": "Not supported",
-        "reasoningEffort": "Reasoning effort",
+        "reasoningEffort": "Supported",
         "selectAllReasoningLevels": "Select all",
         "conservativeTitle": "Model capabilities not yet confirmed",
         "conservativeDescription": "These defaults enable image input and reasoning. Verify them against the provider documentation.",
-        "discardTitle": "Discard model capability changes?",
-        "discardDescription": "Closing now will discard the unsaved capability changes."
+        "discardTitle": "Discard model changes?",
+        "discardDescription": "Unsaved model configuration changes will be lost."
       },
       "apiKey": {
         "optionalPlaceholder": "Leave blank for services without authentication",
@@ -4847,7 +6004,7 @@
       },
       "confirmBypass": {
         "title": "Allow execution without confirmation?",
-        "description": "The Agent will be able to execute MCP tools within every granted scope without showing per-operation approvals.",
+        "description": "The AI assistant will be able to execute MCP tools within every granted scope without showing per-operation approvals.",
         "confirm": "Enable no confirmation"
       },
       "confirmTest": {
@@ -4868,13 +6025,13 @@
       "conflict": {
         "title": "This configuration changed elsewhere",
         "description": "Load the latest configuration, review it, and confirm the operation again.",
-        "editorDescription": "Loading the latest revision preserves this local draft. Review it and save again.",
+        "editorDescription": "Your draft is preserved. Load the latest configuration, review it and save again.",
         "providerDeleted": "This provider was deleted elsewhere. The local draft is preserved; discard it or choose another provider.",
         "modelDeleted": "This model was deleted with its provider elsewhere. The local capability draft is preserved and must be discarded explicitly before closing.",
         "modelRemoved": "This model was removed elsewhere. The local draft is preserved and must be discarded explicitly before closing.",
-        "defaultsDescription": "Global defaults changed elsewhere. Load the latest values before saving this draft.",
+        "defaultsDescription": "These settings have changed. Load the latest configuration, review and save your changes.",
         "refresh": "Load latest",
-        "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again."
+        "draftPreserved": "Latest configuration loaded. Your draft is preserved; review it and save again."
       },
       "validation": {
         "providerName": "Enter a provider name",
@@ -4955,7 +6112,7 @@
         }
       },
       "title": "MCP access",
-      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, file management, port forwarding, code snippets, and remote operations.",
+      "description": "Give external MCP clients access to authorized hosts and remote operations.",
       "state": {
         "disabled": "Disabled",
         "enabled": "Enabled"
@@ -4971,8 +6128,8 @@
       "clientsHint": "Each client has an independent token and least-privilege scopes.",
       "addClient": "Add client",
       "noClients": "No MCP clients have been added",
-      "builtinAgentName": "Termous Agent",
-      "managedByAgent": "Agent-managed",
+      "builtinAgentName": "Termous AI assistant",
+      "managedByAgent": "Managed by AI assistant",
       "deleteClient": "Delete client",
       "deleteClientLabel": "Delete client {{name}}",
       "deleteTitle": "Delete this client?",
@@ -4983,6 +6140,15 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "desktop_workflows_read": "Read scripts",
+        "desktop_workflows_write": "Edit scripts",
+        "desktop_workflows_run": "Run scripts",
+        "desktop_workflows_delete": "Delete scripts",
+        "desktops_read": "Desktop status",
+        "desktops_connect": "Connect desktop",
+        "desktops_capture": "Capture desktop",
+        "desktops_control": "Control desktop",
+        "desktops_close": "Close desktop",
         "hosts_read": "Read hosts",
         "hosts_probe": "Probe host reachability",
         "sessions_read": "Read SSH sessions",
@@ -5005,8 +6171,14 @@
         "processes_terminate": "Terminate processes",
         "services_read": "Read system services",
         "services_manage": "Manage system services",
-        "docker_read": "Read Docker",
-        "docker_manage": "Manage Docker",
+        "docker_read": "Read containers",
+        "docker_manage": "Manage containers",
+        "docker_images_read": "Read images",
+        "docker_images_manage": "Manage images",
+        "docker_volumes_read": "Read volumes",
+        "docker_volumes_manage": "Manage volumes",
+        "docker_networks_read": "Read networks",
+        "docker_networks_manage": "Manage networks",
         "crontab_read": "Read scheduled tasks",
         "crontab_write": "Modify scheduled tasks",
         "forwarding_read": "Read port forwarding",
@@ -5015,6 +6187,21 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "desktop_workflows_read": "Read local scripts, versions and reports.",
+        "desktop_workflows_write": "Edit scripts and templates without approval.",
+        "desktop_workflows_run": "Run a pinned version; control your own runs.",
+        "desktop_workflows_delete": "Delete scripts and retain existing reports.",
+        "desktops_read": "Read session summaries, readiness and automation status.",
+        "desktops_connect": "Create connections using saved RDP or VNC profiles.",
+        "desktops_capture": "Observe and capture; does not grant input control.",
+        "desktops_control": "Request a bounded control grant; capture permission is also required.",
+        "desktops_close": "Close only connections created by this caller with no other users.",
+        "docker_images_read": "Read image lists, tags, sizes, and platform details.",
+        "docker_images_manage": "Tag or remove images without force; each request requires approval by default.",
+        "docker_volumes_read": "Read volume lists, drivers, and mountpoints.",
+        "docker_volumes_manage": "Create local volumes or delete volumes and their data; each request requires approval by default.",
+        "docker_networks_read": "Read network lists, subnets, and connected containers.",
+        "docker_networks_manage": "Create bridge networks, connect or disconnect containers, and remove networks without force; each request requires approval by default.",
         "hosts_read": "View redacted connection details and cached reachability for saved hosts.",
         "hosts_probe": "Refresh ICMP reachability for selected hosts.",
         "sessions_read": "View current SSH sessions, connection states, and phases.",
@@ -5047,6 +6234,8 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "desktop_workflows": "Desktop scripts",
+        "desktops": "Remote desktops",
         "hosts": "Hosts and discovery",
         "sessions": "SSH sessions",
         "commands": "Session command console",
@@ -5054,12 +6243,14 @@
         "system": "System information",
         "processes": "Process management",
         "services": "System services",
-        "docker": "Docker containers",
+        "docker": "Docker",
         "crontab": "Scheduled tasks",
         "forwarding": "Port forwarding",
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "desktop_workflows": "Script management, image templates and bounded runs",
+        "desktops": "RDP / VNC observation and bounded automation control",
         "hosts": "View saved hosts and network reachability",
         "sessions": "View or control SSH connections in Termous",
         "commands": "Run commands and read their results",
@@ -5067,7 +6258,7 @@
         "system": "Read Linux system, hardware, and network summaries",
         "processes": "Inspect processes and perform controlled termination",
         "services": "Inspect and manage systemd services",
-        "docker": "Inspect and manage Docker containers",
+        "docker": "View and manage containers, images, volumes, and networks",
         "crontab": "Inspect and manage scheduled tasks for the current user",
         "forwarding": "Inspect and manage SSH port forwarding",
         "snippets": "View and maintain shared code snippets"
@@ -5089,6 +6280,8 @@
       "permissions": "Permission scopes",
       "selectedPermissions": "{{count}} / {{total}} selected",
       "restoreReadOnly": "Restore read-only defaults",
+      "selectAllPermissions": "Select all",
+      "clearAllPermissions": "Deselect all",
       "selectGroupPermissions": "Select all",
       "clearGroupPermissions": "Clear all",
       "groupPermissionsToggleLabel": "Toggle all permissions for {{group}}",
@@ -5130,7 +6323,8 @@
       "unknownClient": "Unknown client",
       "destructive": "High-risk operation",
       "approval": {
-        "title": "MCP operation needs approval",
+        "title": "Operation needs approval",
+        "descriptionAgent": "The AI assistant requests the following action. Review the target and its impact.",
         "description": "An external client is requesting an operation that requires your approval.",
         "client": "Requesting client",
         "command": "Command to run",
@@ -5160,6 +6354,18 @@
           "directory_count": "Directories",
           "symlink_count": "Symbolic links"
         },
+        "dockerResource": {
+          "images": "Docker images",
+          "volumes": "Docker volumes",
+          "networks": "Docker networks"
+        },
+        "dockerImageTag": "Target image tag",
+        "dockerTagImpact": "An existing tag will be reassigned to the selected image. No image data is copied.",
+        "dockerContainer": "Target container",
+        "dockerInternal": "Internal network",
+        "impact": "Impact",
+        "dockerVolumeRemoval": "Permanently delete the volume and its data. Volumes in use will not be forcibly removed.",
+        "dockerRemoval": "Remove the selected resource without force. Docker checks whether it is in use.",
         "remoteOpsDomain": {
           "system": "System information",
           "processes": "Process management",
@@ -5169,6 +6375,9 @@
           "other": "Remote operation"
         },
         "remoteOpsAction": {
+          "tag": "Set tag",
+          "connect": "Connect container",
+          "disconnect": "Disconnect container",
           "terminate": "Terminate process",
           "start": "Start",
           "stop": "Stop",
@@ -5411,6 +6620,20 @@
     }
   },
   "commandDispatch": {
+    "editor": "Command editor",
+    "enterToSend": "Press Enter to execute",
+    "execute": "Execute",
+    "noTargets": "No available sessions",
+    "searchHistory": "Search command history",
+    "noHistoryMatches": "No matching commands",
+    "reuseCommand": "Use in editor",
+    "scrollResultsLeft": "Browse results to the left",
+    "scrollResultsRight": "Browse results to the right",
+    "ready": "Ready to execute",
+    "resultNotConfirmed": "Execution status unconfirmed",
+    "resultUnknown": "Command submission result is unknown. Check the task list before deciding whether to run it again.",
+    "taskList": "Task history",
+    "status": {"queued": "Queued", "validating": "Validating", "running": "Running", "interrupting": "Interrupting", "completed": "Completed", "failed": "Failed", "interrupted": "Interrupted", "partial_failed": "Partially failed"},
     "title": "Session command console",
     "resizeDock": "Resize command console",
     "scope": "Command target scope",
@@ -5420,32 +6643,37 @@
       "all": "All"
     },
     "targetCount": "{{count}} targets",
-    "targetPickerTitle": "Select connected SSH sessions",
+    "targetCount_one": "1 target",
+    "targetCount_other": "{{count}} targets",
+    "targetPickerTitle": "Select sessions",
+    "connectedTargetsOnly": "Connected SSH sessions only",
     "searchTargets": "Search session, host, or endpoint",
     "noMatchingTargets": "No connected SSH sessions match",
     "selectedCount": "{{count}} selected",
     "selectAll": "Select all",
-    "clearSelection": "Clear",
     "interruptAll": "Interrupt all",
     "interrupting": "Interrupting",
     "interruptTarget": "Interrupt command on {{name}}",
     "commandInput": "Shell command to send",
-    "commandPlaceholder": "Enter one complete shell command; pipes, redirects, quotes, semicolons and && are supported",
+    "commandPlaceholder": "Enter a single-line command; press Enter to run",
     "sending": "Sending",
     "sendToCount": "Send to {{count}} sessions",
-    "results": "Per-session results",
-    "recovering": "Recovering the latest command task…",
-    "noResults": "Per-session results appear here after sending",
+    "sendToCount_one": "Send to 1 session",
+    "sendToCount_other": "Send to {{count}} sessions",
+    "results": "Results",
+    "progress": "{{completed}} of {{total}} sessions completed",
+    "recovering": "Recovering command tasks…",
+    "recoveryHint": "Syncing the latest execution state. Please wait.",
+    "noResults": "Choose sessions and enter a command to view results and output.",
     "ptyOutput": "Original terminal output",
     "openOriginalTerminal": "Open original terminal",
     "waitingOutput": "Waiting for output",
     "outputTruncated": "Local display buffer was truncated",
     "outputGap": "The output stream contains a gap",
-    "mirrorEmpty": "Select a result to inspect terminal output",
     "exitCode": "Exit {{code}}",
     "exitCodeUnavailable": "Exit code unavailable",
     "startFailed": "Could not create the command task",
-    "multilineRejected": "The command console accepts one line; multiline paste was rejected",
+    "multilineRejected": "Only single-line commands are supported; line breaks were rejected",
     "commandTooLarge": "Commands cannot exceed {{max}} KiB",
     "tooManyTargets": "Select no more than {{max}} sessions (currently {{count}})",
     "interruptFailed": "Could not interrupt the command",
@@ -5474,14 +6702,16 @@
     "done": "Finish",
     "skip": "Skip tour",
     "close": "Close tour",
+    "backToTopics": "All topics",
+    "finishTopic": "Finish & return",
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Termous brings terminals, file management, and AI operations into one workbench. Explore connection setup, file profiles, filesystem mounts, and where to configure MCP and install Skills."
+        "description": "Manage terminals, remote desktops and files in one workspace, with AI assistance and desktop automation. This short overview covers the main entry points; focused guides explain the details."
       },
       "vaultNav": {
-        "title": "Start with credentials",
-        "description": "Credentials are the first step toward an SSH connection. The vault keeps passwords and private keys together for use in connection profiles."
+        "title": "Manage credentials",
+        "description": "Add a password or SSH key to the vault, then select it in a host's connection profile. Multiple connections can share the same credential."
       },
       "vaultActions": {
         "title": "Choose how to create a credential",
@@ -5496,20 +6726,20 @@
         "description": "A host organizes a device you manage and contains one or more connection profiles. Add the host first, then configure how to reach it."
       },
       "hostEditor": {
-        "title": "Organize host details",
-        "description": "Set a name, group, tags, and icon so the host is easy to find and recognize, then continue by adding an SSH connection profile."
+        "title": "Organize a host",
+        "description": "Set a name, group, tags and icon, then add SSH, desktop or file profiles as needed. A host can provide desktop or file access without an SSH profile."
       },
       "hostConnections": {
-        "title": "Configure an SSH connection",
-        "description": "On the Connections tab, enter the SSH endpoint, choose a credential and optional proxy, and set the default connection. Saving an SSH profile automatically creates its matching SFTP profile."
+        "title": "Manage connection profiles",
+        "description": "Manage SSH, desktop and file profiles in the Connections tab. SSH profiles support credentials and proxies and include an SFTP profile; other protocols use their own options."
       },
       "fileProfiles": {
         "title": "Set up file access for a host",
         "description": "After saving a host, add SFTP, S3, WebDAV, FTP, or SMB profiles under file access on its Connections tab. SFTP uses an existing SSH connection; other engines provide their own connection options. Reuse saved profiles in Files, AI resource references, and mounts."
       },
       "topbarConnect": {
-        "title": "Connect quickly",
-        "description": "Open the host launcher in the workbench top bar to choose a configured host connection, or start a local terminal from the same menu."
+        "title": "Connect in context",
+        "description": "The top Connect button opens desktop or file connections in those workspaces, and SSH elsewhere. Use the session ＋ menu for saved profiles or More connections for the full list. The connection shortcut follows the same rule."
       },
       "workbench": {
         "title": "Work in the workbench",
@@ -5556,12 +6786,12 @@
         "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
       },
       "settings": {
-        "title": "Tune key preferences",
-        "description": "Explore terminal options, mount caching, MCP access, Skills installation, and the AI assistant. Close the tour whenever you're ready to change settings."
+        "title": "Adjust preferences",
+        "description": "Settings opens as a dialog. General, terminal and connection preferences apply automatically. Pages such as AI assistant and Model services use the Save action at the bottom; resource operations have their own confirmation."
       },
       "settingsTerminal": {
-        "title": "Make the terminal your own",
-        "description": "Adjust fonts, cursor, theme, and scrollback. Completion supports commands, aliases, snippets, history, and directories. To enable AI command suggestions, first configure a default model in AI Assistant settings."
+        "title": "Tune your terminal",
+        "description": "Adjust fonts, cursor, theme and scrollback, and choose completion sources. AI command suggestions require an available model in Model services."
       },
       "settingsMount": {
         "title": "Manage the local mount cache",
@@ -5576,16 +6806,143 @@
         "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
       },
       "settingsAgent": {
-        "title": "Set up the built-in AI assistant",
-        "description": "Configure providers and a default model, then adjust context compaction and Token usage display. In the AI assistant, type / for quick commands and SSH or file connection references, or continue working with content referenced from the terminal."
+        "title": "Set assistant preferences",
+        "description": "Choose a default model and adjust context and session preferences, then use Save at the bottom. Manage service URLs, API keys and model lists separately in Model services."
       },
       "settingsData": {
         "title": "Back up your workspace",
         "description": "Export hosts, credentials, settings, and local resources as an encrypted backup. Preview an import before choosing replacement, merge, or selective restore, then restart after applying it."
       },
       "finish": {
-        "title": "You're ready",
-        "description": "You have explored connections, file engines, mounts, auditing, and AI access. Close the tour to start configuring and using them. You can replay it anytime from the Help menu."
+        "title": "Ready to explore",
+        "description": "You've explored the main entry points. Choose Finish & return to browse guides on connections, desktop automation, AI assistance and more, or close the tour to get started."
+      },
+      "desktop": {
+        "title": "Remote desktop workspace",
+        "description": "Manage RDP and VNC sessions here. Add a desktop profile to a host, then select it using Connect or the session ＋ menu. Desktop automation is also accessible before connecting."
+      },
+      "desktopConnect": {
+        "title": "Choose a desktop profile",
+        "description": "Connect opens the desktop connection page, prioritizing hosts with desktop profiles. The session ＋ menu lists available profiles; hover a profile to inspect its connection details."
+      },
+      "desktopTools": {
+        "title": "Desktop tools & retained sessions",
+        "description": "Desktop tools provides file and automation entry points. Reopen retained sessions after closing their tabs. Available tools depend on the protocol and connection state."
+      },
+      "desktopFiles": {
+        "title": "RDP file exchange",
+        "description": "With an RDP connection, open Files from Desktop tools for file exchange and clipboard access. Ctrl+V accepts files from the local clipboard. The bottom transfer entry opens progress and shows the rate during transfers."
+      },
+      "automationEntry": {
+        "title": "Open desktop automation",
+        "description": "Open Desktop automation from Desktop tools to build and run desktop tasks. Choose the Desktop automation guide to explore templates and execution steps. The tour never creates templates or starts a run."
+      },
+      "automationLibrary": {
+        "title": "Templates & run history",
+        "description": "The collapsible left panel contains templates and run history. Select or create a template to display its steps and configuration; the overview appears when none is selected."
+      },
+      "automationEditor": {
+        "title": "Compose task steps",
+        "description": "After opening a template, add, reorder and configure steps, and manage parameters in Flow settings. Validate checks the configuration, Save keeps changes, and Run asks for a target and parameters. The guide performs none of these actions."
+      },
+      "automationPreview": {
+        "title": "Select points & regions",
+        "description": "With a template and connected desktop selected, refresh the screenshot to pick points or regions. Scroll to zoom, Ctrl+drag to pan, and drag regions directly to adjust them. Ctrl+Z / Ctrl+Shift+Z undo and redo; Delete removes a selection. Zoom leaves configuration coordinates unchanged. New captures are paused during the guide."
+      },
+      "automationHistory": {
+        "title": "Review task runs",
+        "description": "Switch to run history here. Select a run to inspect its state, step details, keys, input and screenshots, with controls to expand or collapse all details. History and template editing share the same workspace."
+      },
+      "automationWindow": {
+        "title": "Use a separate window",
+        "description": "On desktop, open automation in a separate window and return it to the main interface when needed. Desktop sessions stay in place. Use Back to remote desktop to view them."
+      },
+      "settingsModels": {
+        "title": "Prepare model services",
+        "description": "Add a service, enter its API URL and key, and choose or edit available models, then Save at the bottom. Select the assistant’s default model and preferences in the next step."
+      },
+      "agent": {
+        "title": "AI assistant workspace",
+        "description": "When the assistant is not ready, this page lists the remaining setup tasks. Complete model and runtime setup to start chatting. The guide does not prepare the environment, send messages or call models."
+      },
+      "agentContext": {
+        "title": "Reference resources & context",
+        "description": "When ready, reference SSH, file or desktop resources in the composer, or bring in text selected in a terminal. Type / to view shortcuts and provide a clear task target and context."
+      },
+      "agentApproval": {
+        "title": "Review operations before approval",
+        "description": "Operations requiring approval show their target and details before continuing. Review pending approvals in the message center and inspect results in Audit. Grant access according to the task."
+      },
+      "agentWindow": {
+        "title": "Work in a separate assistant window",
+        "description": "On desktop, a ready assistant can open separately and return to the main interface while keeping the conversation. Complete setup first if it is not ready. Remote-device assistants follow the remote device’s readiness state."
+      },
+      "account": {
+        "title": "Account & devices",
+        "description": "Use Account at the bottom of the sidebar for cloud sync and devices. Sign in to access sync, device and security settings. Local terminal, file and desktop features also work offline."
+      },
+      "cloudSync": {
+        "title": "Choose encrypted sync data",
+        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
+      },
+      "cloudSecurity": {
+        "title": "Manage account security",
+        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
+      },
+      "remoteDevices": {
+        "title": "Open device remote control",
+        "description": "After signing in, choose a trusted, online device in Devices to open remote control. Access depends on the remote device’s settings and availability, separately from host SSH or RDP profiles."
+      },
+      "remotePermissions": {
+        "title": "Limit remote access",
+        "description": "The controlled device manages access permissions. Enable only the features and file roots you need; remote AI access also requires its own permission. The guide does not grant access or connect to a device."
+      },
+      "notifications": {
+        "title": "Find results & approvals",
+        "description": "The message center collects task results, file transfers and pending approvals. Open a message to visit its content. Enabled system notifications appear only when the entire app is unfocused, not when switching between Termous windows."
+      }
+    },
+    "chooseTopic": "Start with the basics or choose a topic. Return to this list during any guide, or close it and reopen it from Help.",
+    "topicCompleted": "You've explored {{topic}}",
+    "continueTopic": "Choose another topic, or close the tour to get started.",
+    "completed": "Completed",
+    "stepCount": "{{count}} steps",
+    "topics": {
+      "basics": {
+        "title": "Getting started",
+        "description": "Explore workspaces, connections and everyday tools"
+      },
+      "connections": {
+        "title": "Hosts & connections",
+        "description": "Credentials, profiles and quick connections"
+      },
+      "files": {
+        "title": "Files & mounts",
+        "description": "File profiles, bookmarks, transfers and mounts"
+      },
+      "desktop": {
+        "title": "Remote desktop",
+        "description": "Desktop profiles, tools and RDP file exchange"
+      },
+      "automation": {
+        "title": "Desktop automation",
+        "description": "Templates, steps, screen selection and run history"
+      },
+      "agent": {
+        "title": "AI assistant",
+        "description": "Models, resource references and approvals"
+      },
+      "cloud": {
+        "title": "Sync & backup",
+        "description": "Encrypted sync, device trust and local backups"
+      },
+      "remote": {
+        "title": "Device remote control",
+        "description": "Device access, permissions and remote work"
+      },
+      "tools": {
+        "title": "Tools & integrations",
+        "description": "Session tools, forwarding, snippets, MCP and audit"
       }
     }
   },
@@ -5593,5 +6950,46 @@
     "required": "Required",
     "optional": "Optional",
     "none": "None"
+  },
+  "notifications": {
+    "title": "Message centre",
+    "resultCount_one": "{{count}} message",
+    "resultCount_other": "{{count}} messages",
+    "all": "All",
+    "unread": "Unread",
+    "source": "Source",
+    "sources": {
+      "all": "All sources",
+      "agent": "AI assistant",
+      "file": "File transfers",
+      "approval": "Approvals",
+      "cloud": "Cloud service"
+    },
+    "readAll": "Mark all read",
+    "clearRead": "Clear read",
+    "dismiss": "Dismiss message",
+    "empty": "No messages yet",
+    "emptyHint": "AI assistant results, file transfers, approvals and cloud service messages will appear here.",
+    "emptyUnread": "No unread messages",
+    "emptyFiltered": "No messages from this source",
+    "emptyFilteredHint": "Switch the source or view all messages to see other task results.",
+    "viewAll": "View all messages",
+    "operationFailed": "Operation failed. Please try again.",
+    "reconnecting": "Connection interrupted. Reconnecting…",
+    "targetMissing": "The original session or transfer is unavailable. This is the saved result summary.",
+    "approvalMissing": "This request may be resolved or expired, or a higher-priority approval is open. Check the current approval dialog.",
+    "settings": {
+      "title": "System notifications",
+      "hint": "Notify only while Termous is in the background.",
+      "desktopOnly": "System notifications are available in the desktop app.",
+      "unsupported": "Native notifications are unavailable on this system.",
+      "loading": "Loading notification settings…",
+      "unavailable": "Notification settings are temporarily unavailable.",
+      "categories": "Notification types",
+      "paused": "System notifications are paused. Your selections are kept.",
+      "centreHint": "All messages remain available in the message centre.",
+      "error": "Unable to read or save notification settings",
+      "enabled": "Allow system notifications"
+    }
   }
 }

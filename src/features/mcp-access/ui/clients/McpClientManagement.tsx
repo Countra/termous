@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { McpClient, McpClientToken } from '#entities/mcp-access'
 import { ConfirmDialog, uiStyles } from '#shared/ui'
 import { getMcpScopeCatalogEntry } from '../../model/mcpScopeCatalog'
+import { useSettingsEditor } from '#entities/settings'
 import type { McpAccessRuntimeValue } from '../../runtime/mcpAccessContext'
 import { McpClientEditor, type McpClientEditorValue } from '../McpClientEditor'
 import styles from '../McpSettingsPanel.module.scss'
@@ -28,6 +29,9 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
   const [deleteCandidate, setDeleteCandidate] = useState<McpClient | null>(null)
   const [tokenCandidateId, setTokenCandidateId] = useState<string | null>(null)
   const [tokenResult, setTokenResult] = useState<McpClientToken | null>(null)
+  useSettingsEditor({ dirty: false,
+    busy: Boolean(runtime.mutationKey || editor || deleteCandidate || tokenCandidateId || tokenResult),
+    invalid: true, save: () => undefined, reset: () => undefined })
   const tokenCandidate = tokenCandidateId
     ? runtime.clients.find((client) => (
       client.id === tokenCandidateId && client.enabled && !client.read_only

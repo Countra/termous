@@ -147,6 +147,8 @@ function renderFileSessionTab(
       onSelect={overrides.onSelect ?? vi.fn()}
       onAuxClose={overrides.onAuxClose ?? vi.fn()}
       onClose={overrides.onClose ?? vi.fn()}
+      onMenuAction={vi.fn()}
+      onColorChange={vi.fn()}
     />,
   )
 }

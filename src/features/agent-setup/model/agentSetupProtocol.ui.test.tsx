@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { defaultExecutionBudget } from '#common/contracts'
 import {
   AgentSetupProtocolError,
   decodeAgentModel,
@@ -11,6 +12,14 @@ import {
 } from './agentSetupProtocol.ts'
 
 describe('Agent setup protocol', () => {
+  it('执行预算缺失默认关闭，非法策略不能静默降级', () => {
+    expect(decodeAgentSettings(settingsFixture()).execution_budget).toEqual(defaultExecutionBudget)
+    const enabled = { ...defaultExecutionBudget, enabled: true }
+    expect(decodeAgentSettings({ ...settingsFixture(), execution_budget: enabled }).execution_budget).toEqual(enabled)
+    for (const value of [null, false, {}, { ...enabled, enabled: 'true' }, { ...enabled, limits: { ...enabled.limits, model_requests: 1.5 } }]) {
+      expect(() => decodeAgentSettings({ ...settingsFixture(), execution_budget: value })).toThrow(AgentSetupProtocolError)
+    }
+  })
   it('自动压缩阈值兼容旧设置默认 80，并严格限制 50 至 95 的整数', () => {
     expect(decodeAgentSettings({ ...settingsFixture(), context_compaction_threshold_percent: undefined })
       .context_compaction_threshold_percent).toBe(80)
@@ -113,6 +122,7 @@ function settingsFixture() {
   return {
     default_reasoning_level: 'off', global_context_window_tokens: 16_384,
     global_max_output_tokens: 4_096, show_turn_token_usage: true, revision: 1,
+    max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }

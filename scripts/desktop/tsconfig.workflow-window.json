@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["workflow-window-*.ts", "workflow-window-*.tsx"],
+  "references": []
+}

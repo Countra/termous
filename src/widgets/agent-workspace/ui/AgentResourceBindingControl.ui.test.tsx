@@ -84,6 +84,63 @@ vi.mock('#shared/ui', () => ({
 
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 
+describe('Agent 桌面与脚本引用控件', () => {
+  it('脚本保留固定版本，只有确认替换后才提交新版，解除不执行目标操作', async () => {
+    const binding = { kind: 'desktop_workflow' as const, workflow_id: 'script', workflow_name: '回归', workflow_version: 2, bound_at: '2026-10-14T00:00:00Z' }
+    const replace = vi.fn(async () => true)
+    const remove = vi.fn(async () => true)
+    render(<AgentResourceBindingControl disabled={false} onReplace={replace} onRemove={remove} context={{ binding, status: 'ready',
+      candidates: [{ ...binding, workflow_version: 3, status: 'ready' }],
+    }} />)
+    fireEvent.click(screen.getByRole('button', { name: /回归 · v2/ }))
+    expect(screen.getByRole('status')).toHaveTextContent('agent.desktopResource.fixedVersion')
+    fireEvent.click(screen.getByRole('button', { name: '回归 · v3' }))
+    expect(replace).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith({ kind: 'desktop_workflow', workflow_id: 'script', workflow_version: 3 }))
+    fireEvent.click(screen.getByRole('button', { name: /回归 · v2/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
+    expect(remove).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-detach' }))
+    await waitFor(() => expect(remove).toHaveBeenCalledOnce())
+  })
+
+  it('候选桌面在选择后换代则不能提交，活动 Run 期间禁止修改', () => {
+    const binding = { kind: 'desktop_session' as const, session_id: 'old', connection_generation: 1, desktop_profile_id: 'profile',
+      desktop_profile_name: 'VNC', host_id: 'host', host_name: '目标', protocol: 'vnc' as const, bound_at: '2026-10-14T00:00:00Z' }
+    const candidate = { ...binding, session_id: 'next', connection_generation: 2, status: 'ready' as const }
+    const props = { onReplace: vi.fn(async () => true), onRemove: vi.fn(async () => true) }
+    const view = render(<AgentResourceBindingControl {...props} disabled={false} context={{ binding, status: 'stale', candidates: [candidate] }} />)
+    fireEvent.click(screen.getByRole('button', { name: /目标 · VNC/ }))
+    fireEvent.click(screen.getByRole('button', { name: '目标 · VNC · next' }))
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).not.toBeDisabled()
+    view.rerender(<AgentResourceBindingControl {...props} disabled={false} context={{ binding, status: 'stale', candidates: [{ ...candidate, connection_generation: 3 }] }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeDisabled()
+    view.rerender(<AgentResourceBindingControl {...props} disabled context={{ binding, status: 'stale', candidates: [candidate] }} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.remove' })).toBeDisabled()
+    expect(props.onReplace).not.toHaveBeenCalled()
+  })
+
+  it('活动任务结束后不复活旧的解除确认或替换选择', () => {
+    const binding = { kind: 'desktop_workflow' as const, workflow_id: 'script', workflow_name: '回归', workflow_version: 2, bound_at: '2026-10-14T00:00:00Z' }
+    const context: AgentWorkspaceResourceContext = { binding, status: 'ready', candidates: [{ ...binding, workflow_version: 3, status: 'ready' }] }
+    const props = { context, onReplace: vi.fn(), onRemove: vi.fn() }
+    const view = render(<AgentResourceBindingControl {...props} disabled={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /回归 · v2/ }))
+    fireEvent.click(screen.getByRole('button', { name: '回归 · v3' }))
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeEnabled()
+    view.rerender(<AgentResourceBindingControl {...props} disabled />)
+    view.rerender(<AgentResourceBindingControl {...props} disabled={false} />)
+    expect(screen.getByRole('button', { name: 'agent.resource.confirmReplace' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
+    expect(screen.getByRole('button', { name: 'confirm-detach' })).toBeInTheDocument()
+    view.rerender(<AgentResourceBindingControl {...props} disabled />)
+    view.rerender(<AgentResourceBindingControl {...props} disabled={false} />)
+    expect(screen.queryByRole('button', { name: 'confirm-detach' })).not.toBeInTheDocument()
+    expect(props.onRemove).not.toHaveBeenCalled()
+  })
+})
+
 describe('Agent SSH 资源绑定控件', () => {
   it.each([undefined, 'AGENT_RESOURCE_RECOVERY_QUERY_FAILED'])('恢复成功且连接就绪后保持收起，不因后续查询错误重开：%s', (errorCode) => {
     const context = resourceContext()

@@ -15,6 +15,7 @@ import type { CrontabJob, CrontabSnapshot } from '#entities/crontab'
 import { TermousApiError } from '#shared/api'
 import {
   confirmDialogStyles,
+  modalSurfaceStyles,
   termousNotificationClassName,
   termousPopconfirmProps,
   uiStyles,
@@ -330,7 +331,7 @@ export function CrontabPanel({ api, session, enabled, theme }: CrontabPanelProps
     rawEntryConfirmRef.current = modal.confirm({
       centered: true,
       className: confirmDialogStyles.modal,
-      rootClassName: confirmDialogStyles['modal-wrap'],
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
       title: t('workbench.crontab.raw.openConfirmTitle'),
       content: t('workbench.crontab.raw.openConfirmContent', { username: snapshot?.username ?? '' }),
       okText: t('workbench.crontab.raw.openConfirmAction'),

@@ -101,6 +101,7 @@ export interface TerminalRuntimeContextValue {
   focusSession: (sessionId: string) => boolean
   sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult
   sendTextToActive: (text: string, options?: { execute?: boolean }) => TerminalSendResult
+  takeBackSessionInput: (sessionId: string) => boolean
   subscribeSessionInputLock: (sessionId: string, listener: () => void) => () => void
   getSessionInputLockSnapshot: (sessionId: string) => TerminalInputLockSnapshot
   subscribeSessionCompletion: (sessionId: string, listener: () => void) => () => void

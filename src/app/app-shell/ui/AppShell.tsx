@@ -16,29 +16,34 @@ import {
   PlugZap,
   Route,
   Server,
-  Settings,
   Shell,
   TerminalSquare,
+  UserRound,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { WindowCloseBehavior } from '#common/contracts'
+import type { CloudTab, WindowCloseBehavior } from '#common/contracts'
 import type { LocalShell } from '#entities/session'
-import type { PageKey } from '#shared/model'
+import type { NavigationTarget, PageKey } from '#shared/model'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import { BrandVersionControl, useOpenUpdateWindow } from '#features/update'
 import { WindowControls } from './WindowControls'
+import { SidebarAccountMenu, type SidebarAccountIdentity } from './SidebarAccountMenu'
 import styles from './AppShell.module.scss'
 
 export interface AppShellProps {
+  account?: SidebarAccountIdentity
+  onOpenAccount?: (tab: CloudTab) => void
+  notificationControl?: ReactNode
   page: PageKey
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
   sidebarCollapsed: boolean
+  contentInert?: boolean
   actionBusy: boolean
-  onNavigate: (page: PageKey) => void
+  onNavigate: (target: NavigationTarget) => void
   onOpenConnectionLauncher: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
   onOpenProductTour: () => void
@@ -51,18 +56,19 @@ export interface AppShellProps {
 const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
   { key: 'remote-desktop' as const, icon: MonitorPlay },
+  { key: 'files' as const, icon: FolderTree },
+  { key: 'agent' as const, icon: Bot },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
-  { key: 'files' as const, icon: FolderTree },
   { key: 'forwards' as const, icon: Route },
   { key: 'mounts' as const, icon: HardDrive },
   { key: 'snippets' as const, icon: FileCode2 },
-  { key: 'agent' as const, icon: Bot },
   { key: 'audit' as const, icon: ClipboardList },
 ]
 
 const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {
   workbench: MonitorCog,
+  account: UserRound,
 }
 
 const helpDropdownClassName = [
@@ -71,10 +77,14 @@ const helpDropdownClassName = [
 ].join(' ')
 
 export function AppShell({
+  account,
+  onOpenAccount,
+  notificationControl,
   page,
   appVersion,
   windowCloseBehavior,
   sidebarCollapsed,
+  contentInert = false,
   actionBusy,
   onNavigate,
   onOpenConnectionLauncher,
@@ -90,6 +100,7 @@ export function AppShell({
   const [sidebarHelpOpen, setSidebarHelpOpen] = useState(false)
   const [topbarHelpOpen, setTopbarHelpOpen] = useState(false)
   const sidebarHelpButtonRef = useRef<HTMLButtonElement>(null)
+  const sidebarFooterActionsRef = useRef<HTMLDivElement>(null)
   const topbarHelpButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -174,7 +185,7 @@ export function AppShell({
                 <Button
                   type="text"
                   className={`${styles['nav-item']} ${page === item.key ? styles['is-active'] : ''}`}
-                  data-tour={item.key === 'vault' ? 'nav-vault' : undefined}
+                  data-tour={`nav-${item.key}`}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
                   icon={<Icon size={18} aria-hidden="true" />}
@@ -186,18 +197,10 @@ export function AppShell({
           })}
         </nav>
         <div className={styles['sidebar-footer']}>
-          <div className={styles['sidebar-footer-actions']}>
-            <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
-              <Button
-                type="text"
-                className={`${styles['nav-item']} ${styles['sidebar-settings-button']} ${page === 'settings' ? styles['is-active'] : ''}`}
-                onClick={() => onNavigate('settings')}
-                aria-label={t('nav.settings')}
-                icon={<Settings size={18} aria-hidden="true" />}
-              >
-                <span>{t('nav.settings')}</span>
-              </Button>
-            </Tooltip>
+          <div ref={sidebarFooterActionsRef} className={styles['sidebar-footer-actions']}>
+            <SidebarAccountMenu identity={account} collapsed={sidebarCollapsed} active={page === 'account'}
+              getPopupWidth={() => sidebarFooterActionsRef.current?.getBoundingClientRect().width}
+              onAccount={(tab) => onOpenAccount ? onOpenAccount(tab) : onNavigate('account')} onSettings={() => onNavigate('settings')} />
             <span className={styles['product-tour-trigger']} data-tour="product-tour-trigger">
               <Tooltip title={t('productTour.helpButton')} placement={sidebarCollapsed ? 'right' : 'top'}>
                 <Dropdown
@@ -314,7 +317,10 @@ export function AppShell({
                 </Dropdown>
               </Space.Compact>
             </div>
-            <span className={styles['topbar-action-divider']} aria-hidden="true" />
+            {notificationControl ? <>
+              <span className={styles['topbar-action-divider']} aria-hidden="true" />
+              <span className={styles['topbar-notifications']} data-tour="notification-entry">{notificationControl}</span>
+            </> : null}
             {showWindowControls ? (
               <WindowControls
                 closeBehavior={windowCloseBehavior}
@@ -324,7 +330,7 @@ export function AppShell({
             ) : null}
           </div>
         </header>
-        <main className={styles['content-frame']}>{children}</main>
+        <main className={styles['content-frame']} inert={contentInert}>{children}</main>
       </div>
     </div>
   )

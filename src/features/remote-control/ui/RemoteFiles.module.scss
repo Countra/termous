@@ -1,0 +1,211 @@
+.files {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+.transfer-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex-shrink: 0;
+  gap: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.transfer-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.transfer-source {
+  display: flex;
+  width: 80px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.transfer-actions { min-width: 0; }
+
+.transfer-actions :global(.ant-btn) {
+  height: 28px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.transfer-options {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.transfer-options :global(.ant-select) {
+  width: 112px;
+  font-size: 11px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.toolbar > :global(.ant-space) { flex-shrink: 0; }
+
+.path-navigation {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.path-navigation > :global(.ant-btn) { flex-shrink: 0; }
+
+.path-navigation :global(.ant-breadcrumb) {
+  min-width: 0;
+  overflow: auto hidden;
+  font-size: 12px;
+  scrollbar-width: thin;
+}
+
+.path-navigation :global(.ant-breadcrumb ol) { flex-wrap: nowrap; }
+
+.table {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 0 12px 12px;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  padding: 2px;
+  white-space: nowrap;
+}
+
+.files button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+// 桌面交换区使用独立的工作区排版，不改变普通远控文件浏览器。
+.exchange .transfer-toolbar {
+  border: 0;
+  border-radius: 8px;
+  background: var(--app-bg);
+}
+.exchange .toolbar { padding: 10px 0; }
+
+.exchange .table {
+  padding: 0;
+}
+
+.exchange-search {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.exchange-search > :global(.ant-input-affix-wrapper) {
+  width: 0;
+  min-width: 0;
+  flex: 1;
+  background: var(--input-bg);
+}
+
+.exchange-search > span:last-child {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 620px) {
+  .exchange .modified { display: none; }
+}
+
+@container (max-width: 740px) {
+  .transfer-toolbar { grid-template-columns: minmax(0, 1fr); }
+
+  .transfer-options {
+    grid-column: 1;
+    grid-row: auto;
+    align-items: center;
+    flex-direction: row;
+  }
+}
+
+.retained .transfer-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 12px;
+}
+
+.retained .transfer-source { width: auto; }
+
+.retained .transfer-options {
+  grid-column: auto;
+  grid-row: auto;
+  align-items: center;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.retained .transfer-options > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.retained .transfer-options :global(.ant-select) { width: 112px; }
+
+@container (max-width: 540px) {
+  .transfer-group {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .toolbar {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .table { padding-inline: 8px; }
+
+  .retained .transfer-toolbar { grid-template-columns: minmax(0, 1fr); }
+
+  .retained .transfer-group {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .retained .transfer-options { justify-self: start; }
+}

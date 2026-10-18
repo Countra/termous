@@ -2,6 +2,10 @@ import type { AppConfig } from '#common/contracts';
 import type { DockerActionRequest, DockerActionResult, DockerCapability, DockerContainerDetail, DockerContainerQuery, DockerContainerSummary, DockerContainerStats, DockerListResult, DockerLogsResult } from '#entities/docker';
 import { TermousApiTransport } from '#shared/api';
 import { normalizeArray } from './responseNormalizers'
+import type {
+  DockerResourceKind, DockerResourceQuery, DockerResourceList, DockerResourceDetail,
+  DockerResourceCreateRequest, DockerResourceActionRequest, DockerResourceActionResult,
+} from '#entities/docker'
 
 interface RequestOptions {
   method?: string
@@ -13,6 +17,24 @@ interface RequestOptions {
 export class DockerClient extends TermousApiTransport {
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
+  }
+
+  sessionDockerResources(id: string, kind: DockerResourceKind, query: DockerResourceQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
+    const params = new URLSearchParams({ query: query.query ?? '', offset: String(query.offset ?? 0), limit: String(query.limit ?? 100) })
+    return this.request<DockerResourceList>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/${kind}?${params}`, { signal: options.signal, timeoutMs: 20_000 })
+      .then((result) => ({ ...result, items: normalizeArray(result.items) }))
+  }
+
+  sessionDockerResourceDetail(id: string, kind: DockerResourceKind, ref: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<DockerResourceDetail>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/${kind}/${encodeURIComponent(ref)}`, { signal: options.signal, timeoutMs: 20_000 })
+  }
+
+  sessionDockerResourceCreate(id: string, kind: 'volumes' | 'networks', input: DockerResourceCreateRequest) {
+    return this.request<DockerResourceActionResult>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/${kind}`, { method: 'POST', body: input, timeoutMs: 30_000 })
+  }
+
+  sessionDockerResourceAction(id: string, kind: DockerResourceKind, ref: string, input: DockerResourceActionRequest) {
+    return this.request<DockerResourceActionResult>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/${kind}/${encodeURIComponent(ref)}/actions`, { method: 'POST', body: input, timeoutMs: 30_000 })
   }
 
 sessionDockerCapability(id: string, options: Pick<RequestOptions, 'signal'> = {}) {

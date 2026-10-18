@@ -2,7 +2,7 @@ import { Button, Modal, Tooltip } from 'antd'
 import { ArrowRightLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resourceBindingMatchesSource, resourceReference, resourceReferenceId, resourceProfileName, type AgentResourceBinding, type AgentResourceState } from '#entities/agent'
-import { confirmDialogStyles, uiStyles } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, uiStyles } from '#shared/ui'
 import styles from './AgentTerminalReferenceConfirmDialog.module.scss'
 
 export function AgentTerminalReferenceConfirmDialog({ binding, source, resources, connectionOnly = false, onConfirm, onCancel }: {
@@ -16,32 +16,34 @@ export function AgentTerminalReferenceConfirmDialog({ binding, source, resources
   const { t } = useTranslation()
   const original = resources.find((resource) => resourceBindingMatchesSource(binding, resource))
   const file = resourceReference(source).kind === 'file_profile'
+  const desktop = 'desktop_profile_id' in source
 
   return (
     <Modal open centered width={440} zIndex={3600} footer={null} closable={false}
       title={(
         <header className={styles.header}>
           <ArrowRightLeft className={styles.icon} size={18} aria-hidden="true" />
-          <h2>{t(file ? 'agent.fileResource.confirmTitle' : 'agent.terminalReference.confirmTitle')}</h2>
+          <h2>{t(desktop ? 'agent.desktopResource.confirmTitle' : file ? 'agent.fileResource.confirmTitle' : 'agent.terminalReference.confirmTitle')}</h2>
         </header>
       )}
       destroyOnHidden onCancel={onCancel} getContainer={() => document.body}
       className={`${confirmDialogStyles.modal} ${styles.modal} confirm-modal`}
       wrapClassName={`${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`}
-      rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}>
+      rootClassName={`${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`}>
       <section className={styles.content}>
         <div className={styles.comparison}>
           <ConnectionSummary label={t('agent.terminalReference.currentAssociation')}
             host={binding?.host_name || t('agent.terminalReference.unknownHost')}
-            profile={(original && resourceProfileName(original)) || (binding?.kind === 'file_profile' && binding.file_access_profile_name) || t('agent.terminalReference.profileUnavailable')}
-            profileId={binding?.kind === 'file_profile' ? binding.file_access_profile_id : binding?.ssh_profile_id}
-            sessionId={binding?.kind === 'ssh_session' ? binding.session_id : undefined} />
+            profile={(original && resourceProfileName(original)) || (binding && 'desktop_profile_name' in binding && binding.desktop_profile_name)
+              || (binding?.kind === 'file_profile' && binding.file_access_profile_name) || t('agent.terminalReference.profileUnavailable')}
+            profileId={binding && 'desktop_profile_id' in binding ? binding.desktop_profile_id : binding?.kind === 'file_profile' ? binding.file_access_profile_id : binding && 'ssh_profile_id' in binding ? binding.ssh_profile_id : undefined}
+            sessionId={binding && 'session_id' in binding ? binding.session_id : undefined} />
           <ConnectionSummary destination label={t('agent.terminalReference.nextAssociation')}
             host={source.host_name || t('agent.terminalReference.unknownHost')} profile={resourceProfileName(source) || t('agent.terminalReference.profileUnavailable')}
-            profileId={file ? resourceReferenceId(resourceReference(source)) : source.ssh_profile_id}
+            profileId={desktop ? source.desktop_profile_id : file ? resourceReferenceId(resourceReference(source)) : 'ssh_profile_id' in source ? source.ssh_profile_id : undefined}
             sessionId={'session_id' in source ? source.session_id : undefined} />
         </div>
-        <p className={styles.description}>{t(file ? 'agent.fileResource.confirmDescription'
+        <p className={styles.description}>{t(desktop ? 'agent.desktopResource.confirmDescription' : file ? 'agent.fileResource.confirmDescription'
           : connectionOnly ? 'agent.connectionReference.confirmDescription' : 'agent.terminalReference.confirmDescription')}</p>
         <footer className={styles.actions}>
           <Button autoFocus onClick={onCancel}>{t('app.cancel')}</Button>

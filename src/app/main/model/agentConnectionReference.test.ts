@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { AgentFileResourceState, AgentReferenceTargetsSnapshot } from '#entities/agent'
+import type { AgentDesktopResourceState, AgentFileResourceState, AgentReferenceTargetsSnapshot } from '#entities/agent'
 import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
@@ -50,4 +50,16 @@ test('目标锁定按同类引用判断，另一类引用不能解除锁定', ()
   ] }
   const snapshot = projectConnectionReferenceSnapshot({ kind: 'file_profile', file_access_profile_id: file.file_access_profile_id }, [file], sessions, true)
   assert.deepEqual(snapshot.targets.map(({ disabled }) => disabled), [false, true])
+})
+
+test('桌面引用携带会话和连接代次，旧代次引用不能转交到新连接', () => {
+  const desktop: Extract<AgentDesktopResourceState, { kind: 'desktop_session' }> = {
+    kind: 'desktop_session', session_id: 'desktop', connection_generation: 3,
+    desktop_profile_id: 'profile', desktop_profile_name: '桌面', host_id: 'host', host_name: '主机', protocol: 'rdp', status: 'ready',
+  }
+  const request = buildConnectionReferenceLaunch(desktop, { kind: 'new' }, [desktop])
+  assert.deepEqual(request.resource_reference, { kind: 'desktop_session', session_id: desktop.session_id, connection_generation: 3 })
+  assert.throws(() => buildConnectionReferenceLaunch(desktop, { kind: 'new' }, [{ ...desktop, connection_generation: 4 }]), /SOURCE_UNAVAILABLE/)
+  const snapshot = projectConnectionReferenceSnapshot(request.resource_reference, [{ ...desktop, connection_generation: 4 }], { ready: true, targets: [] }, true)
+  assert.equal(snapshot.source, undefined)
 })

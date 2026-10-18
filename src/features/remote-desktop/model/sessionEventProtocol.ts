@@ -1,3 +1,4 @@
+import { isDesktopPointerEvent } from '#common/contracts'
 import {
   isRemoteDesktopLoopbackAddress,
   isValidRemoteDesktopIPAddress,
@@ -45,6 +46,8 @@ export function decodeRemoteDesktopSessionEvent(value: string): RemoteDesktopSes
     return null
   }
   switch (decoded.type) {
+    case 'automation_pointer':
+      return isDesktopPointerEvent(decoded) ? decoded : null
     case 'snapshot':
       if (!Array.isArray(decoded.sessions) || !decoded.sessions.every(isRemoteDesktopSession)) {
         return null
@@ -84,21 +87,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isRemoteDesktopSession(value: unknown): value is RemoteDesktopSession {
-  if (!isRecord(value) || !isRecord(value.vnc)) {
+  if (!isRecord(value)) {
     return false
   }
-  const vnc = value.vnc
+  const vnc = value.protocol === 'rdp' ? value.rdp : value.vnc
+  if (!isRecord(vnc)) return false
   return isNonEmptyString(value.id)
     && isNonEmptyString(value.profile_id)
     && isNonEmptyString(value.profile_name)
     && isNonEmptyString(value.host_id)
     && isNonEmptyString(value.host_name)
     && isRemoteDesktopSessionRoute(value, vnc)
-    && value.protocol === 'vnc'
+    && (value.protocol === 'vnc' || value.protocol === 'rdp')
     && isConfigVersion(value.protocol_config_version)
     && isNonEmptyString(vnc.target_host)
     && isPort(vnc.port)
-    && typeof vnc.shared === 'boolean'
+    && (value.protocol === 'vnc' ? typeof vnc.shared === 'boolean' : isNonEmptyString(vnc.username) && isNonEmptyString(vnc.server_name) && isPositiveSafeInteger(vnc.width) && isPositiveSafeInteger(vnc.height) && typeof vnc.audio === 'boolean')
     && typeof vnc.default_view_only === 'boolean'
     && typeof vnc.default_display_mode === 'string'
     && displayModes.has(vnc.default_display_mode as RemoteDesktopDisplayMode)
@@ -156,7 +160,7 @@ function isRemoteDesktopSessionRoute(
   }
   if (value.route === 'ssh_tunnel') {
     return isNonEmptyString(value.ssh_profile_id)
-      && isRemoteDesktopLoopbackAddress(vnc.target_host)
+      && (value.protocol === 'rdp' || isRemoteDesktopLoopbackAddress(vnc.target_host))
   }
   return value.route === 'direct'
     && value.ssh_profile_id === undefined

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { FileAccessProfile } from '#entities/file-access-profile'
-import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
+import type { VncRemoteDesktopAccessProfile as RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import {
   buildHostLauncherProfileMenu,

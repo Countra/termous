@@ -1,0 +1,42 @@
+.advanced {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 20px;
+}
+
+.icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.copy {
+  flex: 1 1 240px;
+  min-width: 0;
+
+  h2 {
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 22px;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}

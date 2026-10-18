@@ -1,7 +1,8 @@
-export type RendererSurface = 'main' | 'update'
+export type RendererSurface = 'main' | 'update' | 'remote' | 'desktop-automation' | 'detached'
 
 export function resolveRendererSurface(search: string): RendererSurface {
-  return new URLSearchParams(search).get('surface') === 'update' ? 'update' : 'main'
+  const value = new URLSearchParams(search).get('surface')
+  return value === 'remote' || value === 'update' || value === 'desktop-automation' || value === 'detached' ? value : 'main'
 }
 
 export function loadRendererSurface<T>(

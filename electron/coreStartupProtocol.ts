@@ -6,7 +6,7 @@ import type {
 
 export const coreStartupPrefix = '@termous/startup '
 const maxLineLength = 16_384
-const databaseRoles = ['live', 'staged', 'rollback']
+const databaseRoles = ['live', 'staged', 'rollback', 'source']
 const failureCodes = [
   'DB_VERSION_TOO_NEW', 'DB_LEGACY_UNSUPPORTED', 'DB_HISTORY_INVALID',
   'DB_SCHEMA_INVALID', 'DB_MIGRATION_FAILED', 'DB_OPEN_FAILED',
@@ -21,6 +21,7 @@ export interface CoreStartupEvent {
   at: string
   phase: 'starting' | 'database' | 'services' | 'failed'
   database?: DatabaseStartupState
+  databases?: DatabaseStartupState[]
   error?: CoreStartupFailure
   coreVersion?: string
   heartbeat?: boolean
@@ -75,10 +76,13 @@ function optionalFieldsValid(
 
 function isDatabase(value: unknown): value is DatabaseStartupState {
   return isObject(value)
-    && hasOnlyKeys(value, ['status', 'operation', 'fromVersion', 'targetVersion', 'confirmedVersion', 'startedAt', 'completedAt', 'role'])
+    && hasOnlyKeys(value, ['id', 'domain', 'code', 'status', 'operation', 'fromVersion', 'targetVersion', 'confirmedVersion', 'startedAt', 'completedAt', 'role'])
     && isEnum(value.status, ['checking', 'unchanged', 'running', 'completed', 'failed'])
     && optionalFieldsValid(value, {
-      operation: (field) => isEnum(field, ['initialize', 'adopt', 'upgrade']),
+      operation: (field) => isEnum(field, ['initialize', 'adopt', 'upgrade', 'prepare']),
+      id: (field) => typeof field === 'string' && /^[0-9-]{1,32}$/.test(field),
+      domain: (field) => isEnum(field, ['core', 'agent', 'workflows', 'audit']),
+      code: (field) => isEnum(field, failureCodes),
       role: (field) => isEnum(field, databaseRoles),
       fromVersion: isVersion,
       targetVersion: isVersion,
@@ -113,7 +117,7 @@ export function parseCoreStartupEvent(line: string): CoreStartupEvent | null {
     return null
   }
   if (!isObject(value)
-    || !hasOnlyKeys(value, ['protocol', 'instanceId', 'pid', 'sequence', 'at', 'phase', 'database', 'error', 'coreVersion', 'heartbeat'])
+    || !hasOnlyKeys(value, ['protocol', 'instanceId', 'pid', 'sequence', 'at', 'phase', 'database', 'databases', 'error', 'coreVersion', 'heartbeat'])
     || value.protocol !== 1
     || typeof value.instanceId !== 'string' || !/^[a-zA-Z0-9-]{1,64}$/.test(value.instanceId)
     || !Number.isSafeInteger(value.pid) || (value.pid as number) <= 0
@@ -122,12 +126,15 @@ export function parseCoreStartupEvent(line: string): CoreStartupEvent | null {
     || !isEnum(value.phase, ['starting', 'database', 'services', 'failed'])
     || !optionalFieldsValid(value, {
       database: isDatabase,
+      databases: (field) => Array.isArray(field) && field.length <= 32
+        && field.every((item) => isDatabase(item) && item.id && item.domain)
+        && new Set(field.map((item) => item.id)).size === field.length,
       error: isFailure,
       coreVersion: (field) => isText(field, 64),
       heartbeat: (field) => typeof field === 'boolean',
     })
     || (value.phase === 'failed') !== (value.error !== undefined)
-    || (value.database && (value.database as DatabaseStartupState).status === 'failed' && value.phase !== 'failed')
+    || (value.database && (value.database as DatabaseStartupState).status === 'failed' && value.phase !== 'failed' && value.databases === undefined)
   ) return null
   const event = value as unknown as CoreStartupEvent
   if (event.error) {

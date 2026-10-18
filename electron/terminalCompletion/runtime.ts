@@ -1,7 +1,7 @@
 import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from '#common/contracts'
-import type { AgentWorkerFactory, AgentWorkerProcess } from '../agent/workerProcess.ts'
-import { AgentCoreRuntimeError } from '../agent/coreRuntimeClient.ts'
-import type { RuntimeUsage } from '../agent/runtimeUsage.ts'
+import type { AgentWorkerFactory, AgentWorkerProcess } from '../agent/contracts/workerProcess.ts'
+import { AgentCoreRuntimeError } from '../agent/contracts/supervisorCore.ts'
+import type { RuntimeUsage } from '../agent/provider/index.ts'
 import {
   completionFailure, isTerminalCompletionRequest, isTerminalCompletionResult, isTerminalCompletionUsage,
   terminalCompletionAbortGraceMs, terminalCompletionTimeoutMs, type TerminalCompletionBootstrap,

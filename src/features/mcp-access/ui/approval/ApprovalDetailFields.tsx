@@ -3,7 +3,7 @@ import { Tag } from 'antd'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { McpApprovalRenameMapping, McpApprovalTarget } from '#entities/mcp-access'
-import styles from '../McpApprovalCoordinator.module.scss'
+import styles from './ApprovalDetails.module.scss'
 
 export function ApprovalTargets({ targets }: { targets: McpApprovalTarget[] }) {
   const { t } = useTranslation()

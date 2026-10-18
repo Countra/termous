@@ -1,5 +1,7 @@
+import type { AgentProgressActivity } from '#entities/agent'
 import type {
   AgentAttachment,
+  AgentToolImageSource,
   AgentCompactionActivity,
   AgentRetryActivity,
   AgentResponseFailure,
@@ -11,6 +13,7 @@ import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
+  AgentMessageResource,
   AgentResourceReference,
   AgentResourceKind,
   AgentSessionGroup,
@@ -37,9 +40,9 @@ export interface AgentWorkspaceSlashCommandAvailability {
 }
 
 export type AgentWorkspaceSlashAvailability = Record<
-  AgentSlashCommandId,
+  Exclude<AgentSlashCommandId, 'workflow'>,
   AgentWorkspaceSlashCommandAvailability
->
+> & { workflow?: AgentWorkspaceSlashCommandAvailability }
 
 export type AgentWorkspaceSSHProfileAssociationMode = 'on_demand' | 'immediate'
 
@@ -72,6 +75,7 @@ export type AgentWorkspaceRunStatus =
   | 'interrupted'
 
 export interface AgentWorkspaceSession {
+  origin?: 'remote'
   id: string
   title: string
   group_id?: string
@@ -143,7 +147,17 @@ export interface AgentWorkspaceToolPart {
   duration_ms?: number
   summary?: string
   detail?: string
+  images?: AgentWorkspaceImage[]
 }
+
+export interface AgentWorkspaceImage extends AgentToolImageSource {
+  id: string
+  reference: string
+  mime_type: string
+  size_bytes: number
+}
+
+export type AgentImageLoader = (image: AgentWorkspaceImage, signal?: AbortSignal) => Promise<Blob>
 
 export type AgentWorkspaceMessagePart =
   | AgentWorkspaceTextPart
@@ -151,9 +165,11 @@ export type AgentWorkspaceMessagePart =
   | AgentWorkspaceToolPart
   | { id: string; kind: 'compaction'; activity: AgentCompactionActivity }
   | { id: string; kind: 'retry'; activity: AgentRetryActivity }
+  | { id: string; kind: 'progress'; activity: AgentProgressActivity }
   | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
+  request_usage?: import('#entities/agent').AgentRequestUsage[]
   id: string
   role: 'user' | 'assistant'
   status: 'streaming' | 'completed' | 'failed' | 'interrupted' | 'interrupted_by_steer'
@@ -161,6 +177,7 @@ export interface AgentWorkspaceMessage {
   parts: AgentWorkspaceMessagePart[]
   attachments: AgentAttachment[]
   source_context?: AgentSourceContext
+  resources?: AgentMessageResource[]
   usage?: AgentUsage
   duration_ms?: number
   error_code?: string
@@ -173,13 +190,15 @@ export interface AgentWorkspaceDraftAttachment {
   name: string
   size_bytes: number
   kind: 'text' | 'image'
-  file: File
+  file?: File
+  mime_type?: string
   phase: 'uploading' | 'ready' | 'failed' | 'deleting'
   attachment?: AgentAttachment
   error_code?: string
 }
 
 export interface AgentWorkspaceContextState {
+  compression_trigger_tokens?: number
   phase: 'unavailable' | 'idle' | 'loading' | 'ready' | 'error'
   has_snapshot: boolean
   used_tokens: number
@@ -255,6 +274,9 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  presentation?: AgentWorkspacePresentation
+  windowAction?: import('react').ReactNode
+  onLoadLocalAttachment?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
   composerFocusKey?: number
   composerActive?: boolean
   sessions: AgentWorkspaceSession[]
@@ -308,6 +330,7 @@ export interface AgentWorkspaceProps {
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
   onSend: (message: string, attachmentIds: string[]) => Promise<void>
   onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>
   onBeginQueuedTurnEdit: (turnId: string) => Promise<void>
@@ -336,6 +359,13 @@ export interface AgentWorkspaceProps {
   onRetryProfileConnection?: () => Promise<boolean>
   onCancelProfileConnection?: () => Promise<boolean>
   onDismissProfileConnection?: () => void
+}
+
+export interface AgentWorkspacePresentation {
+  inspectorOpen?: boolean
+  sessionsOpen?: boolean
+  conversations?: Record<string, { top: number; follow: boolean; anchor?: string; offset?: number }>
+  selection?: { start: number; end: number; direction: 'forward' | 'backward' | 'none'; owner: string }
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

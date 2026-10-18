@@ -1,0 +1,72 @@
+@use '../../../../shared/styles/settings' as settings;
+
+.body {
+  @include settings.panel;
+
+  display: grid;
+}
+
+.body > :global(.ant-alert) {
+  margin: 16px 18px;
+}
+
+.toggle {
+  @include settings.row;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggle > div {
+  min-width: 0;
+}
+
+.toggle > button {
+  flex-shrink: 0;
+}
+
+.toggle label,
+.row label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.retention {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.row {
+  @include settings.row;
+
+  grid-template-columns: minmax(0, 1fr) 160px;
+  align-items: center;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row > :last-child {
+  width: 100%;
+}
+
+.retention > p {
+  margin: 0;
+  padding: 0 18px 17px;
+}
+
+.loading {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+}
+
+@media (width <= 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}

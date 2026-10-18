@@ -123,9 +123,18 @@ export function HostLauncherModal({
   )
   const availableTags = useMemo(() => buildTagOptions(directoryItems), [directoryItems])
   const groupOptions = useMemo(() => buildGroupFilterOptions(directoryItems, data.groups, t('hosts.ungrouped'), t('workbench.hostLauncher.filters.allGroups')), [data.groups, directoryItems, t])
+  const profileHostIds = useMemo(() => {
+    if (intent === 'terminal') return undefined
+    const profiles = intent === 'files' ? data.fileAccessProfiles : data.remoteDesktopProfiles
+    const hostIds = new Set<string>()
+    for (const profile of profiles) {
+      if (profile.host_id) hostIds.add(profile.host_id)
+    }
+    return hostIds
+  }, [data.fileAccessProfiles, data.remoteDesktopProfiles, intent])
   const filteredHosts = useMemo(
-    () => filterHosts(directoryItems, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags),
-    [authFilter, data.hostReachability, directoryItems, filter, groupFilter, groupsById, platformFilter, query, selectedTags],
+    () => filterHosts(directoryItems, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags, profileHostIds),
+    [authFilter, data.hostReachability, directoryItems, filter, groupFilter, groupsById, platformFilter, profileHostIds, query, selectedTags],
   )
   const groupedHosts = useMemo(
     () => filter === 'recent'

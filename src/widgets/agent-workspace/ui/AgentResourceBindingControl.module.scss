@@ -160,6 +160,13 @@
   padding: 7px 8px;
 }
 
+.reference-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+
 .rebind-actions {
   display: flex;
   justify-content: flex-end;

@@ -29,6 +29,9 @@ const prepareDevelopmentUpdateSimulation = import.meta.env.DEV
 void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.location.search, {
   main: () => import('#app/main'),
   update: () => import('#app/update-surface'),
+  remote: () => import('#app/remote-surface'),
+  'desktop-automation': () => import('#app/desktop-automation-surface'),
+  detached: () => import('#app/detached-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(
     <React.StrictMode>

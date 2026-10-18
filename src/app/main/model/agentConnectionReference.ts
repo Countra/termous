@@ -28,7 +28,9 @@ export function projectAgentFileResources(profiles: FileAccessProfile[], hosts: 
 export function projectConnectionReferenceSnapshot(reference: AgentConnectionResourceReference, resources: AgentConnectionResourceState[],
   sessions: AgentReferenceTargetsSnapshot, resourcesReady: boolean): AgentConnectionReferenceSnapshot {
   const source = resources.find((resource) => resourceReference(resource).kind === reference.kind
-    && resourceReferenceId(resourceReference(resource)) === resourceReferenceId(reference))
+    && resourceReferenceId(resourceReference(resource)) === resourceReferenceId(reference)
+    && (reference.kind !== 'desktop_session' || 'kind' in resource
+      && resource.kind === 'desktop_session' && resource.connection_generation === reference.connection_generation))
   return {
     ready: resourcesReady && sessions.ready,
     source: source ? { ...source } : undefined,

@@ -1,0 +1,235 @@
+.directions {
+  display: flex;
+  flex-shrink: 0;
+  align-self: start;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+}
+
+.directions > button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.directions > button:hover { color: var(--text-primary); }
+
+.directions > button[aria-pressed='true'] {
+  border-color: var(--border);
+  background: var(--app-bg-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+.directions > button:focus-visible,
+.help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.send {
+  display: flex;
+  min-height: 220px;
+  flex-shrink: 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.send-content {
+  display: flex;
+  min-height: 200px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.send-content h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.send-content p {
+  margin: -6px 0 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.send-content[data-populated] {
+  min-height: 0;
+  align-items: stretch;
+  gap: 20px;
+  padding: 18px 16px 16px;
+  text-align: start;
+}
+
+.send-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.send-toolbar p { margin: 6px 0 0; }
+
+.route {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.route > svg:first-child,
+.route > svg:last-child {
+  box-sizing: content-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--text-secondary);
+}
+
+.publication {
+  display: flex;
+  min-height: 50px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+}
+
+.publication > div {
+  display: grid;
+  gap: 4px;
+}
+
+.publication strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.publication[data-active] strong { color: var(--accent); }
+
+.publication span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.receive {
+  display: flex;
+  min-width: 0;
+  min-height: 280px;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.receive-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.receive-toolbar p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.receive-toolbar > :global(.ant-btn) { flex-shrink: 0; }
+
+.system {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.system :global(.ant-tag) {
+  margin: 0;
+  font-size: 11px;
+}
+
+.help {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.progress {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.progress p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.progress-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 560px) {
+  .directions { align-self: stretch; }
+
+  .directions > button {
+    min-width: 0;
+    flex: 1;
+    padding-inline: 8px;
+  }
+  .receive-toolbar { flex-wrap: wrap; }
+  .receive-toolbar > :global(.ant-btn) { margin-inline-start: auto; }
+}

@@ -11,6 +11,7 @@ import {
   getShortcutReservation,
   SHORTCUT_ACTIONS,
 } from '#entities/shortcuts'
+import { SHORTCUT_ACTION_IDS } from '../entities/shortcuts/model/types.ts'
 
 const sources = {
   app: readSource('../app/main/App.tsx'),
@@ -23,7 +24,7 @@ const sources = {
   recorder: readSource('../features/settings/ui/shortcuts/ShortcutRecorderModal.tsx'),
 }
 
-test('所有首版动作均由统一动作目录和上下文适配器承接', () => {
+test('所有已声明动作均由统一动作目录和上下文适配器承接', () => {
   const adapterSources = [
     sources.app,
     sources.terminalRuntime,
@@ -33,7 +34,8 @@ test('所有首版动作均由统一动作目录和上下文适配器承接', ()
     sources.editor,
   ].join('\n')
 
-  assert.equal(SHORTCUT_ACTIONS.length, 16)
+  assert.deepEqual(SHORTCUT_ACTIONS.map(({ id }) => id), SHORTCUT_ACTION_IDS)
+  assert.equal(new Set(SHORTCUT_ACTION_IDS).size, SHORTCUT_ACTION_IDS.length)
   for (const action of SHORTCUT_ACTIONS) {
     assert.match(
       adapterSources,

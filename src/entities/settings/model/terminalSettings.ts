@@ -70,19 +70,6 @@ export function normalizeCompletionProviderSettings(
   }
 }
 
-export function completionSettingsEqual(
-  left: CompletionSettings,
-  right: CompletionSettings,
-) {
-  return (
-    left.enabled === right.enabled
-    && left.ai_enabled === right.ai_enabled
-    && completionProviderIds.every(
-      (providerId) => left.providers[providerId] === right.providers[providerId],
-    )
-  )
-}
-
 export function completionProviderSettingsSignature(providers: CompletionProviderSettings) {
   return completionProviderIds.map((providerId) => (
     providers[providerId] ? '1' : '0'

@@ -45,6 +45,7 @@ function SlashHarness({
   editing = false,
   initialValue = '',
   slashAvailability = availability,
+  slashCatalog = catalog,
   onExecute = vi.fn(async () => true),
   onFallbackKey,
 }: {
@@ -53,6 +54,7 @@ function SlashHarness({
   editing?: boolean
   initialValue?: string
   slashAvailability?: AgentWorkspaceSlashAvailability
+  slashCatalog?: AgentSlashCandidateCatalog
   onExecute?: (execution: AgentWorkspaceSlashExecution) => Promise<boolean>
   onFallbackKey?: (key: string) => void
 }) {
@@ -65,7 +67,7 @@ function SlashHarness({
     editing,
     active,
     containerRef,
-    catalog,
+    catalog: slashCatalog,
     availability: slashAvailability,
     onChange: setValue,
     onExecute,
@@ -103,6 +105,43 @@ function SlashHarness({
 }
 
 describe('Agent Slash 上拉菜单', () => {
+  it('脚本命令直接进入选择，固定版本与后续正文保持完整', async () => {
+    const user = userEvent.setup()
+    const script = { id: 'workflow:one', kind: 'desktop_workflow' as const, resource_kind: 'workflow' as const,
+      workflow_name: '回归检查', workflow_id: 'one', workflow_version: 3,
+      status: 'ready' as const, current: false }
+    const onExecute = vi.fn(async () => true)
+    render(<SlashHarness onExecute={onExecute} slashAvailability={{ ...availability, workflow: { enabled: true } }}
+      slashCatalog={{ ...catalog, workflow: { workflow: [script] } }} />)
+    await user.type(composer(), '/workflow 检查结果')
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('option', { name: /agent.slash.resourceKind.ssh/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /回归检查/ }))
+    await waitFor(() => expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({
+      command_id: 'workflow', resource_kind: 'workflow', candidate: script,
+    })))
+    expect(composer()).toHaveValue('检查结果')
+  })
+
+  it.each(['session', 'profile'] as const)('%s 可通过远程桌面分类选择精确目标', async (command) => {
+    const user = userEvent.setup()
+    const base = { id: 'desktop:one', resource_kind: 'desktop' as const, host_id: 'host', host_name: '测试桌面',
+      profile_id: 'profile', profile_name: 'VNC', protocol: 'vnc' as const, status: 'ready' as const, current: false }
+    const session = { ...base, kind: 'desktop_session' as const, session_id: 'desktop', connection_generation: 7, started_at: '2026-10-14T00:00:00Z' }
+    const profile = { ...base, kind: 'desktop_profile' as const }
+    const onExecute = vi.fn(async () => true)
+    render(<SlashHarness onExecute={onExecute} slashCatalog={{ ...catalog,
+      session: { ...catalog.session, desktop: [session] }, profile: { ...catalog.profile, desktop: [profile] },
+    }} />)
+    await user.type(composer(), `/${command}`)
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: /agent.slash.resourceKind.desktop/ }))
+    await user.click(screen.getByRole('option', { name: /测试桌面/ }))
+    await waitFor(() => expect(onExecute).toHaveBeenCalledWith(expect.objectContaining({
+      command_id: command, resource_kind: 'desktop', candidate: command === 'session' ? session : profile,
+    })))
+  })
+
   it('只由直接键入激活，粘贴同样的命令不会打开菜单', async () => {
     const user = userEvent.setup()
     const view = render(<SlashHarness />)

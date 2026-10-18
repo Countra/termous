@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { AgentSlashCandidateCatalog } from '#entities/agent'
+import type { AgentDesktopResourceBinding, AgentSlashCandidateCatalog } from '#entities/agent'
 import { projectCurrentAgentSlashCandidates } from './agentSlashProjection.ts'
 
 const catalog: AgentSlashCandidateCatalog = {
@@ -54,4 +54,27 @@ test('仅关联 SSH Profile 时只把对应 Profile 标为当前项', () => {
   assert.equal(projected.profile.ssh[0]?.ssh_profile_id, 'profile-two')
   assert.equal(projected.profile.ssh[0]?.current, true)
   assert.equal(projected.session.ssh.some(({ current }) => current), false)
+})
+
+test('桌面配置换主机或协议后不误标为当前项，会话同时核验 Profile 与连接代次', () => {
+  const profile: AgentDesktopResourceBinding = { kind: 'desktop_profile', desktop_profile_id: 'desktop-profile', desktop_profile_name: '桌面',
+    host_id: 'host', host_name: '目标', protocol: 'vnc', bound_at: '2026-10-14T00:00:00Z' }
+  const session: AgentDesktopResourceBinding = { ...profile, kind: 'desktop_session', session_id: 'desktop', connection_generation: 2 }
+  const candidate = { id: 'desktop-profile', kind: 'desktop_profile' as const, resource_kind: 'desktop' as const, profile_id: 'desktop-profile',
+    profile_name: '桌面', host_id: 'host', host_name: '目标', protocol: 'vnc' as const, status: 'ready' as const, current: false }
+  const desktopCatalog: AgentSlashCandidateCatalog = {
+    ...catalog,
+    profile: { ...catalog.profile, desktop: [candidate] },
+    session: { ...catalog.session, desktop: [{ ...candidate, kind: 'desktop_session', session_id: 'desktop', connection_generation: 2, started_at: profile.bound_at }] },
+  }
+  assert.equal(projectCurrentAgentSlashCandidates(desktopCatalog, [profile]).profile.desktop?.[0]?.current, true)
+  assert.equal(projectCurrentAgentSlashCandidates(desktopCatalog, [session]).session.desktop?.[0]?.current, true)
+  for (const binding of [profile, session]) {
+    for (const changes of [{ host_id: 'other' }, { protocol: 'rdp' as const }, { desktop_profile_id: 'other' }]) {
+      const result = projectCurrentAgentSlashCandidates(desktopCatalog, [{ ...binding, ...changes }])
+      assert.equal(result.profile.desktop?.[0]?.current, false)
+      assert.equal(result.session.desktop?.[0]?.current, false)
+    }
+  }
+  assert.equal(projectCurrentAgentSlashCandidates(desktopCatalog, [{ ...session, connection_generation: 3 }]).session.desktop?.[0]?.current, false)
 })

@@ -137,8 +137,13 @@ export function HostAssetForm({
             label={t('hosts.platform.label')}
             value={draft.platform}
             disabled={disabled}
-            options={[{ value: 'linux', label: t('hosts.platform.linux') }]}
-            onChange={() => onChange({ ...draft, platform: 'linux' })}
+            options={[
+              { value: 'linux', label: t('hosts.platform.linux') },
+              { value: 'windows', label: t('hosts.platform.windows') },
+            ]}
+            onChange={(platform) => {
+              if (platform === 'linux' || platform === 'windows') onChange({ ...draft, platform })
+            }}
           />
           <div className={`host-editor-field host-icon-select-field is-wide ${styles['is-wide']}`}>
             <span className="host-editor-field-label">

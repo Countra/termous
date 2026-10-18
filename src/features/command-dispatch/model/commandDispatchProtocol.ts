@@ -309,3 +309,17 @@ function requireEnum<Value extends string>(
   }
   return value as Value
 }
+
+export function decodeCommandDispatchCollection(value: unknown) {
+  const source = requireRecord(value, '命令任务集合缺失')
+  const revision = requireNonNegativeInteger(source.revision, '命令任务集合 revision 无效')
+  const items = requireArray(source.items, '命令任务集合无效').map(decodeCommandDispatchTask)
+  if (items.length > 49 || new Set(items.map(({ id }) => id)).size !== items.length) throw new CommandDispatchProtocolError('命令任务集合重复或超限')
+  return { revision, items }
+}
+
+export function decodeCommandDispatchCollectionEvent(value: unknown) {
+  const event = requireRecord(value, '命令任务集合事件无效')
+  if (event.type !== 'command_dispatch_collection_snapshot') throw new CommandDispatchProtocolError('命令任务集合事件类型无效')
+  return decodeCommandDispatchCollection(value)
+}

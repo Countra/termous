@@ -112,8 +112,15 @@
       "to": ".",
       "filter": [
         "termous-core.exe",
-        "termous-core"
+        "termous-core",
+        "termous-rdp.exe",
+        "termous-rdp"
       ]
+    },
+    {
+      "from": "../termous-rdp/licenses",
+      "to": "licenses/rdp",
+      "filter": ["*-LICENSE.txt"]
     }
   ],
   "extraResources": [

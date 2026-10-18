@@ -1,6 +1,23 @@
+import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
+import { registerSystemClipboardCapabilities } from './system-clipboard/lifecycle'
+import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
+import { RemoteControlRuntime } from './remoteControl/runtime'
+import { DetachedWindows } from './detached-windows/manager'
+import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
+import { registerDesktopFilesIPC } from './desktopFilesIPC'
+import { RemoteCore } from './remoteControl/core'
+import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
+import { appDebugModeArgument, settingsIPCChannels } from '#common/contracts'
+import { notificationIPCChannels } from '#common/contracts'
+import { NotificationRuntime } from './notifications/runtime'
+import { NotificationPreferencesStore } from './notifications/preferences'
+import { NotificationSubscription } from './notifications/subscription'
+import { registerNotificationIPC } from './notifications/ipc'
+
 import {
   app,
   BrowserWindow,
+  Notification,
   crashReporter,
   dialog,
   ipcMain,
@@ -26,14 +43,11 @@ import type {
   DataPortabilityProgress,
 } from '#common/contracts'
 import { termousReleasePageUrl } from '#common/release-page'
-import { AgentCoreRuntimeClient } from './agent/coreRuntimeClient'
-import { registerAgentRuntimeIPC } from './agent/ipc'
-import { AgentSkillBundleSource } from './agent/skillBundleSource'
+import { AgentCoreRuntimeClient, registerAgentRuntimeIPC, AgentSupervisor, UtilityWorkerFactory } from './agent/host/index'
+import { AgentSkillBundleSource } from './agent/skills/index'
 import { SkillInstaller } from './skills/installer'
 import { registerSkillInstallIPC } from './skills/ipc'
-import { registerLoginItemIPC } from './loginItemIPC'
-import { AgentSupervisor } from './agent/supervisor'
-import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
+import { createLoginItemAdapter } from './loginItemIPC'
 import { TerminalCompletionCoreClient } from './terminalCompletion/coreClient'
 import { TerminalCompletionRuntime } from './terminalCompletion/runtime'
 import { registerTerminalCompletionIPC } from './terminalCompletion/ipc'
@@ -92,6 +106,40 @@ const coreProcess = new CoreProcessManager({ logger: {
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
 } })
+let notificationDisposeIPC: (() => void) | null = null
+let notificationPreferences: NotificationPreferencesStore | null = null
+let notificationRuntime: NotificationRuntime | null = null
+let notificationSubscription: NotificationSubscription | null = null
+let notificationWarningAt = 0
+function warnNotification() {
+  if (Date.now() - notificationWarningAt < 60_000) return
+  notificationWarningAt = Date.now()
+  reportElectronProcessEvent('notification-unavailable', { component: 'notifications' })
+}
+
+async function initializeNotifications() {
+  if (notificationRuntime) return
+  const preferences = new NotificationPreferencesStore(path.join(app.getPath('userData'), 'notification-preferences.json'), warnNotification)
+  await preferences.load()
+  notificationPreferences = preferences
+  notificationRuntime = new NotificationRuntime({
+    // 主界面和所有独立窗口共用应用级焦点，窗口间切换不按消息来源分别判断。
+    background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && !BrowserWindow.getFocusedWindow()),
+    supported: () => Notification.isSupported(),
+    preferences: () => preferences.get(), language: () => appLanguage,
+    create: (title, body) => new Notification({ title, body, icon: APP_ICON }),
+    activate: () => {
+      revealMainWindow()
+      if (win && !win.isDestroyed()) win.webContents.send(notificationIPCChannels.activation)
+    },
+    warn: warnNotification,
+  })
+  notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, trusted: isTrustedMainIPCEvent })
+  const runtime = notificationRuntime
+  notificationSubscription = new NotificationSubscription({ config: () => coreProcess.initialize(), receive: (event) => runtime.accept(event), warn: warnNotification })
+  void notificationSubscription.start()
+}
+
 const skillsDirectory = VITE_DEV_SERVER_URL
   ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
   : path.join(process.resourcesPath, 'agent', 'skills')
@@ -141,6 +189,7 @@ let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
 let updateRuntime: ApplicationUpdateRuntime | null = null
 let appTheme: AppTheme = 'dark'
+let remoteControlRuntime: RemoteControlRuntime | undefined
 let appLanguage: AppLanguage = 'zh-CN'
 let mainWindowReady = false
 let startupReadyRequested = false
@@ -820,6 +869,12 @@ function showSplashWindow(focus = false) {
 }
 
 function prepareApplicationExit() {
+  notificationSubscription?.close()
+  notificationRuntime?.close()
+  notificationDisposeIPC?.()
+  notificationDisposeIPC = null
+  notificationRuntime = null
+  notificationSubscription = null
   closeSplashWindow()
   trayController.destroy()
 }
@@ -914,6 +969,7 @@ async function recoverApplicationAfterFailedUpdateInstall() {
   skillInstaller.resume()
   terminalCompletionRuntime.resume()
   trayController.initialize()
+  await initializeNotifications()
   if (win && !win.isDestroyed()) {
     win.webContents.reload()
   }
@@ -966,7 +1022,7 @@ function tryCompleteStartup() {
   }
 }
 
-function shouldAutoOpenDevTools() {
+function isAppDebugMode() {
   if (VITE_DEV_SERVER_URL) {
     return true
   }
@@ -1030,6 +1086,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: isAppDebugMode() ? [appDebugModeArgument] : [],
     },
   })
   registerDevToolsShortcut(win)
@@ -1044,7 +1101,7 @@ function createWindow() {
     } else {
       tryCompleteStartup()
     }
-    if (win && shouldAutoOpenDevTools()) {
+    if (win && isAppDebugMode()) {
       openDevTools(win)
     }
     const fatal = coreProcess.getFatal()
@@ -1161,8 +1218,8 @@ function registerCoreProcessControls() {
 function registerAgentRuntimeControls() {
   registerSkillInstallIPC({
     ipcMain,
-    installer: skillInstaller,
     isTrustedSender: isTrustedMainIPCEvent,
+    installer: skillInstaller,
     pickDirectory: async (event) => {
       const target = BrowserWindow.fromWebContents(event.sender)
       if (!target || target.isDestroyed()) return null
@@ -1176,8 +1233,8 @@ function registerAgentRuntimeControls() {
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerAgentRuntimeIPC({
     ipcMain,
-    supervisor: agentSupervisor,
     isTrustedSender: isTrustedMainIPCEvent,
+    supervisor: agentSupervisor,
     sendStatus: (status) => {
       const target = win
       if (target && !target.isDestroyed()) {
@@ -1251,6 +1308,7 @@ function registerAppearanceControls() {
       win.setBackgroundColor(theme === 'dark' ? '#0f1116' : '#f4f5f7')
     }
     updateRuntime?.updateAppearance(theme, appLanguage)
+    remoteControlRuntime?.updateAppearance()
     applyStartupWindowState()
     return writeCachedAppTheme(theme)
   })
@@ -1266,6 +1324,7 @@ function registerTrayControls() {
       applyStartupWindowState()
     }
     updateRuntime?.updateAppearance(appTheme, appLanguage)
+    remoteControlRuntime?.updateAppearance()
     return true
   })
 }
@@ -1706,20 +1765,58 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  const closeClipboardCapabilities = registerSystemClipboardCapabilities(ipcMain, coreProcess, isTrustedMainIPCEvent)
+  // before-quit 可能被退出协调器阻止；只有真正退出时才能永久移除桥接。
+  app.once('will-quit', closeClipboardCapabilities)
+  const detachedWindows = new DetachedWindows({
+    trusted: isTrustedMainIPCEvent, host: () => win, reveal: revealMainWindow,
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    renderer: path.join(RENDERER_DIST, 'index.html'), preload: path.join(__dirname, 'detached-preload.cjs'), devURL: VITE_DEV_SERVER_URL,
+    debugMode: isAppDebugMode(),
+  })
+  app.once('before-quit', () => detachedWindows.close())
+  const desktopAutomation = new DesktopAutomationRuntime({
+    config: () => coreProcess.initialize(),
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    preload: path.join(__dirname, 'desktop-automation-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
+  void desktopAutomation.start()
+  app.once('before-quit', () => desktopAutomation.close())
+  registerFileSystemClipboardIPC({
+    ipc: ipcMain,
+    core: new RemoteCore(() => coreProcess.initialize()),
+    trusted: isTrustedMainIPCEvent,
+    focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(),
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
+  registerDesktopFilesIPC({ ipc: ipcMain, core: new RemoteCore(() => coreProcess.initialize()), trusted: isTrustedMainIPCEvent, focused: event => !!BrowserWindow.fromWebContents(event.sender)?.isFocused(), warn: code => reportElectronProcessEvent(code, {}) })
+  remoteControlRuntime = new RemoteControlRuntime({
+    core: new RemoteCore(() => coreProcess.initialize()),
+    trusted: isTrustedMainIPCEvent,
+    preload: path.join(__dirname, 'remote-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    debugMode: isAppDebugMode(),
+    icon: APP_ICON,
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    warn: code => reportElectronProcessEvent(code, {}),
+  })
+  app.once('before-quit', () => remoteControlRuntime?.close())
   registerAgentRuntimeControls()
   registerStartupControls()
   registerAppearanceControls()
   registerWindowControls()
   registerTrayControls()
   registerApplicationBuildControls()
-  registerLoginItemIPC({
-    ipcMain,
+  const loginItemAdapter = createLoginItemAdapter({
     app,
     platform: process.platform,
     development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
     executablePath: process.execPath,
     entryName: APP_ID,
-    isTrustedSender: isTrustedMainIPCEvent,
   })
   registerExternalNavigationControls()
   registerFilePickers()
@@ -1762,6 +1859,15 @@ async function initializeApplication() {
     })
   }
   createSplashWindow()
+  await initializeNotifications()
+  const desktopSettings = new DesktopSettingsRuntime({
+    notifications: notificationSettingsAdapter(() => notificationPreferences, () => Notification.isSupported()),
+    updates: updateSettingsAdapter(() => updateRuntime),
+    login_item: loginItemSettingsAdapter(loginItemAdapter),
+  }, (event) => {
+    if (win && !win.isDestroyed()) win.webContents.send(settingsIPCChannels.changed, event)
+  })
+  registerSettingsIPC({ ipcMain, runtime: desktopSettings, trusted: isTrustedMainIPCEvent })
   createWindow()
   trayController.initialize()
   void coreProcess.initialize().then(() => {

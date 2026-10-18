@@ -1,0 +1,72 @@
+/* 主窗口与独立窗口共用控制按钮，分隔色沿用顶栏主题变量。 */
+
+.window-controls {
+  position: relative;
+  display: flex;
+  height: 36px;
+  align-self: center;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px 0 11px;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls::before {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  width: 1px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--topbar-divider-color, var(--border));
+  content: "";
+  transform: translateY(-50%);
+}
+
+.window-control:global(.ant-btn) {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+
+.window-control:global(.ant-btn):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 86%, #fff 4%);
+  color: var(--text-primary);
+}
+
+.window-control:global(.ant-btn):active {
+  transform: scale(0.96);
+}
+
+.window-control:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.window-control.danger:global(.ant-btn):hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: #ff8a84;
+
+  :global(:root[data-theme="light"]) & {
+    background: color-mix(in srgb, var(--danger) 10%, #fff 90%);
+    color: var(--danger);
+  }
+}
+
+@media (width <= 760px) {
+  .window-controls {
+    display: none;
+  }
+}

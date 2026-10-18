@@ -4,7 +4,7 @@ import {
   type HostProvisionDesktopInput,
 } from '#entities/host-asset'
 import { normalizeSSHAccessProfileDraft, type SSHAccessProfile } from '#entities/ssh-access-profile'
-import { normalizeVNCAccessProfileDraft } from '#features/manage-remote-desktop'
+import { normalizeRemoteDesktopAccessProfileDraft } from '#features/manage-remote-desktop'
 import type { HostCreationDraft } from './hostCreationTypes.ts'
 
 export const hostCreationTemporaryHostId = 'draft:host'
@@ -49,7 +49,7 @@ export function normalizeHostProvisionInput(state: HostCreationDraft): HostProvi
       }
     }),
     remote_desktops: state.remoteDesktops.map((item): HostProvisionDesktopInput => {
-      const input = normalizeVNCAccessProfileDraft(hostCreationTemporaryHostId, item.draft)
+      const input = normalizeRemoteDesktopAccessProfileDraft(hostCreationTemporaryHostId, item.draft)
       if (input.route === 'ssh_tunnel' && !localSSHIds.has(input.ssh_profile_id)) {
         throw new Error('远程桌面引用的本地 SSH 草稿不存在')
       }
@@ -58,11 +58,10 @@ export function normalizeHostProvisionInput(state: HostCreationDraft): HostProvi
         draft_id: item.id,
         name: input.name,
         description: input.description,
-        protocol: input.protocol,
+        ...(input.protocol === 'rdp' ? { protocol: 'rdp' as const, rdp: input.rdp } : { protocol: 'vnc' as const, vnc: input.vnc }),
         protocol_config_version: input.protocol_config_version,
         route: input.route,
         route_config_version: input.route_config_version,
-        vnc: input.vnc,
         ...(input.route === 'ssh_tunnel' ? { ssh_draft_id: input.ssh_profile_id } : {}),
         ...(item.targetAuthDraft.mutation === 'replace'
           ? { target_auth_password: item.targetAuthDraft.password }

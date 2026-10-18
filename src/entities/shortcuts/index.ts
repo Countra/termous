@@ -28,14 +28,13 @@ export {
 } from './model/runtime.ts'
 export { shortcutScopesOverlap } from './model/scopes.ts'
 export {
-  applyShortcutSettingsPatch,
   defaultShortcutSettings,
   normalizeShortcutSettings,
-  shortcutSettingsEqual,
 } from './model/settings.ts'
 export {
   ShortcutRuntimeContextProvider,
   useShortcutRuntime,
+  useShortcutAvailability,
   type ShortcutRuntimeContextValue,
 } from './model/shortcutRuntimeContext.ts'
 export {

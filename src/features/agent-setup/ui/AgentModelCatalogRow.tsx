@@ -16,6 +16,7 @@ import styles from './AgentModelCatalog.module.scss'
 interface AgentModelCatalogRowProps {
   provider: AgentModelProvider
   model: AgentModel
+  pendingDefaultModelId?: string
   defaultModelId?: string
   disabled: boolean
   onEdit: (model: AgentModel) => void
@@ -29,6 +30,7 @@ export function AgentModelCatalogRow({
   provider,
   model,
   defaultModelId,
+  pendingDefaultModelId,
   disabled,
   onEdit,
   onTest,
@@ -40,6 +42,7 @@ export function AgentModelCatalogRow({
   const removed = Boolean(model.removed_at)
   const available = isAgentModelRunnable(model, provider)
   const isDefault = defaultModelId === model.id
+  const isPendingDefault = pendingDefaultModelId === model.id
   const menuItems: MenuProps['items'] = removed ? [
     { key: 'restore', icon: <RotateCcw size={14} />, label: t('settings.agent.catalog.restore') },
   ] : [
@@ -47,7 +50,7 @@ export function AgentModelCatalogRow({
       key: 'default',
       icon: <CircleCheck size={14} />,
       label: t('settings.agent.catalog.setDefault'),
-      disabled: !available || isDefault,
+      disabled: !available || isDefault || isPendingDefault,
     },
     {
       key: 'test',
@@ -77,15 +80,19 @@ export function AgentModelCatalogRow({
   return (
     <article className={`${styles['catalog-row']} ${removed ? styles['is-removed'] : ''}`}>
       <Tooltip
-        placement="left"
+        placement="topLeft"
         trigger={['hover', 'focus']}
         mouseEnterDelay={0.35}
         rootClassName={`${uiStyles.tooltip} ${styles['catalog-detail-tooltip']}`}
         title={<ModelDetails provider={provider} model={model} />}
       >
         <div className={styles['catalog-model-copy']} tabIndex={0}>
-          <strong>{model.remote_model_id}</strong>
+          <div className={styles['catalog-model-identity']}>
+            <strong>{model.remote_model_id}</strong>
+            <small>{model.display_name !== model.remote_model_id ? model.display_name : `${formatTokens(model.effective_context_window_tokens)} ${t('settings.agent.catalog.detail.context')}`}</small>
+          </div>
           <span className={styles['catalog-model-status']}>
+            {isPendingDefault && <Tag color="processing">{t('settings.agent.catalog.pendingDefault')}</Tag>}
             {isDefault ? <Tag color="processing">{t('settings.agent.models.default')}</Tag> : null}
             {model.source === 'manual' ? <Tag>{t('settings.agent.catalog.manual')}</Tag> : null}
             {model.availability === 'missing' ? <Tag>{t('settings.agent.catalog.missing')}</Tag> : null}
@@ -94,6 +101,11 @@ export function AgentModelCatalogRow({
         </div>
       </Tooltip>
       <div className={styles['catalog-actions']}>
+        {!removed && <Tooltip title={t('settings.agent.catalog.edit')} rootClassName={uiStyles.tooltip}>
+          <Button type="text" icon={<SlidersHorizontal size={14} aria-hidden="true" />}
+            aria-label={t('settings.agent.catalog.editModel', { model: model.remote_model_id })}
+            disabled={disabled} onClick={() => onEdit(model)} />
+        </Tooltip>}
         <Dropdown
           trigger={['click']}
           disabled={disabled}

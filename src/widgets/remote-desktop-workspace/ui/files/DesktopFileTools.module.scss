@@ -1,0 +1,241 @@
+.share {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface-subtle);
+}
+
+.share > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.share > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.share span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.share code {
+  color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.toolbar {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.toolbar > :global(.ant-btn) { margin-inline-start: auto; }
+
+.upload-group {
+  display: flex;
+  gap: 1px;
+}
+
+.upload-group > :global(.ant-btn):first-child {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.upload-group > :global(.ant-btn):last-child {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  padding-inline: 8px;
+}
+
+.path {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: var(--surface-subtle);
+}
+
+.path > :global(.ant-breadcrumb) {
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+  scrollbar-width: thin;
+}
+.path :global(.ant-breadcrumb) ol { flex-wrap: nowrap; }
+
+.path :global(.ant-breadcrumb) button {
+  border: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.path :global(.ant-breadcrumb) button:hover { color: var(--accent); }
+.path :global(.ant-breadcrumb) button:focus-visible { outline: 2px solid var(--accent); }
+
+.browser {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+}
+.browser > :global(.ant-alert) { flex-shrink: 0; }
+
+.browser > p {
+  margin: 0;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.exchange-picker:global(.ant-select) {
+  width: 220px;
+  max-width: 100%;
+}
+
+.mapping-list {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 10px;
+  padding-bottom: 8px;
+  overflow: auto;
+}
+
+.mapping {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.mapping-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.mapping-title > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.mapping-title strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.mapping-title span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.mapping-title :global(.ant-tag) {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.mapping-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+}
+
+.mapping-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mapping-footer :global(.ant-checkbox-wrapper) {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mapping code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.paused-exchange {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--surface-subtle);
+  font-size: 12px;
+}
+
+.retained-picker {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.retained-picker > :global(.ant-select) {
+  min-width: 0;
+  flex: 1;
+}
+
+.retained-meta {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.retained-meta :global(.ant-tag) { margin: 0; }
+
+@container (max-width: 560px) {
+  .mapping { padding: 12px; }
+
+  .share > div {
+    flex-direction: column;
+    align-items: start;
+  }
+}

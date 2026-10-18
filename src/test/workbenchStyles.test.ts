@@ -8,15 +8,16 @@ function readSource(relativePath: string) {
 }
 
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
-const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')
+const sessionStyles = readSource('../features/session-tabs/ui/SessionTabs.module.scss')
 const detailsStyles = readSource('../widgets/workbench/ui/WorkbenchDetails.module.scss')
 const sessionTabButtonSource = readSource('../shared/ui/SessionTabButton.tsx')
 const sessionTabStripSource = readSource('../shared/ui/SessionTabStrip.tsx')
 const workbenchSessionTabsSource = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.tsx')
 const workbenchPageSource = readSource('../widgets/workbench/ui/WorkbenchPage.tsx')
 const workbenchTerminalPanelSource = readSource('../widgets/workbench/ui/WorkbenchTerminalPanel.tsx')
-const commandDispatchDockSource = readSource('../features/command-dispatch/ui/CommandDispatchDock.tsx')
 const commandDispatchDockStyles = readSource('../features/command-dispatch/ui/CommandDispatchDock.module.scss')
+const commandDispatchResultsSource = readSource('../features/command-dispatch/ui/CommandDispatchResults.tsx')
+const commandDispatchResultsStyles = readSource('../features/command-dispatch/ui/CommandDispatchResults.module.scss')
 const commandOutputViewportStyles = readSource('../features/command-dispatch/ui/CommandOutputViewport.module.scss')
 
 test('工作台模块保留终端布局与响应式合同', () => {
@@ -129,7 +130,8 @@ test('会话命令台使用内嵌底部抽屉完成展开和折叠', () => {
     pageStyles,
     /\.terminal-command-resize-edge\s*\{[^}]*height:\s*6px;[^}]*cursor:\s*ns-resize;[^}]*touch-action:\s*none;/s,
   )
-  assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*grid-template-rows:\s*34px 46px minmax\(0, 1fr\);/s)
+  assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*grid-template-rows:\s*40px minmax\(0, 1fr\);/s)
+  assert.match(commandDispatchDockStyles, /\.workspace\s*\{[^}]*grid-template-columns:\s*clamp\(250px, 30%, 340px\) minmax\(0, 1fr\);/s)
   assert.match(commandDispatchDockStyles, /\.title\s*\{[^}]*height:\s*100%;[^}]*align-items:\s*center;/s)
   assert.match(pageStyles, /\.terminal-command-dock-slot\.is-resizing\s*\{[^}]*transition:\s*none;/s)
   assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*height:\s*100%;/s)
@@ -143,15 +145,15 @@ test('会话命令台使用内嵌底部抽屉完成展开和折叠', () => {
     commandOutputViewportStyles,
     /\.root :global\(\.xterm\),\s*\.root :global\(\.xterm-screen\),\s*\.root :global\(\.xterm-viewport\)\s*\{[^}]*background-color:\s*var\(--command-output-background, var\(--terminal-bg\)\);/s,
   )
-  assert.match(commandDispatchDockSource, /data-exit-code-status=\{display\.code === 0 \? 'success' : 'failure'\}/)
+  assert.match(commandDispatchResultsSource, /data-exit-code-status=\{display\.code === 0 \? 'success' : 'failure'\}/)
   for (const status of ['success', 'failure', 'unknown']) {
     assert.match(
-      commandDispatchDockStyles,
+      commandDispatchResultsStyles,
       new RegExp(`\\.exit-code\\[data-exit-code-status='${status}'\\]\\s*\\{`),
     )
   }
   assert.match(
-    commandDispatchDockStyles,
-    /\.exit-code\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*box-sizing:\s*border-box;[^}]*line-height:\s*18px;[^}]*text-align:\s*center;/s,
+    commandDispatchResultsStyles,
+    /\.exit-code\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*box-sizing:\s*border-box;[^}]*line-height:\s*16px;[^}]*text-align:\s*center;/s,
   )
 })

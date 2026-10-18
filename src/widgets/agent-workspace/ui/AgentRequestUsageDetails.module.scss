@@ -1,0 +1,154 @@
+.root {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 660px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.summary {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  list-style: none;
+  padding: 1px 5px 1px 0;
+  transition: color 0.14s ease;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:hover,
+.summary:focus-visible {
+  color: var(--text-secondary);
+}
+
+.summary:focus-visible,
+.help:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chevron {
+  flex: none;
+  transition: transform 0.14s ease;
+}
+
+.root[open] .chevron {
+  transform: rotate(90deg);
+}
+
+.count {
+  padding-left: 2px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  min-width: 0;
+  padding: 2px 0 0 17px;
+}
+
+.scroll {
+  max-height: 220px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-block: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+}
+
+.scroll table {
+  width: 100%;
+  min-width: 540px;
+  border-collapse: collapse;
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll th,
+.scroll td {
+  padding: 6px 9px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.scroll th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: rgb(from var(--surface) r g b / 100%);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.scroll td {
+  color: color-mix(in srgb, var(--text-secondary) 75%, var(--text-muted));
+}
+
+.scroll tr + tr td {
+  border-top: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+.scroll tbody tr:hover {
+  background: color-mix(in srgb, var(--row-hover-bg) 55%, transparent);
+}
+
+.scroll th:first-child,
+.scroll td:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.scroll th:last-child,
+.scroll td:last-child {
+  padding-right: 2px;
+}
+
+.index {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 7px;
+  color: var(--text-muted);
+}
+
+.scroll .status {
+  color: var(--text-muted);
+}
+
+.scroll .status[data-outcome='failed'] {
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-muted));
+}
+
+.help {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: help;
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 0;
+}
+
+.help:hover {
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary,
+  .chevron {
+    transition: none;
+  }
+}

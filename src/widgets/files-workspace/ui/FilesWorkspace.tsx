@@ -1,3 +1,4 @@
+import { systemClipboardReasonKey } from '#entities/system-clipboard'
 import { App as AntdApp, Breadcrumb, Button, Dropdown, Grid, Input, Table, Tooltip } from 'antd'
 import type { InputRef, MenuProps, TableColumnsType, TableProps } from 'antd'
 import type { TableRef } from 'antd/es/table'
@@ -24,7 +25,6 @@ import {
   MoreHorizontal,
   PanelRight,
   Pencil,
-  Plus,
   RefreshCw,
   Scissors,
   ShieldCheck,
@@ -53,12 +53,13 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, ConnectionEmptyState, EmptyState, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
 import type { HostAsset } from '#entities/host-asset'
 import type { FileAccessProfile } from '#entities/file-access-profile'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { fileOperationCapabilities } from '#entities/file'
 import type { AgentConnectionReferenceProps } from '#entities/agent'
 import type { ThemeMode } from '#shared/theme'
@@ -80,7 +81,8 @@ import type {
   RemoteFileEntry,
   TransferTask,
 } from '#entities/file'
-import type { FileGateway } from '#features/files'
+import { captureFileClipboard, isFileClipboardCurrent, readClipboardUpload, useFileSystemClipboard, type FileClipboardStamp, type FileGateway } from '#features/files'
+import { TermousApiError } from '#shared/api'
 import {
   createUploadWithConflictDecision,
   FilesBottomDrawer,
@@ -161,7 +163,7 @@ import {
 } from '../model/useFilesTransferRefresh'
 import { useFileSessionStatusSync } from '../model/useFileSessionStatusSync'
 import { useFilesWorkspaceDragController } from './useFilesWorkspaceDragController'
-import { FileSessionTab } from './FileSessionTab'
+import { FileSessionTabs } from './FileSessionTabs'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -188,6 +190,7 @@ const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 
 export interface FilesWorkspaceData {
   fileAccessProfiles?: FileAccessProfile[]
+  sshAccessProfiles?: SSHAccessProfile[]
   hosts: Host[]
   hostAssets?: HostAsset[]
   fileSessions: FileSession[]
@@ -205,6 +208,8 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 }
 
 export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
+  notificationTransferId?: string
+  onNotificationTransferHandled?: () => void
   fileGateway: FileGateway
   automaticRemoteRequestsEnabled?: boolean
   getHostIconUrl: (iconId: string) => string
@@ -217,7 +222,8 @@ export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
   onOpenFileSessionLauncher: () => void
   onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
-  onCloseFileSession: (fileSessionId: string) => Promise<void>
+  onCloseFileSession: (fileSessionId: string) => Promise<boolean>
+  onRestartFileSession: (session: FileSession, initialPath: string) => Promise<FileSession | null>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
   onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
@@ -235,6 +241,7 @@ export interface FilesWorkspaceProps extends AgentConnectionReferenceProps {
 }
 
 interface RemoteClipboard {
+  systemStamp: FileClipboardStamp
   mode: 'copy' | 'cut'
   fileSessionId: string
   hostId: string
@@ -357,6 +364,8 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 }
 
 function FilesWorkspaceContent({
+  notificationTransferId,
+  onNotificationTransferHandled,
   fileGateway,
   automaticRemoteRequestsEnabled = true,
   getHostIconUrl,
@@ -370,6 +379,7 @@ function FilesWorkspaceContent({
   onConnectFileSession,
   onSelectFileSession,
   onCloseFileSession,
+  onRestartFileSession,
   onReconnectFileSession,
   onUpdateFileSession,
   onCreateFileBookmark,
@@ -465,6 +475,9 @@ function FilesWorkspaceContent({
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
+  const systemClipboard = useFileSystemClipboard(() => setRemoteClipboard(null))
+  const pastePendingRef = useRef(false)
+  const [pastePending, setPastePending] = useState(false)
   const [moveOperation, setMoveOperation] = useState<{ task: FileOperationTask; clipboard: RemoteClipboard | null; rename?: { sourcePath: string; targetPath: string } } | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
   const [renameTarget, setRenameTarget] = useState<(SessionBoundRemoteEntry & { connectionGeneration: number }) | null>(null)
@@ -516,6 +529,11 @@ function FilesWorkspaceContent({
   const inspectorOpen = sidePanelMode === 'details'
   const localConsoleOpen = auxiliarySurface === 'local'
   const transfersOpen = auxiliarySurface === 'transfers'
+  useEffect(() => {
+    if (!notificationTransferId) return
+    setTransferScope('all')
+    setAuxiliarySurface('transfers')
+  }, [notificationTransferId])
   const updateSidePanelMode = useCallback((mode: FilesSidePanelState) => {
     sidePanelModeRef.current = mode
     setSidePanelMode(mode)
@@ -811,7 +829,7 @@ function FilesWorkspaceContent({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: () => finish(true),
       onCancel: () => finish(false),
       afterClose: () => finish(false),
@@ -1031,10 +1049,6 @@ function FilesWorkspaceContent({
   const loading = directoryRequestLoading || initialDirectoryLoading
   fileSessionsRef.current = data.fileSessions
   localPathMappingsRef.current = data.localPathMappings
-  const displayedFileSessionKey = useMemo(
-    () => data.fileSessions.map((session) => session.id).join('|'),
-    [data.fileSessions],
-  )
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
@@ -1255,12 +1269,12 @@ function FilesWorkspaceContent({
   }, [cancelRecoveryForFileSession, closingFileSessionIds])
 
   const closeFileSessionTab = useCallback(
-    (fileSessionId: string) => {
+    async (fileSessionId: string) => {
       if (closingFileSessionIdSet.has(fileSessionId)) {
-        return
+        return false
       }
       cancelRecoveryForFileSession(fileSessionId)
-      void onCloseFileSession(fileSessionId)
+      return onCloseFileSession(fileSessionId)
     },
     [cancelRecoveryForFileSession, closingFileSessionIdSet, onCloseFileSession],
   )
@@ -1272,7 +1286,7 @@ function FilesWorkspaceContent({
       }
       event.preventDefault()
       event.stopPropagation()
-      closeFileSessionTab(fileSessionId)
+      void closeFileSessionTab(fileSessionId)
     },
     [closeFileSessionTab],
   )
@@ -1471,19 +1485,21 @@ function FilesWorkspaceContent({
     )
     if (
       !fileSessionId
-      || paths.length === 0
+      || source !== 'clipboard' && paths.length === 0
       || !fileOperationCapabilities(fileSession).receive
       || !isCurrentUploadSession()
     ) {
-      return
+      return false
     }
 
     try {
+      const selection = source === 'clipboard' ? await readClipboardUpload(fileSession!) : null
+      if (source === 'clipboard' && !selection) return false
       const task = await createUploadWithConflictDecision({
         source,
-        paths,
+        paths: selection?.paths ?? paths,
         targetPath: remoteDir,
-        createGrant: api.createLocalFileGrant,
+        createGrant: selection?.createGrant ?? api.createLocalFileGrant,
         releaseGrant: api.releaseLocalFileGrant,
         stat: (path) => api.statFileSessionFile(fileSessionId, path),
         requestPolicy: uploadConflictDecision.requestPolicy,
@@ -1506,6 +1522,7 @@ function FilesWorkspaceContent({
               'rename',
               overwriteItemIds,
               overwriteConfirmations,
+              connectionGeneration,
             )
             trackUploadRefreshTask(nextTask)
             upsertTransfer(nextTask)
@@ -1518,7 +1535,7 @@ function FilesWorkspaceContent({
         },
       })
       if (!task) {
-        return
+        return true
       }
       notification.success({
         title: t('files.transferCreated'),
@@ -1527,8 +1544,11 @@ function FilesWorkspaceContent({
         className: termousNotificationClassName,
       })
     } catch (actionError) {
-      notifyError(actionError)
+      if (source === 'clipboard' && actionError instanceof TermousApiError && actionError.code.startsWith('FILE_CLIPBOARD_')) {
+        notification.error({ title: t('files.systemClipboard.pasteFailed'), description: t(`files.systemClipboard.errors.${actionError.code}`, { defaultValue: t('files.operationFailed') }), className: termousNotificationClassName })
+      } else notifyError(actionError)
     }
+    return true
   }
 
   const downloadPathsToLocalDir = async (
@@ -1767,16 +1787,25 @@ function FilesWorkspaceContent({
   }
 
   const pasteFromClipboard = async () => {
-    if (remoteClipboard) {
-      await pasteRemoteClipboard()
-      return
-    }
-    if (!operationCapabilities.receive) return
-    const filesBridge = getTermousBridge()?.files
-    const paths = await filesBridge?.readClipboardFilePaths()
-    if (paths?.length) {
-      await uploadLocalPaths('clipboard', paths)
-    }
+    if (pastePendingRef.current || !fileActionsEnabled || !operationCapabilities.receive) return
+    const targetSessionId = activeFileSession?.id ?? ''
+    const targetGeneration = activeFileSession?.connection_generation ?? 0
+    const isCurrent = () => activeFileSessionIdRef.current === targetSessionId && isCurrentFileListingAvailable(targetSessionId, targetGeneration)
+    pastePendingRef.current = true
+    setPastePending(true)
+    try {
+      if (remoteClipboard) {
+        const useInternal = await isFileClipboardCurrent(remoteClipboard.systemStamp)
+        if (!isCurrent()) return
+        if (useInternal) { await pasteRemoteClipboard(); return }
+        setRemoteClipboard(current => current === remoteClipboard ? null : current)
+      }
+      if (!isCurrent()) return
+      if (await uploadLocalPaths('clipboard', [])) return
+      notification.info({ title: t('files.systemClipboard.pasteEmpty'), className: termousNotificationClassName })
+    } catch (error) {
+      notification.error({ title: t('files.systemClipboard.pasteFailed'), description: error instanceof TermousApiError ? t(`files.systemClipboard.errors.${error.code}`, { defaultValue: t('files.operationFailed') }) : t('files.operationFailed'), className: termousNotificationClassName })
+    } finally { pastePendingRef.current = false; setPastePending(false) }
   }
 
   const openCreateDirectory = () => {
@@ -1793,7 +1822,7 @@ function FilesWorkspaceContent({
       okText: t('app.create'),
       cancelText: t('app.cancel'),
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
@@ -1982,7 +2011,7 @@ function FilesWorkspaceContent({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         await api.deleteFileSessionFiles(fileSessionId, paths, true)
@@ -2010,6 +2039,7 @@ function FilesWorkspaceContent({
       return
     }
     setRemoteClipboard({
+      systemStamp: captureFileClipboard(),
       mode,
       fileSessionId: activeFileSession.id,
       hostId: activeFileSession.host_id,
@@ -2105,7 +2135,7 @@ function FilesWorkspaceContent({
     },
     onSelectPaths: setSelectedPaths,
     onSetActiveEntry: setActiveEntry,
-    onUploadLocalPaths: (paths, targetPath) => uploadLocalPaths('drop', paths, targetPath),
+    onUploadLocalPaths: async (paths, targetPath) => { await uploadLocalPaths('drop', paths, targetPath) },
     onMoveRemotePathsToDirectory: moveRemotePathsToDirectory,
     onRemoteMoveUnavailable: notifyRemoteMoveUnavailable,
     onDroppedPathsUnavailable: notifyDroppedPathsUnavailable,
@@ -2265,7 +2295,11 @@ function FilesWorkspaceContent({
   }, [updateActiveWorkspaceView])
 
   const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
-    const items = buildRemoteFileActionMenu(entry, t, { capabilities: activeFileSession?.capabilities }) ?? []
+    const items = buildRemoteFileActionMenu(entry, t, {
+      capabilities: activeFileSession?.capabilities,
+      systemCopy: systemClipboard.visible,
+      systemCopyUnavailable: systemClipboard.available ? undefined : t(systemClipboardReasonKey(systemClipboard.reason)),
+    }) ?? []
     return items.flatMap((item) => {
       if (!item || !('key' in item) || item.key !== 'download') {
         return [item]
@@ -2343,9 +2377,11 @@ function FilesWorkspaceContent({
       openFile: openFileEntry,
       download: () => void downloadPaths(actionPaths),
       sendToHost: openRemoteCopy,
+      copyToSystem: () => { if (activeFileSession) void systemClipboard.copy(activeFileSession, actionPaths) },
       copy: () => {
         if (activeFileSession) {
           setRemoteClipboard({
+            systemStamp: captureFileClipboard(),
             mode: 'copy',
             fileSessionId: activeFileSession.id,
             hostId: activeFileSession.host_id,
@@ -2357,6 +2393,7 @@ function FilesWorkspaceContent({
       cut: () => {
         if (activeFileSession) {
           setRemoteClipboard({
+            systemStamp: captureFileClipboard(),
             mode: 'cut',
             fileSessionId: activeFileSession.id,
             hostId: activeFileSession.host_id,
@@ -2714,7 +2751,15 @@ function FilesWorkspaceContent({
     workspaceViewState.focusedPath,
   ])
 
+  const copyToSystem = () => {
+    const paths = selectedPaths.length ? selectedPaths : workspaceViewState.focusedPath ? [workspaceViewState.focusedPath] : []
+    if (!systemClipboard.available || !activeFileSession || !fileActionsEnabled || !paths.length) return 'fallthrough' as const
+    void systemClipboard.copy(activeFileSession, paths)
+    return 'handled' as const
+  }
   const filesShortcutStateRef = useRef({
+    pasteFromClipboard,
+    copyToSystem,
     fileActionsEnabled,
     entries,
     focusedPath: workspaceViewState.focusedPath,
@@ -2726,6 +2771,8 @@ function FilesWorkspaceContent({
     confirmDelete,
   })
   filesShortcutStateRef.current = {
+    pasteFromClipboard,
+    copyToSystem,
     fileActionsEnabled,
     entries,
     focusedPath: workspaceViewState.focusedPath,
@@ -2761,6 +2808,8 @@ function FilesWorkspaceContent({
         ?? null
     }
     const disposeHandlers = [
+      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.paste', () => { void filesShortcutStateRef.current.pasteFromClipboard(); return 'handled' }),
+      ...(systemClipboard.visible ? [shortcutRuntime.registerHandler(filesShortcutContextId, 'files.copy_to_system', () => filesShortcutStateRef.current.copyToSystem())] : []),
       shortcutRuntime.registerHandler(filesShortcutContextId, 'files.select_all', () => {
         const current = filesShortcutStateRef.current
         const entry = focusedEntry()
@@ -2805,10 +2854,10 @@ function FilesWorkspaceContent({
       disposeHandlers.reverse().forEach((dispose) => dispose())
       disposeContext()
     }
-  }, [filesShortcutContextId, shortcutRuntime])
+  }, [filesShortcutContextId, shortcutRuntime, systemClipboard.visible])
 
   const handleFileTableKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!fileActionsEnabled || entries.length === 0) {
+    if (!fileActionsEnabled) {
       return
     }
     const target = event.target
@@ -2830,6 +2879,11 @@ function FilesWorkspaceContent({
         event.preventDefault()
         event.stopPropagation()
       }
+    }
+    // 粘贴等目录级操作不依赖文件行；空目录也必须进入统一快捷键分发。
+    if (entries.length === 0) {
+      dispatchFileShortcut()
+      return
     }
     const navigationKey = [
       'ArrowUp',
@@ -3222,47 +3276,27 @@ function FilesWorkspaceContent({
     >
       <main className={styles['files-main-panel']} data-tour="files-workspace">
         <div className={`files-session-toolbar ${styles['terminal-toolbar']} terminal-toolbar`}>
-          <SessionTabStrip
-            ariaLabel={t('files.sessions')}
+          <FileSessionTabs
+            sessions={data.fileSessions}
+            hosts={[...(data.hostAssets ?? []), ...data.hosts]}
+            profiles={data.fileAccessProfiles}
+            sshAccessProfiles={data.sshAccessProfiles}
             activeId={activeFileSessionId}
-            contentKey={displayedFileSessionKey}
-            scrollLeftLabel={t('workbench.scrollTabsLeft')}
-            scrollRightLabel={t('workbench.scrollTabsRight')}
-            tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
-            trailing={(
-              <SessionNewTabButton
-                label={t('files.openFileSession')}
-                onClick={onOpenFileSessionLauncher}
-              />
-            )}
-          >
-            {data.fileSessions.length === 0 ? (
-              <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />
-            ) : (
-              data.fileSessions.map((fileSession) => {
-                const host = data.hostAssets?.find((item) => item.id === fileSession.host_id) ?? data.hosts.find((item) => item.id === fileSession.host_id)
-                const profile = data.fileAccessProfiles?.find((item) => item.id === fileSession.file_access_profile_id)
-                const label = profile?.name ?? host?.name ?? shortId(fileSession.id)
-                const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
-                return (
-                  <FileSessionTab
-                    getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
-                    onReferenceAgentConnection={onReferenceAgentConnection}
-                    key={fileSession.id}
-                    fileSession={fileSession}
-                    host={host}
-                    getHostIconUrl={getHostIconUrl}
-                    label={label}
-                    active={fileSession.id === activeFileSessionId}
-                    closing={sessionClosing}
-                    onSelect={onSelectFileSession}
-                    onAuxClose={closeFileSessionFromTab}
-                    onClose={closeFileSessionTab}
-                  />
-                )
-              })
-            )}
-          </SessionTabStrip>
+            closingIds={closingFileSessionIdSet}
+            getHostIconUrl={getHostIconUrl}
+            getPath={(session) => normalizeRemotePath(workspaceStatesRef.current[session.id]?.committedPath || session.current_path || '/')}
+            onConnect={onConnectFileSession}
+            onClose={closeFileSessionTab}
+            onRestart={async (session, initialPath) => {
+              cancelRecoveryForFileSession(session.id)
+              return onRestartFileSession(session, initialPath)
+            }}
+            onSelect={onSelectFileSession}
+            onAuxClose={closeFileSessionFromTab}
+            onOpenLauncher={onOpenFileSessionLauncher}
+            getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+            onReferenceAgentConnection={onReferenceAgentConnection}
+          />
         </div>
 
         <div className={styles['files-location-bar']} role="toolbar" aria-label={t('files.pathNavigation')}>
@@ -3549,6 +3583,18 @@ function FilesWorkspaceContent({
                 <span className={styles['files-selection-summary']}>
                   {t('files.selectedCount', { count: selectedPaths.length })}
                 </span>
+                {systemClipboard.visible && (
+                  <Button
+                    type="text"
+                    className={styles['files-command-button']}
+                    title={systemClipboard.available ? undefined : t(systemClipboardReasonKey(systemClipboard.reason))}
+                    disabled={!systemClipboard.available || systemClipboard.cancelling || !fileActionsEnabled || systemClipboard.state.phase === 'preparing'}
+                    icon={<Copy size={15} />}
+                    onClick={copyToSystem}
+                  >
+                    {t('files.systemClipboard.copy')}
+                  </Button>
+                )}
                 <Button
                   type="text"
                   className={styles['files-command-button']}
@@ -3635,6 +3681,7 @@ function FilesWorkspaceContent({
                   disabled={actionDisabled || !operationCapabilities.receive}
                   icon={<Clipboard size={15} aria-hidden="true" />}
                   onClick={() => void pasteFromClipboard()}
+                  loading={pastePending}
                 >
                   {t('files.paste')}
                 </Button>
@@ -3738,21 +3785,12 @@ function FilesWorkspaceContent({
             onKeyDown={handleFileTableKeyDown}
           >
             {!activeFileSession ? (
-              <div className={styles['files-workspace-empty']}>
-                <span className={styles['files-workspace-empty-icon']}>
-                  <Folder size={28} aria-hidden="true" />
-                </span>
-                <strong>{t('files.noFileSession')}</strong>
-                <p>{t('files.noFileSessionHint')}</p>
-                <Button
-                  type="primary"
-                  className={styles['files-upload-button']}
-                  icon={<Plus size={16} aria-hidden="true" />}
-                  onClick={onOpenFileSessionLauncher}
-                >
-                  {t('files.openFileSession')}
-                </Button>
-              </div>
+              <ConnectionEmptyState
+                icon={<Folder size={20} aria-hidden="true" />}
+                title={t('files.emptySessionTitle')}
+                description={t('files.noFileSessionHint')}
+                onConnect={onOpenFileSessionLauncher}
+              />
             ) : activeFileSession.status !== 'connected' && !activeFileSessionHasCachedDirectory ? (
               <FileSessionProgress
                 fileSession={activeFileSession}
@@ -4065,6 +4103,8 @@ function FilesWorkspaceContent({
                 />
               </header>
               <TransferQueuePanel
+                focusedTransferId={notificationTransferId}
+                onFocusedTransferHandled={onNotificationTransferHandled}
                 transfers={scopedTransfers}
                 pendingOperations={scopedPendingOperations}
                 pendingActionIds={pendingTransferActionIds}

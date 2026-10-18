@@ -7,10 +7,52 @@ import type {
 } from '#entities/remote-desktop'
 import { TermousApiTransport } from '#shared/api'
 import type { RemoteDesktopGateway } from './remoteDesktopGateway.ts'
+import { DesktopFilesClient } from './DesktopFilesClient.ts'
 
 export class RemoteDesktopClient extends TermousApiTransport implements RemoteDesktopGateway {
+  readonly automation = {
+    show: (id: string, generation: number, host: string) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/show`, { method: 'POST', body: { expected_connection_generation: generation, host_id: host } }),
+    reclaim: (id: string, generation: number) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/automation/reclaim`, { method: 'POST', body: { expected_connection_generation: generation } }),
+  }
+  readonly desktopFiles: DesktopFilesClient
+  readonly execution = {
+    connect: async (id: string, generation: number, readOnly: boolean) => {
+      const value = await this.request<{ path: string; ticket: string }>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/executor-ticket`, {
+        method: 'POST', body: { expected_connection_generation: generation, read_only: readOnly, ...(window.location.protocol === 'file:' ? { viewer_origin: 'null' } : {}) },
+      })
+      const url = new URL(value.path, this.config.apiBaseUrl)
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      url.search = ''
+      return { url: url.toString(), ticket: value.ticket }
+    },
+    reclaim: (id: string, generation: number, readOnly: boolean) => this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/reclaim`, {
+      method: 'POST', body: { expected_connection_generation: generation, read_only: readOnly },
+    }),
+  }
+  supplyRemoteDesktopCredentials(id: string, generation: number, password: string) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/credentials`, {
+      method: 'POST', body: { expected_connection_generation: generation, password },
+    })
+  }
+  resolveRemoteDesktopCertificate(id: string, generation: number, challengeId: string, accept: boolean, remember: boolean) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/certificate`, {
+      method: 'POST', body: { expected_connection_generation: generation, challenge_id: challengeId, accept, remember },
+    })
+  }
+
+  takeRemoteDesktopControl(id: string, generation: number, subscriptionId: string) {
+    return this.request<void>(`/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/control`, {
+      method: 'POST', body: { expected_connection_generation: generation, subscription_id: subscriptionId },
+    })
+  }
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
+    this.desktopFiles = new DesktopFilesClient(config)
+  }
+
+  override updateConfig(config: Partial<AppConfig>) {
+    super.updateConfig(config)
+    this.desktopFiles.updateConfig(config)
   }
 
   remoteDesktopProfiles() {
@@ -94,7 +136,10 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
       `/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/attach-tickets`,
       {
         method: 'POST',
-        body: { expected_connection_generation: expectedConnectionGeneration },
+        body: {
+          expected_connection_generation: expectedConnectionGeneration,
+          ...(window.location.protocol === 'file:' ? { viewer_origin: 'null' } : {}),
+        },
       },
     )
   }

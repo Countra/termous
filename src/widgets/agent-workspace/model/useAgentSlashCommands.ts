@@ -1,5 +1,5 @@
 import {
-  agentSlashResourceKinds,
+  agentSlashKindsForCommand,
   type AgentSlashCandidate,
   type AgentSlashCandidateCatalog,
   type AgentSlashCommandId,
@@ -126,7 +126,7 @@ export function useAgentSlashCommands({
       return
     }
     if (state.level === 'kind') {
-      if (state.active_id && agentSlashResourceKinds.includes(state.active_id)
+      if (state.active_id && agentSlashKindsForCommand(state.command_id).includes(state.active_id)
         && resourceKindAvailability(availability, state.command_id, state.active_id).enabled) return
       const activeId = initialResourceKind(state.command_id, availability)
       if (activeId !== state.active_id) dispatch({ type: 'set_active', active_id: activeId })
@@ -239,6 +239,7 @@ export function useAgentSlashCommands({
       return
     }
     dispatch({ type: 'open_kind', command_id: commandId, active_id: initialResourceKind(commandId, availability) })
+    if (commandId === 'workflow') dispatch({ type: 'open_resource', resource_kind: 'workflow' })
   }, [availability, execute])
 
   const confirmKind = useCallback(() => {
@@ -268,7 +269,7 @@ export function useAgentSlashCommands({
     if (currentState.level === 'root') {
       ids = currentState.matching_command_ids.filter((commandId) => availability?.[commandId]?.enabled)
     } else if (currentState.level === 'kind') {
-      ids = agentSlashResourceKinds.filter((kind) => (
+      ids = agentSlashKindsForCommand(currentState.command_id).filter((kind) => (
         resourceKindAvailability(availability, currentState.command_id, kind).enabled
       ))
     } else {
@@ -328,6 +329,7 @@ export function useAgentSlashCommands({
       command_id: commandId,
       active_id: initialResourceKind(commandId, availability),
     })
+    if (commandId === 'workflow') dispatch({ type: 'open_resource', resource_kind: 'workflow' })
   }, [availability, execute])
 
   const onSelectKind = useCallback((resourceKind: AgentSlashResourceKind) => {
@@ -421,8 +423,8 @@ function initialResourceKind(
   commandId: Exclude<AgentSlashCommandId, 'compact'>,
   availability: AgentWorkspaceSlashAvailability | undefined,
 ) {
-  return agentSlashResourceKinds.find((kind) => resourceKindAvailability(availability, commandId, kind).enabled)
-    ?? agentSlashResourceKinds[0]
+  return agentSlashKindsForCommand(commandId).find((kind) => resourceKindAvailability(availability, commandId, kind).enabled)
+    ?? agentSlashKindsForCommand(commandId)[0]
 }
 
 function resourceKindAvailability(

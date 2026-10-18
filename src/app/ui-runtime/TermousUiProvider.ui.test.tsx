@@ -10,6 +10,13 @@ function WithoutMotion({ children }: { children: ReactNode }) {
   return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider>
 }
 
+async function findVisiblePopup() {
+  const popup = await screen.findByRole('tooltip')
+  // 关闭动效后仍有异步入场准备阶段，role 查询不会排除透明节点。
+  await waitFor(() => expect(popup).toBeVisible())
+  return popup
+}
+
 test.each(['dark', 'light'] as const)('%s 主题下二次确认自动使用公共 Portal 样式，并保留调用方样式和取消行为', async (theme) => {
   const user = userEvent.setup()
   const confirm = vi.fn()
@@ -21,7 +28,7 @@ test.each(['dark', 'light'] as const)('%s 主题下二次确认自动使用公�
     </Popconfirm>
   </TermousUiProvider>, { wrapper: WithoutMotion })
   await user.click(screen.getByRole('button', { name: '删除配置' }))
-  const popup = await screen.findByRole('tooltip')
+  const popup = await findVisiblePopup()
   expect(popup.closest('.ant-popover')).toHaveClass(termousPopconfirmProps.classNames.root, 'feature-confirm')
   expect(popup).toHaveClass(termousPopconfirmProps.classNames.container, 'feature-container')
   expect(within(popup).getByRole('button', { name: '删除' })).toHaveClass('ant-btn-dangerous')
@@ -41,12 +48,14 @@ test('显式公共样式与全局配置兼容，异步确认完成前保持等�
     </Popconfirm>
   </TermousUiProvider>, { wrapper: WithoutMotion })
   await user.click(screen.getByRole('button', { name: '进程操作' }))
-  const popup = await screen.findByRole('tooltip')
+  const popup = await findVisiblePopup()
   const button = within(popup).getByRole('button', { name: '终止' })
   await user.click(button)
   expect(confirm).toHaveBeenCalledTimes(1)
-  expect(button).toHaveClass('ant-btn-loading')
-  expect(popup).toBeVisible()
+  await waitFor(() => {
+    expect(button).toHaveClass('ant-btn-loading')
+    expect(popup).toBeVisible()
+  })
   await act(async () => finish())
   await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
 })
@@ -57,7 +66,7 @@ test('二次确认的全局配置不附加到普通 Popover', async () => {
     <Popover trigger="click" content="普通内容"><Button>展开</Button></Popover>
   </TermousUiProvider>, { wrapper: WithoutMotion })
   await user.click(screen.getByRole('button', { name: '展开' }))
-  const popup = await screen.findByRole('tooltip')
+  const popup = await findVisiblePopup()
   expect(popup.closest('.ant-popover')).not.toHaveClass(termousPopconfirmProps.classNames.root)
   expect(popup).not.toHaveClass(termousPopconfirmProps.classNames.container)
 })
@@ -73,7 +82,7 @@ test('受控确认保留禁用按钮状态，不触发确认或取消回调', as
       <Button>删除书签</Button>
     </Popconfirm>
   </TermousUiProvider>, { wrapper: WithoutMotion })
-  const popup = await screen.findByRole('tooltip')
+  const popup = await findVisiblePopup()
   const confirmButton = within(popup).getByRole('button', { name: '删除' })
   const cancelButton = within(popup).getByRole('button', { name: '取消' })
   expect(confirmButton).toBeDisabled()

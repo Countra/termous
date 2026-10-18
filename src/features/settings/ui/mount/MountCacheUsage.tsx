@@ -6,7 +6,7 @@ import { formatBytes } from '#shared/format'
 import type { MountSettingsGateway } from '../../api/mountSettingsGateway'
 import styles from './MountSettings.module.scss'
 
-export function MountCacheUsage({ gateway, disabled }: { gateway: MountSettingsGateway; disabled: boolean }) {
+export function MountCacheUsage({ gateway, disabled }: { gateway: Pick<MountSettingsGateway, 'mountCache' | 'clearMountCache'>; disabled: boolean }) {
   const { t } = useTranslation()
   const [cache, setCache] = useState<MountCacheState | null>(null)
   const [error, setError] = useState<string | null>(null)

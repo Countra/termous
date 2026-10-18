@@ -17,6 +17,7 @@ import type { FileNameSearchEntryType, FileNameSearchResultItem } from '#entitie
 import { writeClipboardText } from '#shared/clipboard'
 import {
   confirmDialogStyles,
+  modalSurfaceStyles,
   termousNotificationClassName,
 } from '#shared/ui'
 import { useGlobalFileSearchController } from '../controller/useGlobalFileSearchController'
@@ -170,7 +171,7 @@ export function GlobalFileSearchModal(props: GlobalFileSearchModalProps) {
         : 'files.globalSearch.install'),
       cancelText: t('app.cancel'),
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       onOk: async () => {
         if (
           !mountedRef.current

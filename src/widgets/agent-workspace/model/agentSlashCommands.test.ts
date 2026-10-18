@@ -18,6 +18,7 @@ describe('Agent Slash 命令解析', () => {
     ['/se', 'se', undefined, '/se', 3],
     ['/session', 'session', 'session', '/session', 8],
     ['/profile 后续正文', 'profile', 'profile', '/profile ', 9],
+    ['/workflow 打开图标', 'workflow', 'workflow', '/workflow ', 10],
     ['/compact\n下一行', 'compact', 'compact', '/compact\n', 9],
     ['/session\r\n下一行', 'session', 'session', '/session\r\n', 10],
     ['before /profile after', 'profile', 'profile', '/profile ', 16, 7],
@@ -118,7 +119,7 @@ describe('Agent Slash 菜单状态机', () => {
     assert.equal(state.level, 'root')
     if (state.level !== 'root') return
     assert.equal(state.query, '')
-    assert.deepEqual(state.matching_command_ids, ['session', 'profile', 'compact'])
+    assert.deepEqual(state.matching_command_ids, ['session', 'profile', 'workflow', 'compact'])
     assert.equal(state.active_id, 'session')
   })
 })

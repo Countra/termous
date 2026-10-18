@@ -21,6 +21,7 @@ const errorKeys: Readonly<Record<string, AgentSetupErrorKey>> = {
   AGENT_MODEL_PROVIDER_NOT_FOUND: 'settings.agent.error.providerNotFound',
   AGENT_MODEL_UNAVAILABLE: 'settings.agent.error.modelUnavailable',
   AGENT_REVISION_CONFLICT: 'settings.agent.error.conflict',
+  SETTINGS_REVISION_CONFLICT: 'settings.agent.error.conflict',
   VAULT_LOCKED: 'settings.agent.error.vaultLocked',
 }
 

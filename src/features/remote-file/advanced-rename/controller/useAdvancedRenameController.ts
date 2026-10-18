@@ -42,6 +42,7 @@ export function useAdvancedRenameController({
   onDirectoryRefresh,
 }: AdvancedRenameModalProps) {
   const [presets, setPresets] = useState<FileRenamePreset[]>([])
+  const [presetRevision, setPresetRevision] = useState(0)
   const [presetsLoading, setPresetsLoading] = useState(false)
   const [presetSaving, setPresetSaving] = useState(false)
   const [presetError, setPresetError] = useState('')
@@ -128,6 +129,11 @@ export function useAdvancedRenameController({
   }, [open, resetDraft, sourceIdentity])
 
   useEffect(() => {
+    if (!open) return
+    return api.subscribeFileRenamePresets?.(() => setPresetRevision((value) => value + 1))
+  }, [api, open])
+
+  useEffect(() => {
     if (!open) {
       return
     }
@@ -150,7 +156,8 @@ export function useAdvancedRenameController({
           setPresetsLoading(false)
         }
       })
-  }, [api, open])
+    return () => { presetSequenceRef.current += 1 }
+  }, [api, open, presetRevision])
 
   const resolvedVariables = useMemo(
     () => resolveAdvancedRenameVariables(variableDefinitions, variables),

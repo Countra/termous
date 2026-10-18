@@ -1,6 +1,6 @@
 import { hostAssetInputsEqual, type HostAssetInput } from '#entities/host-asset'
 import { createSSHAccessProfileDraft } from '#entities/ssh-access-profile'
-import { createVNCAccessProfileDraft, createVNCTargetAuthDraft } from '#features/manage-remote-desktop'
+import { createRemoteDesktopAccessProfileDraft, createVNCTargetAuthDraft } from '#features/manage-remote-desktop'
 import type {
   HostCreationConnectionKind,
   HostCreationDesktop,
@@ -45,7 +45,7 @@ export function addHostCreationRemoteDesktop(state: HostCreationDraft) {
   const id = `draft:${crypto.randomUUID()}`
   const item: HostCreationDesktop = {
     id,
-    draft: createVNCAccessProfileDraft(state.ssh.find((profile) => profile.isDefault)?.id),
+    draft: createRemoteDesktopAccessProfileDraft(state.ssh.find((profile) => profile.isDefault)?.id),
     targetAuthDraft: createVNCTargetAuthDraft(),
     isDefault: state.remoteDesktops.length === 0,
   }

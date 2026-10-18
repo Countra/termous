@@ -31,11 +31,48 @@ import {
   agentStatusEventFixture,
 } from '../model/agentRuntimeTestFixtures.ts'
 import {
-  AgentRuntimeStartError,
   AgentWorkspaceController,
   AgentWorkspaceControllerError,
 } from './AgentWorkspaceController.ts'
 import { decodeAgentRunEventPage } from '../model/agentRuntimeProtocol.ts'
+import type { AgentWorkspaceObserver } from '../api/agentSubscription.ts'
+
+test('旧订阅迟到的关闭事件不能使重新打开的工作区进入重连', async () => {
+  const gateway: AgentWorkspaceGateway = new FakeGateway()
+  const observers: AgentWorkspaceObserver[] = []
+  gateway.subscribeWorkspace = observer => {
+    observers.push(observer)
+    return { close: () => undefined }
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  try {
+    controller.start()
+    await settle()
+    controller.close()
+    controller.start()
+    await settle()
+    observers[1]!.event({ type: 'snapshot', revision: 0, sessions: [agentSessionFixture()], active_runs: [] })
+    const current = controller.getSnapshot()
+    observers[0]!.close()
+    assert.equal(controller.getSnapshot(), current)
+    assert.equal(controller.getSnapshot().snapshot_complete, true)
+  } finally { controller.close() }
+})
+
+test('订阅同步交付无效事件时仍能关闭最终返回的订阅句柄', async () => {
+  const gateway: AgentWorkspaceGateway = new FakeGateway()
+  let closed = 0
+  gateway.subscribeWorkspace = observer => {
+    observer.event({ type: 'invalid' })
+    return { close: () => { closed++; observer.close() } }
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  try {
+    controller.start()
+    assert.equal(closed, 1)
+    await settle()
+  } finally { controller.close() }
+})
 
 test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提交内容', async () => {
   const rejectedGateway = new FakeGateway()
@@ -47,16 +84,10 @@ test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提�
   const session = await rejected.createSession(sessionInput())
   rejected.updateDraft(session.id, '保留的请求')
 
-  await assert.rejects(
-    rejected.startRun(session.id, '保留的请求'),
-    (error: unknown) => error instanceof AgentRuntimeStartError
-      && error.code === 'AGENT_RUNTIME_START_REJECTED',
-  )
+  await rejected.startRun(session.id, '保留的请求')
   assert.equal(rejected.getSnapshot().drafts[session.id], undefined)
-  assert.equal(rejected.getSnapshot().runs['agr-run']?.status, 'cancelled')
-  assert.deepEqual(rejectedGateway.stopRequests, [{
-    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
-  }])
+  assert.notEqual(rejected.getSnapshot().runs['agr-run']?.status, 'cancelled')
+  assert.deepEqual(rejectedGateway.stopRequests, [])
   assert.deepEqual(rejectedGateway.stopped, [])
 
   const acceptedGateway = new FakeGateway()
@@ -242,7 +273,7 @@ test('资源绑定 revision 冲突恢复可单独刷新权威会话', async () =
   controller.close()
 })
 
-test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
+test('Runtime Bridge 抛错时保留已持久化 Run 并重新唤醒', async () => {
   const gateway = new FakeGateway()
   gateway.startResult = Promise.reject(new Error('AGENT_RUNTIME_BRIDGE_UNAVAILABLE'))
   gateway.stopRunImpl = async (_id, expectedRevision) => (
@@ -251,12 +282,10 @@ test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
   const controller = new AgentWorkspaceController({ gateway })
   const session = await controller.createSession(sessionInput())
 
-  await assert.rejects(controller.startRun(session.id, '执行任务'), /AGENT_RUNTIME_BRIDGE_UNAVAILABLE/)
+  await controller.startRun(session.id, '执行任务')
 
-  assert.equal(controller.getSnapshot().runs['agr-run']?.status, 'cancelled')
-  assert.deepEqual(gateway.stopRequests, [{
-    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
-  }])
+  assert.equal(controller.getSnapshot().runs['agr-run']?.status === 'cancelled', false)
+  assert.deepEqual(gateway.stopRequests, [])
 })
 
 test('Runtime 启动收尾不会覆盖在途输入的新 steer 草稿', async () => {
@@ -276,7 +305,7 @@ test('Runtime 启动收尾不会覆盖在途输入的新 steer 草稿', async ()
   assert.equal(controller.getSnapshot().drafts[session.id]?.text, '运行中追加的要求')
 })
 
-test('手工整理只随下一次 Run 提交且 Runtime 接管成功后清除', async () => {
+test('手工整理只随下一次 Run 提交且 Core 受理后清除', async () => {
   const rejectedGateway = new FakeGateway()
   rejectedGateway.startResult = commandResult(false, 'AGENT_RUNTIME_START_REJECTED')
   rejectedGateway.stopRunImpl = async (_id, expectedRevision) => (
@@ -286,9 +315,9 @@ test('手工整理只随下一次 Run 提交且 Runtime 接管成功后清除', 
   await waitFor(() => rejected.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
   rejected.setContextCompressionPending('ags-session', true)
 
-  await assert.rejects(rejected.startRun('ags-session', '整理后回答'))
+  await rejected.startRun('ags-session', '整理后回答')
   assert.equal(rejectedGateway.createRunRequests[0]?.force_context_compression, true)
-  assert.equal(rejected.getSnapshot().session_contexts['ags-session']?.compression_pending, true)
+  assert.equal(rejected.getSnapshot().session_contexts['ags-session']?.compression_pending, false)
   rejected.close()
 
   const acceptedGateway = new FakeGateway()
@@ -677,7 +706,7 @@ test('停止期间 Core 已先进入终态时仍收口已发出的 Worker 取消
   assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
 })
 
-test('停止请求不等待 Core 写入即可先向 Worker 发送取消', async () => {
+test('停止请求先建立 Core 取消屏障再向 Worker 发送取消', async () => {
   const gateway = new FakeGateway()
   const pending = deferred<AgentRun>()
   gateway.stopRunImpl = async () => pending.promise
@@ -688,9 +717,10 @@ test('停止请求不等待 Core 写入即可先向 Worker 发送取消', async 
   const operation = controller.stopActiveRun()
   await waitFor(() => gateway.stopRequests.length === 1)
 
-  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+  assert.deepEqual(gateway.stopped, [])
   pending.resolve(agentRunFixture({ status: 'stopping', revision: 2 }))
   await operation
+  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
 })
 
 test('停止过程中 Worker 已退出时以 Core 状态继续对账', async () => {
@@ -801,6 +831,41 @@ test('Run 水合期间收到 WS 增量会丢弃旧响应并自动重跑', async 
   assert.equal(gateway.runEventRequests[0]?.afterSequence, 1)
   controller.close()
 })
+
+for (const entity of ['session', 'run'] as const) {
+  test(`删除 ${entity} 后迟到的 Run 补读不能恢复已删除状态`, async () => {
+    const gateway = new FakeGateway()
+    const pending = deferred<AgentRun>()
+    let requested = false
+    gateway.runImpl = async () => {
+      requested = true
+      return pending.promise
+    }
+    const socket = new FakeSocket()
+    const controller = new AgentWorkspaceController({
+      gateway,
+      socketFactory: () => socket as unknown as WebSocket,
+    })
+    controller.start()
+    await settle()
+    socket.message({
+      type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+      active_runs: [agentRunFixture({ event_sequence: 1 })],
+    })
+    await waitFor(() => requested)
+    socket.message({
+      type: 'removed', revision: 1, entity,
+      id: entity === 'session' ? 'ags-session' : 'agr-run',
+    })
+    pending.resolve(agentRunFixture())
+    await settle()
+    assert.equal(controller.getSnapshot().runs['agr-run'], undefined)
+    assert.equal(controller.getSnapshot().active_run_ids['ags-session'], undefined)
+    if (entity === 'session') assert.equal(controller.getSnapshot().messages['ags-session'], undefined)
+    assert.equal(controller.getSnapshot().phase, 'ready')
+    controller.close()
+  })
+}
 
 test('close 会中止在途 Session、Message 和 Run 水合', async () => {
   const sessionGateway = new FakeGateway()
@@ -1561,7 +1626,7 @@ test('排队响应晚于 WebSocket 派发事件时不会重新插入幽灵消息
     sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
     queued_turns: [], queue_state: queueStateFixture(),
   })
-  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+  await waitFor(() => controller.getSnapshot().active_run_ids['ags-session'] === 'agr-run')
 
   const operation = controller.enqueueTurn('ags-session', '下一步检查')
   await waitFor(() => gateway.enqueueTurnRequests.length === 1)
@@ -1605,7 +1670,7 @@ test('入队传输失败后使用同一 client_request_id 重试', async () => {
     sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
     queued_turns: [], queue_state: queueStateFixture(),
   })
-  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+  await waitFor(() => controller.getSnapshot().active_run_ids['ags-session'] === 'agr-run')
 
   await assert.rejects(controller.enqueueTurn('ags-session', '保持幂等', ['aga-one']))
   await controller.enqueueTurn('ags-session', '保持幂等', ['aga-one'])
@@ -1644,7 +1709,7 @@ test('入队回执丢失时自动使用同一 client_request_id 幂等确认', a
     sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
     queued_turns: [], queue_state: queueStateFixture(),
   })
-  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+  await waitFor(() => controller.getSnapshot().active_run_ids['ags-session'] === 'agr-run')
 
   await controller.enqueueTurn('ags-session', '确认已提交的消息')
 
@@ -1674,7 +1739,7 @@ test('手工整理请求只绑定第一条成功持久化的排队消息', async
     sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
     queued_turns: [], queue_state: queueStateFixture(),
   })
-  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+  await waitFor(() => controller.getSnapshot().active_run_ids['ags-session'] === 'agr-run')
 
   await controller.enqueueTurn('ags-session', '先整理上下文')
   await controller.enqueueTurn('ags-session', '继续处理')
@@ -2440,6 +2505,7 @@ class FakeGateway implements AgentWorkspaceGateway {
   async uploadAttachment(): Promise<never> { throw new Error('not implemented') }
   async attachment(): Promise<never> { throw new Error('not implemented') }
   async attachmentContent(): Promise<Blob> { throw new Error('not implemented') }
+  async toolImageContent(): Promise<Blob> { throw new Error('not implemented') }
   async deleteAttachment() {}
   messages(sessionId: string, options: AgentMessageListOptions = {}) {
     if (options.signal && !this.messageSignals.includes(options.signal)) this.messageSignals.push(options.signal)

@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { getTermousBridge } from '#shared/bridge'
+import { useSystemClipboardOperation, systemClipboardReasonKey } from '#entities/system-clipboard'
 import {
   compileShortcutIndex,
   formatShortcutChord,
@@ -30,14 +31,16 @@ export function ShortcutRuntimeProvider({
   settings,
   children,
 }: ShortcutRuntimeProviderProps) {
+  const publish = useSystemClipboardOperation('publish_files')
+  const availability = useMemo(() => ({ 'files.copy_to_system': { visible: publish.visible, available: publish.available, unavailableReasonKey: publish.available ? undefined : systemClipboardReasonKey(publish.reason) } }), [publish.visible, publish.available, publish.reason])
   const platform = useMemo(() => normalizeShortcutPlatform(getTermousBridge()?.platform), [])
   const effectiveBindings = useMemo(
-    () => resolveEffectiveShortcutBindings(settings),
-    [settings],
+    () => resolveEffectiveShortcutBindings(settings).filter(binding => binding.actionId !== 'files.copy_to_system' || publish.visible),
+    [settings, publish.visible],
   )
   const index = useMemo(
-    () => compileShortcutIndex(effectiveBindings, platform),
-    [effectiveBindings, platform],
+    () => compileShortcutIndex(effectiveBindings.filter(binding => binding.actionId !== 'files.copy_to_system' || publish.available), platform),
+    [effectiveBindings, platform, publish.available],
   )
   const runtimeRef = useRef<ShortcutRuntime | null>(null)
   if (!runtimeRef.current) {
@@ -58,8 +61,8 @@ export function ShortcutRuntimeProvider({
       .join(','),
   ])), [effectiveBindings, platform])
   const value = useMemo<ShortcutRuntimeContextValue>(
-    () => ({ runtime, platform, labels, bindingSignatures }),
-    [bindingSignatures, labels, platform, runtime],
+    () => ({ runtime, platform, labels, bindingSignatures, availability }),
+    [bindingSignatures, labels, platform, runtime, availability],
   )
 
   return (

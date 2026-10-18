@@ -1,7 +1,11 @@
+import { useState } from 'react'
+import { SettingsEditorContext, type SettingsEditor } from '#entities/settings'
+import { SettingsSaveBar } from '#shared/ui'
 import { App as AntdApp } from 'antd'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultExecutionBudget } from '#common/contracts'
 import type { AgentModel, AgentModelProvider, AgentReadiness, AgentSettings } from '#entities/agent'
 import { TermousApiError } from '#shared/api'
 import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
@@ -14,6 +18,21 @@ import { AgentSettingsPanel } from './AgentSettingsPanel.tsx'
 
 describe('AgentSettingsPanel', () => {
   beforeEach(() => { document.body.innerHTML = '' })
+
+  it('切换 Core 后清除旧草稿，读取失败不能沿用旧实例继续保存', async () => {
+    const original = gatewayFixture()
+    const view = renderPanel(original, 'preferences')
+    const input = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    fireEvent.change(input, { target: { value: '85' } })
+    const next = gatewayFixture()
+    vi.mocked(next.readiness).mockRejectedValue(new Error('new core unavailable'))
+    view.rerender(<AntdApp><AgentSettingsPanel gateway={next} view="preferences" /></AntdApp>)
+    await screen.findByText('settings.agent.loadFailed')
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'app.save' })).not.toBeInTheDocument()
+    expect(original.updateSettings).not.toHaveBeenCalled()
+    expect(next.updateSettings).not.toHaveBeenCalled()
+  })
 
   it.each([false, true])('准备只调用 setup，展示服务端最新审批模式 %s', async (approvalBypass) => {
     const user = userEvent.setup()
@@ -32,7 +51,7 @@ describe('AgentSettingsPanel', () => {
     const gateway = gatewayFixture({ readiness: initial })
     vi.mocked(gateway.setup).mockReturnValue(pending.promise)
     vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(ready)
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
     const prepare = await screen.findByRole('button', { name: 'settings.agent.readiness.setup' })
     expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
 
@@ -68,7 +87,7 @@ describe('AgentSettingsPanel', () => {
     const gateway = gatewayFixture({ readiness: initial })
     vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
     vi.mocked(gateway.setup).mockResolvedValue(latest)
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
 
     await user.click(await screen.findByRole('button', { name: 'settings.agent.readiness.setup' }))
 
@@ -90,7 +109,7 @@ describe('AgentSettingsPanel', () => {
     initial.mcp_policy = { ...initial.mcp_policy!, required_scope_count: 30, scope_sync_required: true }
     const gateway = gatewayFixture({ readiness: initial })
     vi.mocked(gateway.setup).mockRejectedValue(new Error('setup failed'))
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
 
     await user.click(await screen.findByRole('button', { name: 'settings.agent.readiness.setup' }))
 
@@ -108,16 +127,16 @@ describe('AgentSettingsPanel', () => {
   it('自动压缩阈值默认 80，校验整数范围并随完整设置保存', async () => {
     const user = userEvent.setup()
     const gateway = gatewayFixture()
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
     const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
     expect(threshold).toHaveValue('80')
     fireEvent.change(threshold, { target: { value: '49' } })
     expect(screen.getByText('settings.agent.compaction.validation')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
     fireEvent.change(threshold, { target: { value: '85.5' } })
-    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
     fireEvent.change(threshold, { target: { value: '85' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ context_compaction_threshold_percent: 85, expected_revision: 1 }),
       expect.any(AbortSignal),
@@ -128,28 +147,31 @@ describe('AgentSettingsPanel', () => {
     const user = userEvent.setup()
     const readiness = readinessFixture(4, 'apm-1')
     const gateway = gatewayFixture({ readiness })
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
 
     const toggle = await screen.findByRole('switch', {
       name: 'settings.agent.profileBinding.toggle',
     })
     expect(toggle).not.toBeChecked()
-    expect(screen.getByText('settings.agent.profileBinding.onDemand')).toBeInTheDocument()
     await user.click(toggle)
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: 'apm-1',
       default_reasoning_level: 'off',
       global_context_window_tokens: 16_384,
       global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: true,
       show_turn_token_usage: true,
+      execution_budget: defaultExecutionBudget,
       expected_revision: 4,
     }, expect.any(AbortSignal)))
   })
 
-  it('自动压缩阈值保存冲突时保留草稿，刷新后使用最新 revision', async () => {
+  it.each(['AGENT_REVISION_CONFLICT', 'SETTINGS_REVISION_CONFLICT'])('自动压缩阈值遇到 %s 时保留草稿，刷新后使用最新 revision', async (code) => {
     const user = userEvent.setup()
     const initial = readinessFixture(1)
     const latest = {
@@ -159,20 +181,20 @@ describe('AgentSettingsPanel', () => {
     const gateway = gatewayFixture({ readiness: initial })
     vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
     vi.mocked(gateway.updateSettings)
-      .mockRejectedValueOnce(new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409))
+      .mockRejectedValueOnce(new TermousApiError('revision conflict', code, 409))
       .mockResolvedValue({ ...latest.settings, context_compaction_threshold_percent: 85, revision: 3 })
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
     const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
     fireEvent.change(threshold, { target: { value: '85' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await screen.findByText('settings.agent.conflict.defaultsDescription')
     expect(threshold).toHaveValue('85')
     const refresh = screen.getByRole('button', { name: 'settings.agent.conflict.refresh' })
     await waitFor(() => expect(refresh).toBeEnabled())
     await user.click(refresh)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled())
     expect(threshold).toHaveValue('85')
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ context_compaction_threshold_percent: 85, expected_revision: 2 }),
       expect.any(AbortSignal),
@@ -213,10 +235,12 @@ describe('AgentSettingsPanel', () => {
   it('无需确认策略必须先二次确认', async () => {
     const user = userEvent.setup()
     const gateway = gatewayFixture()
-    renderPanel(gateway)
-    await screen.findByText('settings.agent.providers.empty')
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('switch', { name: 'settings.agent.policy.approval' })
 
     await user.click(screen.getByRole('switch', { name: 'settings.agent.policy.approval' }))
+    expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     expect(screen.getByText('settings.agent.confirmBypass.description')).toBeInTheDocument()
     expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'settings.agent.confirmBypass.confirm' }))
@@ -239,20 +263,24 @@ describe('AgentSettingsPanel', () => {
     vi.mocked(gateway.readiness)
       .mockResolvedValueOnce(readiness)
       .mockResolvedValue({ ...readiness, settings: updatedSettings })
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
 
     const toggle = await screen.findByRole('switch', { name: 'settings.agent.turnUsage.toggle' })
     expect(toggle).toBeChecked()
     await user.click(toggle)
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: 'apm-1',
       default_reasoning_level: 'off',
       global_context_window_tokens: 16_384,
       global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false,
+      execution_budget: defaultExecutionBudget,
       expected_revision: 7,
     }, expect.any(AbortSignal)))
     expect(toggle).toBeDisabled()
@@ -262,7 +290,7 @@ describe('AgentSettingsPanel', () => {
     expect(toggle).not.toBeChecked()
   })
 
-  it('全局默认参数独立保存并只用模型 ID 展示默认模型', async () => {
+  it('全局参数通过统一入口保存并只用模型 ID 展示默认模型', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
     const model = {
@@ -274,8 +302,8 @@ describe('AgentSettingsPanel', () => {
     const gateway = gatewayFixture({
       providers: [provider], models: [model], readiness: readinessFixture(1, model.id),
     })
-    renderPanel(gateway)
-    await screen.findByDisplayValue(provider.name)
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     const defaultModelField = screen.getByText('settings.agent.defaults.model')
       .closest('[data-agent-default-field]')
@@ -292,16 +320,18 @@ describe('AgentSettingsPanel', () => {
     fireEvent.change(screen.getByRole('spinbutton', {
       name: /settings\.agent\.defaults\.contextBudget/,
     }), { target: { value: '32768' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: model.id,
       default_reasoning_level: 'high',
       global_context_window_tokens: 32_768,
       global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: true,
+      execution_budget: defaultExecutionBudget,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
   })
@@ -314,8 +344,8 @@ describe('AgentSettingsPanel', () => {
       models: [model],
       readiness: readinessFixture(1, model.id),
     })
-    renderPanel(gateway)
-    await screen.findByDisplayValue('Provider')
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     await user.click(screen.getByRole('button', {
       name: 'settings.agent.defaults.contextQuickSelect',
@@ -334,15 +364,17 @@ describe('AgentSettingsPanel', () => {
       name: 'settings.agent.defaults.maxOutput',
     })).toHaveValue('8192')
 
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: model.id,
       default_reasoning_level: 'off',
       global_context_window_tokens: 65_536,
       global_max_output_tokens: 8_192,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: true,
+      execution_budget: defaultExecutionBudget,
       expected_revision: 1,
     }, expect.any(AbortSignal)))
   })
@@ -354,8 +386,8 @@ describe('AgentSettingsPanel', () => {
       models: [model],
       readiness: readinessFixture(1, model.id),
     })
-    renderPanel(gateway)
-    await screen.findByDisplayValue('Provider')
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     const contextInput = screen.getByRole('spinbutton', {
       name: 'settings.agent.defaults.contextBudget',
@@ -373,11 +405,11 @@ describe('AgentSettingsPanel', () => {
     const errorId = outputInput.getAttribute('aria-describedby')
     expect(errorId).toBeTruthy()
     expect(document.getElementById(errorId!)).toHaveTextContent('settings.agent.validation.tokenLimit')
-    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
     expect(gateway.updateSettings).not.toHaveBeenCalled()
   })
 
-  it('读取新 revision 后保留默认参数草稿并按新基线保存', async () => {
+  it('未保存参数时禁用运行检查，撤销后才允许读取状态', async () => {
     const user = userEvent.setup()
     const model = modelFixture()
     const initial = readinessFixture(1, model.id)
@@ -402,32 +434,21 @@ describe('AgentSettingsPanel', () => {
     vi.mocked(gateway.setup).mockResolvedValue(latest)
     vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
     vi.mocked(gateway.updateSettings).mockResolvedValue(saved)
-    renderPanel(gateway)
-    await screen.findByDisplayValue('Provider')
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     const contextInput = screen.getByRole('spinbutton', {
       name: 'settings.agent.defaults.contextBudget',
     })
     fireEvent.change(contextInput, { target: { value: '32768' } })
+    expect(screen.getByRole('button', { name: 'settings.agent.readiness.checkAgain' })).toBeDisabled()
+    expect(gateway.setup).not.toHaveBeenCalled()
+    expect(contextInput).toHaveValue('32768')
+    await user.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
     await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.checkAgain' }))
-
-    expect(await screen.findByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', {
-      name: 'settings.agent.defaults.contextBudget',
-    })).toHaveValue('32768')
-    await user.click(screen.getByRole('button', { name: 'settings.agent.conflict.refresh' }))
-    expect(screen.getByRole('spinbutton', {
-      name: 'settings.agent.defaults.contextBudget',
-    })).toHaveValue('32768')
-
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
-    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        global_context_window_tokens: 32_768,
-        expected_revision: 2,
-      }),
-      expect.any(AbortSignal),
-    ))
+    await waitFor(() => expect(contextInput).toHaveValue('65536'))
+    expect(gateway.setup).not.toHaveBeenCalled()
+    expect(gateway.readiness).toHaveBeenCalledTimes(2)
   })
 
   it('默认参数 revision 冲突只显示一个恢复入口并一次保留草稿', async () => {
@@ -460,14 +481,14 @@ describe('AgentSettingsPanel', () => {
         409,
       ))
       .mockResolvedValue(saved)
-    renderPanel(gateway)
-    await screen.findByDisplayValue('Provider')
+    renderPanel(gateway, 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     const contextInput = screen.getByRole('spinbutton', {
       name: 'settings.agent.defaults.contextBudget',
     })
     fireEvent.change(contextInput, { target: { value: '32768' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     expect(await screen.findByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
     expect(screen.queryByText('settings.agent.conflict.description')).not.toBeInTheDocument()
@@ -481,7 +502,7 @@ describe('AgentSettingsPanel', () => {
       name: 'settings.agent.defaults.contextBudget',
     })).toHaveValue('32768')
 
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({
         global_context_window_tokens: 32_768,
@@ -495,8 +516,8 @@ describe('AgentSettingsPanel', () => {
     const user = userEvent.setup()
     const provider = providerFixture()
     const model = modelFixture()
-    renderPanel(gatewayFixture({ providers: [provider], models: [model] }))
-    await screen.findByDisplayValue(provider.name)
+    renderPanel(gatewayFixture({ providers: [provider], models: [model] }), 'preferences')
+    await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
 
     await user.click(screen.getByRole('combobox', { name: 'settings.agent.defaults.model' }))
     const modelLabels = await screen.findAllByText(model.remote_model_id)
@@ -512,7 +533,7 @@ describe('AgentSettingsPanel', () => {
       .toContain('settings.agent.defaults.modelDetail')
   })
 
-  it('未编辑全局参数时自动吸收模型目录切换的默认项', async () => {
+  it('模型目录的默认项随页面统一保存，不在选择时提交', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
     const first = modelFixture()
@@ -549,13 +570,90 @@ describe('AgentSettingsPanel', () => {
       name: 'settings.agent.catalog.setDefault',
     }))
 
-    const defaultModelField = screen.getByText('settings.agent.defaults.model')
-      .closest('[data-agent-default-field]')
-    await waitFor(() => expect(defaultModelField).toHaveTextContent(second.remote_model_id))
-    expect(screen.queryByText('settings.agent.conflict.defaultsDescription')).not.toBeInTheDocument()
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.agent.catalog.pendingDefault')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ default_model_id: second.id }), expect.any(AbortSignal),
+    ))
+    expect(screen.queryByText('settings.agent.defaults.model')).not.toBeInTheDocument()
   })
 
-  it('Provider、模型目录和默认模型选择提供可搜索语义', async () => {
+  it('模型编辑复用外层唯一保存栏，并在返回后保留目录筛选', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const model = modelFixture()
+    const gateway = gatewayFixture({ providers: [provider], models: [model] })
+    function ManagedPanel() {
+      const [editor, setEditor] = useState<SettingsEditor | null>(null)
+      return <AntdApp><SettingsEditorContext.Provider value={setEditor}>
+        <AgentSettingsPanel gateway={gateway} view="models" />
+      </SettingsEditorContext.Provider>
+        {editor && <SettingsSaveBar {...editor} onSave={editor.save} onReset={editor.reset} />}
+      </AntdApp>
+    }
+    render(<ManagedPanel />)
+    await screen.findByDisplayValue(provider.name)
+    expect(screen.getAllByRole('button', { name: 'app.save' })).toHaveLength(1)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    const search = screen.getByRole('textbox', { name: 'settings.agent.catalog.search' })
+    await user.type(search, model.remote_model_id)
+    await chooseModelAction(user, 'settings.agent.catalog.edit')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const name = screen.getByLabelText('settings.agent.modelEditor.displayName')
+    fireEvent.change(name, { target: { value: 'Draft name' } })
+    expect(screen.getAllByRole('button', { name: 'app.save' })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(gateway.updateModel).toHaveBeenCalledWith(model.id,
+      expect.objectContaining({ display_name: 'Draft name', expected_revision: model.revision }), expect.any(AbortSignal)))
+    expect(await screen.findByRole('textbox', { name: 'settings.agent.catalog.search' })).toHaveValue(model.remote_model_id)
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+  })
+
+  it('待设为默认的模型失效后禁止保存，撤销会清除草稿', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const model = modelFixture()
+    const gateway = gatewayFixture({ providers: [provider], models: [model] })
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await chooseModelAction(user, 'settings.agent.catalog.setDefault')
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+    vi.mocked(gateway.models).mockResolvedValue({ items: [{ ...model, removed_at: '2026-10-18T00:00:00Z', revision: 2 }] })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
+    expect(await screen.findByText('settings.agent.catalog.pendingDefaultUnavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
+    expect(screen.queryByText('settings.agent.catalog.pendingDefaultUnavailable')).not.toBeInTheDocument()
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('默认项草稿遇到外部变更时要求读取最新基线，不静默覆盖', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const first = modelFixture()
+    const second = { ...first, id: 'model-other', remote_model_id: 'other' }
+    const gateway = gatewayFixture({ providers: [provider], models: [first, second] })
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await user.click(screen.getAllByRole('button', { name: 'settings.agent.catalog.moreActions' })[0]!)
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.agent.catalog.setDefault' }))
+    const external = readinessFixture(2, second.id)
+    vi.mocked(gateway.readiness).mockResolvedValue(external)
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
+    expect(await screen.findByText('settings.agent.conflict.editorDescription')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'settings.agent.conflict.refresh' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      default_model_id: first.id, expected_revision: external.settings.revision,
+    }), expect.any(AbortSignal)))
+  })
+
+  it('模型服务的提供商和模型目录提供可搜索语义', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
     const model = modelFixture()
@@ -563,15 +661,9 @@ describe('AgentSettingsPanel', () => {
     renderPanel(gateway)
     await screen.findByDisplayValue(provider.name)
 
-    expect(screen.getByRole('textbox', { name: 'settings.agent.providers.search' })).toBeInTheDocument()
-    const modelSelect = screen.getByRole('combobox', { name: 'settings.agent.defaults.model' })
-    expect(modelSelect).not.toHaveAttribute('readonly')
-
+    expect(screen.getByRole('combobox', { name: 'settings.agent.providers.search' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
     expect(screen.getByRole('textbox', { name: 'settings.agent.catalog.search' })).toBeInTheDocument()
-    await user.click(modelSelect)
-    await user.type(modelSelect, model.remote_model_id)
-    expect(modelSelect).toHaveValue(model.remote_model_id)
   })
 
   it('编辑态内联 API Key 使用 UTF-8 字节上限并可撤销草稿', async () => {
@@ -586,7 +678,7 @@ describe('AgentSettingsPanel', () => {
 
     fireEvent.change(input, { target: { value: 'one-time-secret' } })
     expect(screen.getByText('settings.agent.apiKey.replacePending')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'settings.agent.providerEditor.reset' }))
+    await user.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
     await waitFor(() => expect(input).toHaveValue(''))
     expect(document.body.textContent).not.toContain('one-time-secret')
   })
@@ -610,11 +702,11 @@ describe('AgentSettingsPanel', () => {
     vi.mocked(gateway.createModelProvider).mockResolvedValue(created)
     vi.mocked(gateway.refreshProviderModels).mockResolvedValue(failed)
     renderPanel(gateway)
-    await screen.findByText('settings.agent.providers.empty')
+    await screen.findByLabelText('settings.agent.providerEditor.name')
 
     fireEvent.change(screen.getByLabelText('settings.agent.providerEditor.name'), { target: { value: 'Provider' } })
     fireEvent.change(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey'), { target: { value: 'one-time-secret' } })
-    await user.click(screen.getByRole('button', { name: 'app.create' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     expect(await screen.findAllByText('settings.agent.providerEditor.provisionFailure.refresh.title'))
       .not.toHaveLength(0)
@@ -706,7 +798,7 @@ describe('AgentSettingsPanel', () => {
     renderPanel(gateway)
     await screen.findByDisplayValue(original.name)
 
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByDisplayValue(external.name)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
@@ -727,7 +819,7 @@ describe('AgentSettingsPanel', () => {
     const input = await screen.findByDisplayValue(original.name)
 
     fireEvent.change(input, { target: { value: saved.name } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.editorDescription')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
@@ -763,13 +855,14 @@ describe('AgentSettingsPanel', () => {
 
     fireEvent.change(name, { target: { value: 'Local draft' } })
     fireEvent.change(apiKey, { target: { value: 'draft-secret' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.providerDeleted')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.providerEditor.name')).toHaveValue('Local draft')
     expect(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey')).toHaveValue('draft-secret')
 
-    await user.click(screen.getByRole('button', { name: /Provider B/ }))
+    await user.click(screen.getByRole('combobox', { name: 'settings.agent.providers.search' }))
+    await user.click(await screen.findByText('Provider B', { selector: 'strong' }))
     expect(screen.getByText('settings.agent.providers.discardDescription')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.providerEditor.optionalApiKey')).toHaveValue('draft-secret')
     const discardDialog = screen.getByText('settings.agent.providers.discardDescription')
@@ -829,11 +922,11 @@ describe('AgentSettingsPanel', () => {
     const displayName = screen.getByLabelText('settings.agent.modelEditor.displayName')
 
     fireEvent.change(displayName, { target: { value: 'Local model draft' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.modelDeleted')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.modelEditor.displayName')).toHaveValue('Local model draft')
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'app.cancel' }))
     const description = await screen.findByText('settings.agent.modelEditor.discardDescription')
@@ -867,11 +960,11 @@ describe('AgentSettingsPanel', () => {
     fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.displayName'), {
       target: { value: 'Local model draft' },
     })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.modelRemoved')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.modelEditor.displayName')).toHaveValue('Local model draft')
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'app.cancel' }))
     expect(await screen.findByText('settings.agent.modelEditor.discardDescription')).toBeInTheDocument()
   })
@@ -927,13 +1020,13 @@ describe('AgentSettingsPanel', () => {
     fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.modelId'), {
       target: { value: 'draft-model' },
     })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.providerDeleted')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.modelEditor.modelId')).toHaveValue('draft-model')
-    expect(within(screen.getByRole('dialog')).getByText(original.name)).toBeInTheDocument()
-    expect(within(screen.getByRole('dialog')).queryByText(fallback.name)).not.toBeInTheDocument()
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
+    expect(within(screen.getByRole('region', { name: 'settings.agent.modelEditor.addTitle' })).getByText(original.name)).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'settings.agent.modelEditor.addTitle' })).queryByText(fallback.name)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' }))
       .toBeDisabled()
   })
 
@@ -957,15 +1050,15 @@ describe('AgentSettingsPanel', () => {
     const displayName = screen.getByLabelText('settings.agent.modelEditor.displayName')
 
     fireEvent.change(displayName, { target: { value: saved.display_name } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
 
     expect(await screen.findByText('settings.agent.conflict.editorDescription')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.modelEditor.displayName')).toHaveValue(saved.display_name)
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'settings.agent.conflict.refresh' }))
     expect(await screen.findByText('settings.agent.conflict.draftPreserved')).toBeInTheDocument()
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
+    await user.click(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' }))
 
     await waitFor(() => expect(gateway.updateModel).toHaveBeenCalledWith(
       original.id,
@@ -1036,11 +1129,11 @@ describe('AgentSettingsPanel', () => {
     const input = await screen.findByDisplayValue(original.name)
 
     fireEvent.change(input, { target: { value: 'Draft Provider' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.refresh' }))
     await user.click(await screen.findByRole('button', { name: 'settings.agent.conflict.refresh' }))
     expect(await screen.findByText('settings.agent.conflict.draftPreserved')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'settings.agent.providerEditor.reset' }))
+    await user.click(screen.getByRole('button', { name: 'settings.editor.reset' }))
     expect(screen.queryByText('settings.agent.conflict.draftPreserved')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('settings.agent.providerEditor.name'), {
       target: { value: 'Another draft' },
@@ -1081,9 +1174,18 @@ describe('AgentSettingsPanel', () => {
     const apiMode = within(apiModeField).getByRole('combobox')
     await user.click(apiMode)
     await user.click(await screen.findByText('settings.agent.apiMode.chatCompletions'))
-    await user.click(screen.getByRole('button', { name: new RegExp(provider.name) }))
+    expect(screen.queryByRole('combobox', { name: 'settings.agent.providers.search' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'settings.agent.providers.catalogTab' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.backToServices' }))
 
     expect(screen.getByText('settings.agent.providers.discardTitle')).toBeInTheDocument()
+    expect(screen.getByText('settings.editor.processing')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.save' })).not.toHaveClass('ant-btn-loading')
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(within(apiModeField).getByText('settings.agent.apiMode.chatCompletions')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.backToServices' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.providers.discard' }))
+    expect(await screen.findByDisplayValue(provider.name)).toBeInTheDocument()
   })
 
   it('模型能力冲突使用稳定错误码展示可操作提示', async () => {
@@ -1102,10 +1204,10 @@ describe('AgentSettingsPanel', () => {
     fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.displayName'), {
       target: { value: 'Changed model name' },
     })
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
+    await user.click(within(screen.getByRole('region', { name: 'settings.agent.providers.title' })).getByRole('button', { name: 'app.save' }))
 
     expect(await screen.findByText('settings.agent.error.modelCapabilityConflict')).toBeInTheDocument()
-    const editor = screen.getByRole('dialog')
+    const editor = screen.getByRole('region', { name: 'settings.agent.providers.title' })
     fireEvent.change(within(editor).getByLabelText('settings.agent.modelEditor.displayName'), {
       target: { value: '继续编辑的模型草稿' },
     })
@@ -1114,7 +1216,7 @@ describe('AgentSettingsPanel', () => {
     expect(gateway.updateModel).toHaveBeenCalledTimes(1)
   })
 
-  it('手工新增模型冲突时在编辑弹窗内展示准确错误且不误报 revision 冲突', async () => {
+  it('手工新增模型冲突时在页内编辑区展示准确错误且不误报 revision 冲突', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
     const gateway = gatewayFixture({ providers: [provider] })
@@ -1127,7 +1229,7 @@ describe('AgentSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.add' }))
     await user.type(screen.getByLabelText('settings.agent.modelEditor.modelId'), 'duplicate-model')
 
-    const editor = screen.getByRole('dialog')
+    const editor = screen.getByRole('region', { name: 'settings.agent.providers.title' })
     await user.click(within(editor).getByRole('button', { name: 'app.save' }))
 
     expect(await within(editor).findByText('settings.agent.error.modelIdConflict')).toBeInTheDocument()
@@ -1149,7 +1251,7 @@ describe('AgentSettingsPanel', () => {
     await screen.findByDisplayValue(provider.name)
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
     await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.add' }))
-    const editor = screen.getByRole('dialog')
+    const editor = screen.getByRole('region', { name: 'settings.agent.providers.title' })
     const modelId = within(editor).getByLabelText('settings.agent.modelEditor.modelId')
     fireEvent.change(modelId, { target: { value: 'draft-model' } })
     const save = within(editor).getByRole('button', { name: 'app.save' })
@@ -1242,10 +1344,10 @@ describe('AgentSettingsPanel', () => {
     vi.mocked(gateway.updateSettings).mockRejectedValue(
       new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
     )
-    renderPanel(gateway)
+    renderPanel(gateway, 'preferences')
     const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
     fireEvent.change(threshold, { target: { value: '85' } })
-    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
     await screen.findByText('settings.agent.conflict.defaultsDescription')
     const refresh = screen.getByRole('button', { name: 'settings.agent.conflict.refresh' })
     await waitFor(() => expect(refresh).toBeEnabled())
@@ -1257,12 +1359,12 @@ describe('AgentSettingsPanel', () => {
     expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
     expect(screen.getAllByText('settings.agent.error.vaultLocked')).toHaveLength(1)
     expect(threshold).toHaveValue('85')
-    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
     expect(screen.getByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
     await waitFor(() => expect(refresh).toBeEnabled())
     await user.click(refresh)
     await waitFor(() => expect(screen.queryByText('settings.agent.error.vaultLocked')).not.toBeInTheDocument())
-    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled())
     expect(threshold).toHaveValue('85')
   })
 
@@ -1323,63 +1425,27 @@ describe('AgentSettingsPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('Provider 旧保存错误不遮住随后全局默认设置的其他错误', async () => {
+  it.each(['AGENT_MODEL_PROVIDER_NAME_CONFLICT', 'AGENT_REVISION_CONFLICT'])('离开模型服务后参数页不继承 %s 资源错误', async code => {
     const user = userEvent.setup()
     const gateway = gatewayFixture({ providers: [providerFixture()] })
-    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
-      new TermousApiError('duplicate name', 'AGENT_MODEL_PROVIDER_NAME_CONFLICT', 409),
-    )
-    vi.mocked(gateway.updateSettings).mockRejectedValue(
-      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
-    )
-    renderPanel(gateway)
+    vi.mocked(gateway.updateModelProvider).mockRejectedValue(new TermousApiError('provider failed', code, 409))
+    vi.mocked(gateway.updateSettings).mockRejectedValue(new TermousApiError('vault locked', 'VAULT_LOCKED', 423))
+    const view = renderPanel(gateway)
     const name = await screen.findByLabelText('settings.agent.providerEditor.name')
-    fireEvent.change(name, { target: { value: '尚未保存的 Provider' } })
+    fireEvent.change(name, { target: { value: '未保存的 Provider' } })
     await user.click(screen.getByRole('button', { name: 'app.save' }))
-    await screen.findByText('settings.agent.error.providerNameConflict')
-    const saveDefaults = screen.getByRole('button', { name: 'settings.agent.defaults.save' })
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'settings.agent.compaction.threshold' }), {
-      target: { value: '85' },
-    })
-    await waitFor(() => expect(saveDefaults).toBeEnabled())
-    await user.click(saveDefaults)
-
-    expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
-    const pane = name.closest<HTMLElement>('[role="tabpanel"]')!
-    expect(within(pane).getByText('settings.agent.error.providerNameConflict')).toBeInTheDocument()
-    expect(within(pane).queryByText('settings.agent.error.vaultLocked')).not.toBeInTheDocument()
-    expect(name).toHaveValue('尚未保存的 Provider')
-    expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
-    expect(gateway.updateSettings).toHaveBeenCalledTimes(1)
-  })
-
-  it('Provider 待处理冲突不遮住随后全局默认设置的独立失败', async () => {
-    const user = userEvent.setup()
-    const gateway = gatewayFixture({ providers: [providerFixture()] })
-    vi.mocked(gateway.updateModelProvider).mockRejectedValue(
-      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
-    )
-    vi.mocked(gateway.updateSettings).mockRejectedValue(
-      new TermousApiError('vault locked', 'VAULT_LOCKED', 423),
-    )
-    renderPanel(gateway)
-    const name = await screen.findByLabelText('settings.agent.providerEditor.name')
-    fireEvent.change(name, { target: { value: '冲突中的 Provider 草稿' } })
+    await screen.findByText(code === 'AGENT_REVISION_CONFLICT'
+      ? 'settings.agent.conflict.editorDescription' : 'settings.agent.error.providerNameConflict')
+    view.unmount()
+    renderPanel(gateway, 'preferences')
+    const threshold = await screen.findByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+    expect(screen.queryByText('settings.agent.conflict.editorDescription')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.error.providerNameConflict')).not.toBeInTheDocument()
+    fireEvent.change(threshold, { target: { value: '85' } })
     await user.click(screen.getByRole('button', { name: 'app.save' }))
-    await screen.findByText('settings.agent.conflict.editorDescription')
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'settings.agent.compaction.threshold' }), {
-      target: { value: '85' },
-    })
-    const saveDefaults = screen.getByRole('button', { name: 'settings.agent.defaults.save' })
-    await waitFor(() => expect(saveDefaults).toBeEnabled())
-    await user.click(saveDefaults)
-
     expect(await screen.findByText('settings.agent.error.vaultLocked')).toBeInTheDocument()
-    expect(screen.getByText('settings.agent.conflict.editorDescription')).toBeInTheDocument()
-    const refresh = screen.getByText('settings.agent.conflict.refresh').closest('button')
-    expect(refresh).toBeInTheDocument()
-    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
-    expect(name).toHaveValue('冲突中的 Provider 草稿')
+    expect(screen.getAllByText('settings.agent.error.vaultLocked')).toHaveLength(1)
+    expect(threshold).toHaveValue('85')
     expect(gateway.updateModelProvider).toHaveBeenCalledTimes(1)
     expect(gateway.updateSettings).toHaveBeenCalledTimes(1)
   })
@@ -1497,8 +1563,8 @@ async function chooseModelAction(
   await user.click(await screen.findByRole('menuitem', { name: action }))
 }
 
-function renderPanel(gateway: AgentSetupGateway) {
-  return render(<AntdApp><AgentSettingsPanel gateway={gateway} /></AntdApp>)
+function renderPanel(gateway: AgentSetupGateway, view: 'preferences' | 'models' = 'models') {
+  return render(<AntdApp><AgentSettingsPanel gateway={gateway} view={view} /></AntdApp>)
 }
 
 function gatewayFixture(options: {
@@ -1518,6 +1584,8 @@ function gatewayFixture(options: {
         default_reasoning_level: input.default_reasoning_level,
         global_context_window_tokens: input.global_context_window_tokens,
         global_max_output_tokens: input.global_max_output_tokens,
+        max_concurrent_runs: input.max_concurrent_runs,
+        execution_budget: input.execution_budget,
         context_compaction_threshold_percent: input.context_compaction_threshold_percent,
         connect_ssh_profile_on_bind: input.connect_ssh_profile_on_bind,
         show_turn_token_usage: input.show_turn_token_usage,
@@ -1526,6 +1594,7 @@ function gatewayFixture(options: {
       }
       if (input.default_model_id) settings.default_model_id = input.default_model_id
       else delete settings.default_model_id
+      readiness.settings = settings
       return settings
     }),
     readiness: vi.fn(async () => readiness),
@@ -1565,6 +1634,7 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
       default_reasoning_level: 'off', show_turn_token_usage: true, revision,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',

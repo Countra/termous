@@ -68,7 +68,7 @@ export function HostDraftConnectionCatalog({ draft, validation, busy, onAdd, onE
         empty={t('hosts.access.desktop.empty')} action={<Button size="small" disabled={busy || draft.remoteDesktops.length >= 32}
           icon={<Plus size={14} />} onClick={() => onAdd('remote_desktop')}>{t('hosts.access.desktop.add')}</Button>}>
         {draft.remoteDesktops.map((item) => renderRow('remote_desktop', item.id, item.draft.name,
-          item.draft.vnc.target_host ? `VNC · ${formatHostCreationEndpoint(item.draft.vnc.target_host, item.draft.vnc.port)}` : '', item.isDefault))}
+          item.draft.protocol === 'rdp' ? `RDP · ${formatHostCreationEndpoint(item.draft.rdp.target_host, item.draft.rdp.port)}` : item.draft.vnc.target_host ? `VNC · ${formatHostCreationEndpoint(item.draft.vnc.target_host, item.draft.vnc.port)}` : '', item.isDefault))}
       </DraftSection>
     </div>
   )

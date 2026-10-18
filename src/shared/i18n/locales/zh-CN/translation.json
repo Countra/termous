@@ -1,6 +1,573 @@
 {
+  "systemClipboard": {
+    "unavailable": "系统文件剪贴板服务暂时不可用，连接恢复后将自动启用。",
+    "initializationFailed": "系统文件剪贴板初始化失败，正在自动重试。",
+    "serviceStopped": "系统文件剪贴板服务已停止，等待重新连接。",
+    "invalidResponse": "系统文件剪贴板能力同步失败，正在重新同步。"
+  },
+  "storageStatus": {
+    "title": "部分本机存储不可用",
+    "unavailable": "{{modules}} 暂时无法使用，已有数据不会被替换为空数据。请检查启动诊断并在修复后重启。错误码：{{codes}}",
+    "checkFailed": "无法读取本机存储状态，请检查 Core 连接和启动诊断。",
+    "domains": {
+      "core": "配置",
+      "agent": "AI 助手",
+      "workflows": "桌面脚本",
+      "audit": "审计"
+    }
+  },
+  "imagePreview": {
+    "title": "图片预览",
+    "controls": "图片查看工具",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "fit": "适应窗口",
+    "actualSize": "原始尺寸",
+    "canvas": "图片查看区域",
+    "failed": "图片暂时无法显示",
+    "retry": "重新加载",
+    "loading": "正在加载图片",
+    "hint": "滚轮缩放 · 按住拖动 · 双击切换原始尺寸与适应窗口 · Esc 关闭"
+  },
+  "cloud": {
+    "qr": {
+      "password": "密码登录",
+      "login": "扫码登录",
+      "loading": "正在准备二维码",
+      "pending": "等待扫描",
+      "scanned": "已扫描",
+      "preparing": "正在准备设备",
+      "ready": "等待手机确认",
+      "approved": "正在完成登录",
+      "issued": "正在完成登录",
+      "completed": "登录完成",
+      "expired": "二维码已过期",
+      "cancelled": "扫码已取消",
+      "rejected": "手机已拒绝登录",
+      "invalidated": "扫码请求已失效",
+      "hint": "使用可信手机上的 Termous 扫码。",
+      "confirmHint": "核对两端代码，并在手机上确认。",
+      "completingHint": "请稍候，正在连接云服务。",
+      "refreshHint": "刷新二维码，重新发起扫码。",
+      "checkCode": "核对码",
+      "remaining": "{{seconds}} 秒后失效",
+      "refresh": "刷新二维码",
+      "retry": "重试"
+    },
+    "syncFlow": {
+      "enable": "启用同步",
+      "settingsUnavailable": "同步设置暂不可用，请重试",
+      "enableHint": "首次开启需确认同步差异",
+      "setupRecovery": "设置恢复方式",
+      "resolve": "解决冲突",
+      "refreshPreview": "重新预览",
+      "loadingPreview": "正在比较差异…",
+      "previewEnableHint": "确认后同步，并开启自动同步。",
+      "confirmOnce": "确认同步",
+      "retryEnable": "开启自动同步",
+      "enableFailed": "已同步，自动同步未开启",
+      "enableRetryHint": "请重试保存设置，无需重新同步。",
+      "total": "合计",
+      "scopeHint": "端到端加密 · 不同步远程文件"
+    },
+    "safeguards": {
+      "checkKey": "校验并继续",
+      "pasteLegacyKey": "使用旧版文本密钥",
+      "checkingKeyFile": "正在校验恢复密钥…",
+      "dropKeyFile": "或将 .torkey 文件拖到这里，自动校验",
+      "chooseKeyFile": "选择恢复密钥文件",
+      "savedActivate": "已保存，启用",
+      "showKey": "查看或复制文本密钥",
+      "keyFileHint": ".torkey · 恢复时选择或拖入即可",
+      "keyFile": "个人恢复密钥文件",
+      "restartDevices": "原工作区将停止授权 {{count}} 台设备。",
+      "personalTitle": "个人恢复密钥",
+      "personalHint": "设备不可用时，使用恢复密钥解密云数据。无需开启二步验证，账号登录仍需验证。",
+      "enabled": "已设置",
+      "notSet": "未设置",
+      "unavailable": "暂不可用",
+      "readFailed": "无法读取恢复保障，请重试",
+      "initializeFirst": "请先到设备页核对并确认可信设备清单",
+      "replaceKey": "更换恢复密钥",
+      "setupKey": "设置恢复密钥",
+      "replaceAndRotate": "更换并轮换数据密钥",
+      "rotateAfterReplace": "轮换数据密钥",
+      "rotateAfterReplaceHint": "个人恢复密钥已更换。可以继续轮换数据密钥保护后续内容；仅当身份验证已过期时需要再次验证。",
+      "registrationBlocked": "当前无法登记设备。仍可在完成账号验证后重新开始云同步。",
+      "verifyIdentity": "验证身份",
+      "saveKey": "保存密钥",
+      "replaceWarning": "新密钥生效后，旧密钥不能再授权设备；更换不能收回已经下载的数据。",
+      "generate": "生成恢复密钥",
+      "cancelPrevious": "取消上次未完成申请",
+      "saveWarning": "请妥善保存恢复密钥文件",
+      "saveHint": "文件可用于恢复云端数据，请保存在安全位置。云服务无法替您找回。",
+      "downloadKey": "下载密钥文件",
+      "noOptions": "无法使用这些方式？",
+      "restartTitle": "重新开始云同步",
+      "restartImpact": "了解影响",
+      "restartReview": "确认切换",
+      "restartEmailTitle": "邮箱确认",
+      "restartConfirm": "确认立即重新开始",
+      "restartImmediate": "确认切换后立即生效",
+      "restartEffects": {
+        "local": "本地配置保留，旧工作区不会被覆盖。",
+        "access": "原设备在线权限和其他登录会话将撤销。有数据的旧工作区保留 30 天，取回仍需旧密钥。",
+        "next": "新工作区需设置恢复保障，并确认同步差异。"
+      },
+      "createRestart": "创建重新开始申请",
+      "resumeOperation": "继续上次操作",
+      "expired": "申请已过期，请取消后重新发起",
+      "queryResult": "查询操作状态",
+      "operationFailed": "操作未完成，请查看错误提示或查询操作状态后重试。",
+      "errorCode": "错误代码：{{code}}",
+      "setupPending": "恢复密钥尚未启用。保存后点击“已保存，启用”；过期后可取消并重新验证身份。",
+      "cancelOperation": "取消申请",
+      "sendEmail": "发送独立邮箱确认",
+      "resendEmail": "重新发送确认邮件",
+      "emailToken": "邮件中的确认码",
+      "localPending": "云端已切换，本机绑定待完成",
+      "restartDone": "新工作区已建立，请先设置恢复保障",
+      "restartAccept": "我理解旧数据需要旧密钥才能取回，确认立即建立新工作区并撤销旧设备在线权限",
+      "finishLocal": "继续完成本机绑定",
+      "usePersonal": "使用个人恢复密钥",
+      "personalAuthorizeHint": "导入恢复密钥文件，授权这台设备",
+      "noAutoUpload": "授权成功后仍须查看差异并确认，不会自动上传配置。",
+      "replaceDevices": "需要替换的旧设备（可选）",
+      "replaceDevicesHint": "可信设备配额已满时，明确选择撤销的旧设备。撤销和新设备激活共同提交，不能删除旧设备已下载的内容。",
+      "recover": "恢复设备授权",
+      "replacedTitle": "原工作区已归档",
+      "replacedHint": "本机旧身份保留用于历史验证和持钥取回。加入当前工作区将创建新的在线设备身份并重新授权。",
+      "joinCurrent": "加入当前工作区",
+      "archivesTitle": "归档数据",
+      "archiveHint": "重新开始后有数据的旧工作区保留 30 天。到期停止读取并清理；每个账号最多保留一个归档。",
+      "archiveReadFailed": "归档状态暂不可用，请刷新",
+      "noArchives": "没有可取回的工作区归档",
+      "cleaning": "正在清理，读取已停止",
+      "archiveUntil": "保留至 {{date}}",
+      "retrieve": "取回到本地",
+      "deleteArchive": "永久删除归档",
+      "retrieveHint": "先验证归档、资源和引用，再确认本地差异",
+      "retrieveNoDelete": "归档中的删除记录不会删除本地配置。同 ID 内容冲突需要选择；取回后关闭自动同步，重新预览才能上传。",
+      "archiveLocalKey": "这台设备已有归档密钥，可直接预览，也可导入恢复文件。",
+      "archiveKeyRequired": "选择归档工作区的恢复密钥文件，即可校验并预览数据。",
+      "previewRetrieve": "生成取回预览",
+      "useArchive": "采用归档",
+      "applyRetrieve": "确认取回并暂停自动同步",
+      "deleteArchiveHint": "立即停止读取，并由后台清理密文和资源。清理完成后才能再次重新开始；此操作不可撤销。",
+      "firstTitle": "首次云同步需要恢复保障",
+      "firstHint": "请在安全页设置个人恢复密钥，或开启 2FA 云端恢复。您仍可查看差异、登录和使用离线功能。",
+      "advancedTitle": "高级操作",
+      "advancedHint": "旧数据无法恢复时，经邮箱和身份验证建立新工作区。"
+    },
+    "authorization": {
+      "switchTitle": "切换授权方式",
+      "switchHint": "将取消当前未完成的申请，再发起新的授权流程。已批准的设备不会因此撤回。",
+      "remaining": "剩余时间 {{time}}",
+      "disableRotate": "关闭并轮换数据密钥",
+      "rotatePending": "已停止恢复发放。可以继续轮换数据密钥；仅当身份验证已过期时需要再次验证。离开后也可在安全页继续。",
+      "approvalTitle": "授权新设备",
+      "waitingTitle": "等待设备授权",
+      "completedTitle": "授权完成",
+      "recoveryTitle": "云端恢复",
+      "enablementTitle": "开启云端恢复",
+      "readFailed": "暂时无法读取授权状态",
+      "expired": "申请已过期，请重新发起",
+      "pairingCode": "配对码",
+      "pairingUnavailable": "配对码暂不可用",
+      "pairingRequestHint": "另一台设备会显示相同的配对码。",
+      "pairingApproveHint": "请核对新设备上的配对码，仅授权你认识的设备。",
+      "waitingHint": "请在可信设备上确认授权，完成后这里会自动更新。",
+      "approvedTitle": "已授权",
+      "approvedHint": "新设备将自动完成授权。",
+      "finishingLocal": "正在完成本机授权…",
+      "localRetryHint": "已获批准，本机保存未完成。请重试，无需再次验证。",
+      "retryLocal": "重试完成授权",
+      "verified": "设备已授权",
+      "previewNext": "前往云同步确认同步范围后，即可开始同步。",
+      "platformTrust": "我理解开启云端恢复后，平台具备恢复工作区数据密钥的能力。",
+      "verify": "验证本次操作",
+      "approve": "确认授权",
+      "complete": "验证材料并完成开启",
+      "claim": "验证并领取授权",
+      "reject": "拒绝",
+      "cancel": "取消申请",
+      "chooseHint": "登录不会自动授权或开启同步。请选择一种方式验证本机。",
+      "useTrusted": "使用可信设备批准",
+      "useRecovery": "使用云端恢复",
+      "initialize": "确认当前可信设备",
+      "initializeHint": "请核对现有设备清单，移除不再使用的设备。确认后启用新的签名成员检查点。",
+      "reviewMembers": "核对设备清单",
+      "requests": "设备授权申请",
+      "details": "查看详情",
+      "noRequests": "暂无待处理申请",
+      "recoveryHint": "提前开启后，新设备可使用验证器验证码恢复授权。此功能默认关闭。",
+      "cooldown": "恢复保护期至 {{date}}",
+      "enable": "开启云端恢复",
+      "continue": "继续开启流程",
+      "disable": "关闭云端恢复",
+      "freeze": "暂停恢复发放",
+      "unfreeze": "恢复发放",
+      "disableHint": "立即停止新发放并作废未完成恢复。若未设置个人恢复密钥，关闭后将失去恢复保障，可先在安全页设置替代方式。已下载的密钥无法收回；如需保护后续内容，请关闭后轮换数据密钥。",
+      "freezeHint": "暂停后仅已登录的可信设备可解除，不影响现有设备同步。",
+      "totpRequired": "请先开启双重验证，再由可信设备开启云端恢复。",
+      "moreActions": "更多操作",
+      "securityOptions": "安全选项",
+      "emergency": "紧急暂停云端恢复",
+      "emergencyIdentity": "使用本机保留的可信身份",
+      "emergencyConfirm": "暂停云端密钥发放，未完成的恢复流程将失效。现有设备同步不受影响。解除暂停需在可信设备上重新登录。",
+      "emergencySubmit": "确认暂停",
+      "emergencyCompleted": "已暂停云端恢复",
+      "targetUnavailable": "此申请已失效或不属于当前账号，请查看保留的消息摘要。",
+      "states": {
+        "pending": "等待处理",
+        "verifying": "等待确认",
+        "verified": "身份已验证",
+        "processing": "正在处理",
+        "approved": "已批准",
+        "acknowledged": "已完成",
+        "rejected": "已拒绝",
+        "cancelled": "已取消",
+        "expired": "已过期",
+        "invalidated": "已失效",
+        "failed": "未完成"
+      },
+      "policyStates": {
+        "disabled": "未开启",
+        "enabling": "开启中",
+        "enabled": "已开启",
+        "frozen": "已暂停"
+      },
+      "reasons": {
+        "service_disabled": "云服务尚未提供恢复能力",
+        "recovery_frozen": "恢复发放已暂停，需可信设备解除",
+        "recovery_cooling_down": "验证器换绑保护期内暂不可恢复",
+        "not_enabled": "账号未提前开启云端恢复",
+        "recovery_unavailable": "恢复材料暂不可用，请联系服务维护人员；仍可使用可信设备批准",
+        "service_epoch_changed": "服务安全状态已变化，请使用可信设备处理"
+      }
+    },
+    "local": "本地",
+    "localHint": "离线使用",
+    "accountMenu": "{{name}} · 账号与设置",
+    "signInAccount": "登录账号",
+    "useOffline": "使用离线版",
+    "welcome": "登录账号",
+    "welcomeHint": "使用邮箱密码，或由可信手机扫码登录。",
+    "login": {
+      "storyTitle": "你的配置，",
+      "storySubtitle": "随设备同行。",
+      "trustTitle": "可信设备授权",
+      "trustHint": "新设备经确认后获得访问权限",
+      "encryptionTitle": "加密同步",
+      "encryptionHint": "配置加密后上传云端",
+      "scopeHint": "登录后，由你确认设备与同步范围。",
+      "offlineLabel": "暂不登录？",
+      "reconnectTitle": "重新验证当前账号",
+      "reconnectHint": "本地功能可继续使用，验证后恢复云连接。",
+      "emailPlaceholder": "输入账号邮箱",
+      "passwordPlaceholder": "输入密码",
+      "newPasswordPlaceholder": "设置新密码"
+    },
+    "backToLogin": "返回登录",
+    "authOptions": "其他账号操作",
+    "authHints": {
+      "register": "使用邮箱创建账号，完成邮件验证后即可登录。",
+      "verify-email": "粘贴验证邮件中的验证串，完成邮箱验证。",
+      "resend-verification": "输入注册邮箱，重新接收验证邮件。",
+      "password-reset/request": "输入账号邮箱，接收密码重置邮件。",
+      "password-reset/confirm": "粘贴重置邮件中的验证串，并设置新密码。"
+    },
+    "loading": "正在加载…",
+    "accountConnected": "已登录 Termous 账号",
+    "unconfiguredTitle": "云服务尚未配置",
+    "email": "邮箱",
+    "password": "密码",
+    "passwordRequired": "请输入密码",
+    "passwordRule": "密码需要 12～256 个 UTF-8 字节",
+    "verificationCode": "邮件验证串",
+    "authSent": "操作已受理，请查看邮件或尝试登录。",
+    "logout": "退出登录",
+    "connectionUnavailable": "暂时无法连接云服务",
+    "connectionRetryHint": "正在重连，可继续使用本地功能。",
+    "reconnectAccount": "重新登录",
+    "loadFailed": "账号信息加载失败",
+    "retry": "重试",
+    "refresh": "刷新",
+    "operationFailed": "操作未完成，请重试。",
+    "unconfigured": "尚未配置云服务，离线功能仍可正常使用。",
+    "trusted": "可信设备",
+    "pendingApproval": "等待可信设备批准",
+    "syncTitle": "云同步",
+    "syncHint": "在设备间同步主机、凭据和配置。",
+    "profile": {
+      "name": "名称",
+      "organization": "公司／组织",
+      "bio": "简介",
+      "chooseAvatar": "更换头像",
+      "avatarLabel": "头像",
+      "removeAvatar": "移除头像",
+      "avatarHint": "支持 PNG、JPEG，最大 2 MB，自动居中裁剪为方形。",
+      "privateHint": "个人资料由云服务保存，不影响本机配置。",
+      "save": "保存资料",
+      "saved": "资料已保存",
+      "unavailable": "暂时无法读取个人资料",
+      "unsaved": "有未保存的修改",
+      "editHint": "修改后保存，即可更新账号资料。",
+      "reload": "重新载入",
+      "discard": "放弃未保存的修改，载入最新资料？"
+    },
+    "tabs": {
+      "profile": "个人资料",
+      "sync": "云同步",
+      "devices": "设备",
+      "security": "安全"
+    },
+    "auth": {
+      "login": "登录",
+      "register": "注册账号",
+      "verify-email": "验证邮箱",
+      "resend-verification": "重发验证邮件",
+      "password-reset/request": "忘记密码",
+      "password-reset/confirm": "重置密码",
+      "reauthenticate": "验证身份"
+    },
+    "mfa": {
+      "title": "二步验证",
+      "hint": "使用验证器保护账号登录。账号验证不替代可信设备授权。",
+      "enabled": "已开启",
+      "disabled": "未开启",
+      "disabledHint": "登录时增加一次验证，让账号更安全。",
+      "enable": "开启二步验证",
+      "disable": "关闭二步验证",
+      "replace": "更换验证器",
+      "regenerate": "重新生成备用码",
+      "refresh": "刷新验证状态",
+      "loadFailed": "无法读取二步验证状态，请刷新重试。",
+      "loading": "正在加载二步验证状态…",
+      "codesRemaining": "剩余 {{count}} 个备用码",
+      "code": "验证器验证码",
+      "codeRequired": "请输入验证码或备用码",
+      "codeRule": "请输入 6 位数字验证码",
+      "codePlaceholder": "6 位验证码",
+      "backupCode": "备用码",
+      "backupCodePlaceholder": "输入一枚未使用的备用码",
+      "useBackupCode": "改用备用码",
+      "useAuthenticator": "使用验证器验证码",
+      "loginTitle": "完成二步验证",
+      "loginHint": "输入验证器中的验证码，或使用一枚备用码。备用码使用后即失效。",
+      "verifyAndLogin": "验证并登录",
+      "challengeExpired": "本次登录验证已过期，请返回重新登录。",
+      "loginUncertain": "尚未确认登录结果，请返回重新登录。不要重复提交同一验证码。",
+      "enableHint": "验证密码后绑定验证器。开启后，其他登录会话将退出。",
+      "replaceHint": "使用现有验证器或备用码验证身份后绑定新验证器。确认成功前保留原验证器；成功后旧验证器、旧备用码失效，其他登录会话退出。",
+      "disableHint": "使用验证器或备用码验证身份后关闭二步验证。备用码将失效，其他登录会话退出。同时停止云端恢复发放，并作废未完成的恢复。重新开启双重验证不会自动重新开启恢复。若未设置个人恢复密钥，也将失去恢复保障，可先设置替代方式。",
+      "regenerateHint": "使用验证器或备用码验证身份后生成 10 个新备用码。旧备用码全部失效，登录会话保持不变。",
+      "continue": "下一步",
+      "confirm": "确认并开启",
+      "confirmDisable": "确认关闭",
+      "cancel": "取消",
+      "scanHint": "用验证器扫描二维码，然后输入新生成的验证码。",
+      "scanTitle": "用验证器扫码",
+      "manualKey": "无法扫码？手工输入密钥",
+      "manualHint": "在验证器中手工添加账号，粘贴下方密钥，并选择“基于时间”类型。",
+      "secretLabel": "设置密钥",
+      "copyKey": "复制密钥",
+      "saveCodes": "保存备用码",
+      "saveCodesHint": "这些备用码仅展示一次。每个只能使用一次，请存到安全的位置。备用码不能解密云端数据。",
+      "backupCodes": "一次性备用码",
+      "downloadCodes": "下载备用码",
+      "codesSaved": "我已安全保存备用码",
+      "copied": "已复制",
+      "done": "完成",
+      "exportFailed": "复制或下载失败，请手动保存备用码。",
+      "outcomeUncertain": "操作结果尚未确认",
+      "outcomeUncertainHint": "当前状态已尝试刷新。如已开启但未收到备用码，请再次验证后重新生成。请勿重复提交原验证码。",
+      "verifiedUntil": "有效至 {{time}}",
+      "steps": { "identity": "验证身份", "authenticator": "绑定验证器", "save": "保存备用码" }
+    },
+    "errors": {
+      "qr_expired": "二维码已过期，请重新生成。",
+      "qr_state_changed": "扫码状态已变化，请重新读取。",
+      "qr_already_scanned": "此二维码已由另一台手机扫描。",
+      "qr_account_mismatch": "请使用原账号扫描。",
+      "qr_invalid": "二维码无效。",
+      "qr_origin_mismatch": "二维码不属于当前云服务。",
+      "device_not_trusted": "请先将手机设为可信设备。",
+      "client_upgrade_required": "当前云服务尚不支持扫码登录，请升级服务。",
+      "qr_claimed": "此二维码已由另一台手机扫描。",
+      "local_failed": "无法完成扫码操作，请重试。",
+      "CLOUD_PERSONAL_SAVE_REQUIRED": "请先保存恢复密钥，再确认启用。",
+      "CLOUD_PERSONAL_FILE_INVALID": "请选择有效的 .torkey 恢复密钥文件（不超过 4 KiB）。",
+      "CLOUD_PERSONAL_FILE_VERSION": "暂不支持此密钥文件版本，请更新客户端。",
+      "CLOUD_PERSONAL_FILE_MISMATCH": "文件不属于当前服务、账号或工作区，请选择对应的密钥文件。",
+      "CLOUD_PERSONAL_FILE_STALE": "密钥版本不匹配，请选择目标工作区对应版本的恢复文件。",
+      "CLOUD_PERSONAL_FILE_READ_FAILED": "无法读取密钥文件，请重新选择。",
+      "CLOUD_PERSONAL_KEY_INVALID": "恢复密钥无效或与云端材料不匹配，请检查保存的密钥。",
+      "CLOUD_PERSONAL_KEY_REQUIRED": "请先选择恢复密钥文件，或粘贴旧版文本密钥。",
+      "recovery_safeguard_required": "首次同步前请设置个人恢复密钥或开启云端恢复。",
+      "CLOUD_PERSONAL_SETUP_MISSING": "本机恢复密钥待办与当前申请不匹配，请先查询操作状态。",
+      "CLOUD_PERSONAL_LOCAL_PENDING": "云端已启用恢复密钥，但本机密钥校验或保存尚未完成。请查询操作状态继续完成，无需重新生成密钥。",
+      "authorization_expired": "申请或本次身份验证已过期。请查询状态，取消未完成的申请后重新验证身份。",
+      "authorization_stale": "账号、可信成员或恢复设置已变化，请查询状态后重新发起。",
+      "membership_conflict": "操作版本已变化，请查询最新结果后继续。",
+      "protocol_invalid": "云服务返回的恢复数据不符合当前协议，请检查客户端与服务端版本。",
+      "workspace_replaced": "原工作区已归档，请加入当前工作区或取回原数据。",
+      "workspace_binding_pending": "云端已完成切换，本机绑定尚未完成。请查询结果并继续。",
+      "personal_recovery_unavailable": "个人恢复密钥尚未设置或已更换。",
+      "archive_expired": "归档已到期或正在清理，无法继续读取。",
+      "archive_cleanup_required": "请先明确删除前次归档并等待清理完成。",
+      "email_confirmation_failed": "邮箱确认码无效，请使用本次申请最新邮件中的完整确认码。",
+      "mfa_invalid_code": "验证码或备用码不正确，请检查后重试。",
+      "mfa_code_reused": "此验证码已使用，请等待验证器生成下一枚验证码。",
+      "mfa_challenge_expired": "登录验证已过期，请重新登录。",
+      "mfa_challenge_exhausted": "尝试次数过多，请重新登录。",
+      "mfa_setup_expired": "绑定申请已过期，请重新开始。",
+      "mfa_setup_exhausted": "尝试次数过多，请重新申请绑定验证器。",
+      "mfa_revision_conflict": "二步验证已在其他端修改，请刷新状态后重新操作。",
+      "CLOUD_MFA_CONFLICT": "二步验证已在其他端修改，请刷新状态后重新操作。",
+      "mfa_copy_failed": "无法复制密钥，请手动输入。",
+      "reauthentication_failed": "身份验证失败，请检查本次验证信息。",
+      "CLOUD_MFA_UNAVAILABLE": "无法确认账号验证方式，请刷新安全状态后重试。",
+      "CLOUD_RESPONSE_INVALID": "云服务返回了无效的验证信息，请刷新后重试。",
+      "CLOUD_STALE": "账号状态已变化，请重新操作。",
+      "profile_conflict": "资料已在其他端修改。当前草稿已保留，请重新载入最新资料后再编辑。",
+      "device_name_conflict": "设备名称已变化。当前草稿已保留，请载入最新名称后再编辑。",
+      "profile_invalid": "请检查资料长度及特殊字符。",
+      "avatar_invalid": "请选择有效的 PNG 或 JPEG 图片。",
+      "avatar_file_size": "头像文件不能超过 2 MB。",
+      "resource_in_use": "相关配置正在被连接或挂载使用，请关闭相关会话后重试。",
+      "login_required": "登录已过期，请重新登录。",
+      "network_unavailable": "暂时无法连接云服务，请稍后重试。",
+      "response_incomplete": "连接中断，请重试。",
+      "service_unavailable": "云服务暂时不可用，请稍后重试。",
+      "rate_limited": "请稍后再试。",
+      "refresh_unconfirmed": "请重新登录以继续使用云服务。",
+      "unauthorized": "登录失败，请检查邮箱、密码和邮箱验证状态。",
+      "configuration_invalid": "云服务地址配置无效，请检查本机配置文件。",
+      "local_keys_unavailable": "无法读取本机密钥，请恢复密钥库访问后重试。",
+      "session_revoke_unconfirmed": "已在本机退出，但未能确认远端会话已撤销。",
+      "reauthentication_required": "本次身份验证已过期，请重新验证后继续。",
+      "conflicts_pending": "存在同步冲突，请打开预览选择保留的版本。",
+      "preview_required": "本地数据已恢复，请重新预览并确认同步。",
+      "device_approval_required": "请先完成可信设备授权。",
+      "dataset_upgrade_required": "云服务尚不支持部分数据类型，请升级服务后再同步。",
+      "batch_reference_limit": "关联变更超过单次安全提交上限，当前未上传。请缩小一次变更的规模。",
+      "rekey_other_device": "轮换由另一设备发起，请在原设备继续。",
+      "recovery_epoch_changed": "云端恢复状态已变化，请重新登录并对账。",
+      "local_store_unavailable": "本机云状态暂不可用，离线功能不受影响。",
+      "protocol_unsupported": "云服务协议不兼容，请更新客户端或服务。",
+      "revision_conflict": "云端出现新修改，请重新同步并处理冲突。"
+    },
+    "deviceList": "已登记设备",
+    "deviceColumns": {
+      "name": "设备名称",
+      "authorization": "授权状态",
+      "created": "登记时间",
+      "actions": "远控与管理"
+    },
+    "deviceListHint": "管理可访问云端配置的设备。",
+    "deviceName": {
+      "edit": "编辑名称",
+      "title": "重命名设备",
+      "label": "设备名称",
+      "invalid": "请输入 1–100 个字符，不能包含控制字符。",
+      "reload": "载入最新名称",
+      "save": "保存名称",
+      "cancel": "取消"
+    },
+    "devicesLoadFailed": "设备列表加载失败，请刷新重试。",
+    "authorizeDevice": "授权当前设备",
+    "noDevices": "暂无已登记设备",
+    "currentDevice": "当前设备",
+    "currentSession": "当前登录",
+    "revoke": "撤销",
+    "copy": "复制",
+    "revokeHint": "撤销后该设备将从列表移除，云端授权和关联登录会话失效，已下载的数据保留。在该设备重新登录后，可按首次登录流程申请可信授权。此操作需要近期身份验证。",
+    "reauthenticateHint": "敏感操作使用验证器或备用码验证；未开启二步验证时使用密码。部分操作可复用 5 分钟内的身份验证，设备批准和恢复每次单独验证。",
+    "securityVerification": "敏感操作验证",
+    "verified": "身份已验证",
+    "sessions": "登录会话",
+    "sessionsHint": "查看登录记录，撤销不再使用的会话。",
+    "noSessions": "暂无登录会话",
+    "sessionsLoadFailed": "登录会话加载失败，请刷新重试。",
+    "refreshSessions": "刷新会话",
+    "sessionCreated": "登录于 {{date}}",
+    "unboundSession": "未绑定设备的登录",
+    "revokeSession": "撤销此登录会话？",
+    "revokeSessionHint": "该会话将退出账号。设备已下载的数据不会被删除。",
+    "keySafetyHint": "请保留至少一台可信设备，并备份个人恢复密钥或提前开启云端恢复。若所有可信设备和恢复方式均不可用，云数据将无法解密；重置账号密码也无法恢复。",
+    "approvalNeeded": "请先在“设备”中完成可信设备授权",
+    "autoSync": "自动同步",
+    "autoSyncHint": "自动同步后续配置变更",
+    "settingsFailed": "同步设置未保存，请重试",
+    "lastSuccess": "最近成功同步",
+    "neverSynced": "尚未同步",
+    "pendingChanges": "待处理变更",
+    "conflicts": "冲突",
+    "preview": "预览同步",
+    "syncNow": "立即同步",
+    "previewTitle": "同步预览",
+    "previewBlocked": "请先处理同步阻塞项，再确认同步。",
+    "noChanges": "本地与云端没有差异",
+    "dataset": "配置类别",
+    "upload": "上传",
+    "download": "下载",
+    "deletion": "其中删除",
+    "conflictHint": "两端均有修改，请选择要保留的版本。",
+    "deleteConflict": "包含删除变更",
+    "rekeyTitle": "数据密钥轮换",
+    "rekeyLoadFailed": "密钥轮换状态加载失败，请刷新重试。",
+    "refreshRekey": "刷新状态",
+    "noRekey": "当前没有进行中的密钥轮换。",
+    "rekeyHint": "重新加密云端配置与资源。轮换期间暂停普通上传，中断后可继续。请先撤销不再信任的设备。",
+    "rekeyConfirm": "使用新密钥重新加密云端数据？",
+    "rekeyStart": "开始轮换",
+    "rekeyResume": "继续未完成的轮换",
+    "rekeyCancel": "取消轮换",
+    "rekeyCancelHint": "取消未完成的轮换，继续使用原密钥？",
+    "deviceStates": {
+      "pending": "待批准",
+      "active": "已信任",
+      "revoked": "已撤销"
+    },
+    "keep": {
+      "local": "保留本地",
+      "remote": "采用云端"
+    },
+    "phases": {
+      "ready": "就绪",
+      "blocked": "需要处理",
+      "syncing": "正在同步",
+      "signed_out": "未登录",
+      "unconfigured": "未配置",
+      "unavailable": "不可用"
+    },
+    "rekeyStates": {
+      "staging": "轮换进行中，可继续或取消",
+      "complete": "轮换已完成",
+      "cancelled": "轮换已取消"
+    },
+    "datasets": {
+      "connection_proxies": "连接代理",
+      "host_groups": "主机分组",
+      "host_icons": "主机图标",
+      "credentials": "凭据",
+      "hosts": "主机",
+      "ssh_access_profiles": "SSH 访问配置",
+      "file_access_profiles": "文件访问配置",
+      "terminal_fonts": "终端字体",
+      "code_snippet_groups": "代码片段分组",
+      "code_snippets": "代码片段",
+      "file_bookmark_groups": "文件书签分组",
+      "file_bookmarks": "文件书签",
+      "file_rename_presets": "改名预设",
+      "forward_profiles": "端口转发",
+      "remote_desktop_profiles": "远程桌面配置",
+      "remote_desktop_credential_bindings": "远程桌面凭据绑定"
+    }
+  },
   "audit": {
-    "description": "AI 助手与外部 MCP 操作记录 · 本机保留 90 天",
+    "paused": "已暂停记录",
     "detail": "审计详情",
     "loadFailed": "无法读取审计记录，请刷新重试",
     "relatedFailed": "关联事件读取失败，已加载的记录仍保留",
@@ -35,7 +602,7 @@
     "json": "查看审计 JSON",
     "search": "关键词搜索",
     "searchField": "搜索范围",
-    "searchHint": "在选定范围内按字面包含匹配；输入停顿后自动搜索，可结合更多筛选缩小范围。",
+    "searchHint": "输入关键词自动搜索，可结合筛选条件缩小范围。",
     "searchFields": {
       "all": "全部关键信息",
       "command": "执行命令",
@@ -76,7 +643,7 @@
     "from": "开始时间",
     "until": "结束时间",
     "lastSevenDays": "默认最近 7 天",
-    "scope": "作用域",
+    "scope": "功能模块",
     "level": "级别",
     "moreFilters": "更多筛选",
     "reset": "重置",
@@ -111,7 +678,7 @@
       "unknown": "结果不确定"
     },
     "producers": {
-      "agent_runtime": "AI Worker",
+      "agent_runtime": "AI 助手运行时",
       "mcp_server": "MCP 服务端",
       "application_service": "应用服务"
     },
@@ -121,6 +688,8 @@
     "scopes": {
       "hosts": "主机",
       "sessions": "SSH 会话",
+      "desktops": "远程桌面",
+      "desktop_workflows": "桌面脚本",
       "files": "文件管理",
       "commands": "命令执行",
       "forwarding": "端口转发",
@@ -182,6 +751,17 @@
       "termous_remoteops_crontab_jobs_delete": "删除定时任务",
       "termous_remoteops_crontab_jobs_update": "更新定时任务",
       "termous_remoteops_docker_capability": "检查 Docker 能力",
+      "termous_remoteops_docker_images_list": "列出镜像",
+      "termous_remoteops_docker_images_get": "查看镜像详情",
+      "termous_remoteops_docker_images_action": "管理镜像",
+      "termous_remoteops_docker_volumes_list": "列出数据卷",
+      "termous_remoteops_docker_volumes_get": "查看数据卷详情",
+      "termous_remoteops_docker_volumes_create": "创建数据卷",
+      "termous_remoteops_docker_volumes_action": "管理数据卷",
+      "termous_remoteops_docker_networks_list": "列出网络",
+      "termous_remoteops_docker_networks_get": "查看网络详情",
+      "termous_remoteops_docker_networks_create": "创建网络",
+      "termous_remoteops_docker_networks_action": "管理网络",
       "termous_remoteops_docker_containers_action": "操作容器",
       "termous_remoteops_docker_containers_get": "查看容器详情",
       "termous_remoteops_docker_containers_list": "列出容器",
@@ -278,6 +858,7 @@
     "loading": "加载中",
     "empty": "暂无数据",
     "noSessions": "暂无会话",
+    "newConnection": "新建连接",
     "error": "发生错误",
     "retry": "重试",
     "copy": "复制",
@@ -286,9 +867,16 @@
     "no": "否"
   },
   "sessionOrigin": {
-    "mcp": "MCP 创建的会话"
+    "mcp": "MCP 创建的会话",
+    "remote": "远控创建的会话"
+  },
+  "remoteControl": {
+    "controlled": "正在被远程控制",
+    "takeover": "收回输入权",
+    "takeoverFailed": "未能收回输入权，请检查连接"
   },
   "nav": {
+    "account": "账号",
     "audit": "审计中心",
     "workbench": "工作站",
     "agent": "AI 助手",
@@ -302,7 +890,40 @@
     "settings": "设置"
   },
   "agent": {
+    "window": {
+      "open": "在独立窗口打开",
+      "return": "返回主窗口",
+      "returnHere": "返回此页面",
+      "focus": "定位窗口",
+      "detached": "已在独立窗口打开",
+      "detachedDescription": "助手在独立窗口继续工作。会话、草稿与正在进行的任务会保留。",
+      "failed": "窗口交接未完成，请重试。未确认的操作不会自动重发。",
+      "approvalWaiting": "正在等待主窗口审批",
+      "approval": "前往审批"
+    },
+    "desktopResource": {
+      "confirmTitle": "替换桌面连接引用？",
+      "confirmDescription": "将替换当前桌面连接引用，其他连接引用和已有草稿会保留。",
+      "status": {
+        "ready": "可用",
+        "checking": "正在检查",
+        "stale": "引用已失效",
+        "unavailable": "暂不可用"
+      },
+      "details": "桌面资源引用",
+      "type": "类型",
+      "protocol": "协议",
+      "select": "选择替换引用",
+      "fixedVersion": "已固定此版本。脚本更新后，可重新选择以引用新版本。",
+      "referenceOnly": "仅引用目标；连接和操作仍按现有权限与审批执行。",
+      "unavailable": "引用暂不可用，请检查目标或重新选择。",
+      "removeTitle": "解除引用？",
+      "removeDescription": "仅从当前对话解除引用，不关闭桌面、不删除脚本。",
+      "errorTitle": "桌面资源不可用"
+    },
+    "remoteApprovals": "待审批",
     "sessions": {
+      "remoteOrigin": "远程创建",
       "title": "会话",
       "new": "新建会话",
       "untitled": "新会话",
@@ -404,7 +1025,24 @@
     },
     "empty": {
       "title": "今天想处理什么？",
-      "description": "描述你希望完成的目标。AI 助手会在已授权范围内通过 MCP 调用 Termous 能力。"
+      "description": "描述你希望完成的目标。AI 助手会在已授权范围内通过 MCP 调用 Termous 能力。",
+      "prompts": {
+        "diagnose": {
+          "title": "排查主机",
+          "description": "梳理负载与资源瓶颈",
+          "text": "帮我检查当前主机的 CPU、内存和磁盘使用情况，先给出排查思路。"
+        },
+        "logs": {
+          "title": "分析日志",
+          "description": "定位异常及可能原因",
+          "text": "帮我分析关联终端中的错误日志，整理可能原因和下一步检查建议。"
+        },
+        "deploy": {
+          "title": "部署检查",
+          "description": "准备变更前的检查清单",
+          "text": "帮我整理服务部署前的检查清单，先说明需要确认哪些环境信息。"
+        }
+      }
     },
     "conversation": {
       "jumpToLatest": "回到最新消息"
@@ -443,6 +1081,15 @@
       "action": "交给 AI 助手"
     },
     "message": {
+      "resources": "发送时关联的资源",
+      "resourceKind": {
+        "desktop_session": "桌面会话",
+        "desktop_profile": "桌面配置",
+        "desktop_workflow": "桌面脚本",
+        "ssh_session": "SSH 会话",
+        "ssh_profile": "SSH 配置",
+        "file_profile": "文件配置"
+      },
       "copied": "已复制",
       "copyFailed": "复制失败，请重试",
       "duration": "用时 {{duration}}",
@@ -497,6 +1144,11 @@
       "tokensBeforeAfter": "估算占用：整理前 {{before}} token，整理后 {{after}} token。",
       "contextWindow": "当次模型上下文窗口为 {{tokens}} token。",
       "duration": "耗时 {{duration}}。"
+    },
+    "progress": {
+      "detected": "检测到重复操作（{{count}} 次），正在提示调整方案",
+      "progressed": "已观察到新的有效结果",
+      "candidates": "候选操作"
     },
     "retry": {
       "waiting": "等待重连 · 第{{attempt}}/{{max}}次",
@@ -644,7 +1296,6 @@
         "title": "连接恢复",
         "completed": "SSH 连接已恢复",
         "completedDescription": "已更新当前引用。待发送消息仍暂停，请确认后继续。",
-        "infrastructureUnavailable": "AI 运行环境尚未就绪，暂时不能新建或执行任务。已有会话和引用仍可查看，SSH 恢复状态由连接服务独立判断。",
         "recover": "恢复连接",
         "retry": "重试恢复",
         "cancel": "取消恢复",
@@ -736,14 +1387,18 @@
     "slash": {
       "title": "斜杠命令",
       "commands": {
+        "workflow": {
+          "title": "选择桌面脚本",
+          "description": "引用桌面脚本的固定版本"
+        },
         "title": "命令",
         "session": {
           "title": "选择会话类型",
-          "description": "关联现有的 SSH 或文件会话"
+          "description": "引用 SSH、文件或远程桌面会话"
         },
         "profile": {
           "title": "选择配置类型",
-          "description": "通过 SSH 或文件配置建立关联"
+          "description": "引用 SSH、文件或远程桌面配置"
         },
         "compact": {
           "title": "整理上下文",
@@ -755,6 +1410,14 @@
         "context": "上下文"
       },
       "resourceKind": {
+        "desktop": {
+          "title": "远程桌面",
+          "description": "RDP / VNC 会话与配置"
+        },
+        "workflow": {
+          "title": "桌面脚本",
+          "description": "引用固定版本"
+        },
         "title": "选择资源类型",
         "ssh": {
           "title": "SSH 连接",
@@ -878,6 +1541,8 @@
       "measured": "精确用量",
       "contentEstimate": "内容估算",
       "providerBasis": "模型用量校准",
+      "belowThreshold": "自动压缩阈值为 {{tokens}} token，当前尚未达到。重复操作不会直接触发压缩。",
+      "atThreshold": "已达到 {{tokens}} token 阈值，将在当前工具操作完成后、下一次请求前自动整理。",
       "providerBasisHint": "根据模型返回的用量和后续新增内容估算。",
       "contextPending": "当前模型待评估",
       "currentContextWindow": "当前模型窗口：{{window}} token",
@@ -922,11 +1587,23 @@
     "markdown": {
       "remoteImageBlocked": "远程图片已阻止"
     },
+    "images": {
+      "toolResults": "工具返回的图片",
+      "result": "图片 {{index}}",
+      "expand": "查看大图",
+      "unavailable": "此图片不在当前会话记录中"
+    },
     "readiness": {
-      "title": "准备 AI 助手运行环境",
-      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作，始终具备全部 MCP 能力，新增能力自动更新。工具执行遵循当前审批策略；模型在“设置 > AI 助手”中管理。",
-      "prepare": "准备或修复",
-      "loadFailed": "暂时无法读取 AI 助手运行状态"
+      "remoteDescription": "请在被控电脑完成配置，然后刷新状态。",
+      "remoteTitle": "远端助手未就绪",
+      "checking": "正在检查运行环境",
+      "unavailableTitle": "运行状态不可用",
+      "refreshStatus": "刷新状态",
+      "title": "AI 助手尚未就绪",
+      "description": "完成运行环境配置后即可开始对话。",
+      "prepare": "准备环境",
+      "modelHint": "请在「设置 · AI 助手」中选择默认模型。",
+      "loadFailed": "暂时无法读取状态，请刷新重试。"
     },
     "error": {
       "reconnecting": "正在重新连接 AI 助手实时状态",
@@ -934,19 +1611,248 @@
       "degraded": "部分 AI 助手状态暂时不可用",
       "degradedDescription": "会话内容已保留，可重试读取 Core 权威状态。",
       "operation": "AI 助手操作未完成",
+      "uncertain": "操作结果尚未确认",
+      "conflict": "会话内容已更新",
+      "conflictDescription": "请核对最新状态后重新操作，尚未提交的草稿会保留。",
+      "uncertainDescription": "操作可能已在被控电脑执行。请先刷新并核对结果，不要重复提交。",
       "operationDescription": "请检查 Core、模型配置和运行状态后重试。"
     }
   },
   "remoteDesktop": {
+    "tools": {
+      "title": "桌面工具",
+      "files": "文件管理",
+      "retainedCount": "保留会话，{{count}} 个"
+    },
+    "automation": {
+      "pointerStandby": "已接管",
+      "hostHint": "托管画面 · 关闭此窗口仅隐藏，自动化继续运行",
+      "hostFailed": "执行端已结束，请重新附着后再申请控制",
+      "view": "查看画面",
+      "credentials": "输入 VNC 认证信息",
+      "verify": "确认 VNC 服务器身份",
+      "trustOnce": "仅本次信任",
+      "actionFailed": "操作未完成，请检查桌面状态后重试",
+      "observing": "桌面画面托管中",
+      "aiControlling": "AI 正在操作",
+      "workflowControlling": "流程正在执行",
+      "releasesIn": "{{time}} 后释放控制",
+      "expired": "等待释放控制",
+      "expiryUnknown": "授权期限暂不可用",
+      "controlDetails": "查看接管详情",
+      "approvalTitle": "远程桌面控制",
+      "reclaim": "收回控制",
+      "active": "桌面已接管",
+      "target": "目标",
+      "protocol": "协议",
+      "connection": "连接标识",
+      "duration": "授权期限",
+      "limits": "最长 30 分钟；连续 15 分钟无有效截图或输入时释放",
+      "takeoverApproval": "允许接管当前桌面控制权",
+      "takeoverVncHint": "VNC 连接将切换观看入口。",
+      "controlApproval": "允许在此连接中执行鼠标、键盘与目标文本剪贴板操作",
+      "shares": "操作方可访问目标当前可见的个人映射和交换区，不会读取本机系统剪贴板。你可以随时收回控制。"
+    },
+    "files": {
+      "title": "文件",
+      "workspaceTitle": "桌面文件",
+      "taskTitle": "传输任务",
+      "transferStatus": {
+        "open": "查看文件传输",
+        "idle": "暂无进行中的传输",
+        "queued": "等待中",
+        "syncing": "同步中",
+        "totalRate": "合计传输速率",
+        "active": "{{count}} 项",
+        "upload": "上传",
+        "download": "下载"
+      },
+      "targetLocation": "远程访问路径",
+      "copyPath": "复制访问路径",
+      "copied": "已复制",
+      "copyFailed": "复制失败，请选中路径手动复制。",
+      "search": "搜索当前目录",
+      "sort": "排序方式",
+      "sortBy": { "name": "名称", "modified": "最近修改", "size": "大小优先" },
+      "size": "大小",
+      "modified": "修改时间",
+      "folder": "文件夹",
+      "noResults": "没有匹配的文件，试试其他名称。",
+      "itemCount": "{{count}} 个条目",
+      "selectedCount": "已选择 {{count}} 项",
+      "clearSelection": "取消选择",
+      "properties": "文件详情",
+      "location": "所在位置",
+      "fileActions": "操作 {{name}}",
+      "mappingEmpty": "尚未共享本机目录",
+      "mappingEmptyHint": "选择本机目录，在远程桌面中直接访问。",
+      "readWrite": "读写共享 · 直接修改本机文件",
+      "rememberShort": "在此设备记住",
+      "chooseExchange": "选择交换区",
+      "chooseRetained": "选择待领取记录",
+      "retainedTitle": "待领取文件",
+      "retainedEmptyHint": "留存文件会出现在这里，可在到期前保存。",
+      "exchangeEmptyHint": "创建交换区，在本机与远程桌面之间传递文件。",
+      "transferDirection": "传输方向",
+      "chooseFilesToSend": "选择要发送的文件",
+      "sendToDesktop": "发送到远程",
+      "receiveFromDesktop": "保存到本机",
+      "sendHint": "选择后，在远程文件夹按 Ctrl+V 粘贴。",
+      "systemPasteHint": "在此按 Ctrl+V 或选择文件，再到远程文件夹粘贴。",
+      "receiveHint": "先在远程复制文件，再读取并保存。",
+      "publicationIdle": "暂无待粘贴文件",
+      "sendSelection": "发送清单",
+      "file": "文件",
+      "type": "类型",
+      "byteSize": "{{size}} 字节",
+      "totalSize": "共 {{size}}",
+      "clipboardPreparing": "正在准备文件",
+      "clipboardPasteHint": "在远程文件夹按 Ctrl+V 粘贴。",
+      "clipboardChanged": "远程剪贴板已变化，请重新读取。",
+      "exchange": "文件交换",
+      "mappings": "共享目录",
+      "clipboard": "复制粘贴",
+      "retained": "待领取",
+      "conflicts": "同名文件",
+      "conflict": {
+        "rename": "自动重命名",
+        "skip": "跳过",
+        "replace": "覆盖"
+      },
+      "operationFailed": "文件操作未完成，请检查状态后重试",
+      "selectFolder": "选择目录",
+      "mappingConsent": "所选目录会以读写方式共享给目标 Windows。远控接入时将暂停共享；默认仅本次桌面会话有效。",
+      "mappingNote": "共享本机目录，远程可直接读写其中的文件。",
+      "rememberMapping": "仅在此设备记住（新会话需手动恢复共享）",
+      "addMapping": "添加目录",
+      "removeMappingConfirm": "移除此目录映射？在途文件访问结束后才会完成。",
+      "pause": "暂停共享",
+      "resume": "恢复共享",
+      "remove": "移除",
+      "pausedTitle": "本机文件入口已暂停",
+      "pausedNote": "远端观看期间，个人目录与本机文件剪贴板不会开放给远端。",
+      "exchangeNote": "上传至交换区，再通过下方路径在远程取用。",
+      "exchangeEmpty": "尚未创建交换区",
+      "openExchange": "创建交换区",
+      "upload": "上传文件",
+      "uploadOptions": "更多上传方式",
+      "uploadFolder": "上传文件夹",
+      "newFolder": "新建文件夹",
+      "saveSelected": "保存到本机",
+      "name": "名称",
+      "rename": "重命名",
+      "invalidName": "名称不能包含路径分隔符或特殊路径",
+      "parent": "上级目录",
+      "refresh": "刷新",
+      "entries": "交换区文件",
+      "empty": "此目录还没有文件",
+      "readFailed": "目录读取失败，请刷新重试",
+      "select": "选择 {{name}}",
+      "delete": "删除",
+      "deleteConfirm": "删除此条目？非空目录请先清理内容。",
+      "snapshotNote": "交换区文件需在远程手动复制到目标磁盘。",
+      "snapshotDownloadHint": "保存前会短暂暂停远程写入，准备文件快照。",
+      "claimNote": "保存后可清理留存文件。",
+      "clipboardNote": "通过远程剪贴板传递文件与文件夹。",
+      "systemClipboard": "系统文件剪贴板",
+      "systemClipboardHint": "在设置 → 远程桌面中开启。本机 RDP 会话共用，仅控制者可使用。",
+      "systemClipboardEnabled": "已启用",
+      "systemClipboardInactive": "暂不可用",
+      "systemClipboardFailed": "系统文件剪贴板操作未完成，仍可使用手动传输",
+      "systemClipboardReady": "{{count}} 项可在本机粘贴，文件内容将在粘贴时传输。",
+      "clipboardReceiving": "正在接收文件内容",
+      "clipboardReceiveQueued": "等待接收",
+      "clipboardReceiveProvided": "已提供请求的文件内容",
+      "clipboardReceiveStopped": "接收已停止",
+      "clipboardReceiveCancel": "取消接收",
+      "clipboardReceivePartial": "可能存在不完整文件，请检查后重新复制粘贴。",
+      "clipboardReceiveResult": "内容已提供，请在资源管理器中确认保存结果。",
+      "clipboardWaiting": "等待在远程粘贴",
+      "clipboardServing": "正在提供文件内容",
+      "clipboardProvided": "已提供 {{size}}",
+      "clipboardProvidedHint": "已提供的内容不代表远程文件已保存，请在远程确认。",
+      "controllerRequired": "取得桌面控制权后即可使用，需关闭只读模式。",
+      "publish": "选择文件",
+      "publishFolder": "选择文件夹",
+      "readClipboard": "读取已复制文件",
+      "revoke": "停止提供",
+      "receive": "保存所选文件",
+      "clipboardUnread": "尚未读取远程文件",
+      "clipboardEmpty": "在远程复制文件，点击上方按钮读取。",
+      "retainedNote": "最长保留 24 小时，具体见到期时间。",
+      "retainedEmpty": "没有待领取的文件",
+      "clean": "清理",
+      "cleanConfirm": "永久清除此交换区的留存文件？此操作不可撤销。",
+      "expires": "到期时间：{{time}}",
+      "taskNote": "关闭面板后传输继续",
+      "overwriteConfirm": "允许覆盖同名文件？传输时仍会检查目标版本。",
+      "states": {
+        "preparing": "准备中",
+        "registering": "正在注册",
+        "registered": "已共享",
+        "paused": "已暂停",
+        "pausing": "正在暂停",
+        "resuming": "正在恢复",
+        "revoking": "正在撤销",
+        "removed": "已移除",
+        "failed": "操作失败"
+      },
+      "errors": {
+        "desktop_files_unsupported": "当前协议或 worker 版本不支持文件能力。",
+        "desktop_files_stale": "文件入口或资源代次已变化，请刷新。",
+        "desktop_files_revoking": "文件入口正在撤销，请等待完成后重试。",
+        "desktop_files_unauthorized": "文件授权不可用，请重新选择或检查权限。",
+        "desktop_files_expired": "留存文件已到期。",
+        "desktop_files_picker_unavailable": "请在 Electron 桌面应用中选择本机文件。",
+        "desktop_files_storage_failed": "文件存储操作失败，请检查可用空间及文件状态。",
+        "desktop_files_uncertain": "文件操作结果尚未确认，请先刷新目录并核对结果，不要重复提交。",
+        "desktop_directory_operation_failed": "目录映射操作失败，请检查映射状态后重试。",
+        "desktop_directory_path_too_long": "本机目录路径超过 RDP 映射限制，请选择更短的路径。",
+        "desktop_file_clipboard_empty": "目标剪贴板中没有文件，请先在目标资源管理器中复制文件或文件夹。",
+        "desktop_system_clipboard_empty": "请先在本机资源管理器中复制文件或文件夹。",
+        "desktop_file_clipboard_failed": "文件剪贴板操作失败，请重新复制文件后重试。",
+        "desktop_file_clipboard_desynchronized": "文件剪贴板响应已失去同步，请重新连接桌面后重试。",
+        "desktop_file_clipboard_pending": "目标尚未返回文件清单，请稍后重试。",
+        "desktop_busy": "桌面正在处理其他操作，请稍后重试。",
+        "desktop_control_stale": "控制权已变化，请收回控制后重试。",
+        "desktop_not_ready": "桌面尚未就绪。"
+      }
+    },
+    "rdp": {
+      "retained": "保留会话", "closeViewer": "关闭观看并保留会话", "rememberCertificate": "在此设备上记住此证书",
+      "rememberCertificateHint": "默认仅本次会话信任。记住后，相同证书将自动验证；证书变更时需重新确认。",
+      "protocol": "桌面协议", "route": "连接方式", "direct": "直连", "tunnel": "SSH 隧道", "target": "目标地址", "port": "端口",
+      "serverName": "服务器名称（证书与认证）", "username": "用户名", "domain": "域（可选）", "width": "桌面宽度", "height": "桌面高度",
+      "audio": "本机播放声音", "viewOnly": "默认只读", "display": "显示模式", "fit": "适应窗口", "resize": "调整远端分辨率", "actual": "原始大小",
+      "required": "请填写有效值", "targetInvalid": "请输入有效目标地址，直连需要 IP 地址", "portInvalid": "请输入 1–65535 之间的整数", "sizeInvalid": "尺寸需为 200–8192 的偶数，总像素不超过 16M",
+      "hostInvalid": "请输入有效的主机名或 IP 地址，不包含协议、路径或端口。",
+      "accountInvalid": "不能包含换行或空字符，且不能超过 256 字节。",
+      "noSSH": "此主机暂无 SSH 配置，添加后可使用 SSH 隧道。",
+      "tunnelTargetPlaceholder": "例如：127.0.0.1 或跳板机可访问的主机名",
+      "serverNameHint": "可选，留空时使用目标地址。通过隧道连接时，可填写 Windows 服务器的实际名称用于证书校验和登录认证。",
+      "displayHint": "宽高为连接时的初始尺寸。“跟随窗口”会在取得控制权后调整远端分辨率。",
+      "audioHint": "声音由本机播放，多个观看窗口共享一次播放。",
+      "viewOnlyHint": "新窗口先以只读方式观看，需要操作时再申请控制权。",
+      "targetAuth": {
+        "password": "RDP 密码",
+        "savedHint": "连接时使用已保存的密码登录 Windows 账户。",
+        "removePendingHint": "保存配置后将删除已保存的 RDP 密码。",
+        "profileSavedCredentialFailed": "配置内容已保存，但 RDP 密码未更新：{{error}}",
+        "errors": {
+          "required": "请输入 RDP 密码。",
+          "too_large": "RDP 密码不能超过 4096 字节。"
+        }
+      }
+    },
     "launcherTitle": "连接远程桌面",
-    "launcherDescription": "通过 SSH 隧道或直接网络连接访问 VNC 服务。",
+    "launcherDescription": "通过 SSH 隧道或直接网络连接访问 VNC / RDP 远程桌面。",
     "profiles": "远程桌面配置",
     "searchProfiles": "搜索配置或主机",
     "noProfiles": "暂无匹配的远程桌面配置",
     "noProfilesHint": "调整搜索关键词，或清除搜索查看全部配置。",
     "clearSearch": "清除搜索",
     "emptyProfilesTitle": "尚无远程桌面配置",
-    "emptyProfilesDescription": "创建 VNC 配置后，即可通过 SSH 隧道或目标 IP 连接远程桌面。",
+    "emptyProfilesDescription": "创建远程桌面配置后，即可通过 SSH 隧道或目标 IP 连接。",
     "emptyProfilesNoHostsDescription": "请先添加主机，再为它创建远程桌面配置。",
     "newProfile": "新建配置",
     "editProfile": "编辑配置",
@@ -1033,12 +1939,13 @@
     "scrollTabsLeft": "向左浏览远程桌面会话",
     "scrollTabsRight": "向右浏览远程桌面会话",
     "emptyTitle": "尚未连接远程桌面",
-    "emptyDescription": "选择一个 VNC 配置，通过已设置的连接方式打开远程桌面。",
+    "emptyDescription": "选择桌面配置，连接你的远程桌面。",
     "disconnect": "断开",
     "disconnectTitle": "断开远程桌面？",
     "disconnectDescription": "将关闭“{{name}}”的查看器与当前连接。",
     "disconnectFailed": "远程桌面断开失败",
     "disableInput": "禁用本地输入",
+    "reclaimControl": "收回控制",
     "sendClipboard": "将本机剪贴板发送到远端",
     "receiveClipboard": "将远端剪贴板复制到本机",
     "clipboardSent": "剪贴板已发送",
@@ -1055,6 +1962,7 @@
     "unpinToolbar": "自动收起顶部栏",
     "reconnect": "重新连接",
     "reconnectFailed": "远程桌面重连失败",
+    "duplicateFailed": "远程桌面会话复制失败",
     "reconnectProgress": "第 {{current}}/{{total}} 次恢复",
     "connectionQuality": {
       "details": "查看连接详情",
@@ -1069,26 +1977,33 @@
       "sent": "累计发送",
       "sendQueue": "待发送数据"
     },
-    "preparingViewer": "正在准备 VNC 数据通道。",
-    "credentialsTitle": "VNC 身份验证",
-    "credentialsHint": "认证信息仅保留在当前查看器内存中，关闭会话后不会保存。",
+    "preparingViewer": "正在准备远程桌面数据通道。",
+    "credentialsTitle": "{{protocol}} 身份验证",
+    "credentialsHint": "本次输入仅用于连接认证，不会自动保存到凭据库。",
     "credentials": {
       "username": "用户名",
       "password": "密码",
       "target": "目标"
     },
-    "verifyServerTitle": "确认 VNC 服务身份",
-    "verifyServerHint": "请通过可信渠道核对指纹。Termous 仅在当前会话内记住本次确认。",
+    "verifyServerTitle": "验证 {{protocol}} 服务器身份",
+    "verifyServerHint": "请通过可信渠道核对服务器指纹，确认一致后继续连接。",
+    "serverAddress": "服务器地址",
+    "certificateSubject": "证书主体",
+    "certificateServerName": "验证名称",
+    "sessionTrustHint": "本次确认仅在当前会话中有效。",
+    "fingerprintCopied": "已复制",
+    "copyFingerprintFailed": "复制指纹失败",
     "verificationType": "验证类型",
     "trustAndContinue": "确认并继续",
     "rejectServer": "拒绝连接",
     "viewerErrors": {
-      "stream_disconnected": "VNC 数据通道意外断开。",
+      "stream_disconnected": "远程桌面数据通道意外断开。",
       "attach_failed": "无法接入远程桌面查看器。",
+      "reconnect_failed": "重新连接失败，请重试。",
       "security_failure": "VNC 身份验证失败。",
       "server_identity_missing": "VNC 服务未提供可验证的身份信息。",
       "server_identity_unverifiable": "无法验证 VNC 服务身份。",
-      "server_identity_rejected": "已拒绝该 VNC 服务身份。",
+      "server_identity_rejected": "已拒绝该远程桌面服务器身份。",
       "clipboard_too_large": "剪贴板文本不能超过 256 KiB。"
     },
     "status": {
@@ -1215,9 +2130,8 @@
     "saveAndConnect": "保存并连接",
     "terminalReady": "终端已准备连接",
     "terminalHint": "选择主机后点击连接",
-    "emptyTerminalTitle": "开始远程会话",
-    "emptyTerminalHint": "选择一台主机建立 SSH 连接，终端将在这里打开。",
-    "connectHost": "连接主机",
+    "emptyTerminalTitle": "尚未建立 SSH 会话",
+    "emptyTerminalHint": "选择主机，开始 SSH 终端会话。",
     "closeSession": "断开当前会话",
     "closeDisconnectedSession": "关闭会话",
     "closingSession": "正在关闭会话",
@@ -1361,7 +2275,22 @@
       "hostList": "快速连接主机列表",
       "empty": "暂无可连接主机",
       "noResults": "没有匹配的主机",
-      "count": "{{count}} 台主机"
+      "count": "{{count}} 台主机",
+      "moreConnections": "更多连接",
+      "details": {
+        "host": "所属主机",
+        "standalone": "独立文件连接"
+      },
+      "profiles": {
+        "files": "文件快捷连接",
+        "remoteDesktop": "桌面快捷连接",
+        "search": "搜索配置、主机或地址",
+        "empty": "暂无连接配置",
+        "noResults": "没有匹配的连接配置",
+        "count": "{{count}} 个配置",
+        "connectFailed": "连接失败",
+        "hostMissing": "关联主机已不存在"
+      }
     },
     "detailsTabs": {
       "overview": "概览",
@@ -2060,11 +2989,76 @@
       }
     },
     "docker": {
+      "resources": {
+        "modes": "Docker 资源类型",
+        "containers": "容器",
+        "images": "镜像",
+        "volumes": "数据卷",
+        "networks": "网络",
+        "search": "搜索名称、ID、标签或驱动",
+        "loading": "正在读取资源",
+        "loadFailed": "资源读取失败",
+        "empty": "暂无资源",
+        "empty_images": "此 Docker 主机上还没有镜像。",
+        "empty_volumes": "创建数据卷，为容器保存持久数据。",
+        "empty_networks": "此 Docker 主机上还没有网络。",
+        "noMatches": "没有匹配的资源",
+        "searchHint": "尝试其他关键字，或清空搜索。",
+        "create_volumes": "新建数据卷",
+        "create_networks": "新建网络",
+        "createVolumeHint": "使用 local 驱动创建数据卷。",
+        "createNetworkHint": "创建 bridge 网络；内部网络不提供外部连接。",
+        "name": "名称",
+        "id": "标识",
+        "fullId": "完整标识",
+        "tagCount": "{{count}} 个标签",
+        "created": "创建时间",
+        "size": "大小",
+        "platform": "平台",
+        "driver": "驱动",
+        "scope": "作用域",
+        "mountpoint": "挂载位置",
+        "internal": "内部网络",
+        "attachable": "允许手动接入",
+        "yes": "是",
+        "no": "否",
+        "tags": "镜像标签",
+        "untagged": "未标记镜像",
+        "tag": "添加标签",
+        "tagName": "完整镜像标签",
+        "tagHint": "填写仓库名与版本标签。已有同名标签会更新指向此镜像。",
+        "subnets": "子网",
+        "gateway": "网关",
+        "noSubnets": "没有配置子网",
+        "attachedContainers": "已连接容器",
+        "noContainers": "暂无已连接容器",
+        "containerName": "容器名称或 ID",
+        "connect": "连接容器",
+        "disconnect": "断开连接",
+        "disconnectHint": "将断开容器 {{name}} 与此网络的连接，可能影响容器通信。",
+        "remove": "删除资源",
+        "removeHint": "确认删除此资源？正在使用的资源将由 Docker 拒绝删除。",
+        "removeVolumeHint": "删除数据卷会永久移除其中的数据，无法撤销。正在使用的数据卷不会被强制删除。",
+        "builtin": "Docker 内置网络",
+        "failureHint": "请检查错误并刷新确认远端状态，再决定是否重试。",
+        "previous": "上一页",
+        "next": "下一页",
+        "pageSummary": "{{start}}–{{end}} / {{total}} 项"
+      },
       "emptyTitle": "暂无 Docker 管理",
-      "emptyHint": "连接 Linux SSH 会话后，可在这里查看和管理远端容器。",
+      "emptyHint": "连接 Linux SSH 会话后，可在这里管理容器、镜像、数据卷和网络。",
       "unsupportedTitle": "暂不支持 Docker 管理",
       "unsupportedHint": "第一版仅支持已连接的 Linux SSH 会话。",
-      "managerTitle": "Docker 管理",
+      "detectAgain": "重新检测",
+      "detectionFailed": "Docker 检测失败",
+      "detectionDetails": "查看检测详情",
+      "availabilityHints": {
+        "missing_cli": "在远端安装 Docker 后，重新检测即可。",
+        "daemon_unavailable": "无法连接 Docker 服务，请确认远端服务已启动。",
+        "permission_denied": "当前 SSH 用户没有 Docker 访问权限，请调整权限后重新检测。",
+        "unknown": "暂时无法确认 Docker 状态，请检查远端环境后重试。",
+        "failed": "未能读取远端 Docker 状态，请检查连接后重新检测。"
+      },
       "refresh": "刷新 Docker",
       "detecting": "正在检测 Docker",
       "available": "Docker 可用",
@@ -2130,6 +3124,10 @@
       "restart": "重启",
       "pause": "暂停",
       "unpause": "恢复",
+      "openShell": "进入容器终端",
+      "shellRunningOnly": "容器未运行，无法进入终端。",
+      "shellSendFailed": "无法进入容器终端",
+      "shellTerminalUnavailable": "当前终端不可输入，请检查连接状态和输入锁后重试。",
       "actionSuccess": "容器操作已执行",
       "actionFailed": "容器操作失败",
       "confirmStopTitle": "停止容器？",
@@ -2591,7 +3589,8 @@
     },
     "platform": {
       "label": "平台",
-      "linux": "Linux"
+      "linux": "Linux",
+      "windows": "Windows"
     },
     "password": "密码",
     "privateKey": "私钥",
@@ -2601,7 +3600,7 @@
     },
     "noJumpHost": "不使用跳板机",
     "ungrouped": "未分组",
-    "deleteHint": "只删除主机配置，不删除被引用凭据。",
+    "deleteHint": "同时删除主机及所属 Profile，保留共享凭据，不影响远端文件。",
     "searchPlaceholder": "搜索名称、地址、用户、标签",
     "allTags": "全部标签",
     "filterResult": "显示 {{count}} / {{total}} 台主机",
@@ -2679,7 +3678,14 @@
       "conflict": "服务端配置已更新。当前草稿已保留，请核对后重试。",
       "unsavedDescription": "继续操作会放弃当前访问配置中尚未保存的更改。",
       "deleteHostTitle": "删除这台主机？",
-      "deleteHostDescription": "将删除“{{name}}”。存在访问配置或运行中会话时，系统会阻止删除并说明引用关系。",
+      "deleteHostDescription": "删除“{{name}}”后无法恢复。",
+      "deleteHostIncludes": "一并删除",
+      "deleteHostProfiles": "全部 SSH、文件和远程桌面 Profile",
+      "deleteHostRelated": "关联的端口转发、挂载配置及本机记录",
+      "deleteHostPreserves": "仍会保留",
+      "deleteHostPreservedItems": "共享凭据、远端文件",
+      "deleteHostPrerequisites": "请先关闭相关活动连接，并解除其他主机的跳板引用和 Agent 会话的文件 Profile 关联。",
+      "deleteHostConfirm": "删除主机",
       "deleteProfileTitle": "删除这个访问配置？",
       "reachability": {
         "unknown": "未检测",
@@ -2711,7 +3717,7 @@
         "addressPlaceholder": "主机名或 IP 地址",
         "usernamePlaceholder": "远程登录用户名",
         "deleteBlockedTitle": "当前 SSH 配置仍在使用",
-        "deleteBlocked": "请先解除持久依赖并停止活动连接：独立文件配置 {{independentFiles}} 项、伴生文件配置的 Agent 引用 {{companionAgents}} 个、挂载配置 {{mounts}} 项、端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
+        "deleteBlocked": "请先解除持久依赖并停止活动连接：独立文件配置 {{independentFiles}} 项、伴生文件配置的 AI 助手 引用 {{companionAgents}} 个、挂载配置 {{mounts}} 项、端口转发配置 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项；活动终端 {{terminals}} 个、文件会话 {{fileSessions}} 个、后台转发 {{backgroundForwards}} 个、远程桌面会话 {{remoteDesktopSessions}} 个。伴生 SFTP 共 {{files}} 项，将随 SSH 一并处理。",
         "deleteDescription": "将删除此 SSH 配置及 {{files}} 项伴生 SFTP。执行前系统会再次校验持久依赖和活动连接。"
       },
       "file": {
@@ -2728,7 +3734,7 @@
         "sshRequired": "请选择可用的 SSH 配置",
         "unsupportedEditor": "当前版本无法编辑此文件 Engine 的配置",
         "deleteBlockedTitle": "当前文件配置仍在使用",
-        "deleteBlocked": "请先关闭 {{sessions}} 个活动文件会话，并解除 {{agents}} 个 Agent 会话引用和 {{mounts}} 个挂载配置引用后再删除。",
+        "deleteBlocked": "请先关闭 {{sessions}} 个活动文件会话，并解除 {{agents}} 个 AI 助手 会话引用和 {{mounts}} 个挂载配置引用后再删除。",
         "deleteDescription": "将删除此文件访问配置。已有会话不会被自动关闭，执行前系统会再次校验引用。",
         "missingSSH": "SSH 配置不可用",
         "missingSSHDescription": "绑定关系已失效，请刷新后检查主机配置。"
@@ -2987,6 +3993,52 @@
     }
   },
   "files": {
+    "systemClipboard": {
+      "itemCount": "共 {{count}} 项",
+      "pasteFailed": "粘贴失败",
+      "pasteEmpty": "请先在资源管理器中复制文件或文件夹",
+      "task": "系统复制",
+      "provided": "文件内容已读取",
+      "copy": "复制到系统剪贴板",
+      "preparing": "正在准备复制",
+      "preparingHint": "正在整理文件，稍后即可粘贴。",
+      "ready": "已复制 {{count}} 项",
+      "readyHint": "请在资源管理器中粘贴。完成前请保持文件连接开启。",
+      "receiving": "正在复制到本机",
+      "receivingHint": "请等待资源管理器完成粘贴。",
+      "progress": "已读取 {{current}} / {{total}}",
+      "cancelling": "正在取消复制",
+      "cancellingHint": "正在结束本次复制，请稍候。",
+      "replaced": "剪贴板内容已更新",
+      "replacedHint": "需要粘贴这些文件时，请重新复制。",
+      "stopped": "已取消复制",
+      "stoppedHint": "已粘贴的文件不会被删除。",
+      "cleanup_pending": "取消未完成",
+      "failed": "复制未完成",
+      "retryHint": "请重新选择文件并复制。",
+      "cancel": "取消复制",
+      "retryCancel": "重试取消",
+      "errors": {
+        "FILE_CLIPBOARD_CANCEL_FAILED": "暂时无法取消，请重试。",
+        "FILE_CLIPBOARD_CLEANUP_FAILED": "取消尚未完成，请重试。",
+        "FILE_CLIPBOARD_CHANGED": "剪贴板内容已更新，请重新复制。",
+        "FILE_CLIPBOARD_STALE": "请重新连接文件列表，再复制这些文件。",
+        "FILE_CLIPBOARD_SOURCE_CHANGED": "文件已发生变化，请重新复制。",
+        "FILE_CLIPBOARD_UNAVAILABLE": "系统文件剪贴板服务暂时不可用，连接恢复后将自动启用。",
+        "FILE_CLIPBOARD_UNSUPPORTED": "当前系统或文件连接不支持此操作。",
+        "FILE_CLIPBOARD_NO_SPACE": "本机磁盘空间不足，请清理后重试。",
+        "FILE_CLIPBOARD_LIMIT": "所选文件超出复制限制，请分批复制。",
+        "FILE_CLIPBOARD_NAME_INVALID": "文件名称或路径不符合 Windows 要求。",
+        "FILE_CLIPBOARD_ENTRY_UNSUPPORTED": "无法复制链接或特殊文件，请选择普通文件或文件夹。",
+        "FILE_CLIPBOARD_PASTE_EXTERNAL": "请在资源管理器中粘贴。在文件列表间操作，请使用菜单中的“复制”。",
+        "FILE_CLIPBOARD_TIMEOUT": "读取超时，请检查连接后重新复制。"
+      }
+    },
+
+    "tabMenu": {
+      "duplicateFailed": "复制文件会话失败",
+      "restartFailed": "重启文件会话失败"
+    },
     "smb": {
       "name": "配置名称",
       "host": "服务器地址",
@@ -3117,7 +4169,8 @@
     "reconnectFailed": "重新连接文件会话失败",
     "sessions": "文件会话",
     "noFileSession": "暂无文件会话",
-    "noFileSessionHint": "点击加号选择主机及其文件访问配置，打开文件会话。",
+    "emptySessionTitle": "尚未打开文件会话",
+    "noFileSessionHint": "选择文件配置，浏览和管理远程文件。",
     "fileSessionCreated": "文件会话已创建",
     "noHost": "请选择主机",
     "noHostHint": "选择主机的文件访问配置后浏览远程目录。",
@@ -3798,7 +4851,8 @@
     },
     "transfers": "传输列表",
     "transferOrigin": {
-      "mcp": "MCP 托管的传输"
+      "mcp": "MCP 托管的传输",
+      "remote": "远控创建的传输"
     },
     "transferScope": "传输范围",
     "transferFilter": "筛选传输任务",
@@ -4239,17 +5293,84 @@
     }
   },
   "settings": {
+    "tabModels": "模型服务",
+    "groups": {
+      "basics": "基础偏好",
+      "connections": "连接与终端",
+      "intelligence": "AI 与集成",
+      "maintenance": "数据与维护"
+    },
+    "editor": {
+      "processing": "等待当前操作完成",
+      "loading": "正在读取设置…",
+      "unavailable": "尚未读取当前设置",
+      "save": "保存更改",
+      "reset": "撤销更改",
+      "saving": "正在保存…",
+      "unsaved": "有未保存的更改",
+      "saved": "已保存",
+      "upToDate": "当前设置已保存",
+      "leaveTitle": "放弃未保存的更改？",
+      "leaveDescription": "当前页面的更改尚未保存。离开后将恢复已保存的设置。",
+      "discard": "放弃并离开"
+    },
+    "descriptions": {
+      "general": "界面、窗口行为与系统通知。",
+      "shortcuts": "为常用操作设置快捷键。",
+      "terminal": "调整终端显示与命令补全。",
+      "connection": "SSH 保活与后台转发恢复。",
+      "remote-desktop": "RDP 会话保留、隧道恢复与文件剪贴板。",
+      "mount": "管理挂载缓存的位置与磁盘用量。",
+      "agent": "统一配置默认模型、运行行为与任务限制。",
+      "models": "管理模型服务商、访问凭据与可用模型。",
+      "mcp": "管理 MCP 服务与客户端授权。",
+      "audit": "设置操作记录与历史保留策略。",
+      "data": "备份配置，或从备份中恢复数据。",
+      "updates": "设置后台更新检查与下载偏好。"
+    },
+    "conflict": "设置已在其他位置更新。已读取最新版本并保留你的修改，请核对后再次保存。",
     "title": "设置",
-    "subtitle": "应用偏好、语言、终端与数据管理",
     "tabGeneral": "通用",
     "tabLanguage": "语言",
     "tabTerminal": "终端",
     "tabConnection": "连接",
+    "tabRemoteDesktop": "远程桌面",
+    "rdpSettings": "连接与会话",
+    "rdpFileExchange": "文件交换",
+    "systemFileClipboard": "系统文件剪贴板",
+    "systemFileClipboardHint": "在本机与 RDP 桌面间复制粘贴文件和文件夹。",
+    "systemFileClipboardBoundary": "复制远端文件会替换本机剪贴板。",
+    "systemFileClipboardDetailsTitle": "使用须知",
+    "systemFileClipboardDetails": "本机全部 RDP 会话共用此设置，包括已打开的会话和独立窗口。接收文件时需保持连接和控制权；文件按需传输，剪贴板查看器也可能触发读取。",
+    "systemFileClipboardUnavailable": "此功能需要 Windows 桌面版及可用的系统文件剪贴板服务。",
+    "systemFileClipboardFailed": "设置读取或保存失败，请重试。",
+    "rdpUnattendedTimeout": "会话保留时间",
+    "rdpUnattendedTimeoutHint": "关闭该会话的全部窗口后保留连接，到期自动断开。",
+    "rdpUnattendedMinutes": "分钟",
+    "rdpUnattendedRange": "1～30 分钟 · 默认 10",
+    "rdpRetentionDetailsTitle": "计时与保存规则",
+    "rdpRetentionDetails": "回车或移开焦点保存。重新接入会取消计时；最小化、切换标签不开始计时；修改时长不重置已有计时。",
+    "connectionSaveFailed": "连接设置保存失败，请重试。",
+    "rdpUnattendedInvalid": "请输入 1～30 的整数。",
+    "rdpUnattendedSaveFailed": "保存失败，请稍后重试。",
     "tabMount": "挂载",
+    "tabAudit": "审计",
+    "audit": {
+      "title": "审计记录",
+      "enabled": "启用审计记录",
+      "enabledHint": "记录 AI 助手和 MCP 操作，关闭后仍可查看历史。",
+      "days": "最长保留天数",
+      "dayUnit": "天",
+      "records": "最多保留条数",
+      "recordsHint": "0 为不限；上限范围为 1,000–1,000,000 条。",
+      "retentionHint": "超期或超量记录会永久清理，关闭审计后仍生效。",
+      "loadFailed": "无法读取审计设置，请重试",
+      "saveFailed": "保存失败，修改尚未确认，请重试"
+    },
     "mount": {
       "title": "挂载缓存",
       "directory": "缓存位置",
-      "default": "Core 数据目录",
+      "default": "默认位置",
       "custom": "自定义目录",
       "placeholder": "输入本机文件夹的绝对路径",
       "choose": "浏览",
@@ -4261,7 +5382,7 @@
       "active": "当前缓存目录",
       "next": "重启后缓存目录",
       "pending": "重启后生效",
-      "restartHint": "保存后重启 Core 生效，切换位置不会删除旧目录。",
+      "restartHint": "保存后重启后台服务生效，旧缓存目录不会被删除。",
       "usage": "当前缓存",
       "clean": "清洁内容",
       "private": "私有写入及预留",
@@ -4275,13 +5396,13 @@
         "failed": "清理未完成，请查看错误后重试。"
       },
       "saved": "已保存。",
-      "savedPending": "已保存，重启 Core 后生效。",
+      "savedPending": "已保存，重启后台服务后生效。",
       "failed": "无法读取或保存挂载设置，请重试。",
       "unavailable": "当前环境无法读取挂载设置。"
     },
     "tabShortcuts": "快捷键",
     "tabUpdates": "软件更新",
-    "generalSection": "通用",
+    "generalSection": "界面与行为",
     "languageSection": "语言",
     "interfaceLanguage": "界面语言",
     "appVersion": "应用版本",
@@ -4309,18 +5430,18 @@
     "chinese": "简体中文",
     "english": "英语",
     "terminalSection": "终端样式",
-    "connectionSection": "连接可靠性",
+    "connectionSection": "SSH 连接",
+    "forwardSettings": "后台转发",
     "sshKeepalive": "SSH 保活",
-    "sshKeepaliveHint": "每 30 秒探测所有长期 SSH 连接，10 秒无响应即标记断开；不会恢复终端或重放文件操作。",
-    "forwardAutoReconnect": "后台转发自动恢复",
-    "forwardAutoReconnectHint": "后台转发意外中断后按 2、4、8 秒最多恢复 3 次，并独立探测连接状态；当前会话转发不会被自动重建。",
-    "remoteDesktopAutoReconnect": "远程桌面自动恢复",
-    "remoteDesktopAutoReconnectHint": "SSH 隧道路由异常后最多恢复 3 次；VNC 会重新握手，既有画面与输入流无法续接。直连模式不使用此 SSH 恢复策略。",
-    "connectionLimits": "既有终端状态、正在进行的文件操作和已建立的 TCP 连接均无法续传或自动恢复。",
+    "sshKeepaliveHint": "定期检测 SSH 连接，及时发现断线。",
+    "forwardAutoReconnect": "自动重连",
+    "forwardAutoReconnectHint": "意外断开后最多重试 3 次，不自动重建会话转发。",
+    "remoteDesktopAutoReconnect": "SSH 隧道恢复",
+    "remoteDesktopAutoReconnectHint": "隧道中断后尝试重建；不适用于直连，也不续接桌面会话。",
+    "connectionLimits": "重连不会恢复终端状态、文件操作或已建立的 TCP 连接。",
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
     "completionAiEnabled": "启用 AI 命令补全",
-    "completionAiHint": "使用默认 AI 模型将自然语言转换为命令，确认后填入终端。",
     "completionHint": "使用 Bash 补全、命令别名、代码片段、远端历史和当前目录提供建议。",
     "completionProviders": "补全来源",
     "completionProvidersHint": "按需选择参与候选生成的数据来源。",
@@ -4349,8 +5470,6 @@
       }
     },
     "shortcuts": {
-      "title": "快捷键",
-      "description": "自定义 Termous 中常用操作的按键组合。未匹配的按键仍由当前终端或组件处理。",
       "searchPlaceholder": "搜索操作、说明或作用范围",
       "customizedCount": "已自定义 {{count}} 项",
       "resetAll": "恢复全部默认",
@@ -4411,6 +5530,14 @@
         "terminal_session_reconnect": {
           "name": "重新连接会话",
           "description": "重新连接当前已断开的 SSH 会话。"
+        },
+        "files_paste": {
+          "name": "粘贴文件",
+          "description": "将系统复制的文件上传到当前目录，或粘贴应用内复制的文件。"
+        },
+        "files_copy_to_system": {
+          "name": "复制到系统剪贴板",
+          "description": "将文件列表的选择复制为可在系统资源管理器中粘贴的文件。"
         },
         "files_select_all": {
           "name": "全选文件",
@@ -4530,7 +5657,6 @@
     "fontDeleted": "字体已删除",
     "update": {
       "title": "更新设置",
-      "description": "设置新版本的后台检查与下载偏好。",
       "automaticCheck": "自动检查更新",
       "automaticCheckHint": "按所选频率在后台检查新版本，不会打断当前操作。",
       "checkInterval": "检查频率",
@@ -4547,12 +5673,18 @@
     },
     "tabAgent": "AI 助手",
     "agent": {
+      "configuration": {
+        "behavior": "运行行为",
+        "invalidConcurrency": "请选择 1 至 8 个并发会话。",
+        "saveBeforeCheck": "请先保存或撤销当前修改。",
+        "saveFailed": "保存未完成，未保存的更改已保留，请重试。"
+      },
       "loadFailed": "无法读取 AI 助手设置",
-      "operationFailed": "AI 助手设置操作失败",
+      "operationFailed": "操作未完成",
       "readiness": {
         "title": "运行准备",
-      "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
-        "mcpRuntime": "MCP Runtime",
+        "description": "检查 MCP、Skills 与默认模型，准备或修复 AI 助手运行环境。",
+        "mcpRuntime": "MCP 服务",
         "mcpClient": "托管客户端",
         "skills": "Skills 资源",
         "defaultModel": "默认模型",
@@ -4577,13 +5709,40 @@
         "hint": "可设为 50–95%，默认 80%；保留近期对话，从下一轮对话生效。",
         "validation": "请输入 50 至 95 的整数百分比。"
       },
+      "concurrency": {
+        "title": "同时运行的 AI 会话",
+        "description": "默认 4 个，可设为 1–8 个。降低上限不会中断正在运行的任务。"
+      },
+      "executionLimits": {
+        "title": "任务执行限制",
+        "description": "限制新任务的请求数、Token 用量和重复尝试；关闭时保留限额。",
+        "toggle": "启用执行预算",
+        "validation": "请输入 {{min}} 至 {{max}} 的整数。",
+        "model_requests": {
+          "title": "单次任务模型请求上限",
+          "description": "包含工具轮次、失败重试和上下文压缩；达到上限后停止新请求。"
+        },
+        "total_tokens": {
+          "title": "单次任务累计 Token 上限",
+          "description": "包含缓存 Token，与会话累计分开。按请求边界检查，允许一个在途请求超出预算。"
+        },
+        "consecutive_failures": {
+          "title": "连续同类失败上限",
+          "description": "同一资源的同类操作连续失败达到次数后停止，避免反复猜测参数。"
+        },
+        "selection_attempts": {
+          "title": "同一桌面选区流程尝试上限",
+          "description": "更换请求标识或重新截图不会重置尝试次数。"
+        }
+      },
       "profileBinding": {
-        "title": "SSH Profile 关联方式",
-        "description": "关闭时只关联 Profile，AI 助手在后续任务中按需创建 SSH 会话；开启后会在关联时立即建立连接。",
+        "title": "关联 SSH 配置时自动连接",
+        "description": "开启后立即连接；关闭时由 AI 助手按任务需要连接。",
         "toggle": "关联 SSH Profile 时自动连接",
         "immediate": "立即连接",
         "onDemand": "按需连接"
       },
+      "requestMetrics": {"title": "请求明细", "help": "统计说明", "note": "最多显示最近 {{limit}} 次请求，本轮用量包含全部请求。工具定义为估算 Token；图片数量与尺寸不代表计费 Token。", "request": "请求", "tools": "可用工具", "schema": "工具定义", "images": "图片", "tokens": "Token", "duration": "耗时", "response": "生成", "compaction": "上下文压缩", "status": "状态", "completed": "完成", "failed": "失败", "cancelled": "取消"},
       "turnUsage": {
         "title": "每轮 Token 用量",
         "description": "在每次 AI 助手回复末尾显示本轮的总量、输入、输出和缓存用量。",
@@ -4592,8 +5751,8 @@
         "hidden": "隐藏"
       },
       "policy": {
-        "title": "MCP 审批策略",
-        "description": "内置 AI 始终具备全部 MCP 能力，新增能力自动更新；执行遵循此审批策略，外部客户端不受影响。",
+        "title": "跳过工具执行审批",
+        "description": "仅影响内置 AI 助手。开启后可直接执行已授权工具，保存时需要确认。",
         "approval": "工具执行确认",
         "review": "逐次审批",
         "bypass": "无需确认",
@@ -4606,32 +5765,32 @@
         "test": "测试连接"
       },
       "providers": {
-      "title": "模型提供商",
-      "count": "{{count}} 个 Provider",
-      "modelCount": "{{count}} 个模型",
-        "search": "搜索 Provider",
-        "add": "添加 Provider",
-        "noResults": "没有匹配的 Provider",
-        "empty": "尚未添加 Provider",
-        "emptyEditor": "添加 Provider 后自动同步模型目录",
-        "new": "新增 Provider",
+        "refresh": "刷新服务列表",
+        "backToServices": "返回服务",
+        "service": "当前服务",
+        "title": "模型服务",
+        "modelCount": "{{count}} 个模型",
+        "search": "搜索或选择服务",
+        "add": "添加服务",
+        "empty": "尚未添加服务",
+        "new": "新增服务",
         "connectionTab": "连接设置",
         "catalogTab": "模型目录",
-        "saved": "Provider 设置已保存",
-        "test": "测试 Provider",
-        "testSuccess": "Provider 可访问，{{latency}} ms，发现 {{count}} 个模型",
-        "testFailed": "Provider 测试未通过",
+        "saved": "服务配置已保存",
+        "test": "测试连接",
+        "testSuccess": "连接正常，{{latency}} ms，{{count}} 个模型",
+        "testFailed": "连接测试未通过",
         "testReady": "模型目录接口响应正常。",
         "testUnavailable": "模型目录接口未能完成请求，请检查地址和认证。",
-        "discardTitle": "放弃未保存的 Provider 修改？",
+        "discardTitle": "放弃未保存的服务配置？",
         "discardDescription": "切换后当前表单中的修改将丢失。",
         "discard": "放弃修改",
-        "deleteDefaultBlocked": "该 Provider 包含默认模型，请先切换默认模型"
+        "deleteDefaultBlocked": "此服务包含默认模型，请先切换默认模型"
       },
-    "providerEditor": {
-      "basicSection": "基本信息",
-      "connectionSection": "连接与认证",
-      "name": "Provider 名称",
+      "providerEditor": {
+        "basicSection": "基本信息",
+        "connectionSection": "连接与认证",
+        "name": "服务名称",
         "namePlaceholder": "例如：公司 OpenAI 网关",
         "apiMode": "API 模式",
         "enabled": "使用状态",
@@ -4639,18 +5798,19 @@
         "disabledState": "暂停用于新会话",
         "baseUrl": "Base URL",
         "optionalApiKey": "API Key（可选）",
-        "testRequiresSave": "请先保存修改，再测试当前配置",
-        "reset": "撤销更改",
+        "testRequiresSave": "先保存更改，再测试连接。",
         "httpRiskTitle": "当前使用明文 HTTP",
-        "httpRisk": "模型请求、上下文和认证信息可能被链路上的其他方读取或篡改。保存时需要再次确认。",
+        "httpRisk": "请求内容与密钥可能被读取或篡改，保存时需确认。",
         "provisionFailure": {
           "refresh": {
-            "title": "Provider 已保存，但模型目录同步失败",
-            "description": "Provider 和 API Key（如有）已经保存，密钥输入已清除。最近一次成功目录仍会保留，请检查地址、认证或网络后重试同步。"
+            "title": "配置已保存，模型目录同步失败",
+            "description": "配置已保存，密钥输入已清空。检查连接后，可在模型目录重新同步。"
           }
         }
       },
       "catalog": {
+        "pendingDefault": "待设为默认",
+        "pendingDefaultUnavailable": "待设为默认的模型已不可用，请重新选择或撤销更改。",
         "search": "搜索模型 ID、名称或所有者",
         "stateFilter": "模型状态",
         "sourceFilter": "模型来源",
@@ -4668,11 +5828,11 @@
         "add": "添加模型",
         "refreshSuccess": "模型目录已同步",
         "refreshFailed": "模型目录同步未完成",
-        "refreshFailedDescription": "已保留最近一次成功目录，请检查 Provider 配置后重试。",
+        "refreshFailedDescription": "已保留上次成功同步的目录，检查服务配置后重试。",
         "noResults": "没有匹配的模型",
         "clearFilters": "清除筛选",
         "noRemoved": "没有已移除的模型",
-        "neverEmpty": "同步 Provider 后将在这里显示模型",
+        "neverEmpty": "同步服务后显示可用模型",
         "empty": "当前目录没有模型",
         "missing": "服务端已移除",
         "manual": "手工",
@@ -4686,6 +5846,7 @@
         "remove": "移除模型",
         "restore": "恢复模型",
         "moreActions": "{{model}} 的更多操作",
+        "editModel": "编辑 {{model}}",
         "inheritsGlobal": "跟随全局",
         "customParameters": "单独设置",
         "confirmRemoveTitle": "移除此模型？",
@@ -4694,7 +5855,7 @@
         "unavailable": "不可用于新会话",
         "lastSynced": "上次同步 {{time}}",
         "detail": {
-          "provider": "Provider",
+          "provider": "服务",
           "alias": "显示名称",
           "source": "来源",
           "catalogStatus": "目录状态",
@@ -4715,38 +5876,33 @@
           "failed": "同步失败"
         },
         "stateTitle": {
-          "disabled": "Provider 已暂停用于新会话",
+          "disabled": "服务已停用",
           "never": "尚未同步模型目录",
           "readyWarning": "最近一次同步失败，正在使用缓存目录",
-          "stale": "Provider 配置已变化",
+          "stale": "服务配置已变更",
           "failed": "模型目录同步失败"
         },
         "stateDescription": {
           "disabled": "仍可测试连接或手工同步目录，重新启用后才能创建新会话。",
           "never": "测试连接或同步目录后，Termous 会自动发现模型。",
           "readyWarning": "已有模型仍可使用；建议检查网络或认证后再次同步。",
-          "stale": "旧目录仍会保留，但重新同步前不能用于新 Run。",
-          "failed": "请检查 Provider 地址、API Key 和网络后重试。"
+          "stale": "已保留旧目录，重新同步前无法开始新任务。",
+          "failed": "检查服务地址、API Key 和网络后重试。"
         },
         "errorDescription": {
-          "invalid_config": "Provider 配置无效。请检查 Base URL 和 API 模式后重试。",
-          "timeout": "Provider 未在时限内响应。请检查服务状态和网络后重试。",
-          "connect_failed": "无法连接 Provider。请检查地址、代理、证书和网络。",
-          "authentication_failed": "Provider 拒绝了认证。请更新 API Key 后重试。",
-          "rate_limited": "Provider 暂时限制了请求。请稍后再同步。",
-          "invalid_response": "Provider 返回了无法识别的模型目录。请确认其兼容 OpenAI 模型列表接口。",
-          "response_too_large": "Provider 返回的模型目录超过安全上限。请缩小网关目录后重试。",
-          "catalog_fetch_failed": "模型目录获取失败。请检查 Provider 状态后重试。"
+          "invalid_config": "服务配置无效，请检查 Base URL 和 API 模式后重试。",
+          "timeout": "服务响应超时，请检查网络状态后重试。",
+          "connect_failed": "无法连接服务，请检查地址、本机证书和网络。",
+          "authentication_failed": "认证失败，请检查 API Key 后重试。",
+          "rate_limited": "服务请求过于频繁，请稍后重新同步。",
+          "invalid_response": "无法识别返回的模型目录，请确认服务兼容 OpenAI 模型列表接口。",
+          "response_too_large": "返回的模型目录超过安全上限，请缩小目录后重试。",
+          "catalog_fetch_failed": "模型目录获取失败，请检查服务状态后重试。"
         }
       },
-    "defaults": {
-      "title": "新会话默认值",
-      "description": "用于新建会话；模型专属设置优先。",
-        "save": "保存默认设置",
-        "reset": "撤销更改",
-        "unsaved": "有未保存的更改",
-        "saved": "已保存默认设置",
-        "draftPreserved": "已读取最新配置，当前修改已保留",
+      "defaults": {
+        "title": "模型与上下文",
+        "description": "默认模型用于新会话，模型专属参数优先；上下文整理阈值从下一轮对话生效。",
         "model": "默认模型",
         "modelPlaceholder": "选择模型",
         "modelDetail": "{{provider}} · 显示名称：{{alias}}",
@@ -4758,7 +5914,7 @@
         "outputQuickSelect": "选择常用输出上限",
         "reasoning": "推理强度",
         "unavailableTitle": "当前默认模型不可用于新会话",
-        "unavailableDescription": "模型记录会继续保留，请同步目录、启用 Provider 或选择其他默认模型。"
+        "unavailableDescription": "模型记录会继续保留，请同步目录、启用 服务 或选择其他默认模型。"
       },
       "apiMode": {
         "responses": "Responses API",
@@ -4774,31 +5930,32 @@
         "max": "最大"
       },
       "modelEditor": {
+        "backToModels": "返回模型目录",
         "addTitle": "新增模型",
         "editTitle": "编辑模型",
         "identitySection": "模型标识",
         "parametersSection": "运行参数",
-        "capabilitiesSection": "能力声明",
+        "capabilitiesSection": "模型能力",
         "modelId": "模型 ID",
-        "modelIdPlaceholder": "输入 Provider 接受的模型 ID",
+        "modelIdPlaceholder": "输入服务支持的模型 ID",
         "displayName": "显示名称",
         "displayNamePlaceholder": "可选；留空时使用模型 ID",
         "contextBudget": "上下文窗口",
         "maxOutput": "单次输出上限",
         "defaultReasoning": "默认推理强度",
-        "parameterMode": "运行参数来源",
-        "inheritGlobal": "跟随全局设置",
-        "customParameters": "使用模型专属设置",
+        "parameterMode": "参数来源",
+        "inheritGlobal": "跟随全局",
+        "customParameters": "自定义参数",
         "images": "支持图片输入",
         "reasoningControl": "模型推理",
         "reasoningLevels": "支持的推理强度",
         "reasoningNone": "不支持",
-        "reasoningEffort": "Reasoning effort",
+        "reasoningEffort": "支持推理",
         "selectAllReasoningLevels": "全选",
         "conservativeTitle": "模型能力尚未确认",
-        "conservativeDescription": "当前使用默认能力配置，请根据服务文档确认图片输入和推理能力。",
-        "discardTitle": "放弃模型能力修改？",
-        "discardDescription": "关闭后当前未保存的能力配置将丢失。"
+        "conservativeDescription": "请按服务文档确认图片输入与推理选项。",
+        "discardTitle": "放弃模型修改？",
+        "discardDescription": "当前未保存的模型配置将丢失。"
       },
       "apiKey": {
         "optionalPlaceholder": "无鉴权服务可留空",
@@ -4808,7 +5965,7 @@
         "addPending": "保存后配置密钥",
         "replacePending": "保存后替换当前密钥",
         "removePending": "保存后删除密钥",
-        "removePendingHint": "Provider 配置和模型目录会保留，保存后将按无密钥方式重新同步。",
+        "removePendingHint": "保留服务配置和模型目录，保存后将使用无密钥方式连接。",
         "undoRemove": "撤销删除",
         "configured": "已配置密钥",
         "notConfigured": "无密钥",
@@ -4832,7 +5989,7 @@
       },
       "confirmDelete": {
         "title": "删除模型配置？",
-        "description": "Provider“{{name}}”、模型目录及已保存 API Key 将被删除。被默认模型或会话引用时无法删除。"
+        "description": "服务“{{name}}”、模型目录及已保存 API Key 将被删除。被默认模型或会话引用时无法删除。"
       },
       "testSuccess": "模型连接正常，延迟 {{latency}} ms",
       "testFailed": "模型连接测试未通过",
@@ -4843,16 +6000,16 @@
       "conflict": {
         "title": "配置已在其他位置更新",
         "description": "请读取最新配置并核对后再次执行操作。",
-        "editorDescription": "读取最新 revision 后会保留当前编辑草稿，仍需再次确认保存。",
-        "providerDeleted": "此 Provider 已在其他位置删除。当前草稿仍保留；请放弃草稿或选择其他 Provider。",
-        "modelDeleted": "此模型已随 Provider 在其他位置删除。当前能力草稿仍保留，关闭前需要确认放弃。",
+        "editorDescription": "已保留当前修改。读取最新配置并核对后，再次保存。",
+        "providerDeleted": "此服务已在其他位置删除。草稿仍保留，放弃后可选择其他服务。",
+        "modelDeleted": "此模型或所属服务已被删除。草稿仍保留，离开时需确认放弃。",
         "modelRemoved": "此模型已在其他位置移除。当前草稿仍保留，关闭前需要确认放弃。",
-        "defaultsDescription": "全局默认设置已在其他位置更新。读取最新值后再保存当前修改。",
+        "defaultsDescription": "这些设置已有更新。读取最新配置后，核对并保存当前修改。",
         "refresh": "读取最新配置",
-        "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。"
+        "draftPreserved": "已读取最新配置，当前修改已保留，请核对后重新保存。"
       },
       "validation": {
-        "providerName": "请输入 Provider 名称",
+        "providerName": "请输入服务名称",
         "modelId": "请输入模型 ID",
         "modelIdInvalid": "模型 ID 必须是不含控制字符且不超过 200 字节的 UTF-8 文本",
         "nameTooLarge": "配置名称不能超过 80 字节",
@@ -4870,11 +6027,11 @@
         "generic": "操作未完成，请检查 Core、Vault 和模型配置后重试。",
         "conflict": "配置已在其他位置更新。当前草稿已保留，请重新载入后核对再保存。",
         "vaultLocked": "Vault 当前已锁定，请先解锁后重试。",
-        "providerInUse": "该 Provider 仍被默认设置、会话或历史任务引用，无法删除。",
-        "providerLimit": "Provider 数量已达到上限，请删除不再使用的配置后重试。",
-        "providerNameConflict": "该 Provider 名称已存在，请使用其他名称。",
-        "providerNotFound": "所属 Provider 已不存在，请关闭当前编辑并重新选择。",
-        "modelIdConflict": "该 Provider 中已存在相同的模型 ID，请使用其他模型 ID。",
+        "providerInUse": "该服务仍被默认设置、会话或历史任务引用，无法删除。",
+        "providerLimit": "服务数量已达到上限，请删除不再使用的配置后重试。",
+        "providerNameConflict": "该服务名称已存在，请使用其他名称。",
+        "providerNotFound": "所属服务已不存在，请关闭当前编辑并重新选择。",
+        "modelIdConflict": "该服务中已存在相同的模型 ID，请使用其他模型 ID。",
         "modelInUse": "该模型仍被默认设置、会话或历史任务引用，无法移除。",
         "modelUnavailable": "该模型当前不可用于新请求，请同步目录或选择其他模型。",
         "modelCapabilityConflict": "该模型仍被启用了推理的默认设置或会话使用。请先关闭这些位置的推理等级，再停用模型推理能力。"
@@ -4930,7 +6087,7 @@
         }
       },
       "title": "MCP 访问",
-      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、文件管理、端口转发、代码片段和远程运维能力。",
+      "description": "向外部 MCP 客户端提供已授权的主机与远程操作能力。",
       "state": {
         "disabled": "未启用",
         "enabled": "已启用"
@@ -4958,6 +6115,15 @@
         "disabled": "已停用"
       },
       "scope": {
+        "desktop_workflows_read": "读取脚本",
+        "desktop_workflows_write": "编辑脚本",
+        "desktop_workflows_run": "运行脚本",
+        "desktop_workflows_delete": "删除脚本",
+        "desktops_read": "桌面状态",
+        "desktops_connect": "连接桌面",
+        "desktops_capture": "桌面截图",
+        "desktops_control": "控制桌面",
+        "desktops_close": "关闭桌面",
         "hosts_read": "读取主机",
         "hosts_probe": "检测主机可达性",
         "sessions_read": "读取 SSH 会话",
@@ -4980,8 +6146,14 @@
         "processes_terminate": "终止进程",
         "services_read": "读取系统服务",
         "services_manage": "管理系统服务",
-        "docker_read": "读取 Docker",
-        "docker_manage": "管理 Docker",
+        "docker_read": "读取容器",
+        "docker_manage": "管理容器",
+        "docker_images_read": "读取镜像",
+        "docker_images_manage": "管理镜像",
+        "docker_volumes_read": "读取数据卷",
+        "docker_volumes_manage": "管理数据卷",
+        "docker_networks_read": "读取网络",
+        "docker_networks_manage": "管理网络",
         "crontab_read": "读取定时任务",
         "crontab_write": "修改定时任务",
         "forwarding_read": "读取端口转发",
@@ -4990,6 +6162,21 @@
         "snippets_write": "管理代码片段"
       },
       "scopeDescription": {
+        "desktop_workflows_read": "查看本机脚本、版本和运行报告。",
+        "desktop_workflows_write": "管理脚本与模板，编辑免确认。",
+        "desktop_workflows_run": "执行固定版本并控制自己的运行。",
+        "desktop_workflows_delete": "删除脚本，保留已有运行报告。",
+        "desktops_read": "查看连接状态及自动化占用情况。",
+        "desktops_connect": "使用已保存的 RDP / VNC 配置连接。",
+        "desktops_capture": "查看桌面画面，不授予控制权。",
+        "desktops_control": "申请限时控制；需同时开启截图权限。",
+        "desktops_close": "仅关闭本客户端创建且无人共用的连接。",
+        "docker_images_read": "读取镜像列表、标签、大小和平台信息。",
+        "docker_images_manage": "设置镜像标签或非强制删除镜像；默认需逐次批准。",
+        "docker_volumes_read": "读取数据卷列表、驱动和挂载位置。",
+        "docker_volumes_manage": "创建 local 数据卷或删除数据卷及其数据；默认需逐次批准。",
+        "docker_networks_read": "读取网络列表、子网和连接的容器。",
+        "docker_networks_manage": "创建 bridge 网络、连接或断开容器、非强制删除网络；默认需逐次批准。",
         "hosts_read": "查看已保存主机的脱敏连接信息和缓存可达性。",
         "hosts_probe": "主动刷新指定主机的 ICMP 可达性。",
         "sessions_read": "查看当前 SSH 会话、连接状态和阶段。",
@@ -5022,6 +6209,8 @@
         "snippets_write": "新增、修改、删除或调整代码片段及分组顺序；默认需逐次批准。"
       },
       "permissionGroup": {
+        "desktop_workflows": "桌面脚本",
+        "desktops": "远程桌面",
         "hosts": "主机与发现",
         "sessions": "SSH 会话",
         "commands": "会话命令台",
@@ -5029,12 +6218,14 @@
         "system": "系统信息",
         "processes": "进程管理",
         "services": "系统服务",
-        "docker": "Docker 容器",
+        "docker": "Docker",
         "crontab": "定时任务",
         "forwarding": "端口转发",
         "snippets": "代码片段"
       },
       "permissionGroupHint": {
+        "desktop_workflows": "脚本管理、图像模板与有界运行",
+        "desktops": "RDP / VNC 画面观察与有限期自动化控制",
         "hosts": "查看已保存主机与网络可达性",
         "sessions": "查看或控制 Termous 中的 SSH 连接",
         "commands": "执行命令并读取结果",
@@ -5042,7 +6233,7 @@
         "system": "读取 Linux 系统、硬件和网络摘要",
         "processes": "查看进程并执行受控终止操作",
         "services": "查看和管理 systemd 服务",
-        "docker": "查看和管理 Docker 容器",
+        "docker": "查看和管理容器、镜像、数据卷和网络",
         "crontab": "查看和管理当前用户的定时任务",
         "forwarding": "查看和管理 SSH 端口转发",
         "snippets": "查看和维护共享代码片段"
@@ -5064,6 +6255,8 @@
       "permissions": "权限范围",
       "selectedPermissions": "已选择 {{count}} / {{total}} 项",
       "restoreReadOnly": "恢复默认只读",
+      "selectAllPermissions": "全选",
+      "clearAllPermissions": "取消全选",
       "selectGroupPermissions": "全选",
       "clearGroupPermissions": "取消全选",
       "groupPermissionsToggleLabel": "切换{{group}}全部权限",
@@ -5105,7 +6298,8 @@
       "unknownClient": "未知客户端",
       "destructive": "高风险操作",
       "approval": {
-        "title": "MCP 操作需要确认",
+        "title": "操作需要确认",
+        "descriptionAgent": "AI 助手请求执行以下操作，请确认目标与影响范围。",
         "description": "外部客户端正在请求执行需要人工批准的操作。",
         "client": "请求客户端",
         "command": "待执行命令",
@@ -5135,6 +6329,18 @@
           "directory_count": "文件夹",
           "symlink_count": "符号链接"
         },
+        "dockerResource": {
+          "images": "Docker 镜像",
+          "volumes": "Docker 数据卷",
+          "networks": "Docker 网络"
+        },
+        "dockerImageTag": "目标镜像标签",
+        "dockerTagImpact": "已有同名标签会改为指向所选镜像，不会复制镜像数据。",
+        "dockerContainer": "目标容器",
+        "dockerInternal": "内部网络",
+        "impact": "操作影响",
+        "dockerVolumeRemoval": "删除数据卷及其数据，无法撤销。使用中的数据卷不会被强制删除。",
+        "dockerRemoval": "非强制删除所选资源，使用中的资源由 Docker 检查。",
         "remoteOpsDomain": {
           "system": "系统信息",
           "processes": "进程管理",
@@ -5144,6 +6350,9 @@
           "other": "远程运维"
         },
         "remoteOpsAction": {
+          "tag": "设置标签",
+          "connect": "连接容器",
+          "disconnect": "断开容器",
           "terminate": "终止进程",
           "start": "启动",
           "stop": "停止",
@@ -5385,6 +6594,20 @@
     }
   },
   "commandDispatch": {
+    "editor": "命令编辑",
+    "enterToSend": "回车执行",
+    "execute": "执行",
+    "noTargets": "暂无可用会话",
+    "searchHistory": "搜索命令记录",
+    "noHistoryMatches": "没有匹配的命令记录",
+    "reuseCommand": "填入编辑器",
+    "scrollResultsLeft": "向左浏览执行结果",
+    "scrollResultsRight": "向右浏览执行结果",
+    "ready": "准备执行",
+    "resultNotConfirmed": "执行状态未确认",
+    "resultUnknown": "命令提交结果未知，请检查任务列表后再决定是否重新执行。",
+    "taskList": "任务记录",
+    "status": {"queued": "排队中", "validating": "校验中", "running": "执行中", "interrupting": "中断中", "completed": "已完成", "failed": "失败", "interrupted": "已中断", "partial_failed": "部分失败"},
     "title": "会话命令台",
     "resizeDock": "调整命令台高度",
     "scope": "命令目标范围",
@@ -5394,32 +6617,33 @@
       "all": "全部"
     },
     "targetCount": "{{count}} 个目标",
-    "targetPickerTitle": "选择已连接的 SSH 会话",
+    "targetPickerTitle": "选择会话",
+    "connectedTargetsOnly": "仅列出已连接的 SSH 会话",
     "searchTargets": "搜索会话名、主机名或端点",
     "noMatchingTargets": "没有匹配的已连接 SSH 会话",
     "selectedCount": "已选 {{count}} 个",
     "selectAll": "全选",
-    "clearSelection": "清空",
     "interruptAll": "中断全部",
     "interrupting": "正在中断",
     "interruptTarget": "中断 {{name}} 的命令",
     "commandInput": "要发送的 Shell 命令",
-    "commandPlaceholder": "输入单行完整 Shell 命令，支持管道、重定向、引号、分号和 &&",
+    "commandPlaceholder": "输入单行命令，回车执行",
     "sending": "正在发送",
     "sendToCount": "发送到 {{count}} 个会话",
-    "results": "各会话执行结果",
-    "recovering": "正在恢复最近的命令任务…",
-    "noResults": "发送后将在这里显示每个会话的结果",
+    "results": "执行结果",
+    "progress": "已完成 {{completed}} / {{total}} 个会话",
+    "recovering": "正在恢复命令任务列表…",
+    "recoveryHint": "正在同步最近的执行状态，请稍候。",
+    "noResults": "选择会话并输入命令，执行后查看结果与回显。",
     "ptyOutput": "原终端输出",
     "openOriginalTerminal": "转到原终端",
     "waitingOutput": "等待输出",
     "outputTruncated": "本地展示缓存已截断",
     "outputGap": "输出流存在缺口",
-    "mirrorEmpty": "选择一个结果以查看终端回显",
     "exitCode": "退出码 {{code}}",
     "exitCodeUnavailable": "退出码未知",
     "startFailed": "命令任务创建失败",
-    "multilineRejected": "命令台仅接受单行命令，已拒绝多行粘贴",
+    "multilineRejected": "仅支持单行命令，已拒绝换行内容",
     "commandTooLarge": "命令不能超过 {{max}} KiB",
     "tooManyTargets": "最多选择 {{max}} 个会话（当前 {{count}} 个）",
     "interruptFailed": "命令中断请求失败",
@@ -5448,14 +6672,16 @@
     "done": "完成",
     "skip": "跳过使用向导",
     "close": "关闭使用向导",
+    "backToTopics": "专题列表",
+    "finishTopic": "完成并返回",
     "steps": {
       "welcome": {
         "title": "欢迎使用 Termous",
-        "description": "Termous 将终端、文件管理和 AI 运维集中到一个工作台。跟随向导了解连接准备、多协议文件配置、文件挂载，以及 MCP 与 Skills 的使用入口。"
+        "description": "在同一工作区管理终端、远程桌面和文件，并通过 AI 助手与桌面自动化处理任务。先用这段简短导览认识主要入口，更多操作可按专题了解。"
       },
       "vaultNav": {
-        "title": "从凭据开始",
-        "description": "凭据是建立 SSH 连接的第一步。凭据库集中管理密码和私钥，供后续连接配置选用。"
+        "title": "集中管理凭据",
+        "description": "先在凭据库添加密码或 SSH 私钥，再为主机的连接配置选择凭据。同一凭据可供多个连接复用。"
       },
       "vaultActions": {
         "title": "选择凭据创建方式",
@@ -5471,19 +6697,19 @@
       },
       "hostEditor": {
         "title": "整理主机信息",
-        "description": "设置名称、分组、标签和图标，让主机资产便于查找和识别；完成后可继续添加 SSH 连接配置。"
+        "description": "用名称、分组、标签和图标整理设备，再按需添加 SSH、远程桌面或文件配置。主机不必配置 SSH，也可以只用于桌面或文件访问。"
       },
       "hostConnections": {
-        "title": "配置 SSH 连接",
-        "description": "在连接页签填写 SSH 端点，选择凭据和可选代理，并设定默认连接。保存 SSH 配置时会自动配套生成 SFTP 配置。"
+        "title": "管理连接配置",
+        "description": "在连接页签管理 SSH、远程桌面和文件配置。SSH 配置可选择凭据与代理，并自动配套 SFTP；桌面和其他文件协议使用各自的连接选项。"
       },
       "fileProfiles": {
         "title": "为主机配置多种文件访问方式",
         "description": "保存主机后，可在连接配置的文件访问区域新增 SFTP、S3、WebDAV、FTP 或 SMB 配置。SFTP 绑定已有 SSH 连接，其他引擎按各自选项填写连接信息。保存后供文件管理、AI 资源关联及文件挂载复用。"
       },
       "topbarConnect": {
-        "title": "快速发起连接",
-        "description": "在工作台顶栏打开主机启动器，可选择已配置的主机连接；也可以从这里新建本地终端。"
+        "title": "按当前工作区连接",
+        "description": "顶部“连接”在远程桌面和文件页打开对应类型的连接页，其他页面默认打开 SSH 连接。会话栏的 ＋ 可直接选择该类型的已有配置，“更多连接”打开完整连接页；连接快捷键遵循顶部相同规则。"
       },
       "workbench": {
         "title": "在工作台处理日常任务",
@@ -5530,12 +6756,12 @@
         "description": "审计中心记录内置 AI 助手和外部 MCP 的操作。按时间、来源、结果或关键词筛选，再打开详情查看审批、执行结果与关联事件，帮助定位一次操作的经过。"
       },
       "settings": {
-        "title": "调整关键偏好",
-        "description": "设置页集中管理界面与连接偏好。接下来了解终端、挂载缓存、MCP、Skills 安装和 AI 助手；如需调整，关闭向导后即可操作。"
+        "title": "集中调整偏好",
+        "description": "设置以弹出层打开。通用、终端和连接等偏好修改后自动生效；AI 助手、模型服务等页面使用底部的保存操作。客户端、备份等资源按各自操作确认。"
       },
       "settingsTerminal": {
-        "title": "让终端更顺手",
-        "description": "调整字体、光标、主题和回滚行数。智能补全支持命令、别名、片段、历史和目录建议；启用 AI 命令建议前，先在 AI 助手设置中配置默认模型。"
+        "title": "调整终端体验",
+        "description": "设置字体、光标、主题与回滚行数，选择需要的补全来源。AI 命令建议需要先在“模型服务”中配置可用模型。"
       },
       "settingsMount": {
         "title": "管理挂载的本地缓存",
@@ -5550,16 +6776,143 @@
         "description": "在桌面端点“安装 Skills”，选择 Codex、Claude Code 或自定义目录，确认安装位置和内容；同名项默认跳过。安装后在客户端重新加载 Skills，并单独配置 MCP 连接与权限。内置 AI 助手已包含这些 Skills。"
       },
       "settingsAgent": {
-        "title": "配置内置 AI 助手",
-        "description": "配置提供商和默认模型，调整上下文整理与 Token 用量显示。就绪后进入 AI 助手，在输入框键入 / 使用快捷命令、关联 SSH 或文件连接，也可继续处理从终端引用的内容。"
+        "title": "设置 AI 助手偏好",
+        "description": "选择默认模型，调整上下文与会话偏好，完成后使用底部“保存”。服务地址、密钥与模型列表在独立的“模型服务”页面管理。"
       },
       "settingsData": {
         "title": "备份与恢复工作配置",
         "description": "将主机、凭据、设置和本地资源导出为加密备份。导入时先预览内容，再选择替换、合并或选择性恢复；确认应用后重启生效。"
       },
       "finish": {
-        "title": "准备就绪",
-        "description": "你已了解连接、多协议文件管理、挂载、审计和 AI 接入。关闭向导后即可配置和使用；以后可从帮助菜单再次打开使用向导。"
+        "title": "开始使用",
+        "description": "已了解主要功能入口。点击“完成并返回”，可继续选择连接、桌面自动化、AI 助手等专题；关闭向导即可开始使用。"
+      },
+      "desktop": {
+        "title": "远程桌面工作区",
+        "description": "这里集中管理 RDP 与 VNC 会话。先为主机添加远程桌面配置，再从顶部“连接”或会话栏的 ＋ 选择配置。未连接时也可访问桌面自动化入口。"
+      },
+      "desktopConnect": {
+        "title": "快速切换桌面连接",
+        "description": "本页顶部“连接”打开远程桌面连接页，已配置桌面访问的主机会优先显示。会话栏的 ＋ 列出可用桌面配置，悬停可查看连接摘要。"
+      },
+      "desktopTools": {
+        "title": "桌面工具与保留会话",
+        "description": "桌面工具集中提供文件和桌面自动化入口。关闭桌面标签后，仍保留的会话可从“保留会话”重新打开；可用工具取决于当前协议和连接状态。"
+      },
+      "desktopFiles": {
+        "title": "RDP 文件交换",
+        "description": "连接 RDP 后，从桌面工具打开文件侧栏，使用文件交换与剪贴板。Ctrl＋V 可接收本地剪贴板中的文件；底部文件传输入口可查看进度，传输期间显示速率。"
+      },
+      "automationEntry": {
+        "title": "打开桌面自动化",
+        "description": "从“桌面工具”进入桌面自动化，集中编排和执行桌面任务。可继续选择桌面自动化专题了解模板与执行链；向导不会创建模板或启动任务。"
+      },
+      "automationLibrary": {
+        "title": "模板与执行记录",
+        "description": "左侧列表用于管理自动化模板和执行记录，可折叠以留出编辑空间。选择已有模板或新建后，中间会显示执行链与配置；未选择模板时展示总览。"
+      },
+      "automationEditor": {
+        "title": "编排执行链",
+        "description": "打开模板后，可添加、拖动和配置步骤，在流程设置中管理参数。校验用于检查配置，保存用于保留修改，执行会先确认目标和参数；向导不会触发这些操作。"
+      },
+      "automationPreview": {
+        "title": "画面选点与框选",
+        "description": "打开模板并选择已连接的桌面后，可刷新截图进行选点或框选。滚轮缩放，Ctrl＋拖动平移画面，直接拖动调整框选区域；Ctrl＋Z / Ctrl＋Shift＋Z 撤销与重做，Delete 删除选区。缩放不会改变配置坐标，向导期间暂停获取新截图。"
+      },
+      "automationHistory": {
+        "title": "回看执行过程",
+        "description": "从这里切换到执行记录。选择一次执行可查看状态、步骤详情、按键或输入内容与截图，并统一展开或折叠详情；记录查看与模板编辑位于同一工作区。"
+      },
+      "automationWindow": {
+        "title": "使用独立窗口",
+        "description": "桌面版可将自动化工作区独立打开，再聚焦或返回主界面。自动化窗口只承载这部分页面，远程桌面继续保留；通过“返回远程桌面”可切回查看。"
+      },
+      "settingsModels": {
+        "title": "准备模型服务",
+        "description": "添加模型服务，填写接口地址与密钥，选择或编辑可用模型，最后使用页面底部“保存”。AI 助手的默认模型与使用偏好在下一步单独设置。"
+      },
+      "agent": {
+        "title": "AI 助手工作区",
+        "description": "未就绪时，页面会列出仍需准备的项目；完成模型与运行环境配置后即可开始对话。向导不会自动准备环境、发送消息或调用模型。"
+      },
+      "agentContext": {
+        "title": "关联资源与上下文",
+        "description": "助手就绪后，可在输入区关联 SSH、文件或桌面资源，也可接收从终端引用的文本。输入 / 查看可用快捷命令，为任务提供明确的目标与上下文。"
+      },
+      "agentApproval": {
+        "title": "确认需要授权的操作",
+        "description": "需要审批的操作会先展示目标和操作内容，确认后才继续。可在消息中心处理待审批事项，并到审计中心回看操作结果；请按实际需要授予权限。"
+      },
+      "agentWindow": {
+        "title": "独立使用助手",
+        "description": "桌面版助手就绪后可独立打开，在主界面与子窗口间聚焦或返回，保留当前对话。未就绪时先完成准备；设备远程控制中的助手也遵循远端就绪状态。"
+      },
+      "account": {
+        "title": "账户与设备",
+        "description": "从侧栏底部的账户入口管理云同步和设备。登录后可查看同步、设备与安全设置；本地终端、文件和桌面功能也可离线使用。"
+      },
+      "cloudSync": {
+        "title": "选择加密同步内容",
+        "description": "登录并完成设备信任后，在“同步”中选择需要同步的数据，查看同步状态与冲突。敏感数据经过端到端加密；向导不会启用同步或上传内容。"
+      },
+      "cloudSecurity": {
+        "title": "管理账户安全",
+        "description": "登录后，在“安全”中管理双重验证、恢复与设备信任。安全设置按各自流程确认；请自行妥善保存恢复信息，向导不会读取或更改这些内容。"
+      },
+      "remoteDevices": {
+        "title": "从设备进入远程控制",
+        "description": "登录后，在“设备”中选择受信任且在线的设备进入远程控制。能否连接取决于远端的访问设置与可用状态，并不等同于主机的 SSH 或 RDP 配置。"
+      },
+      "remotePermissions": {
+        "title": "按需开放访问范围",
+        "description": "远程控制权限由被控设备管理。按需启用功能和文件根目录，AI 助手的远程访问也需单独授权。向导只展示入口，不会开启权限或建立远程控制会话。"
+      },
+      "notifications": {
+        "title": "集中查看消息",
+        "description": "消息中心汇总任务结果、文件传输和待审批操作。点击消息可进入对应内容；开启系统通知后，仅当 Termous 整个应用失焦时提醒，在主界面和子窗口之间切换不会触发。"
+      }
+    },
+    "chooseTopic": "先看基础导览，或选择感兴趣的专题。讲解中可返回专题列表，关闭后可从帮助菜单重新打开。",
+    "topicCompleted": "已看完「{{topic}}」",
+    "continueTopic": "继续选择一个专题，或关闭向导开始使用。",
+    "completed": "已完成",
+    "stepCount": "{{count}} 步",
+    "topics": {
+      "basics": {
+        "title": "基础导览",
+        "description": "认识工作区、连接入口与常用功能"
+      },
+      "connections": {
+        "title": "主机与连接",
+        "description": "凭据、连接配置与会话快捷菜单"
+      },
+      "files": {
+        "title": "文件与挂载",
+        "description": "多协议文件、书签、传输与系统挂载"
+      },
+      "desktop": {
+        "title": "远程桌面",
+        "description": "桌面连接、工具与 RDP 文件交换"
+      },
+      "automation": {
+        "title": "桌面自动化",
+        "description": "模板、执行链、画面选点与执行记录"
+      },
+      "agent": {
+        "title": "AI 助手",
+        "description": "模型准备、资源关联与操作审批"
+      },
+      "cloud": {
+        "title": "云同步与备份",
+        "description": "加密同步、设备信任与本地备份"
+      },
+      "remote": {
+        "title": "设备远程控制",
+        "description": "设备入口、访问权限与远程协作"
+      },
+      "tools": {
+        "title": "工具与扩展",
+        "description": "会话工具、转发、片段、MCP 与审计"
       }
     }
   },
@@ -5567,5 +6920,45 @@
     "required": "必填",
     "optional": "可选",
     "none": "无"
+  },
+  "notifications": {
+    "title": "消息中心",
+    "resultCount": "{{count}} 条消息",
+    "all": "全部",
+    "unread": "未读",
+    "source": "来源",
+    "sources": {
+      "all": "全部来源",
+      "agent": "AI 助手",
+      "file": "文件传输",
+      "approval": "操作审批",
+      "cloud": "云服务"
+    },
+    "readAll": "全部已读",
+    "clearRead": "清理已读",
+    "dismiss": "移除消息",
+    "empty": "暂无消息",
+    "emptyHint": "AI 助手、文件传输结果和待审批操作会显示在这里。",
+    "emptyUnread": "暂无未读消息",
+    "emptyFiltered": "此来源暂无消息",
+    "emptyFilteredHint": "切换来源或查看全部消息，了解其他任务的运行结果。",
+    "viewAll": "查看全部消息",
+    "operationFailed": "操作未完成，请重试",
+    "reconnecting": "消息连接暂时中断，正在重新连接",
+    "targetMissing": "原会话或传输记录已不可用，以上为保留的结果摘要。",
+    "approvalMissing": "该审批可能已处理或过期，或当前正在处理优先审批。请查看现有审批窗口。",
+    "settings": {
+      "title": "系统通知",
+      "hint": "仅在 Termous 位于后台时提醒。",
+      "desktopOnly": "系统通知仅在桌面版可用。",
+      "unsupported": "当前系统不支持原生通知。",
+      "loading": "正在读取通知设置…",
+      "unavailable": "通知设置暂不可用。",
+      "categories": "提醒内容",
+      "paused": "已暂停系统提醒，保留已选内容。",
+      "centreHint": "消息中心始终保留全部消息。",
+      "error": "无法读取或保存通知设置",
+      "enabled": "允许系统通知"
+    }
   }
 }

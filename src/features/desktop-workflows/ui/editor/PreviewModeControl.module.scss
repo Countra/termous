@@ -1,0 +1,50 @@
+.modes {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--app-bg) 40%, var(--surface));
+}
+
+.modes button {
+  display: flex;
+  min-height: 29px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+
+.modes button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.modes button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.modes button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modes button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

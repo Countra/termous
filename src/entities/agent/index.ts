@@ -28,6 +28,7 @@ export {
   type AgentCompactionData,
   type AgentRetryActivity,
   type AgentRetryData,
+  type AgentRequestUsage,
   type AgentContextUsageData,
   type AgentContextUsageBasis,
   type AgentContextCompressionStatus,
@@ -35,6 +36,7 @@ export {
   type AgentLaunchIntent,
   type AgentLaunchRequest,
   type AgentResourceBinding,
+  type AgentMessageResource,
   type AgentResourceBindingUpdateInput,
   type AgentResourceKind,
   type AgentResourceSlot,
@@ -101,6 +103,8 @@ export {
   type AgentToolCallPart,
   type AgentToolEventData,
   type AgentToolResultPart,
+  type AgentToolImageMetadata,
+  type AgentToolImageSource,
   type AgentUsage,
 } from './model/types.ts'
 export {
@@ -177,3 +181,10 @@ export {
   type AgentResourceConnectionTarget,
   type AgentResourceConnectionView,
 } from './model/resourceConnection.ts'
+
+export type { AgentDesktopResourceBinding, AgentDesktopResourceState } from './model/types.ts'
+export { agentSlashKindsForCommand, agentSlashCatalogCandidates } from './model/slashCommands.ts'
+export type { AgentSlashDesktopCandidate, AgentSlashDesktopSessionCandidate, AgentSlashDesktopProfileCandidate, AgentSlashWorkflowCandidate } from './model/slashCommands.ts'
+
+export type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
+export { mergeAgentProgress } from './model/agentProgress.ts'

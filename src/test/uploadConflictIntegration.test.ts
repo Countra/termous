@@ -33,13 +33,13 @@ function assertSharedUploadConflictFlow(
   source: string,
 ) {
   assert.match(source, /await createUploadWithConflictDecision\(\{/)
-  assert.match(source, /createGrant:\s*api\.createLocalFileGrant/)
+  assert.match(source, /createGrant:\s*selection\?\.createGrant\s*\?\?\s*api\.createLocalFileGrant/)
   assert.match(source, /releaseGrant:\s*api\.releaseLocalFileGrant/)
   assert.match(source, /requestPolicy:\s*uploadConflictDecision\.requestPolicy/)
   assert.match(source, /isCurrent:\s*isCurrentUploadSession/)
   assert.match(
     source,
-    /createFileSessionUploadTransfer\(\s*fileSessionId,\s*grantId,\s*remoteDir,\s*['"]rename['"],\s*overwriteItemIds,\s*overwriteConfirmations,?\s*\)/,
+    /createFileSessionUploadTransfer\(\s*fileSessionId,\s*grantId,\s*remoteDir,\s*['"]rename['"],\s*overwriteItemIds,\s*overwriteConfirmations,\s*connectionGeneration,?\s*\)/,
   )
 }
 

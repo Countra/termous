@@ -62,7 +62,7 @@ prepare_core_output_directory() {
     require_ordinary_directory "$output_directory" "Core 输出目录"
   fi
   local binary_name
-  for binary_name in termous-core.exe termous-core; do
+  for binary_name in termous-core.exe termous-core termous-rdp.exe termous-rdp; do
     local binary_path="$output_directory/$binary_name"
     if [[ -d "$binary_path" ]]; then
       echo "Core 输出文件不能是目录: $binary_path" >&2
@@ -70,6 +70,16 @@ prepare_core_output_directory() {
     fi
     rm -f -- "$binary_path"
   done
+}
+
+configure_local_go_cache() {
+  # 仅设置本地磁盘路径；Actions 沿用 runner 环境，不在此处管理远端缓存。
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then return; fi
+  export GOCACHE="$workspace_dir/TEMP/go/build"
+  export GOMODCACHE="$workspace_dir/TEMP/go/mod"
+  export GOTMPDIR="$workspace_dir/TEMP/go/tmp"
+  mkdir -p -- "$GOCACHE" "$GOMODCACHE" "$GOTMPDIR"
+  export TEMP="$GOTMPDIR" TMP="$GOTMPDIR" TMPDIR="$GOTMPDIR"
 }
 
 run_step() {
@@ -152,6 +162,22 @@ resolve_build_phase() {
   esac
 }
 
+require_native_target() {
+  local expected_os="$1"
+  local expected_arch="$2"
+  local host_os host_arch
+  host_os="$(uname -s)"
+  host_arch="$(uname -m)"
+  case "$host_os:$expected_os" in
+    Linux:linux|Darwin:darwin) ;;
+    *) echo "当前系统 $host_os 与构建目标 $expected_os 不一致，必须在对应原生平台构建。" >&2; return 1 ;;
+  esac
+  if [[ "$host_arch" != "$expected_arch" ]]; then
+    echo "当前 runner 架构为 $host_arch，目标需要 $expected_arch" >&2
+    return 1
+  fi
+}
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 default_web_dir="$(cd "$script_dir/../.." && pwd -P)"
 web_dir="$(resolve_existing_directory "${TERMOUS_WEB_DIR:-}" "$default_web_dir" "TERMOUS_WEB_DIR")"
@@ -187,11 +213,7 @@ case "$target_os:$target_arch" in
     ;;
 esac
 
-native_arch="$(uname -m)"
-if [[ "$native_arch" != "$expected_native_arch" ]]; then
-  echo "当前 runner 架构为 $native_arch，目标 $target_os/$target_arch 需要 $expected_native_arch" >&2
-  exit 1
-fi
+require_native_target "$goos" "$expected_native_arch"
 if [[ "$build_phase" != "package" ]] && ! command -v "$compiler" >/dev/null 2>&1; then
   echo "未找到 $compiler，Termous Core 的 SQLite CGO 构建无法继续。" >&2
   exit 1
@@ -202,6 +224,7 @@ output_dir="$(normalize_output_directory "${TERMOUS_OUTPUT_DIR:-$default_output_
 installer_dir="$output_dir/installer"
 core_output_dir="$web_dir/build/core"
 core_binary="$core_output_dir/termous-core"
+rdp_binary="$core_output_dir/termous-rdp"
 assert_child_directory "$output_dir" "$workspace_dir" "TERMOUS_OUTPUT_DIR"
 assert_child_directory "$core_output_dir" "$web_dir" "Core 输出目录"
 version="${TERMOUS_VERSION:-}"
@@ -228,11 +251,21 @@ clear_publish_credentials
 disable_code_signing
 
 if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
+  configure_local_go_cache
   prepare_core_output_directory "$web_dir/build" "$core_output_dir"
   export CGO_ENABLED=1
   export GOOS="$goos"
   export GOARCH="$goarch"
   export CC="$compiler"
+
+  # 与 Windows 共用 worker 构建入口，只消费已准备的 SDK，不下载或重编第三方库。
+  rdp_dir="$(resolve_existing_directory "${TERMOUS_RDP_DIR:-}" "$workspace_dir/termous-rdp" "TERMOUS_RDP_DIR")"
+  run_step "Build Termous RDP" "$rdp_dir" bash scripts/build.sh build
+  if [[ ! -f "$rdp_dir/build/termous-rdp" || ! -x "$rdp_dir/build/termous-rdp" ]]; then
+    echo "termous-rdp 未生成或不可执行: $rdp_dir/build/termous-rdp" >&2
+    exit 1
+  fi
+  cp -p -- "$rdp_dir/build/termous-rdp" "$rdp_binary"
 
   # 发布包必须包含匹配平台的驱动适配，缺少头文件时明确失败。
   mount_tags="mountfuse"
@@ -270,7 +303,9 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
   run_step "Go tests" "$core_dir" go test -tags "$mount_tags" ./...
   run_step "Build Termous Core" "$core_dir" go build \
     -tags "$mount_tags" \
+    -mod=readonly \
     -trimpath \
+    -buildvcs=false \
     -ldflags "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version" \
     -o "$core_binary" \
     ./cmd/termous-core
@@ -286,6 +321,10 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
 fi
 
 if [[ "$build_phase" == "all" || "$build_phase" == "package" ]]; then
+  if [[ ! -f "$rdp_binary" || ! -x "$rdp_binary" ]]; then
+    echo "打包前缺少可执行的 termous-rdp，请先执行 prepare 阶段: $rdp_binary" >&2
+    exit 1
+  fi
   if [[ ! -x "$core_binary" ]]; then
     echo "打包前缺少 termous-core，请先执行 prepare 阶段: $core_binary" >&2
     exit 1

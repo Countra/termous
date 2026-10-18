@@ -1,0 +1,106 @@
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.key-file {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  > div {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+  }
+}
+
+.key-text {
+  color: var(--text-secondary);
+
+  summary {
+    cursor: pointer;
+    width: fit-content;
+  }
+
+  summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  code {
+    display: block;
+    margin: 12px 0;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    line-height: 1.8;
+    user-select: all;
+  }
+}
+
+.key-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.key-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 28px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  &:hover:not(:disabled), &.dragging {
+    border-color: var(--accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.key-manual {
+  align-self: flex-start;
+  padding: 0;
+}
+
+.danger-hint {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}

@@ -99,13 +99,19 @@ function parseResource(value) {
     || value.size < 0
     || value.size > 512 * 1024
     || (value.media_type !== 'text/markdown; charset=utf-8'
-      && value.media_type !== 'application/yaml; charset=utf-8')) {
+      && value.media_type !== 'application/yaml; charset=utf-8'
+      && value.media_type !== 'text/x-python; charset=utf-8')) {
     throw new Error('AGENT_SKILLS_RESOURCE_INVALID')
   }
   const uriPath = value.uri.replace(/^skill:\/\/[^/]+\//, '')
   const skillName = /^skill:\/\/([^/]+)\//.exec(value.uri)?.[1]
   if (value.path !== `${skillName}/${uriPath}`) {
     throw new Error('AGENT_SKILLS_RESOURCE_MAPPING_INVALID')
+  }
+  const scriptPath = uriPath.startsWith('scripts/')
+  const python = value.media_type === 'text/x-python; charset=utf-8'
+  if ((scriptPath || python) && !(scriptPath && python && uriPath.endsWith('.py'))) {
+    throw new Error('AGENT_SKILLS_RESOURCE_INVALID')
   }
   return {
     uri: value.uri,

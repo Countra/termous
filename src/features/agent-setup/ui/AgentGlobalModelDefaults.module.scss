@@ -1,18 +1,20 @@
+@use '../../../shared/styles/settings' as settings;
+
 .defaults {
   min-width: 0;
-  padding: 16px 0;
+  padding-top: 22px;
 }
 
 .heading {
-  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-muted);
 }
 
 .heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
+  @include settings.heading;
 }
 
 .heading p {
@@ -23,9 +25,12 @@
 }
 
 .controls {
+  @include settings.panel;
+
   display: grid;
   min-width: 0;
   gap: 14px;
+  padding: 17px 18px;
 }
 
 .primary-controls,
@@ -121,39 +126,8 @@
   line-height: 1.45;
 }
 
-.footer {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.feedback {
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 .alert {
   margin-top: 12px;
-}
-
-.alert :global(.ant-alert-actions) {
-  flex-shrink: 0;
-}
-
-.save {
-  min-width: 72px;
 }
 
 .model-option {
@@ -215,7 +189,7 @@
   line-height: 1.45;
 }
 
-@container agent-settings (min-width: 900px) {
+@container agent-settings (min-width: 820px) {
   .controls {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -242,29 +216,6 @@
     margin: 0;
   }
 
-  .footer {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .actions {
-    justify-content: flex-end;
-    flex-wrap: wrap;
-  }
-
-  .alert :global(.ant-alert-section) {
-    min-width: 0;
-  }
-
-  .alert :global(.ant-alert-actions) {
-    margin-left: 0;
-    margin-top: 8px;
-  }
-
-  .alert:global(.ant-alert-with-description) {
-    flex-wrap: wrap;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

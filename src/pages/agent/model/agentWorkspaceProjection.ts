@@ -1,3 +1,4 @@
+import { mergeAgentProgress } from '#entities/agent'
 import type {
   AgentMessage,
   AgentCompactionActivity,
@@ -12,6 +13,7 @@ import type {
 } from '#entities/agent'
 import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal, mergeAgentRetryActivity } from '#entities/agent'
 import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/contracts'
+import { projectAgentToolImages } from './agentToolImages.ts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
@@ -79,6 +81,7 @@ export function projectAgentSessions(
       ?.model_snapshot
     return {
       id: session.id,
+      origin: session.origin,
       title: session.title,
       group_id: session.group_id,
       pinned: session.pinned,
@@ -129,8 +132,11 @@ export function projectAgentMessages(
     const sourcePart = message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
       part.kind === 'text' && part.source_context !== undefined
     ))
+    const resourcePart = message.role === 'user' ? message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
+      part.kind === 'text' && part.resources !== undefined
+    )) : undefined
     const parts = interleaveActivities(
-      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
+      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents, message.session_id),
       message,
       messageEvents,
     )
@@ -146,6 +152,8 @@ export function projectAgentMessages(
       parts,
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
+      resources: resourcePart?.resources,
+      request_usage: message.request_usage,
       usage: usage && usage.total_tokens > 0 ? usage : undefined,
       duration_ms: message.role === 'assistant' && !streaming && (!messageRun || isAgentRunTerminal(messageRun.status))
         ? runDuration(messageRun?.started_at, messageRun?.completed_at)
@@ -192,8 +200,15 @@ function interleaveActivities(
     const incoming = { ...event.payload.retry, created_at: event.created_at }
     retries.set(incoming.retry_id, mergeAgentRetryActivity(retries.get(incoming.retry_id), incoming))
   }
-  if (activities.size === 0 && retries.size === 0) return parts
-  const pending: Extract<AgentWorkspaceMessagePart, { kind: 'compaction' | 'retry' }>[] = [
+  const progress = new Map((message.progress ?? []).map((value) => [value.pattern_id, value]))
+  for (const event of events) {
+    if (event.kind !== 'progress' || event.payload.progress.assistant_message_id !== message.id) continue
+    const incoming = { ...event.payload.progress, created_at: event.created_at }
+    progress.set(incoming.pattern_id, mergeAgentProgress(progress.get(incoming.pattern_id), incoming))
+  }
+  if (activities.size === 0 && retries.size === 0 && progress.size === 0) return parts
+  const pending: Extract<AgentWorkspaceMessagePart, { kind: 'compaction' | 'retry' | 'progress' }>[] = [
+    ...[...progress.values()].map((activity) => ({ id: `progress:${activity.pattern_id}`, kind: 'progress' as const, activity })),
     ...[...activities.values()].map((activity) => ({ id: `compaction:${activity.compaction_id}`, kind: 'compaction' as const, activity })),
     ...[...retries.values()].map((activity) => ({ id: `retry:${activity.retry_id}`, kind: 'retry' as const, activity })),
   ]
@@ -265,9 +280,8 @@ export function agentRunInteractionBlocked(
 ) {
   if (!activeRunId) return false
   if (!selectedRun || selectedRun.id !== activeRunId || !isAgentRunActive(selectedRun.status)) return true
-  return runtimeStatus?.state !== 'running'
-    || runtimeStatus.active_run_id !== selectedRun.id
-    || runtimeStatus.generation !== selectedRun.generation
+  return !runtimeStatus?.workers?.some((worker) => worker.state === 'running'
+    && worker.run_id === selectedRun.id && worker.generation === selectedRun.generation)
 }
 
 export function selectionAfterSessionRemoval(
@@ -285,6 +299,7 @@ function projectMessageParts(
   finalizedParts: ReadonlySet<string>,
   run: AgentRun | undefined,
   events: AgentRunEvent[],
+  sessionID: string,
 ): AgentWorkspaceMessage['parts'] {
   const results = new Map(parts
     .filter((part): part is Extract<AgentMessagePart, { kind: 'tool_result' }> => part.kind === 'tool_result')
@@ -303,7 +318,7 @@ function projectMessageParts(
         kind: 'reasoning' as const,
         text: part.text,
         streaming: streaming && !failure && !finalizedParts.has(messagePartKey(part.message_id, part.id)),
-      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events)
+      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events, sessionID)
     return failure?.error_message && failedAttemptEnds.get(failure.attempt_id) === part.id
       ? [projected, { id: `response-failure:${failure.attempt_id}`, kind: 'response_failure', failure, after_part_sequence: part.sequence }]
       : [projected]
@@ -319,6 +334,7 @@ function projectToolPart(
   result: Extract<AgentMessagePart, { kind: 'tool_result' }> | undefined,
   run: AgentRun | undefined,
   events: AgentRunEvent[],
+  sessionID: string,
 ): AgentWorkspaceToolPart {
   const toolEvents = events.filter((event) => (
     !call.response_failure && 'tool' in event.payload && event.payload.tool.tool_call_id === call.tool_call.tool_call_id
@@ -336,6 +352,7 @@ function projectToolPart(
     name: canonicalizeMcpFileToolName(call.tool_call.tool_name),
     status,
     duration_ms: duration,
+    ...(result ? { images: projectAgentToolImages(sessionID, result) } : {}),
     detail: boundedToolDetail({
       arguments: redactJson(call.tool_call.arguments),
       ...(result ? { result: redactJson(result.tool_result.content) } : {}),
@@ -347,6 +364,10 @@ function redactJson(value: unknown, depth = 0): unknown {
   if (depth > 8) return '[truncated]'
   if (Array.isArray(value)) return value.slice(0, 64).map((item) => redactJson(item, depth + 1))
   if (!value || typeof value !== 'object') return value
+  const block = value as Record<string, unknown>
+  if ((block.type === 'image' || block.type === 'audio') && typeof block.data === 'string') {
+    return { type: block.type, mimeType: block.mimeType, data: '[二进制内容已省略]' }
+  }
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).slice(0, 128).map(([key, item]) => [
     key,
     sensitiveKey.test(key) ? '[redacted]' : redactJson(item, depth + 1),

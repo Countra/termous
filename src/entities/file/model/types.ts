@@ -12,7 +12,7 @@ export type TransferType =
 
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-export type TransferOrigin = 'app' | 'mcp'
+export type TransferOrigin = 'app' | 'mcp' | 'remote'
 
 export type TransferPhase = 'scanning' | 'transferring' | 'finalizing'
 
@@ -173,7 +173,7 @@ export interface FileOperationTask {
 
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
 
-export type FileSessionOrigin = 'app' | 'mcp'
+export type FileSessionOrigin = 'app' | 'mcp' | 'remote'
 
 export type FileAccessCapability =
   | 'entry_create'
@@ -240,6 +240,10 @@ export interface FileSession {
 }
 
 export interface TransferTask {
+  clipboard_publication_id?: string
+  desktop_session_id?: string
+  desktop_exchange_id?: string
+  desktop_resource_generation?: number
   id: string
   origin?: TransferOrigin
   host_id?: string

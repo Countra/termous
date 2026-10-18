@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { desktopUpdateBridge, localSettingsGateway } from '#app/data-runtime'
+import { useSettingsModule } from '#entities/settings'
+import { NotificationControl } from '#app/notification-runtime'
+import type { NotificationTarget } from '#entities/notification'
+import type { CloudTab, CloudAuthorizationTarget } from '#common/contracts'
+import { useCloudSubscription } from './model/useCloudSubscription'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
@@ -7,6 +13,9 @@ import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import { AgentPage } from '#pages/agent'
 import { AuditPage } from '#pages/audit'
+import { projectAgentDesktopReferences } from './model/agentDesktopReferences.ts'
+import { useAgentWorkflowReferences } from './model/useAgentWorkflowReferences.ts'
+import { useStorageStatus } from './model/useStorageStatus.ts'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -24,12 +33,16 @@ import {
   type HostProvisionGateway,
 } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
-import { ProductTourController, type ProductTourStep } from '#features/product-tour'
+import { FileSystemClipboardNotification } from '#features/files'
+import { ProductTourGuide, type ProductTourStep } from '#features/product-tour'
 import { MountsPage } from '#pages/mounts'
 import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
-import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
+import { SettingsDialog, type SettingsPageTabKey } from '#pages/settings'
+import { AccountPage } from '#pages/account'
+import { AccountApprovalCoordinator, useCloudProfile } from '#features/cloud-account'
+import { useAccountWelcome } from './model/useAccountWelcome'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
@@ -44,6 +57,7 @@ import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider, type TerminalAIReferenceSelection } from '#features/terminal'
 import { RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
+import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
 import {
@@ -82,7 +96,7 @@ import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
 import type { HostGroup, HostIcon, HostIconReorderItem } from '#entities/host'
-import type { GroupReorderItem, PageKey } from '#shared/model'
+import type { GroupReorderItem, NavigationTarget, PageKey } from '#shared/model'
 import type { LocalShell, Session, SessionSnapshotEvent } from '#entities/session'
 import styles from './App.module.scss'
 import {
@@ -101,15 +115,17 @@ import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
 import { projectAgentSlashCandidates } from './model/projectAgentSlashCandidates.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
+import { useSystemClipboardRuntime } from './model/useSystemClipboardRuntime'
 import { CoreFatalDialog } from './CoreFatalDialog'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
-const SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY = 'termous.ui.terminal.sshSmoothScroll.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
+  useSystemClipboardRuntime()
   const { i18n } = useTranslation()
+  const updateBridge = useMemo(() => desktopUpdateBridge(getTermousBridge()) ?? developmentUpdateSimulation?.mainBridge ?? null, [])
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
   const language: Language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
@@ -132,7 +148,7 @@ function App() {
   return (
     <TermousUiProvider language={language} theme={theme}>
       <UpdateRuntimeProvider
-        bridge={getTermousBridge()?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
+        bridge={updateBridge}
       >
         <AppContent theme={theme} setTheme={setTheme} />
       </UpdateRuntimeProvider>
@@ -145,6 +161,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { notification } = AntdApp.useApp()
   const { gateways, runtimeConfigReady, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
   const mounts = useMountManagement(gateways.mounts, apiReady)
+  useStorageStatus(gateways.runtime, apiReady)
   const hostIconSHAByID = useMemo(
     () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
     [data.hostIcons],
@@ -176,6 +193,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     activateFileSession,
     connectAndActivateFileSession,
     closeFileSession,
+    restartFileSession,
   } = useFileSessionCoordinator({
     fileSessions: data.fileSessions,
     fileSessionClosures,
@@ -234,28 +252,50 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     eventsUrl: fileSessionEventsUrl,
     onSnapshot: actions.applyFileSessionSnapshot,
   })
-  const [page, setCurrentPage] = useState<PageKey>('workbench')
+  const cloudStatus = useSyncExternalStore(gateways.cloud.subscribeStatus, gateways.cloud.getStatus)
+  const cloudProfile = useCloudProfile(gateways.cloud, cloudStatus?.generation ?? '', apiReady && cloudStatus?.authenticated ? cloudStatus.user_id : undefined)
+  const { pending: accountWelcomePending, complete: completeAccountWelcome } = useAccountWelcome(cloudStatus?.authenticated === true)
+  const [page, setCurrentPage] = useState<PageKey>(() => accountWelcomePending ? 'account' : 'workbench')
   const [hostSaving, setHostSaving] = useState(false)
   const hostSavingRef = useRef(false)
+  const settingsBoundary = useRef({ dirty: false, busy: false })
+  const [settingsDirty, setSettingsDirty] = useState(false)
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const handleSettingsDirtyChange = useCallback((dirty: boolean) => {
+    settingsBoundary.current.dirty = dirty
+    setSettingsDirty(dirty)
+  }, [])
+  const handleSettingsBusyChange = useCallback((busy: boolean) => {
+    settingsBoundary.current.busy = busy
+    setSettingsBusy(busy)
+  }, [])
   const handleHostSavingChange = useCallback((saving: boolean) => {
     hostSavingRef.current = saving
     setHostSaving(saving)
   }, [])
   const setPage = useCallback((nextPage: PageKey) => {
     // 聚合创建提交后无法撤回，异步连接回调也不能在此期间卸载草稿页。
-    if (hostSavingRef.current) return
+    if (hostSavingRef.current || settingsBoundary.current.busy || settingsBoundary.current.dirty) return
+    if (nextPage !== 'account') completeAccountWelcome()
     setCurrentPage(nextPage)
-  }, [])
+  }, [completeAccountWelcome])
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
   const [snippetsDirty, setSnippetsDirty] = useState(false)
+  const [workflowDirty, setWorkflowDirty] = useState(false)
+  const [workflowDetached, setWorkflowDetached] = useState(false)
+  const workflowNavigationBlocked = page === 'remote-desktop' && workflowDirty && !workflowDetached
+  const [workflowResetKey, setWorkflowResetKey] = useState(0)
+  const [remoteDesktopOpened, setRemoteDesktopOpened] = useState(page === 'remote-desktop')
+  useEffect(() => { if (page === 'remote-desktop') setRemoteDesktopOpened(true) }, [page])
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
+  const navigationResultRef = useRef<((accepted: boolean) => void) | undefined>(undefined)
+  const [agentDetached, setAgentDetached] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
-  const [sshSmoothScrollEnabled, setSshSmoothScrollEnabled] = usePersistentBooleanState(
-    SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY,
-    false,
-  )
+  const smoothScroll = useSettingsModule('terminal_local', { gateway: localSettingsGateway })
+  const sshSmoothScrollEnabled = smoothScroll.snapshot?.value.ssh_smooth_scroll === true
   const [selectedHostId, setSelectedHostId] = useState('')
   const [filesBookmarkManagementIntent, setFilesBookmarkManagementIntent] =
     useState<FilesBookmarkManagementIntent | null>(null)
@@ -285,13 +325,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [forwardTemporaryIntent, setForwardTemporaryIntent] =
     useState<ForwardTemporaryIntent | null>(null)
   const nextForwardTemporaryIntentKeyRef = useRef(0)
+  const [notificationSessionId, setNotificationSessionId] = useState<string>()
+  const [notificationTransferId, setNotificationTransferId] = useState<string>()
+  const [notificationApprovalId, setNotificationApprovalId] = useState<string>()
   const [agentLaunchIntent, setAgentLaunchIntent] = useState<AgentLaunchIntent | null>(null)
   const nextAgentLaunchIntentKeyRef = useRef(0)
   const agentLaunchPendingRef = useRef(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [productTourRequestKey, setProductTourRequestKey] = useState(0)
   const [productTourActive, setProductTourActive] = useState(false)
+  const [productTourDesktopIntent, setProductTourDesktopIntent] = useState<{ key: number; view: 'desktops' | 'workflow' }>()
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
+  const [desktopConnectionBlocking, setDesktopConnectionBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
   const [agentRuntimeSummary, setAgentRuntimeSummary] = useState({
     agentRunCount: 0,
@@ -313,30 +358,101 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setFilesBookmarkManagementIntent(null)
   }, [])
 
+  const notificationNavigationBlocked = useRef(false)
+  const [accountTab, setAccountTab] = useState<CloudTab>('sync')
+  const [accountAuthorization, setAccountAuthorization] = useState<{ generation: string; target: CloudAuthorizationTarget }>()
+  const authorizationTarget = accountAuthorization?.generation === cloudStatus?.generation ? accountAuthorization?.target : undefined
+  const openAccountAuthorization = useCallback((target: CloudAuthorizationTarget) => {
+    const generation = gateways.cloud.getStatus()?.generation
+    if (generation) setAccountAuthorization({ generation, target })
+  }, [gateways.cloud])
+  useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
+  useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked || settingsOpen }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked, settingsOpen])
+  const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
+    if (target.kind === 'remote_agent') {
+      const generation = gateways.cloud.getStatus()?.generation
+      const remote = getTermousBridge()?.remoteControl
+      if (!generation || !remote) return false
+      try { return (await remote.openAgent(generation, target)).ok } catch { return false }
+    }
+    if (target.kind === 'approval') {
+      if (hostKeyApprovalBlocking) return false
+      try {
+        const snapshot = await gateways.mcpAccess.approvals()
+        if (!snapshot.items.some((item) => item.id === target.approval_id && item.state === 'pending' && Date.parse(item.expires_at) > Date.now())) return false
+        setNotificationApprovalId(target.approval_id)
+        return true
+      } catch { return false }
+    }
+    if (hostSavingRef.current || notificationNavigationBlocked.current) return false
+    try {
+      if (target.kind === 'cloud') {
+        const status = await gateways.cloud.status()
+        // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
+        if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
+        setAccountTab(target.tab)
+        setAccountAuthorization(target.authorization ? { generation: status.generation, target: target.authorization } : undefined)
+        setPage('account')
+        return true
+      }
+      if (target.kind === 'agent') {
+        const session = await gateways.agentWorkspace.session(target.session_id)
+        if (session.archived_at || hostSavingRef.current || notificationNavigationBlocked.current) return false
+        setNotificationSessionId(target.session_id)
+        if (!agentDetached) setPage('agent')
+        return true
+      }
+      if (target.kind === 'transfer') {
+        const tasks = await gateways.transfers.transfers()
+        if (hostSavingRef.current || notificationNavigationBlocked.current || !tasks.some((task) => task.id === target.transfer_id)) return false
+        setNotificationTransferId(target.transfer_id)
+        setPage('files')
+        return true
+      }
+      return false
+    } catch { return false }
+  }, [agentDetached, gateways, hostSavingRef, setPage, hostKeyApprovalBlocking])
+
   const clearAgentLaunchIntent = useCallback(() => {
     agentLaunchPendingRef.current = false
     setAgentLaunchIntent(null)
   }, [])
 
   const navigateToPage = useCallback((
-    nextPage: PageKey,
-    options?: { settingsTab?: SettingsPageTabKey },
+    nextPage: NavigationTarget,
+    options?: { settingsTab?: SettingsPageTabKey; accountTab?: CloudTab },
   ) => {
-    if (hostSavingRef.current) return
-    if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
+    if (nextPage === 'settings') {
+      if (hostSavingRef.current) return Promise.resolve(false)
+      if (!settingsOpen) {
+        setSettingsInitialTab(options?.settingsTab ?? 'general')
+        setSettingsOpen(true)
+      }
+      return Promise.resolve(true)
+    }
+    if (settingsOpen) {
+      if (settingsBoundary.current.busy || settingsBoundary.current.dirty) return Promise.resolve(false)
+      setSettingsOpen(false)
+    }
+    navigationResultRef.current?.(false)
+    navigationResultRef.current = undefined
+    setPendingPage(null)
+    // 主页面导航只撤销尚未送入嵌入助手的引用；独立窗口中的引用继续由宿主处理。
+    if (nextPage !== 'agent' && !agentDetached) clearAgentLaunchIntent()
+    if (hostSavingRef.current || settingsBoundary.current.busy) return Promise.resolve(false)
+    if (nextPage === 'account') setAccountTab(options?.accountTab ?? 'profile')
     if (nextPage === page) {
-      return
+      return Promise.resolve(true)
     }
-    if (nextPage !== 'agent') {
-      clearAgentLaunchIntent()
-    }
-    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty)) {
+    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty) || workflowNavigationBlocked) {
       setPendingPage(nextPage)
-      return
+      return new Promise<boolean>(resolve => { navigationResultRef.current = resolve })
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty])
+    return Promise.resolve(true)
+  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -350,8 +466,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       request,
       nextAgentLaunchIntentKeyRef.current,
     ))
-    navigateToPage('agent')
-  }, [navigateToPage])
+    if (!agentDetached) void navigateToPage('agent')
+  }, [agentDetached, navigateToPage])
 
   useEffect(() => {
     if (page !== 'files') {
@@ -485,7 +601,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [agentSSHResources, launchAgent, notification, t])
   const agentFileResources = useMemo(() => projectAgentFileResources(data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles),
     [data.fileAccessProfiles, data.hostAssets, data.sshAccessProfiles])
-  const agentSlashCandidates = useMemo(() => projectAgentSlashCandidates({
+  const workflowReferences = useAgentWorkflowReferences(gateways.desktopWorkflow, apiReady && !error && !initializing)
+  const desktopReferences = useMemo(() => projectAgentDesktopReferences(remoteDesktopRuntimeSessions, data.remoteDesktopProfiles, data.hostAssets, workflowReferences.scripts),
+    [remoteDesktopRuntimeSessions, data.remoteDesktopProfiles, data.hostAssets, workflowReferences.scripts])
+  const agentSlashCandidates = useMemo(() => desktopReferences.extend(projectAgentSlashCandidates({
     sessions: data.sessions,
     displayedFileSessions,
     hosts: data.hosts,
@@ -493,7 +612,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     sshAccessProfiles: data.sshAccessProfiles,
     fileAccessProfiles: data.fileAccessProfiles,
     closingFileSessionIds,
-  }), [
+  })), [
+    desktopReferences,
     closingFileSessionIds,
     data.fileAccessProfiles,
     data.hostAssets,
@@ -502,7 +622,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.sshAccessProfiles,
     displayedFileSessions,
   ])
-  const agentResources = useMemo(() => [...agentSSHResources, ...agentFileResources], [agentSSHResources, agentFileResources])
+  const agentResources = useMemo(() => [
+    ...agentSSHResources, ...agentFileResources,
+    ...desktopReferences.resources.filter((resource) => resource.kind === 'desktop_session'),
+  ], [agentSSHResources, agentFileResources, desktopReferences])
   const referenceAgentConnection = useCallback((source: AgentConnectionResourceState, target: AgentReferenceTarget) => {
     try {
       launchAgent(buildConnectionReferenceLaunch(source, target, agentResources))
@@ -603,6 +726,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const filesPageData = useMemo<FilesPageProps['data']>(() => ({
     fileAccessProfiles: data.fileAccessProfiles,
+    sshAccessProfiles: data.sshAccessProfiles,
     hosts: data.hosts,
     hostAssets: data.hostAssets,
     fileSessions: displayedFileSessions,
@@ -619,6 +743,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.hostAssets,
     data.localPathMappings,
     data.fileAccessProfiles,
+    data.sshAccessProfiles,
     data.settings.terminal,
     displayedFileSessions,
   ])
@@ -931,6 +1056,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       await actions.setConnectionSettings(connectionSettings)
     } catch (actionError) {
       showActionError(actionError)
+      throw actionError
     }
   }
 
@@ -1108,6 +1234,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     ))
   }, [actionBusy])
 
+  const openPageConnectionLauncher = useCallback(
+    () => openHostLauncher(
+      page === 'remote-desktop' ? 'remote_desktop' : page === 'files' ? 'files' : 'terminal',
+    ),
+    [openHostLauncher, page],
+  )
+
   const openFileSessionLauncher = useCallback(
     () => openHostLauncher('files'),
     [openHostLauncher],
@@ -1178,19 +1311,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     sourceSessionId, agentSSHResources, agentReferenceTargets, agentReferenceResourcesReady,
   ), [agentReferenceTargets, agentSSHResources, agentReferenceResourcesReady])
   const getAgentConnectionReferenceSnapshot = useCallback((reference: AgentConnectionResourceReference) => projectConnectionReferenceSnapshot(
-    reference, agentResources, agentReferenceTargets, reference.kind === 'file_profile' ? agentFileResourcesReady : agentReferenceResourcesReady,
+    reference, agentResources, agentReferenceTargets, reference.kind === 'ssh_session' ? agentReferenceResourcesReady : agentFileResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
+    || hostKeyApprovalBlocking
+    || desktopConnectionBlocking
     || actionBusy
     || hostSaving
     || Boolean(pendingPage)
-  const prepareProductTourStep = (step: ProductTourStep) => {
+  const prepareProductTourStep = async (step: ProductTourStep, signal: AbortSignal) => {
     if (
       actionBusy
       || hostSavingRef.current
       || pendingPage
       || !apiReady
       || coreFatal
+      || signal.aborted
+      || isProductTourTransitionBlocked(step, step)
     ) {
       return false
     }
@@ -1205,7 +1342,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           requestHostEntry({ mode: 'create' })
         }
       }
-      navigateToPage(step.route)
+      if (!await navigateToPage(step.route, { accountTab: step.accountTab }) || signal.aborted) return false
+      if (step.desktopView) {
+        const view = step.desktopView
+        setProductTourDesktopIntent((previous) => ({ key: (previous?.key ?? 0) + 1, view }))
+      }
     }
     return true
   }
@@ -1213,6 +1354,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     _currentStep: ProductTourStep,
     nextStep: ProductTourStep,
   ) => {
+    if (settingsDirty || settingsBusy) return true
+    if (nextStep.route === 'settings') return false
+    if (workflowNavigationBlocked && nextStep.route && nextStep.route !== 'remote-desktop') return true
     if (page === 'vault' && vaultDirty) {
       return nextStep.preparation === 'vaultCatalog'
         || (nextStep.route !== undefined && nextStep.route !== 'vault')
@@ -1225,7 +1369,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return nextStep.route !== undefined && nextStep.route !== 'snippets'
     }
     return false
-  }, [hostsDirty, page, snippetsDirty, vaultDirty])
+  }, [hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy, workflowNavigationBlocked])
   const showProductTourBlocked = useCallback(() => {
     notification.warning({
       title: t('productTour.menuLabel'),
@@ -1238,17 +1382,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   return (
     <ShortcutRuntimeProvider settings={data.settings.shortcuts}>
+      {apiReady && !coreFatal && <FileSystemClipboardNotification />}
       <ShortcutWindowAdapter handlers={{
         'app.host_launcher.open': () => {
-          if (actionBusy) {
+          if (actionBusy || hostSavingRef.current || settingsOpen) {
             return 'blocked'
           }
-          openTerminalSessionLauncher()
+          openPageConnectionLauncher()
           return 'handled'
         },
       }} />
       <FilesWorkspaceRuntimeProvider
         fileSessions={data.fileSessions}
+        tabSessions={displayedFileSessions}
         closingFileSessionIds={closingFileSessionIds}
       >
         <TransferRuntimeProvider api={gateways.transfers} enabled={runtimeConfigReady}>
@@ -1289,15 +1435,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     onSessionsChange={setRemoteDesktopRuntimeSessions}
                   >
                     <AppShell
+                      account={{ authenticated: cloudStatus?.authenticated === true, email: cloudStatus?.email, name: cloudProfile.profile?.name, avatar: cloudProfile.profile?.avatar }}
+                      onOpenAccount={(tab) => navigateToPage('account', { accountTab: tab })}
+                      notificationControl={<NotificationControl api={gateways.notifications} enabled={runtimeConfigReady && !coreFatal} navigate={navigateNotification} />}
                       page={page}
                       appVersion={appVersion}
                       windowCloseBehavior={data.settings.window.close_behavior}
                       sidebarCollapsed={sidebarCollapsed}
+                      contentInert={settingsOpen}
                       actionBusy={actionBusy || hostSaving}
                       onNavigate={navigateToPage}
-                      onOpenConnectionLauncher={openTerminalSessionLauncher}
+                      onOpenConnectionLauncher={openPageConnectionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
-                      onOpenProductTour={() => setProductTourRequestKey((current) => current + 1)}
+                      onOpenProductTour={() => { completeAccountWelcome(); setProductTourRequestKey((current) => current + 1) }}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
                       onBeforeClose={shutdownBeforeClose}
                       onCloseError={showActionError}
@@ -1366,6 +1516,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         inert={page !== 'agent'}
                       >
                         <AgentPage
+                          appearance={{ theme, language: data.settings.language }}
+                          onDetachedChange={setAgentDetached}
+                          onReturnToPage={() => navigateToPage('agent')}
+                          notificationSessionId={notificationSessionId}
+                          onNotificationSessionHandled={() => setNotificationSessionId(undefined)}
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
@@ -1373,10 +1528,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           fileResources={agentFileResources}
                           fileResourcesReady={agentFileResourcesReady}
                           slashCandidates={agentSlashCandidates}
+                          desktopResources={desktopReferences.resources}
+                          desktopResourcesReady={agentFileResourcesReady}
+                          workflowResourcesReady={workflowReferences.ready}
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
-                          launchIntent={page === 'agent' ? agentLaunchIntent : null}
+                          launchIntent={page === 'agent' || agentDetached ? agentLaunchIntent : null}
                           onLaunchIntentHandled={(key) => {
                             if (agentLaunchIntent?.key === key) {
                               clearAgentLaunchIntent()
@@ -1407,6 +1565,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onSelectHost={setSelectedHostId}
                           onDelete={(id) => runAction(async () => {
                             await actions.deleteHost(id)
+                            await mounts.reload()
                             return true
                           })}
                           onCreateGroup={createHostGroup}
@@ -1448,6 +1607,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'files' ? (
                         <FilesPage
+                          notificationTransferId={notificationTransferId}
+                          onNotificationTransferHandled={() => setNotificationTransferId(undefined)}
                           fileGateway={gateways.files}
                           automaticRemoteRequestsEnabled={!productTourActive}
                           getHostIconUrl={getHostIconUrl}
@@ -1472,6 +1633,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                             activateFileSession(fileSessionId)
                           }}
                           onCloseFileSession={closeFileSession}
+                          onRestartFileSession={restartFileSession}
                           onReconnectFileSession={actions.reconnectFileSession}
                           onUpdateFileSession={actions.updateFileSession}
                           onCreateFileBookmark={actions.createFileBookmark}
@@ -1528,46 +1690,54 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       ) : null}
 
                       {page === 'audit' ? <AuditPage api={gateways.audit} /> : null}
-                      {page === 'settings' ? (
-                        <SettingsPage
-                          initialTab={settingsInitialTab}
-                          language={data.settings.language}
-                          appearanceSettings={data.settings.appearance}
-                          terminalSettings={data.settings.terminal}
-                          sshSmoothScrollEnabled={sshSmoothScrollEnabled}
-                          completionSettings={data.settings.completion}
-                          connectionSettings={data.settings.connection}
-                          shortcutSettings={data.settings.shortcuts}
-                          windowSettings={data.settings.window}
-                          terminalFonts={data.terminalFonts}
-                          appVersion={appVersion}
-                          dataPortabilityGateway={gateways.dataPortability}
-                          mountSettingsGateway={gateways.settings}
-                          agentSetupGateway={gateways.agentSetup}
-                          defaultModelStatusGateway={gateways.terminal}
-                          updatePreferencesRuntime={updatePreferencesRuntime}
-                          actionBusy={actionBusy}
-                          onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
-                          onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
-                          onTerminalSettingsChange={saveTerminalSettings}
-                          onSshSmoothScrollChange={setSshSmoothScrollEnabled}
-                          onCompletionSettingsChange={saveCompletionSettings}
-                          onConnectionSettingsChange={saveConnectionSettings}
-                          onShortcutSettingsChange={saveShortcutSettings}
-                          onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
-                          onUploadTerminalFont={uploadTerminalFont}
-                          onDeleteTerminalFont={deleteTerminalFont}
-                        />
-                      ) : null}
+                      {page === 'account' ? <AccountPage api={gateways.cloud} settingsGateway={gateways.settings} profile={cloudProfile} authorizationTarget={authorizationTarget} onOpenAuthorization={openAccountAuthorization} onUseOffline={() => navigateToPage('workbench')} activeTab={accountTab} onTabChange={setAccountTab} /> : null}
 
-                      {page === 'remote-desktop' ? (
+                      {page === 'remote-desktop' || remoteDesktopOpened ? <div
+                        className={`${styles['app-keepalive-page']} ${page === 'remote-desktop' ? styles['is-active'] : styles['is-hidden']}`}
+                        inert={page !== 'remote-desktop'}
+                      >
                         <RemoteDesktopPage
+                          guideIntent={productTourDesktopIntent}
+                          guided={productTourActive}
+                          active={page === 'remote-desktop'}
+                          appearance={{ theme, language: data.settings.language }}
+                          workflowResetKey={workflowResetKey}
+                          onDetachedChange={setWorkflowDetached}
+                          onReturnToPage={() => navigateToPage('remote-desktop')}
+                          workflow={gateways.desktopWorkflow}
+                          profiles={data.remoteDesktopProfiles}
+                          hosts={data.hostAssets}
+                          sshAccessProfiles={data.sshAccessProfiles}
+                          getHostIconUrl={getHostIconUrl}
+                          onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
+                          getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
+                          onReferenceAgentConnection={referenceAgentConnection}
                         />
-                      ) : null}
+                      </div> : null}
                     </AppShell>
-                    <ProductTourController
-                      ready={productTourReady}
+                    <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
+                      settingsGateway={gateways.settings} initialTab={settingsInitialTab}
+                      onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}
+                      language={data.settings.language} appearanceSettings={data.settings.appearance}
+                      terminalSettings={data.settings.terminal} sshSmoothScrollEnabled={sshSmoothScrollEnabled}
+                      completionSettings={data.settings.completion} connectionSettings={data.settings.connection}
+                      shortcutSettings={data.settings.shortcuts} windowSettings={data.settings.window}
+                      terminalFonts={data.terminalFonts} appVersion={appVersion}
+                      dataPortabilityGateway={gateways.dataPortability} mountSettingsGateway={gateways.settings}
+                      auditSettingsGateway={gateways.settings} agentSetupGateway={gateways.agentSetup}
+                      defaultModelStatusGateway={gateways.terminal} updatePreferencesRuntime={updatePreferencesRuntime}
+                      actionBusy={actionBusy}
+                      onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+                      onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
+                      onTerminalSettingsChange={saveTerminalSettings}
+                      onSshSmoothScrollChange={(enabled) => { void smoothScroll.update({ ssh_smooth_scroll: enabled }) }}
+                      onCompletionSettingsChange={saveCompletionSettings} onConnectionSettingsChange={saveConnectionSettings}
+                      onShortcutSettingsChange={saveShortcutSettings}
+                      onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
+                      onUploadTerminalFont={uploadTerminalFont} onDeleteTerminalFont={deleteTerminalFont} />
+                    <ProductTourGuide
+                      ready={productTourReady && !accountWelcomePending}
                       autoStartEligible={
                         data.credentials.length === 0
                         && data.hostAssets.length === 0
@@ -1605,36 +1775,44 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onRemoteDesktopConnected={() => setPage('remote-desktop')}
                       onRemoteDesktopConnectionError={showActionError}
                     />
+                    <RemoteDesktopConnectionCoordinator blocked={hostKeyApprovalBlocking} onBlockingChange={setDesktopConnectionBlocking} />
                   </RemoteDesktopRuntimeProvider>
-                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
+                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking || desktopConnectionBlocking} preferredApprovalId={notificationApprovalId} />
                 </GlobalFileSearchRuntimeProvider>
               </McpAccessRuntimeProvider>
             </CommandDispatchRuntimeProvider>
       <ConfirmDialog
         open={Boolean(pendingPage)}
-        title={t(page === 'hosts' ? 'hosts.unsavedTitle' : 'vault.unsavedTitle')}
-        description={t(page === 'hosts' ? 'hosts.leaveUnsavedDescription' : 'vault.unsavedDescription')}
-        confirmLabel={t(page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
+        title={t(page === 'remote-desktop' ? 'desktopWorkflow.unsavedTitle' : page === 'hosts' ? 'hosts.unsavedTitle' : 'vault.unsavedTitle')}
+        description={t(page === 'remote-desktop' ? 'desktopWorkflow.unsavedDescription' : page === 'hosts' ? 'hosts.leaveUnsavedDescription' : 'vault.unsavedDescription')}
+        confirmLabel={t(page === 'remote-desktop' ? 'desktopWorkflow.discard' : page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
         cancelLabel={t('app.cancel')}
         danger
         onCancel={() => {
-          if (pendingPage === 'agent') {
+          navigationResultRef.current?.(false)
+          navigationResultRef.current = undefined
+          if (pendingPage === 'agent' && !agentDetached) {
             clearAgentLaunchIntent()
           }
           setPendingPage(null)
         }}
         onConfirm={() => {
-          if (hostSavingRef.current) return
+          if (hostSavingRef.current || settingsBoundary.current.busy) return
           const nextPage = pendingPage
           setPendingPage(null)
           if (page === 'hosts') {
             setHostsDirty(false)
           } else if (page === 'vault') {
             setVaultDirty(false)
+          } else if (page === 'remote-desktop') {
+            setWorkflowDirty(false)
+            setWorkflowResetKey(value => value + 1)
           }
           if (nextPage) {
             setPage(nextPage)
           }
+          navigationResultRef.current?.(Boolean(nextPage))
+          navigationResultRef.current = undefined
         }}
       />
       <HostKeyCoordinator
@@ -1643,6 +1821,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         hosts={data.hosts}
         onBlockingChange={setHostKeyApprovalBlocking}
       />
+      {apiReady && !coreFatal && cloudStatus?.authenticated ? <AccountApprovalCoordinator key={cloudStatus.generation} api={gateways.cloud} status={cloudStatus}
+        blocked={hostKeyApprovalBlocking || desktopConnectionBlocking} target={authorizationTarget} onClose={() => setAccountAuthorization(undefined)} /> : null}
       <CoreFatalDialog key={coreFatal?.code ?? 'none'} fatal={coreFatal} />
           </TerminalRuntimeProvider>
         </TransferRuntimeProvider>

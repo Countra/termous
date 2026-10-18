@@ -1,6 +1,6 @@
 .composer {
   z-index: 2;
-  width: min(780px, calc(100% - 32px));
+  width: min(820px, calc(100% - 40px));
   margin: 0 auto;
   background: transparent;
   padding: 0 0 16px;
@@ -25,6 +25,10 @@
     border-color 160ms ease,
     box-shadow 160ms ease,
     background 160ms ease;
+}
+
+.composer-input:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 
 .composer-input:hover {
@@ -244,8 +248,8 @@
 }
 
 .attachment-thumbnail-media {
-  --agent-attachment-thumbnail-width: 100%;
-  --agent-attachment-thumbnail-height: 100%;
+  --image-thumbnail-width: 100%;
+  --image-thumbnail-height: 100%;
 }
 
 .attachment-icon {
@@ -316,6 +320,7 @@
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
+  flex-wrap: wrap;
   gap: 2px;
 }
 

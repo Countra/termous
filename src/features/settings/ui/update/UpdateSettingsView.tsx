@@ -56,7 +56,6 @@ export function UpdateSettingsView({
         </span>
         <div>
           <h2>{t('settings.update.title')}</h2>
-          <p>{t('settings.update.description')}</p>
         </div>
       </header>
       {!runtimeAvailable || runtimeFailed ? (

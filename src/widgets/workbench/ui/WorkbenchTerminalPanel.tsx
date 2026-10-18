@@ -1,5 +1,5 @@
 import { Drawer } from 'antd'
-import { Cable, ChevronDown, ChevronUp, SquareTerminal } from 'lucide-react'
+import { ChevronDown, ChevronUp, SquareTerminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ComponentProps, ReactNode, RefObject } from 'react'
 import {
@@ -11,9 +11,8 @@ import {
   type TerminalAIReferenceProps,
 } from '#features/terminal'
 import {
-  ConnectionActionButton,
+  ConnectionEmptyState,
   StatusBadge,
-  WorkspaceEmptyState as WorkbenchEmptyState,
 } from '#shared/ui'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { Session } from '#entities/session'
@@ -143,21 +142,12 @@ export function WorkbenchTerminalPanel({
           onReferenceTerminalSelection={onReferenceTerminalSelection}
           placeholder={selectedHostAvailable ? t('workbench.terminalReady') : t('workbench.terminalHint')}
           emptyState={sessions.length === 0 ? (
-            <WorkbenchEmptyState
-              className={styles['terminal-empty-connect']}
+            <ConnectionEmptyState
               icon={<SquareTerminal size={20} aria-hidden="true" />}
               title={t('workbench.emptyTerminalTitle')}
               description={t('workbench.emptyTerminalHint')}
-              action={(
-                <ConnectionActionButton
-                  className={styles['terminal-empty-connect-button']}
-                  icon={<Cable size={16} aria-hidden="true" />}
-                  disabled={actionBusy}
-                  onClick={onOpenConnectionLauncher}
-                >
-                  {t('workbench.connectHost')}
-                </ConnectionActionButton>
-              )}
+              disabled={actionBusy}
+              onConnect={onOpenConnectionLauncher}
             />
           ) : undefined}
           actionBusy={actionBusy}

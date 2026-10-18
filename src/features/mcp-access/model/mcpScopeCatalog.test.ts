@@ -31,10 +31,37 @@ test('Scope 目录统一提供默认、审批和展示元数据', () => {
   assert.ok(mcpScopeCatalog.every((entry) => entry.labelKey && entry.descriptionKey))
 })
 
+test('Docker 资源权限独立、默认关闭，管理权限要求审批', () => {
+  const group = mcpScopeGroups.find((entry) => entry.key === 'docker')
+  for (const kind of ['images', 'volumes', 'networks']) {
+    for (const action of ['read', 'manage']) {
+      const entry = mcpScopeCatalog.find((item) => item.scope === `docker:${kind}:${action}`)
+      assert.ok(entry)
+      assert.ok(group?.scopes.includes(entry.scope))
+      assert.equal(entry.defaultEnabled, false)
+      assert.equal(entry.requiresApproval, action === 'manage')
+      assert.equal(entry.destructive, action === 'manage')
+      assert.equal(entry.labelKey, `settings.mcp.scope.docker_${kind}_${action}`)
+    }
+  }
+})
+
 test('文件管理删除独立授权、默认关闭并要求高风险审批', () => {
   const deletion = mcpScopeCatalog.find((entry) => entry.scope === 'files:delete')
   assert.ok(deletion)
   assert.equal(deletion.defaultEnabled, false)
   assert.equal(deletion.requiresApproval, true)
   assert.equal(deletion.destructive, true)
+})
+
+test('桌面脚本紧邻远程桌面，编辑免审批且不扩大默认权限', () => {
+  const index = mcpScopeGroups.findIndex((group) => group.key === 'desktops')
+  assert.ok(index > 0)
+  assert.equal(mcpScopeGroups[index + 1]?.key, 'desktop_workflows')
+  for (const action of ['read', 'write', 'run', 'delete']) {
+    const entry = mcpScopeCatalog.find((item) => item.scope === `desktop_workflows:${action}`)
+    assert.ok(entry)
+    assert.equal(entry.defaultEnabled, false)
+    assert.equal(entry.requiresApproval, action === 'run' || action === 'delete')
+  }
 })

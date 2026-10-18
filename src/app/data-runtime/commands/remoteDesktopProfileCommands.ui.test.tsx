@@ -1,14 +1,14 @@
 import { expect, test, vi } from 'vitest'
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopAccessProfileInput,
+  VncRemoteDesktopAccessProfileInput,
 } from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '#features/remote-desktop'
 import { TermousApiError } from '#shared/api'
 import { initialData } from '../model/appDataState'
 import { createRemoteDesktopProfileCommands } from './remoteDesktopProfileCommands'
 
-const input: RemoteDesktopAccessProfileInput = {
+const input: VncRemoteDesktopAccessProfileInput = {
   host_id: 'hst_test',
   name: 'Desktop B',
   description: '',

@@ -73,7 +73,7 @@ function Prepare-CoreOutputDirectory {
     New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
     Assert-OrdinaryDirectory -Path $OutputDirectory -Name "Core 输出目录"
   }
-  foreach ($binaryName in @("termous-core.exe", "termous-core")) {
+  foreach ($binaryName in @("termous-core.exe", "termous-core", "termous-rdp.exe", "termous-rdp")) {
     $binaryPath = Join-Path $OutputDirectory $binaryName
     if (Test-Path -LiteralPath $binaryPath) {
       if (Test-Path -LiteralPath $binaryPath -PathType Container) {
@@ -82,6 +82,21 @@ function Prepare-CoreOutputDirectory {
       Remove-Item -LiteralPath $binaryPath -Force
     }
   }
+}
+
+function Set-LocalGoCache {
+  # 仅设置本地磁盘路径；Actions 沿用 runner 环境，不在此处管理远端缓存。
+  if ($env:GITHUB_ACTIONS -eq "true") { return }
+  $goCacheRoot = Join-Path $workspaceDir "TEMP/go"
+  $env:GOCACHE = Join-Path $goCacheRoot "build"
+  $env:GOMODCACHE = Join-Path $goCacheRoot "mod"
+  $env:GOTMPDIR = Join-Path $goCacheRoot "tmp"
+  foreach ($directory in @($env:GOCACHE, $env:GOMODCACHE, $env:GOTMPDIR)) {
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+  }
+  $env:TEMP = $env:GOTMPDIR
+  $env:TMP = $env:GOTMPDIR
+  $env:TMPDIR = $env:GOTMPDIR
 }
 
 function Invoke-Native {
@@ -121,18 +136,32 @@ function Read-PackageVersion {
   return [string]$package.version
 }
 
-function Enable-MingwIfAvailable {
-  $mingwBin = "C:\msys64\mingw64\bin"
-  $gccPath = Join-Path $mingwBin "gcc.exe"
-  if ((Test-Path -LiteralPath $gccPath -PathType Leaf) -and ($env:Path -notlike "*$mingwBin*")) {
-    $env:Path = "$mingwBin;$env:Path"
+function Enable-MingwToolchain {
+  $candidate = $env:TERMOUS_MSYS2_ROOT
+  if ([string]::IsNullOrWhiteSpace($candidate)) {
+    $candidate = "C:\msys64"
+    $gcc = Get-Command gcc -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $gcc) {
+      $mingwDirectory = Split-Path -Parent (Split-Path -Parent $gcc.Source)
+      if (-not [string]::IsNullOrWhiteSpace($mingwDirectory) -and (Split-Path -Leaf $mingwDirectory) -eq "mingw64") {
+        $compilerRoot = Split-Path -Parent $mingwDirectory
+        if (Test-Path -LiteralPath (Join-Path $compilerRoot "usr/bin/bash.exe") -PathType Leaf) {
+          $candidate = $compilerRoot
+        }
+      }
+    }
   }
-  if (Get-Command gcc -ErrorAction SilentlyContinue) {
-    $env:CGO_ENABLED = "1"
-    $env:CC = "gcc"
-    return
+  $msys2Root = Resolve-ExistingDirectory -Value $candidate -Fallback "C:\msys64" -Name "TERMOUS_MSYS2_ROOT"
+  foreach ($tool in @("usr/bin/bash.exe", "mingw64/bin/gcc.exe", "mingw64/bin/g++.exe")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $msys2Root $tool) -PathType Leaf)) {
+      throw "MSYS2 缺少 $tool，请通过 TERMOUS_MSYS2_ROOT 指定包含 MINGW64 工具链的安装目录: $msys2Root"
+    }
   }
-  throw "未找到 gcc。Termous Core 使用 SQLite CGO 驱动，Windows 构建需要可用的 MinGW gcc。"
+  $env:Path = "$(Join-Path $msys2Root 'mingw64/bin');$env:Path"
+  $env:CGO_ENABLED = "1"
+  $env:CC = "gcc"
+  $env:CXX = "g++"
+  return $msys2Root
 }
 
 function Disable-CodeSigning {
@@ -196,6 +225,8 @@ $outputDir = [System.IO.Path]::GetFullPath($outputDir)
 $installerDir = Join-Path $outputDir "installer"
 $coreOutputDir = Join-Path $webDir "build\core"
 $coreExe = Join-Path $coreOutputDir "termous-core.exe"
+$rdpDir = Resolve-ExistingDirectory -Value $env:TERMOUS_RDP_DIR -Fallback (Join-Path $workspaceDir "termous-rdp") -Name "TERMOUS_RDP_DIR"
+$rdpExe = Join-Path $coreOutputDir "termous-rdp.exe"
 $phase = Resolve-BuildPhase
 $version = if ([string]::IsNullOrWhiteSpace($env:TERMOUS_VERSION)) {
   Read-PackageVersion -WebDir $webDir
@@ -225,10 +256,20 @@ $env:TERMOUS_SKILLS_DIR = $skillsDir
 $env:TERMOUS_CORE_DIR = $coreDir
 
 if ($phase -in @("all", "prepare")) {
+  Set-LocalGoCache
   Prepare-CoreOutputDirectory `
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir
-  Enable-MingwIfAvailable
+  $rdpMsys2Root = Enable-MingwToolchain
+  # 复用 RDP 构建入口，统一执行 SDK 校验、工具链检查和静态库缓存失效处理。
+  if ([string]::IsNullOrWhiteSpace($env:PYTHON)) {
+    $env:PYTHON = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source.Replace('\', '/')
+  }
+  Invoke-Native -Name "Build Termous RDP" -FilePath "pwsh" -Arguments @(
+    "-NoProfile", "-NonInteractive", "-File", (Join-Path $rdpDir "scripts/build.ps1"),
+    "-Action", "build", "-Msys2Root", $rdpMsys2Root
+  ) -WorkingDirectory $rdpDir
+  Copy-Item -LiteralPath (Join-Path $rdpDir "build/termous-rdp.exe") -Destination $rdpExe -Force
   # 显式 SDK 配置优先，其次保留调用方 CPATH，仅未配置时使用仓库头文件。
   if (-not [string]::IsNullOrWhiteSpace($env:TERMOUS_WINFSP_INCLUDE) -or [string]::IsNullOrWhiteSpace($env:CPATH)) {
     $mountInclude = Resolve-ExistingDirectory `
@@ -247,7 +288,9 @@ if ($phase -in @("all", "prepare")) {
   Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
     "build",
     "-tags", "mountfuse",
+    "-mod=readonly",
     "-trimpath",
+    "-buildvcs=false",
     "-ldflags",
     "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version",
     "-o",
@@ -265,6 +308,9 @@ if ($phase -in @("all", "prepare")) {
 }
 
 if ($phase -in @("all", "package")) {
+  if (-not (Test-Path -LiteralPath $rdpExe -PathType Leaf)) {
+    throw "The RDP worker is missing. Run the prepare phase first: $rdpExe"
+  }
   if (-not (Test-Path -LiteralPath $coreExe -PathType Leaf)) {
     throw "打包前缺少 termous-core.exe，请先执行 prepare 阶段: $coreExe"
   }

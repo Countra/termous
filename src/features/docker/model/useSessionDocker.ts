@@ -23,6 +23,7 @@ export interface SessionDockerQueryState {
 export interface SessionDockerState {
   query: SessionDockerQueryState
   capability: DockerCapability | null
+  capabilityFailed: boolean
   list: DockerListResult | null
   detail: DockerContainerDetail | null
   stats: DockerContainerStats | null
@@ -46,6 +47,8 @@ interface UseSessionDockerOptions {
   api: DockerGateway
   session: DockerSessionContext | null
   enabled: boolean
+  invalidationRevision?: number
+  onResourcesChanged?: (sessionId: string) => void
 }
 
 export const defaultDockerQuery: SessionDockerQueryState = {
@@ -62,6 +65,7 @@ const maxDockerLogTail = 1000
 const emptyDockerState: SessionDockerState = {
   query: defaultDockerQuery,
   capability: null,
+  capabilityFailed: false,
   list: null,
   detail: null,
   stats: null,
@@ -95,7 +99,7 @@ function normalizeDockerLogTail(tail: number) {
   return Math.min(Math.trunc(tail), maxDockerLogTail)
 }
 
-export function useSessionDocker({ api, session, enabled }: UseSessionDockerOptions) {
+export function useSessionDocker({ api, session, enabled, invalidationRevision = 0, onResourcesChanged }: UseSessionDockerOptions) {
   const statesRef = useRef<Record<string, SessionDockerState>>({})
   const capabilityAbortRef = useRef<AbortController | null>(null)
   const listAbortRef = useRef<AbortController | null>(null)
@@ -109,6 +113,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
   const logsRevisionRef = useRef<Record<string, number>>({})
   const actionRefreshRef = useRef<Set<string>>(new Set())
   const actionRevisionRef = useRef<Record<string, number>>({})
+  const observedInvalidations = useRef<Record<string, number>>({})
   const [states, setStates] = useState<Record<string, SessionDockerState>>({})
   const sessionId = session?.id ?? ''
   const supported = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
@@ -146,6 +151,15 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
 
   useEffect(() => () => abortReadRequests(), [abortReadRequests, enabled, sessionId, supported])
 
+  useEffect(() => {
+    if ((observedInvalidations.current[sessionId] ?? 0) === invalidationRevision) return
+    observedInvalidations.current[sessionId] = invalidationRevision
+    actionRevisionRef.current[sessionId] = (actionRevisionRef.current[sessionId] ?? 0) + 1
+    updateSessionState(sessionId, (value) => (
+      value.list || value.loadingList || value.loadingCapability ? { ...value, refreshRequired: true } : value
+    ))
+  }, [invalidationRevision, sessionId, updateSessionState])
+
   const updateQuery = useCallback(
     (patch: Partial<SessionDockerQueryState>) => {
       updateSessionState(sessionId, (current) => {
@@ -178,7 +192,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     capabilityAbortRef.current?.abort()
     const controller = new AbortController()
     capabilityAbortRef.current = controller
-    updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: true, error: '' }))
+    updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: true, capabilityFailed: false, error: '' }))
     try {
       const capability = await api.sessionDockerCapability(sessionId, { signal: controller.signal })
       if (capabilityRevisionRef.current[sessionId] !== revision) {
@@ -187,6 +201,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
       updateSessionState(sessionId, (current) => ({
         ...current,
         capability,
+        capabilityFailed: false,
         loadingCapability: false,
         error: capability.available ? '' : capability.message ?? '',
       }))
@@ -200,7 +215,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
         return null
       }
       const message = error instanceof Error ? error.message : ''
-      updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: false, error: message }))
+      updateSessionState(sessionId, (current) => ({ ...current, loadingCapability: false, capabilityFailed: true, error: message }))
       return null
     } finally {
       if (capabilityAbortRef.current === controller) {
@@ -470,10 +485,11 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
         }
         return result
       } finally {
+        onResourcesChanged?.(sessionId)
         updateSessionState(sessionId, (current) => ({ ...current, actionRef: '' }))
       }
     },
-    [api, enabled, refreshChangedContainer, sessionId, supported, updateSessionState],
+    [api, enabled, onResourcesChanged, refreshChangedContainer, sessionId, supported, updateSessionState],
   )
 
   useEffect(() => {
@@ -481,7 +497,8 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
       return
     }
     if (!currentState.capability) {
-      void refreshAll()
+      // 探测失败后等待用户重试，避免状态变化触发连续请求。
+      if (!currentState.capabilityFailed) void refreshAll()
       return
     }
     if (currentState.refreshRequired) {
@@ -495,7 +512,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     if (currentState.capability.available && currentState.selectedRef && !currentState.detail && !currentState.detailLoading && !currentState.detailError) {
       void selectContainer(currentState.selectedRef)
     }
-  }, [currentState.capability, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.refreshRequired, currentState.selectedRef, enabled, refreshAll, refreshChangedContainer, refreshList, selectContainer, supported])
+  }, [currentState.capability, currentState.capabilityFailed, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.refreshRequired, currentState.selectedRef, enabled, refreshAll, refreshChangedContainer, refreshList, selectContainer, supported])
 
   return {
     ...currentState,

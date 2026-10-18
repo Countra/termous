@@ -1,0 +1,55 @@
+.notice:global(.ant-alert) {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--notice-tone) 20%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--notice-tone) 5%, var(--surface));
+  padding: 11px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.info { --notice-tone: var(--text-muted); }
+.warning { --notice-tone: var(--warning); }
+.error { --notice-tone: var(--danger); }
+
+.notice .icon {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  color: var(--notice-tone);
+}
+
+.copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notice .title {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.notice .description {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.action {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0;
+}
+
+.action :global(.ant-btn) { font-size: 12px; }
+
+@container agent-provider-manager (width <= 420px) {
+  .notice:global(.ant-alert) { flex-wrap: wrap; }
+  .action { margin-left: 25px; }
+}

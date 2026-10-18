@@ -1,5 +1,2 @@
-export {
-  SettingsPage,
-  type SettingsPageProps,
-  type SettingsPageTabKey,
-} from './ui/SettingsPage.tsx'
+export { SettingsDialog, type SettingsDialogProps } from './ui/SettingsDialog.tsx'
+export type { SettingsPageTabKey } from './model/registry.ts'

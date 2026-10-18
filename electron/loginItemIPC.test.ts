@@ -1,15 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { App, IpcMain, IpcMainInvokeEvent, LaunchItems, LoginItemSettings } from 'electron'
-import { loginItemIPCChannels, type LoginItemResponse } from '#common/contracts'
-import { registerLoginItemIPC } from './loginItemIPC.ts'
+import type { App, LaunchItems, LoginItemSettings } from 'electron'
+import { createLoginItemAdapter } from './loginItemIPC.ts'
 
 // 仅注入内存模拟接口；本文件不加载 Electron 主进程，也不读写系统启动项。
 function fixture(input: { packaged?: boolean; development?: boolean; platform?: NodeJS.Platform; executablePath?: string } = {}) {
-  const handlers = new Map<string, (event: IpcMainInvokeEvent, value?: unknown) => LoginItemResponse>()
   const reads: unknown[] = []
   const writes: unknown[] = []
-  let trusted = true
   let writeError = false
   let readError = false
   let apply = true
@@ -42,21 +39,14 @@ function fixture(input: { packaged?: boolean; development?: boolean; platform?: 
         : []
     },
   }
-  const dispose = registerLoginItemIPC({
-    ipcMain: {
-      handle: (channel, handler) => handlers.set(channel, handler as never),
-      removeHandler: (channel) => handlers.delete(channel),
-    } as Pick<IpcMain, 'handle' | 'removeHandler'>,
+  const adapter = createLoginItemAdapter({
     app, platform: input.platform ?? 'win32', development: input.development ?? false,
     executablePath, entryName: 'dev.termous.app',
-    isTrustedSender: () => trusted,
   })
-  const event = {} as IpcMainInvokeEvent
   return {
-    reads, writes, state, handlers, dispose,
-    get: () => handlers.get(loginItemIPCChannels.get)!(event),
-    set: (value: unknown) => handlers.get(loginItemIPCChannels.setEnabled)!(event, value),
-    setTrusted: (value: boolean) => { trusted = value },
+    reads, writes, state,
+    get: adapter.get,
+    set: adapter.setEnabled,
     setWriteError: () => { writeError = true },
     setReadError: () => { readError = true },
     rejectChange: () => { apply = false },
@@ -76,8 +66,6 @@ test('注册和查询不写系统，默认关闭，仅布尔切换使用固定�
   const disabled = f.set(false)
   assert.equal(disabled.ok && disabled.value.enabled, false)
   assert.equal(f.writes.length, 2)
-  f.dispose()
-  assert.equal(f.handlers.size, 0)
 })
 
 test('未打包、开发地址和不支持的平台在查询及修改前阻断全部系统接口', () => {
@@ -93,12 +81,8 @@ test('未打包、开发地址和不支持的平台在查询及修改前阻断�
   }
 })
 
-test('拒绝不可信窗口和非布尔参数，不接受调用方传入执行路径', () => {
+test('拒绝非布尔参数，不接受调用方传入执行路径', () => {
   const f = fixture()
-  f.setTrusted(false)
-  assert.throws(f.get, /LOGIN_ITEM_IPC_NOT_ALLOWED/)
-  assert.throws(() => f.set(true), /LOGIN_ITEM_IPC_NOT_ALLOWED/)
-  f.setTrusted(true)
   for (const value of [undefined, null, 1, 'true', [], { enabled: true, path: 'other.exe' }]) {
     assert.deepEqual(f.set(value), { ok: false, error: 'invalid_request' })
   }

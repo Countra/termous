@@ -25,15 +25,13 @@ import type {
 } from './data-portability'
 import type { ExternalUrlOpenResult } from './external'
 import type { SkillInstallBridge } from './skill-install'
-import type { LoginItemBridge } from './login-item'
+import type { DesktopSettingsBridge } from './settings-center'
 import type { CoreStartupSnapshot } from './startup'
 import type { TerminalAICompletionCancel, TerminalAICompletionRequest, TerminalAICompletionResult } from './terminal-ai-completion'
 import type {
   UpdateApplicationInfo,
   UpdateInstallConfirmation,
   UpdateInstallSummaryState,
-  UpdatePreferences,
-  UpdatePreferencesPatch,
   UpdateRuntimeSummary,
   UpdateRuntimeSummaryRefreshRequest,
   UpdateRuntimeSummaryReportContext,
@@ -54,7 +52,14 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
-  loginItem?: LoginItemBridge
+  debugMode?: boolean
+  systemClipboard?: import('./system-clipboard').SystemClipboardCapabilitiesBridge
+  detachedWindows?: import('./detached-window').DetachedOwnerBridge
+  fileSystemClipboard?: import("./file-system-clipboard").FileSystemClipboardBridge
+  desktopFiles?: import('./desktop-files').DesktopFileBridge
+  remoteControl?: import('./remote-control').RemoteLauncher
+  notifications?: import('./notification').NotificationBridge
+  settings?: DesktopSettingsBridge
   skillInstall?: SkillInstallBridge
   getConfig: () => Promise<Partial<AppConfig>>
   getBuildInfo: () => Promise<AppBuildInfo>
@@ -127,12 +132,9 @@ export interface TermousBridge {
     openDirectory: (localPath: string) => Promise<OpenLocalDirectoryResult>
     pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
     consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
-    readClipboardFilePaths: () => Promise<string[]>
   }
   updates?: {
     getState: () => Promise<UpdateSnapshot>
-    getPreferences: () => Promise<UpdatePreferences>
-    setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
     openWindow: () => Promise<boolean>
     reportRuntimeSummary: (
       summary: UpdateRuntimeSummary,

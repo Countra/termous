@@ -1,3 +1,5 @@
+import { mergeAgentProgress } from '#entities/agent'
+import { maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   compareAgentSessionOrder,
   isAgentRunActive,
@@ -26,6 +28,7 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     sessions: [],
     session_groups: [],
     runs: {},
+    active_run_ids: {},
     messages: {},
     run_events: {},
     run_event_sequences: {},
@@ -136,7 +139,9 @@ export function replaceAgentMessages(
     // 消息页与 Run 独立读取，迟到的旧列表不能抹掉已经确认的终态元数据。
     const preferred = previous?.turn_usage && !message.turn_usage && previous.revision >= message.revision ? previous : message
     const snapshot = previous ? retainResponseFailureParts(preferred, preferred === message ? previous : message) : preferred
-    return previous?.retries?.length ? { ...snapshot, retries: preferMessage(previous, message).retries } : snapshot
+    if (!previous) return snapshot
+    const merged = preferMessage(previous, message)
+    return { ...snapshot, progress: merged.progress, retries: merged.retries, request_usage: merged.request_usage }
   })
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
   let overlays = current.run_part_overlays
@@ -265,8 +270,9 @@ export function selectAgentSession(current: AgentWorkspaceState, sessionId?: str
   }
 }
 
-export function activeAgentRun(current: AgentWorkspaceState) {
-  const run = current.active_run_id ? current.runs[current.active_run_id] : undefined
+export function activeAgentRun(current: AgentWorkspaceState, sessionId = current.selected_session_id) {
+  const id = sessionId ? current.active_run_ids[sessionId] : undefined
+  const run = id ? current.runs[id] : undefined
   return run && isAgentRunActive(run.status) ? run : undefined
 }
 
@@ -279,27 +285,25 @@ function applySnapshot(
   const terminalRuns = Object.fromEntries(Object.entries(state.runs).filter(([, run]) => (
     sessionIDs.has(run.session_id) && !isAgentRunActive(run.status)
   )))
-  state = { ...state, runs: terminalRuns, active_run_id: undefined }
+  state = { ...state, runs: terminalRuns, active_run_ids: {} }
   for (const run of event.active_runs) state = upsertRun(state, run)
   const queuedBySession = new Map<string, AgentQueuedTurn[]>()
   for (const turn of event.queued_turns ?? []) {
     queuedBySession.set(turn.session_id, [...(queuedBySession.get(turn.session_id) ?? []), turn])
   }
-  const queueSessionIDs = new Set([...queuedBySession.keys(), ...(event.queue_state ? [event.queue_state.session_id] : [])])
+  const queueStates = event.queue_states ?? (event.queue_state ? [event.queue_state] : [])
+  const queueSessionIDs = new Set([...queuedBySession.keys(), ...queueStates.map(({ session_id }) => session_id)])
   state = {
     ...state,
     queued_turns: Object.fromEntries([...queuedBySession].map(([sessionId, turns]) => [sessionId, sortQueuedTurns(turns)])),
-    queue_states: event.queue_state ? { [event.queue_state.session_id]: event.queue_state } : {},
+    queue_states: Object.fromEntries(queueStates.map((queue) => [queue.session_id, queue])),
     queued_turn_edits: Object.fromEntries(Object.entries(state.queued_turn_edits).filter(([sessionId]) => queueSessionIDs.has(sessionId))),
   }
   for (const sessionId of queueSessionIDs) {
     state = replaceAgentQueuedTurns(state, sessionId, state.queued_turns[sessionId] ?? [], state.queue_states[sessionId])
   }
-  const run = event.active_runs[0]
-  return run && runRequiresReconcile(state, run) ? {
-    state,
-    reconcile_run: { id: run.id, generation: run.generation },
-  } : { state }
+  return { state, reconcile_runs: event.active_runs.filter((run) => runRequiresReconcile(state, run))
+    .map((run) => ({ id: run.id, generation: run.generation })) }
 }
 
 function upsertSession(current: AgentWorkspaceState, session: AgentSession) {
@@ -316,6 +320,10 @@ function upsertMessage(current: AgentWorkspaceState, message: AgentMessage) {
 }
 
 function upsertRun(current: AgentWorkspaceState, run: AgentRun) {
+  // 创建回执可能晚于下一轮的推送；旧活动 Run 不能重新夺回本会话的执行位置。
+  if (isAgentRunActive(run.status) && Object.values(current.runs).some((candidate) => (
+    candidate.session_id === run.session_id && candidate.generation > run.generation
+  ))) return current
   const existing = current.runs[run.id]
   if (existing && (
     existing.generation > run.generation
@@ -323,27 +331,27 @@ function upsertRun(current: AgentWorkspaceState, run: AgentRun) {
   )) return current
   const generationChanged = existing !== undefined && existing.generation !== run.generation
   const runs = { ...current.runs, [run.id]: run }
-  let activeRunId = current.active_run_id
+  const activeRunIds = { ...current.active_run_ids }
   const supersededRunIDs: string[] = []
   if (isAgentRunActive(run.status)) {
     for (const [id, candidate] of Object.entries(runs)) {
-      if (id !== run.id && isAgentRunActive(candidate.status)) {
+      if (id !== run.id && candidate.session_id === run.session_id && isAgentRunActive(candidate.status)) {
         delete runs[id]
         supersededRunIDs.push(id)
       }
     }
-    activeRunId = run.id
-  } else if (activeRunId === run.id) {
-    activeRunId = undefined
+    activeRunIds[run.session_id] = run.id
+  } else if (activeRunIds[run.session_id] === run.id) {
+    delete activeRunIds[run.session_id]
   }
   if (!generationChanged && supersededRunIDs.length === 0) {
-    return applyRunMessageStatus({ ...current, runs, active_run_id: activeRunId }, run)
+    return applyRunMessageStatus({ ...current, runs, active_run_ids: activeRunIds }, run)
   }
   const clearedRunIDs = generationChanged ? [...supersededRunIDs, run.id] : supersededRunIDs
   return applyRunMessageStatus({
     ...current,
     runs,
-    active_run_id: activeRunId,
+    active_run_ids: activeRunIds,
     run_events: withoutKeys(current.run_events, clearedRunIDs),
     run_event_sequences: withoutKeys(current.run_event_sequences, clearedRunIDs),
     run_part_overlays: withoutKeys(current.run_part_overlays, clearedRunIDs),
@@ -399,11 +407,19 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
       ),
     }
   }
+  const retainedEvents = [...(current.run_events[event.run_id] ?? []), event]
+  if (event.kind === 'request_usage') {
+    // 保留足够的水合回放窗口，长任务不在事件缓存中另存一份无限统计历史。
+    let remaining = maxAgentMessageRequestUsage
+    for (let i = retainedEvents.length - 1; i >= 0; i--) {
+      if (retainedEvents[i]!.kind === 'request_usage' && --remaining < 0) retainedEvents.splice(i, 1)
+    }
+  }
   const state = applyRunEventToMessages({
     ...stateWithCursor,
     run_events: {
       ...current.run_events,
-      [event.run_id]: [...(current.run_events[event.run_id] ?? []), event],
+      [event.run_id]: retainedEvents,
     },
   }, run, event)
   return {
@@ -413,6 +429,13 @@ function appendRunEvent(current: AgentWorkspaceState, event: AgentRunEvent) {
 }
 
 function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, event: AgentRunEvent): AgentWorkspaceState {
+  if (event.kind === 'request_usage') {
+    const messages = current.messages[run.session_id]
+    if (!messages) return current
+    return { ...current, messages: { ...current.messages, [run.session_id]: messages.map((message) => message.id !== run.assistant_message_id ? message : {
+      ...message, request_usage: [...(message.request_usage ?? []).filter((v) => v.request_index !== event.payload.request_usage.request_index), event.payload.request_usage].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage),
+    }) } }
+  }
   if (event.kind === 'context_usage') {
     if (!current.sessions.some(({ id }) => id === run.session_id)) return current
     // 旧任务的事件补拉仍需推进游标，但不能覆盖同会话后续任务的实时占用。
@@ -420,6 +443,15 @@ function applyAgentContextEvent(current: AgentWorkspaceState, run: AgentRun, eve
       candidate.session_id === run.session_id && candidate.generation > run.generation
     ))) return current
     return acceptAgentContextUsage(current, run, event.payload.context_usage)
+  }
+  if (event.kind === 'progress') {
+    const incoming = { ...event.payload.progress, created_at: event.created_at }
+    return { ...current, messages: { ...current.messages, [run.session_id]: (current.messages[run.session_id] ?? []).map((message) => {
+      if (message.id !== run.assistant_message_id || message.id !== incoming.assistant_message_id) return message
+      const progress = new Map((message.progress ?? []).map((value) => [value.pattern_id, value]))
+      progress.set(incoming.pattern_id, mergeAgentProgress(progress.get(incoming.pattern_id), incoming))
+      return { ...message, progress: [...progress.values()] }
+    }) } }
   }
   if (event.kind !== 'compaction' && event.kind !== 'retry') return current
   const messages = current.messages[run.session_id]
@@ -477,9 +509,7 @@ function removeEntity(
       queued_turn_edits: withoutKey(current.queued_turn_edits, id),
       session_contexts: withoutKey(current.session_contexts, id),
       session_usages: withoutKey(current.session_usages, id),
-      active_run_id: current.active_run_id && removedRunIDs.includes(current.active_run_id)
-        ? undefined
-        : current.active_run_id,
+      active_run_ids: withoutKey(current.active_run_ids, id),
       ...selection,
     }
   }
@@ -499,7 +529,7 @@ function removeEntity(
     run_events: withoutKey(current.run_events, id),
     run_event_sequences: withoutKey(current.run_event_sequences, id),
     run_part_overlays: withoutKey(current.run_part_overlays, id),
-    active_run_id: current.active_run_id === id ? undefined : current.active_run_id,
+    active_run_ids: Object.fromEntries(Object.entries(current.active_run_ids).filter(([, runId]) => runId !== id)),
   }
 }
 
@@ -605,10 +635,13 @@ function preferMessage(left: AgentMessage, right: AgentMessage) {
   const snapshot = left.revision > right.revision
     || (left.revision === right.revision && (left.turn_usage !== undefined || right.turn_usage === undefined)) ? left : right
   const preferred = retainResponseFailureParts(snapshot, snapshot === left ? right : left)
-  if (!left.retries?.length && !right.retries?.length) return preferred
   const retries = new Map((left.retries ?? []).map((activity) => [activity.retry_id, activity]))
   for (const activity of right.retries ?? []) retries.set(activity.retry_id, mergeAgentRetryActivity(retries.get(activity.retry_id), activity))
-  return { ...preferred, retries: [...retries.values()] }
+  const progress = new Map((left.progress ?? []).map((value) => [value.pattern_id, value]))
+  for (const value of right.progress ?? []) progress.set(value.pattern_id, mergeAgentProgress(progress.get(value.pattern_id), value))
+  const requests = new Map((left.request_usage ?? []).map((usage) => [usage.request_index, usage]))
+  for (const usage of right.request_usage ?? []) requests.set(usage.request_index, usage)
+  return { ...preferred, ...(progress.size ? { progress: [...progress.values()] } : {}), ...(retries.size ? { retries: [...retries.values()] } : {}), ...(requests.size ? { request_usage: [...requests.values()].sort((a, b) => a.request_index - b.request_index).slice(-maxAgentMessageRequestUsage) } : {}) }
 }
 
 function retainResponseFailureParts(preferred: AgentMessage, other: AgentMessage): AgentMessage {
@@ -630,7 +663,7 @@ function replayRuntimeMessageProjection(current: AgentWorkspaceState, sessionId:
     if (run.session_id !== sessionId) continue
     for (const event of current.run_events[run.id] ?? []) {
       state = applyRunEventToMessages(state, run, event)
-      if (event.kind === 'compaction' || event.kind === 'retry') state = applyAgentContextEvent(state, run, event)
+      if (event.kind === 'compaction' || event.kind === 'retry' || event.kind === 'request_usage') state = applyAgentContextEvent(state, run, event)
     }
     for (const part of Object.values(current.run_part_overlays[run.id] ?? {})) {
       state = applyPartOverlayToMessages(state, run, part)

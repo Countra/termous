@@ -1,3 +1,4 @@
+import { agentSlashCatalogCandidates } from '#entities/agent'
 import type {
   AgentResourceBinding,
   AgentSlashCandidate,
@@ -83,7 +84,7 @@ export function latestSlashCandidate(
   execution: AgentSlashExecutionSnapshot,
 ) {
   if (execution.command_id === 'compact' || !execution.resource_kind || !execution.candidate) return undefined
-  return catalog[execution.command_id][execution.resource_kind]
+  return agentSlashCatalogCandidates(catalog, execution.command_id, execution.resource_kind)
     .find(({ id }) => id === execution.candidate?.id)
 }
 
@@ -102,8 +103,12 @@ export function latestSlashMutationCandidate(
 }
 
 export function sameSlashCandidateIdentity(left: AgentSlashCandidate, right: AgentSlashCandidate) {
+  if (left.kind === 'desktop_workflow' || right.kind === 'desktop_workflow') return left.kind === 'desktop_workflow' && right.kind === 'desktop_workflow' && left.id === right.id
+    && left.workflow_id === right.workflow_id && left.workflow_version === right.workflow_version
   if (left.id !== right.id || left.kind !== right.kind || left.resource_kind !== right.resource_kind
     || left.host_id !== right.host_id || left.profile_id !== right.profile_id) return false
+  if (left.kind === 'desktop_session' && right.kind === 'desktop_session') return left.session_id === right.session_id && left.connection_generation === right.connection_generation && left.protocol === right.protocol && right.status === 'ready'
+  if (left.kind === 'desktop_profile' && right.kind === 'desktop_profile') return left.protocol === right.protocol
   if (left.kind === 'ssh_session' && right.kind === 'ssh_session') {
     return left.session_id === right.session_id
       && left.ssh_profile_id === right.ssh_profile_id
@@ -125,14 +130,18 @@ export function slashCandidateMatchesBinding(
   candidate: AgentSlashCandidate,
   binding: AgentResourceBinding | undefined,
 ) {
-  if (!binding || candidate.host_id !== binding.host_id) return false
+  if (!binding) return false
+  if (candidate.kind === 'desktop_workflow') return binding.kind === 'desktop_workflow' && candidate.workflow_id === binding.workflow_id && candidate.workflow_version === binding.workflow_version
+  if (candidate.host_id !== binding.host_id) return false
+  if (candidate.kind === 'desktop_session') return binding.kind === 'desktop_session' && candidate.session_id === binding.session_id && candidate.profile_id === binding.desktop_profile_id && candidate.connection_generation === binding.connection_generation && candidate.protocol === binding.protocol
+  if (candidate.kind === 'desktop_profile') return binding.kind === 'desktop_profile' && candidate.profile_id === binding.desktop_profile_id && candidate.protocol === binding.protocol
   if (candidate.kind === 'ssh_session') {
     return binding.kind === 'ssh_session'
       && candidate.session_id === binding.session_id
       && candidate.ssh_profile_id === binding.ssh_profile_id
   }
   if (candidate.kind === 'ssh_profile') {
-    return binding.kind !== 'file_profile' && candidate.ssh_profile_id === binding.ssh_profile_id
+    return (binding.kind === 'ssh_session' || binding.kind === 'ssh_profile') && candidate.ssh_profile_id === binding.ssh_profile_id
   }
   return binding.kind === 'file_profile'
     && candidate.file_access_profile_id === binding.file_access_profile_id

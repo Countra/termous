@@ -13,6 +13,15 @@ interface TermousUiProviderProps {
   theme: ThemeMode
 }
 
+// 配置引用决定通知接口的身份；普通重绘不能重建接口并复活已关闭的消息。
+const notificationConfig = {
+  placement: 'topRight',
+  duration: 3,
+  maxCount: 3,
+  showProgress: true,
+  pauseOnHover: true,
+} as const
+
 export function TermousUiProvider({ children, language, theme }: TermousUiProviderProps) {
   const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
   const antdLocale = language === 'zh-CN' ? zhCN : enUS
@@ -29,13 +38,7 @@ export function TermousUiProvider({ children, language, theme }: TermousUiProvid
     <ConfigProvider locale={antdLocale} theme={antdTheme} button={{ autoInsertSpace: false }} popconfirm={termousPopconfirmProps}>
       <AntdApp
         className="termous-antd-root"
-        notification={{
-          placement: 'topRight',
-          duration: 3,
-          maxCount: 3,
-          showProgress: true,
-          pauseOnHover: true,
-        }}
+        notification={notificationConfig}
       >
         {children}
       </AntdApp>

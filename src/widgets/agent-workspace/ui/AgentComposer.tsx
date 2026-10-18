@@ -31,6 +31,8 @@ import { AgentProfileConnectionStatus } from './AgentProfileConnectionStatus.tsx
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
+  presentation,
+  onLoadLocalAttachment,
   value,
   focusKey,
   paneActive = true,
@@ -105,6 +107,8 @@ export const AgentComposer = memo(function AgentComposer({
   focusKey?: number
   paneActive?: boolean
   sessionKey: string
+  presentation?: import('../model/types.ts').AgentWorkspacePresentation
+  onLoadLocalAttachment?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
   inputHistory: readonly string[]
   runStatus: AgentWorkspaceRunStatus
   disabled: boolean
@@ -184,6 +188,12 @@ export const AgentComposer = memo(function AgentComposer({
   const queueMode = active || queuedTurns.some(({ state }) => state === 'queued')
   const editing = Boolean(queuedTurnEdit)
   useEffect(() => {
+    const saved = presentation?.selection
+    if (!paneActive || !saved || saved.owner !== sessionKey) return
+    const input = textAreaRef.current?.resizableTextArea?.textArea
+    if (input) input.setSelectionRange(saved.start, saved.end, saved.direction)
+  }, [paneActive, presentation, sessionKey])
+  useEffect(() => {
     if (!focusKey || focusedKeyRef.current === focusKey || !paneActive || (disabled && (!active || editing))) return
     focusedKeyRef.current = focusKey
     textAreaRef.current?.focus({ preventScroll: true })
@@ -246,7 +256,7 @@ export const AgentComposer = memo(function AgentComposer({
     else onSend(inputValue, attachmentIds)
   }
   return (
-    <div className={styles.composer}>
+    <div className={styles.composer} data-tour="agent-composer">
       <AgentQueuedTurnList
         turns={queuedTurns}
         queueState={queueState}
@@ -340,14 +350,15 @@ export const AgentComposer = memo(function AgentComposer({
                       <button
                         type="button"
                         className={styles['attachment-thumbnail']}
-                        disabled={disabled || item.phase !== 'ready' || !item.attachment}
+                        disabled={disabled || item.phase === 'deleting'}
                         aria-label={t('agent.attachments.previewName', { name: item.name })}
                         title={item.name}
                         onClick={() => onPreviewAttachment(item)}
                       >
                         <AgentAttachmentThumbnail
                           className={styles['attachment-thumbnail-media']}
-                          source={{ kind: 'local', blob: item.file }}
+                          source={item.file ? { kind: 'local', blob: item.file } : { kind: 'content', key: item.client_id,
+                            load: signal => onLoadLocalAttachment?.(item.client_id, signal) ?? Promise.reject(new Error('AGENT_ATTACHMENT_UNAVAILABLE')) }}
                           alt={item.name}
                         />
                       </button>
@@ -434,9 +445,15 @@ export const AgentComposer = memo(function AgentComposer({
             else slashCommands.onInputValueChange(event.target.value)
           }}
           onPointerDown={inputHistoryNavigation.reset}
-          onCompositionStart={() => {
+          onCompositionStart={(event) => {
+            event.currentTarget.dataset.agentComposing = 'true'
             inputHistoryNavigation.reset()
             slashCommands.suppressActivation()
+          }}
+          onCompositionEnd={(event) => { delete event.currentTarget.dataset.agentComposing }}
+          onSelect={(event) => {
+            const input = event.currentTarget
+            if (presentation) presentation.selection = { start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection, owner: sessionKey }
           }}
           onPaste={(event) => {
             slashCommands.suppressActivation()
@@ -483,7 +500,7 @@ export const AgentComposer = memo(function AgentComposer({
             </>
             <AgentApprovalModeControl
               policy={approvalPolicy}
-              disabled={approvalModeDisabled}
+              disabled={approvalModeDisabled || approvalPolicy.status === 'ready' && approvalPolicy.readOnly === true}
               onChange={onApprovalModeChange}
             />
           </div>

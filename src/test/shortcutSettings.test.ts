@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  applyShortcutSettingsPatch,
   defaultShortcutSettings,
   normalizeShortcutSettings,
-  shortcutSettingsEqual,
 } from '#entities/shortcuts'
 import { normalizeSettings } from '../features/settings/model/settings.ts'
 
@@ -33,26 +31,6 @@ test('显式空绑定与未知合法动作可无损归一化', () => {
   })
 })
 
-test('增量变更区分主动解绑与恢复默认', () => {
-  const current = normalizeShortcutSettings({
-    overrides: {
-      'terminal.search.open': {
-        bindings: [{ modifiers: ['primary'], code: 'KeyF', key: 'f' }],
-      },
-      'terminal.select_all': { bindings: [] },
-    },
-  })
-  const next = applyShortcutSettingsPatch(current, {
-    changes: {
-      'terminal.search.open': { bindings: [] },
-      'terminal.select_all': null,
-    },
-  })
-
-  assert.deepEqual(next.overrides['terminal.search.open'], { bindings: [] })
-  assert.equal(next.overrides['terminal.select_all'], undefined)
-})
-
 test('快捷键设置比较忽略对象顺序但保留首选绑定顺序', () => {
   const left = normalizeShortcutSettings({
     overrides: {
@@ -77,7 +55,7 @@ test('快捷键设置比较忽略对象顺序但保留首选绑定顺序', () =>
     },
   })
 
-  assert.equal(shortcutSettingsEqual(left, right), true)
+  assert.deepEqual(left, right)
   assert.deepEqual(left.overrides['terminal.paste']?.bindings, [
     { modifiers: ['primary', 'shift'], code: 'KeyV', key: 'v' },
     { modifiers: ['primary'], code: 'KeyV', key: 'v' },
@@ -91,7 +69,7 @@ test('快捷键设置比较忽略对象顺序但保留首选绑定顺序', () =>
       'terminal.search.open': { bindings: [] },
     },
   })
-  assert.equal(shortcutSettingsEqual(left, reversed), false)
+  assert.notDeepEqual(left, reversed)
 })
 
 test('同一物理按键不会因 key 大小写差异保存为两组绑定', () => {

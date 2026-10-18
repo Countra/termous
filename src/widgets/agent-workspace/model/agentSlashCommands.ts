@@ -1,5 +1,6 @@
 import {
   agentSlashCommandIds,
+  agentSlashCatalogCandidates,
   type AgentSlashCandidate,
   type AgentSlashCandidateCatalog,
   type AgentSlashCommandId,
@@ -152,6 +153,7 @@ export function agentSlashMenuReducer(
       if (state.level !== 'resource') return state
       return { ...state, query: action.query, active_id: action.active_id }
     case 'back':
+      if (state.level === 'resource' && state.command_id === 'workflow') return { level: 'root', capture: state.capture, query: '', matching_command_ids: [...agentSlashCommandIds], active_id: 'workflow' }
       if (state.level === 'resource') {
         return {
           level: 'kind',
@@ -179,7 +181,7 @@ export function agentSlashCandidates(
   commandId: Exclude<AgentSlashCommandId, 'compact'>,
   resourceKind: AgentSlashResourceKind,
 ): AgentSlashCandidate[] {
-  return catalog[commandId][resourceKind]
+  return agentSlashCatalogCandidates(catalog, commandId, resourceKind)
 }
 
 export function filterAgentSlashCandidates(
@@ -216,7 +218,8 @@ export function consumeAgentSlashCapture(value: string, owner: string, capture: 
 }
 
 function candidateSearchText(candidate: AgentSlashCandidate) {
-  const identity = candidate.kind === 'ssh_session'
+  if (candidate.kind === 'desktop_workflow') return [candidate.workflow_id, candidate.workflow_name, `v${candidate.workflow_version}`].join('\n').toLocaleLowerCase()
+  const identity = candidate.kind === 'ssh_session' || candidate.kind === 'desktop_session'
     ? candidate.session_id
     : candidate.kind === 'file_session'
       ? candidate.representative_session_id

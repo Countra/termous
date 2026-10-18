@@ -1,4 +1,8 @@
 export { ConfirmDialog } from './ConfirmDialog'
+export { default as modalSurfaceStyles } from './ModalSurface.module.scss'
+export { SettingsSaveBar } from './SettingsSaveBar'
+export { ImageThumbnail, type ImageThumbnailSource } from './ImageThumbnail.tsx'
+export { ImagePreview, type ImagePreviewSource } from './ImagePreview.tsx'
 export { default as confirmDialogStyles } from './ConfirmDialog.module.scss'
 export {
   AssociationSelect,
@@ -6,6 +10,7 @@ export {
   type AssociationSelectProps,
 } from './AssociationSelect'
 export { ConnectionActionButton } from './ConnectionActionButton'
+export { ConnectionEmptyState } from './ConnectionEmptyState'
 export { connectionActionButtonClassName } from './connectionActionButtonStyles'
 export { ContextActionMenu } from './ContextActionMenu'
 export { contextActionMenuPopupClassName } from './contextActionMenuStyles'
@@ -21,11 +26,13 @@ export {
   type EditorModeContextSize,
 } from './EditorModeContext'
 export { FeatureSidePanel } from './FeatureSidePanel'
+export { default as featureSidePanelStyles } from './FeatureSidePanel.module.scss'
 export type { FeatureSidePanelTab } from './FeatureSidePanel'
 export { FilterPopover, type FilterPopoverProps } from './FilterPopover'
 export { ManagementFilterTabs } from './ManagementFilterTabs'
 export { McpIcon, type McpIconProps } from './McpIcon'
 export { termousNotificationClassName } from './notificationStyles'
+export { FeedbackMessage, FeedbackMessageScope } from './FeedbackMessage'
 export {
   ProfileEditorField,
   ProfileEditorFieldFeedback,
@@ -49,6 +56,10 @@ export { StatusBadge, type StatusBadgeStatus } from './StatusBadge'
 export { termousPopconfirmProps } from './termousPopconfirm'
 export { WorkspaceEmptyState } from './WorkspaceEmptyState'
 export { WorkspaceDetectionLoading } from './WorkspaceDetectionLoading'
+export { default as windowControlStyles } from './WindowControls.module.scss'
 export { default as uiStyles } from './Primitives.module.scss'
 export { useSessionTargetMenu, type SessionTarget, type SessionTargetOption } from './session-target-menu/useSessionTargetMenu.tsx'
 export { SessionTargetDropdown } from './session-target-menu/SessionTargetDropdown.tsx'
+export { DetachedWindowButton, DetachedWindowPlaceholder } from './DetachedWindowChrome.tsx'
+export { default as detachedWindowStyles } from './DetachedWindow.module.scss'
+export { useImageViewport } from './image-preview/useImageViewport'

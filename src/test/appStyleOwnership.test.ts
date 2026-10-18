@@ -64,7 +64,8 @@ test('共享表单和弹层样式通过显式 Module root 消费', () => {
   assert.match(customSelectStyles, /\.select-popup:global\(\.ant-select-dropdown\)/)
   assert.match(customSelectStyles, /\.select-dropdown:global\(\.ant-select-dropdown\)/)
   assert.match(confirmDialogStyles, /\.modal-root\s*\{[^}]*z-index:\s*3600;/s)
-  assert.match(confirmDialogStyles, /\.modal\s+:global\(\.ant-modal-content\)/)
+  assert.match(source('../shared/ui/ConfirmDialog.tsx'), /import modalSurfaceStyles from '\.\/ModalSurface\.module\.scss'/)
+  assert.match(confirmDialogStyles, /\.dialog-modal:global\(\.ant-modal\)\s+:global\(\.ant-modal-container\)/)
   assert.match(emptyStateStyles, /\.empty-state\s*\{[^}]*min-height:\s*170px;[^}]*background:\s*var\(--surface-subtle\);/s)
 
   for (const selector of [
@@ -83,16 +84,16 @@ test('共享表单和弹层样式通过显式 Module root 消费', () => {
     assert.doesNotMatch(globalStyles, new RegExp(`^\\.${selector}(?=[\\s.,:{])`, 'm'))
   }
 
-  assert.match(source('../features/docker/ui/DockerPanel.tsx'), /customSelectStyles\['select-dropdown'\]/)
+  assert.match(source('../features/docker/ui/DockerContainersPanel.tsx'), /customSelectStyles\['select-dropdown'\]/)
   assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\['search-input'\]/)
   assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\.tooltip/)
   assert.match(source('../features/local-download/ui/LocalDownloadMappingPane.tsx'), /confirmDialogStyles\.modal/)
 })
 
-test('共享操作按钮与设置页标题不再依赖全局基础选择器', () => {
+test('共享操作按钮与设置弹层不依赖全局基础选择器', () => {
   const primitiveStyles = source('../shared/ui/Primitives.module.scss')
-  const settingsStyles = source('../pages/settings/ui/SettingsPage.module.scss')
-  const settingsSource = source('../pages/settings/ui/SettingsPage.tsx')
+  const settingsStyles = source('../pages/settings/ui/SettingsDialog.module.scss')
+  const settingsSource = source('../pages/settings/ui/SettingsDialog.tsx')
 
   for (const className of ['primary-button', 'secondary-button', 'danger-button']) {
     assert.match(primitiveStyles, new RegExp(`\\.${className}:global\\(\\.ant-btn\\)`))
@@ -103,10 +104,8 @@ test('共享操作按钮与设置页标题不再依赖全局基础选择器', ()
   assert.match(primitiveStyles, /--main-action-bg-active:/)
   assert.doesNotMatch(globalStyles, /^\.page-actions\s*\{/m)
 
-  assert.match(settingsStyles, /\.page-title-row\s*\{[^}]*align-items:\s*center;/s)
-  assert.match(settingsStyles, /\.page-title-row h1\s*\{[^}]*font-size:\s*22px;[^}]*font-weight:\s*760;/s)
-  assert.match(settingsSource, /className=\{styles\['page-title-row'\]\}/)
-  assert.doesNotMatch(settingsSource, /styles\['page-title-row'\][^\n]*page-title-row/)
+  assert.match(settingsStyles, /\.dialog \.container\s*\{[^}]*overflow:\s*hidden;/s)
+  assert.match(settingsSource, /className=\{styles\.dialog\}/)
   assert.doesNotMatch(globalStyles, /^\.page-title-row(?:\s|\{)/m)
 })
 
@@ -275,7 +274,9 @@ test('主窗口全局规则通过 Surface 标记隔离，通知使用显式 Modu
   assert.match(appSource, /delete document\.body\.dataset\.termousMainSurface/)
   assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \.termous-antd-root/)
   assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \.ant-input/)
-  assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \*::-webkit-scrollbar/)
+  assert.match(globalStyles, /:where\([^)]*body\[data-termous-main-surface='true'\][^)]*\) \*::-webkit-scrollbar/)
+  assert.match(globalStyles, /:where\([^)]*body\[data-termous-remote-surface='true'\][^)]*\) \*::-webkit-scrollbar/)
+  assert.doesNotMatch(globalStyles, /^\s*(?:body|\*)::-webkit-scrollbar/m)
   assert.doesNotMatch(globalStyles, /(?<!:where\()body\[data-termous-main-surface='true'\] \.ant-input/)
   assert.match(notificationStyles, /\.notice:global\(\.ant-notification-notice\)/)
   assert.match(notificationContract, /export const termousNotificationClassName = styles\.notice/)

@@ -1,4 +1,4 @@
-export const agentRuntimeProtocolVersion = '10' as const
+export const agentRuntimeProtocolVersion = '13' as const
 
 export type AgentSkillsBundleState =
   | 'ready'
@@ -14,17 +14,21 @@ export interface AgentSkillsBundleStatus {
   error_category?: string
 }
 
-export type AgentRuntimeState =
-  | 'offline'
-  | 'ready'
-  | 'starting'
-  | 'running'
-  | 'stopping'
+export type AgentRuntimeState = 'offline' | 'ready'
+
+export interface AgentRuntimeWorkerStatus {
+  state: 'starting' | 'running' | 'stopping'
+  run_id: string
+  generation: number
+  session_id: string
+  error_code?: string
+}
 
 export interface AgentRuntimeStatus {
   state: AgentRuntimeState
-  active_run_id?: string
-  generation?: number
+  capacity?: number
+  occupied_slots?: number
+  workers?: AgentRuntimeWorkerStatus[]
   error_code?: string
 }
 

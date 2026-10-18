@@ -1,0 +1,224 @@
+.root {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 20px minmax(0, 1fr) 32px;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+  background: var(--terminal-frame);
+  padding: 12px;
+}
+
+.header,
+.footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header strong {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.validation {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--danger);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--input-bg);
+  padding: 10px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+
+  &:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  &[data-invalid='true'] {
+    border-color: var(--danger);
+  }
+}
+
+.prompt {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: var(--terminal-font-family, ui-monospace, Consolas, monospace);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.editor textarea {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--terminal-font-family, ui-monospace, Consolas, monospace);
+  font-size: 12px;
+  line-height: 20px;
+  padding: 0;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.editor textarea:focus-visible {
+  outline: 0;
+}
+
+.editor textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.count {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.validation-icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--danger);
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+.validation-message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.send {
+  display: inline-flex;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 14px;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.46;
+  }
+
+  &:not(:disabled):hover {
+    filter: brightness(1.08);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.send-count {
+  display: none;
+}
+
+@container command-console (width <= 700px) {
+  .root {
+    grid-row: 2;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    border-right: 0;
+    padding: 5px 10px;
+  }
+
+  .header,
+  .count {
+    display: none;
+  }
+
+  .editor {
+    height: 34px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+  }
+
+  .editor textarea {
+    overflow: auto hidden;
+    scrollbar-width: none;
+    white-space: pre;
+  }
+
+  .send {
+    height: 34px;
+    padding-inline: 12px;
+  }
+
+  .send-count {
+    display: inline-grid;
+    min-width: 17px;
+    height: 18px;
+    place-items: center;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 15%);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    padding-inline: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor {
+    transition: none;
+  }
+}

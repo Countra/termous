@@ -1,0 +1,114 @@
+.report {
+  --workflow-report-inset: 22px;
+
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: auto;
+  scroll-padding-top: 56px;
+  padding: 22px 28px;
+  background: color-mix(in srgb, var(--app-bg) 35%, var(--surface));
+}
+
+.report[hidden] {
+  display: none;
+}
+
+.report-header {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.report-header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.report-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  overflow-wrap: anywhere;
+}
+
+.version {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  vertical-align: middle;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.definition-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.definition-hint :global(.ant-btn) {
+  height: 22px;
+  font-size: 10px;
+}
+
+.report > :global(.ant-alert) {
+  flex: 0 0 auto;
+  margin-block: 8px;
+}
+
+.empty {
+  display: flex;
+  min-height: 280px;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty > p {
+  max-width: 320px;
+  margin-top: 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.empty > :global(.ant-empty) {
+  margin-block: 12px;
+}
+
+.empty :global(.ant-empty-image) {
+  display: none;
+}
+
+@container workflow (width <= 760px) {
+  .report {
+    --workflow-report-inset: 16px;
+
+    padding: 16px;
+  }
+}

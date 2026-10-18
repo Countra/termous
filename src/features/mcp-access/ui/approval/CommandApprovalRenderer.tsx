@@ -1,7 +1,7 @@
 import { TerminalSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ApprovalScrollableCode } from './ApprovalDetailFields'
-import styles from '../McpApprovalCoordinator.module.scss'
+import styles from './ApprovalDetails.module.scss'
 
 export function CommandApprovalRenderer({ command }: { command: string }) {
   const { t } = useTranslation()

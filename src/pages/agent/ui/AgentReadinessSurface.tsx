@@ -1,54 +1,68 @@
-import { Bot, Check, CircleAlert, RefreshCw, Settings2, Wrench } from 'lucide-react'
-import { Alert, Button, Skeleton } from 'antd'
+import { useId } from 'react'
+import { BookOpen, Bot, BrainCircuit, Check, CircleAlert, LoaderCircle, RefreshCw, Server, ShieldCheck, Wrench } from 'lucide-react'
+import { Button, Skeleton } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { AgentReadiness } from '#entities/agent'
-import styles from './AgentPage.module.scss'
+import styles from './AgentReadinessSurface.module.scss'
 
 export function AgentReadinessSurface({
   readiness,
   loading,
   onPrepare,
   onRefresh,
-  compact = false,
+  remote = false,
 }: {
   readiness: AgentReadiness | null
   loading: boolean
-  onPrepare: () => void
+  onPrepare?: () => void
+  remote?: boolean
   onRefresh: () => void
-  compact?: boolean
 }) {
   const { t } = useTranslation()
-  if (!readiness && loading) return <div className={styles.readiness}><Skeleton active paragraph={{ rows: 6 }} /></div>
+  const titleId = useId()
+  const checking = !readiness && loading
+  const titleKey = !readiness
+    ? checking ? 'nav.agent' : 'agent.readiness.unavailableTitle'
+    : remote ? 'agent.readiness.remoteTitle' : 'agent.readiness.title'
   const components = readiness ? [
-    ['mcpRuntime', readiness.mcp_runtime],
-    ['mcpClient', readiness.mcp_client],
-    ['skills', readiness.skills_bundle],
-    ['defaultModel', readiness.default_model],
+    ['mcpRuntime', readiness.mcp_runtime, Server],
+    ['mcpClient', readiness.mcp_client, ShieldCheck],
+    ['skills', readiness.skills_bundle, BookOpen],
+    ['defaultModel', readiness.default_model, BrainCircuit],
   ] as const : []
   const actions = <>
-    <Button icon={<RefreshCw size={15} />} disabled={loading} onClick={onRefresh}>{t('app.retry')}</Button>
-    <Button type="primary" icon={readiness?.status === 'ready' ? <Settings2 size={15} /> : <Wrench size={15} />} loading={loading} onClick={onPrepare}>
+    <Button type={remote ? 'primary' : 'default'} icon={<RefreshCw size={15} />} loading={loading && (remote || !onPrepare)} disabled={loading} onClick={onRefresh}>{t('agent.readiness.refreshStatus')}</Button>
+    {!remote && onPrepare ? <Button type="primary" icon={<Wrench size={15} />} loading={loading} onClick={onPrepare}>
       {t('agent.readiness.prepare')}
-    </Button>
+    </Button> : null}
   </>
-  if (compact) return <Alert className={styles.alert} type="warning" showIcon title={t('agent.readiness.title')}
-    description={t('agent.resource.recovery.infrastructureUnavailable')} action={actions} />
   return (
-    <section className={styles.readiness}>
-      <div className={styles['readiness-mark']}><Bot size={24} /></div>
-      <h1>{t('agent.readiness.title')}</h1>
-      <p>{t('agent.readiness.description')}</p>
-      {readiness ? <div className={styles['readiness-list']}>{components.map(([key, component]) => (
-        <div key={key}>
-          <span className={component.status === 'ready' ? styles['is-ready'] : ''}>
-            {component.status === 'ready' ? <Check size={14} /> : <CircleAlert size={14} />}
-          </span>
-          <strong>{t(`settings.agent.readiness.${key}`)}</strong>
-          <em>{t(`settings.agent.componentState.${component.status}`)}</em>
-        </div>
-      ))}</div> : <p className={styles['readiness-error']}>{t('agent.readiness.loadFailed')}</p>}
-      <div className={styles['readiness-actions']}>
-        {actions}
+    <section className={styles.surface} aria-labelledby={titleId} aria-busy={loading}>
+      <div className={styles.panel}>
+        <header className={styles.heading}>
+          <span className={styles.mark}><Bot size={23} aria-hidden="true" /></span>
+          <div className={styles.intro}>
+            <h1 id={titleId}>{t(titleKey)}</h1>
+            <p>{t(remote ? 'agent.readiness.remoteDescription' : 'agent.readiness.description')}</p>
+          </div>
+        </header>
+        {readiness ? <ul className={styles.components}>
+          {components.map(([key, component, Icon]) => <li key={key} data-ready={component.status === 'ready'}>
+            <span className={styles['component-mark']}><Icon size={17} aria-hidden="true" /></span>
+            <strong>{t(`settings.agent.readiness.${key}`)}</strong>
+            <span className={styles.status}>
+              {component.status === 'ready' ? <Check size={13} aria-hidden="true" /> : <CircleAlert size={13} aria-hidden="true" />}
+              {t(`settings.agent.componentState.${component.status}`)}
+            </span>
+          </li>)}
+        </ul> : checking ? <div className={styles.checking} role="status" aria-label={t('agent.readiness.checking')}>
+          <Skeleton active title={false} paragraph={{ rows: 4, width: '100%' }} />
+        </div> : <div className={styles.error} role="alert"><CircleAlert size={18} /><p>{t('agent.readiness.loadFailed')}</p></div>}
+        <footer className={styles.footer}>
+          {!remote && readiness && readiness.default_model.status !== 'ready' && <p className={styles.hint}>{t('agent.readiness.modelHint')}</p>}
+          {checking ? <span className={styles.progress}><LoaderCircle size={15} aria-hidden="true" />{t('agent.readiness.checking')}</span>
+            : <div className={styles.actions}>{actions}</div>}
+        </footer>
       </div>
     </section>
   )

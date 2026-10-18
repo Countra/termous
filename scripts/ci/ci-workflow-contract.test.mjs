@@ -40,6 +40,10 @@ function normalizeBuildStep(step) {
   ) {
     delete normalized.with.ref;
   }
+  if (normalized.name === "Checkout pinned remote core" || normalized.name === "Checkout pinned RDP worker") {
+    delete normalized.with.repository;
+    delete normalized.with.revision;
+  }
   if (normalized.name === "Setup pnpm") {
     delete normalized.with.cache;
   }
@@ -73,10 +77,10 @@ test("全部前端分支 push 都会触发 CI", async () => {
   assert.deepEqual(workflow.on.push.branches, ["**"]);
   assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
   assert.ok(Object.hasOwn(workflow.on, "workflow_dispatch"));
-  assert.equal(workflow.jobs.web.needs, undefined);
+  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
   assert.ok(
     stepsFor(workflow, "web").some(({ name }) => name === "Typecheck"),
-    "基础 Web 质量门禁必须独立运行",
+    "基础 Web 质量门禁必须保留",
   );
 });
 
@@ -120,6 +124,10 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.deepEqual(resolver.outputs, {
     matrix: "${{ steps.matrix.outputs.matrix }}",
     sha: "${{ steps.core.outputs.sha }}",
+    remote_repository: "${{ steps.dependencies.outputs.remote_repository }}",
+    remote_sha: "${{ steps.dependencies.outputs.remote_sha }}",
+    rdp_repository: "${{ steps.dependencies.outputs.rdp_repository }}",
+    rdp_sha: "${{ steps.dependencies.outputs.rdp_sha }}",
   });
 
   const coreCheckout = stepsFor(workflow, "build").find(
@@ -130,7 +138,7 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.equal(coreCheckout.with.ref, "${{ needs.resolve-core.outputs.sha }}");
   assert.equal(
     coreCheckout.with.token,
-    "${{ secrets.TERMOUS_CORE_READ_TOKEN }}",
+    "${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}",
   );
   assert.equal(coreCheckout.with["persist-credentials"], false);
 });
@@ -163,7 +171,7 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
   assert.match(step.run, /\^\[0-9a-f\]\{40\}\$/u);
   assert.equal(resolver.outputs.sha, "${{ steps.skills.outputs.sha }}");
 
-  for (const jobName of ["web-renderer", "build"]) {
+  for (const jobName of ["web", "web-renderer", "build"]) {
     const checkout = stepsFor(workflow, jobName).find(
       ({ name }) => name === "Checkout pinned Termous Skills",
     );
@@ -176,6 +184,8 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
     assert.equal(checkout.with.path, "termous-skills");
     assert.equal(checkout.with.token, undefined);
     assert.equal(checkout.with["persist-credentials"], false);
+    const testIndex = stepsFor(workflow, jobName).findIndex(({ name }) => name === "Test");
+    if (testIndex >= 0) assert.ok(stepsFor(workflow, jobName).indexOf(checkout) < testIndex);
   }
   const rendererBuild = stepsFor(workflow, "web-renderer").find(
     ({ name }) => name === "Build renderer",
@@ -188,9 +198,9 @@ test("公开 Skills 无需专用读取凭据并固定为不可变提交", async 
   assert.equal(workflow.jobs.build.env.TERMOUS_SKILLS_DIR, "${{ github.workspace }}/termous-skills/skills");
 });
 
-test("fork PR 保留基础质量门禁并跳过需要私有 Core 的 Renderer 构建", async () => {
+test("fork PR 跳过依赖私有 Core 和共享协议的任务", async () => {
   const { workflow } = await loadWorkflow();
-  assert.equal(workflow.jobs.web.needs, undefined);
+  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
   assert.deepEqual(workflow.jobs["web-renderer"].needs, [
     "resolve-core",
     "resolve-skills",
@@ -263,6 +273,8 @@ test("提交构建按分支选择平台并复用 Release 打包路径", async ()
   assert.match(matrixStep.run, /echo "matrix=\$matrix" >> "\$GITHUB_OUTPUT"/u);
 
   for (const name of [
+    "GOWORK",
+    "GOPRIVATE",
     "TERMOUS_ARCH",
     "TERMOUS_CORE_DIR",
     "TERMOUS_OUTPUT_DIR",
@@ -285,8 +297,18 @@ test("提交构建按分支选择平台并复用 Release 打包路径", async ()
   assert.deepEqual(
     steps.map(normalizeBuildStep),
     releaseBuildSteps.map(normalizeBuildStep),
-    "除 ref 与缓存配置外，提交构建步骤必须与 Release 完全一致",
+    "除已单独验证的仓库版本来源与缓存配置外，提交构建步骤必须与 Release 完全一致",
   );
+
+  for (const dependency of ["remote", "rdp"]) {
+    for (const jobName of ["web", "web-renderer", "build"]) {
+      const dependencySteps = stepsFor(workflow, jobName);
+      const checkout = dependencySteps.find(({ uses }) => uses === `./web/.github/actions/${dependency}-checkout`);
+      assert.equal(checkout?.with.repository, `\${{ needs.resolve-core.outputs.${dependency}_repository }}`);
+      assert.equal(checkout?.with.revision, `\${{ needs.resolve-core.outputs.${dependency}_sha }}`);
+      assert.ok(dependencySteps.indexOf(checkout) < dependencySteps.findIndex(({ run }) => run?.includes("pnpm")));
+    }
+  }
 
   const frontendCheckout = steps.find(
     ({ name }) => name === "Checkout Termous",

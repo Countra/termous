@@ -1,11 +1,37 @@
 import type {
   TermousBridge,
   TermousUpdateWindowBridge,
+  RemoteWindowBridge,
+  DesktopAutomationBridge,
+  DetachedWindowBridge,
 } from '#common/contracts'
 
 type BridgeWindow = Window & {
+  termousDetached?: DetachedWindowBridge
   termous?: TermousBridge
   termousUpdate?: TermousUpdateWindowBridge
+  termousRemote?: RemoteWindowBridge
+  termousDesktopAutomation?: DesktopAutomationBridge
+}
+
+export function isAppDebugMode(): boolean {
+  // webDebug 也可用于正式构建，不能只依赖 Vite 的开发标记。
+  return import.meta.env?.DEV === true
+    || getTermousBridge()?.debugMode === true
+    || getDetachedWindowBridge()?.debugMode === true
+    || getRemoteWindowBridge()?.debugMode === true
+}
+
+export function getDetachedWindowBridge(): DetachedWindowBridge | null {
+  return typeof window === 'undefined' ? null : (window as BridgeWindow).termousDetached ?? null
+}
+
+export function getDesktopAutomationBridge(): DesktopAutomationBridge | null {
+  return typeof window === 'undefined' ? null : (window as BridgeWindow).termousDesktopAutomation ?? null
+}
+
+export function getRemoteWindowBridge(): RemoteWindowBridge | null {
+  return typeof window === 'undefined' ? null : (window as BridgeWindow).termousRemote ?? null
 }
 
 export function getTermousBridge(): TermousBridge | null {

@@ -21,6 +21,7 @@ interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 
   dragging?: boolean
   closingLabel?: string
   tooltipTitle?: ReactNode
+  tooltipDisabled?: boolean
   onClose?: () => void
 }
 
@@ -45,6 +46,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     dragging = false,
     closingLabel,
     tooltipTitle,
+    tooltipDisabled = false,
     onClose,
     disabled,
     style,
@@ -121,7 +123,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     return (
       <span className={classes} style={tabStyle} data-session-tab-root="">
         <Tooltip
-          title={resolvedTitle}
+          title={tooltipDisabled ? null : resolvedTitle}
           placement="bottom"
           arrow={false}
           mouseEnterDelay={0.35}

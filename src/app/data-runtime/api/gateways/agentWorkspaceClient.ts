@@ -33,6 +33,7 @@ import {
 } from '#features/agent-runtime'
 import type {
   AgentRun,
+  AgentToolImageSource,
   AgentQueuedTurnMovePlacement,
   AgentResourceBindingUpdateInput,
   AgentResourceConnectionInput,
@@ -187,6 +188,13 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
 
   attachmentContent(id: string, signal?: AbortSignal) {
     return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content`, {
+      signal, timeoutMs: 45_000,
+    })
+  }
+
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal) {
+    const { session_id, message_id, part_id, content_index, revision } = source
+    return this.requestBlob(`${agentPath}/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}/parts/${encodeURIComponent(part_id)}/images/${content_index}?revision=${revision}`, {
       signal, timeoutMs: 45_000,
     })
   }

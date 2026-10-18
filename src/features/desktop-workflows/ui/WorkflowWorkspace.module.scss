@@ -1,0 +1,236 @@
+.workspace {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  container-type: inline-size;
+  container-name: workflow;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.workspace-header, .breadcrumb, .workspace-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-header {
+  min-height: 46px;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.breadcrumb {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.breadcrumb > svg:first-child {
+  color: var(--accent);
+}
+
+.breadcrumb strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.workspace-actions {
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.header-extension {
+  display: flex;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.active-runs {
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.active-runs:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.body {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.body[data-collapsed], .body[data-overlay] {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.body[data-overlay] > aside {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 5;
+  width: min(260px, calc(100% - 24px));
+  background: rgb(from var(--surface) r g b / 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+.catalog-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  background: color-mix(in srgb, var(--app-bg) 55%, transparent);
+}
+
+.main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.body[data-overlay] .main {
+  grid-column: 2;
+}
+
+.main > :global(.ant-alert) {
+  flex: 0 0 auto;
+  border-radius: 0;
+}
+
+.overview-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  background: color-mix(in srgb, var(--app-bg) 24%, var(--surface));
+}
+
+.editor-grid {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 268px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--app-bg) 50%, var(--surface));
+}
+
+.editor-grid[data-properties] {
+  grid-template-columns: 268px minmax(0, 1fr) 272px;
+}
+
+.property-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.property-panel > div {
+  min-height: 0;
+  overflow: auto;
+}
+
+.panel-header {
+  display: flex;
+  min-height: 46px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.panel-header > strong {
+  flex: 1;
+}
+
+.hint {
+  margin: 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.version-list > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.version-list span {
+  min-width: 0;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+@container workflow (width <= 1100px) {
+  .editor-grid {
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+}
+
+@container workflow (width <= 700px) {
+  .main {
+    overflow: auto;
+  }
+
+  .editor-grid {
+    flex: 0 0 auto;
+    min-height: 740px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 300px minmax(360px, 1fr);
+  }
+
+  .workspace-header {
+    padding: 8px 10px;
+  }
+
+  .breadcrumb {
+    gap: 6px;
+  }
+
+  .breadcrumb > span, .breadcrumb > svg:nth-of-type(2) {
+    display: none;
+  }
+
+  .workspace-actions {
+    gap: 4px;
+  }
+}

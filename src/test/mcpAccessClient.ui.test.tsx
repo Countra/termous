@@ -7,6 +7,7 @@ describe('McpAccessClient', () => {
   it('使用冻结的管理路由、revision 请求体和动态 WebSocket 地址', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse(statusFixture(4)))
+      .mockResolvedValueOnce(jsonResponse({ id: 'mcp', schema_version: 1, revision: 5, value: { enabled: true }, state: { status: 'applied' } }))
       .mockResolvedValueOnce(jsonResponse(statusFixture(5)))
       .mockResolvedValueOnce(jsonResponse({ client: clientFixture(1), token: 'tmcp_once' }))
       .mockResolvedValueOnce(jsonResponse(clientFixture(2)))
@@ -41,17 +42,17 @@ describe('McpAccessClient', () => {
 
     expect(requestAt(fetchMock, 0)).toMatchObject({ path: '/api/v1/mcp/status', method: 'GET' })
     expect(requestAt(fetchMock, 1)).toMatchObject({
-      path: '/api/v1/mcp/settings',
-      method: 'PUT',
-      body: { enabled: true, expected_revision: 4 },
+      path: '/api/v1/settings/mcp',
+      method: 'PATCH',
+      body: { expected_revision: 4, patch: { enabled: true } },
     })
-    expect(requestAt(fetchMock, 2)).toMatchObject({
+    expect(requestAt(fetchMock, 3)).toMatchObject({
       path: '/api/v1/mcp/clients',
       method: 'POST',
       body: { name: 'Codex', approval_bypass: true, scopes: ['hosts:read', 'sessions:read'] },
     })
     expect(created.client).toMatchObject({ source: 'external', read_only: false })
-    expect(requestAt(fetchMock, 3)).toMatchObject({
+    expect(requestAt(fetchMock, 4)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',
       method: 'PATCH',
       body: {
@@ -63,20 +64,20 @@ describe('McpAccessClient', () => {
       },
     })
     expect(updated).toMatchObject({ source: 'external', read_only: false })
-    expect(requestAt(fetchMock, 4)).toMatchObject({
+    expect(requestAt(fetchMock, 5)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',
       method: 'DELETE',
       body: { expected_revision: 2 },
     })
     expect(deleted).toBeUndefined()
-    expect(requestAt(fetchMock, 5)).toMatchObject({
+    expect(requestAt(fetchMock, 6)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1/token',
       method: 'POST',
       body: { expected_revision: 3 },
     })
     expect(rotated.client).toMatchObject({ source: 'external', read_only: false })
-    expect(requestAt(fetchMock, 6)).toMatchObject({ path: '/api/v1/mcp/approvals', method: 'GET' })
-    expect(requestAt(fetchMock, 7)).toMatchObject({
+    expect(requestAt(fetchMock, 7)).toMatchObject({ path: '/api/v1/mcp/approvals', method: 'GET' })
+    expect(requestAt(fetchMock, 8)).toMatchObject({
       path: '/api/v1/mcp/approvals/approval%2F1/decisions',
       method: 'POST',
       body: { decision: 'approve', expected_revision: 9 },

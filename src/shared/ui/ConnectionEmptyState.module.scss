@@ -1,0 +1,104 @@
+.root {
+  --connection-empty-bg: color-mix(in srgb, var(--app-bg-elevated) 70%, var(--terminal-frame));
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--terminal-frame);
+}
+
+.root {
+  :global(:root[data-theme="light"]) & {
+    --connection-empty-bg: color-mix(in srgb, var(--app-bg-elevated) 32%, var(--terminal-frame));
+  }
+}
+
+.root::before {
+  position: absolute;
+  z-index: 0;
+  inset: 12px;
+  border: 1px dashed color-mix(in srgb, var(--border-strong) 58%, transparent);
+  border-radius: 10px;
+  background: var(--connection-empty-bg);
+  content: "";
+  pointer-events: none;
+}
+
+.viewport {
+  position: absolute;
+  z-index: 1;
+  inset: 13px;
+  display: flex;
+  overflow: auto;
+  border-radius: 9px;
+  box-sizing: border-box;
+  padding: 11px;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.content {
+  display: grid;
+  width: min(100%, 320px);
+  min-width: 0;
+  flex: 0 0 auto;
+  justify-items: center;
+  margin: auto;
+  text-align: center;
+}
+
+.icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  margin-bottom: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 84%, var(--text-secondary));
+  box-shadow: var(--inner-highlight);
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  max-width: 280px;
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.action:global(.connection-action-button.ant-btn) {
+  min-width: 116px;
+  max-width: 100%;
+  height: auto;
+  min-height: 34px;
+  gap: 6px;
+  margin-top: 18px;
+  border-radius: 9px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: normal;
+}

@@ -7,7 +7,6 @@ import {
 } from 'antd'
 import {
   CircleAlert,
-  Keyboard,
   PencilLine,
   RotateCcw,
   Search,
@@ -24,8 +23,10 @@ import type {
   ShortcutSettings,
 } from '#common/contracts'
 import { termousPopconfirmProps } from '#shared/ui'
+import { useSettingsEditor } from '#entities/settings'
 import {
   formatShortcutChord,
+  useShortcutAvailability,
   shortcutBindingListsEqual,
   type ShortcutActionId,
   type ShortcutPlatform,
@@ -43,7 +44,6 @@ import {
   type ShortcutRowStatus,
   type ShortcutSettingsRow,
 } from '../../model/shortcutSettingsPanel.ts'
-import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './ShortcutSettings.module.scss'
 
 const shortcutRowStatusClassNames = {
@@ -76,6 +76,7 @@ export function ShortcutSettingsPanel({
   onResetAll,
 }: ShortcutSettingsPanelProps) {
   const { t } = useTranslation()
+  const availability = useShortcutAvailability()
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<ShortcutEditorState | null>(null)
   const [busyActionIds, setBusyActionIds] = useState<Set<ShortcutActionId>>(() => new Set())
@@ -84,8 +85,10 @@ export function ShortcutSettingsPanel({
   const [resetFailed, setResetFailed] = useState(false)
   const busyActionIdsRef = useRef(new Set<ShortcutActionId>())
   const resetBusyRef = useRef(false)
+  useSettingsEditor({ dirty: false, busy: resetBusy || busyActionIds.size > 0 || editor !== null,
+    invalid: true, save: () => undefined, reset: () => undefined })
 
-  const rows = useMemo(() => buildShortcutSettingsRows(value, platform), [platform, value])
+  const rows = useMemo(() => buildShortcutSettingsRows(value, platform).filter(row => availability?.[row.definition.id]?.visible !== false), [platform, value, availability])
   const filteredRows = useMemo(() => filterShortcutSettingsRows(
     rows,
     query,
@@ -200,18 +203,8 @@ export function ShortcutSettingsPanel({
   }
 
   return (
-    <section className={`${surfaceStyles.surface} ${styles['shortcut-settings-panel']}`}>
-      <div className={styles['shortcut-settings-header']}>
-        <header className={styles['shortcut-settings-heading']}>
-          <div className={styles['shortcut-settings-title']}>
-            <Keyboard size={18} aria-hidden="true" />
-            <div>
-              <h2>{t('settings.shortcuts.title')}</h2>
-              <p>{t('settings.shortcuts.description')}</p>
-            </div>
-          </div>
-        </header>
-
+    <section className={styles['shortcut-settings-panel']} aria-label={t('settings.tabShortcuts')}>
+      <header className={styles['shortcut-settings-header']}>
         <div className={styles['shortcut-settings-toolbar']}>
           <Input
             id="settings-shortcuts-search"
@@ -220,6 +213,7 @@ export function ShortcutSettingsPanel({
             value={query}
             prefix={<Search size={15} aria-hidden="true" />}
             placeholder={t('settings.shortcuts.searchPlaceholder')}
+            aria-label={t('settings.shortcuts.searchPlaceholder')}
             className={styles['shortcut-settings-search']}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -253,7 +247,7 @@ export function ShortcutSettingsPanel({
             {t('settings.shortcuts.resetAllFailed')}
           </div>
         )}
-      </div>
+      </header>
 
       {groups.length === 0 ? (
         <Empty
@@ -277,7 +271,8 @@ export function ShortcutSettingsPanel({
                     platform={platform}
                     busy={busyActionIds.has(row.definition.id)}
                     failed={failedActionIds.has(row.definition.id)}
-                    disabled={disabled || resetBusy}
+                    disabled={disabled || resetBusy || availability?.[row.definition.id]?.available === false}
+                    unavailableReason={availability?.[row.definition.id]?.unavailableReasonKey ? t(availability[row.definition.id]!.unavailableReasonKey!) : undefined}
                     onEdit={() => openEditor(row)}
                     onRestore={() => restoreAction(row.definition.id)}
                   />
@@ -324,6 +319,7 @@ function ShortcutSettingsRowView({
   busy,
   failed,
   disabled,
+  unavailableReason,
   onEdit,
   onRestore,
 }: {
@@ -332,6 +328,7 @@ function ShortcutSettingsRowView({
   busy: boolean
   failed: boolean
   disabled: boolean
+  unavailableReason?: string
   onEdit: () => void
   onRestore: () => Promise<void>
 }) {
@@ -343,7 +340,7 @@ function ShortcutSettingsRowView({
     >
       <div className={styles['shortcut-settings-action-copy']}>
         <strong>{actionLabel}</strong>
-        <small>{actionDescription(row, t)}</small>
+        <small>{unavailableReason ?? actionDescription(row, t)}</small>
         {failed && (
           <span className={styles['shortcut-settings-row-error']} role="status">
             {t('settings.shortcuts.binding.saveFailed')}

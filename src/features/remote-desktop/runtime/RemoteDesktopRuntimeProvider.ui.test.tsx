@@ -1,4 +1,6 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { App as AntdApp, ConfigProvider } from 'antd'
+import { useLayoutEffect } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type {
   RemoteDesktopAccessProfile,
@@ -10,7 +12,9 @@ import { RemoteDesktopViewport } from '../ui/RemoteDesktopViewport'
 import { useRemoteDesktopConnectionMetrics } from './core/connectionMetricsStore'
 import { useRemoteDesktopRuntime } from './core/remoteDesktopRuntimeContext'
 import { RemoteDesktopTargetAuthController } from './core/targetAuthController.ts'
+import type { AutomationPointerFeed } from './core/automationPointerState.ts'
 import { RemoteDesktopRuntimeProvider } from './RemoteDesktopRuntimeProvider'
+import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
 
 const adapterCreate = vi.hoisted(() => vi.fn())
 const adapterPrepare = vi.hoisted(() => vi.fn())
@@ -47,6 +51,58 @@ test('向外同步事件流维护的权威会话列表', async () => {
   await waitFor(() => expect(onSessionsChange).toHaveBeenCalledWith([session]))
   act(() => MockWebSocket.instances[0].emit({ type: 'removed', session }))
   await waitFor(() => expect(onSessionsChange).toHaveBeenLastCalledWith([]))
+})
+
+test('会话就绪状态跟随启用和启动快照，不把初始化空列表当成权威结果', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  const snapshots: Array<{ ready: boolean; ids: string[] }> = []
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  const capture = (value: typeof runtime) => {
+    runtime = value
+    snapshots.push({ ready: value.sessionsReady, ids: value.sessions.map(({ id }) => id) })
+  }
+  const tree = (enabled: boolean) => <RemoteDesktopRuntimeProvider api={api} enabled={enabled} profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={capture} />
+  </RemoteDesktopRuntimeProvider>
+  const view = render(tree(false))
+  expect(runtime.sessionsReady).toBe(false)
+  view.rerender(tree(true))
+  await waitFor(() => expect(runtime.sessionsReady).toBe(true))
+  expect(runtime.sessions).toEqual([session])
+  expect(snapshots).not.toContainEqual({ ready: true, ids: [] })
+
+  act(() => MockWebSocket.instances[0].emit({ type: 'removed', session }))
+  expect(runtime.sessionsReady).toBe(true)
+  expect(runtime.sessions).toEqual([])
+  view.rerender(tree(false))
+  expect(runtime.sessionsReady).toBe(false)
+})
+
+test('断线后创建其他会话不会从工作区旧快照恢复原会话的指针', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const control = { automation_id: 'grant', source: 'agent' as const, execution_generation: 1, expires_at: '2099-01-01T00:00:00Z' }
+  const session = { ...remoteDesktopSession(), automation_pointer_control: control, automation_pointer_revision: 1 }
+  adapterCreate.mockResolvedValue(viewerAdapter())
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket', credential_ticket: '', expires_at: '2099-01-01T00:00:00Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.createRemoteDesktopSession = vi.fn(async () => ({ ...remoteDesktopSession(), id: 'other', automation_pointer_control: null, automation_pointer_revision: 0 }))
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <SessionMutationHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledOnce())
+  const pointer = (adapterCreate.mock.calls[0][0] as { pointer: AutomationPointerFeed }).pointer
+  expect(pointer.control()).toEqual(control)
+  act(() => MockWebSocket.instances[0].close())
+  expect(pointer.control()).toBeNull()
+  await act(async () => fireEvent.click(view.getByTestId('create-session')))
+  expect(api.createRemoteDesktopSession).toHaveBeenCalledOnce()
+  expect(pointer.control()).toBeNull()
+  view.unmount()
 })
 
 test('目标握手前失败后同一代际的状态刷新不会重复申请 Ticket', async () => {
@@ -923,6 +979,368 @@ test('关闭请求失败时保留现有 Viewer 和会话', async () => {
   expect(view.getByTestId('close-session')).toBeInTheDocument()
 })
 
+test('RDP 拒绝证书后，迟到快照和关闭事件不会恢复验证弹窗，新代次仍可验证', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const deletion = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn(() => deletion.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('test-fingerprint'))
+  let rejection!: Promise<void>
+  act(() => { rejection = runtime.rejectServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  for (const status of ['waiting_host_trust', 'stopping', 'failed'] as const) {
+    act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, status, phase: status, updated_at: `2026-08-23T12:00:0${status === 'waiting_host_trust' ? 1 : status === 'stopping' ? 2 : 3}Z` } }))
+    expect(runtime.sessions[0].status).toBe(status)
+    expect(runtime.viewerStates[session.id].verification).toBeNull()
+  }
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  await act(async () => { deletion.resolve(); await rejection })
+  expect(runtime.sessions).toHaveLength(0)
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, connection_generation: 2, updated_at: '2026-08-23T12:00:04Z' } }))
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('test-fingerprint'))
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  expect(api.deleteRemoteDesktopSession).toHaveBeenCalledTimes(1)
+})
+
+test('旧 RDP 证书确认的迟到响应不能清除新挑战', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session: RemoteDesktopSession = {
+    ...rdpSecuritySession(),
+    certificate: { challenge_id: 'challenge-one', server_name: '192.0.2.22', fingerprint: 'first-fingerprint', subject: 'CN=test' },
+  }
+  const approval = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn(() => approval.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.verification?.fingerprint).toBe('first-fingerprint'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.approveServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: {
+    ...session, updated_at: '2026-08-23T12:00:01Z',
+    certificate: { ...session.certificate!, challenge_id: 'challenge-two', fingerprint: 'second-fingerprint' },
+  } }))
+  expect(runtime.viewerStates[session.id].verification?.fingerprint).toBe('second-fingerprint')
+  await act(async () => { approval.resolve(); await response })
+  expect(runtime.viewerStates[session.id].verification?.fingerprint).toBe('second-fingerprint')
+})
+
+test.each(['failed', 'stopping', 'credentials', 'removed'] as const)('证书确认迟到返回不覆盖后续 %s 状态', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const approval = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn(() => approval.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.approveServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit(next === 'removed'
+    ? { type: 'removed', session: { id: session.id } }
+    : { type: 'upsert', session: {
+      ...session, certificate: undefined, credentials_required: next === 'credentials',
+      status: next === 'credentials' ? 'connecting' : next,
+      phase: next === 'credentials' ? 'resolving_auth' : next,
+      updated_at: '2026-08-23T12:00:01Z',
+    } }))
+  const expected = next === 'removed' ? undefined : next === 'credentials' ? 'credentials_required' : 'disconnected'
+  expect(runtime.viewerStates[session.id]?.connection).toBe(expected)
+  await act(async () => { approval.resolve(); await response })
+  expect(runtime.viewerStates[session.id]?.connection).toBe(expected)
+})
+
+test.each(['challenge', 'generation'] as const)('已确认挑战抑制重复快照，但 %s 变化仍需确认', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await runtime.approveServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: {
+    ...session, connection_generation: next === 'generation' ? 2 : 1,
+    certificate: { ...session.certificate!, challenge_id: next === 'challenge' ? 'next-challenge' : session.certificate!.challenge_id },
+    updated_at: '2026-08-23T12:00:01Z',
+  } }))
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+})
+
+test('RDP 确认失败后保留挑战并允许重试，失败不会被视为已确认', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.resolveRemoteDesktopCertificate = vi.fn().mockRejectedValueOnce(new Error('synthetic approval failure')).mockResolvedValueOnce(undefined)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await expect(runtime.approveServer(session.id)).rejects.toThrow('synthetic approval failure') })
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+  await act(async () => { await runtime.approveServer(session.id) })
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  expect(api.resolveRemoteDesktopCertificate).toHaveBeenCalledTimes(2)
+})
+
+test('拒绝时关闭失败仍阻止旧挑战，可重新关闭会话', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn().mockRejectedValueOnce(new Error('synthetic close failure')).mockResolvedValueOnce(undefined)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  await act(async () => { await expect(runtime.rejectServer(session.id)).rejects.toThrow('synthetic close failure') })
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(runtime.viewerStates[session.id].verification).toBeNull()
+  expect(runtime.viewerStates[session.id].connection).toBe('security_failed')
+  await act(async () => { await runtime.closeSession(session.id) })
+  expect(runtime.sessions).toHaveLength(0)
+})
+
+test('拒绝请求的迟到响应不移除新代次会话', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const deletion = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.deleteRemoteDesktopSession = vi.fn(() => deletion.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('verifying_server'))
+  let response!: Promise<void>
+  act(() => { response = runtime.rejectServer(session.id) })
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, connection_generation: 2 } }))
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  await act(async () => { deletion.resolve(); await response })
+  expect(runtime.sessions[0].connection_generation).toBe(2)
+  expect(runtime.viewerStates[session.id].connection).toBe('verifying_server')
+})
+
+test('事件流收到后台证书挑战时无需观看页面即可确认，不创建观看 Ticket', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = rdpSecuritySession()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.remoteDesktopSessions = vi.fn(async () => [])
+  render(<ConfigProvider theme={{ token: { motion: false } }}><AntdApp>
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[]}>
+      <RemoteDesktopConnectionCoordinator />
+    </RemoteDesktopRuntimeProvider>
+  </AntdApp></ConfigProvider>)
+  await waitFor(() => expect(api.remoteDesktopSessions).toHaveBeenCalled())
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session }))
+  const dialog = await screen.findByRole('dialog')
+  expect(dialog).toHaveTextContent('test-fingerprint')
+  expect(api.resolveRemoteDesktopCertificate).not.toHaveBeenCalled()
+  fireEvent.click(dialog.querySelector<HTMLButtonElement>('.ant-btn-primary')!)
+  await waitFor(() => expect(api.resolveRemoteDesktopCertificate).toHaveBeenCalledExactlyOnceWith(session.id, session.connection_generation, 'challenge-one', true, false))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  act(() => MockWebSocket.instances[0].emit({ type: 'snapshot', sessions: [session] }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(api.createRemoteDesktopAttachTicket).not.toHaveBeenCalled()
+})
+
+test.each(['generation', 'certificate', 'failed', 'stopping', 'removed'] as const)('凭据迟到响应不覆盖 %s 生命周期', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session: RemoteDesktopSession = { ...rdpSecuritySession(), status: 'connecting', phase: 'resolving_auth', certificate: undefined, credentials_required: true }
+  const submission = deferred<void>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.supplyRemoteDesktopCredentials = vi.fn(() => submission.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  function Capture() { runtime = useRemoteDesktopRuntime(); return null }
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}><Capture /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.viewerStates[session.id]?.connection).toBe('credentials_required'))
+  let response!: void | Promise<void>
+  act(() => { response = runtime.submitCredentials(session.id, { password: 'synthetic-password' }) })
+  act(() => MockWebSocket.instances[0].emit(next === 'removed'
+    ? { type: 'removed', session: { id: session.id } }
+    : { type: 'upsert', session: {
+      ...(next === 'certificate' ? rdpSecuritySession() : session),
+      status: next === 'failed' || next === 'stopping' ? next : next === 'certificate' ? 'waiting_host_trust' : 'connecting',
+      connection_generation: next === 'generation' ? 2 : 1,
+      updated_at: '2026-08-23T12:00:01Z',
+    } }))
+  const state = runtime.viewerStates[session.id]
+  await act(async () => { submission.resolve(); await response })
+  expect(runtime.viewerStates[session.id]).toEqual(state)
+  expect(api.supplyRemoteDesktopCredentials).toHaveBeenCalledExactlyOnceWith(session.id, 1, 'synthetic-password')
+})
+
+function rdpSecuritySession(): RemoteDesktopSession {
+  return {
+    ...remoteDesktopSession(), protocol: 'rdp', status: 'waiting_host_trust', phase: 'waiting_host_trust',
+    rdp: { target_host: '192.0.2.22', port: 3389, server_name: '192.0.2.22', username: 'test-user', domain: '', width: 1920, height: 1080, audio: true, default_view_only: false, default_display_mode: 'fit' },
+    certificate: { challenge_id: 'challenge-one', server_name: '192.0.2.22', fingerprint: 'test-fingerprint', subject: 'CN=test' },
+  }
+}
+
+test('复制桌面的在途状态跨页面保留，同一会话的复制和重连不会并发请求', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const creation = deferred<RemoteDesktopSession>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.createRemoteDesktopSession = vi.fn(() => creation.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  const capture = (value: typeof runtime) => { runtime = value }
+  const tree = (visible: boolean) => <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+    {visible && <SessionActionProbe onRuntime={capture} />}
+  </RemoteDesktopRuntimeProvider>
+  const view = render(tree(true))
+  await waitFor(() => expect(runtime.sessions).toHaveLength(1))
+  let request!: ReturnType<typeof runtime.duplicateSession>
+  act(() => { request = runtime.duplicateSession(session.id) })
+  expect(runtime.pendingSessionActionIds.has(session.id)).toBe(true)
+  view.rerender(tree(false))
+  view.rerender(tree(true))
+  expect(runtime.pendingSessionActionIds.has(session.id)).toBe(true)
+  await act(async () => {
+    expect(await runtime.duplicateSession(session.id)).toBeNull()
+    await runtime.reconnectSession(session.id)
+  })
+  expect(api.createRemoteDesktopSession).toHaveBeenCalledExactlyOnceWith(session.profile_id)
+  expect(api.reconnectRemoteDesktopSession).not.toHaveBeenCalled()
+  await act(async () => { creation.resolve({ ...session, id: 'copy' }); await request })
+  expect(runtime.pendingSessionActionIds.size).toBe(0)
+  expect(runtime.sessions.map((item) => item.id)).toContain('copy')
+})
+
+test.each(['rdp', 'hosted', 'stopping', 'missing-profile'])('桌面复制拒绝不适用的会话类型：%s', async (kind) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = { ...remoteDesktopSession(),
+    ...(kind === 'rdp' ? { protocol: 'rdp' as const } : {}),
+    ...(kind === 'hosted' ? { automation_host_id: 'host' } : {}),
+    ...(kind === 'stopping' ? { status: 'stopping' as const } : {}),
+    ...(kind === 'missing-profile' ? { profile_id: '' } : {}),
+  }
+  const api = remoteDesktopGateway(session, vi.fn())
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={(value) => { runtime = value }} />
+  </RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.sessions).toHaveLength(1))
+  expect(await runtime.duplicateSession(session.id)).toBeNull()
+  expect(api.createRemoteDesktopSession).not.toHaveBeenCalled()
+})
+
+test('桌面复制失败释放在途状态，重连期间关闭后迟到响应不能恢复会话', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const reconnection = deferred<RemoteDesktopSession>()
+  const api = remoteDesktopGateway(session, vi.fn())
+  api.createRemoteDesktopSession = vi.fn().mockRejectedValue(new Error('creation failed'))
+  api.reconnectRemoteDesktopSession = vi.fn(() => reconnection.promise)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={(value) => { runtime = value }} />
+  </RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(runtime.sessions).toHaveLength(1))
+  await act(async () => { await expect(runtime.duplicateSession(session.id)).rejects.toThrow('creation failed') })
+  expect(runtime.pendingSessionActionIds.size).toBe(0)
+  let request!: Promise<void>
+  act(() => { request = runtime.reconnectSession(session.id) })
+  expect(runtime.pendingSessionActionIds.has(session.id)).toBe(true)
+  await act(async () => { await runtime.closeSession(session.id) })
+  expect(runtime.sessions).toHaveLength(0)
+  await act(async () => { reconnection.resolve({ ...session, connection_generation: 2 }); await request })
+  expect(runtime.sessions).toHaveLength(0)
+  expect(runtime.pendingSessionActionIds.size).toBe(0)
+})
+
+test.each(['unchanged', 'advanced', 'removed'] as const)('重连失败恢复仍有效的 Viewer，且不覆盖 %s 生命周期', async (next) => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const reconnection = deferred<RemoteDesktopSession>()
+  const ticket = vi.fn(async (_id: string, generation: number) => ({
+    ticket: `ticket-${generation}`, credential_ticket: '', expires_at: '2099-01-01T00:00:00Z',
+    connection_generation: generation, stream_path: '/api/v1/remote-desktop-stream',
+  }))
+  const api = remoteDesktopGateway(session, ticket)
+  api.reconnectRemoteDesktopSession = vi.fn(() => reconnection.promise)
+  const original = viewerAdapter()
+  const replacement = viewerAdapter()
+  adapterCreate.mockResolvedValueOnce(original).mockResolvedValue(replacement)
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={(value) => { runtime = value }} />
+    <ViewerHarness />
+  </RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledOnce())
+  let request!: Promise<void>
+  act(() => { request = runtime.reconnectSession(session.id) })
+  expect(original.dispose).toHaveBeenCalledOnce()
+  if (next === 'advanced') {
+    act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, connection_generation: 2 } }))
+    await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(2))
+  } else if (next === 'removed') {
+    act(() => MockWebSocket.instances[0].emit({ type: 'removed', session }))
+  }
+  await act(async () => {
+    reconnection.reject(new Error('reconnect failed'))
+    await expect(request).rejects.toThrow('reconnect failed')
+  })
+  expect(runtime.pendingSessionActionIds.size).toBe(0)
+  if (next === 'removed') {
+    expect(runtime.sessions).toEqual([])
+    expect(runtime.viewerStates[session.id]).toBeUndefined()
+    expect(adapterCreate).toHaveBeenCalledOnce()
+  } else {
+    await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(2))
+    expect(ticket).toHaveBeenLastCalledWith(session.id, next === 'advanced' ? 2 : 1)
+    expect(replacement.dispose).not.toHaveBeenCalled()
+    expect(runtime.viewerStates[session.id].errorCode).toBe('')
+  }
+})
+
+test('重连失败后恢复同代次 Viewer，旧附加任务的迟到成功不能覆盖新查看器', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const pendingViewer = deferred<ReturnType<typeof viewerAdapter>>()
+  const replacement = viewerAdapter()
+  adapterCreate.mockReturnValueOnce(pendingViewer.promise).mockResolvedValue(replacement)
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket', credential_ticket: 'replacement-credential', expires_at: '2099-01-01T00:00:00Z',
+    connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.reconnectRemoteDesktopSession = vi.fn().mockRejectedValue(new Error('reconnect failed'))
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  render(<RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={(value) => { runtime = value }} />
+    <ViewerHarness />
+  </RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledOnce())
+  await act(async () => { await expect(runtime.reconnectSession(session.id)).rejects.toThrow('reconnect failed') })
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(2))
+  const late = viewerAdapter()
+  await act(async () => { pendingViewer.resolve(late) })
+  expect(late.dispose).toHaveBeenCalledOnce()
+  expect(replacement.dispose).not.toHaveBeenCalled()
+  act(() => runtime.sendCtrlAltDel(session.id))
+  expect(replacement.sendCtrlAltDel).toHaveBeenCalledOnce()
+  expect(late.sendCtrlAltDel).not.toHaveBeenCalled()
+  const events = (adapterCreate.mock.calls[1][0] as { events: { onCredentialsRequired: (fields: string[]) => void } }).events
+  act(() => events.onCredentialsRequired(['password']))
+  await waitFor(() => expect(api.consumeRemoteDesktopTargetAuth).toHaveBeenCalledWith(session.id, 1, 'replacement-credential'))
+})
+
+function SessionActionProbe({ onRuntime }: { onRuntime: (value: ReturnType<typeof useRemoteDesktopRuntime>) => void }) {
+  const runtime = useRemoteDesktopRuntime()
+  useLayoutEffect(() => { onRuntime(runtime) }, [runtime, onRuntime])
+  return null
+}
+
 function ViewerHarness() {
   const runtime = useRemoteDesktopRuntime()
   const session = runtime.sessions[0]
@@ -998,12 +1416,46 @@ function SessionMutationHarness() {
   )
 }
 
+test('托管 VNC 期间不竞争挂接，结束后仅恢复已有观看入口', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const original = viewerAdapter()
+  adapterCreate.mockResolvedValueOnce(original).mockResolvedValue(viewerAdapter())
+  const ticket = vi.fn(async () => ({ ticket: 'ticket', credential_ticket: '', expires_at: '2026-08-23T12:00:30Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream' }))
+  render(<RemoteDesktopRuntimeProvider api={remoteDesktopGateway(session, ticket)} enabled profiles={[]} initialSessions={[session]}><ViewerHarness /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  const socket = MockWebSocket.instances[0]
+  act(() => socket.emit({ type: 'upsert', session: { ...session, automation_host_id: 'host', status: 'streaming' } }))
+  await waitFor(() => expect(original.dispose).toHaveBeenCalledOnce())
+  expect(ticket).toHaveBeenCalledTimes(1)
+  act(() => socket.emit({ type: 'upsert', session: { ...session, status: 'reattach_wait' } }))
+  await waitFor(() => expect(ticket).toHaveBeenCalledTimes(2))
+})
+
+test('VNC 托管预留使迟到创建结果失效，不能覆盖新执行端', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const pending = deferred<ReturnType<typeof viewerAdapter>>()
+  adapterCreate.mockReturnValue(pending.promise)
+  const ticket = vi.fn(async () => ({ ticket: 'ticket', credential_ticket: '', expires_at: '2026-08-23T12:00:30Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream' }))
+  render(<RemoteDesktopRuntimeProvider api={remoteDesktopGateway(session, ticket)} enabled profiles={[]} initialSessions={[session]}><ViewerHarness /></RemoteDesktopRuntimeProvider>)
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  act(() => MockWebSocket.instances[0].emit({ type: 'upsert', session: { ...session, automation_host_id: 'host' } }))
+  const late = viewerAdapter()
+  await act(async () => pending.resolve(late))
+  await waitFor(() => expect(late.dispose).toHaveBeenCalledOnce())
+  expect(ticket).toHaveBeenCalledTimes(1)
+})
+
 function remoteDesktopGateway(
   session: RemoteDesktopSession,
   createRemoteDesktopAttachTicket: RemoteDesktopGateway['createRemoteDesktopAttachTicket'],
 ): RemoteDesktopGateway {
   return {
     remoteDesktopProfiles: vi.fn(async () => []),
+    resolveRemoteDesktopCertificate: vi.fn(async () => undefined),
+    takeRemoteDesktopControl: vi.fn(async () => undefined),
+    supplyRemoteDesktopCredentials: vi.fn(async () => undefined),
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
     deleteRemoteDesktopProfile: vi.fn(),

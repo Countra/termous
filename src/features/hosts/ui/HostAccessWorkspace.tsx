@@ -20,7 +20,7 @@ import {
   useSSHProfileReachability,
 } from '#features/host-access'
 import { FileAccessProfileEditor } from '#features/manage-file-access'
-import { VNCProfileEditor } from '#features/manage-remote-desktop'
+import { RemoteDesktopProfileEditor } from '#features/manage-remote-desktop'
 import { SSHProfileEditor } from '#features/manage-ssh-access'
 import {
   ConfirmDialog,
@@ -214,7 +214,7 @@ export function HostAccessWorkspace({
           onSave={() => void controller.saveProfile()}
           onDelete={profile ? () => controller.setDeleteTarget({ kind: 'remote_desktop', profileId: profile.id }) : undefined}
         >
-          <VNCProfileEditor
+          <RemoteDesktopProfileEditor
             draft={controller.vncDraft}
             errors={controller.vncErrors}
             submitted={controller.profileValidationVisible}
@@ -313,8 +313,27 @@ export function HostAccessWorkspace({
       <ConfirmDialog
         open={deleteHostConfirmOpen}
         title={t('hosts.access.deleteHostTitle')}
-        description={t('hosts.access.deleteHostDescription', { name: catalog?.host.name ?? host.name })}
-        confirmLabel={t('app.delete')}
+        width={480}
+        description={(
+          <div className={styles['delete-summary']}>
+            <div className={styles['delete-target']}>
+              {t('hosts.access.deleteHostDescription', { name: catalog?.host.name ?? host.name })}
+            </div>
+            <div>
+              <strong className={styles['delete-label']}>{t('hosts.access.deleteHostIncludes')}</strong>
+              <ul className={styles['delete-items']}>
+                <li>{t('hosts.access.deleteHostProfiles')}</li>
+                <li>{t('hosts.access.deleteHostRelated')}</li>
+              </ul>
+            </div>
+            <div>
+              <strong className={styles['delete-label']}>{t('hosts.access.deleteHostPreserves')}</strong>
+              <div>{t('hosts.access.deleteHostPreservedItems')}</div>
+            </div>
+            <div className={styles['delete-note']}>{t('hosts.access.deleteHostPrerequisites')}</div>
+          </div>
+        )}
+        confirmLabel={t('hosts.access.deleteHostConfirm')}
         danger
         confirmLoading={actionBusy}
         onCancel={() => setDeleteHostConfirmOpen(false)}

@@ -1,4 +1,6 @@
-export type RemoteDesktopProtocol = 'vnc'
+import type { DesktopState } from './desktop.ts'
+
+export type RemoteDesktopProtocol = 'vnc' | 'rdp'
 
 export type RemoteDesktopRoute = 'ssh_tunnel' | 'direct'
 
@@ -40,6 +42,27 @@ export interface RemoteDesktopTargetAuthSummary {
   updated_at: string
 }
 
+export interface RdpProfileSettings {
+  target_host: string
+  port: number
+  server_name: string
+  username: string
+  domain: string
+  width: number
+  height: number
+  audio: boolean
+  default_view_only: boolean
+  default_display_mode: RemoteDesktopDisplayMode
+}
+
+export interface RdpAttachment {
+  subscription_id: string
+  control_url: string
+  display_url: string
+  control_ticket: string
+  display_ticket: string
+}
+
 interface RemoteDesktopAccessProfileBase {
   id: string
   host_id: string
@@ -76,7 +99,11 @@ export type VncRemoteDesktopAccessProfile = RemoteDesktopAccessProfileBase
     vnc: VncProfileSettings
   }
 
-export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile
+export type RdpRemoteDesktopAccessProfile = RemoteDesktopAccessProfileBase
+  & RemoteDesktopRouteConfiguration
+  & { protocol: 'rdp'; protocol_config_version: 1; rdp: RdpProfileSettings }
+
+export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile | RdpRemoteDesktopAccessProfile
 
 interface VncRemoteDesktopAccessProfileInputBase {
   host_id: string
@@ -90,9 +117,17 @@ interface VncRemoteDesktopAccessProfileInputBase {
 export type VncRemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInputBase
   & RemoteDesktopRouteConfiguration
 
-export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput
+export type RdpRemoteDesktopAccessProfileInput = Pick<RdpRemoteDesktopAccessProfile, 'host_id' | 'name' | 'description' | 'protocol' | 'protocol_config_version' | 'rdp'> & RemoteDesktopRouteConfiguration
+export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput | RdpRemoteDesktopAccessProfileInput
 
 interface RemoteDesktopSessionBase {
+  automation_pointer_control?: import('#common/contracts').DesktopPointerControl | null
+  automation_pointer?: import('#common/contracts').DesktopPointer
+  automation_pointer_revision?: number
+  automation_host_id?: string
+  automation?: { id: string; source?: string; client_name: string; state: string; expires_at: string; idle_expires_at: string }
+  remote_viewer?: { attachment_id: string; device_id: string; generation: number; phase: string }
+  desktop?: DesktopState
   id: string
   profile_id: string
   profile_name: string
@@ -102,6 +137,10 @@ interface RemoteDesktopSessionBase {
   protocol: RemoteDesktopProtocol
   protocol_config_version: number
   vnc: VncProfileSettings
+  rdp?: RdpProfileSettings
+  viewer_count?: number
+  certificate?: { challenge_id: string; server_name: string; fingerprint: string; subject: string }
+  credentials_required?: boolean
   status: RemoteDesktopSessionStatus
   phase: RemoteDesktopSessionPhase
   status_message?: string
@@ -123,6 +162,7 @@ export type RemoteDesktopSession = RemoteDesktopSessionBase & (
 )
 
 export interface RemoteDesktopAttachTicket {
+  rdp?: RdpAttachment
   ticket: string
   credential_ticket: string
   expires_at: string
@@ -144,6 +184,7 @@ export type RemoteDesktopSessionEvent =
       session: Pick<RemoteDesktopSession, 'id'>
     }
   | RemoteDesktopTelemetryEvent
+  | import('#common/contracts').DesktopPointerEvent
 
 export interface RemoteDesktopTelemetryEvent {
   type: 'telemetry'

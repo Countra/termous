@@ -39,7 +39,10 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 describe('AgentMessageActions', () => {
   it.each(['user', 'assistant'] as const)('复制 %s 的原始 Markdown，保留空白与代码块而非渲染文本', async (role) => {
     const markdown = '  # 标题\n\n**粗体** 与 [链接](https://example.com)\n\n```ts\nconst value = "a  b"\n```\n\n'
-    render(<AgentMessageActions message={message({ role, parts: [{ id: 'text', kind: 'text', text: markdown }] })} />)
+    render(<AgentMessageActions message={message({
+      role, parts: [{ id: 'text', kind: 'text', text: markdown }],
+      resources: [{ kind: 'ssh_session', id: 'ses-one', name: 'TX-HK' }],
+    })} />)
     const button = screen.getByRole('button', { name: copyLabel })
     fireEvent.click(button)
     expect(copy).toHaveBeenCalledExactlyOnceWith(markdown)

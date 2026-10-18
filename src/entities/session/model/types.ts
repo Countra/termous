@@ -88,7 +88,7 @@ export type SessionPhase =
 
 export type SessionKind = 'ssh' | 'local'
 
-export type SessionOrigin = 'app' | 'mcp'
+export type SessionOrigin = 'app' | 'mcp' | 'remote'
 
 export type LocalShell = 'powershell' | 'cmd'
 

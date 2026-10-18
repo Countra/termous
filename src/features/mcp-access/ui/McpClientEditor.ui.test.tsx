@@ -2,11 +2,13 @@ import { App as AntdApp } from 'antd'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { McpClient } from '#entities/mcp-access'
+import { approvalRequiredScopes, mcpScopes, type McpClient } from '#entities/mcp-access'
 import { McpClientEditor } from './McpClientEditor'
+import { mcpScopeCatalog } from '../model/mcpScopeCatalog'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { resolvedLanguage: 'zh-CN' },
     t: (key: string, values?: { count?: number; total?: number; group?: string }) => {
       if (values?.count !== undefined && values.total !== undefined) {
         return `${key}:${values.count}/${values.total}`
@@ -100,6 +102,10 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('services_manage')).not.toBeChecked()
     expect(scopeCheckbox('docker_read')).not.toBeChecked()
     expect(scopeCheckbox('docker_manage')).not.toBeChecked()
+    for (const kind of ['images', 'volumes', 'networks']) {
+      expect(scopeCheckbox(`docker_${kind}_read`)).not.toBeChecked()
+      expect(scopeCheckbox(`docker_${kind}_manage`)).not.toBeChecked()
+    }
     expect(scopeCheckbox('crontab_read')).not.toBeChecked()
     expect(scopeCheckbox('crontab_write')).not.toBeChecked()
     expect(scopeCheckbox('forwarding_read')).not.toBeChecked()
@@ -119,8 +125,8 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.crontab/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.forwarding/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.snippets/ })).toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/30')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(approvalRequiredScopes.length)
+    expect(screen.getByText(`settings.mcp.selectedPermissions:2/${mcpScopes.length}`)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -154,7 +160,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).toBeChecked()
     expect(scopeCheckbox('hosts_probe')).toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:3/30')).toBeInTheDocument()
+    expect(screen.getByText(`settings.mcp.selectedPermissions:3/${mcpScopes.length}`)).toBeInTheDocument()
 
     const clearHosts = groupToggle('hosts')
     expect(clearHosts).toHaveAccessibleName(
@@ -166,7 +172,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('hosts_read')).not.toBeChecked()
     expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
     expect(scopeCheckbox('sessions_read')).toBeChecked()
-    expect(screen.getByText('settings.mcp.selectedPermissions:1/30')).toBeInTheDocument()
+    expect(screen.getByText(`settings.mcp.selectedPermissions:1/${mcpScopes.length}`)).toBeInTheDocument()
     expect(groupToggle('hosts')).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -235,6 +241,39 @@ describe('McpClientEditor', () => {
     })
   })
 
+  it.each([false, true])('全局选择、取消和重新选择保留审批设置（无需审批：%s）', async (approvalBypass) => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderEditor({ editingClient: { ...client, approval_bypass: approvalBypass } })
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' }))
+
+    for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeChecked()
+    expect(approvalBypassSwitch()).toHaveProperty('ariaChecked', String(approvalBypass))
+    expect(screen.getByText(`settings.mcp.selectedPermissions:${mcpScopes.length}/${mcpScopes.length}`)).toBeInTheDocument()
+
+    await user.click(scopeCheckbox('desktops_control'))
+    expect(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' }))
+    expect(scopeCheckbox('desktops_control')).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.clearAllPermissions' }))
+
+    for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).not.toBeChecked()
+    expect(approvalBypassSwitch()).toHaveProperty('ariaChecked', String(approvalBypass))
+    expect(screen.getByRole('status')).toHaveTextContent('settings.mcp.permissionsEmpty')
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' }))
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      name: 'Codex',
+      approval_bypass: approvalBypass,
+      scopes: [...mcpScopes],
+    })
+  })
+
   it('文件管理写入权限不会隐式授权删除，删除默认保持审批', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderEditor({ editingClient: { ...client, scopes: ['files:write'] } })
@@ -275,14 +314,14 @@ describe('McpClientEditor', () => {
     renderEditor()
 
     expect(approvalBypassSwitch()).not.toBeChecked()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(11)
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(approvalRequiredScopes.length)
     expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
 
     await user.click(approvalBypassSwitch())
 
     expect(approvalBypassSwitch()).toBeChecked()
     expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(11)
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(approvalRequiredScopes.length)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')
@@ -303,7 +342,7 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(3)
+    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(mcpScopeCatalog.filter((entry) => entry.destructive).length + 1)
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
     await user.click(scopeCheckbox('sessions_close'))
     const alert = screen.getByRole('alert')
@@ -311,6 +350,22 @@ describe('McpClientEditor', () => {
     expect(alert).toHaveTextContent('settings.mcp.closeScopeDescription')
     await user.click(scopeCheckbox('sessions_close'))
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
+  })
+
+  it('Docker 资源权限可单独授予，不隐含容器或其他资源权限', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderEditor({ editingClient: client })
+    await user.click(scopeCheckbox('docker_images_read'))
+    await user.click(scopeCheckbox('docker_networks_manage'))
+    expect(groupToggle('docker')).toHaveAttribute('aria-pressed', 'mixed')
+    expect(scopeCheckbox('docker_manage')).not.toBeChecked()
+    expect(scopeCheckbox('docker_networks_read')).not.toBeChecked()
+    expect(scopeCheckbox('docker_volumes_manage')).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: 'Codex', approval_bypass: false,
+      scopes: ['hosts:probe', 'commands:interrupt', 'docker:images:read', 'docker:networks:manage'],
+    })
   })
 
   it('恢复默认只读不会自动保留其他授权', async () => {
@@ -336,6 +391,7 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
     expect(groupToggle('hosts')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' })).toBeDisabled()
     expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: /app\.save$/ })).toBeDisabled()
@@ -348,6 +404,7 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
     expect(groupToggle('hosts')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.mcp.selectAllPermissions' })).toBeDisabled()
     expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
@@ -357,7 +414,7 @@ describe('McpClientEditor', () => {
 })
 
 function scopeCheckbox(scopeKey: string) {
-  return screen.getByRole('checkbox', { name: new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`) })
+  return screen.getByLabelText(new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`), { selector: 'input[type="checkbox"]' })
 }
 
 function permissionGroup(groupKey: string) {

@@ -1,12 +1,15 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { Button, Modal } from 'antd'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import styles from './ConfirmDialog.module.scss'
+import modalSurfaceStyles from './ModalSurface.module.scss'
 
 interface ConfirmDialogProps {
   open: boolean
   title: string
-  description: string
+  description: ReactNode
+  width?: number
   confirmLabel?: string
   cancelLabel?: string
   secondaryLabel?: string
@@ -26,6 +29,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  width = 420,
   confirmLabel,
   cancelLabel,
   secondaryLabel,
@@ -47,7 +51,7 @@ export function ConfirmDialog({
     <Modal
       open={open}
       centered
-      width={420}
+      width={width}
       zIndex={zIndex}
       title={null}
       footer={null}
@@ -57,9 +61,9 @@ export function ConfirmDialog({
       afterClose={onAfterClose}
       mask={{ closable: !busy }}
       keyboard={!busy}
-      className={`${styles.modal} confirm-modal`}
+      className={`${styles.modal} ${styles['dialog-modal']} confirm-modal`}
       wrapClassName={`${styles['modal-wrap']} confirm-modal-wrap`}
-      rootClassName={`${styles['modal-root']} termous-modal-root`}
+      rootClassName={`${styles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`}
       getContainer={() => document.body}
       onCancel={() => {
         if (!busy) {
@@ -73,7 +77,7 @@ export function ConfirmDialog({
         </div>
         <div className={styles['dialog-copy']}>
           <h2 id="confirm-dialog-title">{title}</h2>
-          <p>{description}</p>
+          <div className={styles['dialog-description']}>{description}</div>
         </div>
         <div className={styles['dialog-actions']}>
           {showCancelButton ? (

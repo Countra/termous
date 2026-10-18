@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShortcutRuntimeProvider } from '#app/shortcut-runtime'
 import type { RemoteFileEntry } from '#entities/file'
 import type { ShortcutSettings } from '#entities/shortcuts'
+import { clipboardCapabilitiesFixture } from '../../../test/systemClipboard'
 import { WorkbenchFileList } from './WorkbenchFileList'
 
 vi.mock('react-i18next', () => ({
@@ -35,6 +36,12 @@ const entries: RemoteFileEntry[] = [
 ]
 
 interface FileListHarnessProps {
+  listEntries?: RemoteFileEntry[]
+  interactionDisabled?: boolean
+  navigationPending?: boolean
+  initialPlaceholder?: boolean
+  onPaste?: () => void
+  onCopyToSystem?: (paths: string[]) => void
   revealPath: string | null
   initialSelectedPaths?: string[]
   onSelectPaths?: (paths: string[]) => void
@@ -42,6 +49,12 @@ interface FileListHarnessProps {
 }
 
 function FileListHarness({
+  listEntries = entries,
+  interactionDisabled = false,
+  navigationPending = false,
+  initialPlaceholder = false,
+  onPaste,
+  onCopyToSystem,
   revealPath,
   initialSelectedPaths = [],
   onSelectPaths,
@@ -57,13 +70,16 @@ function FileListHarness({
   return (
     <ShortcutRuntimeProvider settings={shortcutSettings}>
       <WorkbenchFileList
-        entries={entries}
+        onPaste={onPaste}
+        onCopyToSystem={onCopyToSystem}
+        entries={listEntries}
+        interactionDisabled={interactionDisabled}
         selectedPaths={selectedPaths}
         listingPath="/workspace"
         loading={false}
-        initialPlaceholder={false}
+        initialPlaceholder={initialPlaceholder}
         initialPending={false}
-        navigationPending={false}
+        navigationPending={navigationPending}
         pendingPath=""
         uploading={false}
         revealPath={revealPath}
@@ -165,6 +181,78 @@ describe('工作台文件列表定位', () => {
 
     expect(onSelectPaths).toHaveBeenCalledTimes(2)
     expect(onRevealSettled).toHaveBeenCalledTimes(2)
+  })
+
+  it('Ctrl+C 优先复制多选，未选择时复制焦点项，并忽略输入法组合按键', (context) => {
+    const capabilities = clipboardCapabilitiesFixture('unsupported', 'ready')
+    context.onTestFinished(() => capabilities.disconnect())
+    const copy = vi.fn()
+    const view = render(<FileListHarness revealPath={null} initialSelectedPaths={entries.map(entry => entry.path)} onCopyToSystem={copy} />)
+    const row = screen.getByRole('option', { name: 'target.txt' })
+    act(() => row.focus())
+    fireEvent.keyDown(row, { key: 'c', code: 'KeyC', ctrlKey: true, isComposing: true })
+    expect(copy).not.toHaveBeenCalled()
+    fireEvent.keyDown(row, { key: 'c', code: 'KeyC', ctrlKey: true })
+    expect(copy).toHaveBeenCalledWith(entries.map(entry => entry.path))
+    view.unmount()
+    copy.mockClear()
+    render(<FileListHarness revealPath={null} onCopyToSystem={copy} />)
+    const focused = screen.getByRole('option', { name: 'target.txt' })
+    act(() => focused.focus())
+    fireEvent.keyDown(focused, { key: 'c', code: 'KeyC', ctrlKey: true })
+    expect(copy).toHaveBeenCalledWith(['/workspace/target.txt'])
+  })
+
+  it('Ctrl+V 只在文件列表聚焦时粘贴，输入框及输入法组合输入不触发上传', () => {
+    const paste = vi.fn()
+    render(<><input aria-label="路径" /><FileListHarness revealPath={null} onPaste={paste} /></>)
+    const row = screen.getByRole('option', { name: 'target.txt' })
+    act(() => row.focus())
+    fireEvent.keyDown(row, { key: 'v', code: 'KeyV', ctrlKey: true, isComposing: true })
+    expect(paste).not.toHaveBeenCalled()
+    fireEvent.keyDown(row, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).toHaveBeenCalledOnce()
+    const input = screen.getByRole('textbox')
+    act(() => input.focus())
+    fireEvent.keyDown(input, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it.each([{ listEntries: [] }, { listEntries: entries }])('列表容器聚焦时支持系统粘贴，不依赖目录内存在文件：%j', ({ listEntries }) => {
+    const paste = vi.fn()
+    render(<FileListHarness revealPath={null} listEntries={listEntries} onPaste={paste} />)
+    const list = screen.getByRole('listbox')
+    act(() => list.focus())
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true, isComposing: true })
+    expect(paste).not.toHaveBeenCalled()
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true, repeat: true })
+    expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { interactionDisabled: true },
+    { navigationPending: true },
+    { initialPlaceholder: true },
+  ])('不可操作的空目录不触发粘贴上传：%j', (lockedState) => {
+    const paste = vi.fn()
+    const view = render(<FileListHarness revealPath={null} listEntries={[]} {...lockedState} onPaste={paste} />)
+    const list = screen.getByRole('listbox')
+    act(() => list.focus())
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).not.toHaveBeenCalled()
+    view.rerender(<FileListHarness revealPath={null} listEntries={[]} onPaste={paste} />)
+    fireEvent.keyDown(list, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).toHaveBeenCalledOnce()
+  })
+
+  it('空目录中的上传按钮聚焦时不被列表快捷键接管', () => {
+    const paste = vi.fn()
+    render(<FileListHarness revealPath={null} listEntries={[]} onPaste={paste} />)
+    const upload = screen.getByRole('button', { name: 'files.uploadFiles' })
+    act(() => upload.focus())
+    fireEvent.keyDown(upload, { key: 'v', code: 'KeyV', ctrlKey: true })
+    expect(paste).not.toHaveBeenCalled()
   })
 
   it('目标不在当前目录时保留已有选择且不聚焦或回报完成', () => {

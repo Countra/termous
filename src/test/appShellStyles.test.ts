@@ -12,15 +12,15 @@ const windowControlsSource = readSource('../app/app-shell/ui/WindowControls.tsx'
 const appSource = readSource('../app/main/App.tsx')
 const coreFatalSource = readSource('../app/main/CoreFatalDialog.tsx')
 const appShellStyles = readSource('../app/app-shell/ui/AppShell.module.scss')
-const windowControlsStyles = readSource('../app/app-shell/ui/WindowControls.module.scss')
+const windowControlsStyles = readSource('../shared/ui/WindowControls.module.scss')
 const appStyles = readSource('../app/main/App.module.scss')
 
-test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
+test('应用壳层使用共置样式，窗口控制复用共享 SCSS Modules', () => {
   assert.match(appShellSource, /import styles from '\.\/AppShell\.module\.scss'/)
   assert.match(appShellSource, /import \{ contextActionMenuPopupClassName \} from '#shared\/ui'/)
   assert.match(appShellSource, /styles\['app-shell'\]/)
   assert.match(appShellSource, /classNames=\{\{ root: styles\['topbar-connect-dropdown'\] \}\}/)
-  assert.match(windowControlsSource, /import styles from '\.\/WindowControls\.module\.scss'/)
+  assert.match(windowControlsSource, /windowControlStyles as styles/)
   assert.match(windowControlsSource, /styles\['window-controls'\]/)
   assert.match(appSource, /styles\['app-keepalive-page'\]/)
   assert.match(appSource, /<CoreFatalDialog[^>]*fatal=\{coreFatal\}/)

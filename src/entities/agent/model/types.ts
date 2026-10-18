@@ -1,3 +1,4 @@
+import type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
 export const agentApiModes = ['responses', 'chat_completions'] as const
 export type AgentApiMode = (typeof agentApiModes)[number]
 
@@ -11,12 +12,14 @@ export const agentReadinessComponentStates = ['ready', 'missing', 'outdated', 'u
 export type AgentReadinessComponentState = (typeof agentReadinessComponentStates)[number]
 
 export interface AgentSettings {
+  execution_budget?: import('#common/contracts').ExecutionBudget
   default_model_id?: string
   default_reasoning_level: AgentReasoningLevel
   global_context_window_tokens: number
   global_max_output_tokens: number
   context_compaction_threshold_percent: number
-  connect_ssh_profile_on_bind: boolean
+  max_concurrent_runs: number
+    connect_ssh_profile_on_bind: boolean
   show_turn_token_usage: boolean
   revision: number
   created_at: string
@@ -232,20 +235,34 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile'] as const
+export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
-export type AgentResourceSlot = 'ssh' | 'file'
+export type AgentResourceSlot = 'ssh' | 'file' | 'desktop' | 'workflow'
 
 export type AgentResourceReference =
   | { kind: 'ssh_session'; session_id: string }
   | { kind: 'ssh_profile'; ssh_profile_id: string }
   | { kind: 'file_profile'; file_access_profile_id: string }
+  | { kind: 'desktop_session'; session_id: string; connection_generation: number }
+  | { kind: 'desktop_profile'; desktop_profile_id: string }
+  | { kind: 'desktop_workflow'; workflow_id: string; workflow_version: number }
 
 interface AgentResourceBindingBase {
   bound_at: string
 }
 
+export interface AgentMessageResource {
+  version?: number
+  kind: AgentResourceKind
+  id: string
+  name: string
+  host_name?: string
+}
+
 export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'desktop_session'; session_id: string; connection_generation: number; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
+  | { kind: 'desktop_profile'; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
+  | { kind: 'desktop_workflow'; workflow_id: string; workflow_name: string; workflow_version: number; host_id?: never; host_name?: never }
   | { kind: 'ssh_session'; session_id: string; host_id: string; ssh_profile_id: string; host_name: string; platform: 'linux' }
   | { kind: 'ssh_profile'; host_id: string; ssh_profile_id: string; host_name: string; ssh_profile_name: string; platform: 'linux' }
   | {
@@ -274,7 +291,11 @@ export interface AgentFileResourceState {
   status: 'ready' | 'unavailable'
 }
 
-export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState
+export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' }>
+export type AgentDesktopResourceState = Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_session' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_profile' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_workflow' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState | AgentDesktopResourceState
 
 export interface AgentSSHResourceState {
   session_id: string
@@ -307,8 +328,8 @@ export type AgentLaunchIntent = { key: number } & (
   | {
       source: 'connection_reference'
       target: { kind: 'new' } | { kind: 'session'; session_id: string }
-      resource_reference: Exclude<AgentResourceReference, { kind: 'ssh_profile' }>
-      source_resource: AgentSSHResourceState | AgentFileResourceState
+      resource_reference: Extract<AgentResourceReference, { kind: 'ssh_session' | 'file_profile' | 'desktop_session' }>
+      source_resource: AgentSSHResourceState | AgentFileResourceState | Extract<AgentDesktopResourceState, { kind: 'desktop_session' }>
     }
 )
 
@@ -327,6 +348,8 @@ export type AgentJsonValue =
   | { [key: string]: AgentJsonValue }
 
 export interface AgentSession {
+  origin?: 'remote'
+  creator_device_id?: string
   id: string
   title: string
   group_id?: string
@@ -404,6 +427,21 @@ export interface AgentToolResultPart {
   tool_name: string
   content: AgentJsonValue
   is_error: boolean
+  images?: AgentToolImageMetadata[]
+}
+
+export interface AgentToolImageMetadata {
+  content_index: number
+  mime_type: string
+  size_bytes: number
+}
+
+export interface AgentToolImageSource {
+  session_id: string
+  message_id: string
+  part_id: string
+  content_index: number
+  revision: number
 }
 
 export interface AgentResponseFailure {
@@ -419,13 +457,31 @@ export type AgentMessagePart = {
   created_at: string
   updated_at: string
 } & (
-  | { kind: 'text'; text: string; source_context?: AgentSourceContext; response_failure?: AgentResponseFailure }
+  | { kind: 'text'; text: string; source_context?: AgentSourceContext; resources?: AgentMessageResource[]; response_failure?: AgentResponseFailure }
   | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
   | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
   | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
 )
 
+export interface AgentRequestUsage {
+  effective_tools?: string[]
+  context_fingerprint?: string
+  execution_summary_tokens?: number
+  error_code?: string
+  request_index: number
+  purpose: 'response' | 'compaction'
+  tool_count: number
+  schema_bytes: number
+  schema_tokens_estimate: number
+  images: { width: number; height: number }[]
+  usage: AgentUsage
+  duration_ms: number
+  outcome: 'completed' | 'failed' | 'cancelled'
+}
+
 export interface AgentMessage {
+  progress?: AgentProgressActivity[]
+  request_usage?: AgentRequestUsage[]
   id: string
   session_id: string
   role: AgentMessageRole
@@ -479,6 +535,7 @@ export type AgentContextUsageBasis = 'pi_estimate' | 'provider_usage'
 export type AgentContextCompressionStatus = 'unknown' | 'available' | 'unavailable'
 
 export interface AgentContextUsageData {
+  compression_trigger_tokens?: number
   estimated_tokens: number
   context_window_tokens: number
   estimated: boolean
@@ -647,7 +704,9 @@ export const agentRunEventKinds = [
   'usage',
   'compaction',
   'retry',
+  'progress',
   'context_usage',
+  'request_usage',
   'error',
 ] as const
 export type AgentRunEventKind = (typeof agentRunEventKinds)[number]
@@ -694,9 +753,11 @@ export type AgentRunEvent =
   | AgentRunEventBase<'steer_applied', {
       steer_applied: { message_id: string; part_id: string }
     }>
+  | AgentRunEventBase<'request_usage', { request_usage: AgentRequestUsage }>
   | AgentRunEventBase<'usage', { usage: AgentUsage }>
   | AgentRunEventBase<'compaction', { compaction: AgentCompactionData }>
   | AgentRunEventBase<'retry', { retry: AgentRetryData }>
+  | AgentRunEventBase<'progress', { progress: AgentProgressData }>
   | AgentRunEventBase<'context_usage', { context_usage: AgentContextUsageData }>
   | AgentRunEventBase<'error', { error: { code: string; message: string } }>
 

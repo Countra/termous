@@ -1,0 +1,110 @@
+.panel:global(.ant-drawer-section) {
+  background: var(--app-bg-elevated);
+  color: var(--text-primary);
+  border-inline-start: 1px solid var(--border);
+  container-type: inline-size;
+}
+
+.header:global(.ant-drawer-header) {
+  padding: 18px 22px;
+  border-color: var(--border);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+
+}
+
+.heading > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.heading strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.heading span {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.body:global(.ant-drawer-body) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 20px 24px;
+}
+
+.loading {
+  display: grid;
+  gap: 20px;
+  padding-block: 16px;
+  color: var(--text-secondary);
+}
+
+.path {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: var(--app-bg);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.path > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+
+}
+
+.path > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.path > div > span:first-child {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.path :global(.ant-typography) {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.error {
+  display: grid;
+  gap: 8px;
+  padding-block: 12px;
+}
+
+.code {
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 560px) {
+  .body:global(.ant-drawer-body) { padding: 14px 12px; }
+  .header:global(.ant-drawer-header) { padding: 14px 16px; }
+}

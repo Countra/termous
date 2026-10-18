@@ -9,6 +9,9 @@
       core: '正在启动…', checking: '正在检查本地数据…', workspace: '正在准备工作区…',
       initializeRunning: '正在初始化数据库…', initializeCompleted: '数据库初始化完成',
       adoptRunning: '正在更新数据库…', adoptCompleted: '数据库更新完成',
+      prepareRunning: '正在准备业务数据库…', prepareCompleted: '业务数据库准备完成',
+      domains: { core: '配置库', agent: 'AI 助手', workflows: '桌面脚本', audit: '审计' },
+      unavailable: '以下模块暂不可用：',
       upgradeRunning: '正在升级数据库…', upgradeCompleted: '数据库升级完成',
       error: '应用启动未完成', databaseError: '数据库处理未完成',
       completedBeforeError: '数据库处理已完成，但应用启动失败。',
@@ -28,6 +31,9 @@
       core: 'Starting…', checking: 'Checking local data…', workspace: 'Preparing workspace…',
       initializeRunning: 'Initializing database…', initializeCompleted: 'Database initialized',
       adoptRunning: 'Updating database…', adoptCompleted: 'Database updated',
+      prepareRunning: 'Preparing module databases…', prepareCompleted: 'Module databases prepared',
+      domains: { core: 'Configuration', agent: 'AI assistant', workflows: 'Desktop workflows', audit: 'Audit' },
+      unavailable: 'Modules unavailable: ',
       upgradeRunning: 'Upgrading database…', upgradeCompleted: 'Database upgrade complete',
       error: 'Application startup did not complete', databaseError: 'Database setup did not complete',
       completedBeforeError: 'Database setup completed, but application startup failed.',
@@ -88,6 +94,10 @@
         [text.migration, failure.migrationVersion], [text.file, failure.migrationFile],
         [text.role, failure.databaseRole])
     }
+    for (const database of view.databases || []) {
+      rows.push([`${text.domains[database.domain] || database.domain} / ${database.role} / ${database.id}`,
+        `${database.status}; ${database.fromVersion ?? '?'} → ${database.targetVersion ?? '?'}; ${text.confirmed}: ${database.confirmedVersion ?? '?'}${database.code ? `; ${database.code}` : ''}`])
+    }
     const fields = rows.filter(([, value]) => value !== undefined && value !== null && value !== '')
       .map(([label, value]) => `${label}: ${value}`)
     if (failure?.details && failure.details !== failure.message) fields.push('', failure.details)
@@ -111,7 +121,9 @@
       : view.phase === 'database-completed' ? text[`${operation}Completed`]
         : failed ? (view.failure?.code.startsWith('DB_') ? text.databaseError : text.error)
           : (text[view.phase] || text.core)
+    const unavailable = [...new Set((view.databases || []).filter((database) => database.status === 'failed').map((database) => text.domains[database.domain] || database.domain))]
     let description = view.attention ? text[view.attention] : ''
+    if (!failed && unavailable.length) description = [description, text.unavailable + unavailable.join('、')].filter(Boolean).join('\n')
     if (failed) {
       const adviceKey = {
         DB_VERSION_TOO_NEW: 'versionTooNew', DB_LEGACY_UNSUPPORTED: 'legacyUnsupported',
@@ -122,8 +134,8 @@
     }
     elements.description.hidden = !description
     elements.description.textContent = description
-    elements.actions.hidden = !failed && !view.attention
-    elements.details.hidden = !failed
+    elements.actions.hidden = !failed && !view.attention && !unavailable.length
+    elements.details.hidden = !failed && !unavailable.length
     elements['details-label'].textContent = text.details
     elements['details-text'].textContent = diagnosticText(view, text)
     elements.copy.textContent = text.copy

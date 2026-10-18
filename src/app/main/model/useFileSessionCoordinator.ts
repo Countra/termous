@@ -32,6 +32,7 @@ export function useFileSessionCoordinator({
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
   const closingFileSessionIdsRef = useRef(new Set<string>())
   const retiredFileSessionIdsRef = useRef(new Set<string>())
+  const selectionEpochRef = useRef(0)
   const fileSessionsRef = useRef(fileSessions)
   const fileSessionClosuresRef = useRef(fileSessionClosures)
   fileSessionsRef.current = fileSessions
@@ -79,10 +80,12 @@ export function useFileSessionCoordinator({
   )
 
   const activateFileSession = useCallback((fileSessionId: string) => {
+    selectionEpochRef.current++
     setActiveFileSessionId(fileSessionId)
   }, [])
 
   const connectAndActivateFileSession = useCallback<ConnectFileSession>(async (input) => {
+    selectionEpochRef.current++
     const fileSession = await connectFileSession(input)
     retiredFileSessionIdsRef.current.delete(fileSession.id)
     setActiveFileSessionId((current) => selectActiveFileSessionAfterConnect(
@@ -119,10 +122,10 @@ export function useFileSessionCoordinator({
       supersedeFileSessionRecovery(fileSessionId)
       retiredFileSessionIdsRef.current.add(fileSessionId)
       selectCloseFallback(fileSessionId)
-      return
+      return true
     }
     if (closingFileSessionIdsRef.current.has(fileSessionId)) {
-      return
+      return false
     }
     closingFileSessionIdsRef.current.add(fileSessionId)
     setClosingFileSessionIds([...closingFileSessionIdsRef.current])
@@ -130,13 +133,31 @@ export function useFileSessionCoordinator({
       await closeFileSessionRequest(fileSessionId)
       retiredFileSessionIdsRef.current.add(fileSessionId)
       selectCloseFallback(fileSessionId)
+      return true
     } catch (error) {
       onCloseError(error)
+      return false
     } finally {
       closingFileSessionIdsRef.current.delete(fileSessionId)
       setClosingFileSessionIds([...closingFileSessionIdsRef.current])
     }
   }, [closeFileSessionRequest, onCloseError, selectCloseFallback, supersedeFileSessionRecovery])
+
+  const restartFileSession = useCallback(async (session: FileSession, initialPath: string) => {
+    if (!session.file_access_profile_id || closingFileSessionIdsRef.current.has(session.id)) return null
+    const selectionEpoch = selectionEpochRef.current
+    const restoreActive = activeFileSession?.id === session.id
+    if (!await closeFileSession(session.id)) return null
+    const result = await connectFileSession({
+      fileAccessProfileId: session.file_access_profile_id,
+      initialPath,
+      ...(session.source_session_id ? { sourceSessionId: session.source_session_id } : {}),
+    })
+    retiredFileSessionIdsRef.current.delete(result.id)
+    // 关闭后的自动回退不算用户选择；显式切换或新建连接后，迟到的重启结果不抢焦点。
+    if (restoreActive && selectionEpochRef.current === selectionEpoch) setActiveFileSessionId(result.id)
+    return result
+  }, [activeFileSession?.id, closeFileSession, connectFileSession])
 
   return {
     displayedFileSessions,
@@ -145,5 +166,6 @@ export function useFileSessionCoordinator({
     activateFileSession,
     connectAndActivateFileSession,
     closeFileSession,
+    restartFileSession,
   }
 }

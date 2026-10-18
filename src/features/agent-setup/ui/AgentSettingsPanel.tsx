@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Skeleton } from 'antd'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -7,14 +7,22 @@ import { agentSetupErrorKey } from '../model/agentSetupError.ts'
 import { useAgentSetupController } from '../model/useAgentSetupController.ts'
 import { AgentProviderManager } from './AgentProviderManager.tsx'
 import { AgentRuntimeSettings } from './AgentRuntimeSettings.tsx'
+import { AgentServiceNotice } from './model-services/AgentServiceNotice.tsx'
 import styles from './AgentSetup.module.scss'
 
-export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) {
+export function AgentSettingsPanel({ gateway, view = 'preferences', active = true }: { gateway: AgentSetupGateway; view?: 'preferences' | 'models'; active?: boolean }) {
   const { t } = useTranslation()
+  const Notice = view === 'models' ? AgentServiceNotice : Alert
   const runtime = useAgentSetupController(gateway)
+  const { load } = runtime
+  const wasActive = useRef(active)
+  useEffect(() => {
+    if (active && !wasActive.current) void load()
+    wasActive.current = active
+  }, [active, load])
   const [editorConflictVisible, setEditorConflictVisible] = useState(false)
   const [editorErrorVisible, setEditorErrorVisible] = useState(false)
-  const [defaultsConflictVisible, setDefaultsConflictVisible] = useState(false)
+  const [configurationErrorVisible, setConfigurationErrorVisible] = useState(false)
 
   if (runtime.loading && !runtime.readiness) {
     return <div className={styles.skeleton}><Skeleton active paragraph={{ rows: 8 }} /></div>
@@ -23,7 +31,7 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
   if (!runtime.readiness) {
     return (
       <section className={styles.surface}>
-        <Alert
+        <Notice
           type="error"
           showIcon
           title={t('settings.agent.loadFailed')}
@@ -40,14 +48,14 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
     )
   }
 
-  const localEditorOwnsConflict = editorConflictVisible || defaultsConflictVisible
+  const localEditorOwnsConflict = editorConflictVisible || view === 'preferences' && runtime.conflict?.kind === 'configuration'
   const errorBelongsToConflict = Boolean(runtime.conflict
     && agentSetupErrorKey(runtime.error) === 'settings.agent.error.conflict')
 
   return (
     <div className={styles.stack}>
       {runtime.conflict && !localEditorOwnsConflict ? (
-        <Alert
+        <Notice
           type="warning"
           showIcon
           title={t('settings.agent.conflict.title')}
@@ -59,8 +67,8 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
           )}
         />
       ) : null}
-      {runtime.error && !editorErrorVisible && !errorBelongsToConflict ? (
-        <Alert
+      {runtime.error && !editorErrorVisible && !configurationErrorVisible && !errorBelongsToConflict && runtime.conflict?.kind !== 'configuration' ? (
+        <Notice
           type="error"
           showIcon
           closable
@@ -69,16 +77,11 @@ export function AgentSettingsPanel({ gateway }: { gateway: AgentSetupGateway }) 
         />
       ) : null}
 
-      <AgentRuntimeSettings
-        runtime={runtime}
-        onDefaultsConflictVisibilityChange={setDefaultsConflictVisible}
-      />
-
-      <AgentProviderManager
+      {view === 'preferences' ? <AgentRuntimeSettings runtime={runtime} onErrorVisibilityChange={setConfigurationErrorVisible} /> : <AgentProviderManager
         runtime={runtime}
         onEditorConflictVisibilityChange={setEditorConflictVisible}
         onErrorVisibilityChange={setEditorErrorVisible}
-      />
+      />}
 
     </div>
   )

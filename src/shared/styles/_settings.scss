@@ -1,0 +1,32 @@
+// 仅提供设置页的视觉规则，不输出全局选择器，也不接管各模块的保存行为。
+@mixin panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 24%, var(--surface));
+}
+
+@mixin heading {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+@mixin row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px 24px;
+  padding: 17px 18px;
+}
+
+@mixin hint {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

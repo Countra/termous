@@ -1,25 +1,20 @@
-import type { App, IpcMain, IpcMainInvokeEvent } from 'electron'
-import { loginItemIPCChannels, type LoginItemResponse, type LoginItemState } from '#common/contracts'
+import type { App } from 'electron'
+import { type LoginItemResponse, type LoginItemState } from '#common/contracts'
 
 interface LoginItemOptions {
-  ipcMain: Pick<IpcMain, 'handle' | 'removeHandler'>
   app: Pick<App, 'isPackaged' | 'getLoginItemSettings' | 'setLoginItemSettings'>
   platform: NodeJS.Platform
   development: boolean
   executablePath: string
   entryName: string
-  isTrustedSender: (event: IpcMainInvokeEvent) => boolean
 }
 
-// 只注册入口，不在应用启动、读取设置或恢复备份时写入系统启动项。
-export function registerLoginItemIPC(options: LoginItemOptions) {
+// 系统适配器仅在显式修改时写入启动项；IPC 鉴权和并发控制由设置中心负责。
+export function createLoginItemAdapter(options: LoginItemOptions) {
   const unavailableReason = (): LoginItemState['unavailable_reason'] => {
     if (!options.app.isPackaged || options.development) return 'development'
     if (options.platform !== 'win32' && options.platform !== 'darwin') return 'unsupported_platform'
     return null
-  }
-  const assertTrusted = (event: IpcMainInvokeEvent) => {
-    if (!options.isTrustedSender(event)) throw new Error('LOGIN_ITEM_IPC_NOT_ALLOWED')
   }
   const read = (requestedEnabled?: boolean): LoginItemResponse => {
     const reason = unavailableReason()
@@ -48,12 +43,7 @@ export function registerLoginItemIPC(options: LoginItemOptions) {
     }
   }
 
-  options.ipcMain.handle(loginItemIPCChannels.get, (event): LoginItemResponse => {
-    assertTrusted(event)
-    return read()
-  })
-  options.ipcMain.handle(loginItemIPCChannels.setEnabled, (event, enabled: unknown): LoginItemResponse => {
-    assertTrusted(event)
+  const setEnabled = (enabled: unknown): LoginItemResponse => {
     // 主进程独立校验环境，绕过禁用的界面也不能在开发模式调用系统接口。
     if (unavailableReason()) return { ok: false, error: 'unavailable' }
     if (typeof enabled !== 'boolean') return { ok: false, error: 'invalid_request' }
@@ -66,9 +56,6 @@ export function registerLoginItemIPC(options: LoginItemOptions) {
     }
     // 系统可能拒绝修改；回读后才报告成功，不能只依据无异常返回。
     return read(enabled)
-  })
-  return () => {
-    options.ipcMain.removeHandler(loginItemIPCChannels.get)
-    options.ipcMain.removeHandler(loginItemIPCChannels.setEnabled)
   }
+  return { get: () => read(), setEnabled }
 }

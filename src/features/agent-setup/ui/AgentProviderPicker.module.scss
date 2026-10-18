@@ -1,0 +1,84 @@
+.picker:global(.ant-select) {
+  width: 100%;
+  height: 36px;
+}
+
+.picker-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.picker-label svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.picker-label > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-popup :global(.ant-select-item-option-content) { white-space: normal; }
+
+.picker-option {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  padding: 7px 3px;
+}
+
+.picker-option > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.picker-option strong {
+  font-size: 12px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.picker-option small {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.picker-option > span {
+  display: flex;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.picker-option i { font-style: normal; }
+
+.provider-row-state {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.provider-row-state > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.provider-row-state.is-ready { color: var(--success); }
+
+.provider-row-state.is-ready-warning,
+.provider-row-state.is-stale { color: var(--warning); }
+.provider-row-state.is-failed { color: var(--danger); }

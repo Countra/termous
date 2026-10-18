@@ -1,26 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import { App as AntdApp, Button, Tabs, Tooltip } from 'antd'
-import { Boxes, CloudCog, Plus, Settings2, Trash2 } from 'lucide-react'
+import { Boxes, Settings2, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AgentModel, AgentModelProvider } from '#entities/agent'
-import { TermousApiError } from '#shared/api'
-import { ConfirmDialog, EditorModeContext, termousNotificationClassName, uiStyles } from '#shared/ui'
+import { SettingsEditorContext, useSettingsEditor, type SettingsEditor } from '#entities/settings'
+import { ConfirmDialog, SettingsSaveBar, termousNotificationClassName, uiStyles } from '#shared/ui'
 import {
   AgentProviderProvisionError,
   type AgentSetupController,
 } from '../model/useAgentSetupController.ts'
-import { AgentModelEditorDialog } from './AgentModelEditorDialog.tsx'
+import { AgentModelEditor } from './AgentModelEditor.tsx'
 import { AgentModelCatalog } from './AgentModelCatalog.tsx'
 import { AgentModelActionDialogs } from './AgentModelActionDialogs.tsx'
 import { AgentProviderConnectionForm } from './AgentProviderConnectionForm.tsx'
-import { AgentProviderList } from './AgentProviderList.tsx'
-import setupStyles from './AgentSetup.module.scss'
+import { AgentProviderHeader } from './model-services/AgentProviderHeader.tsx'
+import { AgentServiceNotice } from './model-services/AgentServiceNotice.tsx'
+import { useAgentDefaultModelDraft } from '../model/useAgentDefaultModelDraft.ts'
+import { useAgentProviderActions } from '../model/useAgentProviderActions.ts'
 import styles from './AgentProviderManager.module.scss'
 
 type PendingNavigation =
   | { kind: 'create' }
   | { kind: 'provider'; id: string }
   | { kind: 'tab'; tab: 'connection' | 'catalog' }
+  | { kind: 'model'; model?: AgentModel }
 
 export function AgentProviderManager({
   runtime,
@@ -36,7 +39,11 @@ export function AgentProviderManager({
   const [selectedId, setSelectedId] = useState<string | undefined>(() => runtime.providers[0]?.id)
   const [creating, setCreating] = useState(() => runtime.providers.length === 0)
   const [activeTab, setActiveTab] = useState<'connection' | 'catalog'>('connection')
-  const [dirty, setDirty] = useState(false)
+  const [editor, setEditor] = useState<SettingsEditor | null>(null)
+  const defaultModelDraft = useAgentDefaultModelDraft(runtime)
+  const activeEditor = editor ?? defaultModelDraft.editor
+  const dirty = activeEditor.dirty
+  const [saved, setSaved] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation>()
   const [formResetGeneration, setFormResetGeneration] = useState(0)
   const [createFocusGeneration, setCreateFocusGeneration] = useState(0)
@@ -47,8 +54,7 @@ export function AgentProviderManager({
   const [creatingModel, setCreatingModel] = useState(false)
   const [removeModelId, setRemoveModelId] = useState<string>()
   const [testModelId, setTestModelId] = useState<string>()
-  const [testingProviderId, setTestingProviderId] = useState<string>()
-  const [refreshingProviderId, setRefreshingProviderId] = useState<string>()
+  const { testProvider, refreshProvider, testingProviderId, refreshingProviderId } = useAgentProviderActions(runtime, () => setProvisionFailure(undefined))
   const [modelSaveError, setModelSaveError] = useState<unknown>(null)
   const [providerSaveError, setProviderSaveError] = useState<unknown>(null)
   const [selectedProviderSnapshot, setSelectedProviderSnapshot] = useState<AgentModelProvider | undefined>(
@@ -91,6 +97,12 @@ export function AgentProviderManager({
   const testModel = testModelId ? modelById.get(testModelId) : undefined
   const removeModel = removeModelId ? modelById.get(removeModelId) : undefined
   const busy = runtime.loading || runtime.mutation !== null
+  const pageEditor: SettingsEditor = {
+    dirty, busy: busy || activeEditor.busy || Boolean(pendingNavigation || deleteProviderId || removeModelId || testModelId),
+    invalid: activeEditor.invalid, saving: activeEditor.saving ?? false, ready: Boolean(runtime.readiness), saved,
+    save: () => activeEditor.save(), reset: () => { activeEditor.reset(); setSaved(false) },
+  }
+  const managed = useSettingsEditor(pageEditor)
 
   useEffect(() => {
     if (creating) return
@@ -124,7 +136,9 @@ export function AgentProviderManager({
   }, [editModel])
 
   const navigate = (target: PendingNavigation) => {
-    if (busy) return
+    if (pageEditor.busy) return
+    if (target.kind === 'provider' && !creating && target.id === selectedId && !creatingModel && !editModelId) return
+    if (target.kind === 'tab' && target.tab === activeTab && !creatingModel && !editModelId) return
     if (dirty) {
       setPendingNavigation(target)
       return
@@ -134,7 +148,13 @@ export function AgentProviderManager({
 
   const applyNavigation = (target: PendingNavigation) => {
     setProvisionFailure(undefined)
-    setDirty(false)
+    setFormResetGeneration(current => current + 1)
+    setEditor(null)
+    defaultModelDraft.reset()
+    setSaved(false)
+    setCreatingModel(false)
+    setEditModelId(undefined)
+    setEditModelSnapshot(undefined)
     if (target.kind === 'create') {
       setCreating(true)
       setActiveTab('connection')
@@ -145,6 +165,12 @@ export function AgentProviderManager({
       setCreating(false)
       setSelectedId(target.id)
       setActiveTab('connection')
+      return
+    }
+    if (target.kind === 'model') {
+      setCreatingModel(!target.model)
+      setEditModelId(target.model?.id)
+      setEditModelSnapshot(target.model)
       return
     }
     setActiveTab(target.tab)
@@ -181,7 +207,7 @@ export function AgentProviderManager({
       const saved = await runtime.saveProvider(input, baseline)
       setSelectedId(saved.id)
       setCreating(false)
-      setDirty(false)
+      setSaved(true)
       setFormResetGeneration((current) => current + 1)
       setProvisionFailure(undefined)
       notification.success({
@@ -192,7 +218,7 @@ export function AgentProviderManager({
       if (error instanceof AgentProviderProvisionError) {
         setSelectedId(error.providerId)
         setCreating(false)
-        setDirty(false)
+        setSaved(true)
         setFormResetGeneration((current) => current + 1)
         setProvisionFailure(error.stage)
         notification.warning({
@@ -202,62 +228,6 @@ export function AgentProviderManager({
         })
       }
       throw error
-    }
-  }
-
-  const testProvider = async (provider: AgentModelProvider) => {
-    setTestingProviderId(provider.id)
-    try {
-      const result = await runtime.testProvider(provider)
-      notification[result.status === 'ready' ? 'success' : 'warning']({
-        title: t(result.status === 'ready'
-          ? 'settings.agent.providers.testSuccess'
-          : 'settings.agent.providers.testFailed', {
-          latency: result.latency_ms,
-          count: result.model_count,
-        }),
-        description: t(result.status === 'ready'
-          ? 'settings.agent.providers.testReady'
-          : 'settings.agent.providers.testUnavailable'),
-        className: termousNotificationClassName,
-      })
-    } catch (error) {
-      if (!isRequestAborted(error)) {
-        notification.warning({
-          title: t('settings.agent.providers.testFailed'),
-          description: t('settings.agent.providers.testUnavailable'),
-          className: termousNotificationClassName,
-        })
-      }
-      throw error
-    } finally {
-      setTestingProviderId((current) => current === provider.id ? undefined : current)
-    }
-  }
-
-  const refreshProvider = async (provider: AgentModelProvider) => {
-    setRefreshingProviderId(provider.id)
-    try {
-      const refreshed = await runtime.refreshProvider(provider)
-      const failed = refreshed.refresh_status !== 'ready' || Boolean(refreshed.last_refresh_error_code)
-      if (!failed) setProvisionFailure(undefined)
-      notification[failed ? 'warning' : 'success']({
-        title: t(failed
-          ? 'settings.agent.catalog.refreshFailed'
-          : 'settings.agent.catalog.refreshSuccess'),
-        description: failed ? t('settings.agent.catalog.refreshFailedDescription') : undefined,
-        className: termousNotificationClassName,
-      })
-    } catch (error) {
-      if (!isRequestAborted(error)) {
-        notification.warning({
-          title: t('settings.agent.catalog.refreshFailed'),
-          description: t('settings.agent.catalog.refreshFailedDescription'),
-          className: termousNotificationClassName,
-        })
-      }
-    } finally {
-      setRefreshingProviderId((current) => current === provider.id ? undefined : current)
     }
   }
 
@@ -282,16 +252,16 @@ export function AgentProviderManager({
     || editModelRemoved
     || modelProviderMissing
   const providerSaveErrorVisible = Boolean(
-    (creating || activeTab === 'connection') && providerSaveError && runtime.error === providerSaveError,
+    !creatingModel && !editModelId && (creating || activeTab === 'connection') && providerSaveError && runtime.error === providerSaveError,
   )
   const modelSaveErrorVisible = Boolean(
     (creatingModel || editingModel) && modelSaveError && runtime.error === modelSaveError,
   )
   useEffect(() => {
     onEditorConflictVisibilityChange(Boolean(
-      providerEditorConflict || modelEditorConflict,
+      providerEditorConflict || modelEditorConflict || defaultModelDraft.conflicted,
     ))
-  }, [modelEditorConflict, onEditorConflictVisibilityChange, providerEditorConflict])
+  }, [defaultModelDraft.conflicted, modelEditorConflict, onEditorConflictVisibilityChange, providerEditorConflict])
   useEffect(() => {
     onErrorVisibilityChange(modelSaveErrorVisible || providerSaveErrorVisible)
   }, [modelSaveErrorVisible, onErrorVisibilityChange, providerSaveErrorVisible])
@@ -300,194 +270,103 @@ export function AgentProviderManager({
     && model.id === runtime.readiness?.settings.default_model_id
   )))
 
-  return (
-    <section className={`${setupStyles.surface} ${styles['provider-management-surface']}`}>
-      <header className={`${setupStyles['section-header']} ${styles['provider-management-header']}`}>
-        <div className={styles['provider-management-heading']}>
-          <span className={styles['provider-management-icon']} aria-hidden="true">
-            <CloudCog size={18} />
-          </span>
-          <div>
-            <div className={setupStyles['section-title']}>
-              <h2>{t('settings.agent.providers.title')}</h2>
-            </div>
-            <span>{t('settings.agent.providers.count', { count: runtime.providers.length })}</span>
-          </div>
-        </div>
-        <Button
-          type="primary"
-          icon={<Plus size={15} aria-hidden="true" />}
-          disabled={busy}
-          onClick={() => navigate({ kind: 'create' })}
-        >
-          {t('settings.agent.providers.add')}
-        </Button>
-      </header>
-      <div className={styles['provider-management-layout']}>
-        <AgentProviderList
-          providers={runtime.providers}
-          selectedId={selectedId}
-          creating={creating}
-          disabled={busy}
-          modelCounts={modelCounts}
-          onSelect={(id) => navigate({ kind: 'provider', id })}
-        />
-        <section className={styles['provider-editor']}>
-          <header className={styles['provider-editor-header']}>
-            <EditorModeContext
-              mode={creating ? 'create' : 'edit'}
-              label={t(creating ? 'app.add' : 'app.edit')}
-              title={<h3>{creating ? t('settings.agent.providers.new') : editingProvider?.name}</h3>}
-            />
-            {selectedProvider && !creating ? (
-              <div className={styles['provider-header-actions']}>
-                <Action
-                  title={t(providerContainsDefault
-                    ? 'settings.agent.providers.deleteDefaultBlocked'
-                    : 'app.delete')}
-                  icon={<Trash2 size={15} />}
-                  disabled={busy || providerContainsDefault}
-                  danger
-                  onClick={() => setDeleteProviderId(selectedProvider.id)}
-                />
-              </div>
-            ) : null}
-          </header>
-          {creating || editingProvider ? (
-            <Tabs
-              activeKey={creating ? 'connection' : activeTab}
-              className={styles['provider-tabs']}
-              onChange={(key) => navigate({ kind: 'tab', tab: key as 'connection' | 'catalog' })}
-              items={[
-                {
-                  key: 'connection',
-                  disabled: busy,
-                  className: styles['provider-connection-pane'],
-                  label: (
-                    <span className={styles['provider-tab-label']}>
-                      <Settings2 size={14} aria-hidden="true" />
-                      {t('settings.agent.providers.connectionTab')}
-                    </span>
-                  ),
-                  children: (
-                    <AgentProviderConnectionForm
-                      key={`${creating ? 'create' : editingProvider?.id ?? 'missing'}:${formResetGeneration}`}
-                      provider={creating ? undefined : editingProvider}
-                      busy={busy}
-                      conflicted={Boolean(providerEditorConflict)}
-                      providerMissing={selectedProviderMissing}
-                      provisionFailure={provisionFailure}
-                      testing={testingProviderId === selectedProvider?.id}
-                      focusRequest={creating ? createFocusGeneration : 0}
-                      onDirtyChange={setDirty}
-                      onResolveConflict={resolveProviderConflict}
-                      onSave={saveProvider}
-                      onSaveErrorChange={setProviderSaveError}
-                      onTest={() => selectedProvider
-                        ? testProvider(selectedProvider)
-                        : Promise.resolve()}
-                    />
-                  ),
-                },
-                ...(!creating && selectedProvider ? [{
-                  key: 'catalog',
-                  disabled: busy,
-                  className: styles['provider-catalog-pane'],
-                  label: (
-                    <span className={styles['provider-tab-label']}>
-                      <Boxes size={14} aria-hidden="true" />
-                      {t('settings.agent.providers.catalogTab')}
-                    </span>
-                  ),
-                  children: (
-                    <AgentModelCatalog
-                      provider={selectedProvider}
-                      models={providerModels}
-                      defaultModelId={runtime.readiness?.settings.default_model_id}
-                      disabled={busy}
-                      refreshing={refreshingProviderId === selectedProvider.id}
-                      onRefresh={() => void refreshProvider(selectedProvider)}
-                      onAdd={() => {
-                        setEditModelId(undefined)
-                        setEditModelSnapshot(undefined)
-                        setCreatingModel(true)
-                      }}
-                      onEdit={(model) => {
-                        setCreatingModel(false)
-                        setEditModelSnapshot(model)
-                        setEditModelId(model.id)
-                      }}
-                      onTest={(model) => setTestModelId(model.id)}
-                      onSetDefault={(model) => void runtime.updateSettings({
-                        default_model_id: model.id,
-                      }).catch(() => undefined)}
-                      onRemove={(model) => setRemoveModelId(model.id)}
-                      onRestore={(model) => void runtime.restoreModel(model).catch(() => undefined)}
-                    />
-                  ),
-                }] : []),
-              ]}
-            />
-          ) : (
-            <div className={styles['provider-editor-empty']}>
-              <span><Plus size={19} /></span>
-              <strong>{t('settings.agent.providers.emptyEditor')}</strong>
-              <Button type="primary" icon={<Plus size={15} />} onClick={() => navigate({ kind: 'create' })}>
-                {t('settings.agent.providers.add')}
-              </Button>
-            </div>
-          )}
-        </section>
-      </div>
+  const editingModelOpen = creatingModel || Boolean(editingModel)
+  const tabItems = [
+    { key: 'connection', disabled: busy, label: <span className={styles['provider-tab-label']}><Settings2 size={14} aria-hidden="true" />{t('settings.agent.providers.connectionTab')}</span> },
+    { key: 'catalog', disabled: busy || creating, label: <span className={styles['provider-tab-label']}><Boxes size={14} aria-hidden="true" />{t('settings.agent.providers.catalogTab')}
+      {!creating && <small aria-hidden="true">{modelCounts.get(selectedId ?? '') ?? 0}</small>}</span> },
+  ]
 
-      <AgentModelEditorDialog
-        key={creatingModel ? `create:${selectedId}` : editingModel?.id ?? 'closed'}
-        open={creatingModel || Boolean(editingModel)}
-        provider={selectedProvider ?? (modelProviderMissing ? selectedProviderSnapshot : undefined)}
-        model={editingModel}
-        settings={runtime.readiness?.settings}
-        busy={busy}
-        conflicted={modelEditorConflict}
-        modelMissing={editModelMissing}
-        modelRemoved={editModelRemoved}
-        providerMissing={modelProviderMissing}
-        conflictError={modelEditorConflict ? runtime.error : undefined}
-        onSaveErrorChange={setModelSaveError}
-        onCancel={() => {
-          setCreatingModel(false)
-          setEditModelId(undefined)
-          setEditModelSnapshot(undefined)
-        }}
-        onResolveConflict={creatingModel
-          ? async () => {
-              const snapshot = await runtime.resolveConflict()
-              return snapshot?.providers.some(({ id }) => id === selectedId) ? {} : undefined
+  return (
+    <section className={styles['provider-management-surface']} role="region" aria-label={t('settings.agent.providers.title')}>
+      {!editingModelOpen && <AgentProviderHeader providers={runtime.providers} provider={editingProvider}
+        creating={creating} disabled={pageEditor.busy} loading={runtime.loading} modelCounts={modelCounts}
+        onSelect={id => navigate({ kind: 'provider', id })} onCreate={() => navigate({ kind: 'create' })}
+        onRefresh={() => void runtime.load()}
+        onBack={creating && runtime.providers.length > 0
+          ? () => navigate({ kind: 'provider', id: selectedProvider?.id ?? runtime.providers[0].id })
+          : undefined} />}
+      {defaultModelDraft.conflicted && <AgentServiceNotice type="warning" title={t('settings.agent.conflict.title')}
+        description={t('settings.agent.conflict.editorDescription')}
+        action={<Button size="small" loading={busy} onClick={() => void defaultModelDraft.refresh()}>{t('settings.agent.conflict.refresh')}</Button>} />}
+      {defaultModelDraft.unavailable && <AgentServiceNotice type="warning" title={t('settings.agent.catalog.pendingDefaultUnavailable')} />}
+      <SettingsEditorContext.Provider value={setEditor}>
+        {editingModelOpen && <AgentModelEditor
+          key={creatingModel ? `create:${selectedId}` : editingModel?.id}
+          provider={selectedProvider ?? (modelProviderMissing ? selectedProviderSnapshot : undefined)}
+          model={editingModel} settings={runtime.readiness?.settings} busy={busy}
+          conflicted={modelEditorConflict} modelMissing={editModelMissing} modelRemoved={editModelRemoved}
+          providerMissing={modelProviderMissing} conflictError={modelEditorConflict ? runtime.error : undefined}
+          onSaveErrorChange={setModelSaveError}
+          refreshing={runtime.loading} onRefresh={() => void runtime.load()}
+          onCancel={() => navigate({ kind: 'tab', tab: 'catalog' })}
+          onResolveConflict={creatingModel
+            ? async () => {
+                const snapshot = await runtime.resolveConflict()
+                return snapshot?.providers.some(({ id }) => id === selectedId) ? {} : undefined
+              }
+            : resolveModelConflict}
+          onSave={async (input, baseline) => {
+            if (editModelMissing || !selectedProvider) return
+            if (baseline) {
+              const { remote_model_id, ...updateInput } = input
+              if (!remote_model_id) return
+              await runtime.saveModel(baseline, updateInput)
+            } else {
+              await runtime.createModel(selectedProvider, input)
             }
-          : resolveModelConflict}
-        onSave={async (input, baseline) => {
-          if (editModelMissing || !selectedProvider) return
-          if (baseline) {
-            const { remote_model_id, ...updateInput } = input
-            if (!remote_model_id) return
-            await runtime.saveModel(baseline, updateInput)
-          } else {
-            await runtime.createModel(selectedProvider, input)
-          }
-          setCreatingModel(false)
-          setEditModelId(undefined)
-          setEditModelSnapshot(undefined)
-        }}
-      />
+            setSaved(true)
+            setCreatingModel(false)
+            setEditModelId(undefined)
+            setEditModelSnapshot(undefined)
+          }}
+        />}
+        <div hidden={editingModelOpen} inert={editingModelOpen}>
+          {!creating && <div className={styles['provider-section-navigation']}>
+            <Tabs activeKey={activeTab} className={styles['provider-tabs']}
+              onChange={key => navigate({ kind: 'tab', tab: key as 'connection' | 'catalog' })} items={tabItems} />
+            {selectedProvider && !creating ? <Action
+              title={t(providerContainsDefault ? 'settings.agent.providers.deleteDefaultBlocked' : 'app.delete')}
+              icon={<Trash2 size={15} />} disabled={busy || dirty || providerContainsDefault} danger
+              onClick={() => setDeleteProviderId(selectedProvider.id)}
+            /> : null}
+          </div>}
+          {creating || activeTab === 'connection' ? <div role="tabpanel" aria-label={t('settings.agent.providers.connectionTab')}>
+            <AgentProviderConnectionForm
+              key={`${creating ? 'create' : editingProvider?.id ?? 'missing'}:${formResetGeneration}`}
+              provider={creating ? undefined : editingProvider} busy={busy}
+              conflicted={Boolean(providerEditorConflict)} providerMissing={selectedProviderMissing}
+              provisionFailure={provisionFailure} testing={testingProviderId === selectedProvider?.id}
+              focusRequest={creating ? createFocusGeneration : 0}
+              onResolveConflict={resolveProviderConflict} onSave={saveProvider}
+              onSaveErrorChange={setProviderSaveError}
+              onTest={() => selectedProvider ? testProvider(selectedProvider) : Promise.resolve()}
+            />
+          </div> : selectedProvider ? <div role="tabpanel" aria-label={t('settings.agent.providers.catalogTab')}>
+            <AgentModelCatalog key={selectedProvider.id} provider={selectedProvider} models={providerModels}
+              defaultModelId={runtime.readiness?.settings.default_model_id} pendingDefaultModelId={defaultModelDraft.pendingId} disabled={busy}
+              refreshing={refreshingProviderId === selectedProvider.id}
+              onRefresh={() => void refreshProvider(selectedProvider).catch(() => undefined)}
+              onAdd={() => navigate({ kind: 'model' })} onEdit={model => navigate({ kind: 'model', model })}
+              onTest={model => setTestModelId(model.id)}
+              onSetDefault={model => defaultModelDraft.select(model.id)}
+              onRemove={model => setRemoveModelId(model.id)}
+              onRestore={model => void runtime.restoreModel(model).catch(() => undefined)}
+            />
+          </div> : null}
+        </div>
+      </SettingsEditorContext.Provider>
+      {!managed && <SettingsSaveBar {...pageEditor} onSave={pageEditor.save} onReset={pageEditor.reset} />}
+
       <ConfirmDialog
         open={Boolean(pendingNavigation)}
-        title={t('settings.agent.providers.discardTitle')}
-        description={t('settings.agent.providers.discardDescription')}
+        title={t(editingModelOpen ? 'settings.agent.modelEditor.discardTitle' : 'settings.agent.providers.discardTitle')}
+        description={t(editingModelOpen ? 'settings.agent.modelEditor.discardDescription' : 'settings.agent.providers.discardDescription')}
         confirmLabel={t('settings.agent.providers.discard')}
         danger
         onCancel={() => setPendingNavigation(undefined)}
         onConfirm={() => {
           if (pendingNavigation) {
-            setFormResetGeneration((current) => current + 1)
             applyNavigation(pendingNavigation)
           }
           setPendingNavigation(undefined)
@@ -540,8 +419,4 @@ function Action({ title, icon, disabled, danger = false, onClick }: {
       />
     </Tooltip>
   )
-}
-
-function isRequestAborted(error: unknown) {
-  return error instanceof TermousApiError && error.code === 'REQUEST_ABORTED'
 }

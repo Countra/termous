@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url'
 import {
   completionProviderIds,
   completionProviderSettingsSignature,
-  completionSettingsEqual,
   defaultCompletionSettings,
   hasEnabledCompletionProvider,
   normalizeCompletionSettings,
@@ -14,14 +13,6 @@ import { normalizeSettings } from '../features/settings/model/settings.ts'
 
 const settingsViewSource = readFileSync(
   fileURLToPath(new URL('../features/settings/ui/terminal/TerminalCompletionSettings.tsx', import.meta.url)),
-  'utf8',
-)
-const dataSource = readFileSync(
-  fileURLToPath(new URL('../app/data-runtime/commands/settingsCommands.ts', import.meta.url)),
-  'utf8',
-)
-const dataCoordinatorSource = readFileSync(
-  fileURLToPath(new URL('../app/data-runtime/useTermousData.ts', import.meta.url)),
   'utf8',
 )
 
@@ -47,12 +38,11 @@ test('智能补全显式关闭不会被兼容默认值覆盖', () => {
   })
 })
 
-test('旧设置默认关闭 AI，显式开启保留且参与设置回执比较', () => {
+test('旧设置默认关闭 AI，显式开启保留', () => {
   const disabled = normalizeCompletionSettings({ enabled: true })
   const enabled = normalizeCompletionSettings({ enabled: true, ai_enabled: true })
   assert.equal(disabled.ai_enabled, false)
   assert.equal(enabled.ai_enabled, true)
-  assert.equal(completionSettingsEqual(disabled, enabled), false)
   assert.equal(normalizeCompletionSettings({ ai_enabled: false }).ai_enabled, false)
 })
 
@@ -86,11 +76,7 @@ test('来源显式关闭与缺失来源可同时正确归一化', () => {
     directory: false,
   })
   assert.equal(completionProviderSettingsSignature(normalized.providers), '11100')
-  assert.equal(completionSettingsEqual(normalized, { ...normalized }), true)
-  assert.equal(completionSettingsEqual(normalized, {
-    ...normalized,
-    providers: { ...normalized.providers, alias: false },
-  }), false)
+
 })
 
 test('全部补全来源关闭时可直接识别为无查询配置', () => {
@@ -111,14 +97,4 @@ test('补全来源使用可展开设置并串行提交写请求', () => {
   assert.match(settingsViewSource, /completionProviderIds\.map/)
   assert.match(settingsViewSource, /pendingKeysRef\.current\.size > 0/)
   assert.match(settingsViewSource, /disabled=\{disabled \|\| !value\.enabled \|\| pendingKeys\.size > 0\}/)
-})
-
-test('补全设置只允许最新 mutation 应用响应或回滚', () => {
-  assert.match(dataSource, /completionSettingsWriteQueue\.enqueue/)
-  assert.match(dataSource, /completionSettingsMutation\.current !== mutation/)
-  assert.match(dataSource, /completionSettingsEqual\(current\.settings\.completion, completion\)/)
-  assert.match(dataSource, /confirmedCompletionSettings\.current = settings\.completion/)
-  assert.match(dataSource, /const confirmedCompletion = confirmedCompletionSettings\.current/)
-  assert.match(dataCoordinatorSource, /canApplyReloadedValue\(/)
-  assert.doesNotMatch(dataSource, /completionSettings\.current = previousCompletion/)
 })

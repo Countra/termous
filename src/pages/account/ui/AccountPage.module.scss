@@ -1,0 +1,152 @@
+.page {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1160px;
+  margin-inline: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+  justify-content: space-between;
+  padding: 8px 4px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+}
+
+.identity {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.identity-text {
+  min-width: 0;
+
+  h1, p {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  p {
+    margin: 3px 0 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.avatar {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.trust {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  border-color: var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  padding: 4px 8px;
+  color: var(--text-secondary);
+}
+
+.tabs:global(.ant-tabs) {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.tabs > :global(.ant-tabs-nav) {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  padding-inline: 4px;
+}
+
+.tabs > :global(.ant-tabs-nav) :global(.ant-tabs-tab) {
+  padding-block: 13px;
+  font-weight: 550;
+}
+
+.tabs > :global(.ant-tabs-body-holder) {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+// 仅设置账号页自己的滚动容器，保留页签实例和未提交的输入。
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body),
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body) > :global(.ant-tabs-content),
+.tabs > :global(.ant-tabs-body-holder) > :global(.ant-tabs-body) > :global(.ant-tabs-content) > :global(.ant-tabs-tabpane) {
+  height: 100%;
+  min-height: 0;
+}
+
+.tab-scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 4px 4px 24px;
+  scrollbar-gutter: stable;
+}
+
+.tab-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.tab-label, .tab-label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+@media (width <= 760px) {
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+}

@@ -13,8 +13,6 @@ import { normalizeShortcutSettings } from '#entities/shortcuts'
 export {
   completionProviderIds,
   completionProviderSettingsSignature,
-  completionSettingsEqual,
-  connectionSettingsEqual,
   defaultConnectionSettings,
   defaultCompletionProviderSettings,
   defaultCompletionSettings,

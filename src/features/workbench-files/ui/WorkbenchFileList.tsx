@@ -17,6 +17,8 @@ import styles from './WorkbenchFileList.module.scss'
 const scopedClassName = (className: string) => `${className} ${styles[className]}`
 
 interface WorkbenchFileListProps {
+  onPaste?: () => void
+  onCopyToSystem?: (paths: string[]) => void
   entries: RemoteFileEntry[]
   selectedPaths: string[]
   listingPath: string
@@ -49,6 +51,8 @@ interface FileNameTooltipState {
 
 export function WorkbenchFileList({
   entries,
+  onCopyToSystem,
+  onPaste,
   selectedPaths,
   listingPath,
   loading,
@@ -215,6 +219,8 @@ export function WorkbenchFileList({
   }
 
   const shortcutStateRef = useRef({
+    onPaste,
+    onCopyToSystem,
     interactionLocked,
     entries,
     focusedPath,
@@ -223,6 +229,8 @@ export function WorkbenchFileList({
     hideNameTooltip,
   })
   shortcutStateRef.current = {
+    onPaste,
+    onCopyToSystem,
     interactionLocked,
     entries,
     focusedPath,
@@ -230,6 +238,7 @@ export function WorkbenchFileList({
     activateEntry,
     hideNameTooltip,
   }
+  const systemCopyVisible = !!onCopyToSystem
 
   useEffect(() => {
     const disposeContext = shortcutRuntime.pushContext({
@@ -264,11 +273,28 @@ export function WorkbenchFileList({
         return 'handled'
       },
     )
+    const disposeCopy = systemCopyVisible ? shortcutRuntime.registerHandler(shortcutContextId, 'files.copy_to_system', () => {
+      const current = shortcutStateRef.current
+      if (current.interactionLocked || !current.onCopyToSystem) return 'fallthrough'
+      const paths = [...current.selectedPathSet]
+      const selected = paths.length ? paths : current.focusedPath ? [current.focusedPath] : []
+      if (!selected.length) return 'fallthrough'
+      current.onCopyToSystem(selected)
+      return 'handled'
+    }) : () => {}
+    const disposePaste = shortcutRuntime.registerHandler(shortcutContextId, 'files.paste', () => {
+      const current = shortcutStateRef.current
+      if (current.interactionLocked || !current.onPaste) return 'fallthrough'
+      current.onPaste()
+      return 'handled'
+    })
     return () => {
+      disposePaste()
+      disposeCopy()
       disposeHandler()
       disposeContext()
     }
-  }, [listRef, shortcutContextId, shortcutRuntime])
+  }, [listRef, shortcutContextId, shortcutRuntime, systemCopyVisible])
 
   const revealNameTooltip = (entry: RemoteFileEntry) => {
     hideNameTooltip()
@@ -349,6 +375,19 @@ export function WorkbenchFileList({
         tabIndex={interactionLocked || entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
         aria-busy={loading || initialPending || navigationPending}
+        onKeyDown={(event) => {
+          // 文件行自行处理导航和快捷键；容器补齐空目录及空白区域聚焦时的入口。
+          if (interactionLocked || event.target !== event.currentTarget) return
+          const result = shortcutRuntime.dispatch(event.nativeEvent, {
+            adapterId: `workbench-files:${shortcutInstanceId}`,
+            contextIds: [shortcutContextId],
+            editable: false,
+          })
+          if (result.result === 'handled' || result.result === 'blocked') {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        }}
         onScroll={() => {
           hideNameTooltip()
           onScroll()

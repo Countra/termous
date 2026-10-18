@@ -1,0 +1,14 @@
+{
+  "description": "2026-10-15 桌面连接故障脱敏序列：旧 Core 将不存在回执返回为 MCP_INTERNAL；前 12 次请求未加载 connect。",
+  "calls": [
+    {"name": "termous.desktops.list", "args": {}, "data": {}},
+    {"name": "termous.desktops.get", "args": {"session_id": "expired-session"}, "data": {"error": {"code": "MCP_INTERNAL", "retryable": false}}},
+    {"name": "termous.desktops.get", "args": {"session_id": "expired-session", "wait_ms": 10000}, "data": {"error": {"code": "MCP_INTERNAL", "retryable": false}}},
+    {"name": "termous.desktops.attach", "args": {"session_id": "expired-session", "connection_generation": 1}, "local": true, "data": {"code": "AGENT_RESOURCE_BINDING_MISMATCH", "dispatched": false, "required_tool": "termous.desktops.get", "required_arguments": {"session_id": "expired-session"}}},
+    {"name": "termous.desktops.get", "args": {"session_id": "expired-session"}, "data": {"error": {"code": "MCP_INTERNAL", "retryable": false}}},
+    {"name": "termous.desktops.get", "args": {"session_id": "expired-session"}, "data": {"error": {"code": "MCP_INTERNAL", "retryable": false}}},
+    {"name": "termous.desktops.get", "args": {"session_id": "expired-session"}, "data": {"error": {"code": "MCP_INTERNAL", "retryable": false}}},
+    {"name": "termous.desktops.list", "args": {}, "data": {}},
+    {"name": "termous.desktops.list", "args": {}, "data": {}}
+  ]
+}

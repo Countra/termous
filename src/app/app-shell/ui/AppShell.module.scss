@@ -237,11 +237,6 @@
   gap: 4px;
 }
 
-.sidebar-settings-button:global(.ant-btn) {
-  min-width: 0;
-  flex: 1;
-}
-
 .product-tour-trigger {
   display: inline-flex;
   flex: 0 0 auto;
@@ -354,6 +349,10 @@
 }
 
 .topbar-actions {
+  --topbar-divider-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
+
+  flex-shrink: 0;
+  gap: 10px;
   padding-right: 0;
 }
 
@@ -535,10 +534,24 @@
 }
 
 .topbar-action-divider {
+  flex: 0 0 1px;
   width: 1px;
-  height: 18px;
+  height: 16px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--border-strong) 74%, transparent);
+  background: var(--topbar-divider-color);
+}
+
+.topbar-notifications {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  -webkit-app-region: no-drag;
+}
+
+.topbar-notifications:last-child {
+  margin-inline-end: 12px;
 }
 
 .icon-button:global(.ant-btn) {

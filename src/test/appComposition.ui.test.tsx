@@ -7,8 +7,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const testState = vi.hoisted(() => {
   const action = vi.fn(async () => undefined)
   return {
+    cloud: {
+      getStatus: () => undefined,
+      subscribeStatus: () => () => {},
+      eventsUrl: () => 'ws://127.0.0.1/cloud/events',
+    },
+    runtime: { storageStatus: vi.fn(async () => ({ databases: [{ domain: 'core', status: 'ready', version: 51 }] })) },
+    settingsGateway: { getModule: () => undefined, readModule: vi.fn(), updateModule: vi.fn(), subscribeSettings: () => () => {} },
     action,
     notifications: {
+      open: vi.fn(),
+      destroy: vi.fn(),
       error: vi.fn(),
       success: vi.fn(),
       warning: vi.fn(),
@@ -38,6 +47,7 @@ const testState = vi.hoisted(() => {
     onCreateHost: null as (() => void) | null,
     launcherOpen: false,
     launcherIntent: 'terminal',
+    openConnectionShortcut: null as (() => string) | null,
     onLauncherClose: null as (() => void) | null,
     onConnectSSHProfile: null as ((profileId: string) => Promise<void>) | null,
     onOpenFileProfile: null as ((profileId: string, hostId: string) => Promise<void>) | null,
@@ -159,7 +169,10 @@ vi.mock('#app/shortcut-runtime', () => ({
   ShortcutRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="shortcut">{children}</div>
   ),
-  ShortcutWindowAdapter: () => null,
+  ShortcutWindowAdapter: ({ handlers }: { handlers: Record<string, (() => string) | undefined> }) => {
+    testState.openConnectionShortcut = handlers['app.host_launcher.open'] ?? null
+    return null
+  },
 }))
 
 vi.mock('#widgets/files-workspace', () => ({
@@ -198,6 +211,10 @@ vi.mock('#features/remote-desktop', () => ({
     <div data-provider="remote-desktop">{children}</div>
   ),
   useRemoteDesktopRuntime: () => ({ createSession: vi.fn() }),
+}))
+
+vi.mock('#widgets/remote-desktop-workspace', () => ({
+  RemoteDesktopConnectionCoordinator: () => <div data-testid="desktop-connection-coordinator" />,
 }))
 
 vi.mock('#app/app-shell', () => ({
@@ -245,6 +262,13 @@ vi.mock('#app/app-shell', () => ({
       {children}
     </div>
   ),
+}))
+
+vi.mock('#pages/account', () => ({
+  AccountPage: ({ onUseOffline, settingsGateway, activeTab }: { onUseOffline: () => void; settingsGateway: unknown; activeTab: string }) => {
+    expect(settingsGateway).toBe(testState.settingsGateway)
+    return <div data-testid="account-page" data-active-tab={activeTab}><button type="button" onClick={onUseOffline}>continue-offline</button></div>
+  },
 }))
 
 vi.mock('#pages/agent', () => ({
@@ -468,18 +492,23 @@ vi.mock('#pages/files', () => ({
 vi.mock('#pages/remote-desktop', () => ({
   RemoteDesktopPage: ({
     onOpenConnectionLauncher,
+    onDirtyChange,
+    guideIntent,
   }: {
     onOpenConnectionLauncher: () => void
+    onDirtyChange: (dirty: boolean) => void
+    guideIntent?: { view: string }
   }) => (
-    <div data-testid="remote-desktop-page">
+    <div data-testid="remote-desktop-page" data-view={guideIntent?.view}>
       Remote Desktop
       <button type="button" onClick={onOpenConnectionLauncher}>remote-desktop-connect</button>
+      <button type="button" onClick={() => onDirtyChange(true)}>workflow-dirty</button>
     </div>
   ),
 }))
 
 vi.mock('#features/product-tour', () => ({
-  ProductTourController: (props: import('#features/product-tour').ProductTourControllerProps) => {
+  ProductTourGuide: (props: import('#features/product-tour').ProductTourControllerProps) => {
     testState.productTourProps = props
     return null
   },
@@ -524,15 +553,18 @@ vi.mock('#pages/forwards', () => ({
   },
 }))
 vi.mock('#pages/settings', () => ({
-  SettingsPage: ({ initialTab = 'general' }: { initialTab?: string }) => {
+  SettingsDialog: ({ open, onClose, initialTab = 'general' }: { open: boolean; onClose(): void; initialTab?: string }) => {
     const [activeTab, setActiveTab] = useState(initialTab)
-    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'data']
+    useEffect(() => { if (open) setActiveTab(initialTab) }, [initialTab, open])
+    const tabs = ['general', 'terminal', 'mount', 'mcp', 'agent', 'models', 'data']
+    if (!open) return null
     return (
       <div
         data-testid="settings-page"
         data-tour={testState.productTourPageHarness ? 'settings-workspace' : undefined}
       >
         Settings
+        <button onClick={onClose}>close-settings</button>
         {testState.productTourPageHarness ? (
           <>
             <div role="tablist">
@@ -708,8 +740,13 @@ vi.mock('#shared/hooks', () => ({
 }))
 
 vi.mock('#app/data-runtime', () => ({
+  desktopUpdateBridge: () => null,
+  localSettingsGateway: { getModule: () => undefined, readModule: async () => ({ id: 'terminal_local', schema_version: 1, revision: 1, value: { ssh_smooth_scroll: false }, state: { status: 'applied' } }), updateModule: vi.fn(), subscribeSettings: () => () => {} },
   useTermousData: () => ({
     gateways: {
+      runtime: testState.runtime,
+      cloud: testState.cloud,
+      settings: testState.settingsGateway,
       forwards: {},
       hosts: {
         hostIconFileUrl: (iconId: string, sha256?: string) => (
@@ -791,6 +828,7 @@ describe('应用运行时组合合同', () => {
     testState.onCreateHost = null
     testState.launcherOpen = false
     testState.launcherIntent = 'terminal'
+    testState.openConnectionShortcut = null
     testState.onLauncherClose = null
     testState.onConnectSSHProfile = null
     testState.onOpenFileProfile = null
@@ -810,6 +848,19 @@ describe('应用运行时组合合同', () => {
     testState.notifications.success.mockReset()
     testState.notifications.warning.mockReset()
     window.localStorage.clear()
+    window.localStorage.setItem('termous.ui.accountWelcomeCompleted.v1', 'true')
+  })
+
+  it('首次进入先展示账号选择，选择离线后进入工作站并记住选择', async () => {
+    window.localStorage.removeItem('termous.ui.accountWelcomeCompleted.v1')
+    const user = userEvent.setup()
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'continue-offline' })).toBeInTheDocument()
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
+    expect(testState.productTourProps?.ready).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'continue-offline' }))
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+    expect(window.localStorage.getItem('termous.ui.accountWelcomeCompleted.v1')).toBe('true')
   })
 
   it('保持运行时 Provider 的既定嵌套顺序', () => {
@@ -835,6 +886,46 @@ describe('应用运行时组合合同', () => {
     }
 
     expect(actualOrder).toEqual(expectedOrder)
+  })
+
+  it('桌面连接确认始终挂在全局运行时中，切换页面不重建确认入口', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const coordinator = screen.getByTestId('desktop-connection-coordinator')
+    expect(coordinator.closest('[data-provider="remote-desktop"]')).not.toBeNull()
+    for (const page of ['agent', 'settings', 'remote-desktop', 'workbench']) {
+      await user.click(screen.getByRole('button', { name: page }))
+      expect(screen.getAllByTestId('desktop-connection-coordinator')).toEqual([coordinator])
+    }
+  })
+
+  it('设置覆盖当前文件页，打开和关闭都不重建原页面', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    const filesPage = screen.getByTestId('files-page')
+    const mounts = testState.filesPageMounts
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.getByTestId('files-page')).toBe(filesPage)
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
+    expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('files-page')).toBe(filesPage)
+    expect(testState.filesPageMounts).toBe(mounts)
+    expect(testState.filesPageUnmounts).toBe(0)
+  })
+
+  it('打开设置不要求放弃主机草稿，关闭后仍保留原页面的离开保护', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    expect(screen.queryByText('hosts.unsavedTitle')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    expect(screen.getByText('hosts.unsavedTitle')).toBeInTheDocument()
   })
 
   it('只向各页面和工作区传递声明的数据视图', async () => {
@@ -911,6 +1002,7 @@ describe('应用运行时组合合同', () => {
       'hosts',
       'localPathMappings',
       'settings',
+      'sshAccessProfiles',
     ])
 
     await user.click(screen.getByRole('button', { name: 'forwards' }))
@@ -1147,7 +1239,7 @@ describe('应用运行时组合合同', () => {
 
     try {
       render(<App />)
-      const steps = buildProductTourSteps((key) => key)
+      const steps = buildProductTourSteps((key) => key).filter((step) => !['remote-desktop', 'agent', 'account'].includes(step.route ?? '') && step.id !== 'notifications')
       const preparationController = new AbortController()
       const settingsSteps = steps.filter((step) => step.preparation?.startsWith('settings'))
       const settingsPanels = new Map<string, Element>()
@@ -1210,6 +1302,7 @@ describe('应用运行时组合合同', () => {
         'settingsSkills',
         'settingsAgent',
         'settingsData',
+        'settingsModels',
         'finish',
       ])
       expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
@@ -1253,7 +1346,41 @@ describe('应用运行时组合合同', () => {
     await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
   })
 
-  it('命令片段草稿阻止向导离开独立管理页', async () => {
+  it('新增专题按目标打开桌面视图和账户页签，不建立连接或写配置', async () => {
+    testState.apiReady = true
+    render(<App />)
+    const signal = new AbortController().signal
+    for (const step of buildProductTourSteps((key) => key).filter(step => ['remote-desktop', 'account'].includes(step.route ?? ''))) {
+      let allowed: unknown
+      await act(async () => { allowed = await testState.productTourProps?.onPrepareStep(step, signal) })
+      expect(allowed).toBe(true)
+      if (step.desktopView) expect(screen.getByTestId('remote-desktop-page')).toHaveAttribute('data-view', step.desktopView)
+      if (step.accountTab) expect(screen.getByTestId('account-page')).toHaveAttribute('data-active-tab', step.accountTab)
+    }
+    expect(testState.launcherOpen).toBe(false)
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('自动化草稿阻止向导首步绕过离开保护，同页讲解和设置弹层仍可使用', async () => {
+    testState.apiReady = true
+    render(<App />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'remote-desktop' }))
+    await user.click(screen.getByRole('button', { name: 'workflow-dirty' }))
+    const next = { id: 'agent' as const, title: '', description: '', route: 'agent' as const }
+    await expect(testState.productTourProps?.onPrepareStep(next, new AbortController().signal)).resolves.toBe(false)
+    expect(screen.getByTestId('remote-desktop-page')).toBeInTheDocument()
+    const same = { ...next, id: 'automationLibrary' as const, route: 'remote-desktop' as const, desktopView: 'workflow' as const }
+    await act(async () => { expect(await testState.productTourProps?.onPrepareStep(same, new AbortController().signal)).toBe(true) })
+    const cancelled = new AbortController(); cancelled.abort()
+    await expect(testState.productTourProps?.onPrepareStep({ ...next, route: 'settings' }, cancelled.signal)).resolves.toBe(false)
+    expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+    await act(async () => { expect(await testState.productTourProps?.onPrepareStep({ ...next, route: 'settings' }, new AbortController().signal)).toBe(true) })
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('命令片段草稿允许打开设置弹层，仍阻止向导离开独立管理页', async () => {
     const user = userEvent.setup()
     testState.apiReady = true
     render(<App />)
@@ -1264,7 +1391,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.productTourProps?.isTransitionBlocked?.(
       { id: 'snippets', title: '', description: '', route: 'snippets' },
       { id: 'settings', title: '', description: '', route: 'settings' },
-    )).toBe(true)
+    )).toBe(false)
     expect(testState.productTourProps?.isTransitionBlocked?.(
       { id: 'snippets', title: '', description: '', route: 'snippets' },
       { id: 'snippets', title: '', description: '', route: 'snippets' },
@@ -1306,7 +1433,7 @@ describe('应用运行时组合合同', () => {
     )).toBe(true)
   })
 
-  it('全局连接固定使用终端场景，页面入口使用自己的访问场景', async () => {
+  it('顶部连接和窗口快捷键跟随当前页面，并保持已打开连接器的场景', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -1321,11 +1448,35 @@ describe('应用运行时组合合同', () => {
     await act(async () => testState.onLauncherClose?.())
     await user.click(screen.getByRole('button', { name: 'global-connect' }))
     expect(testState.launcherOpen).toBe(true)
-    expect(testState.launcherIntent).toBe('terminal')
+    expect(testState.launcherIntent).toBe('files')
+
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('files')
 
     await act(async () => testState.onLauncherClose?.())
     await user.click(screen.getByRole('button', { name: 'remote-desktop' }))
     await user.click(screen.getByRole('button', { name: 'remote-desktop-connect' }))
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('remote_desktop')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherIntent).toBe('remote_desktop')
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('remote_desktop')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('blocked') })
+    await user.click(screen.getByRole('button', { name: 'close-settings' }))
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherIntent).toBe('remote_desktop')
+    await act(async () => testState.onLauncherClose?.())
+    act(() => { expect(testState.openConnectionShortcut?.()).toBe('handled') })
     expect(testState.launcherOpen).toBe(true)
     expect(testState.launcherIntent).toBe('remote_desktop')
   })

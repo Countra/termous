@@ -31,11 +31,12 @@ test('文件会话 HTTP 与 WebSocket 合同都要求完整访问身份', () => 
     type: 'file_session_snapshot',
     instance_id: 'file-sessions-a',
     revision: 4,
-    sessions: [strictWithoutOrigin, fileSession('mcp', { origin: 'mcp' })],
+    sessions: [strictWithoutOrigin, fileSession('mcp', { origin: 'mcp' }), fileSession('remote', { origin: 'remote' })],
   })
 
   assert.equal(event.sessions[0]?.origin, 'app')
   assert.equal(event.sessions[1]?.origin, 'mcp')
+  assert.equal(event.sessions[2]?.origin, 'remote')
   assert.equal(normalizeFileSessionResponse(strictWithoutOrigin).origin, 'app')
   assert.equal(normalizeFileSessionResponseList([strictWithoutOrigin])[0]?.origin, 'app')
   assert.throws(() => normalizeFileSessionResponse(legacyEventSession), /文件会话引擎缺失/)

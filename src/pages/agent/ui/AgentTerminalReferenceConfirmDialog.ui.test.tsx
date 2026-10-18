@@ -38,6 +38,22 @@ function fixture(resources: AgentSSHResourceState[] = [original]) {
 }
 
 describe('终端引用换绑确认', () => {
+  it('桌面换绑使用桌面文案，并展示原桌面配置和目标会话身份', () => {
+    const desktop = { kind: 'desktop_session' as const, session_id: 'desktop-new', connection_generation: 2,
+      desktop_profile_id: 'profile-new', desktop_profile_name: '新桌面', host_id: 'host', host_name: '桌面主机', protocol: 'rdp' as const, status: 'ready' as const }
+    render(<ConfigProvider theme={{ token: { motion: false } }}>
+      <AgentTerminalReferenceConfirmDialog source={desktop} connectionOnly resources={[]}
+        binding={{ kind: 'desktop_profile', desktop_profile_id: 'profile-old', desktop_profile_name: '原桌面',
+          host_id: 'host-old', host_name: '原主机', protocol: 'vnc', bound_at: '2026-09-08T08:00:00Z' }}
+        onConfirm={vi.fn()} onCancel={vi.fn()} />
+    </ConfigProvider>)
+    const dialog = screen.getByRole('dialog', { name: 'agent.desktopResource.confirmTitle' })
+    expect(dialog).toHaveTextContent('agent.desktopResource.confirmDescription')
+    expect(dialog).toHaveTextContent('原桌面')
+    expect(dialog).toHaveTextContent('新桌面')
+    expect(dialog).not.toHaveTextContent('agent.connectionReference.confirmDescription')
+  })
+
   it('原身份匹配时补充配置名，新关联保持捕获时的来源名称', () => {
     const f = fixture([original, { ...source, host_name: '来源的新名称', ssh_profile_name: '来源的新配置名' }])
     expect(screen.getByRole('dialog', { name: 'agent.terminalReference.confirmTitle' }))

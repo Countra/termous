@@ -46,11 +46,18 @@ export interface CompletionSettings {
   providers: CompletionProviderSettings
 }
 
+export type CompletionSettingsPatch = Partial<Omit<CompletionSettings, 'providers'>> & {
+  providers?: Partial<CompletionProviderSettings>
+}
+
 export interface ConnectionSettings {
   ssh_keepalive_enabled: boolean
   forward_auto_reconnect_enabled: boolean
   remote_desktop_auto_reconnect_enabled: boolean
+  rdp_unattended_timeout_minutes: number
 }
+
+export type ConnectionSettingsPatch = Partial<ConnectionSettings>
 
 export type ShortcutModifier = 'primary' | 'control' | 'alt' | 'shift' | 'meta'
 

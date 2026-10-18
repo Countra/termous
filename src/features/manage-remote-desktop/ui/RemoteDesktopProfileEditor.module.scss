@@ -1,0 +1,10 @@
+.protocol {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding: 16px 22px;
+}
+
+@container vnc-profile-editor (max-width: 640px) {
+  .protocol {
+    padding-inline: 16px;
+  }
+}

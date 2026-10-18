@@ -5,6 +5,7 @@ import {
   decodeAgentAttachment,
   decodeAgentMessage,
   decodeAgentMessagePage,
+  decodeAgentResourceBinding,
   decodeAgentQueuedTurn,
   decodeAgentQueuedTurnMoveResult,
   decodeAgentQueuedTurnPage,
@@ -19,6 +20,32 @@ import {
   agentRunFixture,
   agentSessionFixture,
 } from './agentRuntimeTestFixtures.ts'
+
+test('文件资源兼容 v1 空可选身份，SSH 身份仍须完整', () => {
+  for (const engine of ['sftp', 'ftp', 'webdav', 's3', 'object-store']) {
+    const file = {
+      kind: 'file_profile', file_access_profile_id: 'file-one', file_access_profile_name: '文件',
+      engine, bound_at: agentFixtureTime,
+    }
+    for (const hostId of [undefined, '', 'host-one']) {
+      for (const sshProfileId of [undefined, '', 'ssh-one']) {
+        const decoded = decodeAgentResourceBinding({ ...file, host_id: hostId, ssh_profile_id: sshProfileId })
+        assert.equal(decoded.host_id, hostId || undefined)
+        assert.equal(decoded.kind, 'file_profile')
+        if (decoded.kind !== 'file_profile') throw new Error('文件引用类型不匹配')
+        assert.equal(decoded.ssh_profile_id, sshProfileId || undefined)
+      }
+    }
+    for (const invalid of [null, 3, {}, ' ', 'x'.repeat(129)]) {
+      assert.throws(() => decodeAgentResourceBinding({ ...file, ssh_profile_id: invalid }), /SSH Profile ID 无效/)
+      assert.throws(() => decodeAgentResourceBinding({ ...file, host_id: invalid }), /Host ID 无效/)
+    }
+    assert.throws(() => decodeAgentResourceBinding({ ...file, file_access_profile_id: '' }), /文件 Profile ID 无效/)
+  }
+  const ssh = { kind: 'ssh_profile', host_id: 'host-one', ssh_profile_id: 'ssh-one', ssh_profile_name: 'SSH', host_name: '主机', platform: 'linux', bound_at: agentFixtureTime }
+  assert.throws(() => decodeAgentResourceBinding({ ...ssh, host_id: '' }), /Host ID 无效/)
+  assert.throws(() => decodeAgentResourceBinding({ ...ssh, ssh_profile_id: '' }), /SSH Profile ID 无效/)
+})
 
 test('Agent 会话严格解码可信 SSH 资源绑定', () => {
   const session = decodeAgentSession({
@@ -76,7 +103,7 @@ test('Agent 资源集合拒绝重复槽位、超过容量和混合身份字段',
     kind: 'ssh_profile', ssh_profile_id: 'ssh-two', ssh_profile_name: '备用配置', host_id: 'host-two',
     host_name: 'Staging', platform: 'linux', bound_at: agentFixtureTime,
   }]), /绑定槽位重复/)
-  assert.throws(() => decode([file, file, file]), /绑定集合无效/)
+  assert.throws(() => decode([file, file, file, file, file]), /绑定集合无效/)
   assert.throws(() => decode(null), /绑定集合无效/)
   assert.throws(() => decode([{ ...file, session_id: 'original-file-tab' }]), /文件引用包含 SSH 身份/)
   const unknownEngineBinding = decode([{ ...file, engine: 'object-store' }]).resource_bindings?.[0]
@@ -103,6 +130,31 @@ test('Agent 资源绑定接受 Host 领域允许的多字节长名称', () => {
   })
 
   assert.equal(session.resource_bindings?.find((binding) => binding.kind === 'ssh_session')?.host_name, hostName)
+})
+
+test('桌面引用在会话、事件和消息回放保留精确代次与脚本版本', () => {
+  const desktop = { kind: 'desktop_session', session_id: 'desktop', connection_generation: 8,
+    desktop_profile_id: 'rdp', desktop_profile_name: 'Windows', host_id: 'host', host_name: '目标', protocol: 'rdp', bound_at: agentFixtureTime }
+  const workflow = { kind: 'desktop_workflow', workflow_id: 'workflow', workflow_name: '回归脚本', workflow_version: 2,
+    host_name: '', bound_at: agentFixtureTime }
+  const response = { ...agentSessionFixture(), resource_bindings: [desktop, workflow] }
+  const bindings = decodeAgentSession(response).resource_bindings
+  assert.equal(bindings?.[0]?.kind === 'desktop_session' && bindings[0].connection_generation, 8)
+  assert.equal(bindings?.[1]?.kind === 'desktop_workflow' && bindings[1].workflow_version, 2)
+  const event = decodeAgentWorkspaceEvent({ type: 'upsert', revision: 2, session: response })
+  assert.deepEqual(event.type === 'upsert' && event.session?.resource_bindings, bindings)
+  for (const invalid of [{ ...desktop, connection_generation: 0 }, { ...desktop, ssh_profile_id: 'ssh' },
+    { ...workflow, workflow_version: 0 }, { ...workflow, session_id: 'desktop' },
+    { ...desktop, kind: 'desktop_profile' }]) {
+    assert.throws(() => decodeAgentResourceBinding(invalid), AgentRuntimeProtocolError)
+  }
+  const profile = { ...desktop, session_id: undefined, connection_generation: undefined }
+  assert.throws(() => decodeAgentSession({ ...response, resource_bindings: [desktop, { ...profile, kind: 'desktop_profile' }] }), /槽位重复/)
+  const resource = { kind: 'desktop_workflow', id: 'workflow', name: '回归脚本', version: 2 }
+  const message = decodeAgentMessage({ id: 'agm-assistant', session_id: 'session', role: 'user', status: 'completed', sequence: 1,
+    revision: 1, created_at: agentFixtureTime, updated_at: agentFixtureTime,
+    parts: [partResponse('text', { text: { text: '执行引用版本', resources: [resource] } })] })
+  assert.deepEqual(message.parts[0]?.kind === 'text' && message.parts[0].resources, [resource])
 })
 
 test('工作区协议接受 Core 新实例的 revision 0 权威快照', () => {
@@ -310,6 +362,32 @@ test('消息协议投影附件与结构化来源上下文', () => {
   assert.throws(() => decodeAgentMessage(messageResponse({
     attachments: [attachmentResponse({ session_id: 'ags-other' })],
   })), /附件归属/)
+})
+
+test('消息关联快照在历史与增量中一致，旧消息不推断当前绑定', () => {
+  const resources = [
+    { kind: 'ssh_session', id: 'ses-one', name: 'TX-HK' },
+    { kind: 'file_profile', id: 'file-one', name: '备份', host_name: '文件主机' },
+  ]
+  const response = (value?: unknown) => messageResponse({
+    role: 'user', status: 'completed',
+    parts: [partResponse('text', { text: { text: '检查镜像', ...(value === undefined ? {} : { resources: value }) } })],
+  })
+  const decoded = decodeAgentMessage(response(resources))
+  assert.deepEqual(decoded.parts[0]?.kind === 'text' ? decoded.parts[0].resources : undefined, resources)
+  const event = decodeAgentWorkspaceEvent({ type: 'upsert', revision: 2, message: response(resources) })
+  assert.deepEqual(event.type === 'upsert' ? event.message : undefined, decoded)
+  const legacy = decodeAgentMessage(response()).parts[0]
+  assert.equal(legacy?.kind === 'text' ? legacy.resources : undefined, undefined)
+  assert.throws(() => decodeAgentMessage(response([resources[0], { kind: 'ssh_profile', id: 'ssh-one', name: '运维' }])), /槽位重复/)
+  assert.throws(() => decodeAgentMessage(response([{ kind: 'unknown', id: 'one', name: 'test' }])), /资源类型无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], id: '' }])), /资源 ID 无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], id: 'ses/one' }])), /身份或名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], name: 'x'.repeat(1_025) }])), /资源名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], host_name: 'x'.repeat(1_025) }])), /主机名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], name: '名称\0' }])), /身份或名称无效/)
+  assert.throws(() => decodeAgentMessage(response([{ ...resources[0], host_name: '主机\0' }])), /身份或名称无效/)
+  assert.doesNotThrow(() => decodeAgentMessage(response([{ ...resources[1], host_name: ' ' }])))
 })
 
 test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量', () => {

@@ -33,7 +33,7 @@ describe('useAgentSetupController', () => {
     expect(view.result.current.readiness).toEqual(server)
   })
 
-  it.each([false, true])('审批开关只保存模式 %s，兼容字段 sync_scopes 始终为 false', async (approvalBypass) => {
+  it.each([false, true])('统一保存仅修改审批模式 %s 时不写普通参数，sync_scopes 始终为 false', async (approvalBypass) => {
     const initial = readinessFixture()
     initial.mcp_policy = { ...initial.mcp_policy!, revision: 7, approval_bypass: !approvalBypass }
     const updated = { ...initial.mcp_policy, revision: 8, approval_bypass: approvalBypass }
@@ -43,7 +43,7 @@ describe('useAgentSetupController', () => {
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))
 
-    await act(async () => { await view.result.current.updatePolicy(approvalBypass) })
+    await act(async () => { await view.result.current.saveConfiguration(undefined, { approval_bypass: approvalBypass, sync_scopes: false, expected_revision: 7 }) })
 
     expect(gateway.updateMcpPolicy).toHaveBeenCalledExactlyOnceWith({
       approval_bypass: approvalBypass, sync_scopes: false, expected_revision: 7,
@@ -90,6 +90,7 @@ describe('useAgentSetupController', () => {
     expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: '', default_reasoning_level: 'off',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: true, expected_revision: 2,
@@ -119,6 +120,7 @@ describe('useAgentSetupController', () => {
     expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: 'apm-1', default_reasoning_level: 'high',
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       show_turn_token_usage: false, expected_revision: 4,
@@ -126,7 +128,7 @@ describe('useAgentSetupController', () => {
     expect(view.result.current.readiness?.settings).toEqual(updated)
   })
 
-  it('全局设置 revision 冲突后自动对账并保留冲突状态', async () => {
+  it.each(['AGENT_REVISION_CONFLICT', 'SETTINGS_REVISION_CONFLICT'])('全局设置 %s 冲突后自动对账并保留冲突状态', async (code) => {
     const original = readinessFixture(4, 'apm-1', 'high')
     const latest = readinessFixture(5, 'apm-1', 'off')
     const gateway = gatewayFixture({ readiness: original })
@@ -134,7 +136,7 @@ describe('useAgentSetupController', () => {
       .mockResolvedValueOnce(original)
       .mockResolvedValue(latest)
     vi.mocked(gateway.updateSettings).mockRejectedValue(
-      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+      new TermousApiError('revision conflict', code, 409),
     )
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))
@@ -599,6 +601,7 @@ function readinessFixture(revision = 1, defaultModelId = '', reasoning: 'off' | 
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
       default_reasoning_level: reasoning, show_turn_token_usage: true, revision,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
+      max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',

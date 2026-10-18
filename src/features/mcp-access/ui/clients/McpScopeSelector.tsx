@@ -11,6 +11,7 @@ import {
   ListChecks,
   ListX,
   Network,
+  Monitor,
   RotateCcw,
   Server,
   ServerCog,
@@ -40,6 +41,8 @@ interface McpScopeSelectorProps {
 }
 
 const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
+  desktops: Monitor,
+  desktop_workflows: ListChecks,
   hosts: Server,
   sessions: KeyRound,
   commands: TerminalSquare,
@@ -60,8 +63,9 @@ export function McpScopeSelector({
   onScopesChange,
   onApprovalBypassChange,
 }: McpScopeSelectorProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const selected = useMemo(() => new Set(scopes), [scopes])
+  const allSelected = mcpScopeCatalog.every(({ scope }) => selected.has(scope))
   const destructive = scopes.includes('sessions:close')
   const toggleScope = (scope: McpScope, checked: boolean) => {
     const next = new Set(scopes)
@@ -79,13 +83,22 @@ export function McpScopeSelector({
   }
 
   return (
-    <section className={styles.section} aria-labelledby="mcp-client-permissions-title">
+    <section className={styles.section} lang={i18n.resolvedLanguage} aria-labelledby="mcp-client-permissions-title">
       <header className={styles['section-heading']}>
         <h3 id="mcp-client-permissions-title">{t('settings.mcp.permissions')}</h3>
         <div className={styles['permission-summary']}>
           <span aria-live="polite" aria-atomic="true">
             {t('settings.mcp.selectedPermissions', { count: scopes.length, total: mcpScopeCatalog.length })}
           </span>
+          <Button
+            type="text"
+            size="small"
+            icon={allSelected ? <ListX size={13} /> : <ListChecks size={13} />}
+            disabled={disabled}
+            onClick={() => onScopesChange(allSelected ? [] : mcpScopeCatalog.map(({ scope }) => scope))}
+          >
+            {t(allSelected ? 'settings.mcp.clearAllPermissions' : 'settings.mcp.selectAllPermissions')}
+          </Button>
           <Button
             type="text"
             size="small"
@@ -181,7 +194,7 @@ export function McpScopeSelector({
                     >
                       <span className={styles['scope-copy']}>
                         <span className={styles['scope-name']}>
-                          <strong>{scopeName}</strong>
+                          <strong title={scopeName}>{scopeName}</strong>
                           {danger ? <em className={styles['danger-badge']}>{t('settings.mcp.highRisk')}</em> : null}
                           {approval ? (
                             <em className={approvalBypass ? styles['danger-badge'] : undefined}>

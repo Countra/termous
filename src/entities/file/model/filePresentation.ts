@@ -83,7 +83,7 @@ export function transferStatusClass(status: TransferStatus) {
 }
 
 export function resolveTransferOrigin(task: Pick<TransferTask, 'origin'>): TransferOrigin {
-  return task.origin === 'mcp' ? 'mcp' : 'app'
+  return task.origin === 'mcp' || task.origin === 'remote' ? task.origin : 'app'
 }
 
 export function transferProgress(task: TransferTask) {

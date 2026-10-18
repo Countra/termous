@@ -21,7 +21,7 @@ function fixture() {
   const update = (patch: Partial<CoreStartupSnapshot> = {}) => {
     const snapshot: CoreStartupSnapshot = {
       attemptId: 'attempt-1', instanceId: 'core-1', revision: ++revision,
-      phase: 'database', failure: null, attention: null,
+      phase: 'services', failure: null, attention: null,
       startedAt: '2026-09-07T00:00:00Z', updatedAt: '2026-09-07T00:00:00Z',
       database: { status: 'completed', operation: 'upgrade', fromVersion: 25, targetVersion: 37 },
       ...patch,
@@ -83,6 +83,50 @@ test('较慢迁移不会在最短显示期到达后提前显示完成', () => {
   assert.equal(presentation.getView().canComplete, false)
   update({ phase: 'ready' })
   assert.equal(presentation.getView().canComplete, true)
+})
+
+test('多个库依次准备时，单库完成与心跳都不能提前显示整体完成', () => {
+  const { presentation, update, advance, acknowledge } = fixture()
+  const core = { id: '1-51', domain: 'core', role: 'live', status: 'completed', operation: 'upgrade', confirmedVersion: 51 } as const
+  const agent = { id: '2-2', domain: 'agent', role: 'live', status: 'completed', operation: 'prepare', confirmedVersion: 2 } as const
+  update({ phase: 'database', database: core, databases: [core] })
+  presentation.setWindowVisible(true)
+  acknowledge()
+  advance(10_000)
+  assert.equal(presentation.getView().phase, 'database-running')
+  update({ phase: 'database', database: agent, databases: [core, agent] })
+  acknowledge()
+  advance(10_000)
+  assert.equal(presentation.getView().phase, 'database-running')
+  assert.equal(presentation.getView().canComplete, false)
+  update({ phase: 'database', database: agent, databases: [core, agent] })
+  assert.equal(presentation.getView().phase, 'database-running')
+  update({ phase: 'services', database: agent, databases: [core, agent] })
+  assert.equal(presentation.getView().phase, 'database-completed')
+  acknowledge()
+  advance(500)
+  presentation.setWorkspaceReady(true)
+  assert.equal(presentation.getView().canComplete, false)
+  update({ phase: 'ready', database: agent, databases: [core, agent] })
+  assert.equal(presentation.getView().canComplete, true)
+  assert.equal(presentation.getView().failure, null)
+  assert.deepEqual(presentation.getView().databases, [core, agent])
+})
+
+test('最后一个库降级时等待协调器就绪，保留故障信息且不阻塞工作区', () => {
+  const { presentation, update, advance } = fixture()
+  const audit = { id: '3-1', domain: 'audit', role: 'live', status: 'failed', operation: 'prepare', code: 'DB_OPEN_FAILED' } as const
+  update({ phase: 'database', database: audit, databases: [audit] })
+  presentation.setWindowVisible(true)
+  presentation.setWorkspaceReady(true)
+  advance(10_000)
+  assert.equal(presentation.getView().canComplete, false)
+  assert.equal(presentation.getView().phase, 'checking')
+  update({ phase: 'ready', database: audit, databases: [audit] })
+  assert.equal(presentation.getView().phase, 'workspace')
+  assert.equal(presentation.getView().canComplete, true)
+  assert.equal(presentation.getView().failure, null)
+  assert.deepEqual(presentation.getView().databases, [audit])
 })
 
 test('没有数据库升级时仅使用原来的 650ms 最短可见时间', () => {

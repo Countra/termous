@@ -13,6 +13,7 @@ import {
 } from '#entities/agent'
 import { mcpScopeGroups } from '../features/mcp-access/model/mcpScopeCatalog.ts'
 import { buildProductTourSteps } from '../features/product-tour/model/productTourSteps.ts'
+import { productTourTopics } from '../features/product-tour/model/productTourTopics.ts'
 import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
 type TranslationTree = Record<string, unknown>
@@ -46,7 +47,12 @@ test('使用向导动态步骤键拥有完整双语翻译', () => {
       assert.equal(typeof value, 'string', `${locale}: ${key}`)
       return value as string
     })
-    assert.equal(steps.length, 28, locale)
+    assert.equal(new Set(steps.map((step) => step.id)).size, steps.length, locale)
+    for (const topic of productTourTopics) {
+      for (const field of ['title', 'description']) {
+        assert.equal(typeof translationValue(translations, `productTour.topics.${topic.id}.${field}`), 'string', `${locale}: ${topic.id}.${field}`)
+      }
+    }
   }
 })
 
@@ -247,8 +253,17 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
 })
 
 test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
+  for (const kind of ['images', 'volumes', 'networks']) {
+    assertBilingualString(`settings.mcp.approval.dockerResource.${kind}`)
+  }
+  for (const field of ['dockerImageTag', 'dockerTagImpact', 'dockerContainer', 'dockerInternal', 'impact', 'dockerVolumeRemoval', 'dockerRemoval']) {
+    assertBilingualString(`settings.mcp.approval.${field}`)
+  }
+  for (const action of ['tag', 'connect', 'disconnect']) {
+    assertBilingualString(`settings.mcp.approval.remoteOpsAction.${action}`)
+  }
   for (const scope of mcpScopes) {
-    const key = scope.replace(':', '_')
+    const key = scope.replace(/:/g, '_')
     assertBilingualString(`settings.mcp.scope.${key}`)
     assertBilingualString(`settings.mcp.scopeDescription.${key}`)
   }
@@ -279,8 +294,6 @@ test('快捷键动作目录、作用域和管理交互拥有完整双语文案',
 
   for (const key of [
     'settings.tabShortcuts',
-    'settings.shortcuts.title',
-    'settings.shortcuts.description',
     'settings.shortcuts.searchPlaceholder',
     'settings.shortcuts.customizedCount',
     'settings.shortcuts.resetAll',
@@ -345,7 +358,8 @@ test('快捷键动作目录、作用域和管理交互拥有完整双语文案',
 
 function readTranslations(locale: string) {
   const path = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'translation.json')
-  return JSON.parse(readFileSync(path, 'utf8')) as TranslationTree
+  const workflow = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'desktop-workflow.json')
+  return { ...JSON.parse(readFileSync(path, 'utf8')), desktopWorkflow: JSON.parse(readFileSync(workflow, 'utf8')) } as TranslationTree
 }
 
 function sourceFiles(directory: string): string[] {

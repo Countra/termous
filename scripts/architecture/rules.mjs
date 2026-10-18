@@ -7,6 +7,7 @@ import {
 } from './source-graph.mjs'
 
 export { expectedPackageImports, readPackageImports }
+import { collectAgentViolations } from './agent-rules.mjs'
 
 const slicedLayers = new Set(['pages', 'widgets', 'features', 'entities', 'shared'])
 const layerRanks = new Map([
@@ -339,6 +340,7 @@ export function collectArchitectureViolations(inputRoot) {
   collectOutOfScopeViolations(graph.projectRoot, graph.outOfScopeImports, violations)
   collectPathReferenceViolations(graph.projectRoot, graph.pathReferences, violations)
   collectWindowBridgeViolations(graph.projectRoot, graph.windowBridgeReferences, violations)
+  for (const violation of collectAgentViolations(graph)) addViolation(violations, violation)
   addCycleViolations(graph.projectRoot, violations, graph.allSourceFiles, graph.edges)
   return [...violations.values()]
     .sort((left, right) => violationKey(left).localeCompare(violationKey(right), 'en'))

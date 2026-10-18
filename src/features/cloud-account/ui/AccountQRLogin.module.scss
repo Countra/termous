@@ -1,0 +1,124 @@
+.panel {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-items: flex-start;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  gap: 6px;
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: start;
+  }
+
+  small {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.code {
+  display: grid;
+  place-items: center;
+  width: 240px;
+  max-width: 100%;
+  grid-row: 1 / span 2;
+  min-height: 240px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-subtle);
+  color: var(--accent);
+}
+
+// 二维码固定使用高对比度白底，等待与失效状态仍遵循当前主题。
+.has-code {
+  background: #fff;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 208px;
+}
+
+.pair {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  flex-direction: column;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 10px;
+  background: var(--accent-soft);
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  strong {
+    font-variant-numeric: tabular-nums;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+  }
+}
+
+.panel > :global(.ant-btn) {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  font-size: 12px;
+}
+
+.with-detail .status {
+  grid-row: 1;
+  align-self: end;
+}
+
+@container (width < 340px) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .code, .status, .pair, .panel > :global(.ant-btn), .with-detail .status {
+    grid-column: 1;
+    grid-row: auto;
+    align-self: auto;
+  }
+
+  .status {
+    align-items: center;
+
+    p {
+      text-align: center;
+    }
+  }
+
+  .pair {
+    align-items: center;
+    justify-content: space-between;
+    flex-flow: row wrap;
+    padding-inline: 14px;
+  }
+}

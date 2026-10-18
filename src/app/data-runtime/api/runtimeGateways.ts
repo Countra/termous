@@ -1,3 +1,7 @@
+import { NotificationClient } from './gateways/notificationClient'
+import { CloudClient } from './gateways/cloudClient'
+import type { CloudGateway } from '#entities/cloud'
+import type { NotificationGateway } from '#entities/notification'
 import type { AuditGateway } from '#features/audit'
 import { AuditClient } from './gateways/auditClient'
 import type { AppConfig } from '#common/contracts'
@@ -8,6 +12,8 @@ import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
 import { RemoteDesktopClient, type RemoteDesktopGateway } from '#features/remote-desktop'
+import { WorkflowClient } from '#features/desktop-workflows'
+import type { WorkflowGateway } from '#entities/desktop-workflow'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
@@ -45,6 +51,9 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly invalidateFileRenamePresets: () => void
+  readonly cloud: CloudGateway
+  readonly notifications: NotificationGateway
   readonly audit: AuditGateway
   readonly agentSetup: AgentSetupGateway
   readonly agentWorkspace: AgentWorkspaceGateway
@@ -72,17 +81,19 @@ export interface RuntimeGateways {
   readonly commandDispatch: CommandDispatchGateway
   readonly mcpAccess: McpAccessGateway
   readonly remoteDesktop: RemoteDesktopGateway
+  readonly desktopWorkflow: WorkflowGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
 export function createRuntimeGatewaysFromConfig(
   config: Partial<AppConfig> = {},
 ): RuntimeGateways {
+  const notifications = new NotificationClient(config)
   const audit = new AuditClient(config)
   const runtime = new RuntimeClient(config)
-  const agentSetup = new AgentSetupClient(config)
-  const agentWorkspace = new AgentWorkspaceClient(config)
   const settings = new SettingsClient(config)
+  const agentSetup = new AgentSetupClient(config, settings)
+  const agentWorkspace = new AgentWorkspaceClient(config)
   const snippets = new SnippetClient(config)
   const fileCatalog = new FileCatalogClient(config)
   const mounts = new MountClient(config)
@@ -93,7 +104,7 @@ export function createRuntimeGatewaysFromConfig(
   const sessions = new SessionClient(config)
   const aliasClient = new AliasClient(config)
   const commandDispatch = new CommandDispatchClient(config)
-  const mcpAccess = new McpAccessClient(config)
+  const mcpAccess = new McpAccessClient(config, settings)
   const observability = new ObservabilityClient(config)
   const service = new ServiceClient(config)
   const crontab = new CrontabClient(config)
@@ -108,6 +119,10 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    desktopWorkflow: new WorkflowClient(config),
+    cloud: new CloudClient(config),
+    invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),
+    notifications,
     audit,
     agentSetup,
     agentWorkspace,
@@ -258,6 +273,7 @@ function createFileGateway(
       overwritePolicy,
       overwriteItemIds,
       overwriteConfirmations,
+      expectedConnectionGeneration,
     ) => transfers.createFileSessionUploadTransfer(
       fileSessionId,
       localGrantId,
@@ -265,6 +281,7 @@ function createFileGateway(
       overwritePolicy,
       overwriteItemIds,
       overwriteConfirmations,
+      expectedConnectionGeneration,
     ),
     createFileSessionDownloadTransfer: (
       fileSessionId,
@@ -287,6 +304,7 @@ function createFileGateway(
     ),
     localPathMappingStat: (id, path, signal) => catalog.localPathMappingStat(id, path, signal),
     fileRenamePresets: () => rename.fileRenamePresets(),
+    subscribeFileRenamePresets: (listener) => rename.subscribeFileRenamePresets(listener),
     createFileRenamePreset: (input) => rename.createFileRenamePreset(input),
     updateFileRenamePreset: (id, expectedUpdatedAt, input) => (
       rename.updateFileRenamePreset(id, expectedUpdatedAt, input)

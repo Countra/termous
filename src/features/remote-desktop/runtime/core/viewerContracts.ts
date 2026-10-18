@@ -3,7 +3,14 @@ import type {
   RemoteDesktopDisplayMode,
   RemoteDesktopProtocol,
   RemoteDesktopSession,
+  RdpAttachment,
 } from '#entities/remote-desktop'
+import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
+import type { AutomationPointerFeed } from './automationPointerState.ts'
+export interface DesktopExecutionConnection {
+  connect: (readOnly: boolean) => Promise<{ url: string; ticket: string }>
+  reclaim: (readOnly: boolean) => Promise<void>
+}
 
 export type RemoteDesktopViewerConnectionState =
   | 'idle'
@@ -34,9 +41,12 @@ export type RemoteDesktopViewerErrorCode =
   | 'server_identity_rejected'
   | 'stream_disconnected'
   | 'attach_failed'
+  | 'reconnect_failed'
   | ''
 
 export interface RemoteDesktopViewerState {
+  controlLease?: { id: string; generation: number } | null
+  controlOwned?: boolean
   connection: RemoteDesktopViewerConnectionState
   credentialFields: RemoteDesktopCredentialField[]
   verification: { type: string; fingerprint: string } | null
@@ -92,6 +102,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
+  onControlChanged?: (owned: boolean, lease?: { id: string; generation: number } | null) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
   onCredentialsRequired: (fields: RemoteDesktopCredentialField[]) => void
@@ -117,8 +128,11 @@ export interface RemoteDesktopViewerHandle {
 }
 
 export interface RemoteDesktopViewerCreateOptions {
+  pointer?: AutomationPointerFeed
+  desktopFiles?: DesktopFilesGateway
+  transport: { kind: 'rfb'; url: string; execution?: DesktopExecutionConnection } | { kind: 'rdp-pixels'; attachment: RdpAttachment }
+  takeControl?: (subscriptionId: string) => Promise<void>
   target: HTMLElement
-  url: string
   session: RemoteDesktopSession
   profile?: RemoteDesktopAccessProfile
   state: RemoteDesktopViewerState

@@ -4,6 +4,7 @@ export const defaultConnectionSettings: ConnectionSettings = {
   ssh_keepalive_enabled: false,
   forward_auto_reconnect_enabled: false,
   remote_desktop_auto_reconnect_enabled: true,
+  rdp_unattended_timeout_minutes: 10,
 }
 
 export function normalizeConnectionSettings(
@@ -19,14 +20,10 @@ export function normalizeConnectionSettings(
     remote_desktop_auto_reconnect_enabled: typeof settings?.remote_desktop_auto_reconnect_enabled === 'boolean'
       ? settings.remote_desktop_auto_reconnect_enabled
       : defaultConnectionSettings.remote_desktop_auto_reconnect_enabled,
+    rdp_unattended_timeout_minutes: typeof settings?.rdp_unattended_timeout_minutes === 'number'
+      && Number.isInteger(settings.rdp_unattended_timeout_minutes)
+      && settings.rdp_unattended_timeout_minutes >= 1 && settings.rdp_unattended_timeout_minutes <= 30
+      ? settings.rdp_unattended_timeout_minutes
+      : defaultConnectionSettings.rdp_unattended_timeout_minutes,
   }
-}
-
-export function connectionSettingsEqual(
-  left: ConnectionSettings,
-  right: ConnectionSettings,
-) {
-  return left.ssh_keepalive_enabled === right.ssh_keepalive_enabled
-    && left.forward_auto_reconnect_enabled === right.forward_auto_reconnect_enabled
-    && left.remote_desktop_auto_reconnect_enabled === right.remote_desktop_auto_reconnect_enabled
 }

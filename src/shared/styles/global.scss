@@ -114,25 +114,25 @@
   box-sizing: border-box;
 }
 
-:where(body[data-termous-main-surface='true']),
-:where(body[data-termous-main-surface='true']) * {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']),
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) * {
   scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
   scrollbar-width: thin;
 }
 
-:where(body[data-termous-main-surface='true'])::-webkit-scrollbar,
-:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true'])::-webkit-scrollbar,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) *::-webkit-scrollbar {
   width: 11px;
   height: 11px;
 }
 
-:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-track,
-:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-track {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true'])::-webkit-scrollbar-track,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) *::-webkit-scrollbar-track {
   background: var(--termous-scrollbar-track);
 }
 
-:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-thumb,
-:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-thumb {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true'])::-webkit-scrollbar-thumb,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) *::-webkit-scrollbar-thumb {
   min-width: 44px;
   min-height: 44px;
   border: 4px solid transparent;
@@ -141,35 +141,35 @@
   background-clip: content-box;
 }
 
-:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-thumb:hover,
-:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-thumb:hover {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true'])::-webkit-scrollbar-thumb:hover,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) *::-webkit-scrollbar-thumb:hover {
   background: var(--termous-scrollbar-thumb-hover);
   background-clip: content-box;
 }
 
-:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-corner,
-:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-corner {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true'])::-webkit-scrollbar-corner,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) *::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 /* AntD 虚拟列表使用自绘滚动条，保留拖拽区域的同时收窄可见滑块。 */
-:where(body[data-termous-main-surface='true']) .ant-select-dropdown {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) .ant-select-dropdown {
   --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb);
 }
 
-:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-vertical {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-vertical {
   width: 9px !important;
   inset-inline-end: 2px !important;
 }
 
-:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb {
   border-inline: 2px solid transparent;
   background-clip: content-box !important;
   transition: background 0.16s ease;
 }
 
-:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb:hover,
-:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb-moving {
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb:hover,
+:where(body[data-termous-main-surface='true'], body[data-termous-remote-surface='true'], body[data-termous-detached-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb-moving {
   --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb-hover);
 }
 

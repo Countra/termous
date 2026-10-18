@@ -52,6 +52,7 @@ let renewal = Promise.resolve()
 let heartbeat
 let activeWorker
 let activeRun
+let claimSequence = 1
 let failure
 
 await mkdir(outputDirectory, { recursive: true })
@@ -89,7 +90,7 @@ async function runAcceptance() {
     heartbeat = setInterval(() => {
       renewal = renewal.then(register).catch((error) => { failure = error; activeWorker?.kill() })
     }, 10000)
-    const initialSettings = await api('/agent/settings')
+    const initialSettings = await api('/settings/agent')
     for (const mode of ['chat_completions', 'responses']) {
       const model = await ensureModel(mode)
       const session = await api('/agent/sessions', 'POST', {
@@ -134,7 +135,7 @@ async function runAcceptance() {
         }
       }
     }
-    assert.deepEqual(await api('/agent/settings'), initialSettings, '验收不得修改全局设置')
+    assert.deepEqual(await api('/settings/agent'), initialSettings, '验收不得修改全局设置')
     report.success = true
   } catch (error) {
     failure ??= error
@@ -182,8 +183,12 @@ async function runScenario(session, name, rounds, options) {
   report.runs.push({ id: run.id, session_id: session.id, scenario: name })
   await appendFile(path.join(outputDirectory, 'identities.jsonl'), JSON.stringify({ kind: 'run', id: run.id, session_id: session.id, scenario: name }) + '\n')
   await saveReport()
+  const allocation = await api('/agent/runtime/queue/claim-next', 'POST', {
+    supervisor_instance_id: supervisorID, supervisor_epoch: lease.supervisor_epoch, claim_sequence: claimSequence++,
+  })
+  assert.equal(allocation.run?.id, run.id, '压缩验收要求没有其他等待领取的 Run')
   const ticket = await api(`/agent/runs/${run.id}/runtime-tickets`, 'POST', {
-    supervisor_instance_id: supervisorID, expected_generation: run.generation,
+    supervisor_instance_id: supervisorID, expected_generation: run.generation, execution_id: allocation.execution_id,
   })
   const firstRequest = fixture.requests.length
   const outbound = []
@@ -231,6 +236,10 @@ async function runScenario(session, name, rounds, options) {
     }))
   })
   activeWorker = undefined
+  await api('/agent/runtime/executions/release', 'POST', {
+    supervisor_instance_id: supervisorID, supervisor_epoch: lease.supervisor_epoch,
+    execution_id: allocation.execution_id, run_id: run.id, generation: run.generation,
+  })
   const persisted = await api(`/agent/runs/${run.id}`)
   const events = await collectEvents(run.id, run.generation)
   const compactions = events.filter((event) => event.kind === 'compaction')

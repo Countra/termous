@@ -1,33 +1,24 @@
+@use '../../../../shared/styles/settings' as settings;
+
 .update-settings-surface {
   overflow: hidden;
-  padding: 16px;
+  padding-top: 22px;
 }
 
 .update-settings-heading {
   display: flex;
   align-items: flex-start;
-  gap: 11px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .update-settings-heading h2,
-.update-settings-heading p,
 .update-preference-row p {
   margin: 0;
 }
 
 .update-settings-heading h2 {
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 720;
-}
-
-.update-settings-heading p {
-  margin-top: 4px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.5;
+  @include settings.heading;
 }
 
 .update-settings-heading-icon {
@@ -38,17 +29,19 @@
   place-items: center;
 }
 
+.update-settings-heading-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
 .update-preference-list {
-  padding: 0 20px 8px;
+  @include settings.panel;
 }
 
 .update-preference-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
-  align-items: center;
-  gap: 24px;
+  @include settings.row;
+
   min-height: 68px;
-  padding: 10px 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
@@ -58,15 +51,15 @@
 
 .update-preference-row strong {
   color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 550;
 }
 
 .update-preference-row p {
   margin-top: 4px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.45;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .update-preference-control {
@@ -76,7 +69,8 @@
 }
 
 .update-preference-select {
-  width: min(100%, 180px);
+  width: 160px;
+  max-width: 100%;
 }
 
 .update-preference-select:global(.ant-select) {
@@ -178,11 +172,11 @@
 }
 
 @media (width <= 720px) {
-  .update-preference-row {
+  .update-preference-row:has(.update-preference-select) {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
     gap: 9px;
-    padding: 13px 0;
+    padding: 14px;
   }
 
   .update-preference-control {

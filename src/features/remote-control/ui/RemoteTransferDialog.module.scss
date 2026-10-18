@@ -1,0 +1,15 @@
+.options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.options > span { white-space: nowrap; }
+
+.options :global(.ant-select) {
+  width: 124px;
+  flex: 0 0 auto;
+}

@@ -1,4 +1,4 @@
-import type { AuditDetails, AuditEvent, AuditPage, AuditStatus } from '#entities/audit'
+import { decodeAuditSettings, type AuditDetails, type AuditEvent, type AuditPage, type AuditStatus } from '#entities/audit'
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -48,7 +48,8 @@ export function decodeAuditStatus(value: unknown): AuditStatus {
   }
   if (value.last_error !== undefined && (typeof value.last_error !== 'string' || value.last_error.length > 2048)) return invalid()
   if (value.last_write_at !== undefined && (typeof value.last_write_at !== 'string' || !Number.isFinite(Date.parse(value.last_write_at)))) return invalid()
-  return value as unknown as AuditStatus
+  const settings = decodeAuditSettings({ enabled: value.enabled === undefined ? true : value.enabled, retention_days: value.retention_days, max_records: value.max_records === undefined ? 0 : value.max_records })
+  return { ...value, ...settings } as unknown as AuditStatus
 }
 
 export function decodeAuditDetails(event: AuditEvent): AuditDetails {

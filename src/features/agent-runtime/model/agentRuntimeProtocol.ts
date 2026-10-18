@@ -1,4 +1,5 @@
-import { isAgentTerminalReferenceOrigin } from '#common/contracts'
+import { isAgentProgressData } from '#common/contracts'
+import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -41,6 +42,7 @@ import {
   type AgentRunModelSnapshot,
   type AgentRunStatus,
   type AgentResourceBinding,
+  type AgentMessageResource,
   type AgentResourceKind,
   type AgentSourceContext,
   type AgentSession,
@@ -54,7 +56,7 @@ import {
 const maxAgentPromptBytes = 1 << 20
 
 export type AgentWorkspaceEvent =
-  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; session_groups?: AgentSessionGroup[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_state?: AgentQueueState }
+  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; session_groups?: AgentSessionGroup[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_states?: AgentQueueState[]; queue_state?: AgentQueueState }
   | {
       type: 'upsert'
       revision: number
@@ -80,10 +82,12 @@ export function decodeAgentSession(value: unknown): AgentSession {
   // 旧 Core 的单引用仅在协议边界转换；应用内部始终使用集合。
   const bindings = source.resource_bindings === undefined
     ? (source.resource_binding === undefined ? [] : [source.resource_binding])
-    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 2)
+    : array(source.resource_bindings, 'Agent 资源绑定集合无效', 4)
   const resourceBindings = bindings.map(decodeAgentResourceBinding)
   unique(resourceBindings.map(({ kind }) => agentResourceSlot(kind)), 'Agent 资源绑定槽位重复')
   return {
+    ...(source.origin === undefined || source.origin === '' ? {} : { origin: enumValue<'remote'>(source.origin, ['remote'], 'Agent 会话来源无效') }),
+    ...(source.creator_device_id === undefined ? {} : { creator_device_id: identifier(source.creator_device_id, 'Agent 创建设备无效') }),
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
     ...(source.group_id === undefined ? {} : { group_id: identifier(source.group_id, 'Agent 会话分组 ID 无效') }),
@@ -141,6 +145,34 @@ export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding
   const source = record(value, 'Agent 资源绑定响应无效')
   const kind = enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效')
   const common = { bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效') }
+  const fields = ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine',
+    'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation', 'workflow_id', 'workflow_name', 'workflow_version']
+  const allowed = kind === 'desktop_workflow' ? ['workflow_id', 'workflow_name', 'workflow_version']
+    : kind === 'desktop_session' ? ['session_id', 'desktop_profile_id', 'desktop_profile_name', 'protocol', 'connection_generation']
+    : kind === 'desktop_profile' ? ['desktop_profile_id', 'desktop_profile_name', 'protocol']
+    : ['session_id', 'ssh_profile_id', 'ssh_profile_name', 'platform', 'file_access_profile_id', 'file_access_profile_name', 'engine']
+  if (fields.some((field) => source[field] !== undefined && !allowed.includes(field))
+    || kind === 'desktop_workflow' && (source.host_id !== undefined || source.host_name !== undefined && source.host_name !== '')) {
+    throw new AgentRuntimeProtocolError('资源引用包含其他类型的身份')
+  }
+  if (kind === 'desktop_workflow') return { ...common, kind,
+    workflow_id: identifier(source.workflow_id, 'Agent 脚本 ID 无效'),
+    workflow_name: utf8(source.workflow_name, 'Agent 脚本名称无效', 1_024),
+    workflow_version: positiveInteger(source.workflow_version, 'Agent 脚本版本无效'),
+  }
+  if (kind === 'desktop_session' || kind === 'desktop_profile') {
+    const desktop = { ...common,
+      desktop_profile_id: identifier(source.desktop_profile_id, 'Agent 桌面配置 ID 无效'),
+      desktop_profile_name: utf8(source.desktop_profile_name, 'Agent 桌面配置名称无效', 1_024),
+      host_id: identifier(source.host_id, 'Agent 桌面主机 ID 无效'),
+      host_name: utf8(source.host_name, 'Agent 桌面主机名称无效', 1_024),
+      protocol: enumValue<'rdp' | 'vnc'>(source.protocol, ['rdp', 'vnc'], 'Agent 桌面协议无效'),
+    }
+    return kind === 'desktop_profile' ? { ...desktop, kind } : { ...desktop, kind,
+      session_id: identifier(source.session_id, 'Agent 桌面会话 ID 无效'),
+      connection_generation: positiveInteger(source.connection_generation, 'Agent 桌面连接代次无效'),
+    }
+  }
   if (kind === 'file_profile') {
     if (source.session_id !== undefined || source.platform !== undefined || source.ssh_profile_name !== undefined) {
       throw new AgentRuntimeProtocolError('文件引用包含 SSH 身份')
@@ -260,6 +292,9 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
       ...(kind === 'text' && body.source_context !== undefined
         ? { source_context: decodeAgentSourceContext(body.source_context) }
         : {}),
+      ...(kind === 'text' && body.resources !== undefined
+        ? { resources: decodeMessageResources(body.resources) }
+        : {}),
     }
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
@@ -275,7 +310,22 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     tool_name: utf8(body.tool_name, 'Agent Tool 名称无效', 256),
     content: jsonValue(body.content),
     is_error: bool(body.is_error, 'Agent Tool 结果状态无效'),
+    ...(body.images === undefined ? {} : { images: decodeToolImages(body.images) }),
   } }
+}
+
+function decodeToolImages(value: unknown) {
+  const images = array(value, 'Agent 工具图片列表无效').map((item: unknown) => {
+    const source = record(item, 'Agent 工具图片元数据无效')
+    const size = positiveInteger(source.size_bytes, 'Agent 工具图片大小无效')
+    if (!isAgentDisplayImageMIMEType(source.mime_type) || size > 10 * 1024 * 1024) {
+      throw new AgentRuntimeProtocolError('Agent 工具图片格式或大小无效')
+    }
+    return { content_index: nonNegativeInteger(source.content_index, 'Agent 工具图片索引无效'),
+      mime_type: source.mime_type, size_bytes: size }
+  })
+  ascending(images.map((image) => image.content_index), 'Agent 工具图片索引重复或无序')
+  return images
 }
 
 export function decodeAgentMessage(value: unknown): AgentMessage {
@@ -303,6 +353,12 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
       throw new AgentRuntimeProtocolError('Agent 消息压缩记录归属无效')
     }
   }
+  const progress = source.progress === undefined ? undefined : array(source.progress, '执行进展记录无效').map((value) => {
+    const entry = record(value, '执行进展无效')
+    if (!isAgentProgressData(entry) || entry.assistant_message_id !== id || role !== 'assistant') throw new AgentRuntimeProtocolError('执行进展归属无效')
+    return { ...entry, created_at: timestamp(entry.created_at, '执行进展时间无效') }
+  })
+  if (progress) unique(progress.map((value) => value.pattern_id), '重复进展记录')
   const retries = source.retries === undefined ? undefined
     : array(source.retries, 'Agent 消息重试记录无效').map(decodeRetryActivity)
   if (retries) {
@@ -336,8 +392,10 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     parts,
     attachments,
     turn_usage: turnUsage,
+    ...(source.request_usage === undefined ? {} : { request_usage: array(source.request_usage, '请求用量记录无效', maxAgentMessageRequestUsage).map(decodeRequestUsage) }),
     ...(compactions ? { compactions } : {}),
     ...(retries ? { retries } : {}),
+    ...(progress ? { progress } : {}),
   }
 }
 
@@ -360,6 +418,26 @@ export function decodeAgentAttachment(value: unknown): AgentAttachment {
     created_at: timestamp(source.created_at, 'Agent 附件创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 附件更新时间无效'),
   }
+}
+
+function decodeMessageResources(value: unknown): AgentMessageResource[] {
+  const resources = array(value, 'Agent 消息关联资源无效', 4).map((value): AgentMessageResource => {
+    const source = record(value, 'Agent 消息关联资源无效')
+    const id = identifier(source.id, 'Agent 消息关联资源 ID 无效')
+    const name = utf8(source.name, 'Agent 消息关联资源名称无效', 1_024)
+    const hostName = optionalString(source.host_name, 'Agent 消息关联主机名称无效', 1_024)
+    if (!/^[A-Za-z0-9_-]+$/.test(id) || name.includes('\0') || hostName?.includes('\0')) {
+      throw new AgentRuntimeProtocolError('Agent 消息关联资源身份或名称无效')
+    }
+    return {
+      kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 消息关联资源类型无效'),
+      ...(source.kind === 'desktop_workflow' ? { version: positiveInteger(source.version, 'Agent 脚本引用版本无效') } : {}),
+      id, name,
+      ...(hostName === undefined ? {} : { host_name: hostName }),
+    }
+  })
+  unique(resources.map(({ kind }) => agentResourceSlot(kind)), 'Agent 消息关联资源槽位重复')
+  return resources
 }
 
 export function decodeAgentSourceContext(value: unknown): AgentSourceContext {
@@ -425,6 +503,27 @@ export function decodeAgentRun(value: unknown): AgentRun {
   }
 }
 
+function decodeRequestUsage(value: unknown): import('#entities/agent').AgentRequestUsage {
+  const source = record(value, '请求用量无效')
+  return {
+    ...(source.error_code === undefined ? {} : { error_code: identifier(source.error_code, '请求错误码无效', 64) }),
+    ...(source.effective_tools === undefined ? {} : { effective_tools: array(source.effective_tools, '有效工具清单无效', 256).map((name) => identifier(name, '有效工具名无效', 128)) }),
+    ...(source.context_fingerprint === undefined ? {} : { context_fingerprint: identifier(source.context_fingerprint, '上下文指纹无效', 64) }),
+    ...(source.execution_summary_tokens === undefined ? {} : { execution_summary_tokens: nonNegativeInteger(source.execution_summary_tokens, '执行摘要规模无效') }),
+    request_index: positiveInteger(source.request_index, '请求序号无效'),
+    purpose: enumValue(source.purpose, ['response', 'compaction'] as const, '请求用途无效'),
+    tool_count: nonNegativeInteger(source.tool_count, '工具数量无效'),
+    schema_bytes: nonNegativeInteger(source.schema_bytes, '工具 Schema 大小无效'),
+    schema_tokens_estimate: nonNegativeInteger(source.schema_tokens_estimate, '工具用量估算无效'),
+    images: array(source.images ?? [], '请求图片尺寸无效', 256).map((value) => {
+      const image = record(value, '请求图片尺寸无效')
+      return { width: nonNegativeInteger(image.width, '图片宽度无效'), height: nonNegativeInteger(image.height, '图片高度无效') }
+    }),
+    usage: decodeUsage(source.usage), duration_ms: nonNegativeInteger(source.duration_ms, '请求耗时无效'),
+    outcome: enumValue(source.outcome, ['completed', 'failed', 'cancelled'] as const, '请求状态无效'),
+  }
+}
+
 export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   const source = record(value, 'Agent Run Event 响应无效')
   const kind = enumValue<AgentRunEventKind>(source.kind, agentRunEventKinds, 'Agent Run Event 类型无效')
@@ -437,12 +536,17 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
   }
   const payload = record(source.payload, 'Agent Run Event payload 无效')
   const branch = eventPayloadBranch(kind)
-  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage']
+  const present = ['status', 'message_delta', 'message_part', 'tool', 'approval', 'steer', 'steer_applied', 'usage', 'error', 'compaction', 'retry', 'context_usage', 'request_usage', 'progress']
     .filter((key) => payload[key] !== undefined)
   if (present.length !== 1 || present[0] !== branch) {
     throw new AgentRuntimeProtocolError('Agent Run Event 判别分支无效')
   }
   switch (kind) {
+    case 'request_usage':
+      return { ...base, kind, payload: { request_usage: decodeRequestUsage(payload.request_usage) } }
+    case 'progress':
+      if (!isAgentProgressData(payload.progress)) throw new AgentRuntimeProtocolError('执行进展事件无效')
+      return { ...base, kind, payload: { progress: payload.progress } }
     case 'retry':
       return { ...base, kind, payload: { retry: decodeRetryData(payload.retry) } }
     case 'compaction':
@@ -610,9 +714,11 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     const groups = decodeAgentSessionGroups({ items: source.session_groups ?? [] }).items
     const activeRuns = array(source.active_runs, 'Agent Workspace Run 快照无效').map(decodeAgentRun)
     const queuedTurns = array(source.queued_turns ?? [], 'Agent Workspace 排队消息快照无效').map(decodeAgentQueuedTurn)
-    const queueState = source.queue_state === undefined ? undefined : decodeAgentQueueState(source.queue_state)
+    const queueStates = array(source.queue_states ?? (source.queue_state === undefined ? [] : [source.queue_state]), 'Agent 会话队列快照无效').map(decodeAgentQueueState)
     unique(sessions.map(({ id }) => id), 'Agent Workspace Session 快照包含重复 ID')
     unique(activeRuns.map(({ id }) => id), 'Agent Workspace Run 快照包含重复 ID')
+    unique(activeRuns.map(({ session_id }) => session_id), '同一会话存在多个活动 Run')
+    unique(queueStates.map(({ session_id }) => session_id), 'Agent 队列快照包含重复会话')
     unique(queuedTurns.map(({ id }) => id), 'Agent Workspace 排队消息快照包含重复 ID')
     unique(
       queuedTurns.map(({ session_id, queue_sequence }) => `${session_id}\u0000${queue_sequence}`),
@@ -621,15 +727,14 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
     const sessionIDs = new Set(sessions.map(({ id }) => id))
     if (
       queuedTurns.some(({ session_id }) => !sessionIDs.has(session_id))
-      || (queueState && !sessionIDs.has(queueState.session_id))
-      || (queueState && queuedTurns.some(({ session_id }) => session_id !== queueState.session_id))
+      || queueStates.some(({ session_id }) => !sessionIDs.has(session_id))
     ) {
       throw new AgentRuntimeProtocolError('Agent Workspace 排队消息快照归属无效')
     }
-    if (activeRuns.length > 1 || activeRuns.some(({ status }) => !isAgentRunActive(status))) {
+    if (activeRuns.some(({ status, session_id }) => !isAgentRunActive(status) || !sessionIDs.has(session_id))) {
       throw new AgentRuntimeProtocolError('Agent Workspace 活动 Run 快照无效')
     }
-    return { type: source.type, revision, sessions, session_groups: groups, active_runs: activeRuns, queued_turns: queuedTurns, queue_state: queueState }
+    return { type: source.type, revision, sessions, session_groups: groups, active_runs: activeRuns, queued_turns: queuedTurns, queue_states: queueStates }
   }
   if (revision === 0) {
     throw new AgentRuntimeProtocolError('Agent Workspace 增量 revision 无效')
@@ -733,6 +838,7 @@ function decodeContextUsageFields(source: Record<string, unknown>): AgentContext
     estimated: bool(source.estimated, 'Agent 上下文估算状态无效'),
     warning: bool(source.warning, 'Agent 上下文预警状态无效'),
     compression_available: available,
+    ...(source.compression_trigger_tokens === undefined ? {} : { compression_trigger_tokens: positiveInteger(source.compression_trigger_tokens, '压缩阈值无效') }),
     ...(source.basis === undefined ? {} : { basis: decodeContextUsageBasis(source.basis) }),
     ...(status === undefined ? {} : { compression_status: status }),
   }
@@ -904,7 +1010,8 @@ function identifier(value: unknown, message: string, maxBytes = 128) {
 }
 
 function optionalIdentifier(value: unknown, message: string, maxBytes = 128) {
-  return value === undefined ? undefined : identifier(value, message, maxBytes)
+  // v1 旧投影用空字符串表达文件资源没有主机或 SSH 依赖，统一归一为未设置。
+  return value === undefined || value === '' ? undefined : identifier(value, message, maxBytes)
 }
 
 function utf8(value: unknown, message: string, maxBytes: number, allowEmpty = false) {

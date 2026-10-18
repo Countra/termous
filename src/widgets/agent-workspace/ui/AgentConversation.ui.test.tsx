@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentWorkspaceMessage } from '../model/types.ts'
+import type { AgentWorkspaceMessage, AgentWorkspacePresentation } from '../model/types.ts'
 import { AgentConversation } from './AgentConversation.tsx'
 
 vi.mock('react-i18next', () => ({
@@ -48,6 +48,65 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it('返回过渡的可见视图在编辑锁解除前恢复位置，避免淡入结束后跳动', () => {
+    const geometry = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    try {
+      const presentation: AgentWorkspacePresentation = { conversations: { one: { top: 180, follow: false } } }
+      const view = render(<AgentConversation active={false} presentation={presentation}
+        messages={[message('历史正文')]} runStatus="completed" loading={false} sessionKey="one" />)
+      expect(view.container.querySelector('[role="log"]')!.scrollTop).toBe(180)
+    } finally { geometry.mockRestore() }
+  })
+
+  it('后台收回时保留滚动锚点，页面显示后才恢复位置', () => {
+    const saved = { top: 480, follow: false, anchor: 'message-one', offset: -20 }
+    const presentation: AgentWorkspacePresentation = { conversations: { one: saved } }
+    const props = { messages: [message('历史正文')], runStatus: 'completed' as const, loading: false, sessionKey: 'one', presentation }
+    const view = render(<AgentConversation {...props} active={false} />)
+    const viewport = view.container.querySelector('[role="log"]') as HTMLDivElement
+    const anchor = viewport.querySelector('article')!
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect)
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({ top: 420, bottom: 500 } as DOMRect)
+    fireEvent.scroll(viewport)
+    flushAnimationFrames()
+    expect(presentation.conversations!.one).toBe(saved)
+    expect(viewport.scrollTop).toBe(0)
+
+    view.rerender(<AgentConversation {...props} active />)
+    flushAnimationFrames()
+    expect(viewport.scrollTop).toBe(340)
+    expect(screen.getByRole('button', { name: 'agent.conversation.jumpToLatest' })).toBeInTheDocument()
+  })
+
+  it('用户正文上方展示发送时关联的资源，旧消息与助手回复不显示关联标签', async () => {
+    const linked: AgentWorkspaceMessage = {
+      ...message('查看镜像'), id: 'user-linked', role: 'user', status: 'completed',
+      resources: [
+        { kind: 'ssh_session', id: 'ses-original', name: 'TX-HK' },
+        { kind: 'file_profile', id: 'file-original', name: '备份', host_name: '文件主机' },
+      ],
+    }
+    const legacy = { ...message('旧消息'), id: 'user-legacy', role: 'user' as const }
+    const assistant = { ...message('回复'), id: 'assistant', resources: linked.resources }
+    const view = render(<AgentConversation messages={[linked, legacy, assistant]} runStatus="completed" loading={false} sessionKey="one" />)
+    expect(screen.getAllByRole('group', { name: 'agent.message.resources' })).toHaveLength(1)
+    const group = screen.getByRole('group', { name: 'agent.message.resources' })
+    expect(within(group).getByText('TX-HK')).toBeVisible()
+    expect(within(group).getByText('备份')).toBeVisible()
+    expect(group.compareDocumentPosition(screen.getByText('查看镜像')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(group).queryByRole('button')).not.toBeInTheDocument()
+    fireEvent.focus(within(group).getByLabelText('agent.message.resourceKind.ssh_session · TX-HK'))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('ses-original')
+    view.rerender(<AgentConversation messages={[{ ...linked, resources: [{ kind: 'ssh_profile', id: 'ssh-one', name: '运维配置' }] }]} runStatus="completed" loading={false} sessionKey="two" />)
+    expect(screen.getByText('运维配置')).toBeVisible()
+    expect(screen.queryByText('TX-HK')).not.toBeInTheDocument()
+  })
+
   it('每条消息仅在正文下方操作行显示时间，头部不再重复显示', () => {
     const assistant = { ...message('助手正文'), status: 'completed' as const, duration_ms: 12_000 }
     const user = { ...message('用户正文'), id: 'message-user', role: 'user' as const, status: 'completed' as const }

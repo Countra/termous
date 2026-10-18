@@ -85,6 +85,45 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('两分钟审批隐藏并恢复十秒后仍可决定，不因界面卸载取消', () => {
+    testState.approvals = [approvalFixture('2026-08-13T00:02:00Z')]
+    const view = render(<McpApprovalCoordinator />)
+    view.unmount()
+    act(() => vi.advanceTimersByTime(10_000))
+    render(<McpApprovalCoordinator />)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.expiresIn:01:50')).toBeInTheDocument()
+    expect(testState.decideApproval).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenCalledWith(testState.approvals[0]!.id, 'approve')
+  })
+
+  it('系统通知选择指定审批，审批消失后恢复既有队列顺序', () => {
+    const first = approvalFixture('2026-08-13T00:00:30Z')
+    const second = { ...first, id: 'second', command: 'pwd' }
+    testState.approvals = [first, second]
+    const view = render(<McpApprovalCoordinator preferredApprovalId="second" />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenLastCalledWith('second', 'approve')
+    testState.approvals = [first]
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="second" />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenLastCalledWith(first.id, 'approve')
+  })
+
+  it('系统消息先于审批订阅到达时对账一次，不自动决定审批', () => {
+    testState.approvals = []
+    const view = render(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+    testState.approvals = []
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+    testState.approvals = [{ ...approvalFixture('2026-08-13T00:00:30Z'), id: 'requested' }]
+    view.rerender(<McpApprovalCoordinator preferredApprovalId="requested" />)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(testState.decideApproval).not.toHaveBeenCalled()
+  })
+
   it('审批先于客户端目录到达时先对账并隐藏持久化技术名称', () => {
     testState.clients = []
     testState.approvals = [{
@@ -611,6 +650,43 @@ describe('McpApprovalCoordinator', () => {
       },
       headline: /remoteOpsDomain\.services.*remoteOpsAction\.mask/,
       details: ['nginx.service'],
+    },
+    {
+      name: 'Docker 镜像标签',
+      operation: {
+        domain: 'docker', resource_kind: 'images', action: 'tag', resource_id: 'sha256:image', image_tag: 'app:v2',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.images.*remoteOpsAction\.tag/,
+      details: ['sha256:image', 'app:v2', 'settings.mcp.approval.dockerTagImpact'],
+    },
+    {
+      name: 'Docker 数据卷删除',
+      operation: {
+        domain: 'docker', resource_kind: 'volumes', action: 'remove', resource_id: 'data',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.volumes.*remoteOpsAction\.delete/,
+      details: ['data', 'settings.mcp.approval.dockerVolumeRemoval'],
+    },
+    {
+      name: 'Docker 网络连接',
+      operation: {
+        domain: 'docker', resource_kind: 'networks', action: 'connect', resource_id: 'network-id',
+        target_resource_id: 'container-id', target_resource_name: 'web',
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.networks.*remoteOpsAction\.connect/,
+      details: ['network-id', 'web · container-id'],
+    },
+    {
+      name: 'Docker 非内部网络创建',
+      operation: {
+        domain: 'docker', resource_kind: 'networks', action: 'create', resource_name: 'app', internal: false,
+        remote_paths: [], local_paths: [], rename_mappings: [],
+      },
+      headline: /dockerResource\.networks.*remoteOpsAction\.create/,
+      details: ['app', 'settings.mcp.approval.disabled'],
     },
   ])('展示$name审批摘要', ({ operation, headline, details }) => {
     testState.approvals = [{

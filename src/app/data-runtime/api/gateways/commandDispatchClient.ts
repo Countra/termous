@@ -3,7 +3,7 @@ import type {
   CommandDispatchTask,
   CommandDispatchTaskInput,
 } from '#entities/command-dispatch'
-import { decodeCommandDispatchTask } from '#features/command-dispatch'
+import { decodeCommandDispatchTask, decodeCommandDispatchCollection } from '#features/command-dispatch'
 import { TermousApiError, TermousApiTransport } from '#shared/api'
 
 interface RequestOptions {
@@ -36,6 +36,14 @@ export class CommandDispatchClient extends TermousApiTransport {
       timeoutMs: 20_000,
     }).then(decodeCommandDispatchTask)
   }
+
+  tasks(options: RequestOptions & { clientRequestId?: string } = {}) {
+    const query = new URLSearchParams()
+    if (options.clientRequestId !== undefined) query.set('client_request_id', options.clientRequestId)
+    return this.request<unknown>(`${commandDispatchTasksPath}?${query}`, { signal: options.signal }).then(decodeCommandDispatchCollection)
+  }
+
+  tasksEventsUrl() { return this.websocketUrl(`${commandDispatchTasksPath}/events?view=collection`) }
 
   latestTask(options: LatestRequestOptions = {}) {
     if (options.fresh) {

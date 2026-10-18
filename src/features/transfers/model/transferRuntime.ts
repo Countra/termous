@@ -125,7 +125,7 @@ export function sortTransfers(transfers: TransferTask[]) {
 
   const activeTransfers: TransferTask[] = []
   const historyTransfers: TransferTask[] = []
-  const historyCounts = { app: 0, mcp: 0 }
+  const historyCounts = { app: 0, mcp: 0, remote: 0 }
   for (const task of sorted) {
     if (isActiveTransfer(task)) {
       activeTransfers.push(task)

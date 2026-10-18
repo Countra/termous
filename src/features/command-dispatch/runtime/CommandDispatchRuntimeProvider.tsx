@@ -4,6 +4,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import type {
@@ -24,7 +25,7 @@ import {
   reconcileCommandDispatchTask,
 } from '../model/commandDispatchTaskState'
 import {
-  decodeCommandDispatchLatestTaskEvent,
+  decodeCommandDispatchCollectionEvent,
   decodeCommandDispatchTaskEvent,
 } from '../model/commandDispatchProtocol'
 import {
@@ -51,7 +52,11 @@ export function CommandDispatchRuntimeProvider({
     undefined,
     createCommandDispatchTaskViewState,
   )
+  const [tasks, setTasks] = useState<CommandDispatchTask[]>([])
+  const tasksRef = useRef<CommandDispatchTask[]>([])
   const taskRef = useRef<CommandDispatchTask | null>(null)
+  const unconfirmedTasksRef = useRef(new Set<string>())
+  const refreshCollectionRef = useRef<() => void>(() => undefined)
   const activityGenerationRef = useRef(0)
   const recoveryTokenRef = useRef<object | null>({})
   const startInFlightRef = useRef<Promise<CommandDispatchTask> | null>(null)
@@ -60,187 +65,105 @@ export function CommandDispatchRuntimeProvider({
     [api],
   )
 
-  const clearLatestTask = useCallback((expectedGeneration: number, expectedTaskId?: string) => {
-    if (
-      activityGenerationRef.current !== expectedGeneration
-      || (expectedTaskId !== undefined && (taskRef.current?.id ?? '') !== expectedTaskId)
-      || startInFlightRef.current
-    ) {
-      return false
-    }
-    // 权威空快照也属于一次活动代际变化，必须让此前的恢复和对账结果失效。
+  const selectSnapshot = useCallback((task: CommandDispatchTask | null) => {
     activityGenerationRef.current += 1
-    taskRef.current = null
-    outputStore.retainTask(null)
-    dispatch({ type: 'recover-success', task: null })
-    return true
-  }, [outputStore])
-
-  const acceptTask = useCallback((incoming: CommandDispatchTask) => {
-    const current = taskRef.current
-    if (current && current.id !== incoming.id && compareTaskCreation(incoming, current) < 0) {
-      return current
-    }
-    const task = reconcileCommandDispatchTask(current, incoming)
-    if (task === current) {
-      return task
-    }
-    if (current?.id !== task.id) {
-      activityGenerationRef.current += 1
-    }
     taskRef.current = task
     outputStore.retainTask(task)
-    dispatch({ type: 'snapshot', task })
-    return task
+    dispatch({ type: 'recover-success', task })
   }, [outputStore])
 
-  useEffect(() => {
-    if (!enabled) {
-      return undefined
+  const acceptTask = useCallback((incoming: CommandDispatchTask, select = false) => {
+    const task = reconcileCommandDispatchTask(tasksRef.current.find(({ id }) => id === incoming.id) ?? null, incoming)
+    tasksRef.current = [task, ...tasksRef.current.filter(({ id }) => id !== task.id)]
+      .sort((left, right) => -compareTaskCreation(left, right)).slice(0, 49)
+    setTasks(tasksRef.current)
+    if (select || !taskRef.current) selectSnapshot(task)
+    else if (taskRef.current.id === task.id) {
+      taskRef.current = task
+      outputStore.retainTask(task)
+      dispatch({ type: 'snapshot', task })
     }
+    return task
+  }, [outputStore, selectSnapshot])
+
+  const selectTask = useCallback((id: string) => {
+    const task = tasksRef.current.find((entry) => entry.id === id)
+    if (task) selectSnapshot(task)
+  }, [selectSnapshot])
+
+  useEffect(() => {
+    if (!enabled) return
     let disposed = false
     let socket: WebSocket | null = null
-    let reconnectTimer = 0
-    let reconnectDelay = reconnectInitialDelay
+    let timer = 0
+    let revision = -1
+    let connection = 0
     let reconcileController: AbortController | null = null
-
-    const reconcileLatest = () => {
+    const token = {}
+    recoveryTokenRef.current = token
+    dispatch({ type: 'recover-start' })
+    const acceptCollection = (collection: { revision: number; items: CommandDispatchTask[] }, authoritativeRead = false) => {
+      if (disposed || collection.revision < revision) return
+      revision = collection.revision
+      if (authoritativeRead) unconfirmedTasksRef.current.clear()
+      for (const item of collection.items) unconfirmedTasksRef.current.delete(item.id)
+      const unconfirmed = tasksRef.current.filter(({ id }) => unconfirmedTasksRef.current.has(id))
+      tasksRef.current = [...unconfirmed, ...collection.items.map((incoming) => reconcileCommandDispatchTask(
+        tasksRef.current.find(({ id }) => id === incoming.id) ?? null, incoming))
+      ]
+      setTasks(tasksRef.current)
+      const selected = tasksRef.current.find(({ id }) => id === taskRef.current?.id) ?? tasksRef.current[0] ?? null
+      if (selected?.id !== taskRef.current?.id) selectSnapshot(selected)
+      else if (selected) acceptTask(selected)
+      else dispatch({ type: 'recover-success', task: null })
+      if (recoveryTokenRef.current === token) recoveryTokenRef.current = null
+    }
+    const reconcile = () => {
       reconcileController?.abort()
       const controller = new AbortController()
       reconcileController = controller
-      const requestGeneration = activityGenerationRef.current
-      const requestTaskId = taskRef.current?.id ?? ''
-      void api.latestTask({ fresh: true, signal: controller.signal })
-        .then((task) => {
-          if (
-            !disposed
-            && activityGenerationRef.current === requestGeneration
-            && (taskRef.current?.id ?? '') === requestTaskId
-          ) {
-            if (task) acceptTask(task)
-            else clearLatestTask(requestGeneration, requestTaskId)
-          }
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          if (reconcileController === controller) reconcileController = null
-        })
-    }
-    const scheduleReconnect = () => {
-      if (disposed || reconnectTimer) return
-      reconnectTimer = window.setTimeout(() => {
-        reconnectTimer = 0
-        connect()
-      }, reconnectDelay)
-      reconnectDelay = Math.min(reconnectDelay * 2, reconnectMaximumDelay)
-    }
-    function connect() {
-      if (disposed || socket) return
-      const connectionGeneration = activityGenerationRef.current
-      try {
-        socket = new WebSocket(api.latestTasksEventsUrl())
-      } catch {
-        scheduleReconnect()
-        return
-      }
-      const currentSocket = socket
-      let firstMessage = true
-      currentSocket.addEventListener('open', () => {
-        if (disposed || socket !== currentSocket) return
-        reconnectDelay = reconnectInitialDelay
-        reconcileLatest()
+      const epoch = connection
+      const activity = activityGenerationRef.current
+      void api.tasks({ signal: controller.signal }).then((collection) => {
+        if (!controller.signal.aborted && epoch === connection && activity === activityGenerationRef.current) acceptCollection(collection, true)
+      }).catch((error) => {
+        if (disposed || controller.signal.aborted) return
+        const failure = commandDispatchRequestError(error)
+        dispatch({ type: 'recover-error', errorCode: failure.code, errorMessage: failure.message })
       })
-      currentSocket.addEventListener('message', (message: MessageEvent<string>) => {
-        if (disposed || socket !== currentSocket) return
-        const initialMessage = firstMessage
-        firstMessage = false
-        try {
-          const event = decodeCommandDispatchLatestTaskEvent(JSON.parse(String(message.data)))
-          const current = taskRef.current
-          if (
-            initialMessage
-            && connectionGeneration !== activityGenerationRef.current
-            && event?.task
-            && current
-            && event.task.id !== current.id
-            && compareTaskCreation(event.task, current) <= 0
-          ) {
-            return
-          }
-          if (event?.task) {
-            acceptTask(event.task)
-          } else if (event?.type === 'command_dispatch_latest_snapshot') {
-            clearLatestTask(connectionGeneration)
-          } else if (!event) {
-            reconcileLatest()
-          }
-        } catch {
-          reconcileLatest()
-        }
+    }
+    refreshCollectionRef.current = reconcile
+    const connect = () => {
+      if (disposed) return
+      connection += 1
+      revision = -1
+      reconcile()
+      try { socket = new WebSocket(api.tasksEventsUrl()) }
+      catch { timer = window.setTimeout(connect, reconnectInitialDelay); return }
+      const current = socket
+      current.addEventListener('open', () => { if (socket === current && !disposed) reconcile() })
+      current.addEventListener('message', (message: MessageEvent<string>) => {
+        if (socket !== current || disposed) return
+        try { acceptCollection(decodeCommandDispatchCollectionEvent(JSON.parse(String(message.data)))) }
+        catch { reconcile() }
       })
-      currentSocket.addEventListener('error', () => currentSocket.close())
-      currentSocket.addEventListener('close', () => {
-        if (socket === currentSocket) socket = null
-        scheduleReconnect()
+      current.addEventListener('error', () => current.close())
+      current.addEventListener('close', () => {
+        if (disposed || socket !== current) return
+        socket = null
+        timer = window.setTimeout(connect, reconnectInitialDelay)
       })
     }
     connect()
     return () => {
       disposed = true
-      window.clearTimeout(reconnectTimer)
+      refreshCollectionRef.current = () => undefined
+      window.clearTimeout(timer)
       reconcileController?.abort()
       if (socket) retireWebSocket(socket)
+      if (recoveryTokenRef.current === token) recoveryTokenRef.current = null
     }
-  }, [acceptTask, api, clearLatestTask, enabled])
-
-  useEffect(() => {
-    if (!enabled) {
-      return undefined
-    }
-    const controller = new AbortController()
-    const recoveryToken = {}
-    recoveryTokenRef.current = recoveryToken
-    const recoveryGeneration = activityGenerationRef.current
-    dispatch({ type: 'recover-start' })
-    void api.latestTask({ signal: controller.signal })
-      .then((task) => {
-        if (
-          controller.signal.aborted
-          || activityGenerationRef.current !== recoveryGeneration
-        ) {
-          return
-        }
-        taskRef.current = task
-        outputStore.retainTask(task)
-        dispatch({ type: 'recover-success', task })
-      })
-      .catch((error) => {
-        if (
-          controller.signal.aborted
-          || activityGenerationRef.current !== recoveryGeneration
-          || requestAborted(error)
-        ) {
-          return
-        }
-        const requestError = commandDispatchRequestError(error)
-        dispatch({
-          type: 'recover-error',
-          errorCode: requestError.code,
-          errorMessage: requestError.message,
-        })
-      })
-      .finally(() => {
-        if (recoveryTokenRef.current === recoveryToken) {
-          recoveryTokenRef.current = null
-        }
-      })
-    return () => {
-      controller.abort()
-      if (recoveryTokenRef.current === recoveryToken) {
-        recoveryTokenRef.current = null
-      }
-    }
-  }, [api, enabled, outputStore])
+  }, [acceptTask, api, enabled, selectSnapshot])
 
   const taskId = state.task?.id ?? ''
   const taskTerminal = state.task ? isCommandDispatchTaskTerminal(state.task.status) : true
@@ -361,37 +284,39 @@ export function CommandDispatchRuntimeProvider({
         409,
       ))
     }
-    const activeTask = taskRef.current
-    if (activeTask && !isCommandDispatchTaskTerminal(activeTask.status)) {
-      return Promise.reject(new TermousApiError(
-        '已有会话命令任务正在执行',
-        'COMMAND_DISPATCH_TASK_ACTIVE',
-        409,
-      ))
-    }
     activityGenerationRef.current += 1
     dispatch({ type: 'start-start' })
     const operation = (async () => {
       try {
-        return acceptTask(await api.createTask(input))
+        const task = await api.createTask(input)
+        unconfirmedTasksRef.current.add(task.id)
+        const accepted = acceptTask(task, true)
+        refreshCollectionRef.current()
+        return accepted
       } catch (error) {
         const requestError = commandDispatchRequestError(error)
         if (requestError.status === 0) {
           try {
-            const latest = await api.latestTask({ fresh: true })
-            if (latest && commandDispatchTaskMatchesInput(latest, input)) {
-              return acceptTask(latest)
+            const recovered = (await api.tasks({ clientRequestId: input.client_request_id })).items.find((task) => commandDispatchTaskMatchesInput(task, input))
+            if (recovered) {
+              unconfirmedTasksRef.current.add(recovered.id)
+              const accepted = acceptTask(recovered, true)
+              refreshCollectionRef.current()
+              return accepted
             }
           } catch {
             // 保留原始创建错误，避免恢复查询失败掩盖未知提交结果。
           }
         }
+        const failure = requestError.status === 0
+          ? new TermousApiError('命令提交结果未知，请检查任务列表后再决定是否重新执行', 'COMMAND_DISPATCH_RESULT_UNKNOWN', 0, { client_request_id: input.client_request_id })
+          : requestError
         dispatch({
           type: 'start-error',
-          errorCode: requestError.code,
-          errorMessage: requestError.message,
+          errorCode: failure.code,
+          errorMessage: failure.message,
         })
-        throw error
+        throw failure
       }
     })()
     startInFlightRef.current = operation
@@ -452,12 +377,14 @@ export function CommandDispatchRuntimeProvider({
 
   const value = useMemo<CommandDispatchRuntimeContextValue>(() => ({
     state,
+    tasks,
+    selectTask,
     start,
     interruptTask,
     interruptTarget,
     subscribeTargetOutput: (id, sessionId, listener) => outputStore.subscribe(id, sessionId, listener),
     getTargetOutputSnapshot: (id, sessionId) => outputStore.getSnapshot(id, sessionId),
-  }), [interruptTarget, interruptTask, outputStore, start, state])
+  }), [interruptTarget, interruptTask, outputStore, start, state, tasks, selectTask])
 
   return (
     <CommandDispatchRuntimeContext.Provider value={value}>
@@ -489,10 +416,6 @@ function commandDispatchRequestError(error: unknown) {
         'COMMAND_DISPATCH_REQUEST_FAILED',
         0,
       )
-}
-
-function requestAborted(error: unknown) {
-  return error instanceof TermousApiError && error.code === 'REQUEST_ABORTED'
 }
 
 function clearStartInFlight(

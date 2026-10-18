@@ -1,0 +1,17 @@
+.copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding-block: 3px;
+
+  small {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
+
+.title, .icon {
+  color: var(--danger);
+}

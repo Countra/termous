@@ -31,6 +31,8 @@ export interface AuditEvent {
 export interface AuditPage { items: AuditEvent[]; next_cursor?: string }
 
 export interface AuditStatus {
+  enabled: boolean
+  max_records: number
   state: string
   queued: number
   queued_bytes: number
@@ -63,3 +65,4 @@ export interface AuditQuery {
 export type AuditDetails =
   | { kind: AuditEventType; context: Record<string, unknown>; parameters: Record<string, unknown>; result: Record<string, unknown>; truncated: boolean }
   | { kind: 'unknown'; raw: Record<string, unknown> }
+export { decodeAuditSettings, type AuditSettings } from './model/auditSettings.ts'

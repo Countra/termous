@@ -1,8 +1,7 @@
 import type { TerminalAICompletionRequest, TerminalAICompletionResult } from '#common/contracts'
-import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction } from '../agent/runtimeProviderAdapter.ts'
-import { runtimeProviderFailure } from '../agent/runtimeProviderFailure.ts'
-import { isRecord } from '../agent/protocol.ts'
-import { projectPiUsage, type RuntimeUsage } from '../agent/runtimeUsage.ts'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
+import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction, runtimeProviderFailure, projectPiUsage, type RuntimeUsage } from '../agent/provider/index.ts'
+import { isRecord } from '../agent/contracts/validation.ts'
 import { completionFailure, terminalCompletionTimeoutMs, validText, type TerminalCompletionBootstrap } from './protocol.ts'
 
 const systemPrompt = [
@@ -30,11 +29,11 @@ export async function generateTerminalCommand(
     const order = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
     const reasoning = order.find((level) => bootstrap.model.snapshot.supported_reasoning_levels.includes(level))
     // 独立单次请求，不创建 Agent；输出上限和最低推理档位避免沿用长任务的生成预算。
-    const response = await (await stream(model, {
+    const response = await (await stream(model, normalizeContext({
       systemPrompt, tools: [], messages: [{ role: 'user', timestamp: Date.now(), content: JSON.stringify({
         request: request.prompt, current_input: request.inputSnapshot.line, environment: bootstrap.environment,
       }) }],
-    }, { signal, maxTokens: Math.min(2048, model.maxTokens), reasoning: reasoning === 'off' ? undefined : reasoning })).result()
+    }), { signal, maxTokens: Math.min(2048, model.maxTokens), reasoning: reasoning === 'off' ? undefined : reasoning })).result()
     onUsage?.(projectPiUsage(response.usage))
     if (signal.aborted || response.stopReason === 'aborted') return cancel()
     if (response.stopReason === 'error') {

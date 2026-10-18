@@ -1,9 +1,11 @@
+@use '../../../shared/styles/settings' as settings;
+
 .stack {
   display: grid;
   min-width: 0;
   align-content: start;
   align-self: start;
-  gap: 12px;
+  gap: 0;
   width: 100%;
   container-name: agent-settings;
   container-type: inline-size;
@@ -13,10 +15,19 @@
 .skeleton {
   min-width: 0;
   align-self: start;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  padding: var(--agent-surface-padding, 16px);
+  padding-top: 22px;
+}
+
+.section-body {
+  @include settings.panel;
+}
+
+.budget-header {
+  padding: 17px 18px;
+}
+
+.budget-header + .agent-setting-list {
+  border-top: 1px solid var(--border);
 }
 
 .surface > :global(.ant-alert) + :global(.ant-btn) {
@@ -34,7 +45,7 @@
 .runtime-header {
   align-items: flex-start;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  padding: 17px 18px;
 }
 
 .runtime-heading {
@@ -95,29 +106,26 @@
 .section-title {
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: var(--text-primary);
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-muted);
 }
 
 .section-title h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: 0;
+  @include settings.heading;
 }
 
 .section-hint {
-  margin: 5px 0 0;
+  margin: 0;
   color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .readiness-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-bottom: 1px solid var(--border);
-  padding: 4px 0;
+  padding: 8px 18px;
 }
 
 .readiness-item {
@@ -172,20 +180,11 @@
 }
 
 .agent-setting-row {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px 16px;
-  padding: 16px 0;
+  @include settings.row;
 }
 
 .agent-setting-list > section + section {
   border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-}
-
-.agent-setting-row:last-child {
-  padding-bottom: 0;
 }
 
 .agent-setting-copy {
@@ -197,36 +196,30 @@
 .agent-setting-copy strong {
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 550;
   line-height: 1.35;
+}
+
+.agent-setting-copy label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.configuration-layout {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+}
+
+.field-error {
+  color: var(--danger);
 }
 
 .agent-setting-copy > span {
   color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.toggle-control {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  align-self: center;
-}
-
-.toggle-control > span {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.empty {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 @container agent-settings (max-width: 760px) {
@@ -262,33 +255,8 @@
     align-items: flex-start;
   }
 
-  .readiness-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .readiness-item {
-    border-right: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
-    padding-inline: 0;
-  }
-
-  .readiness-copy {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .agent-setting-row {
+  .agent-setting-row:has(input[role='spinbutton']) {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-  }
-
-  .toggle-control {
-    justify-content: space-between;
-  }
-
-  .readiness-item:last-child {
-    border-bottom: 0;
   }
 }

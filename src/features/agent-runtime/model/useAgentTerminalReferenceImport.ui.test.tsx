@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentQueuedTurn, AgentResourceBinding, AgentResourceBindingUpdateInput, AgentFileResourceState, AgentSession, AgentSSHResourceState } from '#entities/agent'
+import { agentResourceSlot, type AgentLaunchIntent, type AgentQueuedTurn, type AgentResourceBinding, type AgentResourceBindingUpdateInput, type AgentFileResourceState, type AgentSession, type AgentSSHResourceState, type AgentDesktopResourceState } from '#entities/agent'
 import type { AgentWorkspaceController } from '../runtime/AgentWorkspaceController.ts'
 import { createAgentWorkspaceState, type AgentWorkspaceState } from './agentWorkspaceState.ts'
 import { agentFixtureTime, agentRunFixture, agentSessionFixture } from './agentRuntimeTestFixtures.ts'
@@ -15,7 +15,7 @@ describe('useAgentTerminalReferenceImport', () => {
     const first = kind === 'ssh_session' ? intent() : fileIntent()
     const second = { ...(kind === 'ssh_session' ? fileIntent() : intent()), key: 2 }
     const options = fixture.options({ intent: first, resources: [source, fileSource],
-      resourcesReady: { ssh_session: kind !== 'ssh_session', file_profile: kind !== 'file_profile' } })
+      resourcesReady: { ssh_session: kind !== 'ssh_session', file_profile: kind !== 'file_profile', desktop_session: true } })
     const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
     await waitFor(() => expect(view.result.current.current?.request.key).toBe(first.key))
     view.rerender({ ...options, intent: second })
@@ -24,11 +24,31 @@ describe('useAgentTerminalReferenceImport', () => {
     expect(options.addReference).not.toHaveBeenCalled()
 
     view.rerender({ ...options, intent: undefined,
-      resourcesReady: { ssh_session: kind === 'ssh_session', file_profile: kind === 'file_profile' } })
+      resourcesReady: { ssh_session: kind === 'ssh_session', file_profile: kind === 'file_profile', desktop_session: true } })
     await waitFor(() => expect(view.result.current.current?.request.key).toBe(second.key))
     expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledOnce()
     expect(options.addReference).toHaveBeenCalledTimes(kind === 'ssh_session' ? 1 : 0)
     expect(view.result.current.current?.stage).toBe('pending')
+  })
+
+  it('桌面引用按自身就绪状态导入，保留已有 SSH、文件引用和草稿', async () => {
+    const fixture = setup({ sessions: [session({ resource_bindings: [binding(), fileBinding()] })],
+      drafts: { [targetId]: { text: '保留的提问', updated_at: 1 } } })
+    const request: Extract<AgentLaunchIntent, { source: 'connection_reference' }> = {
+      key: 1, source: 'connection_reference', target: { kind: 'session', session_id: targetId }, source_resource: desktopSource,
+      resource_reference: { kind: 'desktop_session', session_id: desktopSource.session_id, connection_generation: desktopSource.connection_generation },
+    }
+    const options = fixture.options({ intent: request, resources: [source, fileSource, desktopSource],
+      resourcesReady: { ssh_session: true, file_profile: true, desktop_session: false } })
+    const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
+    await waitFor(() => expect(view.result.current.current?.stage).toBe('pending'))
+    expect(fixture.controller.replaceResourceBinding).not.toHaveBeenCalled()
+    view.rerender({ ...options, resourcesReady: { ...options.resourcesReady, desktop_session: true } })
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(fixture.controller.replaceResourceBinding).toHaveBeenCalledWith(targetId, { ...request.resource_reference, expected_revision: 1 })
+    expect(fixture.state.sessions[0]?.resource_bindings?.map(({ kind }) => kind)).toEqual(['ssh_session', 'file_profile', 'desktop_session'])
+    expect(fixture.state.drafts[targetId]?.text).toBe('保留的提问')
+    expect(options.addReference).not.toHaveBeenCalled()
   })
 
   it('文件引用保留 SSH 引用和草稿，不读取附件编辑归属', async () => {
@@ -353,6 +373,18 @@ function profileBinding(): Extract<AgentResourceBinding, { kind: 'ssh_profile' }
 const fileSource: AgentFileResourceState = { file_access_profile_id: 'file_source', file_access_profile_name: '文件配置',
   host_id: 'host_files', host_name: '文件主机', ssh_profile_id: 'ssh_files', engine: 'sftp', status: 'ready' }
 
+const desktopSource: Extract<AgentDesktopResourceState, { kind: 'desktop_session' }> = {
+  kind: 'desktop_session', session_id: 'desktop-source', connection_generation: 3,
+  desktop_profile_id: 'desktop-profile', desktop_profile_name: '远程桌面', host_id: 'host-desktop', host_name: '桌面主机',
+  protocol: 'rdp', status: 'ready',
+}
+
+function desktopBinding(): Extract<AgentResourceBinding, { kind: 'desktop_session' }> {
+  return { kind: desktopSource.kind, session_id: desktopSource.session_id, connection_generation: desktopSource.connection_generation,
+    desktop_profile_id: desktopSource.desktop_profile_id, desktop_profile_name: desktopSource.desktop_profile_name,
+    host_id: desktopSource.host_id, host_name: desktopSource.host_name, protocol: desktopSource.protocol, bound_at: agentFixtureTime }
+}
+
 function fileBinding(): Extract<AgentResourceBinding, { kind: 'file_profile' }> {
   return { kind: 'file_profile', file_access_profile_id: fileSource.file_access_profile_id,
     file_access_profile_name: fileSource.file_access_profile_name, host_id: fileSource.host_id,
@@ -388,11 +420,11 @@ function setup(initial: Partial<AgentWorkspaceState> = {}) {
     reloadSession: vi.fn(async (id: string) => state.sessions.find((value) => value.id === id)),
     replaceResourceBinding: vi.fn(async (id: string, input: AgentResourceBindingUpdateInput): Promise<AgentSession> => {
       const current = state.sessions.find((value) => value.id === id)!
-      const slot = input.kind === 'file_profile' ? 'file' : 'ssh'
+      const slot = agentResourceSlot(input.kind)
       const next = { ...current, resource_bindings: [...(current.resource_bindings ?? []).filter(({ kind }) => (
-        (kind === 'file_profile' ? 'file' : 'ssh') !== slot
+        agentResourceSlot(kind) !== slot
       )),
-        input.kind === 'ssh_session' ? binding(input.session_id) : fileBinding()], revision: current.revision + 1 }
+        input.kind === 'ssh_session' ? binding(input.session_id) : input.kind === 'desktop_session' ? desktopBinding() : fileBinding()], revision: current.revision + 1 }
       state = { ...state, sessions: state.sessions.map((value) => value.id === id ? next : value) }
       return next
     }),
@@ -406,7 +438,7 @@ function setup(initial: Partial<AgentWorkspaceState> = {}) {
     patch: (patch: Partial<AgentWorkspaceState>) => { state = { ...state, ...patch } },
     options: (overrides: Partial<Options> = {}): Options => ({
       intent: intent(), controller: controller as unknown as AgentWorkspaceController, active: true, ready: true,
-      modelReady: true, resourcesReady: { ssh_session: true, file_profile: true }, resources: [{ ...source }],
+      modelReady: true, resourcesReady: { ssh_session: true, file_profile: true, desktop_session: true }, resources: [{ ...source }],
       createSession: vi.fn(async () => {
         const created = session({ id: 'ags-created' })
         state = { ...state, sessions: [...state.sessions, created] }

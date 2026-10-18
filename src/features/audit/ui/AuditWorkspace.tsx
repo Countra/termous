@@ -89,8 +89,8 @@ export function AuditWorkspace({ api }: { api: AuditGateway }) {
   return (
     <section className={styles.page} aria-label={t('nav.audit')}>
       <header className={styles.header} data-tour="audit-workspace">
-        <div className={styles.heading}><span className={styles['heading-icon']}><ClipboardList size={18} aria-hidden="true" /></span><div><h1>{t('nav.audit')}</h1><p>{t('audit.description')}</p></div></div>
-        <Button icon={<RefreshCw size={15} />} loading={busy} onClick={() => { setBusy(true); setRevision((value) => value + 1) }}>{t('app.reload')}</Button>
+        <div className={styles.heading}><span className={styles['heading-icon']}><ClipboardList size={18} aria-hidden="true" /></span><h1>{t('nav.audit')}</h1>{status?.enabled === false && <Tag>{t('audit.paused')}</Tag>}</div>
+        <Button icon={<RefreshCw size={15} aria-hidden="true" />} loading={busy} onClick={() => { setBusy(true); setRevision((value) => value + 1) }}>{t('app.reload')}</Button>
       </header>
       {statusFailed || (status && status.state !== 'ready') || (status?.dropped ?? 0) > 0 ? <Alert type="warning" showIcon title={t('audit.degraded')} description={statusFailed ? t('audit.statusFailed') : t('audit.health', { queued: status?.queued ?? 0, dropped: status?.dropped ?? 0, failures: status?.write_failures ?? 0 })} /> : null}
       {status?.last_error ? <p className={styles.warning}>{status.last_error}</p> : null}

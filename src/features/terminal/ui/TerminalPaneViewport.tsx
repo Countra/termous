@@ -137,6 +137,7 @@ export function TerminalPaneViewport({
     aiCompletionEnabled,
     captureSessionAiInput,
     getDefaultModelStatus,
+    takeBackSessionInput,
   } = useTerminalRuntime()
   const { t } = useTranslation()
   const { runtime: shortcutRuntime, labels: shortcutLabels } = useShortcutRuntime()
@@ -874,7 +875,8 @@ export function TerminalPaneViewport({
         {session && inputLock.locked ? (
           <div className={styles['input-lock-notice']} role="status">
             <LockKeyhole size={12} aria-hidden="true" />
-            <span>{t('commandDispatch.terminalInputLocked')}</span>
+            <span>{t(inputLock.owner === 'remote_control' ? 'remoteControl.controlled' : 'commandDispatch.terminalInputLocked')}{inputLock.owner === 'remote_control' && inputLock.device_id ? ` · ${inputLock.device_id}` : ''}</span>
+            {inputLock.owner === 'remote_control' ? <Button size="small" onClick={() => { if (!takeBackSessionInput(session.id)) void message.error(t('remoteControl.takeoverFailed')) }}>{t('remoteControl.takeover')}</Button> : null}
           </div>
         ) : null}
         <div

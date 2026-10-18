@@ -1,7 +1,7 @@
-export const agentSlashCommandIds = ['session', 'profile', 'compact'] as const
+export const agentSlashCommandIds = ['session', 'profile', 'workflow', 'compact'] as const
 export type AgentSlashCommandId = (typeof agentSlashCommandIds)[number]
 
-export const agentSlashResourceKinds = ['ssh', 'file'] as const
+export const agentSlashResourceKinds = ['ssh', 'file', 'desktop', 'workflow'] as const
 export type AgentSlashResourceKind = (typeof agentSlashResourceKinds)[number]
 
 export const agentSlashCandidateKinds = [
@@ -9,6 +9,9 @@ export const agentSlashCandidateKinds = [
   'file_session',
   'ssh_profile',
   'file_profile',
+  'desktop_session',
+  'desktop_profile',
+  'desktop_workflow',
 ] as const
 export type AgentSlashCandidateKind = (typeof agentSlashCandidateKinds)[number]
 
@@ -44,15 +47,18 @@ interface AgentSlashCandidateBase {
   id: string
   kind: AgentSlashCandidateKind
   resource_kind: AgentSlashResourceKind
-  host_id: string
-  host_name: string
-  profile_id: string
-  profile_name: string
   current: boolean
   disabled_reason?: AgentSlashCandidateDisabledReason
 }
 
-export interface AgentSlashSSHSessionCandidate extends AgentSlashCandidateBase {
+interface AgentSlashConnectionCandidateBase extends AgentSlashCandidateBase {
+  host_id: string
+  host_name: string
+  profile_id: string
+  profile_name: string
+}
+
+export interface AgentSlashSSHSessionCandidate extends AgentSlashConnectionCandidateBase {
   kind: 'ssh_session'
   resource_kind: 'ssh'
   session_id: string
@@ -61,7 +67,7 @@ export interface AgentSlashSSHSessionCandidate extends AgentSlashCandidateBase {
   status: AgentSlashSSHSessionStatus
 }
 
-export interface AgentSlashFileSessionCandidate extends AgentSlashCandidateBase {
+export interface AgentSlashFileSessionCandidate extends AgentSlashConnectionCandidateBase {
   kind: 'file_session'
   resource_kind: 'file'
   file_access_profile_id: string
@@ -70,7 +76,7 @@ export interface AgentSlashFileSessionCandidate extends AgentSlashCandidateBase 
   status: AgentSlashFileSessionStatus
 }
 
-export interface AgentSlashSSHProfileCandidate extends AgentSlashCandidateBase {
+export interface AgentSlashSSHProfileCandidate extends AgentSlashConnectionCandidateBase {
   kind: 'ssh_profile'
   resource_kind: 'ssh'
   ssh_profile_id: string
@@ -78,7 +84,7 @@ export interface AgentSlashSSHProfileCandidate extends AgentSlashCandidateBase {
   status: AgentSlashProfileStatus
 }
 
-export interface AgentSlashFileProfileCandidate extends AgentSlashCandidateBase {
+export interface AgentSlashFileProfileCandidate extends AgentSlashConnectionCandidateBase {
   kind: 'file_profile'
   resource_kind: 'file'
   file_access_profile_id: string
@@ -88,15 +94,42 @@ export interface AgentSlashFileProfileCandidate extends AgentSlashCandidateBase 
 
 export type AgentSlashSessionCandidate = AgentSlashSSHSessionCandidate | AgentSlashFileSessionCandidate
 export type AgentSlashProfileCandidate = AgentSlashSSHProfileCandidate | AgentSlashFileProfileCandidate
-export type AgentSlashCandidate = AgentSlashSessionCandidate | AgentSlashProfileCandidate
+export type AgentSlashCandidate = AgentSlashSessionCandidate | AgentSlashProfileCandidate | AgentSlashDesktopCandidate
 
 export interface AgentSlashCandidateCatalog {
+  workflow?: { workflow: AgentSlashWorkflowCandidate[] }
   session: {
     ssh: AgentSlashSSHSessionCandidate[]
     file: AgentSlashFileSessionCandidate[]
+    desktop?: AgentSlashDesktopSessionCandidate[]
   }
   profile: {
     ssh: AgentSlashSSHProfileCandidate[]
     file: AgentSlashFileProfileCandidate[]
+    desktop?: AgentSlashDesktopProfileCandidate[]
   }
+}
+
+export interface AgentSlashDesktopSessionCandidate extends AgentSlashConnectionCandidateBase {
+  kind: 'desktop_session'; resource_kind: 'desktop'; session_id: string
+  connection_generation: number; protocol: 'rdp' | 'vnc'; started_at: string
+  status: 'ready' | 'unavailable'
+}
+export interface AgentSlashDesktopProfileCandidate extends AgentSlashConnectionCandidateBase {
+  kind: 'desktop_profile'; resource_kind: 'desktop'; protocol: 'rdp' | 'vnc'
+  status: 'ready' | 'unavailable'
+}
+export interface AgentSlashWorkflowCandidate extends AgentSlashCandidateBase {
+  kind: 'desktop_workflow'; resource_kind: 'workflow'; workflow_id: string
+  workflow_name: string; workflow_version: number; status: 'ready' | 'unavailable'
+}
+export type AgentSlashDesktopCandidate = AgentSlashDesktopSessionCandidate | AgentSlashDesktopProfileCandidate | AgentSlashWorkflowCandidate
+
+export function agentSlashKindsForCommand(command: AgentSlashCommandId): AgentSlashResourceKind[] {
+  return command === 'workflow' ? ['workflow'] : command === 'compact' ? [] : ['ssh', 'file', 'desktop']
+}
+export function agentSlashCatalogCandidates(catalog: AgentSlashCandidateCatalog, command: AgentSlashCommandId, kind: AgentSlashResourceKind): AgentSlashCandidate[] {
+  if (command === 'workflow') return kind === 'workflow' ? catalog.workflow?.workflow ?? [] : []
+  if (command === 'compact' || kind === 'workflow') return []
+  return catalog[command][kind] ?? []
 }

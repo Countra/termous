@@ -231,6 +231,27 @@ test('MCP 审批协议解码文件管理批量重命名映射', () => {
   ])
 })
 
+test('MCP 桌面审批接受 30 分钟授权并拒绝不匹配的期限', () => {
+  const decode = (timeout: unknown) => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1,
+    items: [{
+      ...approvalFixture('pending'), kind: 'desktop',
+      session_ids: undefined, targets: undefined,
+      operation: {
+        domain: 'desktop', action: 'control.acquire', resource_id: 'desktop-1',
+        resource_kind: 'rdp', mode: 'observe_to_control', timeout_seconds: timeout,
+      },
+    }],
+  }).items[0]
+  const approval = decode(1800)
+  assert.equal(approval?.kind, 'desktop')
+  assert.equal(approval?.operation?.timeout_seconds, 1800)
+  assert.deepEqual(approval?.session_ids, [])
+  for (const timeout of [undefined, 0, 900, 3600, '1800']) {
+    assert.throws(() => decode(timeout), /桌面审批范围无效/)
+  }
+})
+
 test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
   const snapshot = decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',
@@ -259,6 +280,31 @@ test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
   assert.equal(approval?.operation?.command, '/usr/local/bin/backup --daily')
   assert.deepEqual(approval?.session_ids, ['session-1'])
   assert.equal(approval?.targets[0]?.host_name, '测试主机')
+})
+
+test('Docker 资源审批保留明确目标与网络选项，拒绝不完整摘要', () => {
+  const decode = (operation: Record<string, unknown>) => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1', revision: 1,
+    items: [{ ...approvalFixture('pending'), kind: 'remoteops', operation: { domain: 'docker', ...operation } }],
+  }).items[0]?.operation
+  assert.equal(decode({ resource_kind: 'networks', action: 'create', resource_name: 'app', internal: false })?.internal, false)
+  const network = decode({ resource_kind: 'networks', action: 'connect', resource_id: 'network-id', target_resource_id: 'container-id', target_resource_name: 'web' })
+  assert.equal(network?.target_resource_id, 'container-id')
+  assert.equal(network?.target_resource_name, 'web')
+  assert.equal(decode({ resource_kind: 'images', action: 'tag', resource_id: 'image-id', image_tag: 'app:v2' })?.image_tag, 'app:v2')
+  for (const operation of [
+    { resource_kind: 'unknown', action: 'remove', resource_id: 'id' },
+    { resource_kind: null, action: 'remove', resource_id: 'id' },
+    { resource_kind: 1, action: 'remove', resource_id: 'id' },
+    { resource_kind: '', action: 'remove', resource_id: 'id' },
+    { resource_kind: 'volumes', action: 'tag', resource_id: 'data' },
+    { resource_kind: 'volumes', action: 'remove' },
+    { resource_kind: 'networks', action: 'create', resource_name: 'app' },
+    { resource_kind: 'networks', action: 'create', resource_name: 'app', internal: 'false' },
+    { resource_kind: 'networks', action: 'connect', resource_id: 'network-id' },
+    { resource_kind: 'images', action: 'tag', resource_id: 'image-id' },
+  ]) assert.throws(() => decode(operation), McpAccessProtocolError)
+  assert.equal(decode({ action: 'restart', resource_id: 'container-id' })?.action, 'restart')
 })
 
 test('MCP 审批协议解码端口转发和代码片段操作摘要', () => {
@@ -557,6 +603,24 @@ function approvalSnapshotFixture(state: string) {
     items: [approvalFixture(state)],
   }
 }
+
+test('桌面脚本审批固定版本和实际目标，不借用 SSH 字段', () => {
+  const operation = { domain: 'desktop_workflow', action: 'run', script_id: 'script', script_version: 2,
+    run_id: 'run', resource_id: 'desktop', resource_kind: 'vnc', mode: 'takeover',
+    lifecycle: 'existing_connection', timeout_seconds: 1800 }
+  const decode = (op: Record<string, unknown>) => decodeMcpApprovalSnapshot({
+    instance_id: 'fixture', revision: 1, items: [{ ...approvalFixture('pending'), kind: 'desktop_workflow',
+      session_ids: [], targets: [], operation: op }],
+  }).items[0]!
+  const approval = decode(operation)
+  assert.equal(approval.kind, 'desktop_workflow')
+  assert.equal(approval.operation?.script_version, 2)
+  assert.equal(approval.command, '')
+  for (const changed of [{ script_version: 0 }, { run_id: '' }, { resource_kind: 'ssh' }, { timeout_seconds: 3600 }, { lifecycle: 'unknown' }]) {
+    assert.throws(() => decode({ ...operation, ...changed }))
+  }
+  assert.equal(decode({ action: 'delete', script_id: 'script', script_version: 2 }).operation?.action, 'delete')
+})
 
 function approvalFixture(state: string) {
   return {

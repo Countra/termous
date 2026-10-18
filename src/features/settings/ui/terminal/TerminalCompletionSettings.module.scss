@@ -1,3 +1,8 @@
+.row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
 .row > :global(.ant-switch) {
   justify-self: end;
 }
@@ -11,7 +16,7 @@
 .setting-copy > strong {
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 550;
   line-height: 1.4;
 }
 
@@ -20,7 +25,6 @@
 }
 
 .ai-row {
-  margin-top: 14px;
   border-top: 1px solid var(--border);
 }
 
@@ -49,9 +53,7 @@
 }
 
 .providers:global(.ant-collapse) {
-  margin-top: 14px;
   border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
@@ -65,7 +67,7 @@
   min-height: 54px;
   align-items: center;
   border-radius: 0 !important;
-  padding: 10px 12px;
+  padding: 14px 18px;
   color: var(--text-secondary);
   transition: background-color 140ms ease;
 }
@@ -107,7 +109,7 @@
 .provider-copy strong {
   color: var(--text-primary);
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 550;
 }
 
 .provider-copy small {
@@ -139,7 +141,7 @@
   align-items: center;
   gap: 10px;
   border-radius: 0;
-  padding: 10px 12px;
+  padding: 12px 18px;
   transition: background-color 140ms ease;
 }
 
@@ -172,11 +174,7 @@
   justify-self: end;
 }
 
-@media (width <= 1240px) {
-  .row > :global(.ant-switch) {
-    justify-self: start;
-  }
-
+@media (width <= 600px) {
   .providers-heading {
     align-items: flex-start;
   }

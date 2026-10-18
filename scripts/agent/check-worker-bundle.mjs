@@ -3,7 +3,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
-export const maximumAgentWorkerBundleBytes = 1280 * 1024
+// pi 1.2.0 加回执归一化与跨轮状态投影的闭包约 1.38 MiB；按既有 64 KiB 档位留出余量，依赖白名单独立检查。
+export const maximumAgentWorkerBundleBytes = 1472 * 1024
 
 const requiredProviderAdapters = Object.freeze([
   'openai-completions.js',
@@ -29,20 +30,16 @@ const forbiddenProviderSources = Object.freeze([
 ])
 
 const allowedRuntimePackages = new Set([
-  '@earendil-works/chord',
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
   '@earendil-works/pi-telemetry',
   '@modelcontextprotocol/client',
   '@modelcontextprotocol/core',
-  'diff',
   'eventsource-parser',
   'openai',
   'partial-json',
   'pkce-challenge',
   'typebox',
-  // pi-agent-core 的公开入口保留了 Harness YAML 模块的初始化副作用。
-  'yaml',
   'zod',
 ])
 

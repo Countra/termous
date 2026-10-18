@@ -4,6 +4,7 @@ export type RemoteFileActionKey =
   | 'openFile'
   | 'download'
   | 'sendToHost'
+  | 'copyToSystem'
   | 'copy'
   | 'cut'
   | 'copyAbsolutePath'
@@ -19,11 +20,14 @@ export interface RemoteFileActionDescriptor {
 }
 
 export interface RemoteFileActionOptions {
+  systemCopy?: boolean
+  systemCopyUnavailable?: string
   capabilities?: FileAccessCapability[]
   includeAdvancedRename?: boolean
 }
 
 export interface RemoteFileActionHandlers {
+  copyToSystem?: (entry: RemoteFileEntry) => void
   openFile: (entry: RemoteFileEntry) => void
   download: (entry: RemoteFileEntry) => void
   sendToHost: (entry: RemoteFileEntry) => void
@@ -89,9 +93,10 @@ export function remoteFileActionDescriptors(
   }
   actions.push({ key: 'permissions' })
   actions.push({ key: 'delete', danger: true, dividerBefore: true })
+  if (options.systemCopy) actions.splice(actions.findIndex(action => action.key === 'copy'), 0, { key: 'copyToSystem' })
   const can = fileOperationCapabilities({ capabilities: options.capabilities })
   const available: Record<RemoteFileActionKey, boolean> = {
-    openFile: can.read, download: can.transfer, sendToHost: can.transfer, copy: can.transfer,
+    copyToSystem: can.transfer, openFile: can.read, download: can.transfer, sendToHost: can.transfer, copy: can.transfer,
     cut: can.rename, rename: can.rename, advancedRename: can.batchRename,
     permissions: can.permissions, delete: can.remove, copyAbsolutePath: true,
   }
@@ -106,12 +111,12 @@ export function runRemoteFileAction(
   if (!isRemoteFileActionKey(key)) {
     return false
   }
-  handlers[key](entry)
+  handlers[key]?.(entry)
   return true
 }
 
 function isRemoteFileActionKey(value: string): value is RemoteFileActionKey {
-  return value === 'openFile'
+  return value === 'copyToSystem' || value === 'openFile'
     || value === 'download'
     || value === 'sendToHost'
     || value === 'copy'

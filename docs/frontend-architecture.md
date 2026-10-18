@@ -59,7 +59,30 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 禁止使用 `#features/hosts/ui/HostsPage` 或跨 Slice 的 `../hosts/ui/HostsPage`。Slice 自身内部仍应使用 `./ui/HostsPage` 等相对路径，且内部模块不能导入自身的 `index.ts`，避免形成自入口循环。
 
+## 会话标签
+
+- `features/session-tabs` 统一管理标签标题、固定排序、颜色及本机偏好，提供共用菜单项和颜色面板；不调用连接接口。
+- Workbench 保留 SSH 专用的搜索、分屏和生命周期编排。文件工作区通过 `FileSessionTabs` 组合菜单，`FilesWorkspaceRuntimeProvider` 持有 `useFileSessionTabActions` 的偏好及防重状态，切换页面不会丢失进行中的操作；两个 Widget 不互相依赖。
+- SSH 标签沿用 `termous.ui.workbench.sessionTabPreferences.v1`，文件标签使用独立的 `termous.ui.files.sessionTabPreferences.v1`。偏好按会话 ID 保存，关闭后清理；重命名只改标签显示，不修改主机或连接配置。
+- 文件会话复制使用原文件访问 Profile 和该标签已提交的目录，不携带 SSH 来源 ID，避免服务端复用原文件会话。重启由应用协调器先确认旧会话关闭成功，再按原 Profile、目录及来源关联创建连接，并由工作区运行时继承标签外观；关闭失败不继续创建。后台标签重启以及重启期间显式切换标签后均不抢占当前选择。连接与资源清理仍由现有 Core 接口负责。
+
+## Docker 管理
+
+- MCP 接入复用 `entities/mcp-access` 的 Scope 与审批合同、`features/mcp-access` 的权限目录及审批渲染器；Docker 分类内区分容器、镜像、数据卷、网络，读取和管理分别授权。资源审批展示目标标签、容器及内部网络选项，卷删除展示数据影响，标签操作明确已有标签会改指向；中英文工具名称与权限说明同步维护。
+
+- `entities/docker` 定义容器及镜像、数据卷、网络的纯合同；`app/data-runtime` 实现类型化 Docker Gateway，组件不拼接接口 URL。
+- `features/docker` 的 `DockerPanel` 只组合四种模式。容器面板保留现有状态、日志和终端入口；资源面板按列表、详情、操作弹窗拆分，复用主题变量、搜索和空状态组件，窄栏模式按钮自动换行。
+- `useDockerResources` 按 API 实例、SSH 会话和资源类型隔离缓存，保留搜索、分页与当前详情。列表与最近详情在一分钟内直接复用，过期后再次展示时保留画面并后台更新；同会话的资源模式共享能力探测，最多保留 12 个范围。手动刷新绕过缓存，断连或更换 API 清除旧来源记录。
+- 新能力探测同步同会话的资源模式；Docker 不可用时清除旧列表和详情，丢弃在途详情响应。末页因删除或外部变更消失时，保留筛选并最多补读一次有效页；筛选结果归零直接回到首页，不循环重试。
+- 切换或隐藏时中止读取并忽略迟到响应；写入按范围防重，不随切页取消，不自动重试。写入结束后无论成败均使该范围失效，当前可见范围立即补读，隐藏范围在再次展示时更新；失败保留错误。容器操作使资源缓存失效，网络操作使容器缓存失效，由面板组合层传递失效版本，不引入全局事件总线。
+- 资源列表复用主题、搜索与空状态样式，详情将长标识折叠展示，正文独立滚动、管理操作固定于底部。切页收起操作确认框，后台写入完成后不重新打开弹窗或抢占新的详情。
+- 镜像、网络操作绑定完整 ID，数据卷绑定名称。删除需确认，不支持强制删除或批量清理。业务操作仍通过 Core 的受控 SSH 命令执行，不进入终端命令发送链路。
+
 ## 运行时不变量
+
+Electron Agent 的模块归属、进程边界和外部入口见 [Electron Agent 架构](./electron-agent-architecture.md)。
+
+助手独立窗口采用独立 Renderer 与主 Renderer 唯一状态宿主。通用窗口层、消息协议、交接与后续模块接入见 [独立窗口与助手状态宿主](./detached-windows.md)。
 
 结构迁移必须保持以下合同：
 
@@ -70,6 +93,13 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 - `TermousApiError` 保持单一实现，避免破坏 `instanceof` 判断。
 - 托管 Core 的启动状态由主进程保存，启动窗口只负责展示；数据库状态不得通过解析日志文字或提前调用业务 HTTP 接口推断。
 - AI 模型请求重试由 Worker 统一执行，Renderer 仅展示 Core 保存的活动。
+- 工具图片正文随工具结果消息持久化；Core 展示投影返回原始内容索引、MIME 和大小，文本仍遵守脱敏与截断限制。Renderer 通过认证只读接口按会话、消息、片段、版本及索引加载图片，不从文本摘要还原 Base64。工具图片默认随详情折叠，展开时才挂载和读取；结论中的有效引用直接显示紧凑缩略图。
+- Worker 为本地 Agent 结果追加 `termous-image://tool/` 引用，不修改 MCP 原始结果。模型请求保持独立图片内容块；压缩摘要只保留引用及含义，checkpoint 用来源引用和 SHA-256 代替重复图片正文。显示图片不增加附件副本或改变会话数据的回收规则。
+- 回答中的图片引用只解析当前会话截至该消息的工具图片，不访问模型给出的任意网络地址、本地路径或 data URL。`shared/ui` 的 `ImageThumbnail` 和 `ImagePreview` 统一服务工具图片、正文引用及发送附件，负责延迟加载、取消、Blob URL 回收和大图缩放；业务层负责资源归属、数据校验和读取授权。
+- Markdown 图片渲染器保持稳定，通过组件上下文读取会话资源。流式文字和资源目录更新保留已有图片节点及预览状态；图片来源或版本变化时才重新挂载，避免重复读取和意外关闭大图。
+- pi 的 `TranscriptContext` 只在 Worker 模型请求边界组装：系统提示和工具声明取自当前 Run 的可信配置，压缩、用量估算与 Core 快照只处理业务历史，避免重复计量或恢复旧系统约束。
+- pi-ai 与 pi-agent-core 固定使用同一发布版本（当前 1.2.0），只依赖公开的 Agent 和 Provider API。新版移除实验性 Harness 后，Worker 的 `runtimeContextTokens`、`runtimeCompactionPreparation`、`runtimeCompactionGeneration` 分别负责用量估算、完整工具调用边界切分及摘要生成；不引入 Pi CLI、第三方会话目录或另一套凭据管理。
+- 压缩继续先由 Core 原子提交 checkpoint，再替换请求投影；旧摘要、近期尾部和用量恢复合同保持兼容。摘要请求省略思考正文与图片正文，保留可见回复、调用标识、参数和结果状态。消息估算复用 pi-ai 的公开接口，与 Provider 请求保持同一尺度；协议中的 `pi_estimate` 仍表示估算值。真实 Provider 用量优先，是否失效由模型身份、上下文指纹和 checkpoint 边界判断，不依赖重建摘要的本地时间戳。
 - 在建立等价性测试前，不调整 Props、状态更新顺序、revision、恢复和取消语义。
 
 ## SCSS 所有权
@@ -120,3 +150,17 @@ node scripts/architecture/check.mjs --report-json
 ```
 
 该命令只输出报告，不修改 allowlist。
+
+## 远程桌面连接确认
+
+`RemoteDesktopConnectionCoordinator` 在主窗口的 `RemoteDesktopRuntimeProvider` 内全局挂载，复用运行时会话订阅，统一呈现证书确认和凭据输入。提示不依赖页面、活动标签或观看入口；多个请求逐个处理，身份绑定会话、连接代次及挑战。SSH 主机密钥确认优先，桌面确认期间暂缓 MCP／账号审批和产品导览。工作区不再单独挂载确认弹窗；展示提示不会创建观看连接或自动批准身份。
+
+## 统一设置中心
+
+`common` 定义纯模块合同，`entities/settings` 管理模块确认快照、revision、草稿和提交队列，`app/data-runtime` 按 Core／Electron／浏览器归属装配统一 Gateway；`features` 保留领域面板与资源操作，`pages/settings` 用注册项组合现有页签。桌面设置通过统一受控 IPC 接入，不迁入 Core；通知激活、更新执行及资源 CRUD 独立。详见[设置中心接入](settings-center.md)。
+
+## 云账号
+
+common 定义纯云合同，entities/cloud 负责解码和代次／版本状态，features/cloud-account 实现领域操作，pages/account 组合面板，app/data-runtime 访问本地 Core。全局订阅仅按受影响数据集刷新配置，遇到草稿延迟；通知通过受控账号目标直达页签。详见[云账号设计](cloud-account.md)。
+
+云账号实时更新复用 Core 本地 WS。`CloudState.acceptEvent` 分别合并状态版本和账号失效：同 generation 的失效不因 HTTP 状态较新而丢弃，旧 generation 继续拒绝。`useCloudChanges` 按固定区域及必要的操作 ID 订阅，页面补读权威状态，不触发安全写入。资料、MFA、设备、会话、审批、恢复、轮换与归档定向刷新；竞争响应按页面请求序号丢弃，资料草稿保留编辑 revision。云连接、Kafka 和令牌由 Core 管理，Renderer 不直接访问云 WS。详见[实时架构](../../termous-service/doc/31-cloud-realtime.md)。

@@ -1,6 +1,6 @@
 import { Dropdown, type MenuProps } from 'antd'
 import { Bot } from 'lucide-react'
-import { useState, type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { contextActionMenuPopupClassName } from '../contextActionMenuStyles.ts'
 import { useSessionTargetMenu, type SessionTarget, type SessionTargetOption } from './useSessionTargetMenu.tsx'
@@ -13,7 +13,7 @@ interface TargetSnapshot<Source> {
 }
 
 export function SessionTargetDropdown<Source>({ getSnapshot, onSelect,
-  children, items = [], onMenuClick, disabled = false, popupClassName }: {
+  children, items = [], onMenuClick, disabled = false, popupClassName, onOpenChange }: {
   getSnapshot?: () => TargetSnapshot<Source> | undefined
   onSelect?: (source: Source, target: SessionTarget) => void
   children: ReactElement
@@ -21,28 +21,41 @@ export function SessionTargetDropdown<Source>({ getSnapshot, onSelect,
   onMenuClick?: MenuProps['onClick']
   disabled?: boolean
   popupClassName?: string
+  onOpenChange?: (open: boolean) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [snapshot, setSnapshot] = useState<TargetSnapshot<Source>>()
-  const picker = useSessionTargetMenu({ open, submenuKey: 'agent-reference',
+  useEffect(() => {
+    if (disabled && open) {
+      setOpen(false)
+      onOpenChange?.(false)
+    }
+  }, [disabled, open, onOpenChange])
+  const setMenuOpen = (next: boolean) => {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
+  const picker = useSessionTargetMenu({ open: open && !disabled, submenuKey: 'agent-reference',
     ready: snapshot?.ready ?? false, enabled: snapshot?.enabled ?? false, targets: snapshot?.targets ?? [],
     onSelect: (target) => {
+      if (disabled) return
       if (snapshot?.source) onSelect?.(snapshot.source, target)
-      setOpen(false)
+      setMenuOpen(false)
     },
   })
   const available = Boolean(getSnapshot && onSelect)
-  return <Dropdown open={open} trigger={['contextMenu']} destroyOnHidden disabled={disabled}
+  return <Dropdown open={open && !disabled} trigger={['contextMenu']} destroyOnHidden disabled={disabled}
     classNames={{ root: `${contextActionMenuPopupClassName} ${popupClassName ?? ''}` }}
     onOpenChange={(next) => {
+      if (disabled && next) return
       if (next) setSnapshot(getSnapshot?.())
-      setOpen(next)
+      setMenuOpen(next)
     }} menu={{ items: [...(items ?? []), ...(available ? [{
       key: 'agent-reference', icon: <Bot size={15} aria-hidden="true" />, label: t('agent.launch.action'),
       disabled: snapshot?.ready === true && !snapshot.enabled,
       popupClassName: picker.popupClassName, children: picker.items,
     }] : [])], selectable: false, openKeys: picker.openKeys, onOpenChange: picker.onOpenChange,
-    onClick: (info) => { if (!picker.onClick(info.key)) { onMenuClick?.(info); setOpen(false) } },
+    onClick: (info) => { if (!disabled && !picker.onClick(info.key)) { onMenuClick?.(info); setMenuOpen(false) } },
   }}>{children}</Dropdown>
 }

@@ -191,6 +191,8 @@ function gateway(): CommandDispatchGateway {
   const unsupported = () => Promise.reject(new Error('本测试不调用 HTTP'))
   return {
     createTask: unsupported,
+    tasks: unsupported,
+    tasksEventsUrl: () => "ws://termous.test/tasks/events?view=collection",
     latestTask: unsupported,
     task: unsupported,
     interruptTask: unsupported,

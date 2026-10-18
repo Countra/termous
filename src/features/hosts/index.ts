@@ -34,3 +34,4 @@ export {
 export { HostLauncherModal, type HostLauncherModalProps } from './ui/HostLauncherModal.tsx'
 export { HostKeyCoordinator, type HostKeyCoordinatorProps } from './ui/HostKeyCoordinator.tsx'
 export { SessionQuickConnect, type SessionQuickConnectProps } from './ui/SessionQuickConnect.tsx'
+export { SessionProfileQuickConnect, type SessionProfileQuickConnectProps } from './ui/SessionProfileQuickConnect.tsx'

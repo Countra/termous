@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { validateSSHAccessProfileDraft } from '#entities/ssh-access-profile'
 import { SSHProfileEditor } from '#features/manage-ssh-access'
 import { SFTPProfileEditor } from '#features/manage-file-access'
-import { VNCProfileEditor, validateVNCAccessProfileDraft, validateVNCTargetAuthDraft } from '#features/manage-remote-desktop'
+import { RemoteDesktopProfileEditor, validateRemoteDesktopAccessProfileDraft, validateVNCTargetAuthDraft } from '#features/manage-remote-desktop'
 import {
   hostCreationTemporaryHostId, projectHostCreationSSH, updateHostCreationSSH, updateHostCreationRemoteDesktop,
   type HostCreationDraft, type HostCreationValidation,
@@ -65,8 +65,8 @@ export function HostDraftConnectionEditor({ draft, selection, data, validation, 
         disabled={busy}
         onChange={(next) => onChange(updateHostCreationSSH(draft, ssh.id, { fileName: next.name }))}
       /> : null}
-      {selection.kind === 'remote_desktop' && desktop ? <VNCProfileEditor
-        draft={desktop.draft} errors={validateVNCAccessProfileDraft(desktop.draft, new Set(localSSH.map((item) => item.id)))}
+      {selection.kind === 'remote_desktop' && desktop ? <RemoteDesktopProfileEditor
+        draft={desktop.draft} errors={validateRemoteDesktopAccessProfileDraft(desktop.draft, new Set(localSSH.map((item) => item.id)))}
         submitted={submitted} disabled={busy} sshProfiles={localSSH} hasSavedTargetAuth={false}
         targetAuthDraft={desktop.targetAuthDraft} targetAuthError={submitted ? validateVNCTargetAuthDraft(desktop.targetAuthDraft) : undefined}
         onChange={(next) => onChange(updateHostCreationRemoteDesktop(draft, desktop.id, { draft: next }))}

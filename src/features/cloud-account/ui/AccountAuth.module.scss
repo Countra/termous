@@ -1,0 +1,123 @@
+.auth {
+  container-type: inline-size;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reconnect {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+
+  h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.reconnect-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.intro {
+  h2 {
+    margin: 0 0 8px;
+    font-size: 23px;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -0.4px;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+}
+
+.methods:global(.ant-segmented) {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-subtle);
+  padding: 4px;
+
+  :global(.ant-segmented-item-label) {
+    display: flex;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.method-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.form {
+  :global(.ant-form-item) {
+    margin-bottom: 18px;
+  }
+
+  :global(.ant-form-item-label) {
+    font-weight: 500;
+  }
+
+  :global(.ant-input-prefix) {
+    margin-inline-end: 10px;
+    color: var(--text-muted);
+  }
+
+  > :global(.ant-btn) {
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 550;
+  }
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+
+  > :global(.ant-btn) {
+    height: auto;
+    padding: 2px 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  > :global(.ant-btn):hover {
+    color: var(--accent);
+  }
+}
+
+.back {
+  align-self: flex-start;
+  padding-inline: 0;
+  color: var(--text-secondary);
+}

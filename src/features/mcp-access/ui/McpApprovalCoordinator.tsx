@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { App as AntdApp, Button, Modal } from 'antd'
 import { ServerCog, ShieldCheck, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { termousNotificationClassName } from '#shared/ui'
+import { modalSurfaceStyles, termousNotificationClassName } from '#shared/ui'
 import { useMcpAccessRuntime } from '../runtime/mcpAccessContext'
 import { McpApprovalDetails } from './approval/McpApprovalDetails'
 import { McpApprovalExpiry } from './approval/McpApprovalExpiry'
@@ -10,13 +10,14 @@ import styles from './McpApprovalCoordinator.module.scss'
 
 interface McpApprovalCoordinatorProps {
   blocked?: boolean
+  preferredApprovalId?: string
 }
 
-export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinatorProps) {
+export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }: McpApprovalCoordinatorProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { clients, approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
-  const approval = blocked ? null : approvals[0] ?? null
+  const approval = blocked ? null : approvals.find((item) => item.id === preferredApprovalId) ?? approvals[0] ?? null
   const approvalId = approval?.id ?? ''
   const approvalClient = clients.find((client) => client.id === approval?.client_id)
   const approvalClientName = approvalClient?.source === 'builtin_agent'
@@ -38,6 +39,14 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
   const expired = Boolean(approval) && remainingSeconds === 0
   const clientReconciledApprovalRef = useRef('')
   const expiryReconciledRef = useRef('')
+  const preferredReconciledRef = useRef('')
+
+  useEffect(() => {
+    if (!preferredApprovalId || preferredReconciledRef.current === preferredApprovalId || approvals.some((item) => item.id === preferredApprovalId)) return
+    // 系统消息可能先于审批订阅恢复；只对账一次，避免点击后暂时没有对应审批窗口。
+    preferredReconciledRef.current = preferredApprovalId
+    void reload().catch(() => undefined)
+  }, [approvals, preferredApprovalId, reload])
 
   useEffect(() => {
     if (!approvalId || !approvalClientMissing || clientReconciledApprovalRef.current === approvalId) return
@@ -81,7 +90,7 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
           </span>
           <div>
             <h2>{t('settings.mcp.approval.title')}</h2>
-            <p>{t('settings.mcp.approval.description')}</p>
+            <p>{t(approvalClient?.source === 'builtin_agent' ? 'settings.mcp.approval.descriptionAgent' : 'settings.mcp.approval.description')}</p>
           </div>
         </header>
       )}
@@ -90,18 +99,21 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
       keyboard={false}
       mask={{ closable: false }}
       destroyOnHidden
-      rootClassName={styles['approval-modal-root']}
+      rootClassName={`${modalSurfaceStyles.root} ${styles['approval-modal-root']}`}
       className={styles['approval-modal']}
+      classNames={{ container: styles['modal-container'], header: styles['modal-header'], body: styles['modal-body'] }}
     >
       {approval ? (
         <section className={styles.dialog}>
-          <div className={styles.client}>
-            <ServerCog size={17} aria-hidden="true" />
-            <span>{t('settings.mcp.approval.client')}</span>
-            <strong>{approvalClientName}</strong>
-          </div>
+          <div className={styles.content}>
+            <div className={styles.client}>
+              <ServerCog size={17} aria-hidden="true" />
+              <span>{t('settings.mcp.approval.client')}</span>
+              <strong>{approvalClientName}</strong>
+            </div>
 
-          <McpApprovalDetails approval={approval} />
+            <McpApprovalDetails approval={approval} />
+          </div>
 
           <footer className={styles.footer}>
             <McpApprovalExpiry expired={expired} remainingSeconds={remainingSeconds} />

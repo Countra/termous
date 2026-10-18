@@ -1,14 +1,10 @@
 export {
-  applyShortcutSettingsPatch,
   defaultShortcutSettings,
   normalizeShortcutSettings,
-  shortcutSettingsEqual,
 } from '#entities/shortcuts'
 export {
   completionProviderIds,
   completionProviderSettingsSignature,
-  completionSettingsEqual,
-  connectionSettingsEqual,
   defaultConnectionSettings,
   defaultCompletionProviderSettings,
   defaultCompletionSettings,
@@ -29,9 +25,13 @@ export {
 export { DataPortabilitySettings } from './ui/data-portability/DataPortabilitySettings.tsx'
 export type { DataPortabilityGateway } from './api/dataPortabilityGateway.ts'
 export { GeneralSettings } from './ui/general/GeneralSettings.tsx'
+export { NotificationSettings } from './ui/notifications/NotificationSettings.tsx'
 export { ConnectionSettings } from './ui/connection/ConnectionSettings.tsx'
+export { RemoteDesktopSettings } from './ui/remote-desktop/RemoteDesktopSettings.tsx'
 export { MountSettings } from './ui/mount/MountSettings.tsx'
 export type { MountSettingsGateway } from './api/mountSettingsGateway.ts'
+export { AuditSettings } from './ui/audit/AuditSettings.tsx'
+export type { AuditSettingsGateway } from './api/auditSettingsGateway.ts'
 export { ShortcutSettingsPanel } from './ui/shortcuts/ShortcutSettingsPanel.tsx'
 export { TerminalCompletionSettings } from './ui/terminal/TerminalCompletionSettings.tsx'
 export { TerminalStyleSettings } from './ui/terminal/TerminalStyleSettings.tsx'

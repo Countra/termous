@@ -1,7 +1,7 @@
 import { validateFileAccessProfileMetadataInput } from '#entities/file-access-profile'
 import { validateHostAssetInput } from '#entities/host-asset'
 import { validateSSHAccessProfileDraft } from '#entities/ssh-access-profile'
-import { validateVNCAccessProfileDraft, validateVNCTargetAuthDraft } from '#features/manage-remote-desktop'
+import { validateRemoteDesktopAccessProfileDraft, validateVNCTargetAuthDraft } from '#features/manage-remote-desktop'
 import type {
   HostCreationDependencies,
   HostCreationDraft,
@@ -50,7 +50,7 @@ export function validateHostCreationDraft(
   for (const item of state.remoteDesktops) {
     // 隧道端点属于新主机，只能引用同一草稿的 SSH；其他主机仍可作为 SSH 跳板。
     const normalizedReference = { ...item.draft, ssh_profile_id: item.draft.ssh_profile_id.trim() }
-    addErrors('remote_desktop', item.id, validateVNCAccessProfileDraft(normalizedReference, localSSHIds))
+    addErrors('remote_desktop', item.id, validateRemoteDesktopAccessProfileDraft(normalizedReference, localSSHIds))
     addErrors('remote_desktop', item.id, { target_auth_password: validateVNCTargetAuthDraft(item.targetAuthDraft) })
   }
   validateDefaults(state, issues)

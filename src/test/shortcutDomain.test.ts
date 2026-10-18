@@ -35,6 +35,8 @@ test('动作注册表稳定包含已批准的动作、作用域和默认键位',
       ['terminal.search.open', 'terminal.active', []],
       ['terminal.select_all', 'terminal.active', []],
       ['terminal.session.reconnect', 'terminal.disconnected', []],
+      ['files.copy_to_system', 'files.list', ['primary|KeyC']],
+      ['files.paste', 'files.list', ['primary|KeyV']],
       ['files.select_all', 'files.standalone', ['primary|KeyA']],
       ['files.open_focused', 'files.list', ['|Enter']],
       ['files.rename_focused', 'files.standalone', ['|F2']],
@@ -214,7 +216,7 @@ test('运行索引忽略外部写入的保留键覆盖', () => {
   const index = compileShortcutIndex(overrides, 'win32')
   assert.deepEqual(
     index.byChord.get('control|KeyC')?.map((entry) => entry.actionId),
-    ['terminal.copy_selection'],
+    ['terminal.copy_selection', 'files.copy_to_system'],
   )
 })
 

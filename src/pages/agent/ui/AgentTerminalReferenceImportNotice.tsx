@@ -1,7 +1,7 @@
 import { App as AntdApp, Button, Space } from 'antd'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getAgentResourceBinding, type AgentResourceState } from '#entities/agent'
+import { agentResourceSlot, getAgentResourceBindingBySlot, type AgentResourceState } from '#entities/agent'
 import type { AgentTerminalReferenceImportJob } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { AgentTerminalReferenceConfirmDialog } from './AgentTerminalReferenceConfirmDialog'
@@ -120,7 +120,7 @@ export function AgentTerminalReferenceImportNotice({ job, resources, onConfirm, 
   }, [canOpenSettings, configuration, connection, description, failed, notification, notificationKey, requestKey, stage, t, title])
 
   return job?.stage === 'confirm' ? (
-    <AgentTerminalReferenceConfirmDialog binding={getAgentResourceBinding(job.confirmation?.resource_bindings, job.request.resource_reference.kind)}
+    <AgentTerminalReferenceConfirmDialog binding={getAgentResourceBindingBySlot(job.confirmation?.resource_bindings, agentResourceSlot(job.request.resource_reference.kind))}
       source={job.request.source_resource} resources={resources} connectionOnly={connection} onConfirm={onConfirm} onCancel={onDismiss} />
   ) : null
 }

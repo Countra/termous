@@ -1,9 +1,11 @@
+import { useSettingsModule, useSettingsEditor, decodeMountSettings, settingsErrorCode } from '#entities/settings'
 import { Alert, Button, Input, InputNumber, Segmented, Spin, Tag } from 'antd'
 import { FolderOpen, HardDrive } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MountSettings as MountSettingsValue, MountSettingsState } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
+import { SettingsSaveBar } from '#shared/ui'
 import type { MountSettingsGateway } from '../../api/mountSettingsGateway'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './MountSettings.module.scss'
@@ -17,71 +19,75 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
   const [directory, setDirectory] = useState('')
   const [capacity, setCapacity] = useState<number | null>(10)
   const [reserve, setReserve] = useState<number | null>(512)
-  const [operation, setOperation] = useState<'load' | 'save' | 'pick' | null>(null)
-  const busy = operation !== null
-  const [error, setError] = useState<string | null>(null)
+  const module = useSettingsModule('mount', { gateway: gateway ?? null })
+  const [savedRevision, setSavedRevision] = useState<number>()
+  const [picking, setPicking] = useState(false)
+  const busy = module.busy || picking
+  const operation = picking ? 'pick' : module.busy ? (state ? 'save' : 'load') : null
+  const [localError, setError] = useState<string | null>(null)
+  const conflict = settingsErrorCode(module.error) === 'SETTINGS_REVISION_CONFLICT'
+  const error = conflict ? t('settings.conflict') : module.error?.message ?? localError
   const [saved, setSaved] = useState(false)
   const pending = useRef(false)
-  const revision = useRef(0)
+  const lifetime = useRef<AbortController | null>(null)
   const bridge = getTermousBridge()?.files
-
-  const request = useCallback(async (settings?: MountSettingsValue) => {
-    if (pending.current) return
-    if (settings === undefined) {
-      setState(null)
-      setCustom(false)
-      setDirectory('')
-      setCapacity(10)
-      setReserve(512)
-      setOperation(null)
-    }
-    setError(null)
-    setSaved(false)
-    if (!gateway) return
-    const current = ++revision.current
-    pending.current = true
-    setOperation(settings === undefined ? 'load' : 'save')
-    try {
-      const next = settings === undefined ? await gateway.mountSettings() : await gateway.updateMountSettings(settings)
-      if (current !== revision.current) return
-      setState(next)
-      setCustom(Boolean(next.cache_directory))
-      setDirectory(next.cache_directory)
-      setCapacity(next.cache_max_bytes / 2 ** 30)
-      setReserve(next.cache_min_free_bytes / 2 ** 20)
-      setSaved(settings !== undefined)
-    } catch (err) {
-      if (current === revision.current) setError(err instanceof Error ? err.message : '')
-    } finally {
-      if (current === revision.current) { pending.current = false; setOperation(null) }
-    }
-  }, [gateway])
-
-  useEffect(() => {
-    void request()
-    return () => { revision.current += 1; pending.current = false }
-  }, [request])
-
-  const pick = async () => {
-    if (!bridge || pending.current) return
-    const current = ++revision.current
-    pending.current = true
-    setOperation('pick')
-    setError(null)
-    try {
-      const selected = await bridge.pickDirectory()
-      if (current === revision.current && selected?.[0]) { setDirectory(selected[0]); setSaved(false) }
-    } catch (err) {
-      if (current === revision.current) setError(err instanceof Error ? err.message : '')
-    } finally {
-      if (current === revision.current) { pending.current = false; setOperation(null) }
-    }
-  }
   const value = custom ? directory.trim() : ''
   const draft = { cache_directory: value, cache_max_bytes: (capacity ?? 0) * 2 ** 30, cache_min_free_bytes: (reserve ?? 0) * 2 ** 20 }
   const dirty = state !== null && (value !== state.cache_directory || draft.cache_max_bytes !== state.cache_max_bytes || draft.cache_min_free_bytes !== state.cache_min_free_bytes)
+  const accept = (next: MountSettingsState, revision: number) => {
+    setState(next); setSavedRevision(revision)
+    setCustom(Boolean(next.cache_directory)); setDirectory(next.cache_directory)
+    setCapacity(next.cache_max_bytes / 2 ** 30); setReserve(next.cache_min_free_bytes / 2 ** 20)
+  }
+  useEffect(() => {
+    const controller = new AbortController()
+    lifetime.current = controller
+    setState(null); setPicking(false); setError(null); setSaved(false); pending.current = false
+    return () => { controller.abort() }
+  }, [gateway])
+  useEffect(() => {
+    if (module.snapshot && (state === null || !dirty && !busy && module.snapshot.revision !== savedRevision)) {
+      try { accept(decodeMountSettings(module.snapshot), module.snapshot.revision); setSaved(false) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    }
+  }, [module.snapshot, state, dirty, busy, savedRevision])
+  const request = async (settings?: MountSettingsValue) => {
+    if (busy || pending.current) return
+    setError(null); setSaved(false)
+    const next = settings ? await module.update({ ...settings }, conflict ? module.snapshot?.revision ?? savedRevision : savedRevision) : await module.refresh()
+    if (next) { accept(decodeMountSettings(next), next.revision); setSaved(settings !== undefined) }
+  }
+
+  const pick = async () => {
+    if (!bridge || pending.current) return
+    const controller = lifetime.current
+    if (!controller || controller.signal.aborted) return
+    pending.current = true
+    setPicking(true)
+    setError(null)
+    try {
+      const selected = await bridge.pickDirectory()
+      if (!controller.signal.aborted && selected?.[0]) { setDirectory(selected[0]); setSaved(false) }
+    } catch (err) {
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : '')
+    } finally {
+      if (!controller.signal.aborted) { pending.current = false; setPicking(false) }
+    }
+  }
   const valid = (!custom || Boolean(value)) && capacity !== null && Number.isInteger(capacity) && capacity >= 1 && capacity <= 4096 && reserve !== null && Number.isInteger(reserve) && reserve >= 64 && reserve <= 65536
   const locked = disabled || busy || !state || !gateway
+  const reset = () => {
+    try {
+      if (module.snapshot) accept(decodeMountSettings(module.snapshot), module.snapshot.revision)
+      else if (state && savedRevision !== undefined) accept(state, savedRevision)
+      setError(null)
+      module.clearError()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+    setSaved(false)
+  }
+  const managed = useSettingsEditor({ dirty, busy, invalid: locked || !valid, ready: Boolean(state && gateway), saved,
+    save: () => { void request(draft) }, reset })
 
   return (
     <div className={surfaceStyles.surface}>
@@ -104,8 +110,7 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
           {custom ? <div className={styles.input}>
             <Input id={inputId} value={directory} disabled={locked} maxLength={4096}
               placeholder={t('settings.mount.placeholder')}
-              onChange={(event) => { setDirectory(event.target.value); setSaved(false) }}
-              onPressEnter={() => { if (!locked && dirty && valid) void request(draft) }} />
+              onChange={(event) => { setDirectory(event.target.value); setSaved(false) }} />
             {bridge ? <Button aria-label={t('settings.mount.choose')} loading={operation === 'pick'} disabled={locked} icon={<FolderOpen size={16} />} onClick={() => void pick()}>{t('settings.mount.choose')}</Button> : null}
           </div> : <Input id={inputId} readOnly value={state?.default_directory ?? ''} />}
         </div>
@@ -135,8 +140,8 @@ export function MountSettings({ gateway, disabled }: { gateway?: MountSettingsGa
         {gateway?.mountCache ? <MountCacheUsage gateway={gateway} disabled={disabled} /> : null}
         <div className={styles.footer}>
           <p className={surfaceStyles.hint} role={saved ? 'status' : undefined}>{t(saved ? (state?.restart_required ? 'settings.mount.savedPending' : 'settings.mount.saved') : 'settings.mount.restartHint')}</p>
-          <Button aria-label={t('app.save')} type="primary" loading={operation === 'save'} disabled={locked || !dirty || !valid} onClick={() => void request(draft)}>{t('app.save')}</Button>
         </div>
+        {!managed && <SettingsSaveBar dirty={dirty} ready={Boolean(state && gateway)} busy={busy} invalid={locked || !valid} saved={saved} onSave={() => { void request(draft) }} onReset={reset} />}
       </div>
     </div>
   )

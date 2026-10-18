@@ -5,7 +5,7 @@ import type {
   FileSessionStatus,
 } from './types.ts'
 
-const fileSessionOrigins = new Set<FileSessionOrigin>(['app', 'mcp'])
+const fileSessionOrigins = new Set<FileSessionOrigin>(['app', 'mcp', 'remote'])
 const fileSessionStatuses = new Set<FileSessionStatus>([
   'connecting',
   'connected',

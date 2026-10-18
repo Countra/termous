@@ -23,3 +23,18 @@
   scrollbar-color: color-mix(in srgb, var(--text-muted) 34%, transparent) transparent;
   scrollbar-width: thin;
 }
+
+// 保留 14px 拖动范围，将可见滑块收窄为 4px；局部优先级避免 xterm 动态背景规则覆盖裁剪。
+.root :global(.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider) {
+  box-sizing: border-box;
+  border: solid transparent;
+  border-width: 2px 5px;
+  border-radius: 7px;
+  background-clip: padding-box;
+}
+
+@container command-console (width <= 700px) {
+  .root {
+    padding-block: 4px;
+  }
+}

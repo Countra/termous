@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client", "@termous/remote-protocol/vnc/types"]
+  },
+  "include": ["./*.ts", "./*.tsx"]
+}

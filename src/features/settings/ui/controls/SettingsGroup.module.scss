@@ -1,0 +1,135 @@
+@use '../../../../shared/styles/settings' as settings;
+
+.group {
+  container-name: settings-options;
+  container-type: inline-size;
+  min-width: 0;
+  padding-top: 22px;
+}
+
+.heading {
+  @include settings.heading;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.heading > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.fields {
+  @include settings.panel;
+}
+
+.field {
+  @include settings.row;
+}
+
+.field + .field {
+  border-top: 1px solid var(--border);
+}
+
+.copy {
+  min-width: 0;
+}
+
+.copy > label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.copy > p,
+.hint,
+.error {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.control {
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.extra {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.extra > :first-child {
+  margin-top: 0;
+}
+
+.extra > .error:empty + .details {
+  margin-top: 0;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.error:empty {
+  display: none;
+}
+
+.details {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.details > summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  border-radius: 3px;
+  list-style: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.details > summary:hover {
+  color: var(--text-primary);
+}
+
+.details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.details[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.details > div {
+  max-width: 68ch;
+  margin-top: 8px;
+  padding-left: 17px;
+}
+
+@media (width <= 600px) {
+  .field {
+    gap: 10px 14px;
+    padding: 14px;
+  }
+}
+
+@container settings-options (width <= 360px) {
+  .field:has(input[role='spinbutton']) > .control {
+    grid-column: 1 / -1;
+  }
+}

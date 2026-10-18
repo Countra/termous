@@ -127,10 +127,12 @@ describe('host creation aggregate draft', () => {
   it('does not treat inactive desktop route memory as an active SSH dependency', () => {
     const first = addSSH(hostDraft())
     const desktop = addHostCreationRemoteDesktop(first.draft)
+    const desktopDraft = desktop.draft.remoteDesktops[0].draft
+    if (desktopDraft.protocol === 'rdp') throw new Error('Expected VNC fixture')
     const edited = updateHostCreationRemoteDesktop(desktop.draft, desktop.id, {
       draft: {
-        ...desktop.draft.remoteDesktops[0].draft, route: 'direct', name: 'VNC', ssh_profile_id: '',
-        vnc: { ...desktop.draft.remoteDesktops[0].draft.vnc, target_host: '10.0.0.2' },
+        ...desktopDraft, route: 'direct', name: 'VNC', ssh_profile_id: '',
+        vnc: { ...desktopDraft.vnc, target_host: '10.0.0.2' },
         route_memory: { ssh_profile_id: first.id, direct_target_host: '10.0.0.2' },
       },
     })
@@ -217,10 +219,12 @@ describe('host creation aggregate draft', () => {
   it('keeps passwords in memory, validates them globally, and serializes only the active secret without trimming', () => {
     const storage = vi.spyOn(Storage.prototype, 'setItem')
     const desktop = addHostCreationRemoteDesktop(hostDraft())
+    const desktopDraft = desktop.draft.remoteDesktops[0].draft
+    if (desktopDraft.protocol === 'rdp') throw new Error('Expected VNC fixture')
     let state = updateHostCreationRemoteDesktop(desktop.draft, desktop.id, {
       draft: {
-        ...desktop.draft.remoteDesktops[0].draft, name: 'VNC',
-        vnc: { ...desktop.draft.remoteDesktops[0].draft.vnc, target_host: '10.0.0.2' },
+        ...desktopDraft, name: 'VNC',
+        vnc: { ...desktopDraft.vnc, target_host: '10.0.0.2' },
       },
       targetAuthDraft: { mutation: 'replace', password: '' },
     })

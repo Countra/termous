@@ -1,0 +1,284 @@
+@use '../../../shared/styles/settings' as settings;
+
+.configuration {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  padding-top: 18px;
+}
+
+.section {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 9px;
+}
+
+.section h4 {
+  @include settings.heading;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.section h4 svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.panel {
+  @include settings.panel;
+
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  padding: 15px 16px;
+}
+
+.grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.field.is-wide { grid-column: 1 / -1; }
+
+.field > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.field :global(.ant-input-number),
+.field :global(.ant-select) { width: 100%; }
+
+.model-id {
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.inline-field {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 248px);
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.capability-row {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.capability-row > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.capability-row svg { color: var(--text-muted); }
+.capability-row :global(.ant-switch) { flex-shrink: 0; }
+
+.editor-segmented:global(.ant-segmented) {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  padding: 3px;
+  box-shadow: none;
+}
+
+.editor-segmented :global(.ant-segmented-group) { min-height: 30px; }
+
+.editor-segmented :global(.ant-segmented-item) {
+  min-width: 0;
+  min-height: 30px;
+  border-radius: 5px;
+  color: var(--text-muted);
+}
+
+.editor-segmented :global(.ant-segmented-item-label) {
+  display: flex;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.editor-segmented :global(.ant-segmented-item-icon) {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.editor-segmented :global(.ant-segmented-item-selected),
+.editor-segmented :global(.ant-segmented-thumb) {
+  border-radius: 5px;
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+.editor-segmented :global(.ant-segmented-item-selected) { color: var(--accent); }
+
+.editor-segmented :global(.ant-segmented-item:not(.ant-segmented-item-selected, .ant-segmented-item-disabled):hover) {
+  color: var(--text-primary);
+}
+
+.editor-segmented :global(.ant-segmented-item:not(.ant-segmented-item-selected, .ant-segmented-item-disabled):hover)::after {
+  background: var(--row-hover-bg);
+}
+
+.editor-segmented :global(.ant-segmented-item-focused),
+.editor-segmented :global(.ant-segmented-item):has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.editor-segmented:global(.ant-segmented-disabled) {
+  opacity: 0.55;
+}
+
+.editor-segmented:global(.ant-segmented-disabled) :global(.ant-segmented-item-selected) {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.reasoning-options {
+  display: grid;
+  gap: 8px;
+}
+
+.reasoning-options-header {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reasoning-options-header > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.reasoning-select-all:global(.ant-btn) {
+  height: 24px;
+  flex: 0 0 auto;
+  padding-inline: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.reasoning-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reasoning-levels :global(.ant-checkbox-wrapper) {
+  min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  padding: 5px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.reasoning-levels :global(.ant-checkbox-wrapper):has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  color: var(--text-primary);
+}
+
+.reasoning-levels :global(.ant-checkbox-wrapper):not(:has(input:disabled)):hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: var(--row-hover-bg);
+}
+
+.reasoning-levels :global(.ant-checkbox-label) {
+  min-width: 0;
+  padding-inline: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+.effective-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.effective-values > span {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 5px;
+}
+
+.effective-values > span + span {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+.effective-values small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.effective-values strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@container agent-model-editor (width >= 780px) {
+  .configuration {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 20px;
+  }
+
+  .identity { grid-column: 1 / -1; }
+  .inline-field { grid-template-columns: 1fr; }
+}
+
+@container agent-model-editor (width <= 420px) {
+  .grid,
+  .inline-field { grid-template-columns: 1fr; }
+  .field.is-wide { grid-column: auto; }
+  .reasoning-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel { padding: 13px; }
+  .effective-values { gap: 8px; }
+  .effective-values > span + span { padding-left: 8px; }
+  .effective-values strong { font-size: 13px; }
+}

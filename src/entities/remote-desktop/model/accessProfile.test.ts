@@ -5,7 +5,7 @@ import {
   selectDefaultRemoteDesktopAccessProfile,
   sortRemoteDesktopAccessProfiles,
 } from './accessProfile.ts'
-import type { RemoteDesktopAccessProfile } from './types.ts'
+import type { VncRemoteDesktopAccessProfile as RemoteDesktopAccessProfile } from './types.ts'
 import { projectRemoteDesktopAccessProfile } from './accessProfileProjection.ts'
 
 test('远程桌面精确 Profile 输入不回传兼容别名和持久化字段', () => {

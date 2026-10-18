@@ -9,6 +9,7 @@ import type { RemoteDesktopProtocolRegistry } from './protocolRegistry.ts'
 import type { RemoteDesktopRouteRegistry } from './routeRegistry.ts'
 import { resolveRemoteDesktopSessionDrivers } from './sessionDriverResolver.ts'
 import { RemoteDesktopTargetAuthController } from './targetAuthController.ts'
+import type { AutomationPointerStore } from './automationPointerState.ts'
 import type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerHandle,
@@ -32,11 +33,15 @@ interface ViewerEntry {
 }
 
 interface RemoteDesktopViewerLifecycleOptions {
+  pointers?: AutomationPointerStore
   api: () => Pick<
     RemoteDesktopGateway,
     | 'createRemoteDesktopAttachTicket'
     | 'consumeRemoteDesktopTargetAuth'
     | 'remoteDesktopStreamUrl'
+    | 'takeRemoteDesktopControl'
+    | 'execution'
+    | 'desktopFiles'
   >
   protocolRegistry: RemoteDesktopProtocolRegistry
   routeRegistry: RemoteDesktopRouteRegistry
@@ -85,6 +90,19 @@ export class RemoteDesktopViewerLifecycle {
     for (const session of nextSessions) {
       const previous = previousSessions.get(session.id)
       const entry = this.entries.get(session.id)
+      if (entry && session.protocol === 'vnc' && (session.remote_viewer || previous?.remote_viewer || session.automation_host_id || previous?.automation_host_id)) {
+        // 预留阶段仍保留原画面，切换后移除本机执行端；归还只恢复已有窗口。
+        if (session.remote_viewer?.phase !== 'preparing') {
+          const viewer = entry.viewer
+          entry.viewer = null
+          entry.attachPromise = null
+          viewer?.dispose()
+          entry.targetAuth.clear()
+          entry.connectedGeneration = null
+          entry.blockedAttachGeneration = null
+          this.options.commitViewerState(session.id, { connection: 'disconnected', errorCode: '', controlOwned: false, credentialFields: [], verification: null })
+        }
+      }
       if (
         !previous
         || (
@@ -144,7 +162,7 @@ export class RemoteDesktopViewerLifecycle {
     }
     const expectedGeneration = session.connection_generation
     this.options.commitViewerState(sessionId, { connection: 'loading', errorCode: '' })
-    const attach = this.attachViewer(entry, session, expectedGeneration)
+    const attach: Promise<void> = this.attachViewer(entry, session, expectedGeneration, () => entry.attachPromise === attach)
       .catch(() => {
         if (
           this.entries.get(sessionId) === entry
@@ -256,6 +274,13 @@ export class RemoteDesktopViewerLifecycle {
     entry.automaticCredentialGeneration = null
   }
 
+  resumeAfterReconnectFailure(sessionId: string, generation: number) {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.connectionGeneration !== generation || entry.blockedAttachGeneration !== generation) return
+    entry.blockedAttachGeneration = null
+    this.ensureViewer(sessionId)
+  }
+
   setDisplayMode(sessionId: string, mode: RemoteDesktopDisplayMode) {
     this.entries.get(sessionId)?.viewer?.setDisplayMode(mode)
   }
@@ -319,7 +344,10 @@ export class RemoteDesktopViewerLifecycle {
     entry: ViewerEntry,
     session: RemoteDesktopSession,
     expectedGeneration: number,
+    ownsAttach: () => boolean,
   ) {
+    // 同一代次也可能重新附加，旧任务必须同时失去 Promise 所有权。
+    const isCurrent = () => ownsAttach() && this.isCurrentAttach(entry, expectedGeneration)
     const profile = this.options.profile(session.profile_id)
     const { protocol: driver } = resolveRemoteDesktopSessionDrivers(
       session,
@@ -328,14 +356,14 @@ export class RemoteDesktopViewerLifecycle {
     )
     // 先完成协议模块加载，再申请短时 Ticket，避免冷加载消耗有效期。
     await driver.prepare()
-    if (!this.isCurrentAttach(entry, expectedGeneration)) {
+    if (!isCurrent()) {
       return
     }
     const api = this.options.api()
     const ticket = await api.createRemoteDesktopAttachTicket(entry.sessionId, expectedGeneration)
     if (
       ticket.connection_generation !== expectedGeneration
-      || !this.isCurrentAttach(entry, expectedGeneration)
+      || !isCurrent()
     ) {
       return
     }
@@ -348,13 +376,27 @@ export class RemoteDesktopViewerLifecycle {
     entry.targetAuth.reset(entry.savedCredentialRejected ? '' : ticket.credential_ticket)
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
+      pointer: this.options.pointers?.feed(entry.sessionId, expectedGeneration),
+      desktopFiles: api.desktopFiles,
       target: entry.container,
-      url: api.remoteDesktopStreamUrl(ticket),
+      transport: ticket.rdp ? { kind: 'rdp-pixels', attachment: ticket.rdp } : {
+        kind: 'rfb', url: api.remoteDesktopStreamUrl(ticket),
+        execution: api.execution ? {
+          connect: (readOnly) => api.execution!.connect(entry.sessionId, expectedGeneration, readOnly),
+          reclaim: (readOnly) => api.execution!.reclaim(entry.sessionId, expectedGeneration, readOnly),
+        } : undefined,
+      },
+      takeControl: (subscriptionId) => api.takeRemoteDesktopControl(entry.sessionId, expectedGeneration, subscriptionId),
       session: latestSession,
       profile,
       state,
       credentials: entry.credentials ?? undefined,
       events: {
+        onControlChanged: (owned, lease) => {
+          if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
+            this.options.commitViewerState(entry.sessionId, { controlOwned: owned, controlLease: lease ?? null })
+          }
+        },
         onConnected: () => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
             entry.connectedGeneration = expectedGeneration
@@ -472,8 +514,8 @@ export class RemoteDesktopViewerLifecycle {
         },
       },
     })
-    if (!this.isCurrentAttach(entry, expectedGeneration)) {
-      if (entry.connectionGeneration === expectedGeneration) {
+    if (!isCurrent()) {
+      if (ownsAttach() && entry.connectionGeneration === expectedGeneration) {
         entry.targetAuth.clear()
       }
       viewer.dispose()
@@ -497,9 +539,10 @@ export class RemoteDesktopViewerLifecycle {
   private canStartAttach(session: RemoteDesktopSession, entry: ViewerEntry) {
     return Boolean(
       entry.viewport
+      && !(session.protocol === 'vnc' && (session.remote_viewer || session.automation_host_id))
       && !entry.viewer
       && !entry.attachPromise
-      && (session.status === 'ready' || session.status === 'reattach_wait')
+      && (session.status === 'ready' || session.status === 'reattach_wait' || (session.protocol === 'rdp' && session.status === 'streaming'))
       && entry.blockedAttachGeneration !== session.connection_generation
       && !(
         session.status === 'ready'
@@ -515,6 +558,7 @@ export class RemoteDesktopViewerLifecycle {
       && entry.connectionGeneration === generation
       && entry.blockedAttachGeneration !== generation
       && session?.connection_generation === generation
+      && !(session.protocol === 'vnc' && (session.remote_viewer || session.automation_host_id))
       && session.status !== 'failed'
       && session.status !== 'stopping'
   }

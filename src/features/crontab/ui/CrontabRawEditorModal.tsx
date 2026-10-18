@@ -11,6 +11,7 @@ import type { CrontabSnapshot } from '#entities/crontab'
 import { TermousApiError } from '#shared/api'
 import {
   confirmDialogStyles,
+  modalSurfaceStyles,
   termousNotificationClassName,
 } from '#shared/ui'
 import type { ThemeMode } from '#shared/theme'
@@ -210,7 +211,7 @@ export function CrontabRawEditorModal({
     const confirmation = modal.confirm({
       centered: true,
       className: confirmDialogStyles.modal,
-      rootClassName: confirmDialogStyles['modal-wrap'],
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
       title: t('workbench.crontab.raw.confirmTitle'),
       content: t('workbench.crontab.raw.confirmContent', { username: snapshot.username }),
       okText: t('workbench.crontab.raw.confirmAction'),
@@ -266,7 +267,7 @@ export function CrontabRawEditorModal({
     const confirmation = modal.confirm({
       centered: true,
       className: confirmDialogStyles.modal,
-      rootClassName: confirmDialogStyles['modal-wrap'],
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
       title: t('workbench.crontab.raw.reloadConfirmTitle'),
       content: t('workbench.crontab.raw.reloadConfirmContent'),
       okText: t('workbench.crontab.raw.reload'),
@@ -295,7 +296,7 @@ export function CrontabRawEditorModal({
     const confirmation = modal.confirm({
       centered: true,
       className: confirmDialogStyles.modal,
-      rootClassName: confirmDialogStyles['modal-wrap'],
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root}`,
       title: t('workbench.crontab.raw.discardTitle'),
       content: t('workbench.crontab.raw.discardContent'),
       okText: t('workbench.crontab.raw.discard'),

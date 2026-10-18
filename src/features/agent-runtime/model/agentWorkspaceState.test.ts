@@ -6,6 +6,7 @@ import {
   createAgentWorkspaceState,
   mergeAgentMessages,
   replaceAgentMessages,
+  replaceAgentRun,
   replaceAgentQueuedTurns,
   selectAgentSession,
   setAgentDraft,
@@ -38,6 +39,20 @@ test('草稿按会话隔离并在清空后只删除目标草稿', () => {
 
   assert.equal(state.drafts['ags-one'], undefined)
   assert.equal(state.drafts['ags-two']?.text, '第二份')
+})
+
+test('迟到的旧 Run 创建回执不能替换同会话新一代任务，也不能影响其他会话', () => {
+  const first = agentRunFixture({ id: 'old-run', session_id: 'session-a', generation: 1, status: 'queued' })
+  const next = agentRunFixture({ id: 'new-run', session_id: 'session-a', generation: 2, status: 'running' })
+  const other = agentRunFixture({ id: 'other-run', session_id: 'session-b', generation: 1, status: 'running' })
+  let state = replaceAgentRun(createAgentWorkspaceState(), first)
+  state = replaceAgentRun(state, other)
+  state = replaceAgentRun(state, next)
+  const restored = replaceAgentRun(state, first)
+  assert.equal(restored.active_run_ids['session-a'], next.id)
+  assert.equal(restored.active_run_ids['session-b'], other.id)
+  assert.equal(restored.runs[next.id], next)
+  assert.equal(restored.runs[first.id], undefined)
 })
 
 test('排队消息增量按后端 editing 状态恢复并清除本地编辑草稿', () => {
@@ -290,14 +305,14 @@ test('新活动 Run 清理被替代 Run 的事件且删除会话同步清理子�
   }).state
   assert.equal(state.runs['agr-run'], undefined)
   assert.equal(state.run_events['agr-run'], undefined)
-  assert.equal(state.active_run_id, 'agr-next')
+  assert.equal(state.active_run_ids['ags-session'], 'agr-next')
 
   state = applyAgentWorkspaceEvent(state, {
     type: 'removed', revision: 3, entity: 'session', id: 'ags-session',
   }).state
   assert.deepEqual(state.runs, {})
   assert.deepEqual(state.messages, {})
-  assert.equal(state.active_run_id, undefined)
+  assert.equal(state.active_run_ids['ags-session'], undefined)
 })
 
 test('Run 终态同步收口 assistant 消息状态和本轮 Token 用量', () => {
@@ -337,7 +352,7 @@ test('仅终态时间晚到也更新历史元数据，并在后继 Run 替换后
     type: 'upsert', revision: 3,
     run: agentRunFixture({ id: 'agr-next', generation: 2, assistant_message_id: 'agm-next' }),
   }).state
-  assert.equal(state.active_run_id, 'agr-next')
+  assert.equal(state.active_run_ids['ags-session'], 'agr-next')
   assert.deepEqual(state.messages['ags-session']?.[0]?.turn_usage, {
     run_id: run.id, usage: run.usage, started_at: agentFixtureTime, completed_at: completedAt,
   })
@@ -360,7 +375,7 @@ test('重连快照后补拉旧消息不会丢失已知终态耗时', () => {
   assert.deepEqual(restored?.turn_usage, {
     run_id: run.id, usage: run.usage, started_at: run.started_at, completed_at: run.completed_at,
   })
-  assert.equal(state.active_run_id, undefined)
+  assert.equal(state.active_run_ids['ags-session'], undefined)
 })
 
 test('Run 状态已收口时仍接受后到的本轮 Token 用量', () => {

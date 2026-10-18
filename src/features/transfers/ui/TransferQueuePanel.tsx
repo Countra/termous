@@ -16,16 +16,17 @@ import {
   FolderOpen,
   Loader2,
   MoreHorizontal,
+  Monitor,
   RefreshCw,
   RotateCcw,
   Trash2,
   UploadCloud,
 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
-import { confirmDialogStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
 import rowStyles from './TransferQueueRows.module.scss'
 import { TransferSummary } from './TransferSummary'
 import type { TransferTask } from '#entities/file'
@@ -48,6 +49,8 @@ import {
 } from '#entities/file'
 
 interface TransferQueuePanelProps {
+  focusedTransferId?: string
+  onFocusedTransferHandled?: () => void
   transfers: TransferTask[]
   pendingOperations?: PendingFileOperation[]
   pendingActionIds?: ReadonlySet<string>
@@ -62,6 +65,8 @@ interface TransferQueuePanelProps {
 }
 
 export function TransferQueuePanel({
+  focusedTransferId,
+  onFocusedTransferHandled,
   transfers,
   pendingOperations = [],
   pendingActionIds = new Set(),
@@ -77,6 +82,9 @@ export function TransferQueuePanel({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const [filter, setFilter] = useState<TransferQueueFilter>('all')
+  useEffect(() => {
+    if (focusedTransferId) setFilter('all')
+  }, [focusedTransferId])
   const [clearing, setClearing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const summary = useMemo(
@@ -137,7 +145,7 @@ export function TransferQueuePanel({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       centered: true,
       onOk: async () => {
         setClearing(true)
@@ -275,6 +283,8 @@ export function TransferQueuePanel({
               <TransferTaskRow
                 key={item.task.id}
                 task={item.task}
+                focused={focusedTransferId === item.task.id}
+                onFocused={onFocusedTransferHandled}
                 hostNames={hostNames}
                 showHostContext={showHostContext}
                 actionBusy={pendingActionIds.has(item.task.id)}
@@ -292,11 +302,14 @@ export function TransferQueuePanel({
 
 function TransferTaskRow({
   task,
+  focused,
   hostNames,
   showHostContext,
   ...actions
 }: {
   task: TransferTask
+  focused?: boolean
+  onFocused?: () => void
   hostNames: Readonly<Record<string, string>>
   showHostContext: boolean
   actionBusy: boolean
@@ -314,6 +327,7 @@ function TransferTaskRow({
 
   return (
     <TransferRow
+      focused={focused}
       task={task}
       hostLabel={route
         ? undefined
@@ -435,6 +449,8 @@ function TransferPreparationRow({
 }
 
 function TransferRow({
+  focused,
+  onFocused,
   task,
   hostLabel,
   remoteRoute,
@@ -443,6 +459,8 @@ function TransferRow({
   onDelete,
   onRetry,
 }: {
+  focused?: boolean
+  onFocused?: () => void
   task: TransferTask
   hostLabel?: string
   remoteRoute?: {
@@ -454,8 +472,19 @@ function TransferRow({
   onDelete: (id: string, options?: { silent?: boolean }) => Promise<boolean>
   onRetry: (id: string) => Promise<void>
 }) {
+  const row = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!focused) return
+    row.current?.scrollIntoView?.({ block: 'nearest' })
+    row.current?.focus({ preventScroll: true })
+    onFocused?.()
+  }, [focused, onFocused])
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
+  const systemCopy = !!task.clipboard_publication_id
+  const statusLabel = systemCopy && task.status === 'completed'
+    ? t('files.systemClipboard.provided')
+    : t(`files.transferStatus.${task.status}`)
   const isUpload = task.type.startsWith('upload')
   const isDownload = task.type.startsWith('download')
   const canDelete = isClearableTransferTask(task)
@@ -477,8 +506,9 @@ function TransferRow({
   const routeLabel = remoteRoute
     ? t('files.remoteCopy.route', remoteRoute)
     : null
-  const originLabel = resolveTransferOrigin(task) === 'mcp'
-    ? t('files.transferOrigin.mcp')
+  const origin = resolveTransferOrigin(task)
+  const originLabel = origin === 'mcp' || origin === 'remote'
+    ? t(`files.transferOrigin.${origin}`)
     : null
 
   const openLocalDirectory = async () => {
@@ -554,10 +584,12 @@ function TransferRow({
       disabled={actionBusy || contextMenuItems.length === 0}
     >
       <article
+        ref={row}
+        tabIndex={-1}
         className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
-        aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
-        data-transfer-origin={originLabel ? 'mcp' : undefined}
+        aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${statusLabel}`}
+        data-transfer-origin={originLabel ? origin : undefined}
       >
         <span className="transfer-kind-icon">
           <Icon size={17} aria-hidden="true" />
@@ -567,7 +599,7 @@ function TransferRow({
             {originLabel ? (
               <Tooltip title={originLabel}>
                 <span className="transfer-origin-indicator" role="img" aria-label={originLabel}>
-                  <Bot size={12} strokeWidth={2} aria-hidden="true" />
+                  {origin === 'remote' ? <Monitor size={12} strokeWidth={2} aria-hidden="true" /> : <Bot size={12} strokeWidth={2} aria-hidden="true" />}
                 </span>
               </Tooltip>
             ) : null}
@@ -590,7 +622,7 @@ function TransferRow({
           ) : null}
           <Tooltip title={task.target_path}>
             <span className="transfer-subline">
-              <span>{t(`files.transferType.${task.type}`)} · {task.target_path}</span>
+              <span>{systemCopy ? t('files.systemClipboard.task') : t(`files.transferType.${task.type}`)}{task.target_path ? ` · ${task.target_path}` : ''}</span>
               {hostLabel ? <em>{hostLabel}</em> : null}
             </span>
           </Tooltip>
@@ -607,7 +639,7 @@ function TransferRow({
           <div className="transfer-state-line">
             <span className="transfer-state-label">
               <i aria-hidden="true" />
-              {t(`files.transferStatus.${task.status}`)}
+              {statusLabel}
               {phaseLabel ? <em className="transfer-phase-label">{phaseLabel}</em> : null}
             </span>
             {(isActive || task.status === 'completed') && !indeterminate ? <b>{progress}%</b> : null}
@@ -615,7 +647,7 @@ function TransferRow({
           <div
             className={`transfer-progress-line ${indeterminate ? 'is-indeterminate' : ''}`}
             role="progressbar"
-            aria-label={`${currentName}: ${t(`files.transferStatus.${task.status}`)}`}
+            aria-label={`${currentName}: ${statusLabel}`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={indeterminate ? undefined : progress}

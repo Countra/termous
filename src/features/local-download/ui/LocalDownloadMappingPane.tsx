@@ -14,7 +14,7 @@ import {
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { confirmDialogStyles, EditorModeContext } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles, EditorModeContext } from '#shared/ui'
 import type {
   LocalPathMapping,
   LocalPathMappingInput,
@@ -156,7 +156,7 @@ export function LocalDownloadMappingPane({
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
       className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
       centered: true,
       onOk: async () => {
         try {

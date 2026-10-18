@@ -1,0 +1,100 @@
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+}
+
+.content {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding-block: 4px 8px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.details {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+
+  > div {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  dt {
+    color: var(--text-muted);
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+}
+
+.fingerprint {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.fingerprint-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.fingerprint-value {
+  display: block;
+  color: var(--text-primary);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
+}
+
+.remember {
+  display: grid;
+  gap: 6px;
+
+  p {
+    margin: 0;
+    padding-left: 24px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+@media (width <= 420px) {
+  .details > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}

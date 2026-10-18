@@ -1,0 +1,226 @@
+.factor-fields {
+  min-width: 0;
+
+  > :global(.ant-btn) {
+    margin-top: -14px;
+    padding-left: 0;
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summary-text {
+  display: grid;
+  gap: 6px;
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wizard,
+.backup-stage {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wizard {
+  padding-top: 8px;
+}
+
+.setup-details {
+  display: grid;
+  gap: 20px;
+}
+
+.setup {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.qr-frame {
+  justify-self: start;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  // 二维码使用固定白底和完整静区，保证深色主题下的扫码对比度。
+  background: #fff;
+}
+
+.setup-copy {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+}
+
+.manual-key {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: inherit;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--surface-subtle);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    > svg {
+      flex-shrink: 0;
+    }
+  }
+
+  &[open] > summary > svg {
+    transform: rotate(90deg);
+  }
+}
+
+.manual-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.secret-box {
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border-radius: 6px;
+  background: var(--surface-subtle);
+
+  code {
+    display: block;
+    margin-top: 8px;
+    color: var(--text-primary);
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.8;
+    letter-spacing: 0.08em;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+}
+
+.secret-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+
+  > :global(.ant-btn) {
+    flex-shrink: 0;
+  }
+}
+
+.setup-confirm {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+
+  :global(.ant-input) {
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 16px;
+    letter-spacing: 0.15em;
+  }
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+  padding: 12px 12px 12px 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+
+  code {
+    color: var(--text);
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+}
+
+@media (width <= 600px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .qr-frame {
+    justify-self: center;
+  }
+
+  .setup-copy {
+    text-align: center;
+  }
+
+  .codes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

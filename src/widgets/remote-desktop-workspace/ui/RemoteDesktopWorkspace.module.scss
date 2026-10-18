@@ -156,7 +156,7 @@
   display: contents;
 }
 
-.more-actions:global(.ant-btn) {
+.tool-button.more-actions:global(.ant-btn) {
   display: none;
 }
 
@@ -256,127 +256,13 @@
   padding: 0 6px;
 }
 
-.statusbar {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  background: color-mix(in srgb, var(--chrome-bg) 86%, transparent);
-  color: var(--text-muted);
-  column-gap: clamp(5px, 1cqi, 8px);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  padding: 0 10px;
-  white-space: nowrap;
-}
-
-.status-context {
+.empty-workspace {
   display: flex;
   min-width: 0;
-  align-items: center;
-  gap: clamp(5px, 1cqi, 8px);
-  overflow: hidden;
-}
-
-.status-context strong {
-  flex: 0 0 auto;
-  color: var(--text-secondary);
-  font-weight: 650;
-}
-
-.status-context > span:not(.dot) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.status-host {
-  max-width: min(28cqi, 260px);
-  flex: 0 1 auto;
-}
-
-.status-target {
-  max-width: min(30cqi, 280px);
-  flex: 0 1 auto;
-}
-
-.desktop-name {
-  flex: 1 1 auto;
-  color: var(--text-secondary);
-}
-
-.reconnect-progress {
-  flex: 0 0 auto;
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 12%, transparent);
-}
-
-.dot.is-connected {
-  background: var(--success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent);
-}
-
-.dot.is-connecting,
-.dot.is-waiting-host-trust {
-  background: var(--warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
-}
-
-.dot.is-failed {
-  background: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
-}
-
-.empty-workspace {
-  display: grid;
   min-height: 0;
   grid-row: 2 / -1;
-  place-content: center;
+  overflow: hidden;
   background: var(--surface);
-  padding: clamp(28px, 6cqi, 72px);
-}
-
-.empty-state:global(.workbench-empty-state) {
-  width: min(100%, 420px);
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  gap: 10px;
-  padding: 18px;
-}
-
-.empty-state :global(.workbench-empty-state-icon) {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 1px;
-}
-
-.empty-state :global(.workbench-empty-state-description) {
-  max-width: 340px;
-  color: var(--text-muted);
-}
-
-.empty-state :global(.workbench-empty-state-action) {
-  margin-top: 3px;
-}
-
-.empty-action:global(.connection-action-button.ant-btn) {
-  min-width: 146px;
-  height: 36px;
-  min-height: 36px;
-  border-radius: 10px;
-  font-size: 13px;
 }
 
 .dialog-hint {
@@ -384,44 +270,6 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 19px;
-}
-
-.fingerprint {
-  display: grid;
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.fingerprint > div {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  border-bottom: 1px solid var(--border);
-}
-
-.fingerprint > div:last-child {
-  border-bottom: 0;
-}
-
-.fingerprint dt,
-.fingerprint dd {
-  margin: 0;
-  padding: 9px 11px;
-}
-
-.fingerprint dt {
-  background: var(--surface-subtle);
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.fingerprint dd {
-  overflow: auto hidden;
-  color: var(--text-primary);
-  font-family: var(--terminal-font-family);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 @keyframes remote-desktop-pulse {
@@ -436,11 +284,7 @@
   }
 }
 
-@media (width <= 760px) {
-  .workspace {
-    grid-template-rows: auto minmax(0, 1fr) var(--remote-desktop-statusbar-height);
-  }
-
+@container remote-desktop-workspace (inline-size <= 760px) {
   .toolbar {
     min-height: 44px;
   }
@@ -458,30 +302,8 @@
     display: none;
   }
 
-  .more-actions:global(.ant-btn) {
+  .tool-button.more-actions:global(.ant-btn) {
     display: inline-flex;
-  }
-}
-
-@container remote-desktop-workspace (inline-size <= 820px) {
-  .status-target {
-    display: none;
-  }
-}
-
-@container remote-desktop-workspace (inline-size <= 640px) {
-  .desktop-name {
-    display: none;
-  }
-}
-
-@container remote-desktop-workspace (inline-size <= 480px) {
-  .statusbar {
-    padding-inline: 7px;
-  }
-
-  .status-host {
-    display: none;
   }
 }
 

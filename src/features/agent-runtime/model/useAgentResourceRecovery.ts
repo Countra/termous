@@ -6,7 +6,7 @@ import { AgentResourceRecoveryCoordinator } from '../runtime/AgentResourceRecove
 
 export function useAgentResourceRecovery(gateway: AgentWorkspaceGateway, controller: AgentWorkspaceController,
   session: AgentSession | undefined, active: boolean, queueRevision: number | undefined, sshResources?: readonly AgentSSHResourceState[],
-  readiness?: AgentReadiness | null, onCompleted?: (session: AgentSession) => void) {
+  readiness?: AgentReadiness | null, onCompleted?: (session: AgentSession) => void, backgroundActive = false) {
   const onCompletedRef = useRef(onCompleted)
   onCompletedRef.current = onCompleted
   const coordinator = useMemo(() => new AgentResourceRecoveryCoordinator(gateway,
@@ -14,11 +14,11 @@ export function useAgentResourceRecovery(gateway: AgentWorkspaceGateway, control
     (recovered) => onCompletedRef.current?.(recovered)), [gateway, controller])
   const states = useSyncExternalStore(coordinator.subscribe, coordinator.getSnapshot, coordinator.getSnapshot)
   useEffect(() => {
-    const observe = () => coordinator.observe(session, active && document.visibilityState !== 'hidden')
+    const observe = () => coordinator.observe(session, active && (backgroundActive || document.visibilityState !== 'hidden'))
     observe()
     document.addEventListener('visibilitychange', observe)
     return () => document.removeEventListener('visibilitychange', observe)
-  }, [coordinator, session, active, queueRevision, sshResources, readiness])
+  }, [coordinator, session, active, backgroundActive, queueRevision, sshResources, readiness])
   useEffect(() => () => coordinator.dispose(), [coordinator])
   return { coordinator, state: session ? states[session.id] : undefined }
 }

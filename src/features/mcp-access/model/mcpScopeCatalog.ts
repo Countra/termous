@@ -6,6 +6,8 @@ import {
 } from '#entities/mcp-access'
 
 export type McpScopeGroupKey =
+  | 'desktops'
+  | 'desktop_workflows'
   | 'hosts'
   | 'sessions'
   | 'commands'
@@ -51,10 +53,20 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
       'files:cancel',
     ],
   },
+  { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
+  { key: 'desktop_workflows', scopes: ['desktop_workflows:read', 'desktop_workflows:write', 'desktop_workflows:run', 'desktop_workflows:delete'] },
   { key: 'system', scopes: ['system:read'] },
   { key: 'processes', scopes: ['processes:read', 'processes:terminate'] },
   { key: 'services', scopes: ['services:read', 'services:manage'] },
-  { key: 'docker', scopes: ['docker:read', 'docker:manage'] },
+  {
+    key: 'docker',
+    scopes: [
+      'docker:read', 'docker:manage',
+      'docker:images:read', 'docker:images:manage',
+      'docker:volumes:read', 'docker:volumes:manage',
+      'docker:networks:read', 'docker:networks:manage',
+    ],
+  },
   { key: 'crontab', scopes: ['crontab:read', 'crontab:write'] },
   { key: 'forwarding', scopes: ['forwarding:read', 'forwarding:manage'] },
   { key: 'snippets', scopes: ['snippets:read', 'snippets:write'] },
@@ -67,7 +79,7 @@ const groupByScope = new Map(
 export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((scope) => {
   const group = groupByScope.get(scope)
   if (!group) throw new Error(`MCP 权限未归类: ${scope}`)
-  const key = scope.replace(':', '_')
+  const key = scope.replace(/:/g, '_')
   return {
     scope,
     group,
@@ -75,7 +87,9 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     descriptionKey: `settings.mcp.scopeDescription.${key}`,
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
-    destructive: scope === 'sessions:close' || scope === 'files:delete',
+    destructive: scope === 'sessions:close' || scope === 'files:delete' || scope === 'desktops:close' || scope === 'desktops:control'
+      || scope === 'desktop_workflows:run' || scope === 'desktop_workflows:delete'
+      || scope === 'docker:images:manage' || scope === 'docker:volumes:manage' || scope === 'docker:networks:manage',
   }
 })
 

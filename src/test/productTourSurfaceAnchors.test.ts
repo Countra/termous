@@ -30,8 +30,8 @@ const anchorContracts = [
   },
   {
     name: '设置工作区',
-    source: source('../pages/settings/ui/SettingsPage.tsx'),
-    pattern: /<div className=\{styles\['page-title-row'\]\} data-tour="settings-workspace">/,
+    source: source('../pages/settings/ui/SettingsWorkspace.tsx'),
+    pattern: /<section className=\{styles\.workspace\} data-tour="settings-workspace">/,
   },
 ] as const
 

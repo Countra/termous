@@ -83,7 +83,7 @@ vi.mock('#shared/ui', async (importOriginal) => ({
   ),
 }))
 
-vi.mock('./SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
+vi.mock('../../../features/session-tabs/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 
 import { WorkbenchSessionTabs, type SessionTabMenuAction } from './WorkbenchSessionTabs'
 
@@ -219,6 +219,7 @@ function createTabs(
       onQuickConnectOpenChange={vi.fn()}
       onQuickConnectQueryChange={vi.fn()}
       onQuickConnect={vi.fn(async () => undefined)}
+      onOpenConnectionLauncher={vi.fn()}
       onMenuAction={overrides.onMenuAction ?? vi.fn<(action: SessionTabMenuAction, session: Session) => void>()}
       onColorPopoverOpenChange={vi.fn()}
       onColorSelect={vi.fn()}

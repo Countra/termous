@@ -2,7 +2,7 @@ export type AgentApprovalMode = 'review' | 'bypass'
 
 export type AgentApprovalPolicyState =
   | { status: 'unavailable' }
-  | { status: 'ready'; mode: AgentApprovalMode }
+  | { status: 'ready'; mode: AgentApprovalMode; readOnly?: boolean }
 
 export function agentApprovalModeFromBypass(approvalBypass: boolean): AgentApprovalMode {
   return approvalBypass ? 'bypass' : 'review'

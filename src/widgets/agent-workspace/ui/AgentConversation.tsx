@@ -1,10 +1,12 @@
+import { AgentProgressActivity } from './AgentProgressActivity.tsx'
 import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { memo, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   isActiveAgentRun,
   type AgentWorkspaceMessage,
+  type AgentImageLoader,
   type AgentWorkspaceRunStatus,
 } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
@@ -17,9 +19,14 @@ import { AgentCompactionActivity } from './AgentCompactionActivity.tsx'
 import { AgentRetryActivity } from './AgentRetryActivity.tsx'
 import { AgentMessageFailure, AgentResponseFailure } from './AgentMessageFailure.tsx'
 import { AgentMessageActions } from './AgentMessageActions.tsx'
+import { AgentMessageResources } from './AgentMessageResources.tsx'
+import { agentMessageImageCatalogs } from '../model/agentImageResources.ts'
 import styles from './AgentConversation.module.scss'
 
 interface AgentConversationProps {
+  active?: boolean
+  presentation?: import('../model/types.ts').AgentWorkspacePresentation
+  onPrompt?: (text: string) => void
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   loading: boolean
@@ -27,6 +34,7 @@ interface AgentConversationProps {
   showTurnTokenUsage?: boolean
   onPreviewAttachment?: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
 }
 
 const ignoreAttachmentPreview = () => undefined
@@ -36,6 +44,9 @@ export const AgentConversation = memo(function AgentConversation(props: AgentCon
 })
 
 function AgentConversationSession({
+  active = true,
+  presentation,
+  onPrompt,
   messages,
   runStatus,
   loading,
@@ -43,18 +54,33 @@ function AgentConversationSession({
   showTurnTokenUsage = true,
   onPreviewAttachment = ignoreAttachmentPreview,
   onLoadAttachmentContent,
+  onLoadToolImage,
 }: AgentConversationProps) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
-  const followTailRef = useRef(true)
+  const followTailRef = useRef(presentation?.conversations?.[sessionKey]?.follow ?? true)
   const followTailFrameRef = useRef<number | undefined>(undefined)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const deferredMessages = useDeferredValue(messages)
   const latestSignature = latestMessageContentSignature(deferredMessages)
 
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    // 返回过渡中的可见视图虽被锁定，仍须先恢复位置；真正隐藏的页面等再次显示后恢复。
+    if (!active && !viewport?.getClientRects().length) return
+    const saved = presentation?.conversations?.[sessionKey]
+    if (viewport && saved && !saved.follow) {
+      const anchor = [...viewport.querySelectorAll<HTMLElement>('[data-agent-message]')]
+        .find(node => node.dataset.agentMessage === saved.anchor)
+      viewport.scrollTop = anchor ? viewport.scrollTop + anchor.getBoundingClientRect().top
+        - viewport.getBoundingClientRect().top - (saved.offset ?? 0) : saved.top
+      setShowJumpToLatest(true)
+    }
+  }, [active, presentation, sessionKey])
+
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || !followTailRef.current) return
+    if (!viewport || !followTailRef.current || !active && !viewport.getClientRects().length) return
     const frame = window.requestAnimationFrame(() => {
       if (followTailFrameRef.current === frame) followTailFrameRef.current = undefined
       if (!followTailRef.current) return
@@ -68,7 +94,7 @@ function AgentConversationSession({
       window.cancelAnimationFrame(frame)
       followTailFrameRef.current = undefined
     }
-  }, [latestSignature, runStatus, sessionKey, showTurnTokenUsage])
+  }, [active, latestSignature, runStatus, sessionKey, showTurnTokenUsage])
 
   const empty = !loading && deferredMessages.length === 0
 
@@ -82,9 +108,17 @@ function AgentConversationSession({
         aria-relevant="additions text"
         aria-busy={runStatus === 'queued' || runStatus === 'starting' || runStatus === 'running'}
         onScroll={(event) => {
+          if (!active) return
           const viewport = event.currentTarget
           const following = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 96
           followTailRef.current = following
+          if (presentation) {
+            const top = viewport.getBoundingClientRect().top
+            const anchor = [...viewport.querySelectorAll<HTMLElement>('[data-agent-message]')]
+              .find(node => node.getBoundingClientRect().bottom > top)
+            ;(presentation.conversations ??= {})[sessionKey] = { top: viewport.scrollTop, follow: following,
+              anchor: anchor?.dataset.agentMessage, offset: anchor ? anchor.getBoundingClientRect().top - top : undefined }
+          }
           setShowJumpToLatest(!following)
         }}
       >
@@ -92,6 +126,12 @@ function AgentConversationSession({
           <div className={styles['conversation-empty']}>
             <span><Bot size={21} aria-hidden="true" /></span>
             <h2>{t('agent.empty.title')}</h2>
+            <p>{t('agent.empty.description')}</p>
+            {onPrompt && <div className={styles['empty-prompts']}>
+              {['diagnose', 'logs', 'deploy'].map(key => <button type="button" key={key} onClick={() => onPrompt(t(`agent.empty.prompts.${key}.text`))}>
+                <strong>{t(`agent.empty.prompts.${key}.title`)}</strong><span>{t(`agent.empty.prompts.${key}.description`)}</span>
+              </button>)}
+            </div>}
           </div>
         ) : (
           <AgentMessageStack
@@ -100,6 +140,7 @@ function AgentConversationSession({
             showTurnTokenUsage={showTurnTokenUsage}
             onPreviewAttachment={onPreviewAttachment}
             onLoadAttachmentContent={onLoadAttachmentContent}
+            onLoadToolImage={onLoadToolImage}
           />
         )}
       </div>
@@ -114,6 +155,7 @@ function AgentConversationSession({
               const viewport = viewportRef.current
               if (!viewport) return
               followTailRef.current = true
+              if (presentation) (presentation.conversations ??= {})[sessionKey] = { top: viewport.scrollHeight, follow: true }
               setShowJumpToLatest(false)
               viewport.scrollTo({ top: viewport.scrollHeight })
             }}
@@ -130,25 +172,31 @@ const AgentMessageStack = memo(function AgentMessageStack({
   showTurnTokenUsage,
   onPreviewAttachment,
   onLoadAttachmentContent,
+  onLoadToolImage,
 }: {
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   showTurnTokenUsage: boolean
   onPreviewAttachment: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadToolImage?: AgentImageLoader
 }) {
   const { t } = useTranslation()
   const assistantPlaceholderId = currentAssistantPlaceholderId(messages)
+  const messagesWithImages = useMemo(() => agentMessageImageCatalogs(messages), [messages])
   const hasAssistantPlaceholder = assistantPlaceholderId !== undefined
   const assistantPlaceholderStatus = isActiveAgentRun(runStatus) ? runStatus : undefined
   return (
     <div className={styles['message-stack']}>
-      {messages.map((message) => (
-        <article key={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
+      {messagesWithImages.map(({ message, images }) => (
+        <article key={message.id} data-agent-message={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
           <header>
             <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
           </header>
           <div className={styles['message-content']}>
+            {message.role === 'user' && message.resources?.length ? (
+              <AgentMessageResources resources={message.resources} />
+            ) : null}
             {message.source_context ? (
               <div className={styles['message-source']}><Waypoints size={12} />{message.source_context.title}</div>
             ) : null}
@@ -173,8 +221,9 @@ const AgentMessageStack = memo(function AgentMessageStack({
               </div>
             ) : null}
             {message.parts.map((part) => {
-              if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
-              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
+              if (part.kind === 'text') return <AgentMarkdown key={part.id} images={message.role === 'assistant' ? images : undefined} onLoadToolImage={onLoadToolImage}>{part.text}</AgentMarkdown>
+              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} onLoadToolImage={onLoadToolImage} />
+              if (part.kind === 'progress') return <AgentProgressActivity key={part.id} activity={part.activity} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
               if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />
               if (part.kind === 'retry') return <AgentRetryActivity key={part.id} activity={part.activity} hideError={
@@ -222,7 +271,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
             && message.status !== 'streaming'
             && message.usage
             && message.usage.total_tokens > 0 ? (
-            <AgentTurnUsage usage={message.usage} />
+            <AgentTurnUsage usage={message.usage} requests={message.request_usage} />
           ) : null}
         </article>
       ))}
@@ -249,6 +298,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   if (!message) return 'empty'
   const parts = message.parts.map((part) => {
     if (part.kind === 'response_failure') return `${part.id}:${part.failure.error_message}`
+    if (part.kind === 'progress') return `${part.id}:${part.activity.status}:${part.activity.count}`
     if (part.kind === 'retry') {
       const activity = part.activity
       return `${part.id}:${activity.status}:${activity.attempt}:${activity.delay_ms}:${activity.duration_ms ?? ''}:${activity.error_message}`
@@ -258,7 +308,7 @@ function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
       return `${part.id}:${activity.status}:${activity.tokens_before}:${activity.tokens_after ?? ''}:${activity.context_window_tokens ?? ''}:${activity.duration_ms ?? ''}`
     }
     if (part.kind === 'tool') {
-      return `${part.id}:${part.status}:${part.duration_ms ?? ''}:${part.summary?.length ?? 0}:${part.detail?.length ?? 0}`
+      return `${part.id}:${part.status}:${part.duration_ms ?? ''}:${part.summary?.length ?? 0}:${part.detail?.length ?? 0}:${part.images?.length ?? 0}`
     }
     return `${part.id}:${part.kind}:${part.text.length}:${part.kind === 'reasoning' && part.streaming ? 1 : 0}`
   }).join(',')

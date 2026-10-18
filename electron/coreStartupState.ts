@@ -58,7 +58,7 @@ export class CoreStartupState {
     this.lastEventAt = now
     this.readyDeadline = now + readyTimeoutMs
     this.databaseStartedAt = null
-    this.publish({ ...this.snapshot, instanceId, phase: 'starting', failure: null, attention: null }, now)
+    this.publish({ ...this.snapshot, database: null, databases: [], instanceId, phase: 'starting', failure: null, attention: null }, now)
   }
 
   bindPID(pid: number | undefined) {
@@ -87,6 +87,7 @@ export class CoreStartupState {
     const database = this.mergeDatabase(event.database)
     const next: CoreStartupSnapshot = {
       ...this.snapshot, phase: event.phase, database,
+      databases: event.databases ? structuredClone(event.databases) : this.snapshot.databases,
       failure: event.error ?? null,
       attention: event.phase === 'database' && this.databaseStartedAt !== null
         && now - this.databaseStartedAt >= databaseSlowMs ? 'slow' : null,
@@ -125,7 +126,8 @@ export class CoreStartupState {
     const previous = this.snapshot.database
     if (!next) return previous
     // 重试端口或恢复时可能再次检查同一数据库，保留本轮已经完成的更新摘要。
-    if (previous?.status === 'completed' && (next.status === 'checking' || next.status === 'unchanged')) return previous
+    if (previous?.id === next.id && previous?.domain === next.domain && previous?.role === next.role
+      && previous?.status === 'completed' && (next.status === 'checking' || next.status === 'unchanged')) return previous
     return { ...next }
   }
 

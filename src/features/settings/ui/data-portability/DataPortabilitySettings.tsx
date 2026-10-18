@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
 import { uiStyles } from '#shared/ui'
+import { useSettingsEditor } from '#entities/settings'
 import type { DataPortabilityGateway } from '../../api/dataPortabilityGateway'
 import type {
   DataPortabilityDatasetKey,
@@ -81,6 +82,9 @@ export function DataPortabilitySettings({
   const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([])
   const [applyConfirmOpen, setApplyConfirmOpen] = useState(false)
   const [restorePrepared, setRestorePrepared] = useState(false)
+  useSettingsEditor({ dirty: false,
+    busy: exportBusy || importBusy || planBusy || passwordModalOpen || selectionOpen || applyConfirmOpen,
+    invalid: true, save: () => undefined, reset: () => undefined })
 
   const getApi = useCallback(() => Promise.resolve(gateway), [gateway])
 
@@ -426,15 +430,17 @@ export function DataPortabilitySettings({
     <div className={styles['data-portability-section']}>
       <section className={styles['data-portability-band']}>
         <BandHeader icon={<Upload size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
-        <SummaryStrip summary={summary} busy={summaryBusy} onReload={loadSummary} />
-        <div className={styles['data-portability-password-grid']}>
-          <Input.Password id="data-portability-export-password" autoComplete="off" value={exportPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setExportPassword(event.target.value)} />
-          <Input.Password id="data-portability-export-confirm" autoComplete="off" value={exportConfirm} maxLength={1024} prefix={<ShieldCheck size={15} />} placeholder={t('settings.data.confirmPassword')} onChange={(event) => setExportConfirm(event.target.value)} />
-          <Button type="primary" icon={<Upload size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
-            {t('settings.data.exportAction')}
-          </Button>
+        <div className={styles['data-portability-band-body']}>
+          <SummaryStrip summary={summary} busy={summaryBusy} onReload={loadSummary} />
+          <div className={styles['data-portability-password-grid']}>
+            <Input.Password id="data-portability-export-password" autoComplete="off" value={exportPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setExportPassword(event.target.value)} />
+            <Input.Password id="data-portability-export-confirm" autoComplete="off" value={exportConfirm} maxLength={1024} prefix={<ShieldCheck size={15} />} placeholder={t('settings.data.confirmPassword')} onChange={(event) => setExportConfirm(event.target.value)} />
+            <Button type="primary" icon={<Upload size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
+              {t('settings.data.exportAction')}
+            </Button>
+          </div>
+          {progress?.operation === 'export' ? <OperationProgress progress={progress} /> : null}
         </div>
-        {progress?.operation === 'export' ? <OperationProgress progress={progress} /> : null}
       </section>
 
       <section className={styles['data-portability-band']}>
@@ -448,59 +454,61 @@ export function DataPortabilitySettings({
               ? <Button type="primary" icon={<Download size={16} />} loading={importBusy} onClick={() => void handleSelectBackup()}>{t('settings.data.chooseBackup')}</Button>
               : undefined}
         />
-        <Steps
-          className={styles['data-portability-steps']}
-          current={currentStep}
-          size="small"
-          items={['select', 'review', 'resolve', 'apply'].map((key) => ({ title: t(`settings.data.steps.${key}`) }))}
-        />
-        {progress?.operation === 'import' ? <OperationProgress progress={progress} /> : null}
-
-        {inspection ? (
-          <>
-            <ImportOverview inspection={inspection} locale={i18n.language} />
-            {inspection.warnings.length > 0 ? (
-              <Alert type="warning" showIcon message={t('settings.data.pathWarnings', { count: inspection.warnings.length })} description={inspection.warnings.map((warning) => warning.label).filter(Boolean).join(' · ')} />
-            ) : null}
-            {!plan && !restorePrepared ? (
-              <div className={styles['data-portability-mode-panel']}>
-                <Segmented<DataPortabilityRestoreMode>
-                  block
-                  value={mode}
-                  options={(['replace_all', 'merge_all', 'selective'] as const).map((value) => ({ value, label: t(`settings.data.modes.${value}.title`) }))}
-                  onChange={(value) => setMode(value)}
-                />
-                <p>{t(`settings.data.modes.${mode}.hint`)}</p>
-                {mode === 'selective' ? (
-                  <DatasetSelection inspection={inspection} value={selectedDatasets} onChange={setSelectedDatasets} />
-                ) : null}
-                <Button type="primary" icon={<SlidersHorizontal size={16} />} loading={planBusy} onClick={() => void analyze()}>
-                  {t('settings.data.analyzeRestore')}
-                </Button>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        {plan && inspection && !restorePrepared ? (
-          <DataPortabilityPlanView
-            plan={plan}
-            page={page}
-            statusFilter={statusFilter}
-            pageNumber={cursorStack.length + 1}
-            busy={planBusy}
-            canGoBack={cursorStack.length > 0}
-            canGoForward={Boolean(page?.next_cursor)}
-            onStatusFilterChange={(value) => void changeStatusFilter(value)}
-            onPreviousPage={() => void previousPage()}
-            onNextPage={() => void nextPage()}
-            onResolve={(action, keys) => void resolvePlan(action, keys)}
-            onEditSelection={mode === 'selective' ? () => setSelectionOpen(true) : undefined}
-            onApply={() => setApplyConfirmOpen(true)}
+        <div className={styles['data-portability-band-body']}>
+          <Steps
+            className={styles['data-portability-steps']}
+            current={currentStep}
+            size="small"
+            items={['select', 'review', 'resolve', 'apply'].map((key) => ({ title: t(`settings.data.steps.${key}`) }))}
           />
-        ) : null}
-        {restorePrepared ? (
-          <Alert type="success" showIcon message={t('settings.data.restorePrepared')} description={t('settings.data.restorePreparedHint')} action={<Button onClick={() => void restartAfterRestore()}>{t('settings.data.retryRestart')}</Button>} />
-        ) : null}
+          {progress?.operation === 'import' ? <OperationProgress progress={progress} /> : null}
+
+          {inspection ? (
+            <>
+              <ImportOverview inspection={inspection} locale={i18n.language} />
+              {inspection.warnings.length > 0 ? (
+                <Alert type="warning" showIcon message={t('settings.data.pathWarnings', { count: inspection.warnings.length })} description={inspection.warnings.map((warning) => warning.label).filter(Boolean).join(' · ')} />
+              ) : null}
+              {!plan && !restorePrepared ? (
+                <div className={styles['data-portability-mode-panel']}>
+                  <Segmented<DataPortabilityRestoreMode>
+                    block
+                    value={mode}
+                    options={(['replace_all', 'merge_all', 'selective'] as const).map((value) => ({ value, label: t(`settings.data.modes.${value}.title`) }))}
+                    onChange={(value) => setMode(value)}
+                  />
+                  <p>{t(`settings.data.modes.${mode}.hint`)}</p>
+                  {mode === 'selective' ? (
+                    <DatasetSelection inspection={inspection} value={selectedDatasets} onChange={setSelectedDatasets} />
+                  ) : null}
+                  <Button type="primary" icon={<SlidersHorizontal size={16} />} loading={planBusy} onClick={() => void analyze()}>
+                    {t('settings.data.analyzeRestore')}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {plan && inspection && !restorePrepared ? (
+            <DataPortabilityPlanView
+              plan={plan}
+              page={page}
+              statusFilter={statusFilter}
+              pageNumber={cursorStack.length + 1}
+              busy={planBusy}
+              canGoBack={cursorStack.length > 0}
+              canGoForward={Boolean(page?.next_cursor)}
+              onStatusFilterChange={(value) => void changeStatusFilter(value)}
+              onPreviousPage={() => void previousPage()}
+              onNextPage={() => void nextPage()}
+              onResolve={(action, keys) => void resolvePlan(action, keys)}
+              onEditSelection={mode === 'selective' ? () => setSelectionOpen(true) : undefined}
+              onApply={() => setApplyConfirmOpen(true)}
+            />
+          ) : null}
+          {restorePrepared ? (
+            <Alert type="success" showIcon message={t('settings.data.restorePrepared')} description={t('settings.data.restorePreparedHint')} action={<Button onClick={() => void restartAfterRestore()}>{t('settings.data.retryRestart')}</Button>} />
+          ) : null}
+        </div>
       </section>
 
       <Modal

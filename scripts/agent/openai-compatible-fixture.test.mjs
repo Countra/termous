@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { Type } from 'typebox'
 import {
   agentModelFixtureID,
@@ -288,7 +289,7 @@ async function withFixture(run) {
 }
 
 async function collectPiStream(baseURL, context, options = {}) {
-  const stream = streamSimple(fixtureModel(baseURL), context, {
+  const stream = streamSimple(fixtureModel(baseURL), normalizeContext(context), {
     apiKey: 'fixture-local-key',
     cacheRetention: 'none',
     maxRetries: 0,

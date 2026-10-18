@@ -3,11 +3,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   width: 100%;
-  border: 0;
-  border-radius: 16px;
-  background: transparent;
   padding: 18px;
-  box-shadow: none;
 }
 
 .dialog-icon {
@@ -36,7 +32,7 @@
   letter-spacing: 0;
 }
 
-.dialog-copy p {
+.dialog-description {
   margin: 6px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
@@ -68,13 +64,7 @@
   justify-content: center;
 }
 
-.modal :global(.ant-modal-content) {
-  border: 1px solid var(--border-strong);
-  border-radius: 16px;
-  background: var(--surface-strong);
-  box-shadow:
-    0 30px 90px rgb(0 0 0 / 36%),
-    inset 0 1px 0 rgb(255 255 255 / 10%);
+.dialog-modal:global(.ant-modal) :global(.ant-modal-container) {
   padding: 0;
 }
 

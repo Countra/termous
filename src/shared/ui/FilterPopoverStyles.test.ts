@@ -8,7 +8,7 @@ const styleSource = readFileSync(fileURLToPath(new URL('./FilterPopover.module.s
 const consumerSources = [
   '../../features/snippets/ui/SnippetCatalog.tsx',
   '../../features/hosts/ui/HostCatalog.tsx',
-  '../../features/docker/ui/DockerPanel.tsx',
+  '../../features/docker/ui/DockerContainersPanel.tsx',
   '../../features/service/ui/ServicePanel.tsx',
   '../../features/observability/ui/ProcessPanel.tsx',
   '../../features/command-dispatch/ui/CommandDispatchTargetPicker.tsx',

@@ -21,6 +21,8 @@ export function getAgentResourceBinding<K extends AgentResourceKind>(bindings: r
 }
 
 export function agentResourceSlot(kind: AgentResourceKind): AgentResourceSlot {
+  if (kind === 'desktop_session' || kind === 'desktop_profile') return 'desktop'
+  if (kind === 'desktop_workflow') return 'workflow'
   return kind === 'file_profile' ? 'file' : 'ssh'
 }
 
@@ -46,6 +48,10 @@ export function getAgentResourceBindingBySlot(
 export function resourceReference(source: AgentConnectionResourceState): AgentConnectionResourceReference
 export function resourceReference(source: AgentResourceState | AgentResourceBinding): AgentResourceReference
 export function resourceReference(source: AgentResourceState | AgentResourceBinding): AgentResourceReference {
+  if ('workflow_id' in source) return { kind: 'desktop_workflow', workflow_id: source.workflow_id, workflow_version: source.workflow_version }
+  if ('desktop_profile_id' in source) return source.kind === 'desktop_session'
+    ? { kind: 'desktop_session', session_id: source.session_id, connection_generation: source.connection_generation }
+    : { kind: 'desktop_profile', desktop_profile_id: source.desktop_profile_id }
   if ('file_access_profile_id' in source) {
     return { kind: 'file_profile', file_access_profile_id: source.file_access_profile_id }
   }
@@ -54,6 +60,9 @@ export function resourceReference(source: AgentResourceState | AgentResourceBind
 }
 
 export function resourceReferenceId(reference: AgentResourceReference) {
+  if (reference.kind === 'desktop_session') return reference.session_id
+  if (reference.kind === 'desktop_profile') return reference.desktop_profile_id
+  if (reference.kind === 'desktop_workflow') return reference.workflow_id
   if (reference.kind === 'ssh_session') return reference.session_id
   return reference.kind === 'ssh_profile' ? reference.ssh_profile_id : reference.file_access_profile_id
 }
@@ -61,6 +70,9 @@ export function resourceReferenceId(reference: AgentResourceReference) {
 // 确认只属于当时的引用身份；展示名称变化无需中断操作，重新绑定则必须重新确认。
 export function agentResourceBindingKey(binding: AgentResourceBinding | null | undefined): string {
   if (!binding) return JSON.stringify(null)
+  if (binding.kind === 'desktop_workflow' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_session') {
+    return JSON.stringify([resourceReference(binding), 'protocol' in binding ? binding.protocol : undefined, binding.host_id, binding.bound_at])
+  }
   if (binding.kind === 'file_profile') {
     return JSON.stringify([binding.kind, binding.file_access_profile_id, binding.engine, binding.bound_at])
   }
@@ -71,10 +83,20 @@ export function agentResourceBindingKey(binding: AgentResourceBinding | null | u
 }
 
 export function resourceProfileName(resource: AgentResourceState) {
+  if ('workflow_id' in resource) return `${resource.workflow_name} · v${resource.workflow_version}`
+  if ('desktop_profile_id' in resource) return resource.desktop_profile_name
   return 'file_access_profile_name' in resource ? resource.file_access_profile_name : resource.ssh_profile_name
 }
 
 export function sameAgentResourceSource(captured: AgentResourceState, current: AgentResourceState | undefined): boolean {
+  if ('kind' in captured) {
+    return Boolean(current && 'kind' in current && current.status === 'ready'
+      && JSON.stringify(resourceReference(captured)) === JSON.stringify(resourceReference(current))
+      && captured.host_id === current.host_id
+      && (!('desktop_profile_id' in captured) || 'desktop_profile_id' in current && captured.desktop_profile_id === current.desktop_profile_id)
+      && (!('protocol' in captured) || 'protocol' in current && captured.protocol === current.protocol))
+  }
+  if (current && 'kind' in current) return false
   if ('file_access_profile_id' in captured) {
     return Boolean(current && 'file_access_profile_id' in current && current.status === 'ready'
       && current.file_access_profile_id === captured.file_access_profile_id && current.engine === captured.engine)
@@ -88,6 +110,9 @@ export function sameAgentResourceSource(captured: AgentResourceState, current: A
 }
 
 export function resourceBindingMatchesSource(binding: AgentResourceBinding | undefined, source: AgentResourceState): boolean {
+  if ('kind' in source) {
+    return Boolean(binding && binding.kind === source.kind && sameAgentResourceSource(source, { ...binding, status: 'ready' } as AgentResourceState))
+  }
   if ('file_access_profile_id' in source) {
     return Boolean(binding && binding.kind === 'file_profile'
       && binding.file_access_profile_id === source.file_access_profile_id

@@ -1,35 +1,24 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Input, Select, Switch, Tooltip, type InputRef } from 'antd'
+import { Button, Input, Select, Switch, Tooltip, type InputRef } from 'antd'
 import {
   BadgeInfo,
   Cable,
   FlaskConical,
   KeyRound,
-  Plus,
-  RotateCcw,
-  Save,
-  TriangleAlert,
   Undo2,
   Unlink2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type {
-  AgentApiMode,
   AgentModelProvider,
   AgentModelProviderInput,
 } from '#entities/agent'
 import { ConfirmDialog, customSelectStyles, uiStyles } from '#shared/ui'
+import { useSettingsEditor } from '#entities/settings'
+import { createDraft, isDraftDirty, isInsecureHttp, toInput, utf8Bytes, validateDraft, type ProviderDraft } from '../model/agentProviderDraft.ts'
 import { agentSetupErrorKey } from '../model/agentSetupError.ts'
+import { AgentServiceNotice } from './model-services/AgentServiceNotice.tsx'
 import styles from './AgentProviderForm.module.scss'
-
-interface ProviderDraft {
-  name: string
-  apiMode: AgentApiMode
-  baseUrl: string
-  enabled: boolean
-  apiKey: string
-  removeApiKey: boolean
-}
 
 interface AgentProviderConnectionFormProps {
   provider?: AgentModelProvider
@@ -39,7 +28,6 @@ interface AgentProviderConnectionFormProps {
   provisionFailure?: 'refresh'
   testing: boolean
   focusRequest: number
-  onDirtyChange: (dirty: boolean) => void
   onResolveConflict: () => Promise<AgentModelProvider | undefined>
   onSave: (input: AgentModelProviderInput, baseline?: AgentModelProvider) => Promise<void>
   onSaveErrorChange?: (error: unknown | null) => void
@@ -54,13 +42,13 @@ export function AgentProviderConnectionForm({
   provisionFailure,
   testing,
   focusRequest,
-  onDirtyChange,
   onResolveConflict,
   onSave,
   onSaveErrorChange,
   onTest,
 }: AgentProviderConnectionFormProps) {
   const { t } = useTranslation()
+  const [saving, setSaving] = useState(false)
   const [baseline, setBaseline] = useState<AgentModelProvider | undefined>(provider)
   const [draft, setDraft] = useState<ProviderDraft>(() => createDraft(provider))
   const [externalConflict, setExternalConflict] = useState(false)
@@ -88,7 +76,6 @@ export function AgentProviderConnectionForm({
       : apiKeyState === 'addPending'
         ? 'add-pending'
         : apiKeyState === 'notConfigured' ? 'not-configured' : 'configured'
-  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => {
     onSaveErrorChange?.(saveError)
   }, [onSaveErrorChange, saveError])
@@ -121,7 +108,7 @@ export function AgentProviderConnectionForm({
   }, [baseline, draft, provider])
 
   const submit = (confirmInsecureHttp: boolean) => {
-    if (busy || effectiveConflict || !dirty) return
+    if (busy || effectiveConflict || providerMissing || !dirty) return
     const message = validateDraft(draft, t)
     if (message) {
       setValidation(message)
@@ -133,20 +120,29 @@ export function AgentProviderConnectionForm({
       setConfirmHttp(true)
       return
     }
+    setSaving(true)
     void onSave(toInput(draft, confirmInsecureHttp), baseline)
       .catch((error: unknown) => {
         const key = agentSetupErrorKey(error)
         if (key !== 'settings.agent.error.conflict') setSaveError(error)
       })
-      .finally(() => setConfirmHttp(false))
+      .finally(() => { setSaving(false); setConfirmHttp(false) })
   }
 
   const reset = () => {
-    setDraft(createDraft(baseline))
+    setBaseline(provider)
+    setDraft(createDraft(provider))
+    setExternalConflict(false)
+    setBaselineRefreshed(false)
     setValidation(null)
     setSaveError(null)
     setConfirmHttp(false)
   }
+
+  useSettingsEditor({
+    dirty, busy: busy || saving || confirmHttp, saving, invalid: effectiveConflict || providerMissing || apiKeyTooLarge,
+    save: () => submit(false), reset,
+  })
 
   const updateDraft = (patch: Partial<ProviderDraft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -167,6 +163,42 @@ export function AgentProviderConnectionForm({
   return (
     <>
       <div className={styles['provider-form']}>
+        <div className={styles['form-notices']}>
+          {provisionFailure ? (
+            <AgentServiceNotice
+              type="warning"
+              title={t(`settings.agent.providerEditor.provisionFailure.${provisionFailure}.title`)}
+              description={t(`settings.agent.providerEditor.provisionFailure.${provisionFailure}.description`)}
+            />
+          ) : null}
+          {effectiveConflict ? (
+            <AgentServiceNotice
+              type="warning"
+              title={t('settings.agent.conflict.title')}
+              description={t(providerMissing
+                ? 'settings.agent.conflict.providerDeleted'
+                : 'settings.agent.conflict.editorDescription')}
+              action={providerMissing ? (
+                <Button size="small" disabled={busy} onClick={reset}>
+                  {t('settings.agent.providers.discard')}
+                </Button>
+              ) : (
+                <Button size="small" loading={busy} onClick={() => void resolveConflict()}>
+                  {t('settings.agent.conflict.refresh')}
+                </Button>
+              )}
+            />
+          ) : null}
+          {baselineRefreshed && dirty ? (
+            <AgentServiceNotice type="info" title={t('settings.agent.conflict.draftPreserved')} />
+          ) : null}
+          {validation || saveErrorKey ? (
+            <div ref={feedbackRef} className={styles.feedback} tabIndex={-1}>
+              <AgentServiceNotice type="error" title={validation ?? t('settings.agent.operationFailed')}
+                description={saveErrorKey ? t(saveErrorKey) : undefined} />
+            </div>
+          ) : null}
+        </div>
         <section className={styles['provider-form-section']}>
           <header className={styles['provider-form-section-heading']}>
             <BadgeInfo size={15} aria-hidden="true" />
@@ -227,6 +259,11 @@ export function AgentProviderConnectionForm({
                 onChange={(event) => updateDraft({ baseUrl: event.target.value })}
               />
             </Field>
+            {isInsecureHttp(draft.baseUrl) && <div className={styles['is-wide']}>
+              <AgentServiceNotice type="warning"
+                title={t('settings.agent.providerEditor.httpRiskTitle')}
+                description={t('settings.agent.providerEditor.httpRisk')} />
+            </div>}
             <div className={`${styles['provider-field']} ${styles['is-wide']}`}>
               <div className={styles['provider-secret-label']}>
                 <label htmlFor={apiKeyControlId}>{t('settings.agent.providerEditor.optionalApiKey')}</label>
@@ -299,94 +336,27 @@ export function AgentProviderConnectionForm({
           </div>
         </section>
 
-        {isInsecureHttp(draft.baseUrl) ? (
-          <Alert
-            className={styles['http-warning']}
-            type="warning"
-            showIcon
-            icon={<TriangleAlert size={16} aria-hidden="true" />}
-            title={t('settings.agent.providerEditor.httpRiskTitle')}
-            description={t('settings.agent.providerEditor.httpRisk')}
-          />
-        ) : null}
-        {provisionFailure ? (
-          <Alert
-            type="warning"
-            showIcon
-            title={t(`settings.agent.providerEditor.provisionFailure.${provisionFailure}.title`)}
-            description={t(`settings.agent.providerEditor.provisionFailure.${provisionFailure}.description`)}
-          />
-        ) : null}
-        {effectiveConflict ? (
-          <Alert
-            type="warning"
-            showIcon
-            title={t('settings.agent.conflict.title')}
-            description={t(providerMissing
-              ? 'settings.agent.conflict.providerDeleted'
-              : 'settings.agent.conflict.editorDescription')}
-            action={providerMissing ? (
-              <Button size="small" disabled={busy} onClick={reset}>
-                {t('settings.agent.providers.discard')}
-              </Button>
-            ) : (
-              <Button size="small" loading={busy} onClick={() => void resolveConflict()}>
-                {t('settings.agent.conflict.refresh')}
-              </Button>
-            )}
-          />
-        ) : null}
-        {baselineRefreshed && dirty ? (
-          <Alert type="info" showIcon title={t('settings.agent.conflict.draftPreserved')} />
-        ) : null}
-        {validation || saveErrorKey ? (
-          <div ref={feedbackRef} className={styles.feedback} tabIndex={-1}>
-            <Alert type="error" showIcon title={validation ?? t('settings.agent.operationFailed')}
-              description={saveErrorKey ? t(saveErrorKey) : undefined} />
-          </div>
-        ) : null}
-
-        <footer className={styles['provider-form-footer']}>
+        {provider && <footer className={styles['provider-form-footer']}>
           <div className={styles['provider-form-test']}>
-            {provider ? (
-              <Tooltip
-                title={dirty
-                  ? t('settings.agent.providerEditor.testRequiresSave')
-                  : t('settings.agent.providers.test')}
-                rootClassName={uiStyles.tooltip}
-              >
-                <span>
-                  <Button
-                    icon={<FlaskConical size={15} aria-hidden="true" />}
-                    loading={testing}
-                    disabled={busy || dirty || effectiveConflict}
-                    onClick={() => void onTest().catch(() => undefined)}
-                  >
-                    {t('settings.agent.providers.test')}
-                  </Button>
-                </span>
-              </Tooltip>
-            ) : null}
-          </div>
-          <div className={styles['provider-form-actions']}>
-            <Button
-              icon={<RotateCcw size={15} aria-hidden="true" />}
-              disabled={busy || !dirty || effectiveConflict}
-              onClick={reset}
+            <Tooltip
+              title={dirty
+                ? t('settings.agent.providerEditor.testRequiresSave')
+                : t('settings.agent.providers.test')}
+              rootClassName={uiStyles.tooltip}
             >
-              {t('settings.agent.providerEditor.reset')}
-            </Button>
-            <Button
-              type="primary"
-              icon={provider ? <Save size={15} /> : <Plus size={15} />}
-              loading={busy && !testing}
-              disabled={effectiveConflict || !dirty || apiKeyTooLarge}
-              onClick={() => submit(false)}
-            >
-              {t(provider ? 'app.save' : 'app.create')}
-            </Button>
+              <span>
+                <Button
+                  icon={<FlaskConical size={15} aria-hidden="true" />}
+                  loading={testing}
+                  disabled={busy || dirty || effectiveConflict}
+                  onClick={() => void onTest().catch(() => undefined)}
+                >
+                  {t('settings.agent.providers.test')}
+                </Button>
+              </span>
+            </Tooltip>
           </div>
-        </footer>
+        </footer>}
       </div>
       <ConfirmDialog
         open={confirmHttp}
@@ -413,80 +383,4 @@ function Field({ label, wide = false, children }: {
       {children}
     </label>
   )
-}
-
-function createDraft(provider?: AgentModelProvider): ProviderDraft {
-  return provider ? {
-    name: provider.name,
-    apiMode: provider.api_mode,
-    baseUrl: provider.base_url,
-    enabled: provider.enabled,
-    apiKey: '',
-    removeApiKey: false,
-  } : {
-    name: '',
-    apiMode: 'responses',
-    baseUrl: 'https://api.openai.com/v1',
-    enabled: true,
-    apiKey: '',
-    removeApiKey: false,
-  }
-}
-
-function isDraftDirty(draft: ProviderDraft, provider?: AgentModelProvider) {
-  if (!provider) {
-    return Boolean(draft.name || draft.apiKey)
-      || draft.apiMode !== 'responses'
-      || draft.baseUrl !== 'https://api.openai.com/v1'
-      || !draft.enabled
-  }
-  return draft.name !== provider.name
-    || draft.apiMode !== provider.api_mode
-    || draft.baseUrl !== provider.base_url
-    || draft.enabled !== provider.enabled
-    || Boolean(draft.apiKey.trim())
-    || draft.removeApiKey
-}
-
-function toInput(draft: ProviderDraft, confirmInsecureHttp: boolean): AgentModelProviderInput {
-  const input: AgentModelProviderInput = {
-    name: draft.name.trim(),
-    api_mode: draft.apiMode,
-    base_url: draft.baseUrl.trim(),
-    enabled: draft.enabled,
-    confirm_insecure_http: confirmInsecureHttp,
-  }
-  if (draft.apiKey.trim()) input.api_key = draft.apiKey
-  if (draft.removeApiKey) input.remove_api_key = true
-  return input
-}
-
-function validateDraft(draft: ProviderDraft, t: (key: string) => string) {
-  const name = draft.name.trim()
-  if (!name) return t('settings.agent.validation.providerName')
-  if (utf8Bytes(name) > 80) return t('settings.agent.validation.nameTooLarge')
-  if (utf8Bytes(draft.apiKey) > 16 * 1024) return t('settings.agent.apiKey.tooLarge')
-  if (utf8Bytes(draft.baseUrl.trim()) > 2048) return t('settings.agent.validation.baseUrlTooLarge')
-  try {
-    const url = new URL(draft.baseUrl.trim())
-    if (!['http:', 'https:'].includes(url.protocol)
-      || url.username || url.password || url.search || url.hash) {
-      return t('settings.agent.validation.baseUrl')
-    }
-  } catch {
-    return t('settings.agent.validation.baseUrl')
-  }
-  return null
-}
-
-function utf8Bytes(value: string) {
-  return new TextEncoder().encode(value).byteLength
-}
-
-function isInsecureHttp(value: string) {
-  try {
-    return new URL(value.trim()).protocol === 'http:'
-  } catch {
-    return false
-  }
 }

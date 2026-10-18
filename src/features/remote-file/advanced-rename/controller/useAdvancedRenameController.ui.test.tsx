@@ -125,6 +125,27 @@ afterEach(() => {
 })
 
 describe('高级重命名控制器', () => {
+  it('云端预设变化刷新列表，保留当前规则草稿并释放订阅', async () => {
+    let invalidate: (() => void) | undefined
+    const unsubscribe = vi.fn()
+    const read = vi.fn(async (): Promise<FileRenamePreset[]> => [])
+    const options = props({
+      fileRenamePresets: read,
+      subscribeFileRenamePresets: (listener) => { invalidate = listener; return unsubscribe },
+    })
+    const view = renderHook(() => useAdvancedRenameController(options))
+    await waitFor(() => expect(view.result.current.presetsLoading).toBe(false))
+    act(() => view.result.current.addRule('insert'))
+    const draft = view.result.current.rules
+    act(() => invalidate?.())
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(view.result.current.presetsLoading).toBe(false))
+    expect(view.result.current.rules).toBe(draft)
+    expect(view.result.current.draftDirty).toBe(true)
+    view.unmount()
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
   it('修改默认草稿后标记为未保存并在前端限制最多 32 条规则', async () => {
     const options = props()
     const view = renderHook(() => useAdvancedRenameController(options))

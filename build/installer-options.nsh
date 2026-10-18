@@ -1,6 +1,7 @@
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"
 !include "WinMessages.nsh"
+!include /CHARSET=UTF8 "${BUILD_RESOURCES_DIR}\install-discovery.nsh"
 
 !ifndef BUILD_UNINSTALLER
   Var TermousOptionsDialog
@@ -114,6 +115,7 @@
     ${NSD_GetState} $TermousPathEntryCheckbox $TermousPathEntry
   FunctionEnd
   !macro customInstall
+    !insertmacro termousWriteInstallDiscovery
     ${If} $TermousDesktopShortcut == ${BST_CHECKED}
       !insertmacro termousCreateDesktopShortcut
       WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateDesktopShortcut" "1"
@@ -166,4 +168,13 @@
     RMDir "$SMPROGRAMS\${MENU_FILENAME}"
   !endif
   !insertmacro termousRemoveInstallDirFromUserPath
+!macroend
+
+; 成功回调不新增卸载 Section，避免安装器自动显示组件选择页。
+!macro customHeader
+  !ifdef BUILD_UNINSTALLER
+    Function un.onUninstSuccess
+      !insertmacro termousRemoveInstallDiscovery
+    FunctionEnd
+  !endif
 !macroend

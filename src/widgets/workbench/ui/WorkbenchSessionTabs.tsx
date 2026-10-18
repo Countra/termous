@@ -4,21 +4,17 @@ import {
   Bot,
   CopyPlus,
   Layers,
-  Palette,
-  Pencil,
-  Pin,
-  PinOff,
+  Monitor,
   RefreshCw,
-  RotateCcw,
   Search,
   SquareTerminal,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   useMemo,
+  useState,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type RefObject,
 } from 'react'
 import { SessionQuickConnect } from '#features/hosts'
@@ -26,9 +22,13 @@ import { SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { HostAvatar, type Host } from '#entities/host'
 import { connectionReferenceMenuProps, type AgentConnectionReferenceProps } from '#entities/agent'
 import type { Session } from '#entities/session'
-import type { SessionTabPreferenceMap } from '../model/sessionTabPreferences'
-import { SessionTabColorPanel } from './SessionTabColorPanel'
-import styles from './WorkbenchSessionTabs.module.scss'
+import {
+  buildSessionTabAppearanceItems,
+  SessionTabMenuItem as TerminalTabMenuItem,
+  SessionTabColorPanel,
+  sessionTabStyles as styles,
+  type SessionTabPreferenceMap,
+} from '#features/session-tabs'
 
 export type SessionTabMenuAction =
   | 'search'
@@ -57,6 +57,7 @@ interface WorkbenchSessionTabsProps extends AgentConnectionReferenceProps {
   onQuickConnectOpenChange: (open: boolean) => void
   onQuickConnectQueryChange: (query: string) => void
   onQuickConnect: (hostId: string) => Promise<void>
+  onOpenConnectionLauncher: () => void
   onMenuAction: (action: SessionTabMenuAction, session: Session) => void
   onColorPopoverOpenChange: (sessionId: string, open: boolean) => void
   onColorSelect: (sessionId: string, color: string, options?: { keepOpen?: boolean }) => void
@@ -84,6 +85,7 @@ export function WorkbenchSessionTabs({
   onQuickConnectOpenChange,
   onQuickConnectQueryChange,
   onQuickConnect,
+  onOpenConnectionLauncher,
   onMenuAction,
   onColorPopoverOpenChange,
   onColorSelect,
@@ -96,6 +98,7 @@ export function WorkbenchSessionTabs({
   onReferenceAgentConnection,
 }: WorkbenchSessionTabsProps) {
   const { t } = useTranslation()
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
   const hostById = useMemo(
     () => new Map(hosts.map((host) => [host.id, host])),
     [hosts],
@@ -118,6 +121,7 @@ export function WorkbenchSessionTabs({
           onOpenChange={onQuickConnectOpenChange}
           onQueryChange={onQuickConnectQueryChange}
           onConnect={onQuickConnect}
+          onOpenLauncher={onOpenConnectionLauncher}
           getHostIconUrl={getHostIconUrl}
         />
       )}
@@ -131,8 +135,8 @@ export function WorkbenchSessionTabs({
           const sessionClosing = closingSessionIds.has(session.id)
           const statusLabel = t(`status.${session.status}`)
           const closingLabel = t('workbench.closingSession')
-          const isMcpSession = session.origin === 'mcp'
-          const originLabel = t('sessionOrigin.mcp')
+          const externalOrigin = session.origin === 'mcp' || session.origin === 'remote' ? session.origin : undefined
+          const originLabel = externalOrigin ? t(`sessionOrigin.${externalOrigin}`) : undefined
           const host = session.host_id ? hostById.get(session.host_id) : undefined
           const defaultIcon = <SquareTerminal size={18} />
           const sessionIcon = host?.icon_id?.trim() ? (
@@ -144,16 +148,17 @@ export function WorkbenchSessionTabs({
               fallbackIcon={defaultIcon}
             />
           ) : defaultIcon
-          const accessibleLabel = isMcpSession
+          const accessibleLabel = externalOrigin
             ? `${title} · ${originLabel} · ${sessionClosing ? closingLabel : statusLabel}`
             : undefined
-          const tooltipTitle = isMcpSession
+          const tooltipTitle = externalOrigin
             ? (sessionClosing ? `${title} · ${originLabel}` : accessibleLabel)
             : undefined
           return (
             <SessionTargetDropdown
               key={session.id}
               disabled={sessionClosing}
+              onOpenChange={(open) => setMenuSessionId((current) => open ? session.id : current === session.id ? null : current)}
               popupClassName={styles['terminal-tab-dropdown']}
               {...connectionReferenceMenuProps(session.kind === 'ssh' ? { kind: 'ssh_session', session_id: session.id } : undefined, { getAgentConnectionReferenceSnapshot, onReferenceAgentConnection })}
               items={buildSessionTabMenuItems(session, preference, actionBusy, t)}
@@ -184,7 +189,7 @@ export function WorkbenchSessionTabs({
                     aria-selected={session.id === activeSessionId}
                     aria-label={accessibleLabel}
                     data-session-tab-id={session.id}
-                    data-session-origin={isMcpSession ? 'mcp' : undefined}
+                    data-session-origin={externalOrigin}
                     dragging={draggingSessionId === session.id}
                     onClick={(event) => {
                       if (sessionClosing || suppressNextClickRef.current) {
@@ -206,13 +211,14 @@ export function WorkbenchSessionTabs({
                     }}
                     onAuxClick={(event) => onAuxClose(event, session.id)}
                     icon={sessionIcon}
-                    sourceIndicator={isMcpSession ? <Bot size={12} strokeWidth={2} /> : undefined}
+                    sourceIndicator={externalOrigin === 'remote' ? <Monitor size={12} strokeWidth={2} /> : externalOrigin === 'mcp' ? <Bot size={12} strokeWidth={2} /> : undefined}
                     label={title}
                     status={session.status}
                     statusLabel={statusLabel}
                     closing={sessionClosing}
                     closingLabel={closingLabel}
                     tooltipTitle={tooltipTitle}
+                    tooltipDisabled={menuSessionId === session.id || colorSessionId === session.id}
                     pinned={preference?.pinned}
                     pinLabel={t('terminal.tabMenu.pinned')}
                     accentColor={preference?.color}
@@ -236,7 +242,6 @@ function buildSessionTabMenuItems(
   actionBusy: boolean,
   t: (key: string) => string,
 ) {
-  const pinned = Boolean(preference?.pinned)
   const canManageSshSession = session.kind === 'ssh' && Boolean(session.host_id)
   return [
     {
@@ -257,36 +262,6 @@ function buildSessionTabMenuItems(
       key: 'split',
       label: <TerminalTabMenuItem icon={<Layers size={15} />} title={t('terminal.tabMenu.split')} />,
     },
-    {
-      key: 'rename',
-      label: <TerminalTabMenuItem icon={<Pencil size={15} />} title={t('terminal.tabMenu.rename')} />,
-    },
-    {
-      key: 'pin',
-      label: (
-        <TerminalTabMenuItem
-          icon={pinned ? <PinOff size={15} /> : <Pin size={15} />}
-          title={pinned ? t('terminal.tabMenu.unpin') : t('terminal.tabMenu.pin')}
-        />
-      ),
-    },
-    {
-      key: 'color',
-      label: <TerminalTabMenuItem icon={<Palette size={15} />} title={t('terminal.tabMenu.color')} />,
-    },
-    {
-      key: 'reset',
-      disabled: !preference,
-      label: <TerminalTabMenuItem icon={<RotateCcw size={15} />} title={t('terminal.tabMenu.reset')} />,
-    },
+    ...buildSessionTabAppearanceItems(preference, t),
   ]
-}
-
-function TerminalTabMenuItem({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <span className={styles['terminal-tab-menu-item']}>
-      <span className={styles['terminal-tab-menu-icon']}>{icon}</span>
-      <span className={styles['terminal-tab-menu-label']}>{title}</span>
-    </span>
-  )
 }

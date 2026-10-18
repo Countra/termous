@@ -1,5 +1,6 @@
 import type {
   AgentAttachment,
+  AgentToolImageSource,
   AgentMcpPolicy,
   AgentMessagePage,
   AgentQueueState,
@@ -27,6 +28,7 @@ import type {
   AgentSessionUpdateInput,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
+import type { AgentWorkspaceObserver, AgentWorkspaceSubscription } from './agentSubscription.ts'
 
 export interface AgentSessionListOptions {
   archived?: boolean
@@ -57,6 +59,8 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  readonly runtimeOwnedByHost?: boolean
+  subscribeWorkspace?(observer: AgentWorkspaceObserver): AgentWorkspaceSubscription
   sessionGroups(signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
   createSessionGroup(name: string, signal?: AbortSignal): Promise<AgentSessionGroup>
   updateSessionGroup(id: string, input: { name: string; expected_revision: number }, signal?: AbortSignal): Promise<AgentSessionGroup>
@@ -81,6 +85,7 @@ export interface AgentWorkspaceGateway {
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   queuedTurns(sessionId: string, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<AgentQueuedTurnPage>

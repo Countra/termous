@@ -21,6 +21,7 @@ export type TerminalRequestScope =
   | 'cwd_refresh'
   | 'message'
   | 'terminal_input'
+  | 'input_takeover'
 
 export interface TerminalStreamSnapshot {
   epoch: string
@@ -46,7 +47,9 @@ export interface TerminalPromptBoundary {
 
 export interface TerminalInputLock {
   locked: boolean
-  owner?: 'command_dispatch'
+  owner?: 'command_dispatch' | 'remote_control'
+  device_id?: string
+  generation?: number
   task_id?: string
   locked_at?: string
 }
@@ -341,7 +344,7 @@ function decodeOptionalInputLock(value: unknown) {
 function decodeInputLock(value: unknown): TerminalInputLock {
   const state = requireRecord(value, 'Terminal input lock is missing')
   const ownerValue = state.owner ?? (state.owner_id ? 'command_dispatch' : undefined)
-  if (ownerValue !== undefined && ownerValue !== 'command_dispatch') {
+  if (ownerValue !== undefined && ownerValue !== 'command_dispatch' && ownerValue !== 'remote_control') {
     throw new TerminalProtocolError('Terminal input lock owner is invalid')
   }
   return {
@@ -349,6 +352,8 @@ function decodeInputLock(value: unknown): TerminalInputLock {
     owner: ownerValue,
     task_id: optionalString(state.task_id ?? state.owner_id),
     locked_at: optionalString(state.locked_at),
+    ...(state.device_id === undefined ? {} : { device_id: optionalString(state.device_id) }),
+    ...(state.generation === undefined ? {} : { generation: requireNonNegativeSafeInteger(state.generation, 'Terminal input generation is invalid') }),
   }
 }
 
@@ -370,7 +375,8 @@ function decodeRequestScope(value: unknown): TerminalRequestScope {
     value === 'cwd_change' ||
     value === 'cwd_refresh' ||
     value === 'message' ||
-    value === 'terminal_input'
+    value === 'terminal_input' ||
+    value === 'input_takeover'
   ) {
     return value
   }

@@ -1,0 +1,54 @@
+.page, .content {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.content {
+  outline: none;
+}
+
+.content[hidden] {
+  display: none;
+}
+
+.workspace-link {
+  display: inline-flex;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.workspace-link > svg:first-child {
+  color: var(--accent);
+}
+
+.workspace-link:hover {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+}
+
+.workspace-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-link {
+    transition: none;
+  }
+}

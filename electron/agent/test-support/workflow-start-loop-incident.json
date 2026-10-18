@@ -1,0 +1,110 @@
+{
+  "description": "历史重复启动故障的脱敏投影；仅保留调用顺序、稳定匿名身份、版本和回执状态。",
+  "calls": [
+    {
+      "sequence": 354,
+      "tool": "termous.desktop_workflows.runs.start",
+      "args": {
+        "client_request_id": "request-1",
+        "profile_id": "profile-1",
+        "script_id": "script-1",
+        "version": 2
+      },
+      "error": false,
+      "data": {
+        "run": {
+          "version": 2,
+          "state": "preparing",
+          "phase": "connecting",
+          "revision": 1,
+          "id": "run-1",
+          "script_id": "script-1"
+        }
+      }
+    },
+    {
+      "sequence": 600,
+      "tool": "termous.desktop_workflows.runs.start",
+      "args": {
+        "client_request_id": "request-1",
+        "profile_id": "profile-1",
+        "script_id": "script-1",
+        "version": 2
+      },
+      "error": false,
+      "data": {
+        "run": {
+          "version": 2,
+          "state": "preparing",
+          "phase": "connecting",
+          "revision": 1,
+          "id": "run-1",
+          "script_id": "script-1"
+        }
+      }
+    },
+    {
+      "sequence": 633,
+      "tool": "termous.desktop_workflows.runs.start",
+      "args": {
+        "client_request_id": "request-1",
+        "profile_id": "profile-1",
+        "script_id": "script-1",
+        "version": 2
+      },
+      "error": false,
+      "data": {
+        "run": {
+          "version": 2,
+          "state": "preparing",
+          "phase": "connecting",
+          "revision": 1,
+          "id": "run-1",
+          "script_id": "script-1"
+        }
+      }
+    },
+    {
+      "sequence": 641,
+      "tool": "termous.desktop_workflows.runs.start",
+      "args": {
+        "client_request_id": "request-1",
+        "profile_id": "profile-1",
+        "script_id": "script-1",
+        "version": 2
+      },
+      "error": false,
+      "data": {
+        "run": {
+          "version": 2,
+          "state": "preparing",
+          "phase": "connecting",
+          "revision": 1,
+          "id": "run-1",
+          "script_id": "script-1"
+        }
+      }
+    },
+    {
+      "sequence": 669,
+      "tool": "termous.desktop_workflows.runs.start",
+      "args": {
+        "client_request_id": "request-1",
+        "profile_id": "profile-1",
+        "script_id": "script-1",
+        "version": 2
+      },
+      "error": false,
+      "data": {
+        "run": {
+          "version": 2,
+          "state": "preparing",
+          "phase": "connecting",
+          "revision": 1,
+          "id": "run-1",
+          "script_id": "script-1"
+        }
+      }
+    }
+  ]
+}

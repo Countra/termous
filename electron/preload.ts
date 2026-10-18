@@ -1,3 +1,5 @@
+import { appDebugModeArgument, notificationIPCChannels as notificationChannels } from '#common/contracts'
+import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
@@ -16,15 +18,15 @@ import type {
   TerminalAICompletionCancel,
   TerminalAICompletionResult,
   TrayCommand,
-  UpdatePreferences,
-  UpdatePreferencesPatch,
   UpdateRuntimeSummary,
   UpdateRuntimeSummaryRefreshRequest,
   UpdateRuntimeSummaryReportContext,
   UpdateSnapshot,
 } from '#common/contracts'
-import { agentRuntimeIPCChannels } from './agent/ipc.ts'
-import { loginItemIPCChannels, skillInstallIPCChannels } from '#common/contracts'
+import { agentRuntimeIPCChannels } from './agent/contracts/ipcChannels.ts'
+import { settingsIPCChannels, skillInstallIPCChannels } from '#common/contracts'
+import { createDesktopFileBridge } from './desktopFilesPreload'
+import { createDetachedOwnerBridge } from './detached-windows/preload'
 import { terminalCompletionIPCChannels } from './terminalCompletion/ipc.ts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
@@ -76,13 +78,6 @@ function consumeRecentDroppedPaths(fileCount: number) {
   return uniquePaths(snapshot.paths)
 }
 
-function parseWindowsFileNameBuffer(buffer: Buffer) {
-  if (buffer.length === 0) {
-    return []
-  }
-  return uniquePaths(buffer.toString('utf16le').split('\u0000'))
-}
-
 function parseFileUriText(text: string) {
   const paths: string[] = []
   for (const line of text.split(/\r?\n/)) {
@@ -93,19 +88,9 @@ function parseFileUriText(text: string) {
     try {
       paths.push(fileURLToPath(value))
     } catch {
-      // 剪贴板来源不可控，无法解析的 file URI 直接忽略。
+      // 拖放来源不可控，无法解析的 file URI 直接忽略。
     }
   }
-  return uniquePaths(paths)
-}
-
-function readClipboardFilePaths() {
-  const formats = clipboard.availableFormats()
-  const paths: string[] = []
-  if (formats.includes('FileNameW')) {
-    paths.push(...parseWindowsFileNameBuffer(clipboard.readBuffer('FileNameW')))
-  }
-  paths.push(...parseFileUriText(clipboard.readText()))
   return uniquePaths(paths)
 }
 
@@ -119,6 +104,38 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 const bridge = {
+  debugMode: process.argv.includes(appDebugModeArgument),
+  systemClipboard: createSystemClipboardCapabilitiesBridge(),
+  detachedWindows: createDetachedOwnerBridge(),
+  fileSystemClipboard: {
+    importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
+    status: () => ipcRenderer.invoke('file-system-clipboard:status'),
+    copy: (request) => ipcRenderer.invoke('file-system-clipboard:copy', request),
+    revoke: (id) => ipcRenderer.invoke('file-system-clipboard:revoke', id),
+  },
+  desktopFiles: createDesktopFileBridge(),
+  remoteControl: {
+    openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
+    configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),
+    configureDesktops: (generation, revision, profiles, exchangeProfiles) => ipcRenderer.invoke('remote:configure-desktops', generation, revision, profiles, exchangeProfiles),
+    desktopProfiles: () => ipcRenderer.invoke('remote:desktop-profiles'),
+    open: (generation, id, name) => ipcRenderer.invoke('remote:open', generation, id, name),
+    devices: generation => ipcRenderer.invoke('remote:devices', generation),
+    policy: generation => ipcRenderer.invoke('remote:policy', generation),
+    configure: (generation, revision, enabled, ids) => ipcRenderer.invoke('remote:configure', generation, revision, enabled, ids),
+    hosts: () => ipcRenderer.invoke('remote:hosts'),
+    addDirectory: (generation, revision, write) => ipcRenderer.invoke('remote:add-directory', generation, revision, write),
+    removeDirectory: (generation, revision, id) => ipcRenderer.invoke('remote:remove-directory', generation, revision, id),
+  },
+  notifications: {
+    pending: () => ipcRenderer.invoke(notificationChannels.pending),
+    acknowledge: (id: string) => ipcRenderer.invoke(notificationChannels.acknowledge, id),
+    onActivation: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on(notificationChannels.activation, listener)
+      return () => { ipcRenderer.removeListener(notificationChannels.activation, listener) }
+    },
+  },
   getConfig: () => ipcRenderer.invoke('core:get-config'),
   getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
   platform: process.platform,
@@ -141,9 +158,14 @@ const bridge = {
     selectDirectory: (client) => ipcRenderer.invoke(skillInstallIPCChannels.selectDirectory, client),
     install: (request) => ipcRenderer.invoke(skillInstallIPCChannels.install, request),
   },
-  loginItem: {
-    get: () => ipcRenderer.invoke(loginItemIPCChannels.get),
-    setEnabled: (enabled) => ipcRenderer.invoke(loginItemIPCChannels.setEnabled, enabled),
+  settings: {
+    get: async (module) => unwrapSettings(await ipcRenderer.invoke(settingsIPCChannels.get, module)),
+    update: async (module, request) => unwrapSettings(await ipcRenderer.invoke(settingsIPCChannels.update, module, request)),
+    onChanged: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: import('#common/contracts').SettingsEvent) => callback(event)
+      ipcRenderer.on(settingsIPCChannels.changed, listener)
+      return () => { ipcRenderer.removeListener(settingsIPCChannels.changed, listener) }
+    },
   },
   agentRuntime: {
     getStatus: () => ipcRenderer.invoke(agentRuntimeIPCChannels.getStatus) as Promise<AgentRuntimeStatus>,
@@ -251,14 +273,9 @@ const bridge = {
       recentDroppedFiles = { paths: [], fileCount: 0, capturedAt: 0 }
       return Promise.resolve(uniquePaths(snapshot.paths))
     },
-    readClipboardFilePaths: () => Promise.resolve(readClipboardFilePaths()),
   },
   updates: {
     getState: () => ipcRenderer.invoke('app-update:get-state') as Promise<UpdateSnapshot>,
-    getPreferences: () =>
-      ipcRenderer.invoke('app-update:get-preferences') as Promise<UpdatePreferences>,
-    setPreferences: (patch: UpdatePreferencesPatch) =>
-      ipcRenderer.invoke('app-update:set-preferences', patch) as Promise<UpdatePreferences>,
     openWindow: () =>
       ipcRenderer.invoke('app-update:open-window') as Promise<boolean>,
     reportRuntimeSummary: (
@@ -323,3 +340,8 @@ const bridge = {
 } satisfies TermousBridge
 
 contextBridge.exposeInMainWorld('termous', bridge)
+
+function unwrapSettings(result: import('#common/contracts').SettingsIPCResult) {
+  if (!result.ok) throw Object.assign(new Error(result.code), { code: result.code })
+  return result.snapshot
+}

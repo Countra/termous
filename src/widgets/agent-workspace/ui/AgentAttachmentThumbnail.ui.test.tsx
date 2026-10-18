@@ -88,6 +88,23 @@ describe('AgentAttachmentThumbnail', () => {
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:remote-image')
   })
 
+  it('独立窗口更新同一附件时保留缩略图，离开后再次进入才使用最新读取器', async () => {
+    const blob = new Blob(['image'], { type: 'image/png' })
+    const load = vi.fn(async () => blob)
+    const updated = vi.fn(async () => blob)
+    createObjectURL.mockReturnValue('blob:detached-image')
+    const view = render(<AgentAttachmentThumbnail source={{ kind: 'content', key: 'one', load }} alt="local.png" />)
+    act(() => FakeIntersectionObserver.instances[0]?.emit(true))
+    const image = await screen.findByAltText('local.png')
+    view.rerender(<AgentAttachmentThumbnail source={{ kind: 'content', key: 'one', load: updated }} alt="local.png" />)
+    expect(screen.getByAltText('local.png')).toBe(image)
+    expect(updated).not.toHaveBeenCalled()
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    act(() => FakeIntersectionObserver.instances[0]?.emit(false))
+    act(() => FakeIntersectionObserver.instances[0]?.emit(true))
+    await waitFor(() => expect(updated).toHaveBeenCalledOnce())
+  })
+
   it('离开视口或卸载时取消未完成的历史附件加载', async () => {
     const pending = deferred<Blob>()
     let signal: AbortSignal | undefined

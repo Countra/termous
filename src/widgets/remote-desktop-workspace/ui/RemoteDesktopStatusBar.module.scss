@@ -1,0 +1,108 @@
+.statusbar {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--chrome-bg) 86%, transparent);
+  color: var(--text-muted);
+  column-gap: clamp(5px, 1cqi, 8px);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.status-context {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: clamp(5px, 1cqi, 8px);
+  overflow: hidden;
+}
+
+.actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-context strong {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+
+.status-context > span:not(.dot) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-host {
+  max-width: min(28cqi, 260px);
+  flex: 0 1 auto;
+}
+
+.status-target {
+  max-width: min(30cqi, 280px);
+  flex: 0 1 auto;
+}
+
+.desktop-name {
+  flex: 1 1 auto;
+  color: var(--text-secondary);
+}
+
+.reconnect-progress {
+  flex: 0 0 auto;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.dot[data-status] {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.dot[data-status='ready'], .dot[data-status='streaming'] {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent);
+}
+
+.dot[data-status='failed'] {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+@container remote-desktop-workspace (inline-size <= 820px) {
+  .status-target {
+    display: none;
+  }
+}
+
+@container remote-desktop-workspace (inline-size <= 640px) {
+  .desktop-name {
+    display: none;
+  }
+}
+
+@container remote-desktop-workspace (inline-size <= 480px) {
+  .statusbar {
+    padding-inline: 7px;
+  }
+
+  .status-host {
+    display: none;
+  }
+}

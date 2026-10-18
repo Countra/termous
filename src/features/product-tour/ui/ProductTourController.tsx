@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ProductTourDriverFactory } from '../model/productTourDriverAdapter.ts'
+import type { ProductTourTopicId } from '../model/productTourTopics.ts'
 import { prepareProductTourDom } from '../model/productTourDomPreparation.ts'
-import { ProductTourEngine } from '../model/ProductTourEngine.ts'
+import { ProductTourEngine, type ProductTourCompletionReason } from '../model/ProductTourEngine.ts'
 import {
   buildProductTourLabels,
   buildProductTourSteps,
@@ -35,6 +36,8 @@ export interface ProductTourControllerProps {
   onActiveChange?: (active: boolean) => void
   completionStore?: ProductTourCompletionStore
   driverFactory?: ProductTourDriverFactory
+  topic?: ProductTourTopicId
+  onFinished?: (reason: ProductTourCompletionReason | 'not-started') => void
 }
 
 export function ProductTourController({
@@ -49,10 +52,12 @@ export function ProductTourController({
   onActiveChange,
   completionStore = browserProductTourCompletionStore,
   driverFactory,
+  topic,
+  onFinished,
 }: ProductTourControllerProps) {
   const { t } = useTranslation()
-  const steps = useMemo(() => buildProductTourSteps(t), [t])
-  const labels = useMemo(() => buildProductTourLabels(t), [t])
+  const steps = useMemo(() => buildProductTourSteps(t, topic), [t, topic])
+  const labels = useMemo(() => buildProductTourLabels(t, topic), [t, topic])
   const [popoverDecoration, setPopoverDecoration] = useState<ProductTourPopoverDecoration | null>(null)
   const contentRef = useRef({ steps, labels })
   const latestRef = useRef({
@@ -63,6 +68,7 @@ export function ProductTourController({
     onBlocked,
     onError,
     onActiveChange,
+    onFinished,
   })
   const engineRef = useRef<ProductTourEngine | null>(null)
   const autoHandledRef = useRef(false)
@@ -76,6 +82,7 @@ export function ProductTourController({
     onBlocked,
     onError,
     onActiveChange,
+    onFinished,
   }
 
   useEffect(() => {
@@ -89,6 +96,7 @@ export function ProductTourController({
         skipButton: styles['skip-button'],
       },
       completionStore,
+      persistOnDismiss: !topic,
       driverFactory,
       isBlocked: () => !latestRef.current.ready || latestRef.current.blocked,
       isTransitionBlocked: (currentStep, nextStep) => (
@@ -100,8 +108,9 @@ export function ProductTourController({
       decoratePopover: (target, step) => (
         decorateProductTourPopover(target, step, setPopoverDecoration)
       ),
-      onCompleted: () => {
+      onCompleted: (reason) => {
         autoHandledRef.current = true
+        latestRef.current.onFinished?.(reason)
       },
       prepareStep: async (step, signal) => {
         const allowed = await latestRef.current.onPrepareStep(step, signal)
@@ -119,7 +128,7 @@ export function ProductTourController({
       }
       engine.dispose()
     }
-  }, [completionStore, driverFactory])
+  }, [completionStore, driverFactory, topic])
 
   useEffect(() => {
     engineRef.current?.updateContent(steps, labels)
@@ -176,7 +185,9 @@ export function ProductTourController({
       if (!engine) {
         return
       }
-      void engine.start(attemptController.signal).finally(() => {
+      void engine.start(attemptController.signal).then((started) => {
+        if (!started && !attemptController.signal.aborted) latestRef.current.onFinished?.('not-started')
+      }).finally(() => {
         if (!attemptController.signal.aborted) {
           lastManualRequestRef.current = Math.max(lastManualRequestRef.current, requestKey)
         }

@@ -73,15 +73,10 @@ import {
   type SessionInventoryRequestIdentity,
 } from '../model/sessionInventoryDemand'
 import {
-  areSessionTabPreferenceMapsEqual,
-  compactSessionTabPreference,
   normalizeSessionTabTitle,
-  parseSessionTabPreferences,
-  pruneSessionTabPreferences,
   sortSessionsForTabs,
-  type SessionTabPreference,
-  type SessionTabPreferenceMap,
-} from '../model/sessionTabPreferences'
+  useSessionTabPreferences,
+} from '#features/session-tabs'
 import snippetStyles from './SnippetWorkbench.module.scss'
 import pageStyles from './WorkbenchPage.module.scss'
 import { parseDetailsTabKey, type DetailsTabKey } from '../model/workbenchDetails'
@@ -302,10 +297,9 @@ export function WorkbenchPage({
     terminalSearchRef.current = next
     setTerminalSearchState(next)
   }, [])
-  const [sessionTabPreferences, setSessionTabPreferences] = usePersistentJsonState<SessionTabPreferenceMap>(
+  const { preferences: sessionTabPreferences, setPreferences: setSessionTabPreferences, update: updateSessionTabPreference } = useSessionTabPreferences(
     'termous.ui.workbench.sessionTabPreferences.v1',
-    {},
-    parseSessionTabPreferences,
+    sessionView.sessions,
   )
   const [durationNow, setDurationNow] = useState(() => Date.now())
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
@@ -561,21 +555,6 @@ export function WorkbenchPage({
     commandDispatchRuntime.state.task
     && !isCommandDispatchTaskTerminal(commandDispatchRuntime.state.task.status),
   )
-  const updateSessionTabPreference = useCallback(
-    (sessionId: string, updater: (preference: SessionTabPreference) => SessionTabPreference) => {
-      setSessionTabPreferences((current) => {
-        const nextPreference = compactSessionTabPreference(updater(current[sessionId] ?? {}))
-        const next = { ...current }
-        if (nextPreference) {
-          next[sessionId] = nextPreference
-        } else {
-          delete next[sessionId]
-        }
-        return areSessionTabPreferenceMapsEqual(current, next) ? current : next
-      })
-    },
-    [setSessionTabPreferences],
-  )
   const openRenameSession = useCallback(
     (session: Session) => {
       setRenamingSessionId(session.id)
@@ -691,10 +670,6 @@ export function WorkbenchPage({
   )
   useEffect(() => {
     const sessionIds = sessionView.sessions.map((session) => session.id)
-    setSessionTabPreferences((current) => {
-      const pruned = pruneSessionTabPreferences(current, sessionIds)
-      return areSessionTabPreferenceMapsEqual(current, pruned) ? current : pruned
-    })
     if (colorSessionId && !sessionIds.includes(colorSessionId)) {
       setColorSessionId(null)
     }
@@ -702,7 +677,7 @@ export function WorkbenchPage({
       setRenamingSessionId(null)
       setRenameValue('')
     }
-  }, [colorSessionId, renamingSessionId, sessionView.sessions, setSessionTabPreferences])
+  }, [colorSessionId, renamingSessionId, sessionView.sessions])
 
   const closeTerminalSearch = useCallback(() => {
     const current = terminalSearchRef.current
@@ -1352,6 +1327,7 @@ export function WorkbenchPage({
               onQuickConnectOpenChange={setQuickConnectOpen}
               onQuickConnectQueryChange={setQuickConnectQuery}
               onQuickConnect={connectQuickHost}
+              onOpenConnectionLauncher={onOpenConnectionLauncher}
               onMenuAction={handleSessionTabMenuAction}
               onColorPopoverOpenChange={(sessionId, open) => {
                 if (!open && colorSessionId === sessionId) {
@@ -1492,7 +1468,24 @@ export function WorkbenchPage({
           processes: <ProcessPanel api={observabilityGateway} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
           services: <ServicePanel api={serviceGateway} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
           crontab: <CrontabPanel api={crontabGateway} session={activeSession} enabled={active && detailsActiveTab === 'crontab' && !detailsCollapsed} theme={theme} />,
-          docker: <DockerPanel api={dockerGateway} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          docker: <DockerPanel
+            api={dockerGateway}
+            session={activeSession}
+            enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed}
+            onOpenShell={(sessionId, command) => {
+              if (!active || detailsActiveTab !== 'docker' || detailsCollapsed
+                || activeSession?.id !== sessionId || activeSession.kind !== 'ssh' || activeSession.status !== 'connected') return
+              if (sendTextToSession(sessionId, command, { execute: true }) !== 'sent') {
+                notification.error({
+                  title: t('workbench.docker.shellSendFailed'),
+                  description: t('workbench.docker.shellTerminalUnavailable'),
+                  duration: 4,
+                  role: 'alert',
+                  className: termousNotificationClassName,
+                })
+              }
+            }}
+          />,
           firewall: (
               <FirewallPanel
                 api={firewallGateway}

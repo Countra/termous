@@ -1,0 +1,69 @@
+.form {
+  min-width: 0;
+}
+
+.form [data-invalid] > label:first-child {
+  height: auto;
+  min-height: 15px;
+  overflow-wrap: anywhere;
+}
+
+.connection-grid {
+  grid-template-columns: minmax(0, 3fr) minmax(100px, 1fr);
+}
+
+.target-field {
+  grid-column: 1;
+}
+
+.port-field {
+  grid-column: 2;
+}
+
+.full-field {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.account-grid,
+.size-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-grid {
+  margin-bottom: 6px;
+}
+
+.size-grid {
+  margin-top: 8px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.form [data-invalid='true'] :global(.ant-input),
+.form [data-invalid='true'] :global(.ant-input-number),
+.form [data-invalid='true'] :global(.ant-select-selector) {
+  border-color: var(--danger) !important;
+}
+
+@container vnc-profile-editor (max-width: 560px) {
+  .account-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container vnc-profile-editor (max-width: 380px) {
+  .connection-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .port-field {
+    grid-column: 1;
+  }
+}

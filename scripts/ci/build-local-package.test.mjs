@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
+  chmod,
   mkdtemp,
   mkdir,
   lstat,
@@ -43,6 +44,11 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
   assert.equal(config.mac.identity, null)
   assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)
+  assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
+    ['termous-core.exe', 'termous-core', 'termous-rdp.exe', 'termous-rdp'])
+  assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
+    from: '../termous-rdp/licenses', to: 'licenses/rdp', filter: ['*-LICENSE.txt'],
+  })
   const expectedSources = new Map([
     ['THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'],
     ['licenses/pi-LICENSE.txt', 'third_party_licenses/pi-LICENSE.txt'],
@@ -169,6 +175,25 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
         packagedThirdPartyFiles.length,
       )
       assert.equal(result.files.length >= 2, true)
+      const workerPath = path.join(path.dirname(result.corePaths[0]),
+        target.platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp')
+      if (target.platform !== 'win32' && process.platform !== 'win32') {
+        await chmod(workerPath, 0o600)
+        await assert.rejects(validatePackageArtifacts({
+          outputDirectory, version: '1.2.3', ...target,
+        }), /包内 RDP worker不可执行/u)
+        await chmod(workerPath, 0o755)
+      }
+      const decoy = path.join(outputDirectory, 'decoy')
+      await mkdir(decoy)
+      await rename(workerPath, path.join(decoy, path.basename(workerPath)))
+      await assert.rejects(validatePackageArtifacts({
+        outputDirectory, version: '1.2.3', ...target,
+      }), /包内 RDP worker不存在/u)
+      await rename(result.corePaths[0], path.join(decoy, path.basename(result.corePaths[0])))
+      await assert.rejects(validatePackageArtifacts({
+        outputDirectory, version: '1.2.3', ...target,
+      }), /包内 Core .*不存在/u)
     }
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -557,14 +582,21 @@ async function writeCompleteFixture({
       publishAutoUpdate: true,
     }),
   )
+  const applicationDirectory = path.dirname(resourcesDirectory)
   await writeFile(
     path.join(
-      resourcesDirectory,
+      applicationDirectory,
       platform === 'win32' ? 'termous-core.exe' : 'termous-core',
     ),
     'fixture-core',
+    { mode: 0o755 },
   )
-  const applicationDirectory = path.dirname(resourcesDirectory)
+  await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'), 'fixture-rdp', { mode: 0o755 })
+  const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
+  await mkdir(rdpLicenses, { recursive: true })
+  for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {
+    await writeFile(path.join(rdpLicenses, `${library}-LICENSE.txt`), 'fixture-license')
+  }
   for (const relativePath of packagedThirdPartyFiles) {
     const targetPath = path.join(applicationDirectory, ...relativePath.split('/'))
     await mkdir(path.dirname(targetPath), { recursive: true })

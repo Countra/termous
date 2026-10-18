@@ -1,0 +1,185 @@
+.target-picker-trigger {
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+
+  &:hover, &[aria-expanded='true'] {
+    border-color: var(--border-strong);
+    background: var(--row-hover-bg);
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@container command-console (width <= 360px) {
+  .target-picker-trigger {
+    gap: 4px;
+    padding-inline: 7px;
+  }
+
+  .target-picker-trigger > span {
+    display: none;
+  }
+}
+
+.target-popover {
+  display: grid;
+  width: min(310px, calc(100vw - 48px));
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.target-popover-head,
+.target-popover-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.target-popover-head {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.target-popover-head strong {
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  padding: 3px 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.target-popover-search {
+  width: 100%;
+  height: 34px;
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.target-popover-search :global(.ant-input) {
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+
+.target-popover-search :global(.ant-input-prefix),
+.target-popover-search :global(.ant-input-clear-icon) {
+  color: var(--text-muted);
+}
+
+.target-popover-list {
+  display: grid;
+  max-height: 260px;
+  gap: 2px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0 -4px;
+  padding: 0 4px;
+  scrollbar-color: var(--termous-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.target-option:global(.ant-checkbox-wrapper) {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 0;
+  padding: 9px 10px;
+}
+
+// 网格行不需要 Antd 用于行内基线对齐的占位，避免产生额外一行。
+.target-option:global(.ant-checkbox-wrapper)::after {
+  content: none;
+}
+
+.target-option:hover {
+  background: var(--row-hover-bg);
+}
+
+.target-option:global(.ant-checkbox-wrapper-checked) {
+  background: var(--row-active-bg);
+}
+
+.target-option > span:last-child {
+  min-width: 0;
+  padding: 0;
+}
+
+.target-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.target-option strong,
+.target-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-option strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 18px;
+}
+
+.target-option small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.target-popover-empty {
+  display: grid;
+  min-height: 70px;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.target-popover-bulk {
+  padding-inline: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.target-popover-bulk :global(.ant-checkbox-wrapper) {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.target-popover-hint {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}

@@ -1,0 +1,55 @@
+import { redactSensitiveText } from './redactSensitiveText.ts'
+
+const failureRules = [
+  ['AGENT_MODEL_CONTEXT_LIMIT', /context[_ -]?(?:length|window)|maximum context|too many (?:input )?tokens|input.{0,24}(?:too long|exceeds)|prompt (?:is )?too long/iu, '模型上下文超出服务端限制'],
+  ['AGENT_MODEL_AUTH_FAILED', /\b40[13]\b|authentication|unauthorized|invalid[_ -]?api[_ -]?key|permission denied/iu, '模型服务鉴权失败'],
+  ['AGENT_MODEL_RATE_LIMITED', /\b429\b|rate[_ -]?limit|too many requests|insufficient[_ -]?quota|quota.{0,20}exceed/iu, '模型服务限流或额度不足'],
+  ['AGENT_MODEL_TIMEOUT', /timed?\s*out|timeout|ETIMEDOUT|\b(?:408|504)\b/iu, '模型请求超时'],
+  ['AGENT_MODEL_CONTENT_FILTERED', /content[_ -]?filter|content[_ -]?policy|safety.{0,20}(?:block|filter)/iu, '模型服务未返回内容：触发内容限制'],
+  ['AGENT_MODEL_STREAM_INTERRUPTED', /stream.{0,100}(?:ended|closed|interrupt)|terminal response event|stop reason|unexpected (?:end|eof)|ECONNRESET|socket hang up|connection error|fetch failed|terminated/iu, '模型响应连接中断，未收到完整结束事件'],
+  ['AGENT_MODEL_PROVIDER_FAILED', /\b5\d\d\b|server[_ -]?error|upstream[_ -]error|upstream request failed|internal[_ -]?(?:server[_ -]?)?error|service unavailable|overloaded/iu, '模型服务端处理失败'],
+] as const
+
+// pi 1.2 的暂态分类未覆盖部分兼容网关用语；只向分类器提供等价名称，诊断与消息始终保留原文。
+export function runtimeProviderRetryDetail(message: string | undefined) {
+  return message?.replace(/\bupstream[_ -]error\b|\bupstream request failed\b/giu, 'server_error')
+}
+
+export function runtimeProviderFailure(message: string | undefined, secrets: readonly string[] = []) {
+  const source = message ?? ''
+  const rule = failureRules.find(([, pattern]) => pattern.test(source))
+  const code = rule?.[0] ?? 'AGENT_MODEL_REQUEST_FAILED'
+  const title = rule?.[2] ?? '模型请求失败'
+  const detail = sanitizeRuntimeProviderError(source, secrets)
+  return { code, message: detail.trim() ? detail : title }
+}
+
+export function sanitizeRuntimeProviderError(source: string, secrets: readonly string[] = []) {
+  let value = source
+  // 供应商可能在错误正文中回显鉴权值，先移除本次实际凭据及其常见编码形式。
+  for (const secret of secrets) {
+    if (!secret) continue
+    for (const variant of new Set([secret, encodeURIComponent(secret), JSON.stringify(secret).slice(1, -1)])) {
+      value = value.split(variant).join('[已隐藏]')
+    }
+  }
+  value = value
+    .replace(/https?:\/\/[^\s<>"']+/giu, '[地址已隐藏]')
+    .replace(/(["'](?:authorization|api[_-]?key|token|secret|password|cookie|credential)["']\s*:\s*)"(?:\\.|[^"\\])*"/giu, '$1"[已隐藏]"')
+    .replace(/[\p{Cc}\p{Cf}]/gu, (character) => '\r\n\t'.includes(character) ? character : ' ')
+  value = redactSensitiveText(value)
+  // 保留 Provider 原始诊断文字，仅按 Core 的 4 KiB 合同截断，并避免切开 UTF-8 字符。
+  const maximumBytes = 4 * 1024
+  if (Buffer.byteLength(value, 'utf8') <= maximumBytes) return value
+  const suffix = '[内容已截断]'
+  const available = maximumBytes - Buffer.byteLength(suffix, 'utf8')
+  let bytes = 0
+  let prefix = ''
+  for (const character of value) {
+    const size = Buffer.byteLength(character, 'utf8')
+    if (bytes + size > available) break
+    bytes += size
+    prefix += character
+  }
+  return prefix + suffix
+}

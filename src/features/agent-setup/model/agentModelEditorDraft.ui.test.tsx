@@ -112,6 +112,7 @@ function settingsFixture(): AgentSettings {
     default_reasoning_level: 'max',
     global_context_window_tokens: 16_384,
     global_max_output_tokens: 4_096,
+    max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80,
     connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true,
