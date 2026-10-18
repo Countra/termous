@@ -7,6 +7,7 @@ import { formatBytes } from '#shared/format'
 import { RemoteTransferDialog } from './RemoteTransferDialog'
 import { remoteErrorText, type RemoteCopy } from '../model/copy'
 import styles from './RemoteFiles.module.scss'
+import listStyles from './RemoteFileList.module.scss'
 import { RemoteFeedback, RemoteFeedbackStack } from './RemoteFeedback'
 
 interface Props { client: RemoteClient; session?: Session; copy: RemoteCopy; roots: LocalRoot[]; operations: FileOperation[]; transfers?: Transfer[]; localTasks?: RemoteLocalTask[]; changed: () => void; exchange?: { id: string; resourceGeneration: bigint; state?: string } }
@@ -44,7 +45,8 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
     setLoading(true); setError(undefined)
     try {
       const response = await client.request({ operation: { case: 'file', value: { action: 'list', location: location(directory), cursor: next } } })
-      if (request !== sequence.current || response.result.case !== 'directory') return
+      if (request !== sequence.current) return
+      if (response.result.case !== 'directory') throw new Error('remote_invalid_response')
       const page = response.result.value
       if (locationKind === 'desktop_exchange' && currentDirectory.current !== directory) setSearch('')
       currentDirectory.current = directory
@@ -112,14 +114,14 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
       changed()
     } catch (reason) { setError(reason) } finally { setSelecting(false) }
   }
-  return <div className={`${styles.files} ${exchange ? styles.exchange : ''}`}>
+  return <div className={`${styles.files} ${exchange ? styles.exchange : ''} ${retained ? styles.retained : ''}`}>
     <div className={styles['transfer-toolbar']}>
       <div className={styles['transfer-group']} role="group" aria-label={copy.deviceFiles}>
         <span className={styles['transfer-source']}><Laptop size={15} />{copy.deviceFiles}</span>
         <Flex className={styles['transfer-actions']} gap={6} wrap align="center">
-          <Button size="small" type="primary" icon={<Upload size={14} />} disabled={selecting || !can('transfer_receive')} onClick={() => void selectTransfer('upload')}>{copy.uploadDevice}</Button>
-          <Tooltip title={copy.uploadFolderDevice}><Button size="small" icon={<FolderUp size={14} />} aria-label={copy.uploadFolderDevice} disabled={selecting || !can('transfer_receive') || !can('entry_create')} onClick={() => void selectTransfer('upload', true)} /></Tooltip>
-          <Tooltip title={!selectedEntries.length ? copy.transferHint : copy.downloadDevice}><Button size="small" icon={<Download size={14} />} disabled={selecting || !selectedEntries.length || !can('transfer')} onClick={() => void selectTransfer('download')}>{copy.downloadDevice}</Button></Tooltip>
+          {!retained && <><Button size="small" type="primary" icon={<Upload size={14} />} disabled={selecting || !can('transfer_receive')} onClick={() => void selectTransfer('upload')}>{copy.uploadDevice}</Button>
+            <Tooltip title={copy.uploadFolderDevice}><Button size="small" icon={<FolderUp size={14} />} aria-label={copy.uploadFolderDevice} disabled={selecting || !can('transfer_receive') || !can('entry_create')} onClick={() => void selectTransfer('upload', true)} /></Tooltip></>}
+          <Tooltip title={!selectedEntries.length ? copy.transferHint : copy.downloadDevice}><Button size="small" type={retained ? 'primary' : 'default'} icon={<Download size={14} />} disabled={selecting || !selectedEntries.length || !can('transfer')} onClick={() => void selectTransfer('download')}>{copy.downloadDevice}</Button></Tooltip>
         </Flex>
       </div>
       {!exchange && <div className={styles['transfer-group']} role="group" aria-label={copy.hostFiles}>
@@ -133,13 +135,13 @@ export function RemoteFiles({ client, session, copy, roots, operations, transfer
       <div className={styles['transfer-options']}><span>{copy.overwrite}</span><Select size="small" aria-label={copy.overwrite} value={overwrite} onChange={setOverwrite} options={[{ value: 'rename', label: copy.autoRename }, { value: 'skip', label: copy.skip }, { value: 'replace', label: copy.replaceFile }]} /></div>
     </div>
     {transfer && session && !exchange ? <RemoteTransferDialog client={client} session={session} copy={copy} roots={roots} upload={transfer === 'upload'} paths={selected} directory={path} close={() => setTransfer(undefined)} changed={changed} /> : null}
-    <div className={styles.toolbar}><Space><Button icon={<ArrowUp size={16} />} aria-label={copy.parent} disabled={loading || path === '/'} onClick={() => void load(path === '.' ? '..' : parentPath(path))} /><Breadcrumb items={[{ title: <button className={styles.crumb} onClick={() => void load('/')}>/</button> }, ...parts.map((part, index) => ({ title: <button className={styles.crumb} onClick={() => void load(`${path.startsWith('/') ? '/' : ''}${parts.slice(0, index + 1).join('/')}`)}>{part}</button> }))]} /></Space><Space><Button disabled={!can('entry_create')} icon={<FolderPlus size={16} />} onClick={() => { setName(''); setEditing({ kind: 'mkdir' }) }}>{copy.newFolder}</Button><Button icon={<RefreshCw size={15} />} aria-label={copy.refresh} loading={loading} onClick={() => void load(path)} /></Space></div>
+    <div className={styles.toolbar}><div className={styles['path-navigation']}><Button size="small" icon={<ArrowUp size={15} />} aria-label={copy.parent} disabled={loading || path === '/'} onClick={() => void load(path === '.' ? '..' : parentPath(path))} /><Breadcrumb items={[{ title: <button className={styles.crumb} onClick={() => void load('/')}>/</button> }, ...parts.map((part, index) => ({ title: <button className={styles.crumb} onClick={() => void load(`${path.startsWith('/') ? '/' : ''}${parts.slice(0, index + 1).join('/')}`)}>{part}</button> }))]} /></div><Space size={6}>{!retained && <Button size="small" disabled={!can('entry_create')} icon={<FolderPlus size={15} />} onClick={() => { setName(''); setEditing({ kind: 'mkdir' }) }}>{copy.newFolder}</Button>}<Button size="small" icon={<RefreshCw size={15} />} aria-label={copy.refresh} loading={loading} onClick={() => void load(path)} /></Space></div>
     {exchange && <div className={styles['exchange-search']}><Input prefix={<Search size={15} />} allowClear aria-label={copy.desktopFileSearch} placeholder={copy.desktopFileSearch} value={search} onChange={event => setSearch(event.target.value)} /><span>{selected.length ? `${selected.length} ${copy.desktopSelected}` : `${entries.length} ${copy.desktopEntries}`}</span></div>}
-    <div className={styles.table}><Table<FileEntry> rowKey="path" dataSource={displayEntries} tableLayout={exchange ? 'fixed' : undefined} scroll={exchange ? undefined : { x: 580 }} rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: loading || !['file', 'directory'].includes(value.kind) }) }} loading={loading} pagination={false} size={exchange ? 'middle' : 'small'} locale={{ emptyText: search && exchange ? copy.noResults : copy.emptyDirectory }} onRow={entry => ({ onDoubleClick: () => { if (entry.kind === 'directory') void load(entry.path) } })} columns={[
-      { title: copy.name, dataIndex: 'name', render: (_, entry) => <button className={styles.entry} onClick={() => entry.kind === 'directory' ? void load(entry.path) : setDetails(entry)}>{entry.kind === 'directory' ? <Folder size={17} /> : entry.kind === 'symlink' ? <Link size={16} /> : <File size={16} />}<span>{entry.name}</span></button> },
-      { title: copy.size, width: 90, render: (_, entry) => entry.kind === 'directory' ? '—' : formatBytes(Number(entry.size)) },
-      { title: copy.modified, width: exchange ? 144 : 175, responsive: exchange ? ['md'] : undefined, className: styles.modified, render: (_, entry) => Number(entry.modifiedUnixMs) > 0 ? new Date(Number(entry.modifiedUnixMs)).toLocaleString() : '—' },
-      { title: '', width: exchange ? 96 : 124, render: (_, entry) => <Space size={0}><Tooltip title={copy.properties}><Button size={exchange ? 'small' : undefined} type="text" icon={<Info size={15} />} aria-label={copy.properties} onClick={() => setDetails(entry)} /></Tooltip><Tooltip title={copy.rename}><Button size={exchange ? 'small' : undefined} disabled={!can('entry_mutate') || loading} type="text" icon={<Pencil size={15} />} aria-label={copy.rename} onClick={() => { setName(entry.name); setEditing({ kind: 'rename', entry }) }} /></Tooltip><Tooltip title={copy.remove}><Button size={exchange ? 'small' : undefined} disabled={!can('planned_delete') || loading} type="text" danger icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void remove(entry)} /></Tooltip></Space> },
+    <div className={`${styles.table} ${listStyles.list}`}><Table<FileEntry> rowKey="path" dataSource={displayEntries} tableLayout="fixed" scroll={exchange ? undefined : { x: 580 }} rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys.map(String)), getCheckboxProps: value => ({ disabled: loading || !['file', 'directory'].includes(value.kind) }) }} loading={loading} pagination={false} size="small" locale={{ emptyText: search && exchange ? copy.noResults : copy.emptyDirectory }} onRow={entry => ({ onDoubleClick: () => { if (entry.kind === 'directory') void load(entry.path) } })} columns={[
+      { title: copy.name, dataIndex: 'name', render: (_, entry) => <button className={listStyles.entry} data-directory={entry.kind === 'directory'} title={entry.name} onClick={() => entry.kind === 'directory' ? void load(entry.path) : setDetails(entry)}>{entry.kind === 'directory' ? <Folder size={17} /> : entry.kind === 'symlink' ? <Link size={16} /> : <File size={16} />}<span>{entry.name}</span></button> },
+      { title: copy.size, width: 90, className: listStyles.metadata, render: (_, entry) => entry.kind === 'directory' ? '—' : formatBytes(Number(entry.size)) },
+      { title: copy.modified, width: exchange ? 144 : 170, responsive: exchange ? ['md'] : undefined, className: `${styles.modified} ${listStyles.metadata}`, render: (_, entry) => Number(entry.modifiedUnixMs) > 0 ? new Date(Number(entry.modifiedUnixMs)).toLocaleString() : '—' },
+      { title: '', width: retained ? 48 : 104, render: (_, entry) => <div className={listStyles.actions}><Tooltip title={copy.properties}><Button size="small" type="text" icon={<Info size={15} />} aria-label={copy.properties} onClick={() => setDetails(entry)} /></Tooltip>{!retained && <><Tooltip title={copy.rename}><Button size="small" disabled={!can('entry_mutate') || loading} type="text" icon={<Pencil size={15} />} aria-label={copy.rename} onClick={() => { setName(entry.name); setEditing({ kind: 'rename', entry }) }} /></Tooltip><Tooltip title={copy.remove}><Button size="small" disabled={!can('planned_delete') || loading} type="text" danger icon={<Trash2 size={15} />} aria-label={copy.remove} onClick={() => void remove(entry)} /></Tooltip></>}</div> },
     ]} />{cursor ? <Button block loading={loading} onClick={() => void load(path, cursor)}>{copy.loadMore}</Button> : null}</div>
     <RemoteFeedbackStack>
       {error && !editing ? <RemoteFeedback message={remoteErrorText(copy, error)} closeLabel={copy.close} onClose={() => setError(undefined)} /> : null}

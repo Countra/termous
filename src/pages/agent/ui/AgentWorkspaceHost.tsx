@@ -317,7 +317,7 @@ export function AgentWorkspaceHost({
     intent: launchIntent ?? undefined,
     controller,
     active,
-    ready: enabled && activeSetupReady && workspaceInfrastructureReady && state.snapshot_complete,
+    ready: enabled && activeSetupReady && readiness?.status === 'ready' && workspaceInfrastructureReady && state.snapshot_complete,
     modelReady: newSessionModelRunnable,
     resourcesReady: { ssh_session: sshResourcesReady, file_profile: fileResourcesReady, desktop_session: desktopResourcesReady },
     resources,
@@ -349,12 +349,8 @@ export function AgentWorkspaceHost({
     }
     : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass, remote])
 
-  // 连接恢复不依赖 Skills 或 Worker；已有引用的工作区保留访问，任务入口另行锁定。
-  const recoveryWorkspaceAvailable = state.snapshot_complete && state.sessions.some((session) => !session.archived_at
-    && session.resource_bindings?.some((binding) => binding.kind === 'ssh_session'))
   const readinessView: AgentSurfaceModel['readiness'] = {
     readiness: readiness,
-    compact: enabled && Boolean(readiness) && recoveryWorkspaceAvailable,
     loading: setupLoading || operationBusy.workspace,
     onRefresh: () => void hydrateActiveSetup(activeSetupEpochRef.current),
     remote: remote,
@@ -379,8 +375,8 @@ export function AgentWorkspaceHost({
       }
     }),
   }
-  if (!enabled || !readiness || !remote && !workspaceInfrastructureReady && !recoveryWorkspaceAvailable) {
-    return renderSurface({ reference, readiness: readinessView,
+  if (!enabled || !readiness || readiness.status !== 'ready' || !workspaceInfrastructureReady) {
+    return renderSurface({ readiness: readinessView,
       onRefreshSetup: () => void hydrateActiveSetup(activeSetupEpochRef.current) })
   }
 
@@ -580,7 +576,7 @@ export function AgentWorkspaceHost({
     },
   }
   return renderSurface({
-    reference, readiness: !workspaceInfrastructureReady ? readinessView : undefined, workspace, archive,
+    reference, workspace, archive,
     warning: activeSetupFailed && syncWarningVisible ? 'setup' : state.error_code && syncWarningVisible ? state.phase === 'reconnecting' ? 'reconnecting' : 'degraded' : undefined,
     onRetry: () => { if (activeSetupFailed) void hydrateActiveSetup(activeSetupEpochRef.current); else void perform(() => controller.reload()) },
     onRefreshSetup: () => void hydrateActiveSetup(activeSetupEpochRef.current),

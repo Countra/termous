@@ -12,22 +12,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   flex-shrink: 0;
-  flex-direction: column;
-  gap: 8px;
+  gap: 6px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  padding: 12px 16px;
+  padding: 10px 12px;
 }
 
 .transfer-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .transfer-source {
   display: flex;
-  width: 94px;
+  width: 80px;
   flex-shrink: 0;
   align-items: center;
   gap: 7px;
@@ -35,7 +34,12 @@
   font-size: 11px;
 }
 .transfer-actions { min-width: 0; }
-.transfer-actions :global(.ant-btn) { font-size: 11px; }
+
+.transfer-actions :global(.ant-btn) {
+  height: 28px;
+  border-radius: 6px;
+  font-size: 11px;
+}
 
 .transfer-options {
   display: flex;
@@ -50,48 +54,57 @@
 }
 
 .transfer-options :global(.ant-select) {
-  min-width: 100px;
+  width: 112px;
   font-size: 11px;
 }
 
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--border);
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 10px 12px;
 }
+
+.toolbar > :global(.ant-space) { flex-shrink: 0; }
+
+.path-navigation {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.path-navigation > :global(.ant-btn) { flex-shrink: 0; }
+
+.path-navigation :global(.ant-breadcrumb) {
+  min-width: 0;
+  overflow: auto hidden;
+  font-size: 12px;
+  scrollbar-width: thin;
+}
+
+.path-navigation :global(.ant-breadcrumb ol) { flex-wrap: nowrap; }
 
 .table {
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 0 16px 16px;
+  padding: 0 12px 12px;
   scrollbar-color: var(--termous-scrollbar-thumb) transparent;
   scrollbar-width: thin;
 }
 
-.entry,
 .crumb {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-}
-
-.entry {
-  min-height: 38px;
-
-  svg {
-    flex-shrink: 0;
-    color: var(--accent);
-  }
+  padding: 2px;
+  white-space: nowrap;
 }
 
 .files button:focus-visible {
@@ -109,41 +122,6 @@
 
 .exchange .table {
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--app-bg);
-}
-
-.exchange .entry {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  font-size: 13px;
-}
-
-.exchange .entry > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.exchange .table :global(.ant-table) {
-  background: transparent;
-  font-size: 12px;
-}
-
-.exchange .table :global(.ant-table-thead) > tr > th {
-  background: var(--app-bg-elevated);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.exchange .table :global(.ant-table-tbody) > tr > td {
-  padding: 10px 8px;
-  border-color: var(--border);
 }
 
 .exchange-search {
@@ -153,9 +131,15 @@
   gap: 16px;
   margin-bottom: 12px;
 }
-.exchange-search > :global(.ant-input-affix-wrapper) { background: var(--input-bg); }
 
-.exchange-search > span {
+.exchange-search > :global(.ant-input-affix-wrapper) {
+  width: 0;
+  min-width: 0;
+  flex: 1;
+  background: var(--input-bg);
+}
+
+.exchange-search > span:last-child {
   flex-shrink: 0;
   color: var(--text-secondary);
   font-size: 11px;
@@ -177,6 +161,32 @@
   }
 }
 
+.retained .transfer-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 12px;
+}
+
+.retained .transfer-source { width: auto; }
+
+.retained .transfer-options {
+  grid-column: auto;
+  grid-row: auto;
+  align-items: center;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.retained .transfer-options > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.retained .transfer-options :global(.ant-select) { width: 112px; }
+
 @container (max-width: 540px) {
   .transfer-group {
     align-items: flex-start;
@@ -189,4 +199,13 @@
     padding: 10px 12px;
   }
   .table { padding-inline: 8px; }
+
+  .retained .transfer-toolbar { grid-template-columns: minmax(0, 1fr); }
+
+  .retained .transfer-group {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .retained .transfer-options { justify-self: start; }
 }

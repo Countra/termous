@@ -61,7 +61,7 @@
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 0 2px 16px;
+  padding: 0 2px 12px;
   scrollbar-color: var(--termous-scrollbar-thumb) transparent;
   scrollbar-width: thin;
 }
@@ -96,7 +96,7 @@
   align-items: center;
   justify-content: space-between;
   min-height: 24px;
-  margin: 22px 8px 8px;
+  margin: 18px 8px 6px;
   color: var(--text-muted);
   font-size: 11px;
 
@@ -138,8 +138,8 @@
 .profile {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 2px;
+  margin-bottom: 6px;
 }
 
 .profile small {
@@ -154,11 +154,12 @@
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-height: 40px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--text-primary);
-  padding: 6px 7px;
+  padding: 6px 8px;
   cursor: pointer;
   text-align: left;
 
@@ -181,7 +182,7 @@
 
 .connection:global(.ant-btn) {
   min-width: 0;
-  min-height: 36px;
+  min-height: 32px;
   height: auto;
   justify-content: flex-start;
   border-color: transparent;
@@ -189,7 +190,7 @@
   box-shadow: none;
   border-radius: 6px;
   color: var(--text-secondary);
-  padding-inline: 8px 6px;
+  padding: 4px 8px;
   gap: 8px;
   font-size: 12px;
 
@@ -206,7 +207,7 @@
 
   &:hover:enabled,
   &:focus-visible:enabled {
-    border-color: var(--border);
+    border-color: transparent;
     background: var(--row-hover-bg);
     color: var(--text-primary);
   }
@@ -226,8 +227,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-left: 19px;
-  padding-left: 9px;
+  margin-left: 21px;
+  padding-left: 8px;
 }
 .host-connections[hidden] { display: none; }
 
@@ -260,6 +261,8 @@
 
 .connection-icon {
   display: grid;
+  width: 16px;
+  height: 16px;
   place-items: center;
   color: var(--accent);
 }
@@ -282,10 +285,11 @@
 
 .session-row {
   display: flex;
+  min-width: 0;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding-right: 4px;
+  border-radius: 7px;
+  padding-right: 5px;
 
   &:hover,
   &:focus-within { background: var(--row-hover-bg); }
@@ -294,11 +298,12 @@
   &:focus-within .end-session { opacity: 1; }
 
   &.active {
-    border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+    border-color: color-mix(in srgb, var(--accent) 18%, transparent);
     background: var(--accent-soft);
   }
 
   &.active .session-copy strong { color: var(--accent); }
+  &.active .end-session { opacity: 0.65; }
 }
 
 .end-session {
@@ -310,15 +315,15 @@
 .session {
   display: flex;
   min-width: 0;
-  min-height: 54px;
+  min-height: 48px;
   flex: 1;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--text-secondary);
-  padding: 8px;
+  padding: 6px 8px;
   cursor: pointer;
   text-align: left;
   font-size: 12px;
@@ -334,7 +339,7 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .session-copy strong {

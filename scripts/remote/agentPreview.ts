@@ -3,13 +3,14 @@ import { AgentQuery_Kind as Q } from '@termous/remote-protocol/agent'
 import { agentRunFixture } from '../../src/features/agent-runtime/model/agentRuntimeTestFixtures'
 
 // 只服务隔离验收入口，使用真实协议解码器与界面；不连接模型或读取账号数据。
-export function createAgentPreview(english: boolean, changed: () => void, scroll = false) {
+export function createAgentPreview(english: boolean, changed: () => void, scroll = false, unready = false) {
   const now = new Date().toISOString()
   const dates = { created_at: now, updated_at: now }
   const session = { id: 'ags-session', title: english ? 'Review deployment' : '检查部署状态', model_id: 'apm-1', reasoning_level: 'medium', origin: 'remote', creator_device_id: 'controller', revision: 1, resource_bindings: [], ...dates }
   const settings = { default_model_id: 'apm-1', default_reasoning_level: 'medium', global_context_window_tokens: 32768, global_max_output_tokens: 4096, max_concurrent_runs: 4, show_turn_token_usage: true, revision: 1, context_compaction_threshold_percent: 80, ...dates }
   const component = { status: 'ready', message: '' }
-  const readiness = { status: 'ready', mcp_runtime: component, mcp_client: component, skills_bundle: component, default_model: component, settings, mcp_policy: { client_id: 'builtin-ai', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 } }
+  const missing = { status: 'missing', message: '' }
+  const readiness = { status: unready ? 'needs_setup' : 'ready', mcp_runtime: unready ? missing : component, mcp_client: unready ? missing : component, skills_bundle: component, default_model: unready ? missing : component, settings, mcp_policy: { client_id: 'builtin-ai', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 } }
   const model = { id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'fixture', display_name: 'Fixture AI', availability: 'available', source: 'sync', parameter_mode: 'custom', context_window_tokens: 32768, max_output_tokens: 4096, default_reasoning_level: 'medium', reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'medium', 'high'], supports_images: true, supports_reasoning: true, capabilities_confirmed: true, effective_context_window_tokens: 32768, effective_max_output_tokens: 4096, effective_default_reasoning_level: 'medium', first_seen_at: now, last_seen_at: now, revision: 1, ...dates }
   const provider = { id: 'apv-1', name: 'Fixture AI', api_mode: 'responses', base_url: 'https://example.test/v1', enabled: true, api_key_configured: true, refresh_status: 'ready', revision: 1, ...dates }
   const message = (id: string, role: string, content: string, sequence: number) => ({ id, role, session_id: session.id, status: 'completed', sequence, revision: 1, ...dates, attachments: [], parts: [{ id: `part-${id}`, message_id: id, kind: 'text', sequence: 1, revision: 1, content: { text: { text: content } }, ...dates }] })

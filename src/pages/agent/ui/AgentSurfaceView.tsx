@@ -23,8 +23,8 @@ export function AgentSurfaceView({ model, windowAction, presentation, onRevealAp
       title={t(model.warning === 'reconnecting' ? 'agent.error.reconnecting' : 'agent.error.degraded')}
       description={t(model.warning === 'reconnecting' ? 'agent.error.reconnectingDescription' : 'agent.error.degradedDescription')}
       action={<button type="button" onClick={model.onRetry}>{t('app.retry')}</button>} />}
-    {model.workspace && <AgentWorkspace {...model.workspace} composerActive={interactive && model.workspace.composerActive}
-      windowAction={windowAction} presentation={presentation} />}
+    {model.workspace && <div className={styles.workspace}><AgentWorkspace {...model.workspace} composerActive={interactive && model.workspace.composerActive}
+      windowAction={windowAction} presentation={presentation} /></div>}
     {model.archive && <AgentArchiveManager {...model.archive} />}
   </div>
 }

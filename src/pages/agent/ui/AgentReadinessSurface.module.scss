@@ -1,0 +1,215 @@
+.surface {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 48px 28px 40px;
+  overflow: auto;
+  color: var(--text-primary);
+  container-type: inline-size;
+}
+
+.panel {
+  width: min(100%, 500px);
+  flex-shrink: 0;
+  margin: auto;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 23%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+  color: var(--accent);
+}
+
+.intro { min-width: 0; }
+
+.intro h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -.4px;
+  line-height: 1.5;
+}
+
+.intro p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.components {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.components li {
+  display: grid;
+  min-width: 0;
+  min-height: 76px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 5px 12px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--warning) 23%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.component-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  grid-row: span 2;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 65%, transparent);
+  color: var(--text-secondary);
+}
+
+.components strong {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.components li[data-ready="true"] {
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+.components li[data-ready="true"] .component-mark { color: var(--text-muted); }
+.components li[data-ready="true"] .status { color: var(--success); }
+
+.footer { margin-top: 24px; }
+
+.hint {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actions :global(.ant-btn) {
+  height: 34px;
+  padding-inline: 16px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.checking { margin-top: 26px; }
+
+.checking :global(.ant-skeleton .ant-skeleton-section .ant-skeleton-paragraph) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.checking :global(.ant-skeleton .ant-skeleton-section .ant-skeleton-paragraph > li) {
+  height: 76px;
+  margin: 0;
+  border-radius: 10px;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.progress svg { animation: checking 1s linear infinite; }
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 26px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.error > svg {
+  flex-shrink: 0;
+  color: var(--warning);
+}
+
+.error p { margin: 0; }
+
+@keyframes checking {
+  to { transform: rotate(360deg); }
+}
+
+@media (width <= 440px) {
+  .surface { padding: 48px 20px 28px; }
+}
+
+@container (width <= 440px) {
+  .intro h1 { font-size: 19px; }
+
+  .components { grid-template-columns: minmax(0, 1fr); }
+
+  .components li {
+    min-height: 58px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .component-mark {
+    width: 28px;
+    height: 28px;
+    grid-row: auto;
+  }
+
+  .checking :global(.ant-skeleton .ant-skeleton-section .ant-skeleton-paragraph) { grid-template-columns: minmax(0, 1fr); }
+  .checking :global(.ant-skeleton .ant-skeleton-section .ant-skeleton-paragraph > li) { height: 58px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress svg { animation: none; }
+}

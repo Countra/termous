@@ -5,7 +5,7 @@ import type { RemoteAgentQuote, RemoteBootstrap, RemoteConnection, RemoteWindowB
 import { RemoteClient, RemoteError, unwrap, retryRemoteRead, isTransientRemoteReadError, type Inventory, type Session } from '#entities/remote-control'
 import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, RemoteRetainedFiles, remoteCopy, remoteErrorText } from '#features/remote-control'
 import { formatBytes } from '#shared/format'
-import { customSelectStyles, featureSidePanelStyles, FilterPopover, uiStyles } from '#shared/ui'
+import { customSelectStyles, FilterPopover, uiStyles } from '#shared/ui'
 import styles from './RemoteWorkbench.module.scss'
 import resourceStyles from './RemoteResources.module.scss'
 import { RemoteSessionPanels } from './RemoteSessionPanels'
@@ -15,7 +15,6 @@ import { RemoteWindowControls } from './RemoteWindowControls'
 
 const tooltipConfig = { classNames: { root: uiStyles.tooltip } }
 const selectConfig = { className: customSelectStyles.select, classNames: { popup: { root: customSelectStyles['select-popup'] } } }
-const tabsConfig = { classNames: { popup: { root: featureSidePanelStyles['details-tabs-dropdown'] } } }
 
 export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: RemoteWindowBridge; bootstrap: RemoteBootstrap; renderAgent?: (client: RemoteClient, active: boolean, quote?: RemoteAgentQuote) => ReactNode }) {
   useEffect(() => {
@@ -52,6 +51,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   const [selected, setSelected] = useState('')
   const liveClient = useRef<RemoteClient | undefined>(undefined)
   const refreshAbort = useRef<AbortController | undefined>(undefined)
+  const content = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
     const current = liveClient.current
@@ -176,14 +176,14 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     ...(stats?.relay_protocol ? [{ key: 'turn', label: copy.relayTransport, children: stats.relay_protocol.toUpperCase() }] : []),
   ]} />
 
-  return <ConfigProvider tooltip={tooltipConfig} select={selectConfig} tabs={tabsConfig}><div className={styles.workbench}>
+  return <ConfigProvider tooltip={tooltipConfig} select={selectConfig}><div className={styles.workbench}>
     <header className={styles.header} data-window-chrome={bridge.windowControls ? bootstrap.platform === 'darwin' ? 'macos' : 'custom' : undefined}>
       <Tooltip title={sidebarCollapsed ? copy.showSidebar : copy.hideSidebar}><Button type="text" className={styles['sidebar-toggle']}
         aria-label={sidebarCollapsed ? copy.showSidebar : copy.hideSidebar} aria-expanded={!sidebarCollapsed} aria-controls="remote-resources"
         icon={sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />} onClick={() => setSidebarCollapsed(value => !value)} /></Tooltip>
       <div className={styles.identity}><span className={styles['device-icon']}><Monitor size={19} /></span><div><strong title={bootstrap.deviceName}>{bootstrap.deviceName}</strong><small>{copy.title}</small></div></div>
       <div className={styles['header-actions']}>
-        {client && ready ? <RemoteRetainedFiles client={client} copy={copy} localTasks={localTasks} changed={() => void refresh()} /> : null}
+        {client && ready ? <RemoteRetainedFiles client={client} copy={copy} localTasks={localTasks} changed={() => void refresh()} getContainer={() => content.current ?? document.body} /> : null}
         <FilterPopover title={copy.details} content={<div className={styles.details}>{details}</div>}>
           <button className={styles['connection-status']} aria-label={copy.details}><span className={`${styles.dot} ${statusClass}`} /><span role="status">{path}</span>{ready && stats?.path ? <span className={styles.latency}>{Math.round(stats.rtt_ms)} ms</span> : null}</button>
         </FilterPopover>
@@ -193,7 +193,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
       </div>
       {bridge.windowControls && bootstrap.platform !== 'darwin' ? <RemoteWindowControls bridge={bridge} onError={setError} /> : null}
     </header>
-    <div className={styles.body} data-resources-visible={!sidebarCollapsed}>
+    <div ref={content} className={styles.body} data-resources-visible={!sidebarCollapsed}>
       <aside id="remote-resources" className={resourceStyles.sidebar} hidden={sidebarCollapsed} aria-label={copy.resources}>
         <nav className={resourceStyles.navigation}>
           <button className={`${resourceStyles['nav-entry']} ${overview && !agentSelected ? resourceStyles.active : ''}`} aria-current={overview && !agentSelected ? 'page' : undefined} onClick={showOverview}><LayoutDashboard size={17} />{copy.overview}</button>

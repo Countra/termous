@@ -1297,7 +1297,6 @@
         "title": "Connection recovery",
         "completed": "SSH connection recovered",
         "completedDescription": "The reference has been updated. Queued messages remain paused until you resume them.",
-        "infrastructureUnavailable": "The AI runtime is not ready, so new sessions and tasks are disabled. Existing sessions remain accessible, and the connection service checks SSH recovery independently.",
         "recover": "Recover connection",
         "retry": "Retry recovery",
         "cancel": "Cancel recovery",
@@ -1597,11 +1596,16 @@
       "unavailable": "This image is not in the current conversation"
     },
     "readiness": {
-      "remoteDescription": "Configure the AI assistant on the controlled computer.",
-      "title": "Prepare the AI assistant runtime",
-      "description": "The AI assistant uses Termous MCP and read-only Skills. It has all MCP capabilities and receives new ones automatically. Tool execution follows the current approval policy; manage models under Settings > AI assistant.",
-      "prepare": "Set up or repair",
-      "loadFailed": "AI assistant runtime status is temporarily unavailable"
+      "remoteDescription": "Complete setup on the controlled computer, then refresh the status.",
+      "remoteTitle": "Remote assistant isn’t ready",
+      "checking": "Checking the runtime",
+      "unavailableTitle": "Runtime status unavailable",
+      "refreshStatus": "Refresh status",
+      "title": "AI assistant isn’t ready",
+      "description": "Complete runtime setup to start a conversation.",
+      "prepare": "Set up runtime",
+      "modelHint": "Choose a default model in Settings · AI assistant.",
+      "loadFailed": "Status is unavailable. Refresh to try again."
     },
     "error": {
       "reconnecting": "Reconnecting AI assistant live status",

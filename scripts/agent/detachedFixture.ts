@@ -4,12 +4,22 @@ import { agentMessageFixture, agentSessionFixture, agentTextPartFixture } from '
 import { modelFixture, providerFixture, readinessFixture } from './detachedFixtureData.ts'
 
 // 验收夹具只在内存中运行，不连接模型、SSH、Core 或开发数据目录。
-export function createDetachedFixture() {
+export function createDetachedFixture(scenario = 'ready') {
+  let readiness = scenario === 'ready' ? readinessFixture() : {
+    ...readinessFixture('needs_setup', scenario === 'bound' ? 'ready' : 'missing'),
+    mcp_runtime: { status: 'missing' as const, message: '' },
+    mcp_client: { status: 'missing' as const, message: '' },
+  }
+  let failRead = scenario === 'error'
   const sessions: AgentSession[] = [
     agentSessionFixture({ id: 'session-one', title: '生产节点 · 资源巡检', model_id: 'model-one', reasoning_level: 'off' }),
     agentSessionFixture({ id: 'session-two', title: 'Nginx 日志分析', model_id: 'model-one', reasoning_level: 'off', pinned: true }),
     agentSessionFixture({ id: 'session-three', title: '部署前检查清单', model_id: 'model-one', reasoning_level: 'off' }),
   ]
+  if (scenario === 'bound') sessions[0].resource_bindings = [{
+    kind: 'ssh_session', session_id: 'ssh-fixture', host_id: 'host-fixture', ssh_profile_id: 'profile-fixture',
+    host_name: '验收主机', platform: 'linux', bound_at: '2026-08-29T00:00:00Z',
+  }]
   const files = new Map<string, File>()
   const messages = [agentMessageFixture({ id: 'message-user', session_id: 'session-one', role: 'user', status: 'completed', sequence: 1,
     parts: [agentTextPartFixture({ text: '帮我整理这台主机的检查顺序，先不要执行任何命令。' })] }),
@@ -20,6 +30,7 @@ export function createDetachedFixture() {
     sessions: async options => ({ items: sessions.filter(session => options?.archived ? !!session.archived_at : !session.archived_at).filter(session => !options?.query || session.title.includes(options.query)), revision: 1 }),
     sessionGroups: async () => ({ items: [] }),
     resourceBindingConnection: async () => ({ instance_id: 'fixture-instance', operation: null }),
+    resourceBindingRecovery: async () => ({ instance_id: 'fixture-instance', kind: 'ssh_session', can_recover: false, operation: null }),
     session: async id => sessions.find(session => session.id === id)!,
     createSession: async input => { const session = agentSessionFixture({ ...input, id: crypto.randomUUID() }); sessions.push(session); return session },
     updateSession: async (id, input) => { const session = sessions.find(item => item.id === id)!; Object.assign(session, input, { revision: session.revision + 1 }); return { ...session } },
@@ -43,5 +54,17 @@ export function createDetachedFixture() {
     if (property in target) return target[property as keyof typeof target]
     return () => Promise.reject(new Error(`未实现的验收操作：${String(property)}`))
   } }) as AgentWorkspaceGateway
-  return { gateway, setup: { readiness: async () => readinessFixture(), modelProviders: async () => ({ items: [providerFixture()] }), models: async () => ({ items: [modelFixture()] }) } }
+  return { gateway, setup: {
+    readiness: async () => {
+      if (scenario === 'loading') await new Promise(resolve => setTimeout(resolve, 2500))
+      if (failRead) { failRead = false; throw new Error('合成状态读取失败') }
+      return readiness
+    },
+    setup: async () => {
+      await new Promise(resolve => setTimeout(resolve, 800))
+      readiness = scenario === 'bound' ? readinessFixture() : readinessFixture('needs_setup', 'missing')
+      return readiness
+    },
+    modelProviders: async () => ({ items: [providerFixture()] }), models: async () => ({ items: [modelFixture()] }),
+  } }
 }

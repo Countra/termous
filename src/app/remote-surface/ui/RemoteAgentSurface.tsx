@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Spin } from 'antd'
+import { Bot, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteClient } from '#entities/remote-control'
 import type { RemoteBootstrap, RemoteAgentQuote } from '#common/contracts'
@@ -69,11 +70,14 @@ export function RemoteAgentSurface({ client, active, target, quote }: { client: 
     return () => { abort.abort(); clearInterval(timer) }
   }, [transport, active, resourceAttempt, access])
   if (access !== 'allowed') return <section className={styles.surface} aria-label={copy.agent}>
-    {access === 'checking' ? <Spin description={copy.agentChecking}><div className={styles['access-loading']} /></Spin>
-      : <div className={styles['access-feedback']}><RemoteFeedback message={remoteErrorText(copy, accessError)} action={<Button size="small" onClick={() => setAttempt(value => value + 1)}>{t('app.retry')}</Button>} /></div>}
+    <div className={styles['access-state']}>
+      <span className={styles['access-mark']}><Bot size={26} /></span>
+      {access === 'checking' ? <><h2 role="status">{copy.agentChecking}</h2><Spin /></>
+        : <><h2>{copy.agentUnavailable}</h2><p role="alert">{remoteErrorText(copy, accessError)}</p><Button icon={<RefreshCw size={14} />} onClick={() => setAttempt(value => value + 1)}>{t('app.retry')}</Button></>}
+    </div>
   </section>
   return <section className={styles.surface}>
-    <div className={styles.toolbar}><RemoteAgentApprovals transport={transport} target={target} /></div>
+    <div className={styles.toolbar}><span className={styles.title}><Bot size={17} />{copy.agent}</span><RemoteAgentApprovals transport={transport} target={target} /></div>
     <div className={styles.workspace}><AgentPage launchIntent={launch} onLaunchIntentHandled={setHandledQuote} gateway={gateway} setupGateway={setup} enabled active={active} remote notificationSessionId={target?.id !== handled ? target?.sessionId : undefined} onNotificationSessionHandled={handledNotification} sshResources={resources.ssh} fileResources={resources.files} slashCandidates={resources.catalog} sshResourcesReady={ready} fileResourcesReady={ready} sshProfileResourcesReady={ready} /></div>
     <RemoteFeedbackStack>
       {resourceFailed ? <RemoteFeedback message={copy.agentResourcesUnavailable} action={<Button size="small" onClick={() => setResourceAttempt(value => value + 1)}>{t('app.retry')}</Button>} /> : null}

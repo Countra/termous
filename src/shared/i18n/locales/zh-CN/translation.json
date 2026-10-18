@@ -1296,7 +1296,6 @@
         "title": "连接恢复",
         "completed": "SSH 连接已恢复",
         "completedDescription": "已更新当前引用。待发送消息仍暂停，请确认后继续。",
-        "infrastructureUnavailable": "AI 运行环境尚未就绪，暂时不能新建或执行任务。已有会话和引用仍可查看，SSH 恢复状态由连接服务独立判断。",
         "recover": "恢复连接",
         "retry": "重试恢复",
         "cancel": "取消恢复",
@@ -1595,11 +1594,16 @@
       "unavailable": "此图片不在当前会话记录中"
     },
     "readiness": {
-      "remoteDescription": "请在被控电脑完成 AI 助手配置。",
-      "title": "准备 AI 助手运行环境",
-      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作，始终具备全部 MCP 能力，新增能力自动更新。工具执行遵循当前审批策略；模型在“设置 > AI 助手”中管理。",
-      "prepare": "准备或修复",
-      "loadFailed": "暂时无法读取 AI 助手运行状态"
+      "remoteDescription": "请在被控电脑完成配置，然后刷新状态。",
+      "remoteTitle": "远端助手未就绪",
+      "checking": "正在检查运行环境",
+      "unavailableTitle": "运行状态不可用",
+      "refreshStatus": "刷新状态",
+      "title": "AI 助手尚未就绪",
+      "description": "完成运行环境配置后即可开始对话。",
+      "prepare": "准备环境",
+      "modelHint": "请在「设置 · AI 助手」中选择默认模型。",
+      "loadFailed": "暂时无法读取状态，请刷新重试。"
     },
     "error": {
       "reconnecting": "正在重新连接 AI 助手实时状态",

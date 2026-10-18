@@ -2209,33 +2209,50 @@ describe('AgentPage', () => {
     expect(harness.addTerminalReference).not.toHaveBeenCalled()
   })
 
-  it.each(['skills_bundle', 'mcp_runtime', 'mcp_client'] as const)('%s 未就绪时已有引用仍可访问，执行和新建入口保持关闭', async (component) => {
-    const readiness = readinessFixture('needs_setup')
+  it.each([
+    ['skills_bundle', 'blocked'], ['mcp_runtime', 'needs_repair'], ['mcp_client', 'needs_setup'],
+  ] as const)('%s 为 %s 且已有 SSH 引用时显示完整状态页，保留会话和草稿', async (component, status) => {
+    const readiness = readinessFixture(status)
     readiness[component] = { status: 'missing', message: '尚未准备' }
     const source = boundSession()
     harness.state = { ...workspaceState(), sessions: [source, sessions[1]], drafts: { 'session-one': { text: '环境未就绪时的草稿', updated_at: 1 } } }
     harness.recoverResourceBinding.mockResolvedValue({ instance_id: 'core-one', kind: 'ssh_session', can_recover: true, operation: null })
     const page = renderPage({ readiness, sshResourcesReady: true })
-    await waitFor(() => expect(harness.workspaceProps?.execution_blocked).toBe(true))
-    expect(page.getByText('agent.resource.recovery.infrastructureUnavailable')).toBeInTheDocument()
-    expect(harness.workspaceProps?.resource_contexts).toHaveLength(1)
-    expect(harness.workspaceProps?.resource_recovery_disabled).toBe(false)
-    expect(harness.workspaceProps?.busy).toBe(false)
-    await act(async () => {
-      const props = harness.workspaceProps as unknown as AgentWorkspaceProps
-      props.onCreateSession()
-      await props.onSend('不能执行', [])
-      await props.onQueueTurn('不能追加', [])
-      await props.onResumeQueue()
-      props.onContextCompressionPendingChange(true)
-      await props.onRecoverResourceBinding!()
-    })
+    expect(await page.findByRole('heading', { name: 'agent.readiness.title' })).toBeVisible()
+    expect(page.getAllByRole('listitem')).toHaveLength(4)
+    expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
+    expect(page.queryByRole('alert')).not.toBeInTheDocument()
+    expect(harness.workspaceProps).toBeNull()
+    expect(harness.state.sessions).toContain(source)
+    expect(harness.state.drafts).toEqual({ 'session-one': { text: '环境未就绪时的草稿', updated_at: 1 } })
     expect(harness.selectSession).not.toHaveBeenCalled()
     expect(harness.createSession).not.toHaveBeenCalled()
     expect(harness.startRun).not.toHaveBeenCalled()
     expect(harness.enqueueTurn).not.toHaveBeenCalled()
     expect(harness.updateDraft).not.toHaveBeenCalled()
-    expect(harness.recoverResourceBinding).toHaveBeenCalledOnce()
+    expect(harness.recoverResourceBinding).not.toHaveBeenCalled()
+  })
+
+  it('已就绪的工作区变为未就绪时切换到状态页，刷新就绪后恢复原会话和草稿', async () => {
+    const session = boundSession()
+    const drafts = { [session.id]: { text: '保留的草稿', updated_at: 1 } }
+    harness.state = { ...workspaceState(), sessions: [session], drafts }
+    const page = renderPage({ sshResourcesReady: true })
+    await waitFor(() => expect(page.getByTestId('agent-workspace')).toBeVisible())
+    const missing = readinessFixture('needs_repair')
+    missing.mcp_client = { status: 'unavailable', message: '' }
+    harness.readiness.mockResolvedValue(missing)
+    page.rerenderPage({ active: false })
+    page.rerenderPage({ active: true })
+    expect(await page.findByRole('heading', { name: 'agent.readiness.title' })).toBeVisible()
+    expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
+    expect(page.queryByRole('alert')).not.toBeInTheDocument()
+    harness.readiness.mockResolvedValue(readinessFixture())
+    fireEvent.click(page.getByRole('button', { name: 'agent.readiness.refreshStatus' }))
+    await waitFor(() => expect(page.getByTestId('agent-workspace')).toBeVisible())
+    expect(harness.workspaceProps?.selected_session_id).toBe(session.id)
+    expect(harness.state.drafts).toEqual(drafts)
+    expect(harness.state.sessions).toEqual([session])
   })
 
   it('同页准备 MCP 环境成功后重新查询恢复能力，不依赖会话或配置目录变化', async () => {
@@ -2249,8 +2266,9 @@ describe('AgentPage', () => {
       return readinessFixture()
     })
     const page = renderPage({ readiness, sshResourcesReady: true })
-    const recovery = () => (harness.workspaceProps as unknown as AgentWorkspaceProps).resource_contexts?.[0]?.recovery
-    await waitFor(() => expect(recovery()?.view?.blocked_reason).toBe('mcp_unavailable'))
+    const recovery = () => (harness.workspaceProps as unknown as AgentWorkspaceProps | null)?.resource_contexts?.[0]?.recovery
+    expect(await page.findByRole('heading', { name: 'agent.readiness.title' })).toBeVisible()
+    expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
     fireEvent.click(page.getByRole('button', { name: 'agent.readiness.prepare' }))
     await waitFor(() => expect(recovery()?.view?.can_recover).toBe(true))
     expect(harness.workspaceProps?.execution_blocked).toBe(false)
@@ -2264,7 +2282,7 @@ describe('AgentPage', () => {
     const page = renderPage({ readiness })
     expect(await page.findByRole('button', { name: 'agent.readiness.prepare' })).toBeInTheDocument()
     expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
-    expect(page.queryByText('agent.resource.recovery.infrastructureUnavailable')).not.toBeInTheDocument()
+    expect(page.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it.each(['new', 'session'] as const)('纯连接转交到 %s 会话仅关联连接，不添加文本或附件', async (targetKind) => {
@@ -2329,7 +2347,7 @@ describe('AgentPage', () => {
     expect(harness.reloadSession).toHaveBeenCalledWith('session-one')
   })
 
-  it('默认模型不可用时保留连接引用，选择可运行模型后创建引用会话', async () => {
+  it('默认模型未就绪时显示状态页，修复模型后继续待导入的连接引用', async () => {
     const source = sshResource('ssh-source')
     prepareTerminalReferenceMocks(source)
     const disabledProvider = { ...providerFixture(), enabled: false }
@@ -2347,7 +2365,7 @@ describe('AgentPage', () => {
     })
     harness.state = { ...workspaceState(), selected_session_id: undefined }
     const onLaunchIntentHandled = vi.fn()
-    renderPage({
+    const page = renderPage({
       launchIntent: connectionReferenceIntent(source),
       sshResources: [source],
       sshResourcesReady: true,
@@ -2355,14 +2373,13 @@ describe('AgentPage', () => {
       readiness: readinessFixture('needs_setup', 'missing'),
     })
 
-    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    expect(await page.findByRole('heading', { name: 'agent.readiness.title' })).toBeVisible()
+    expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
     expect(harness.createSession).not.toHaveBeenCalled()
     expect(onLaunchIntentHandled).toHaveBeenCalledWith(7)
-
-    act(() => {
-      const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
-      selectModel('model-two')
-    })
+    harness.modelProviders.mockResolvedValue({ items: [providerFixture(), runnableProvider] })
+    harness.readiness.mockResolvedValue(readinessFixture())
+    fireEvent.click(page.getByRole('button', { name: 'agent.readiness.refreshStatus' }))
 
     await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
@@ -2514,6 +2531,26 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
     expect(harness.workspaceProps?.supports_images).toBe(true)
+  })
+
+  it.each(['infrastructure', 'defaultModel', 'boundInfrastructure'] as const)('远控 %s 未就绪时只展示准备页，就绪后恢复会话', async (missingComponent) => {
+    const missing = readinessFixture('needs_setup')
+    if (missingComponent === 'defaultModel') missing.default_model = { status: 'missing', message: '' }
+    else missing.mcp_client = { status: 'missing', message: '' }
+    if (missingComponent === 'boundInfrastructure') harness.state = { ...workspaceState(), sessions: [boundSession(), sessions[1]] }
+    const page = renderPage({ remote: true, readiness: missing })
+    expect(await page.findByRole('heading', { name: 'agent.readiness.remoteTitle' })).toBeVisible()
+    expect(page.getByText('settings.agent.readiness.mcpClient')).toBeVisible()
+    expect(page.getAllByRole('listitem')).toHaveLength(4)
+    expect(page.queryByTestId('agent-workspace')).not.toBeInTheDocument()
+    expect(harness.workspaceProps).toBeNull()
+    expect(page.queryByRole('button', { name: 'agent.readiness.prepare' })).not.toBeInTheDocument()
+    expect(harness.setup).not.toHaveBeenCalled()
+    harness.readiness.mockResolvedValue(readinessFixture())
+    fireEvent.click(page.getByRole('button', { name: 'agent.readiness.refreshStatus' }))
+    await waitFor(() => expect(page.queryByRole('heading', { name: 'agent.readiness.remoteTitle' })).not.toBeInTheDocument())
+    expect(page.getByTestId('agent-workspace')).toBeVisible()
+    expect(harness.workspaceProps?.execution_blocked).toBe(false)
   })
 
   it('准备只调用 setup 并采用服务端返回的就绪状态和审批策略', async () => {

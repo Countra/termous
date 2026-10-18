@@ -15,14 +15,23 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
     { id: 'dav-profile', name: 'Team documents', kind: 'files', engine: 'webdav', available: true },
   ] }]
   const sessions = hosts[0]!.connections.map(profile => ({ id: profile.kind === 'ssh' ? 'ssh' : profile.id, hostId: 'host', profileId: profile.id, name: profile.name, kind: profile.kind, engine: profile.engine, capabilities: profile.kind === 'files' ? capabilities : [], state: 'connected', generation: '1', origin: 'remote' }))
-  const entries = [{ name: 'releases', path: '/releases', kind: 'directory', size: '0' }, { name: 'app.log', path: '/app.log', kind: 'file', size: '16428' }, { name: 'README.md', path: '/README.md', kind: 'file', size: '2048' }]
+  const entries = [
+    { name: 'releases', path: '/releases', kind: 'directory', size: '0', modifiedUnixMs: '1792281600000' },
+    { name: 'app.log', path: '/app.log', kind: 'file', size: '16428', modifiedUnixMs: '1792281600000' },
+    { name: 'README.md', path: '/README.md', kind: 'file', size: '2048', modifiedUnixMs: '1792281600000' },
+    ...(query.get('files') === 'many' ? Array.from({ length: 40 }, (_, index) => ({
+      name: `deployment-diagnostics-workstation-${String(index + 1).padStart(2, '0')}.log`,
+      path: `/deployment-diagnostics-workstation-${String(index + 1).padStart(2, '0')}.log`,
+      kind: 'file', size: String((index + 1) * 16384), modifiedUnixMs: '1792281600000',
+    })) : []),
+  ]
   let receive: ((sequence: number, data: Uint8Array) => void) | undefined
   let sequence = 0, outputSequence = 0n, offset = 0n, controlled = false
   let maximized = false
   let connectionFailed = query.get('feedback') === 'connection'
   let inventoryReads = 0
   const maximizeListeners = new Set<(value: boolean) => void>()
-  const agent = createAgentPreview(query.has('en'), () => receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'event', value: { type: 'agent.update', value: { case: 'agent', value: { instanceId: 'agent-instance', resync: true } } } } }))), query.has('scroll'))
+  const agent = createAgentPreview(query.has('en'), () => receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'event', value: { type: 'agent.update', value: { case: 'agent', value: { instanceId: 'agent-instance', resync: true } } } } }))), query.has('scroll'), query.get('agent') === 'unready')
   const control = () => ({ generation: '1', ownerDeviceId: controlled ? 'controller' : '', acceptedSequence: '0' })
   const emit = (frame: StreamFrame) => {
     receive?.(++sequence, toBinary(EnvelopeSchema, create(EnvelopeSchema, { connectionId: connection.id, generation: 1n, payload: { case: 'stream', value: frame } })))
@@ -82,7 +91,20 @@ export function createPreview(query: URLSearchParams): { bridge: RemoteWindowBri
         }
         case 'file': {
           const action = request.operation.value.action
-          if (action === 'list') result = { directory: { entries: request.operation.value.location?.path === '/' ? entries : [] } }
+          if (action === 'retained_list') {
+            if (query.get('retained') === 'error') return { ok: false, code: 'desktop_files_unauthorized' }
+            const count = query.get('retained') === 'many' ? 18 : query.get('retained') === 'files' ? 2 : 0
+            const start = request.operation.value.cursor ? 6 : 0
+            result = { desktop: { exchanges: Array.from({ length: count }, (_, index) => ({
+              id: `exchange-${index}`, resourceGeneration: '7', state: 'retained',
+              name: index === 0 ? 'Windows 开发环境' : index === 1 ? '生产服务器 · 发布文档与诊断日志' : `远程桌面文件 ${index + 1}`,
+              expiresUnixMs: String(Date.now() + (index + 1) * 3600000),
+            })).slice(start, start ? undefined : 6), nextCursor: count > 6 && !start ? 'next' : '' } }
+          }
+          else if (action === 'list') {
+            const location = request.operation.value.location
+            result = { directory: { entries: location?.path === '/' || location?.kind === 'host_local' && location.path === '.' ? entries : [] } }
+          }
           else if (action === 'stat') {
             const path = request.operation.value.location?.path
             result = { entry: entries.find(item => item.path === path) ?? entries[1]! }
