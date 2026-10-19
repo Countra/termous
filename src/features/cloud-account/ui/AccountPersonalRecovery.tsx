@@ -1,3 +1,4 @@
+import { cloudDeadlineRemaining } from '#entities/cloud'
 import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Form, Modal, Steps, Tag } from 'antd'
@@ -26,7 +27,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   const [stage, setStage] = useState(0)
   const [rotate, setRotate] = useState(false)
   const [rotationPending, setRotationPending] = useState(false)
-  const [rotationMFA, setRotationMFA] = useState<Pick<CloudMFAStatus, 'enabled' | 'revision' | 'verified_until'>>()
+  const [rotationMFA, setRotationMFA] = useState<Pick<CloudMFAStatus, 'enabled' | 'revision' | 'verified_until' | 'server_time'>>()
   const [exportError, setExportError] = useState(false)
   const [operationError, setOperationError] = useState<string>()
   const [queriedPending, setQueriedPending] = useState(false)
@@ -41,12 +42,12 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
   }, [api, status.generation, proof])
   useEffect(() => {
     if (!setup) return
-    const until = Math.min(Date.parse(setup.expires_at), Date.parse(setup.verified_until ?? setup.expires_at))
-    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); if (proof.getFieldInstance('password') || proof.getFieldInstance('code')) proof.resetFields() }, Math.max(0, until - Date.now()))
+    const until = Math.min(cloudDeadlineRemaining(setup, setup.expires_at), cloudDeadlineRemaining(setup, setup.verified_until ?? setup.expires_at))
+    const timer = setTimeout(() => { wizardRun.current++; setSetup(undefined); setStage(0); setOperationError('authorization_expired'); if (proof.getFieldInstance('password') || proof.getFieldInstance('code')) proof.resetFields() }, Math.max(0, until))
     return () => clearTimeout(timer)
   }, [setup, proof])
   const current = (scope: typeof life.current) => scope === life.current && scope.active && scope.api === api && scope.generation === api.getStatus()?.generation
-  const rotationDeadline = useCloudDeadline(rotationMFA?.verified_until)
+  const rotationDeadline = useCloudDeadline(rotationMFA, rotationMFA?.verified_until)
   const rotationVerified = Boolean(rotationMFA?.verified_until && !rotationDeadline.expired)
   useEffect(() => {
     if (rotationMFA && (rotationMFA.revision !== security.value?.account.mfa_revision || rotationMFA.enabled !== security.value?.account.mfa_enabled)) setRotationMFA(undefined)
@@ -86,7 +87,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         if (!current(scope) || rotationRequest !== wizardRun.current) return
         if (startedPolicy !== policy.current || verified.revision !== startedPolicy.revision || verified.enabled !== startedPolicy.enabled) throw new Error('mfa_revision_conflict')
         setRotationMFA(verified)
-        if (verified.verified_until && Date.parse(verified.verified_until) > Date.now()) await api.rekey(status.generation, 'start')
+        if (verified.verified_until && cloudDeadlineRemaining(verified, verified.verified_until) > 0) await api.rekey(status.generation, 'start')
         else setRotationPending(true)
       } catch (cause) {
         if (current(scope) && rotationRequest === wizardRun.current) {
@@ -176,13 +177,13 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
         const request = wizardRun.current
         const startedPolicy = policy.current
         try {
-          if (!rotationMFA?.verified_until || Date.parse(rotationMFA.verified_until) <= Date.now()) {
+          if (!rotationMFA?.verified_until || cloudDeadlineRemaining(rotationMFA, rotationMFA.verified_until) <= 0) {
             if (rotationVerified) throw new Error('reauthentication_required')
             const result = await api.reauthenticate(status.generation, buildCloudStepUpProof(security.value?.account.mfa_enabled, evidence))
             if (!current(scope) || request !== wizardRun.current) return
             if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
             if (startedPolicy.enabled === undefined || startedPolicy.revision === undefined) throw new Error('CLOUD_MFA_UNAVAILABLE')
-            setRotationMFA({ enabled: startedPolicy.enabled, revision: startedPolicy.revision, verified_until: result.verified_until })
+            setRotationMFA({ enabled: startedPolicy.enabled, revision: startedPolicy.revision, server_time: result.server_time, verified_until: result.verified_until })
           }
           if (!current(scope) || request !== wizardRun.current) return
           await api.rekey(status.generation, 'start')

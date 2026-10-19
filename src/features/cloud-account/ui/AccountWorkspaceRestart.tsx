@@ -31,7 +31,7 @@ export function AccountWorkspaceRestart({ api, status, busy, mfaEnabled, mfaRevi
   useCloudChanges(api, status.generation, ['workspaces', 'security', 'mfa'], () => {
     if (open && op && !inactive) void feedback.perform(current => read(current))
   }, op?.id)
-  const expired = useDeadlineExpired(op?.status === 'verified' ? op.verified_until ?? op.expires_at : op?.expires_at) && !['completed', 'cancelled'].includes(op?.status ?? '')
+  const expired = useDeadlineExpired(op, op?.status === 'verified' ? op.verified_until ?? op.expires_at : op?.expires_at) && !['completed', 'cancelled'].includes(op?.status ?? '')
   useEffect(() => { if (expired) proof.setFieldsValue({ password: undefined, code: undefined, email_token: undefined }) }, [expired, proof])
   const terminal = !!op && ['cancelled', 'expired', 'invalidated'].includes(op.status)
   const stage = !op || terminal ? 0 : op.status === 'verified' || op.status === 'completed' ? 2 : 1

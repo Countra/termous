@@ -1,3 +1,4 @@
+import { cloudDeadlineRemaining } from '#entities/cloud'
 import { FeedbackMessage } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Form, Modal, Steps, Tag } from 'antd'
@@ -43,7 +44,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
       setOpen(false); setSetup(undefined); setCodes(undefined); form.resetFields(); setOperationError('mfa_revision_conflict')
     }
   }, [value, open, operationStatus, form])
-  const { expired } = useCloudDeadline(setup?.expires_at)
+  const { expired } = useCloudDeadline(setup, setup?.expires_at)
   useEffect(() => {
     if (!setup || !expired) return
     // 到期立即卸载二维码和密钥；已发出的确认仅等待事实，不重新发送。
@@ -111,7 +112,7 @@ export function AccountMFA({ api, generation, value, loading, error, busy, accep
           <AccountMFASetup setup={setup} disabled={expired} onCopyError={() => setOperationError('mfa_copy_failed')} />
           <Form className={styles['setup-confirm']} name="cloud-mfa-confirm" form={form} layout="vertical" requiredMark={false} disabled={disabled || expired} onFinish={(values) => perform(async () => {
             const scope = lifetime.current
-            if (Date.parse(setup.expires_at) <= Date.now()) { finish(); throw new Error('mfa_setup_expired') }
+            if (cloudDeadlineRemaining(setup, setup.expires_at) <= 0) { finish(); throw new Error('mfa_setup_expired') }
             const next = await api.mfaConfirm(generation, setup.revision, setup.setup_id, values.code!)
             if (current(scope) && !invalidated.current) { update(next.status); setSetup(undefined); setCodes(next.backup_codes); setOpen(true); form.resetFields() }
           })}>

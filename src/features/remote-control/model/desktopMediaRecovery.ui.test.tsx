@@ -23,7 +23,7 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks() })
 afterEach(() => vi.useRealTimers())
 
 async function startRecoveryFixture(owned: boolean) {
-  const control = { id: 'lease', owner: 'viewer', generation: 5n, expiresUnixMs: BigInt(Date.now() + 30_000) }
+  const control = { id: 'lease', owner: 'viewer', generation: 5n, expiresUnixMs: BigInt(Date.now() + 30_000), remainingMs: 30_000n }
   let release!: (value: DesktopResponse) => void
   const released = new Promise<DesktopResponse>(resolve => { release = resolve })
   const request = vi.fn(async (input: Parameters<DesktopGateway['request']>[0]) => {
@@ -100,7 +100,7 @@ test('申请控制前发出的查询迟到时不能覆盖新租约或重置输�
   let finish!: (value: DesktopResponse) => void
   request.mockImplementationOnce(() => new Promise<DesktopResponse>(resolve => { finish = resolve }))
   await vi.advanceTimersByTimeAsync(2_000)
-  const control = { id: 'new-lease', owner: 'viewer', generation: 6n, expiresUnixMs: BigInt(Date.now() + 30_000) }
+  const control = { id: 'new-lease', owner: 'viewer', generation: 6n, expiresUnixMs: BigInt(Date.now() + 30_000), remainingMs: 30_000n }
   const original = request.getMockImplementation()!
   request.mockImplementation(input => input.action === 'describe'
     ? Promise.resolve(create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, control } }))

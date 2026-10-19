@@ -1,3 +1,4 @@
+import { cloudDeadlineRemaining } from '#entities/cloud'
 import { useEffect, useRef } from 'react'
 import { Button, Form, Modal } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,7 @@ export function AccountStepUpDialog({ api, generation, mfa, unavailable, busy, t
   const policy = useRef({ enabled: mfa?.enabled, revision: mfa?.revision })
   useEffect(() => { policy.current = { enabled: mfa?.enabled, revision: mfa?.revision } }, [mfa?.enabled, mfa?.revision])
   const disabled = busy || feedback.working
-  const { expired } = useCloudDeadline(mfa?.verified_until)
+  const { expired } = useCloudDeadline(mfa, mfa?.verified_until)
   const verified = Boolean(mfa?.verified_until && !expired)
   useEffect(() => () => { form.setFieldsValue({ password: undefined, code: undefined }) }, [generation, form])
   return <Modal open rootClassName={modalSurfaceStyles.root} title={title} footer={null} destroyOnHidden closable={!disabled} mask={{ closable: !disabled }} keyboard={!disabled} onCancel={onClose}>
@@ -46,14 +47,14 @@ export function AccountStepUpDialog({ api, generation, mfa, unavailable, busy, t
       const currentPolicy = () => current() && policy.current === startedPolicy
       try {
         // 使用服务端确认的期限，过期时在同一弹窗补验；响应不明时只允许用户再次决定。
-        const deadline = mfa?.verified_until ? Date.parse(mfa.verified_until) : 0
-        if (!Number.isFinite(deadline) || deadline <= Date.now()) {
+        const deadline = cloudDeadlineRemaining(mfa, mfa?.verified_until)
+        if (!Number.isFinite(deadline) || deadline <= 0) {
           if (verified) throw new Error('reauthentication_required')
           const result = await api.reauthenticate(generation, buildCloudStepUpProof(mfa?.enabled, values))
           if (!current()) return
           // 因子在其他会话修改后，旧证明结果不能补写期限或继续当前操作。
           if (!currentPolicy()) throw new Error('mfa_revision_conflict')
-          accept({ ...mfa, verified_until: result.verified_until })
+          accept({ ...mfa, server_time: result.server_time, verified_until: result.verified_until })
         }
         if (!currentPolicy()) return
         await action()

@@ -59,7 +59,7 @@ export function AccountAuth({ api, generation, busy, run, email: savedEmail, rea
     form.resetFields(['password', 'token'])
     if (challenge) verificationForm.resetFields()
   }
-  const { expired } = useCloudDeadline(challenge?.expires_at)
+  const { expired } = useCloudDeadline(challenge, challenge?.expires_at)
   const blocked = expired || uncertain || Boolean(challengeFailure)
   const password = ['login', 'register', 'password-reset/confirm'].includes(mode)
   const email = ['login', 'register', 'resend-verification', 'password-reset/request'].includes(mode)

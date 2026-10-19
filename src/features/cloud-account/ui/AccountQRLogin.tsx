@@ -1,5 +1,5 @@
 import { FeedbackMessage } from '#shared/ui'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, QRCode, Spin } from 'antd'
 import { CheckCircle2, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -16,12 +16,14 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
   const [initial, setInitial] = useState<CloudQRLogin>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(performance.now())
   const attached = useRef(false)
   const lifetime = useRef<symbol | undefined>(undefined)
   const item = status?.generation === generation ? status.qr_login ?? initial : undefined
+  // 同一状态随其他账号事件重复发布时，不重置剩余时长。
+  const observed = useMemo(() => ({ id: item?.id, revision: item?.revision, expiresAt: item?.expires_at, seconds: item?.remaining_seconds ?? 0, at: performance.now() }), [item?.id, item?.revision, item?.remaining_seconds, item?.expires_at])
   const itemRef = useRef(item)
-  useEffect(() => { itemRef.current = item; setNow(Date.now()) }, [item])
+  useEffect(() => { itemRef.current = item; setNow(performance.now()) }, [item])
   const release = useCallback((value?: CloudQRLogin) => {
     const snapshot = api.getStatus()
     if (snapshot?.generation !== generation) return
@@ -53,7 +55,7 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
           return
         }
         itemRef.current = next
-        setInitial(next); setNow(Date.now())
+        setInitial(next); setNow(performance.now())
         if (document.hidden) void api.qrLogin({ generation, action: 'watch', id: next.id, watching: false }).catch(fail)
       }).catch(fail).finally(() => { if (!disposed) setBusy(false) })
     })
@@ -62,7 +64,7 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
       if (value) void api.qrLogin({ generation, action: 'watch', id: value.id, watching: !document.hidden }).catch(fail)
     }
     document.addEventListener('visibilitychange', visibility)
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    const timer = window.setInterval(() => setNow(performance.now()), 1000)
     return () => {
       disposed = true; attached.current = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', visibility)
       queueMicrotask(() => {
@@ -78,7 +80,7 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
     try {
       const next = await api.qrLogin({ generation, action, id: item?.id, reauthenticate })
       if (current()) {
-        itemRef.current = next; setInitial(next); setNow(Date.now())
+        itemRef.current = next; setInitial(next); setNow(performance.now())
         if (document.hidden) await api.qrLogin({ generation, action: 'watch', id: next.id, watching: false })
       }
       else if (!attached.current) release(next)
@@ -89,7 +91,7 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
     }
     finally { if (current()) setBusy(false) }
   }
-  const remaining = item ? Math.max(0, Math.ceil((Date.parse(item.expires_at) - now) / 1000)) : 0
+  const remaining = item ? Math.max(0, Math.ceil((observed.seconds * 1000 - Math.max(0, now - observed.at)) / 1000)) : 0
   const terminal = !!item && (!pending(item.state) && !['approved', 'issued'].includes(item.state) || remaining === 0)
   const scanned = !!item && !terminal && item.state !== 'pending'
   const state = terminal && remaining === 0 ? 'expired' : item?.state ?? 'loading'

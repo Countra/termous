@@ -2,15 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { decodeCloudLogin, decodeCloudMFACodes, decodeCloudMFASetup, decodeCloudMFAStatus, decodeCloudReauthentication, isCloudMFAUncertainError } from './mfa.ts'
 
-const status = { enabled: true, revision: '2', backup_codes_remaining: 10, verified_until: '2026-09-30T08:00:00Z' }
-const setup = { setup_id: 'fixture', expires_at: '2026-09-30T08:00:00Z', secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', otpauth_uri: 'otpauth://totp/Termous:fixture?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous', revision: '1' }
+const status = { server_time: new Date().toISOString(), enabled: true, revision: '2', backup_codes_remaining: 10, verified_until: '2026-09-30T08:00:00Z' }
+const setup = { server_time: new Date().toISOString(), setup_id: 'fixture', expires_at: '2026-09-30T08:00:00Z', secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', otpauth_uri: 'otpauth://totp/Termous:fixture?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous', revision: '1' }
 
 test('二步验证解码拒绝非法版本、计数、日期和未知认证方式', () => {
   assert.deepEqual(decodeCloudMFAStatus(status), { ...status, enabled_at: undefined })
-  for (const patch of [{ revision: '01' }, { revision: '-1' }, { revision: '9223372036854775808' }, { backup_codes_remaining: 11 }, { enabled: 'true' }, { verified_until: 'bad-date' }]) assert.throws(() => decodeCloudMFAStatus({ ...status, ...patch }))
-  assert.throws(() => decodeCloudLogin({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: setup.expires_at, methods: ['email'] } }))
-  assert.throws(() => decodeCloudLogin({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: setup.expires_at, methods: ['totp', 'totp'] } }))
-  assert.throws(() => decodeCloudReauthentication({ verified_until: 'invalid' }))
+  for (const patch of [{ revision: '01' }, { revision: '-1' }, { revision: '9223372036854775808' }, { server_time: new Date().toISOString(), backup_codes_remaining: 11 }, { enabled: 'true' }, { server_time: new Date().toISOString(), verified_until: 'bad-date' }]) assert.throws(() => decodeCloudMFAStatus({ ...status, ...patch }))
+  assert.throws(() => decodeCloudLogin({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'fixture', expires_at: setup.expires_at, methods: ['email'] } }))
+  assert.throws(() => decodeCloudLogin({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'fixture', expires_at: setup.expires_at, methods: ['totp', 'totp'] } }))
+  assert.throws(() => decodeCloudReauthentication({ server_time: new Date().toISOString(), verified_until: 'invalid' }))
   assert.throws(() => decodeCloudMFAStatus({ ...status, enabled: false }))
 })
 

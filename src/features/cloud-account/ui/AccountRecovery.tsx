@@ -1,9 +1,10 @@
+import { cloudDeadlineRemaining } from '#entities/cloud'
 import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Form, Modal, Tag } from 'antd'
 import { Cloud, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { CloudAuthorization, CloudMFAProof, CloudStatus } from '#common/contracts'
+import type { CloudAuthorization, CloudMFAProof, CloudStatus, CloudReauthentication } from '#common/contracts'
 import { isCloudMFAUncertainError, type CloudGateway } from '#entities/cloud'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
 import { useCloudDeadline } from '../model/useCloudDeadline'
@@ -23,7 +24,7 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
   useEffect(() => { policy.current = { enabled: state.security?.account.mfa_enabled, revision: state.security?.account.mfa_revision } }, [state.security?.account.mfa_enabled, state.security?.account.mfa_revision])
   const [selected, setSelected] = useState<CloudAuthorization>()
   const [decision, setDecision] = useState<{ action: 'disable' | 'freeze' | 'unfreeze'; revision: string; rotate?: boolean; stopped?: boolean }>()
-  const [rotationUntil, setRotationUntil] = useState<string>()
+  const [rotationUntil, setRotationUntil] = useState<Partial<CloudReauthentication> & { server_time: string }>()
   const [form] = Form.useForm<CloudMFAProof>()
   const feedback = useCloudOperationFeedback(api, status.generation, run)
   const disabled = busy || feedback.working
@@ -33,8 +34,8 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
   }, [status.generation, form])
   const recovery = state.security?.recovery
   const unavailable = state.loading || state.error || !recovery
-  const rotationDeadline = useCloudDeadline(rotationUntil)
-  const rotationVerified = Boolean(rotationUntil && !rotationDeadline.expired)
+  const rotationDeadline = useCloudDeadline(rotationUntil, rotationUntil?.verified_until)
+  const rotationVerified = Boolean(rotationUntil?.verified_until && !rotationDeadline.expired)
   useEffect(() => { setRotationUntil(undefined) }, [state.security?.account.mfa_revision, state.security?.account.mfa_enabled])
   const active = state.requests.find(v => v.kind === 'enablement' && ['pending', 'verified', 'processing'].includes(v.status))
   const begin = () => void run(async () => {
@@ -66,12 +67,12 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
         const currentPolicy = () => current() && policy.current === startedPolicy
         try {
           if (decision.stopped) {
-            if (!rotationUntil || Date.parse(rotationUntil) <= Date.now()) {
+            if (cloudDeadlineRemaining(rotationUntil, rotationUntil?.verified_until) <= 0) {
               if (rotationVerified) throw new Error('reauthentication_required')
               const result = await api.reauthenticate(status.generation, buildCloudStepUpProof(state.security?.account.mfa_enabled, proof))
               if (!current()) return
               if (!currentPolicy()) throw new Error('mfa_revision_conflict')
-              setRotationUntil(result.verified_until)
+              setRotationUntil(result)
             }
             if (!currentPolicy()) return
             await api.rekey(status.generation, 'start')
@@ -84,8 +85,8 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
               const verified = await api.mfaStatus(status.generation)
               if (!current()) return
               if (!currentPolicy() || verified.revision !== startedPolicy.revision || verified.enabled !== startedPolicy.enabled) throw new Error('mfa_revision_conflict')
-              setRotationUntil(verified.verified_until)
-              if (!verified.verified_until || Date.parse(verified.verified_until) <= Date.now()) return
+              setRotationUntil(verified)
+              if (!verified.verified_until || cloudDeadlineRemaining(verified, verified.verified_until) <= 0) return
               await api.rekey(status.generation, 'start')
             }
           }
@@ -96,7 +97,7 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
             const facts = await Promise.allSettled([api.security(status.generation), api.mfaStatus(status.generation)])
             if (current()) {
               if (facts[0].status === 'fulfilled' && facts[0].value.recovery.policy.status === 'disabled') setDecision({ ...decision, stopped: true })
-              if (currentPolicy() && facts[1].status === 'fulfilled' && facts[1].value.revision === startedPolicy.revision && facts[1].value.enabled === startedPolicy.enabled) setRotationUntil(facts[1].value.verified_until)
+              if (currentPolicy() && facts[1].status === 'fulfilled' && facts[1].value.revision === startedPolicy.revision && facts[1].value.enabled === startedPolicy.enabled) setRotationUntil(facts[1].value)
             }
           }
           throw cause

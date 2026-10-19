@@ -7,8 +7,8 @@ import { changeLanguage } from '#shared/i18n'
 import { AccountAuthorization } from './AccountAuthorization'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
-const initial: CloudAuthorization = {
-  id: 'authorization_fixture', workspace_id: 'workspace', device_id: 'target', kind: 'approval', name: 'New device',
+const initial: CloudAuthorization = { server_time: new Date().toISOString(),
+  id: 'authorization_fixture', workspace_id: 'workspace', device_id: 'target', kind: 'approval', remaining_ms: 600_000, name: 'New device',
   status: 'pending', revision: '3', expires_at: new Date(Date.now() + 300_000).toISOString(), created_at: new Date().toISOString(),
   source_summary: '127.0.0.0/24', platform: 'Windows', target_confirmed: false, keys_verified: false,
   pairing_code: 'ABCD 2345 6789 EF01 ABCD 2345 6789 EF01',
@@ -116,6 +116,24 @@ test('批准响应丢失后补读确认成功，清除旧操作错误且不再�
   expect(api.authorizationAction).toHaveBeenCalledTimes(1)
 })
 
+test('云端已批准但本地保存失败时保留错误，重试不再提交身份凭据', async () => {
+  const approved = { ...initial, status: 'approved' as const, revision: '4', allowed_actions: [] }
+  const api = setup()
+  await waitFor(() => expect(api.authorization).toHaveBeenCalledTimes(1))
+  api.authorization.mockResolvedValue(approved)
+  api.authorizationAction.mockRejectedValueOnce(new Error('approval_local_pending'))
+  fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: '确认授权' }))
+  const retry = await screen.findByRole('button', { name: '重试完成授权' })
+  expect(await screen.findByText('错误代码：approval_local_pending')).toBeInTheDocument()
+  expect(screen.queryByLabelText('验证器验证码')).not.toBeInTheDocument()
+  api.authorizationAction.mockResolvedValue(approved)
+  fireEvent.click(retry)
+  await waitFor(() => expect(api.authorizationAction).toHaveBeenLastCalledWith('fixture', 'approval', initial.id, 'approve', { expected_revision: '4', confirm_trust: false }))
+  await waitFor(() => expect(screen.queryByText('错误代码：approval_local_pending')).not.toBeInTheDocument())
+  expect(api.authorizationAction).toHaveBeenCalledTimes(2)
+})
+
 test('领取失败后相同授权状态补读仍保留错误，本机密钥确认成功才清除', async () => {
   const value = { ...initial, status: 'acknowledged' as const, allowed_actions: ['claim'] }
   const api = setup(value, undefined, true, 'local_failed', initial.device_id)
@@ -132,9 +150,9 @@ test('领取失败后相同授权状态补读仍保留错误，本机密钥确�
 })
 
 test('授权过期时移除身份草稿且不提交证明', () => {
-  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.useFakeTimers({ toFake: ['Date', 'performance', 'setInterval', 'clearInterval'] })
   try {
-    const api = setup({ ...initial, expires_at: new Date(Date.now() + 1000).toISOString() })
+    const api = setup({ ...initial, remaining_ms: 1000, expires_at: new Date(Date.now() + 1000).toISOString() })
     fireEvent.change(screen.getByLabelText('验证器验证码'), { target: { value: '123456' } })
     act(() => vi.advanceTimersByTime(1000))
     expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()

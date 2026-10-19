@@ -13,7 +13,7 @@ const run = async <T,>(action: () => Promise<T>) => action()
 function gateway(overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(status)
-  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => []), sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })), ...overrides } as CloudGateway
+  return { getStatus: state.snapshot, subscribeStatus: state.subscribe, mfaStatus: vi.fn(async () => ({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => []), sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })), ...overrides } as CloudGateway
 }
 
 test('二步验证状态尚未返回时不发读取失败消息，真正失败才提示', async () => {
@@ -127,8 +127,8 @@ test('撤销后重新登录的待授权设备可主动申请可信批准，无�
     keys_verified: false, membership_initialized: true,
     recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace', status: 'disabled', revision: '0', updated_at: new Date().toISOString() } },
   }
-  const request: CloudAuthorization = {
-    id: 'new-request', workspace_id: 'workspace', device_id: pending.device_id!, kind: 'approval', status: 'pending', revision: '1',
+  const request: CloudAuthorization = { server_time: new Date().toISOString(),
+    id: 'new-request', workspace_id: 'workspace', device_id: pending.device_id!, kind: 'approval', remaining_ms: 600_000, status: 'pending', revision: '1',
     name: 'Termous Desktop', platform: 'Windows', source_summary: '', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
     target_confirmed: false, keys_verified: false, allowed_actions: ['cancel'],
   }

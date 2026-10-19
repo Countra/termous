@@ -15,8 +15,8 @@ const status: CloudStatus = {
   device_id: 'trusted-device', device_status: 'active', confirmed: false, auto_sync: false, pending: 0, conflicts: 0,
 }
 function request(id: string, overrides: Partial<CloudAuthorization> = {}): CloudAuthorization {
-  return {
-    id, workspace_id: 'workspace', device_id: `device-${id}`, kind: 'approval', name: `申请设备 ${id}`,
+  return { server_time: new Date().toISOString(),
+    id, workspace_id: 'workspace', device_id: `device-${id}`, kind: 'approval', remaining_ms: 600_000, name: `申请设备 ${id}`,
     status: 'pending', revision: '1', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString(),
     platform: 'Windows', source_summary: '127.0.0.0/24', pairing_code: '1234 5678 9ABC DEF0 1234 5678 9ABC DEF0', target_confirmed: false, keys_verified: false, allowed_actions: ['approve', 'reject'],
     ...overrides,
@@ -169,7 +169,7 @@ test('审批中的新申请排队展示，不覆盖身份验证草稿', async ()
 test('本机申请、过期、终态、其他流程及没有审批权限的申请不自动弹出', async () => {
   const fixture = gateway([
     request('self', { device_id: status.device_id! }),
-    request('expired', { expires_at: new Date(Date.now() - 1000).toISOString() }),
+    request('expired', { remaining_ms: 0, expires_at: new Date(Date.now() - 1000).toISOString() }),
     request('rejected', { status: 'rejected' }), request('approved', { status: 'approved' }),
     request('recovery', { kind: 'recovery' }), request('unavailable', { allowed_actions: ['cancel'] }),
   ])

@@ -177,7 +177,7 @@ test('授权入口将文件交给 Core，校验失败保留入口，可重新选
 test('归档导入仅生成预览，不应用数据或自动上传', async () => {
   const { api } = fixture()
   api.archives = vi.fn<CloudGateway['archives']>(async () => [{ id: 'archive_test', status: 'archived', revision: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), local_key_available: false }])
-  api.previewArchive = vi.fn(async () => ({ id: 'preview', generation: 'fixture', blocked: false, items: [], conflicts: [], workspace_id: 'archive_test', expires_at: new Date(Date.now() + 300_000).toISOString() }))
+  api.previewArchive = vi.fn(async () => ({ server_time: new Date().toISOString(), id: 'preview', generation: 'fixture', blocked: false, items: [], conflicts: [], workspace_id: 'archive_test', expires_at: new Date(Date.now() + 300_000).toISOString() }))
   api.applyArchive = vi.fn()
   render(<AccountArchives api={api} status={status} busy={false} run={run} />)
   fireEvent.click(await screen.findByRole('button', { name: '取回到本地' }))

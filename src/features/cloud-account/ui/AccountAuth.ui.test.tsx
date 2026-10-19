@@ -43,7 +43,7 @@ test('重新登录仅验证当前账号，不展示注册与密码重置入口',
 
 test('未进入二步验证不访问未挂载表单，取消挑战后下次验证不保留验证码', async () => {
   const warnings = vi.spyOn(console, 'error')
-  const challenge = { id: 'synthetic-challenge', expires_at: new Date(Date.now() + 180_000).toISOString(), methods: ['totp' as const] }
+  const challenge = { server_time: new Date().toISOString(), id: 'synthetic-challenge', expires_at: new Date(Date.now() + 180_000).toISOString(), methods: ['totp' as const] }
   const login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge }))
   const cancelLogin = vi.fn(async () => undefined)
   const api = { login, cancelLogin } as unknown as CloudGateway

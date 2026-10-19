@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { decodeCloudAuthorization } from './security.ts'
 
-const authorization = {
-  id: 'request-fixture', workspace_id: 'workspace-fixture', device_id: 'device-fixture', kind: 'approval',
+const authorization = { server_time: new Date().toISOString(),
+  id: 'request-fixture', workspace_id: 'workspace-fixture', device_id: 'device-fixture', kind: 'approval', remaining_ms: 600_000,
   name: '测试设备', status: 'pending', revision: '1', expires_at: '2026-10-02T08:10:00Z',
   created_at: '2026-10-02T08:00:00Z', source_summary: '127.0.0.0/24', platform: 'Windows',
   target_confirmed: false, keys_verified: false, allowed_actions: ['cancel'],

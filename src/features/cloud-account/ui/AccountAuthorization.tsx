@@ -4,7 +4,7 @@ import { Button, Checkbox, Form, Modal, Tag } from 'antd'
 import { Clock3, Laptop, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationAction, CloudMFAProof } from '#common/contracts'
-import type { CloudGateway } from '#entities/cloud'
+import { cloudAuthorizationRemaining, type CloudGateway } from '#entities/cloud'
 import { useCloudChanges } from '../model/useCloudChanges'
 import { useCloudReconnect } from '../model/useCloudReconnect'
 import { AccountStepUpFields } from './AccountStepUpFields'
@@ -33,7 +33,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
   const [current, setCurrent] = useState(value)
   const [error, setError] = useState(false)
   const [actionError, setActionError] = useState<ActionError>()
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(performance.now())
   const [trust, setTrust] = useState(false)
   const [working, setWorking] = useState(false)
   const [form] = Form.useForm<CloudMFAProof>()
@@ -93,11 +93,11 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
     }
   }, [current, busy, working, action, trust, open])
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    const timer = window.setInterval(() => setNow(performance.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
   const allowed = (name: string) => current.allowed_actions.includes(name)
-  const remaining = Math.max(0, Math.ceil((Date.parse(current.expires_at) - now) / 1000))
+  const remaining = Math.max(0, Math.ceil(cloudAuthorizationRemaining(current, now) / 1000))
   const expired = remaining === 0 && !['approved', 'acknowledged'].includes(current.status)
   const canVerify = !expired && (current.kind === 'approval' ? allowed('approve') : allowed('verify'))
   useEffect(() => {
@@ -107,7 +107,7 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
   }, [canVerify, form])
   useEffect(() => {
     // 响应丢失后只按已确认的业务结果清除旧错误；相同状态补读不能吞掉失败原因。
-    if (actionError && actionConfirmed(actionError.action, current)) setActionError(undefined)
+    if (actionError && actionError.code !== 'approval_local_pending' && actionConfirmed(actionError.action, current)) setActionError(undefined)
   }, [actionError, current])
   const disabled = busy || working
   const status = api.getStatus()
@@ -153,7 +153,8 @@ export function AccountAuthorization({ api, generation, value, mfaEnabled, mfaRe
         </> : null}
       </Form>
       <div className={styles.actions}>
-        {error || mfaEnabled === undefined && canVerify ? <Button disabled={disabled} onClick={error ? () => void read() : onChanged}>{t('cloud.retry')}</Button> : null}
+        {approval && !requester && approved && actionError?.code === 'approval_local_pending' ? <Button disabled={disabled} onClick={() => void action('approve')}>{t('cloud.authorization.retryLocal')}</Button> : null}
+        {error || actionError && ['approval_material_expired', 'approval_deadline_invalid', 'membership_conflict', 'authorization_stale'].includes(actionError.code) || mfaEnabled === undefined && canVerify ? <Button disabled={disabled} onClick={error || actionError ? () => void read() : onChanged}>{t('cloud.retry')}</Button> : null}
         {retryClaim && approval ? <Button disabled={disabled} loading={working} onClick={() => void action('claim')}>{t('cloud.authorization.retryLocal')}</Button> : null}
         {allowed('complete') ? <Button type="primary" disabled={disabled || error || expired || !trust} onClick={() => void action('complete')}>{t('cloud.authorization.complete')}</Button> : null}
         {allowed('claim') && !current.keys_verified && current.kind === 'recovery' ? <Button type="primary" disabled={disabled || error || !trust} onClick={() => void action('claim')}>{t('cloud.authorization.claim')}</Button> : null}

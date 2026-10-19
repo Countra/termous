@@ -35,7 +35,7 @@ export function AccountArchives({ api, status, busy, mfaEnabled, mfaRevision, ru
   const generation = status.generation
   const feedback = useCloudOperationFeedback(api, generation, run)
   const inactive = busy || feedback.working
-  const previewExpired = useDeadlineExpired(preview?.expires_at)
+  const previewExpired = useDeadlineExpired(preview, preview?.expires_at)
   const load = useCallback(async () => {
     const scope = life.current
     if (!scope || scope.controller.signal.aborted) return

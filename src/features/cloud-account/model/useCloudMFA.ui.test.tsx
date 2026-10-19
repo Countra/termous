@@ -6,7 +6,7 @@ import { CloudState, type CloudGateway } from '#entities/cloud'
 import { useCloudMFA } from './useCloudMFA'
 
 const account: CloudStatus = { generation: 'fixture', revision: 1, configured: true, authenticated: true, phase: 'ready', device_status: 'active', confirmed: true, auto_sync: false, pending: 0, conflicts: 0 }
-const status: CloudMFAStatus = { enabled: false, revision: '0', backup_codes_remaining: 0 }
+const status: CloudMFAStatus = { server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0 }
 
 function gateway(read = vi.fn<(generation: string, signal?: AbortSignal) => Promise<CloudMFAStatus>>(async () => status)) {
   const state = new CloudState()
@@ -59,7 +59,7 @@ test('切换账号代次后取消旧读取，旧返回不能覆盖新账号状�
   rerender({ generation: 'next-account' })
   await waitFor(() => expect(result.current.value).toEqual(status))
   expect(oldSignal?.aborted).toBe(true)
-  await act(async () => { completeOld({ enabled: true, revision: '8', backup_codes_remaining: 10, enabled_at: new Date().toISOString() }) })
+  await act(async () => { completeOld({ server_time: new Date().toISOString(), enabled: true, revision: '8', backup_codes_remaining: 10, enabled_at: new Date().toISOString() }) })
   expect(result.current.value).toEqual(status)
   expect(read).toHaveBeenCalledTimes(2)
 })

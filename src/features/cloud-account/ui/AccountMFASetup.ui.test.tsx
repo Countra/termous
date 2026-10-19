@@ -4,7 +4,7 @@ import { changeLanguage } from '#shared/i18n'
 import { AccountMFASetup } from './AccountMFASetup'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
-const setup = { setup_id: 'synthetic-setup', revision: '0', secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', expires_at: new Date(Date.now() + 600_000).toISOString(), otpauth_uri: 'otpauth://totp/Termous:synthetic?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous' }
+const setup = { server_time: new Date().toISOString(), setup_id: 'synthetic-setup', revision: '0', secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', expires_at: new Date(Date.now() + 600_000).toISOString(), otpauth_uri: 'otpauth://totp/Termous:synthetic?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous' }
 
 test.each(['resolve', 'reject'])('更换绑定申请后忽略旧密钥复制的迟到结果：%s', async (outcome) => {
   const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')

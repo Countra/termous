@@ -24,7 +24,7 @@ export function AccountVerification({ api, generation, mfa, unavailable, busy, a
     policy.current = { enabled: mfa?.enabled, revision: mfa?.revision }; form.resetFields()
     return () => form.setFieldsValue({ password: undefined, code: undefined })
   }, [api, generation, form, mfa?.enabled, mfa?.revision])
-  const { expired } = useCloudDeadline(mfa?.verified_until)
+  const { expired } = useCloudDeadline(mfa, mfa?.verified_until)
   const verified = mfa?.verified_until && !expired
   return <AccountSection title={t('cloud.securityVerification')} icon={<Fingerprint size={18} />} description={t('cloud.reauthenticateHint')}>
     {verified ? <div className={styles.actions} role="status"><Tag color="success">{t('cloud.verified')}</Tag><span className={styles.hint}>{t('cloud.mfa.verifiedUntil', { time: new Date(mfa.verified_until!).toLocaleTimeString() })}</span></div> : null}
@@ -37,7 +37,7 @@ export function AccountVerification({ api, generation, mfa, unavailable, busy, a
         const result = await api.reauthenticate(generation, proof)
         if (current()) {
           if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
-          accept({ ...mfa, verified_until: result.verified_until }); form.resetFields()
+          accept({ ...mfa, server_time: result.server_time, verified_until: result.verified_until }); form.resetFields()
           // 备用码消费不提升因子版本，补读余量；读取失败保留已确认的验证期限。
           if (proof.method === 'backup_code') await reload()
         }

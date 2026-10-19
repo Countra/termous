@@ -19,6 +19,11 @@ export function useCloudReconnect(api: CloudGateway, generation: string, refresh
     }
     const unsubscribe = api.subscribeStatus(observe)
     observe()
-    return unsubscribe
+    const resume = () => {
+      if (document.visibilityState === 'visible' && api.getStatus()?.generation === generation && api.getStatus()?.authenticated) refresh()
+    }
+    window.addEventListener('focus', resume)
+    document.addEventListener('visibilitychange', resume)
+    return () => { unsubscribe(); window.removeEventListener('focus', resume); document.removeEventListener('visibilitychange', resume) }
   }, [api, generation, refresh])
 }

@@ -16,7 +16,7 @@ function gateway(overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(ready)
   const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => ({ account: { contract: 'cloud-authorization-v1', managed_recovery: false, mfa_enabled: false, mfa_revision: '0' }, recovery: { policy: { workspace_id: 'fixture', revision: '0', status: 'disabled', updated_at: '2026-10-01T00:00:00Z' }, available: false }, membership_initialized: false, keys_verified: false })), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), createDeviceRequest: vi.fn(), createRecovery: vi.fn(),
-    mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
+    mfaStatus: vi.fn(async () => ({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0 })), devices: vi.fn(async () => [device('设备已更新')]), sessions: vi.fn(async () => [session('会话已更新')]), rekeyStatus: vi.fn(async () => ({ status: 'staging', completed: 2, total: 5 })), auth: vi.fn(), rekey: vi.fn(), ...overrides } as CloudGateway
   const reconnect = () => {
     const revision = state.snapshot()!.revision
     state.accept({ ...ready, revision: revision + 1, phase: 'blocked', error_code: 'network_unavailable' })

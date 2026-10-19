@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import type { CloudStatus } from '#common/contracts'
+import type { CloudLoginChallenge, CloudStatus } from '#common/contracts'
 import { CloudClient } from './cloudClient'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -52,7 +52,7 @@ test('云状态请求在账号切换后才返回时，调用方同样获得当�
 })
 
 test('密码阶段只交付二步验证挑战，不切换账号状态或泄露远端令牌', async () => {
-  const challenge = { id: 'local-fixture', expires_at: new Date(Date.now() + 300_000).toISOString(), methods: ['totp', 'backup_code'] }
+  const challenge: CloudLoginChallenge = { id: 'local-fixture', server_time: '2040-01-01T00:00:00Z', expires_at: '2040-01-01T00:05:00Z', methods: ['totp', 'backup_code'] }
   const fetch = vi.fn(async () => Response.json({ state: 'mfa_required', challenge }))
   vi.stubGlobal('fetch', fetch)
   const api = new CloudClient({ apiBaseUrl: 'http://127.0.0.1:8122' })
@@ -72,7 +72,8 @@ test('迟到登录挑战不能用于切换后的账号，验证码失败不自�
   api.acceptStatus(status)
   const pending = api.login('before', 'fixture@example.test', 'synthetic-password')
   api.acceptStatus({ ...status, generation: 'after', revision: 2 })
-  respond(Response.json({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: new Date().toISOString(), methods: ['totp'] } }))
+  const challenge: CloudLoginChallenge = { id: 'fixture', server_time: '2040-01-01T00:00:00Z', expires_at: '2040-01-01T00:05:00Z', methods: ['totp'] }
+  respond(Response.json({ state: 'mfa_required', challenge }))
   await expect(pending).rejects.toThrow('CLOUD_STALE')
   const verification = api.verifyLogin('after', 'fixture', 'totp', '123456')
   respond(Response.json({ error: { code: 'CLOUD_OPERATION_FAILED', message: 'mfa_invalid_code' } }, { status: 400 }))

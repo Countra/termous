@@ -15,8 +15,8 @@ const groups = ['ABCDE', 'FGHIJ', 'KLMNO', 'PQRST', 'UVWXY', 'Z2345', 'ABCDE', '
 function fixture(enabled = false) {
   const state = new CloudState(); state.accept(status)
   const security: CloudSecurityOverview = { account: { contract: 'cloud-recovery-safeguards-v1', managed_recovery: true, mfa_enabled: false, mfa_revision: '0', workspace_id: 'workspace_test', recovery_required: true, recovery_ready: enabled, personal_recovery_enabled: enabled, archive_available: false }, keys_verified: true, membership_initialized: true, recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace_test', status: 'disabled', revision: '0', updated_at: new Date().toISOString() } } }
-  const setup: CloudPersonalRecoverySetup = { id: 'personal_setup_test', kind: 'setup', status: 'verified', revision: '2', membership_head: 'synthetic_head', personal_revision: '0', key_epoch: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), recovery_key: `TRK1-${groups.join('-')}`, recovery_file: JSON.stringify({ format: 'termous-personal-recovery-key', recovery_key: `TRK1-${groups.join('-')}` }) }
-  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => security), setupPersonalRecovery: vi.fn(async () => setup), confirmPersonalRecovery: vi.fn(async () => ({ ...setup, status: 'completed' })), mfaStatus: vi.fn(async () => ({ enabled: false, revision: '0', backup_codes_remaining: 0 })), reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })), rekey: vi.fn(async () => ({ status: 'complete', completed: 0, total: 0 })) } as unknown as CloudGateway
+  const setup: CloudPersonalRecoverySetup = { server_time: new Date().toISOString(), id: 'personal_setup_test', kind: 'setup', status: 'verified', revision: '2', membership_head: 'synthetic_head', personal_revision: '0', key_epoch: '1', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), recovery_key: `TRK1-${groups.join('-')}`, recovery_file: JSON.stringify({ format: 'termous-personal-recovery-key', recovery_key: `TRK1-${groups.join('-')}` }) }
+  const api = { getStatus: state.snapshot, subscribeStatus: state.subscribe, security: vi.fn(async () => security), setupPersonalRecovery: vi.fn(async () => setup), confirmPersonalRecovery: vi.fn(async () => ({ ...setup, status: 'completed' })), mfaStatus: vi.fn(async () => ({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0 })), reauthenticate: vi.fn(async () => ({ server_time: new Date().toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString() })), rekey: vi.fn(async () => ({ status: 'complete', completed: 0, total: 0 })) } as unknown as CloudGateway
   return { api, state, setup }
 }
 async function generate() {
@@ -57,7 +57,7 @@ test('保存确认失败时，通过统一消息显示具体错误并保留密�
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await enterSaveStep()
   fireEvent.click(screen.getByRole('button', { name: '已保存，启用' }))
-  expect(await screen.findByText('操作版本已变化，请查询最新结果后继续。')).toBeInTheDocument()
+  expect(await screen.findByText('可信设备清单已变化，请刷新申请后继续。')).toBeInTheDocument()
   expect(screen.getByText('错误代码：membership_conflict')).toBeInTheDocument()
   expect(api.confirmPersonalRecovery).toHaveBeenCalledExactlyOnceWith('fixture', setup.id, true)
 })
@@ -195,7 +195,7 @@ test('更换完成后近期期限不可用才就地补验，失败保留待办�
 
 test('更换并轮换复用前段成功后的服务端验证期限，不要求再次输入证明', async () => {
   const { api } = fixture(true)
-  vi.mocked(api.mfaStatus).mockResolvedValue({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
+  vi.mocked(api.mfaStatus).mockResolvedValue({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: '更换并轮换数据密钥' })); await generate()
@@ -212,7 +212,7 @@ test('更换完成后的旧验证状态不能越过新的因子版本启动轮�
   const { api, state } = fixture(true)
   const original = await api.security('fixture')
   api.subscribeChanges = state.subscribeChanges
-  let resolve!: (value: { enabled: boolean; revision: string; backup_codes_remaining: number; verified_until: string }) => void
+  let resolve!: (value: { server_time: string; enabled: boolean; revision: string; backup_codes_remaining: number; verified_until: string }) => void
   vi.mocked(api.mfaStatus).mockImplementationOnce(() => new Promise(done => { resolve = done }))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
@@ -222,7 +222,7 @@ test('更换完成后的旧验证状态不能越过新的因子版本启动轮�
   await waitFor(() => expect(resolve).toBeDefined())
   vi.mocked(api.security).mockResolvedValue({ ...original, account: { ...original.account, mfa_enabled: true, mfa_revision: '1' } })
   await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
-  await act(async () => { resolve({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
+  await act(async () => { resolve({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
   const rotationButton = await screen.findByRole('button', { name: '开始轮换' })
   const dialog = within(rotationButton.closest('[role="dialog"]') as HTMLElement)
   expect(screen.getByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
@@ -256,7 +256,7 @@ test('初次读取失败后补验成功，轮换暂时失败仍保留有效期�
 
 test('服务器认为组合验证已过期时清除本机期限，只补验轮换而不重做密钥更换', async () => {
   const { api } = fixture(true)
-  vi.mocked(api.mfaStatus).mockResolvedValue({ enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
+  vi.mocked(api.mfaStatus).mockResolvedValue({ server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0, verified_until: new Date(Date.now() + 300_000).toISOString() })
   vi.mocked(api.rekey).mockRejectedValueOnce(new TermousApiError('reauthentication_required', 'CLOUD_OPERATION_FAILED', 409))
   render(<AccountPersonalRecovery api={api} status={status} busy={false} run={run} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '更换并轮换数据密钥' })).toBeEnabled())
@@ -275,7 +275,7 @@ test('服务器认为组合验证已过期时清除本机期限，只补验轮�
 
 test('重置验证结果不明时清除证明，查询结果不会自动执行切换', async () => {
   const { api } = fixture()
-  const pending: CloudWorkspaceRestart = { id: 'restart_test', status: 'pending', revision: 1, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() + 600_000).toISOString(), email_sent: true, source_device_count: 4 }
+  const pending: CloudWorkspaceRestart = { server_time: new Date().toISOString(), id: 'restart_test', status: 'pending', revision: 1, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() + 600_000).toISOString(), email_sent: true, source_device_count: 4 }
   const verified: CloudWorkspaceRestart = { ...pending, status: 'verified', revision: 2, verified_until: new Date(Date.now() + 300_000).toISOString() }
   api.createWorkspaceRestart = vi.fn(async () => pending)
   api.verifyRestart = vi.fn(async () => { throw new Error('network_unavailable') })
@@ -304,7 +304,7 @@ test('重置验证结果不明时清除证明，查询结果不会自动执行�
 test('重置实时补读保留同版本确认，版本变化清除确认且不自动切换', async () => {
   const { api, state } = fixture()
   api.subscribeChanges = state.subscribeChanges
-  const verified: CloudWorkspaceRestart = { id: 'restart_realtime', status: 'verified', revision: 2, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), email_sent: true }
+  const verified: CloudWorkspaceRestart = { server_time: new Date().toISOString(), id: 'restart_realtime', status: 'verified', revision: 2, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() + 600_000).toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString(), email_sent: true }
   api.createWorkspaceRestart = vi.fn(async () => verified)
   api.workspaceRestart = vi.fn(async () => verified)
   api.completeRestart = vi.fn()
@@ -327,7 +327,7 @@ test('重置实时补读保留同版本确认，版本变化清除确认且不�
 
 test.each(['cancelled', 'expired', 'invalidated'] as const)('已结束的重置申请展示真实状态，允许重新发起但不自动执行：%s', async (endState) => {
   const { api } = fixture()
-  const ended: CloudWorkspaceRestart = { id: 'restart_ended', status: endState, revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true }
+  const ended: CloudWorkspaceRestart = { server_time: new Date().toISOString(), id: 'restart_ended', status: endState, revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true }
   api.workspaceRestart = vi.fn(async () => ended)
   api.createWorkspaceRestart = vi.fn(async (): Promise<CloudWorkspaceRestart> => ({ ...ended, id: 'restart_new', status: 'pending', revision: 1, expires_at: new Date(Date.now() + 600_000).toISOString(), email_sent: false }))
   api.completeRestart = vi.fn()
@@ -348,7 +348,7 @@ test.each(['cancelled', 'expired', 'invalidated'] as const)('已结束的重置�
 
 test.each([false, true])('只有本机绑定待完成的已切换申请提供补完操作：%s', async (localPending) => {
   const { api } = fixture()
-  const completed: CloudWorkspaceRestart = { id: 'restart_completed', status: 'completed', revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true, local_pending: localPending }
+  const completed: CloudWorkspaceRestart = { server_time: new Date().toISOString(), id: 'restart_completed', status: 'completed', revision: 3, source_workspace_id: 'workspace_old', target_workspace_id: 'workspace_new', expires_at: new Date(Date.now() - 600_000).toISOString(), email_sent: true, local_pending: localPending }
   api.workspaceRestart = vi.fn(async () => completed)
   api.completeRestart = vi.fn(async () => ({ ...completed, local_pending: false }))
   render(<AccountWorkspaceRestart api={api} status={status} busy={false} mfaEnabled={false} run={run} />)

@@ -18,8 +18,8 @@ function fixture() {
     security: vi.fn(async (): Promise<CloudSecurityOverview> => ({ account: { contract: 'cloud-authorization-v1', managed_recovery: true, mfa_enabled: true, mfa_revision: '1' }, recovery: policy, keys_verified: true, membership_initialized: true })),
     deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []),
     recoveryPolicy: vi.fn(async () => { policy = { ...policy, policy: { ...policy.policy, revision: '2', status: 'disabled' } }; return policy }),
-    mfaStatus: vi.fn(async () => ({ enabled: true, revision: '1', backup_codes_remaining: 10, verified_until: new Date(Date.now() + 300_000).toISOString() })),
-    reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })),
+    mfaStatus: vi.fn(async () => ({ server_time: new Date().toISOString(), enabled: true, revision: '1', backup_codes_remaining: 10, verified_until: new Date(Date.now() + 300_000).toISOString() })),
+    reauthenticate: vi.fn(async () => ({ server_time: new Date().toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString() })),
     rekey: vi.fn(async () => ({ status: 'staging', total: 0, completed: 0 })),
   }
   return { api, state }
@@ -91,7 +91,7 @@ test('服务端撤回近期期限时就地补验轮换，不重复停止发放',
 test('关闭成功后因子版本变化，旧期限不启动轮换且保留续作阶段', async () => {
   const { api, state } = fixture()
   const original = await api.security()
-  let resolve!: (value: { enabled: boolean; revision: string; backup_codes_remaining: number; verified_until: string }) => void
+  let resolve!: (value: { server_time: string; enabled: boolean; revision: string; backup_codes_remaining: number; verified_until: string }) => void
   api.mfaStatus.mockImplementationOnce(() => new Promise(done => { resolve = done }))
   render(<AccountRecovery api={api as unknown as CloudGateway} status={status} busy={false} run={run} />)
   const dialog = await open()
@@ -99,7 +99,7 @@ test('关闭成功后因子版本变化，旧期限不启动轮换且保留续�
   api.security.mockResolvedValue({ ...original, account: { ...original.account, mfa_revision: '2' }, recovery: { ...original.recovery, policy: { ...original.recovery.policy, status: 'disabled', revision: '2' } } })
   await act(async () => { state.acceptEvent({ type: 'account', status, changes: ['mfa'], operations: [] }) })
   expect(dialog.getByLabelText('验证器验证码')).toHaveValue('')
-  await act(async () => { resolve({ enabled: true, revision: '1', backup_codes_remaining: 10, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
+  await act(async () => { resolve({ server_time: new Date().toISOString(), enabled: true, revision: '1', backup_codes_remaining: 10, verified_until: new Date(Date.now() + 300_000).toISOString() }) })
   expect(await screen.findByText('错误代码：mfa_revision_conflict')).toBeInTheDocument()
   const resume = await screen.findByRole('button', { name: /开始轮换/ })
   await waitFor(() => expect(resume).not.toHaveClass('ant-btn-loading'))

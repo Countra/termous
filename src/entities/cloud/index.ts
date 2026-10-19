@@ -5,3 +5,6 @@ export * from './model/security.ts'
 export * from './model/recovery.ts'
 export { CloudState } from './model/state.ts'
 export { isCloudConnectionError } from './model/connection.ts'
+
+export { cloudAuthorizationRemaining } from './model/authorizationTime'
+export { cloudDeadlineRemaining } from './model/deadline'

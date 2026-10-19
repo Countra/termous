@@ -4,6 +4,8 @@ export type CloudAuthorizationKind = 'approval' | 'recovery' | 'enablement'
 export type CloudAuthorizationAction = 'approve' | 'reject' | 'cancel' | 'verify' | 'complete' | 'claim'
 export interface CloudAuthorizationTarget { id: string; kind: CloudAuthorizationKind }
 export interface CloudAuthorization {
+  server_time: string
+  remaining_ms?: number
   id: string
   workspace_id: string
   device_id: string

@@ -10,10 +10,10 @@ import { AccountSecurity } from './AccountSecurity'
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const run = async <T,>(action: () => Promise<T>): Promise<T | undefined> => { try { return await action() } catch { return undefined } }
 const account: CloudStatus = { generation: 'fixture', revision: 1, configured: true, authenticated: true, phase: 'ready', device_status: 'active', confirmed: true, auto_sync: false, pending: 0, conflicts: 0 }
-const inactive: CloudMFAStatus = { enabled: false, revision: '0', backup_codes_remaining: 0 }
-const active: CloudMFAStatus = { enabled: true, revision: '1', backup_codes_remaining: 10 }
+const inactive: CloudMFAStatus = { server_time: new Date().toISOString(), enabled: false, revision: '0', backup_codes_remaining: 0 }
+const active: CloudMFAStatus = { server_time: new Date().toISOString(), enabled: true, revision: '1', backup_codes_remaining: 10 }
 const codes = Array.from({ length: 10 }, (_, index) => `SYNTHETICBACKUPCODE${String(index).padStart(2, '0')}`)
-const setup = { setup_id: 'synthetic-setup', expires_at: new Date(Date.now() + 600_000).toISOString(), secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', otpauth_uri: 'otpauth://totp/Termous:fixture?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous', revision: '0' }
+const setup = { server_time: new Date().toISOString(), setup_id: 'synthetic-setup', expires_at: new Date(Date.now() + 600_000).toISOString(), secret: 'ABCDEFGHIJKLMNOPQRSTUVWX234567AB', otpauth_uri: 'otpauth://totp/Termous:fixture?secret=ABCDEFGHIJKLMNOPQRSTUVWX234567AB&issuer=Termous', revision: '0' }
 function gateway(mfa = inactive, overrides: Partial<CloudGateway> = {}) {
   const state = new CloudState()
   state.accept(account)
@@ -21,7 +21,7 @@ function gateway(mfa = inactive, overrides: Partial<CloudGateway> = {}) {
     getStatus: state.snapshot, subscribeStatus: state.subscribe,
     mfaStatus: vi.fn(async () => mfa), mfaSetup: vi.fn(async () => ({ ...setup, revision: mfa.revision })), mfaConfirm: vi.fn(async () => ({ status: active, backup_codes: codes })),
     mfaCancel: vi.fn(async () => mfa), mfaDisable: vi.fn(async () => ({ ...inactive, revision: '2' })), mfaRegenerate: vi.fn(async () => ({ status: { ...active, revision: '2' }, backup_codes: codes })),
-    reauthenticate: vi.fn(async () => ({ verified_until: new Date(Date.now() + 300_000).toISOString() })),
+    reauthenticate: vi.fn(async () => ({ server_time: new Date().toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString() })),
     sessions: vi.fn(async () => []), rekeyStatus: vi.fn(async () => ({ status: '', completed: 0, total: 0 })),
     ...overrides,
   } as CloudGateway }
@@ -30,7 +30,7 @@ const security = (api: CloudGateway, status = account) => <AccountSecurity api={
 
 test('登录先展示验证步骤并清理密码，支持备用码但不提前建立登录状态', async () => {
   const { api } = gateway()
-  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { id: 'local-challenge', expires_at: setup.expires_at, methods: ['totp', 'backup_code'] } }))
+  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'local-challenge', expires_at: setup.expires_at, methods: ['totp', 'backup_code'] } }))
   api.verifyLogin = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'authenticated', status: account }))
   render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
   fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
@@ -47,7 +47,7 @@ test('登录先展示验证步骤并清理密码，支持备用码但不提前�
 
 test('过期登录挑战禁用验证，返回登录主动取消挑战且不保留密码', async () => {
   const { api } = gateway()
-  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { id: 'expired', expires_at: new Date(Date.now() - 1000).toISOString(), methods: ['totp'] } }))
+  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'expired', expires_at: new Date(Date.now() - 1000).toISOString(), methods: ['totp'] } }))
   api.cancelLogin = vi.fn(async () => undefined)
   render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
   fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
@@ -63,7 +63,7 @@ test('过期登录挑战禁用验证，返回登录主动取消挑战且不保�
 
 test('登录验证响应丢失不重放验证码，也不清除既有账号身份', async () => {
   const { api, state } = gateway()
-  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: setup.expires_at, methods: ['totp'] } }))
+  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'fixture', expires_at: setup.expires_at, methods: ['totp'] } }))
   api.verifyLogin = vi.fn(async () => { throw new Error('response_incomplete') })
   render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
   fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
@@ -256,7 +256,7 @@ test('旧登录响应不能把已切换账号带回验证码步骤', async () =>
   await waitFor(() => expect(respond).toBeDefined())
   act(() => { state.accept({ ...account, generation: 'new-account', revision: 2 }) })
   view.rerender(<AccountAuth api={api} generation="new-account" busy={false} run={run} />)
-  await act(async () => { respond({ state: 'mfa_required', challenge: { id: 'old-challenge', expires_at: setup.expires_at, methods: ['totp'] } }) })
+  await act(async () => { respond({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'old-challenge', expires_at: setup.expires_at, methods: ['totp'] } }) })
   expect(screen.queryByLabelText('验证器验证码')).not.toBeInTheDocument()
 })
 
@@ -291,9 +291,10 @@ test('状态读取失败不伪报关闭，也不允许跳过因子验证', async
 })
 
 test('过期近期验证不显示有效，响应丢失只读取权威状态且不重放', async () => {
-  const { api } = gateway({ ...inactive, verified_until: new Date(Date.now() - 1000).toISOString() })
+  const expired = { ...inactive, server_time: new Date().toISOString(), verified_until: new Date(Date.now() - 1000).toISOString() }
+  const { api } = gateway(expired)
   vi.mocked(api.reauthenticate).mockRejectedValueOnce(new Error('response_incomplete'))
-  vi.mocked(api.mfaStatus).mockResolvedValueOnce({ ...inactive, verified_until: new Date(Date.now() - 1000).toISOString() }).mockResolvedValue({ ...inactive, verified_until: new Date(Date.now() + 300_000).toISOString() })
+  vi.mocked(api.mfaStatus).mockResolvedValueOnce(expired).mockResolvedValue({ ...inactive, server_time: new Date().toISOString(), verified_until: new Date(Date.now() + 300_000).toISOString() })
   render(security(api))
   await screen.findByText('未开启')
   expect(screen.queryByText('身份已验证')).not.toBeInTheDocument()
@@ -347,7 +348,7 @@ test('后台版本更新关闭旧安全向导，不采用新版本自动提交�
 test('绑定到期立即清除二维码和密钥，正在确认的未知结果只读取事实', async () => {
   let reject!: (cause: Error) => void
   const { api } = gateway(inactive, { mfaConfirm: vi.fn(() => new Promise<CloudMFACodes>((_, fail) => { reject = fail })) })
-  const clock = vi.spyOn(Date, 'now')
+  const clock = vi.spyOn(performance, 'now')
   try {
     render(security(api))
     await screen.findByText('未开启')
@@ -359,7 +360,7 @@ test('绑定到期立即清除二维码和密钥，正在确认的未知结果�
     fireEvent.change(dialog.getByLabelText('验证器验证码'), { target: { value: '123456' } })
     fireEvent.click(dialog.getByRole('button', { name: '确认并开启' }))
     await waitFor(() => expect(reject).toBeDefined())
-    clock.mockReturnValue(Date.parse(setup.expires_at) + 1)
+    clock.mockReturnValue(performance.now() + 600_001)
     await waitFor(() => expect(screen.queryByText(setup.secret)).not.toBeInTheDocument(), { timeout: 2000 })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await act(async () => { reject(new Error('protocol_invalid')) })
@@ -372,7 +373,7 @@ test('绑定到期立即清除二维码和密钥，正在确认的未知结果�
 
 test.each(['mfa_challenge_expired', 'mfa_challenge_exhausted'])('服务端终止登录挑战后立即禁止继续提交：%s', async (reason) => {
   const { api } = gateway()
-  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { id: 'fixture', expires_at: setup.expires_at, methods: ['totp'] } }))
+  api.login = vi.fn(async (): Promise<CloudLoginResult> => ({ state: 'mfa_required', challenge: { server_time: new Date().toISOString(), id: 'fixture', expires_at: setup.expires_at, methods: ['totp'] } }))
   api.verifyLogin = vi.fn(async () => { throw new Error(reason) })
   render(<AccountAuth api={api} generation="fixture" busy={false} run={run} />)
   fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'fixture@example.test' } })
@@ -388,7 +389,7 @@ test.each(['mfa_challenge_expired', 'mfa_challenge_exhausted'])('服务端终止
 test('到期前已发出的确认明确成功后仍展示一次性备用码，不恢复种子', async () => {
   let respond!: (result: CloudMFACodes) => void
   const { api } = gateway(inactive, { mfaConfirm: vi.fn(() => new Promise<CloudMFACodes>((done) => { respond = done })) })
-  const clock = vi.spyOn(Date, 'now')
+  const clock = vi.spyOn(performance, 'now')
   try {
     render(security(api))
     await screen.findByText('未开启')
@@ -399,7 +400,7 @@ test('到期前已发出的确认明确成功后仍展示一次性备用码，�
     fireEvent.change(await dialog.findByLabelText('验证器验证码'), { target: { value: '123456' } })
     fireEvent.click(dialog.getByRole('button', { name: '确认并开启' }))
     await waitFor(() => expect(respond).toBeDefined())
-    clock.mockReturnValue(Date.parse(setup.expires_at) + 1)
+    clock.mockReturnValue(performance.now() + 600_001)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 2000 })
     await act(async () => { respond({ status: active, backup_codes: codes }) })
     await screen.findByRole('list', { name: '一次性备用码' })
@@ -411,7 +412,7 @@ test('到期前已发出的确认明确成功后仍展示一次性备用码，�
 test('备用码近期验证后补读余量，读取失败保留验证成功且不重放证明', async () => {
   const { api } = gateway(active)
   const verifiedUntil = new Date(Date.now() + 300_000).toISOString()
-  vi.mocked(api.reauthenticate).mockResolvedValue({ verified_until: verifiedUntil })
+  vi.mocked(api.reauthenticate).mockResolvedValue({ server_time: new Date().toISOString(), verified_until: verifiedUntil })
   vi.mocked(api.mfaStatus).mockResolvedValueOnce(active).mockResolvedValueOnce({ ...active, backup_codes_remaining: 9, verified_until: verifiedUntil }).mockRejectedValueOnce(new Error('network_unavailable'))
   render(security(api))
   await screen.findByText('已开启')

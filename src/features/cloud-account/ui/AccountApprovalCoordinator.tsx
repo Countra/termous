@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudStatus } from '#common/contracts'
-import type { CloudGateway } from '#entities/cloud'
+import { cloudAuthorizationRemaining, type CloudGateway } from '#entities/cloud'
 import { useCloudAccount } from '../model/useCloudAccount'
 import { useCloudAuthorization } from '../model/useCloudAuthorization'
 import { AccountAuthorization } from './AccountAuthorization'
@@ -49,7 +49,7 @@ export function AccountApprovalCoordinator({ api, status, blocked, target, onClo
     if (blocked || busy || selected || target || status.device_status !== 'active' || !status.authenticated || api.getStatus()?.generation !== generation) return
     const next = authorization.requests.find(value => value.kind === 'approval' && value.status === 'pending'
       && value.device_id !== status.device_id && value.allowed_actions.includes('approve')
-      && Date.parse(value.expires_at) > Date.now() && !handled.current.has(value.id))
+      && cloudAuthorizationRemaining(value) > 0 && !handled.current.has(value.id))
     if (!next) return
     // 同一申请关闭后不因重连或重复事件再次打断用户，其他申请依次展示。
     handled.current.add(next.id)
