@@ -10,10 +10,10 @@ const bridge = vi.hoisted(() => ({ current: undefined as RemoteLauncher | undefi
 vi.mock('#shared/bridge', () => ({ getTermousBridge: () => ({ remoteControl: bridge.current }) }))
 beforeAll(async () => { await changeLanguage('zh-CN') })
 
-const initial: RemotePolicy = {
+const initial = {
   revision: 4, enabled: true, agent_enabled: false, hosts: [{ id: 'build' }],
   directories: [{ id: 'folder', name: '报告', path: 'D:\\Reports', read: true, write: false }],
-}
+} satisfies RemotePolicy
 const ok = <T,>(value: T): RemoteResult<T> => ({ ok: true, value })
 function gateway(overrides: Partial<RemoteLauncher> = {}): RemoteLauncher {
   const api: RemoteLauncher = {
@@ -40,6 +40,85 @@ function deferred<T>() {
   const promise = new Promise<T>(done => { resolve = done })
   return { promise, resolve }
 }
+
+test.each([null, []])('未配置访问范围时兼容空授权列表 %j，仍可管理助手权限并保存', async (empty) => {
+  const policy: RemotePolicy = { revision: 0, enabled: false, agent_enabled: false, hosts: empty, directories: empty }
+  const api = gateway({
+    policy: vi.fn(async () => ok(policy)),
+    hosts: vi.fn(async () => ok([])),
+    desktopProfiles: vi.fn(async () => ok([])),
+    configureDesktops: vi.fn(async () => ok(policy)),
+    configureAgent: vi.fn(async () => ok({ ...policy, revision: 1, agent_enabled: true })),
+    configure: vi.fn(async () => ok({ ...policy, revision: 2, enabled: true, agent_enabled: true })),
+  })
+  render(view())
+  await open()
+  expect(screen.getByRole('checkbox', { name: '全选' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '保存设置' })).toBeEnabled()
+  expect(screen.getByRole('switch', { name: '允许远程控制' })).not.toBeChecked()
+  tab(/此电脑的目录/)
+  expect(screen.getByText('暂无授权目录')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '添加只读目录' })).toBeEnabled()
+  tab(/桌面访问/)
+  expect(within(screen.getByRole('region', { name: '桌面访问' })).getByText('暂无可用连接')).toBeInTheDocument()
+  expect(api.configureDesktops).not.toHaveBeenCalled()
+  tab(/AI 助手/)
+  fireEvent.click(screen.getByRole('switch', { name: '允许远程使用 AI 助手' }))
+  await screen.findByText('访问权限已更新')
+  expect(api.configureAgent).toHaveBeenCalledWith('account', 0, true)
+  fireEvent.click(screen.getByRole('switch', { name: '允许远程控制' }))
+  fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 1, true, []))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('已有主机但尚未授权时不默认选中主机或开放桌面访问', async () => {
+  const policy: RemotePolicy = { revision: 0, enabled: false, hosts: null, directories: null }
+  const api = gateway({
+    policy: vi.fn(async () => ok(policy)),
+    desktopProfiles: vi.fn(async () => ok([{ id: 'desktop', host_id: 'build', name: '工作桌面', protocol: 'rdp' }])),
+    configureDesktops: vi.fn(async () => ok(policy)),
+  })
+  render(view())
+  await open()
+  expect(screen.getByRole('checkbox', { name: '构建主机' })).not.toBeChecked()
+  expect(screen.getByRole('checkbox', { name: '生产主机' })).not.toBeChecked()
+  tab(/桌面访问/)
+  expect(within(screen.getByRole('region', { name: '桌面访问' })).getByText('暂无可用连接')).toBeInTheDocument()
+  expect(screen.queryByRole('checkbox', { name: /工作桌面/ })).not.toBeInTheDocument()
+  tab(/主机连接/)
+  fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
+  fireEvent.click(screen.getByRole('switch', { name: '允许远程控制' }))
+  expect(api.configure).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 0, true, ['build']))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(api.configureDesktops).not.toHaveBeenCalled()
+})
+
+test('清空最后一台主机后兼容空授权响应，重新打开不恢复旧选择', async () => {
+  const cleared: RemotePolicy = { ...initial, revision: 5, hosts: null }
+  const api = gateway({
+    policy: vi.fn(async () => ok({ ...initial, hosts: [{ id: 'build', connections: null }] })),
+    configure: vi.fn(async () => ok(cleared)),
+  })
+  render(view())
+  await open()
+  expect(screen.getByRole('checkbox', { name: '构建主机' })).toBeChecked()
+  fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
+  fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, []))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  vi.mocked(api.policy).mockResolvedValue(ok(cleared))
+  await open()
+  expect(screen.getByRole('checkbox', { name: '构建主机' })).not.toBeChecked()
+  expect(screen.getByRole('checkbox', { name: '生产主机' })).not.toBeChecked()
+  expect(screen.queryByText('有未保存的设置')).not.toBeInTheDocument()
+  expect(screen.getByRole('switch', { name: '允许远程控制' })).toBeChecked()
+  fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+  await waitFor(() => expect(api.configure).toHaveBeenLastCalledWith('account', 5, true, []))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
 
 test('搜索保留隐藏的主机选择，远控开关和主机草稿仅在保存时提交', async () => {
   const api = gateway()

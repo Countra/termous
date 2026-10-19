@@ -21,8 +21,9 @@ export interface RemoteDevice {
 export interface RemotePolicy {
   revision: number; enabled: boolean
   agent_enabled?: boolean
-  hosts: { id: string; connections?: { id: string; kind: string }[] }[]
-  directories: { id: string; name: string; path: string; read: boolean; write: boolean }[]
+  // 首次授权或清空授权后，后端的空切片可能序列化为 null。
+  hosts: { id: string; connections?: { id: string; kind: string }[] | null }[] | null
+  directories: { id: string; name: string; path: string; read: boolean; write: boolean }[] | null
 }
 export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
 export interface RemoteBootstrap {

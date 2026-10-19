@@ -49,7 +49,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
     ? (query.trim() ? copy.clearHostResults : copy.clearHosts)
     : (query.trim() ? copy.selectHostResults : copy.selectHosts)
   const directories = policy?.directories ?? []
-  const savedHosts = new Set(policy?.hosts.map(host => host.id).filter(id => hosts.some(host => host.id === id)))
+  const savedHosts = new Set((policy?.hosts ?? []).map(host => host.id).filter(id => hosts.some(host => host.id === id)))
   const dirty = !!policy && (enabled !== policy.enabled || savedHosts.size !== selected.length || selected.some(id => !savedHosts.has(id)))
   const label = (icon: ReactNode, text: string, count?: number) => <span className={styles['tab-label']}>{icon}{text}{count !== undefined ? <span className={styles.count}>{count}</span> : null}</span>
 
