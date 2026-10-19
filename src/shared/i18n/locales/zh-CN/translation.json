@@ -4814,6 +4814,15 @@
     "cutReady": "已剪切到远程剪贴板",
     "absolutePathCopied_one": "路径已复制",
     "absolutePathCopied_other": "{{count}} 个路径已复制",
+    "deletion": {
+      "title": "删除文件",
+      "waiting": "等待删除",
+      "queued": "已选择 {{count}} 项，等待执行",
+      "progress": "已删除 {{completed}} 项",
+      "reconnecting": "正在恢复进度",
+      "uncertain": "请刷新目录核实结果",
+      "submissionUncertain": "提交结果待确认，请核实目录，勿重复删除。"
+    },
     "deleteTitle": "删除远程文件？",
     "deleteDescription": "将删除 {{count}} 个远程项目，此操作不可撤销。",
     "closingFileSession": "正在关闭文件会话",

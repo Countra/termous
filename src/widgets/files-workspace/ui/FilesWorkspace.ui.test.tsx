@@ -62,6 +62,7 @@ function fileGateway(
     renameFileSessionFile: vi.fn(),
     createFileSessionRenameOperation: vi.fn(),
     createFileSessionMoveOperation: vi.fn(),
+    createFileSessionDeleteOperation: vi.fn(),
     chmodFileSessionFile: vi.fn(),
     deleteFileSessionFiles: vi.fn(),
     copyFileSessionFiles: vi.fn(),
@@ -336,6 +337,50 @@ describe('目录总大小详情入口', () => {
 })
 
 describe('主机下不同存储引擎的能力边界', () => {
+  it('删除确认期间会话换代，只显示一次原因且不提交旧连接任务', async () => {
+    const { api, props, rerenderWorkspace } = renderWorkspace(true, {
+      activeSession: { ...session, capabilities: ['browse', 'planned_delete'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.delete' }))
+    const dialog = await screen.findByRole('dialog')
+    const reconnected = { ...props.activeFileSession!, connection_generation: 2 }
+    api.getFileSession.mockResolvedValue(reconnected)
+    rerenderWorkspace({ ...props, activeFileSession: reconnected, data: { ...props.data, fileSessions: [reconnected] } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'app.delete' }))
+    await waitFor(() => expect(screen.getAllByText('files.connectionRequired')).toHaveLength(1))
+    expect(api.createFileSessionDeleteOperation).not.toHaveBeenCalled()
+    expect(api.deleteFileSessionFiles).not.toHaveBeenCalled()
+  })
+
+  it.each(['sftp', 's3'])('%s 删除创建后台任务，终态后刷新目录', async (engine) => {
+    const { api } = renderWorkspace(true, {
+      activeSession: { ...session, engine, capabilities: ['browse', 'planned_delete'] },
+      entries: [{ name: 'notes.txt', path: '/srv/notes.txt', kind: 'file', size: 1, is_hidden: false }],
+      automaticRemoteRequestsEnabled: true,
+    })
+    api.createFileSessionDeleteOperation.mockResolvedValue({
+      id: 'delete-task', revision: 1, file_session_id: session.id, engine, type: 'delete_entries', status: 'completed', phase: 'done',
+      path: '/srv/notes.txt', total_bytes: 0, transferred_bytes: 0, remaining_bytes: 0,
+      phase_total_bytes: 0, phase_transferred_bytes: 0, phase_progress_percent: 100, progress_percent: 100,
+      speed_bytes_per_sec: 0, average_speed_bytes_per_sec: 0, elapsed_seconds: 1, completed_items: 1, cancellable: false,
+      created_at: session.started_at,
+    })
+    api.fileOperationResult.mockResolvedValue({ deleted_items: 1, partial: false, uncertain: false,
+      summary: { total: 1, deleted: 1, failed: 0, not_executed: 0, uncertain: 0 },
+      items: [{ path: '/srv/notes.txt', status: 'deleted', deleted_items: 1 }] })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.delete' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'app.delete' }))
+    await waitFor(() => expect(api.createFileSessionDeleteOperation).toHaveBeenCalledExactlyOnceWith(session.id, 1, ['/srv/notes.txt']))
+    await waitFor(() => expect(api.fileOperationResult).toHaveBeenCalledWith('delete-task'))
+    await waitFor(() => expect(api.listFileSessionFiles.mock.calls.length).toBeGreaterThan(1))
+    expect(api.deleteFileSessionFiles).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByText('files.move.feedback.done')).toBeVisible())
+  })
+
   it('弹窗打开后会话重连，拒绝提交旧代次并只显示一次原因', async () => {
     const { api, props, rerenderWorkspace } = renderWorkspace(true, {
       activeSession: { ...session, capabilities: ['browse', 'entry_mutate'] },

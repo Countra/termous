@@ -105,6 +105,7 @@ import {
   buildRemoteFileActionMenu,
   DirectorySizeField,
   FileMoveOperationModal,
+  FileDeleteOperationModal,
   formatRemoteFilePathsForClipboard,
   isAdvancedRenameSourceSessionCurrent,
   loadAdvancedRenameModal,
@@ -479,6 +480,7 @@ function FilesWorkspaceContent({
   const pastePendingRef = useRef(false)
   const [pastePending, setPastePending] = useState(false)
   const [moveOperation, setMoveOperation] = useState<{ task: FileOperationTask; clipboard: RemoteClipboard | null; rename?: { sourcePath: string; targetPath: string } } | null>(null)
+  const [deleteSource, setDeleteSource] = useState<{ fileSessionId: string; generation: number; paths: string[] } | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
   const [renameTarget, setRenameTarget] = useState<(SessionBoundRemoteEntry & { connectionGeneration: number }) | null>(null)
   const [textEditorTarget, setTextEditorTarget] = useState<SessionBoundRemotePath | null>(null)
@@ -2002,22 +2004,7 @@ function FilesWorkspaceContent({
     if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0 || !operationCapabilities.remove) {
       return
     }
-    const fileSessionId = activeFileSessionId
-    const connectionGeneration = activeFileSessionConnectionGeneration
-    modal.confirm({
-      title: t('files.deleteTitle'),
-      content: t('files.deleteDescription', { count: paths.length }),
-      okText: t('app.delete'),
-      cancelText: t('app.cancel'),
-      okButtonProps: { danger: true },
-      className: `${confirmDialogStyles.modal} confirm-modal`,
-      rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
-      onOk: async () => {
-        requireCurrentFileListing(fileSessionId, connectionGeneration)
-        await api.deleteFileSessionFiles(fileSessionId, paths, true)
-        await loadDirectory(currentPath, { kind: 'refresh' })
-      },
-    })
+    setDeleteSource({ fileSessionId: activeFileSessionId, generation: activeFileSessionConnectionGeneration, paths: [...paths] })
   }
 
   const pickFiles = async () => {
@@ -4280,6 +4267,16 @@ function FilesWorkspaceContent({
         </div>
       ) : null}
       <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
+      {deleteSource ? <FileDeleteOperationModal api={api} count={deleteSource.paths.length} onClose={() => setDeleteSource(null)} onStart={async () => {
+        if (!isCurrentFileListingAvailable(deleteSource.fileSessionId, deleteSource.generation)) {
+          throw new Error(t('files.connectionRequired'))
+        }
+        return api.createFileSessionDeleteOperation(deleteSource.fileSessionId, deleteSource.generation, deleteSource.paths)
+      }} onFinished={(task) => {
+        const session = fileSessionsRef.current.find((item) => item.id === task.file_session_id)
+        if (activeFileSessionIdRef.current === task.file_session_id && session?.status === 'connected'
+          && session.connection_generation === deleteSource.generation) void loadDirectory(currentPath, { kind: 'refresh' })
+      }} /> : null}
       {moveOperation ? <FileMoveOperationModal key={moveOperation.task.id} api={api} initialTask={moveOperation.task} rename={moveOperation.rename} onClose={() => setMoveOperation(null)} onFinished={(task) => {
         if (task.status === 'completed' && !task.partial && moveOperation.clipboard) {
           setRemoteClipboard((current) => matchesRemoteClipboard(current, moveOperation.clipboard) ? null : current)

@@ -43,6 +43,15 @@ describe('文件操作 API 虚拟路径合同', () => {
     vi.useRealTimers()
   })
 
+  it('删除显式创建异步任务并绑定确认时的连接代次', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...operationTask('/work'), type: 'delete_entries', status: 'queued' }), { status: 201 }))
+    vi.stubGlobal('fetch', fetch)
+    await createFilesGateway().createFileSessionDeleteOperation('session/id', 7, ['/work'])
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(`${API_BASE_URL}/api/v1/file-sessions/session%2Fid/files`)
+    expect(fetch.mock.calls[0]?.[1].method).toBe('DELETE')
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({ paths: ['/work'], recursive: true, async: true, expected_connection_generation: 7 })
+  })
+
   it('异步改名和移动复用既有动作接口，不提交内部计划', async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ...operationTask('/a'), type: 'move' }), { status: 201 })))
     vi.stubGlobal('fetch', fetch)

@@ -249,6 +249,7 @@ function createFileGateway(
       sessions.moveFileSessionFiles(fileSessionId, sourcePaths, targetDir, overwritePolicy)
     ),
     createFileSessionRenameOperation: (id, generation, source, target) => operations.createFileSessionRenameOperation(id, generation, source, target),
+    createFileSessionDeleteOperation: (id, generation, paths, recursive) => operations.createFileSessionDeleteOperation(id, generation, paths, recursive),
     createFileSessionMoveOperation: (id, generation, sources, target, policy) => operations.createFileSessionMoveOperation(id, generation, sources, target, policy),
     createFileSessionTextReadOperation: (fileSessionId, path, signal) => (
       operations.createFileSessionTextReadOperation(fileSessionId, path, signal)

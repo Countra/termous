@@ -4,6 +4,12 @@ import { TermousApiTransport } from '#shared/api';
 import { requireCanonicalRemotePath } from '#shared/path';
 
 export class FileOperationClient extends TermousApiTransport {
+  createFileSessionDeleteOperation(id: string, generation: number, paths: string[], recursive = true) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(id)}/files`, {
+      method: 'DELETE', body: { paths, recursive, async: true, expected_connection_generation: generation },
+    }).then(validateFileOperationTask)
+  }
+
   createFileSessionRenameOperation(id: string, generation: number, source: string, target: string) {
     return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(id)}/files/rename`, {
       method: 'PATCH', body: { source_path: source, target_path: target, async: true, expected_connection_generation: generation },

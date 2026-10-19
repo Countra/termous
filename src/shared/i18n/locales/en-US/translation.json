@@ -4839,6 +4839,15 @@
     "cutReady": "Cut to remote clipboard",
     "absolutePathCopied_one": "Path copied",
     "absolutePathCopied_other": "{{count}} paths copied",
+    "deletion": {
+      "title": "Delete files",
+      "waiting": "Waiting to delete",
+      "queued": "{{count}} selected · Waiting to run",
+      "progress": "{{completed}} items deleted",
+      "reconnecting": "Reconnecting to progress",
+      "uncertain": "Refresh to verify results",
+      "submissionUncertain": "Submission unconfirmed. Check the directory before deleting again."
+    },
     "deleteTitle": "Delete remote files?",
     "deleteDescription": "{{count}} remote item(s) will be deleted. This cannot be undone.",
     "closingFileSession": "Closing file session",

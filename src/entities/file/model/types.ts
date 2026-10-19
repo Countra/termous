@@ -118,7 +118,7 @@ export interface RemoteImageFile {
   version_token?: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete' | 'move'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename' | 'delete' | 'delete_entries' | 'move'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 

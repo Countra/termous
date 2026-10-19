@@ -50,3 +50,4 @@ export const loadAdvancedRenameModal = () => import('./advanced-rename/ui/Advanc
   .then((module) => ({ default: module.AdvancedRenameModal }))
 
 export { FileMoveOperationModal } from './move/FileMoveOperationModal.tsx'
+export { FileDeleteOperationModal } from './delete/FileDeleteOperationModal.tsx'
