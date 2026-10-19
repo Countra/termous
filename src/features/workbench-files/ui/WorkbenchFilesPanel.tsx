@@ -97,6 +97,7 @@ import type { FileSessionClosureState } from '#entities/file'
 import { confirmDialogStyles, modalSurfaceStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
+import { WorkbenchFileDeleteModal, type WorkbenchFileDeleteTarget } from './WorkbenchFileDeleteModal'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
 import {
   resolveWorkbenchFilesPathNavigationAction,
@@ -302,6 +303,7 @@ function WorkbenchFilesPanelContent({
   const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [renameTarget, setRenameTarget] = useState<{ entry: RemoteFileEntry; fileSessionId: string; connectionGeneration: number } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<WorkbenchFileDeleteTarget | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
@@ -1072,21 +1074,10 @@ function WorkbenchFilesPanelContent({
     setRenameTarget({ entry, fileSessionId: files.fileSession.id, connectionGeneration: files.fileSession.connection_generation ?? 0 })
   }
 
-  const deleteEntry = (entry: RemoteFileEntry) => modal.confirm({
-    title: t('files.deleteTitle'),
-    content: t('files.deleteDescription', { count: 1 }),
-    okText: t('app.delete'),
-    cancelText: t('app.cancel'),
-    okButtonProps: { danger: true },
-    className: `${confirmDialogStyles.modal} confirm-modal`,
-    rootClassName: `${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`,
-    onOk: async () => {
-      if (files.fileSession?.id) {
-        await api.deleteFileSessionFiles(files.fileSession.id, [entry.path], true)
-        await files.loadDirectory(currentPath)
-      }
-    },
-  })
+  const deleteEntry = (entry: RemoteFileEntry) => {
+    if (!files.connected || closing || !files.fileSession || deleteTarget) return
+    setDeleteTarget({ fileSessionId: files.fileSession.id, connectionGeneration: files.fileSession.connection_generation ?? 0, path: entry.path })
+  }
 
   const menuFor = (entry: RemoteFileEntry): MenuProps => ({
     items: buildRemoteFileActionMenu(entry, t, {
@@ -1349,12 +1340,22 @@ function WorkbenchFilesPanelContent({
     ? t('workbench.files.selectedCount', { count: selectedCount })
     : t('workbench.files.itemCount', { count: files.entries.length })
 
+  // 状态弹窗独立于列表的连接状态，断线或切换会话时仍保留任务观察和取消入口。
+  const deleteDialog = deleteTarget ? <WorkbenchFileDeleteModal
+    api={api}
+    target={deleteTarget}
+    currentSession={files.fileSession}
+    disabled={closing || session?.kind !== 'ssh' || session.status !== 'connected'}
+    onClose={() => setDeleteTarget(null)}
+    onRefresh={() => { void files.loadDirectory(currentPath) }}
+  /> : null
+
   if (!session || session.kind !== 'ssh') {
-    return <WorkbenchEmptyState icon={<FolderOpen size={20} />} title={t('workbench.files.emptyTitle')} description={t('workbench.files.emptyHint')} />
+    return <>{deleteDialog}<WorkbenchEmptyState icon={<FolderOpen size={20} />} title={t('workbench.files.emptyTitle')} description={t('workbench.files.emptyHint')} /></>
   }
 
   if (session.status !== 'connected') {
-    return <WorkbenchEmptyState icon={<FolderOpen size={20} />} title={t('workbench.files.disconnectedTitle')} description={t('workbench.files.disconnectedHint')} />
+    return <>{deleteDialog}<WorkbenchEmptyState icon={<FolderOpen size={20} />} title={t('workbench.files.disconnectedTitle')} description={t('workbench.files.disconnectedHint')} /></>
   }
 
   if (!files.fileSession || (files.fileSession.status !== 'connected' && !files.viewState?.listing)) {
@@ -1362,6 +1363,7 @@ function WorkbenchFilesPanelContent({
     const pendingConnection = files.fileSession?.status === 'connecting'
       || files.fileSession?.status === 'waiting_trust'
     return (
+      <>{deleteDialog}
       <div className={transferClassName('workbench-file-connect')}>
         {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={21} /> : <FolderOpen size={21} />}
         <strong>{recoveryPresentation.title}</strong>
@@ -1378,10 +1380,12 @@ function WorkbenchFilesPanelContent({
           </Button>
         ) : null}
       </div>
+      </>
     )
   }
 
   return (
+    <>{deleteDialog}
     <section
       className={[
         panelClassName('workbench-files-panel'),
@@ -1953,6 +1957,7 @@ function WorkbenchFilesPanelContent({
         </Suspense>
       ) : null}
     </section>
+    </>
   )
 }
 
