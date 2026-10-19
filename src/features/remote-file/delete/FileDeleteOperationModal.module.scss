@@ -1,13 +1,59 @@
+.modal {
+  max-width: calc(100vw - 28px);
+
+  :global(.ant-modal-footer) {
+    margin-top: 20px;
+  }
+
+  :global(.ant-modal-footer .ant-btn) {
+    min-width: 76px;
+  }
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+  max-height: calc(100dvh - 200px);
+  overflow: auto;
+  padding: 12px 0 2px;
+}
+
 .summary {
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
 
-  .icon {
-    flex-basis: 36px;
-    height: 36px;
-    border-radius: 10px;
+.icon {
+  display: grid;
+  flex: 0 0 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+
+  &[data-tone='danger'] {
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
+  }
+
+  &[data-tone='warning'] {
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    color: var(--warning);
+  }
+
+  &[data-tone='success'] {
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
+  }
+
+  &[data-tone='accent'] {
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 }
 
@@ -29,5 +75,71 @@
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     line-height: 20px;
+  }
+}
+
+.notice,
+.outcome {
+  overflow-wrap: anywhere;
+}
+
+.table {
+  min-width: 0;
+
+  :global(.ant-table) {
+    border-radius: 0;
+    background: transparent;
+  }
+
+  // 清除表头容器与首尾单元格的默认圆角，让背景连续填满列表宽度。
+  :global(.ant-table .ant-table-container),
+  :global(.ant-table .ant-table-header),
+  :global(.ant-table .ant-table-container table > thead > tr:first-child > th) {
+    border-radius: 0;
+  }
+
+  :global(.ant-table.ant-table-small .ant-table-thead > tr > th) {
+    height: 34px;
+    padding: 6px 10px;
+    border-color: var(--border);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  :global(.ant-table-thead > tr > th::before) {
+    display: none;
+  }
+
+  :global(.ant-table.ant-table-small .ant-table-thead > tr > th.ant-table-cell-scrollbar) {
+    padding: 0;
+    box-shadow: none;
+  }
+
+  :global(.ant-table.ant-table-small .ant-table-tbody > tr > td) {
+    padding: 8px 10px;
+    border-color: var(--border);
+    background: transparent;
+  }
+
+  :global(.ant-table-tbody > tr:hover > td) {
+    background: var(--row-hover-bg);
+  }
+}
+
+.spinning {
+  animation: delete-spin 1s linear infinite;
+}
+
+@keyframes delete-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
   }
 }

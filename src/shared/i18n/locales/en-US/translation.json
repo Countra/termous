@@ -4841,6 +4841,9 @@
     "absolutePathCopied_other": "{{count}} paths copied",
     "deletion": {
       "title": "Delete files",
+      "confirmTitle_one": "Delete {{count}} selected item?",
+      "confirmTitle_other": "Delete {{count}} selected items?",
+      "confirmDescription": "Files and folders will be permanently deleted.",
       "waiting": "Waiting to delete",
       "queued": "{{count}} selected · Waiting to run",
       "progress": "{{completed}} items deleted",
@@ -4848,8 +4851,6 @@
       "uncertain": "Refresh to verify results",
       "submissionUncertain": "Submission unconfirmed. Check the directory before deleting again."
     },
-    "deleteTitle": "Delete remote files?",
-    "deleteDescription": "{{count}} remote item(s) will be deleted. This cannot be undone.",
     "closingFileSession": "Closing file session",
     "closingFileSessionHint": "Finishing the current file session. Cached files remain read-only until the tab closes.",
     "sessionStatus": {

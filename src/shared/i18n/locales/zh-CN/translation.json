@@ -4816,6 +4816,8 @@
     "absolutePathCopied_other": "{{count}} 个路径已复制",
     "deletion": {
       "title": "删除文件",
+      "confirmTitle": "删除选中的 {{count}} 个项目？",
+      "confirmDescription": "文件和目录将永久删除，无法恢复。",
       "waiting": "等待删除",
       "queued": "已选择 {{count}} 项，等待执行",
       "progress": "已删除 {{completed}} 项",
@@ -4823,8 +4825,6 @@
       "uncertain": "请刷新目录核实结果",
       "submissionUncertain": "提交结果待确认，请核实目录，勿重复删除。"
     },
-    "deleteTitle": "删除远程文件？",
-    "deleteDescription": "将删除 {{count}} 个远程项目，此操作不可撤销。",
     "closingFileSession": "正在关闭文件会话",
     "closingFileSessionHint": "正在结束当前文件会话，标签关闭前缓存文件保持只读。",
     "sessionStatus": {

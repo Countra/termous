@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Modal, Table } from 'antd'
-import { Check, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { Check, CircleSlash, CircleX, Clock3, LoaderCircle, Trash2, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { FileOperationTask } from '#entities/file'
-import { confirmDialogStyles } from '#shared/ui'
+import { confirmDialogStyles, modalSurfaceStyles } from '#shared/ui'
 import type { FileOperationGateway } from '../model/fileOperationGateway'
 import { isFileOperationTerminal, observeFileOperation } from '../model/observeFileOperation'
-import styles from '../move/FileMoveOperationModal.module.scss'
-import deleteStyles from './FileDeleteOperationModal.module.scss'
+import styles from './FileDeleteOperationModal.module.scss'
 
 interface DeleteResult {
   items: { path: string; status: 'deleted' | 'failed' | 'not_executed' | 'uncertain'; message?: string }[]
@@ -98,9 +97,13 @@ export function FileDeleteOperationModal({ count, api, onStart, onClose, onFinis
     : uncertain ? 'uncertain' : task?.status === 'cancelled' ? 'cancelled' : task?.partial ? 'partial'
       : task?.status === 'completed' ? result ? 'done' : resultFailed ? 'unavailable' : 'loading' : 'failed'
   const canClose = !submitting && (!running || observationError !== null)
-  const Icon = running ? LoaderCircle : feedback === 'done' ? Check : TriangleAlert
   const failures = result?.items.filter((item) => item.status === 'failed' || item.status === 'uncertain') ?? []
   const queued = task?.status === 'queued' && !cancelling && !observationError
+  const busy = running || feedback === 'loading'
+  const Icon = !task ? Trash2 : queued ? Clock3 : busy ? LoaderCircle
+    : feedback === 'done' ? Check : feedback === 'cancelled' ? CircleSlash : feedback === 'failed' ? CircleX : TriangleAlert
+  const tone = !task || feedback === 'failed' ? 'danger' : feedback === 'done' ? 'success'
+    : busy ? 'accent' : feedback === 'cancelled' ? 'neutral' : 'warning'
   const progress = t('files.deletion.progress', { completed: result?.deleted_items ?? task?.completed_items ?? 0 })
   const hint = observationError ? t('files.deletion.reconnecting') : uncertain ? t('files.deletion.uncertain') : ''
   const description = queued ? t('files.deletion.queued', { count }) : [progress, hint].filter(Boolean).join(' · ')
@@ -108,9 +111,10 @@ export function FileDeleteOperationModal({ count, api, onStart, onClose, onFinis
     : resultFailed ? t('files.move.resultFailed')
       : (!task || running ? error : '') || (!uncertain && failures.length === 0 && task?.status === 'failed' ? task.error_message : '')
 
-  return <Modal open centered width={560} title={t(task ? 'files.deletion.title' : 'files.deleteTitle')}
+  return <Modal open centered width={480} title={t('files.deletion.title')}
     closable={canClose} mask={{ closable: canClose }} keyboard={canClose} onCancel={onClose}
-    className={`termous-modal ${styles.modal}`} rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}
+    className={`termous-modal ${confirmDialogStyles.modal} ${styles.modal}`}
+    rootClassName={`${confirmDialogStyles['modal-root']} ${modalSurfaceStyles.root} termous-modal-root`}
     footer={task ? [
       running ? <Button key="cancel" loading={cancelling} disabled={!task.cancellable || cancelling} onClick={() => void cancel()}>{t('app.cancel')}</Button> : null,
       <Button key="close" type="primary" disabled={!canClose} onClick={onClose}>{t('files.move.close')}</Button>,
@@ -119,23 +123,22 @@ export function FileDeleteOperationModal({ count, api, onStart, onClose, onFinis
       <Button key="delete" danger type="primary" loading={submitting} disabled={submissionUncertain} onClick={() => void start()}>{t('app.delete')}</Button>,
     ]}>
     <div className={styles.content}>
-      {!task ? <p>{t('files.deleteDescription', { count })}</p> : <>
-        <section className={deleteStyles.summary} role="status" aria-live="polite">
-          <span className={`${styles.icon} ${deleteStyles.icon}`} data-tone={running ? 'accent' : feedback === 'done' ? 'success' : 'warning'}>
-            <Icon size={21} aria-hidden="true" className={running ? styles.spinning : undefined} />
-          </span>
-          <div className={deleteStyles.copy}>
-            <h3>{queued ? t('files.deletion.waiting') : t(`files.move.feedback.${feedback}`, { action: t('app.delete') })}</h3>
-            <p>{description}</p>
-          </div>
-        </section>
-        {failures.length > 0 ? <Table size="small" className={styles.table} rowKey="path" dataSource={failures}
-          pagination={{ pageSize: 5, showSizeChanger: false, hideOnSinglePage: true }} scroll={{ y: 200 }}
-          columns={[
-            { title: t('files.move.source'), dataIndex: 'path', render: (path: string) => <span className={styles.outcome}>{path}</span> },
-            { title: t('files.move.status'), dataIndex: 'message', render: (message: string) => <span className={styles.outcome}>{message}</span> },
-          ]} /> : null}
-      </>}
+      <section className={styles.summary} role="status" aria-live="polite">
+        <span className={styles.icon} data-tone={tone}>
+          <Icon size={20} aria-hidden="true" className={busy && !queued ? styles.spinning : undefined} />
+        </span>
+        <div className={styles.copy}>
+          <h3>{!task ? t('files.deletion.confirmTitle', { count })
+            : queued ? t('files.deletion.waiting') : t(`files.move.feedback.${feedback}`, { action: t('app.delete') })}</h3>
+          <p>{task ? description : t('files.deletion.confirmDescription')}</p>
+        </div>
+      </section>
+      {failures.length > 0 ? <Table size="small" className={styles.table} rowKey="path" dataSource={failures}
+        pagination={{ pageSize: 5, showSizeChanger: false, hideOnSinglePage: true }} scroll={{ y: 200 }}
+        columns={[
+          { title: t('files.move.source'), dataIndex: 'path', render: (path: string) => <span className={styles.outcome}>{path}</span> },
+          { title: t('files.move.status'), dataIndex: 'message', render: (message: string) => <span className={styles.outcome}>{message}</span> },
+        ]} /> : null}
       {notice ? <Alert className={styles.notice} type={submissionUncertain || resultFailed ? 'warning' : 'error'} showIcon title={notice} /> : null}
     </div>
   </Modal>
