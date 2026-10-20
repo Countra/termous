@@ -19,7 +19,7 @@ function fixture() {
     settings: { default_reasoning_level: 'off', show_turn_token_usage: true, revision: 1,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       max_concurrent_runs: 4, context_compaction_threshold_percent: 80, connect_ssh_profile_on_bind: false,
-      execution_budget: defaultExecutionBudget, created_at: '', updated_at: '' },
+      execution_budget: defaultExecutionBudget },
   }
   const gateway = {
     readiness: vi.fn(async () => readiness),

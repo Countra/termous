@@ -18,6 +18,7 @@ import type { AgentRuntimeStatus } from '#common/contracts'
 import { subscribeLocalWorkspace, type AgentWorkspaceSubscription, type AgentWorkspaceObserver } from '../api/agentSubscription.ts'
 import type { AgentWorkspaceGateway } from '../api/agentRuntimeGateway.ts'
 import { loadAgentMessages } from './loadAgentMessages.ts'
+import { applyAgentMessageRead } from '../model/agentMessageRead.ts'
 import {
   activeAgentRun,
   applyAgentWorkspaceEvent,
@@ -377,6 +378,12 @@ export class AgentWorkspaceController {
       if (this.state.drafts[sessionId] === submittedDraft) {
         this.commit(setAgentDraft(this.state, sessionId, ''))
       }
+      const messages = this.state.messages[sessionId] ?? []
+      if (!messages.some(({ id }) => id === run.user_message_id)
+        || !messages.some(({ id }) => id === run.assistant_message_id)) {
+        // HTTP 回执可能先于订阅消息到达，仅在缺少本轮消息时补读，不能依赖后续 token 才恢复占位。
+        void this.hydrateMessages(sessionId, true).catch((error) => this.captureError(error))
+      }
       // 唤醒失败不能撤销已受理的 Run；Core 队列与后续唤醒继续负责执行。
       if (!this.gateway.runtimeOwnedByHost) {
         void this.gateway.startRuntime(run).then((result) => {
@@ -693,7 +700,16 @@ export class AgentWorkspaceController {
     entry.promise = (async () => {
       do {
         entry.dirty = false
-        await this.performRunHydration(runId, entry.controller.signal)
+        const authority = this.authorityVersion
+        const runAuthority = this.runAuthorityVersions.get(runId) ?? 0
+        try {
+          await this.performRunHydration(runId, entry.controller.signal)
+        } catch (error) {
+          // 实时更新已使旧读取失效时，沿用 dirty 补读最新状态，不传播旧请求的错误。
+          if (!this.disposed && !entry.controller.signal.aborted
+            && authority === this.authorityVersion
+            && runAuthority === (this.runAuthorityVersions.get(runId) ?? 0)) throw error
+        }
       } while (!this.disposed && !entry.controller.signal.aborted && entry.dirty)
     })().finally(() => {
       if (this.runHydrations.get(runId) === entry) this.runHydrations.delete(runId)
@@ -712,6 +728,7 @@ export class AgentWorkspaceController {
     const afterSequence = currentRun?.generation === run.generation
       ? this.state.run_event_sequences[run.id] ?? 0
       : 0
+    const messageBaseline = this.state.messages[run.session_id] ?? []
     const [events, messages] = await Promise.all([
       this.loadRunEvents(run, afterSequence, signal),
       this.loadMessages(run.session_id, 0, signal),
@@ -719,7 +736,7 @@ export class AgentWorkspaceController {
     if (this.disposed || signal.aborted || this.removedSessionIDs.has(run.session_id)
       || authority !== this.authorityVersion || runAuthority !== (this.runAuthorityVersions.get(runId) ?? 0)) return
     let merged = replaceAgentRun(this.state, run)
-    merged = replaceAgentMessages(merged, run.session_id, messages)
+    merged = applyAgentMessageRead(merged, run.session_id, messages, messageBaseline)
     const result = mergeAgentRunEvents(merged, run, events)
     if (result.reconcile_run) {
       throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
@@ -996,20 +1013,27 @@ export class AgentWorkspaceController {
   }
 
   private async hydrateMessages(sessionId: string, authoritative: boolean) {
+    if (this.disposed || this.removedSessionIDs.has(sessionId)) return
     this.messageHydrations.get(sessionId)?.abort()
     const controller = new AbortController()
     this.messageHydrations.set(sessionId, controller)
     const authority = this.authorityVersion
+    const baseline = this.state.messages[sessionId] ?? []
     const after = authoritative ? 0 : lastMessageSequence(this.state.messages[sessionId] ?? [])
+    const isCurrent = () => !this.disposed && !controller.signal.aborted && !this.removedSessionIDs.has(sessionId)
+      && this.messageHydrations.get(sessionId) === controller && authority === this.authorityVersion
     try {
       const messages = await this.loadMessages(sessionId, after, controller.signal)
-      if (this.disposed || controller.signal.aborted || this.messageHydrations.get(sessionId) !== controller || authority !== this.authorityVersion) return
+      if (!isCurrent()) return
       this.commit(authoritative
-        ? replaceAgentMessages(this.state, sessionId, messages)
+        ? applyAgentMessageRead(this.state, sessionId, messages, baseline)
         : replaceAgentMessages(this.state, sessionId, [
             ...(this.state.messages[sessionId] ?? []),
             ...messages,
           ]))
+    } catch (error) {
+      // 旧读取的失败与成功回执遵守相同的代次边界，不能污染已经恢复的新状态。
+      if (isCurrent()) throw error
     } finally {
       if (this.messageHydrations.get(sessionId) === controller) {
         this.messageHydrations.delete(sessionId)

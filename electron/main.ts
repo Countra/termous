@@ -170,13 +170,15 @@ const skillsSource = new AgentSkillBundleSource({
   rootDirectory: skillsDirectory,
 })
 const skillInstaller = new SkillInstaller(skillsSource, skillsDirectory)
+// Worker 入口可位于 ASAR，操作系统工作目录必须是归档之外的真实目录。
+const workerWorkingDirectory = desktopChannel === 'production' ? process.resourcesPath : process.env.APP_ROOT
 const agentSupervisor = new AgentSupervisor({
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
   }),
   workerFactory: new UtilityWorkerFactory({
     modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
-    cwd: path.join(__dirname, '..'),
+    cwd: workerWorkingDirectory,
   }),
   skills: skillsSource,
   logger: {
@@ -192,7 +194,7 @@ const terminalCompletionRuntime = new TerminalCompletionRuntime({
   bootstrap: (request, signal) => terminalCompletionCore.bootstrap(request, signal),
   workerFactory: new UtilityWorkerFactory({
     modulePath: path.join(MAIN_DIST, 'terminal-completion-worker.js'),
-    cwd: path.join(__dirname, '..'), serviceName: 'Termous Terminal Command Suggestion',
+    cwd: workerWorkingDirectory, serviceName: 'Termous Terminal Command Suggestion',
   }),
   onFinished: (summary) => reportElectronProcessEvent('terminal-ai-completion-finished', summary),
 })

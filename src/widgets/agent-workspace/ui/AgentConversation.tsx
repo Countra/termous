@@ -1,7 +1,7 @@
 import { AgentProgressActivity } from './AgentProgressActivity.tsx'
 import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   isActiveAgentRun,
@@ -61,8 +61,7 @@ function AgentConversationSession({
   const followTailRef = useRef(presentation?.conversations?.[sessionKey]?.follow ?? true)
   const followTailFrameRef = useRef<number | undefined>(undefined)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
-  const deferredMessages = useDeferredValue(messages)
-  const latestSignature = latestMessageContentSignature(deferredMessages)
+  const latestSignature = latestMessageContentSignature(messages)
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -80,23 +79,31 @@ function AgentConversationSession({
 
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || !followTailRef.current || !active && !viewport.getClientRects().length) return
-    const frame = window.requestAnimationFrame(() => {
-      if (followTailFrameRef.current === frame) followTailFrameRef.current = undefined
-      if (!followTailRef.current) return
-      if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ top: viewport.scrollHeight })
-      else viewport.scrollTop = viewport.scrollHeight
-      setShowJumpToLatest(false)
-    })
-    followTailFrameRef.current = frame
+    if (!viewport || !active && !viewport.getClientRects().length) return
+    const followTail = () => {
+      if (!followTailRef.current || followTailFrameRef.current !== undefined) return
+      const frame = window.requestAnimationFrame(() => {
+        if (followTailFrameRef.current === frame) followTailFrameRef.current = undefined
+        if (!followTailRef.current) return
+        if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ top: viewport.scrollHeight })
+        else viewport.scrollTop = viewport.scrollHeight
+        setShowJumpToLatest(false)
+      })
+      followTailFrameRef.current = frame
+    }
+    followTail()
+    // 延期正文和图片加载可能晚于消息结构提交，按实际内容高度补做尾部跟随。
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(followTail)
+    if (viewport.firstElementChild) observer?.observe(viewport.firstElementChild)
     return () => {
-      if (followTailFrameRef.current !== frame) return
-      window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      if (followTailFrameRef.current === undefined) return
+      window.cancelAnimationFrame(followTailFrameRef.current)
       followTailFrameRef.current = undefined
     }
   }, [active, latestSignature, runStatus, sessionKey, showTurnTokenUsage])
 
-  const empty = !loading && deferredMessages.length === 0
+  const empty = !loading && messages.length === 0
 
   return (
     <div className={styles['conversation-shell']}>
@@ -135,7 +142,7 @@ function AgentConversationSession({
           </div>
         ) : (
           <AgentMessageStack
-            messages={deferredMessages}
+            messages={messages}
             runStatus={runStatus}
             showTurnTokenUsage={showTurnTokenUsage}
             onPreviewAttachment={onPreviewAttachment}

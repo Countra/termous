@@ -306,6 +306,7 @@ if ($phase -in @("all", "prepare")) {
   Invoke-Native -Name "Install web dependencies" -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $webDir
   Invoke-Native -Name "Typecheck web" -FilePath "pnpm" -Arguments @("run", "typecheck") -WorkingDirectory $webDir
   Invoke-Native -Name "Build Vite bundles" -FilePath "pnpm" -Arguments @("run", "build:renderer") -WorkingDirectory $webDir
+  Invoke-Native -Name "Verify packaged AI workers" -FilePath "pnpm" -Arguments @("run", "test:agent-workers:electron") -WorkingDirectory $webDir
 }
 
 if ($phase -in @("all", "package")) {

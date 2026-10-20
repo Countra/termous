@@ -419,14 +419,12 @@ describe('AgentSettingsPanel', () => {
         ...initial.settings,
         global_context_window_tokens: 65_536,
         revision: 2,
-        updated_at: '2026-08-30T00:01:00Z',
       },
     }
     const saved: AgentSettings = {
       ...latest.settings,
       global_context_window_tokens: 32_768,
       revision: 3,
-      updated_at: '2026-08-30T00:02:00Z',
     }
     const gateway = gatewayFixture({
       providers: [providerFixture()], models: [model], readiness: initial,
@@ -461,14 +459,12 @@ describe('AgentSettingsPanel', () => {
         ...initial.settings,
         global_context_window_tokens: 65_536,
         revision: 2,
-        updated_at: '2026-08-30T00:01:00Z',
       },
     }
     const saved: AgentSettings = {
       ...latest.settings,
       global_context_window_tokens: 32_768,
       revision: 3,
-      updated_at: '2026-08-30T00:02:00Z',
     }
     const gateway = gatewayFixture({
       providers: [providerFixture()], models: [model], readiness: initial,
@@ -1590,7 +1586,6 @@ function gatewayFixture(options: {
         connect_ssh_profile_on_bind: input.connect_ssh_profile_on_bind,
         show_turn_token_usage: input.show_turn_token_usage,
         revision: input.expected_revision + 1,
-        updated_at: '2026-08-30T00:01:00Z',
       }
       if (input.default_model_id) settings.default_model_id = input.default_model_id
       else delete settings.default_model_id
@@ -1637,7 +1632,6 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
       max_concurrent_runs: 4,
       context_compaction_threshold_percent: 80,
       connect_ssh_profile_on_bind: false,
-      created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }
 }

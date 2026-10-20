@@ -16,8 +16,12 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('./AgentMarkdown.tsx', () => ({
-  AgentMarkdown: ({ children }: { children: string }) => {
+const markdownRenders = vi.hoisted(() => vi.fn())
+
+vi.mock('react-markdown', () => ({
+  defaultUrlTransform: (value: string) => value,
+  default: ({ children }: { children: string }) => {
+    markdownRenders(children)
     if (children === 'suspended-markdown') throw new Promise(() => undefined)
     return <div>{children}</div>
   },
@@ -39,6 +43,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  markdownRenders.mockClear()
   animationFrames.clear()
   animationFrameSequence = 0
 })
@@ -48,6 +53,46 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it('历史正文延期时新一轮消息与状态同时出现，不先显示游离状态', () => {
+    function Harness() {
+      const [messages, setMessages] = useState([message('ready-markdown')])
+      const [runStatus, setRunStatus] = useState<'completed' | 'queued'>('completed')
+      return <>
+        <button onClick={() => {
+          setMessages([
+            message('suspended-markdown'),
+            { ...message('新问题'), id: 'new-user', role: 'user', status: 'completed' },
+            { ...message(''), id: 'new-assistant', parts: [] },
+          ])
+          setRunStatus('queued')
+        }}>send</button>
+        <AgentConversation messages={messages} runStatus={runStatus} loading={false} sessionKey="one" />
+      </>
+    }
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'send' }))
+    expect(screen.getByText('新问题')).toBeVisible()
+    const status = screen.getAllByText('agent.status.queued')
+    expect(status).toHaveLength(1)
+    expect(status[0]!.closest('article')).toHaveAttribute('data-agent-message', 'new-assistant')
+    expect(screen.getByText('ready-markdown')).toBeVisible()
+  })
+
+  it('连续流式输出不重复解析未变化的历史 Markdown', () => {
+    const history = Array.from({ length: 40 }, (_, index) => ({
+      ...message(`历史正文 ${index}`), id: `history-${index}`, status: 'completed' as const,
+    }))
+    const view = render(<AgentConversation messages={[...history, message('输出 0')]} runStatus="running" loading={false} sessionKey="one" />)
+    const countHistory = () => markdownRenders.mock.calls.filter(([text]) => String(text).startsWith('历史正文')).length
+    const initial = countHistory()
+    for (let index = 1; index <= 8; index++) {
+      view.rerender(<AgentConversation messages={[...history.map(value => ({ ...value })), message(`输出 ${index}`)]} runStatus="running" loading={false} sessionKey="one" />)
+    }
+    expect(screen.getByText('输出 8')).toBeVisible()
+    expect(initial).toBe(40)
+    expect(countHistory()).toBe(initial)
+  })
+
   it('返回过渡的可见视图在编辑锁解除前恢复位置，避免淡入结束后跳动', () => {
     const geometry = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
     try {
@@ -283,6 +328,75 @@ describe('AgentConversation', () => {
     expect(screen.getByRole('textbox', { name: 'draft' })).toHaveValue('queue now')
     expect(screen.getByText('ready-markdown')).toBeInTheDocument()
     expect(screen.queryByText('suspended-markdown')).not.toBeInTheDocument()
+  })
+
+  it('延期正文改变实际高度后补做尾部跟随，上滚与卸载停止跟随', () => {
+    const original = globalThis.ResizeObserver
+    const changes: Array<() => void> = []
+    const disconnect = vi.fn()
+    globalThis.ResizeObserver = class implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) { changes.push(() => callback([], this)) }
+      observe() {}
+      unobserve() {}
+      disconnect = disconnect
+    }
+    try {
+      const view = render(<AgentConversation messages={[message('正文')]} runStatus="running" loading={false} sessionKey="one" />)
+      const viewport = screen.getByRole('log')
+      const scrollTo = vi.fn()
+      Object.defineProperties(viewport, {
+        clientHeight: { configurable: true, value: 300 },
+        scrollHeight: { configurable: true, writable: true, value: 1_000 },
+        scrollTop: { configurable: true, writable: true, value: 700 },
+        scrollTo: { configurable: true, value: scrollTo },
+      })
+      flushAnimationFrames()
+      Object.defineProperty(viewport, 'scrollHeight', { value: 1_400 })
+      act(() => changes.forEach(changed => changed()))
+      flushAnimationFrames()
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 1_400 })
+      viewport.scrollTop = 100
+      fireEvent.scroll(viewport)
+      scrollTo.mockClear()
+      act(() => changes.forEach(changed => changed()))
+      flushAnimationFrames()
+      expect(scrollTo).not.toHaveBeenCalled()
+      view.unmount()
+      expect(disconnect).toHaveBeenCalled()
+      expect(animationFrames.size).toBe(0)
+    } finally { globalThis.ResizeObserver = original }
+  })
+
+  it('从保存的历史位置回到最新后，无需新消息也能跟随图片或正文变高', () => {
+    const original = globalThis.ResizeObserver
+    const changes: Array<() => void> = []
+    globalThis.ResizeObserver = class implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) { changes.push(() => callback([], this)) }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    try {
+      const presentation: AgentWorkspacePresentation = { conversations: { one: { top: 120, follow: false } } }
+      const view = render(<AgentConversation presentation={presentation} messages={[message('正文')]}
+        runStatus="completed" loading={false} sessionKey="one" />)
+      const viewport = screen.getByRole('log')
+      const scrollTo = vi.fn()
+      Object.defineProperties(viewport, {
+        scrollHeight: { configurable: true, value: 1_000 },
+        scrollTo: { configurable: true, value: scrollTo },
+      })
+      act(() => changes.forEach(changed => changed()))
+      flushAnimationFrames()
+      expect(scrollTo).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'agent.conversation.jumpToLatest' }))
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 1_000 })
+      Object.defineProperty(viewport, 'scrollHeight', { value: 1_400 })
+      act(() => changes.forEach(changed => changed()))
+      flushAnimationFrames()
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 1_400 })
+      view.unmount()
+    } finally { globalThis.ResizeObserver = original }
   })
 
   it('展示来源上下文与附件，并将预览动作交给工作区', () => {

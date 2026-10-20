@@ -1,7 +1,7 @@
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ExternalLink, ImageOff } from 'lucide-react'
-import { createContext, memo, useContext } from 'react'
+import { createContext, memo, Suspense, useContext, useDeferredValue, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { isAgentToolImageReference } from '#common/contracts'
@@ -54,19 +54,34 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   images,
   onLoadToolImage,
 }: { children: string } & MarkdownImages) {
+  const imageContext = useMemo(() => ({ images, onLoadToolImage }), [images, onLoadToolImage])
   return (
-    <MarkdownImageContext.Provider value={{ images, onLoadToolImage }}>
+    <MarkdownImageContext.Provider value={imageContext}>
       <div className={styles.markdown}>
-        <ReactMarkdown
-          remarkPlugins={markdownRemarkPlugins}
-          urlTransform={(url, key, node) => key === 'src' && node.tagName === 'img' && isAgentToolImageReference(url)
-            ? url : defaultUrlTransform(url)}
-          components={markdownComponents}
-        >
-          {children}
-        </ReactMarkdown>
+        <Suspense fallback={children}>
+          <DeferredMarkdownContent>{children}</DeferredMarkdownContent>
+        </Suspense>
       </div>
     </MarkdownImageContext.Provider>
+  )
+})
+
+// 仅正文解析可延期，消息占位与运行状态同步提交；资源目录更新只通知图片节点。
+const DeferredMarkdownContent = memo(function DeferredMarkdownContent({ children }: { children: string }) {
+  const text = useDeferredValue(children)
+  return <MarkdownContent>{text}</MarkdownContent>
+})
+
+const MarkdownContent = memo(function MarkdownContent({ children }: { children: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={markdownRemarkPlugins}
+      urlTransform={(url, key, node) => key === 'src' && node.tagName === 'img' && isAgentToolImageReference(url)
+        ? url : defaultUrlTransform(url)}
+      components={markdownComponents}
+    >
+      {children}
+    </ReactMarkdown>
   )
 })
 

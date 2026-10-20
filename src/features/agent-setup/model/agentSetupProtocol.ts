@@ -124,8 +124,6 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
       : boolean(source.connect_ssh_profile_on_bind, 'Agent SSH Profile 关联方式设置无效'),
     show_turn_token_usage: boolean(source.show_turn_token_usage, 'Agent 每轮 Token 用量展示设置无效'),
     revision: positiveInteger(source.revision, 'Agent 设置 revision 无效'),
-    created_at: timestamp(source.created_at, 'Agent 设置创建时间缺失'),
-    updated_at: timestamp(source.updated_at, 'Agent 设置更新时间缺失'),
   }
 }
 

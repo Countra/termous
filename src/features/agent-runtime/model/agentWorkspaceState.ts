@@ -476,7 +476,9 @@ function mergeRetryEvent(message: AgentMessage, event: Extract<AgentRunEvent, { 
 }
 
 function runRequiresReconcile(state: AgentWorkspaceState, run: AgentRun) {
+  // 工作区快照不包含消息，排队任务即使还没有事件，也需要补齐缺失的助手占位。
   return run.event_sequence > (state.run_event_sequences[run.id] ?? 0)
+    || !state.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id)
 }
 
 function removeEntity(

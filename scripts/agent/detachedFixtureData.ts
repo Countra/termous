@@ -43,8 +43,6 @@ export function readinessFixture(
       show_turn_token_usage: true,
       connect_ssh_profile_on_bind: false,
       revision: 1,
-      created_at: '2026-08-29T00:00:00Z',
-      updated_at: '2026-08-29T00:00:00Z',
     },
   }
 }

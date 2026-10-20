@@ -19,11 +19,9 @@ export interface AgentSettings {
   global_max_output_tokens: number
   context_compaction_threshold_percent: number
   max_concurrent_runs: number
-    connect_ssh_profile_on_bind: boolean
+  connect_ssh_profile_on_bind: boolean
   show_turn_token_usage: boolean
   revision: number
-  created_at: string
-  updated_at: string
 }
 
 export interface AgentReadinessComponent {

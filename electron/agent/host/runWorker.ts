@@ -14,6 +14,7 @@ import {
 } from '../contracts/protocol.ts'
 import type { AgentWorkerProcess } from '../contracts/workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
+import { WorkerStartupDeadline } from './workerStartupDeadline.ts'
 
 export interface AgentRunWorkerLogger {
   info(event: string, details?: Record<string, unknown>): void
@@ -92,6 +93,7 @@ export class AgentRunWorker {
   private exitCode = 0
   private exitGuardTimer: ReturnType<typeof setTimeout> | null = null
   private readonly pendingSteerAcks = new Map<string, PendingSteerAck>()
+  private readonly startupDeadline: WorkerStartupDeadline
 
   constructor(options: AgentRunWorkerOptions) {
     this.executionID = options.executionID
@@ -115,6 +117,17 @@ export class AgentRunWorker {
     this.killWaitMs = options.killWaitMs
     this.settledExitGraceMs = options.settledExitGraceMs
     this.steerAckTimeoutMs = options.steerAckTimeoutMs
+    this.startupDeadline = new WorkerStartupDeadline((stage, errorCode) => {
+      if (this.stopping || this.exited) return
+      // 先阻止迟到 Ticket 发送，再通过既有串行队列报告失败和回收进程。
+      this.stopping = true
+      this.logger?.error('agent-worker-startup-timeout', {
+        run_id: this.runID, generation: this.generation, stage, error_code: errorCode,
+      })
+      void this.enqueue(async () => {
+        if (!this.settled) await this.failLaunch(errorCode)
+      })
+    }, options.setTimeout, options.clearTimeout)
     this.exitPromise = new Promise<number>((resolve) => {
       this.resolveExit = resolve
     })
@@ -129,7 +142,12 @@ export class AgentRunWorker {
   }
 
   observe() {
+    this.startupDeadline.observe()
     this.disposers.push(this.process.onMessage((message) => {
+      if (isAgentWorkerOutboundMessage(message) && message.run_id === this.runID
+        && message.generation === this.generation && message.type === 'started') {
+        this.startupDeadline.complete()
+      }
       if (isCurrentSteerAckMessage(message, this.runID, this.generation)) {
         this.acceptSteerAck(message)
         return
@@ -143,6 +161,7 @@ export class AgentRunWorker {
     this.disposers.push(this.process.onExit((code) => {
       if (!this.exited) {
         this.exited = true
+        this.startupDeadline.complete()
         this.exitCode = code
         this.clearAbortDeadline()
         this.resolveExit(code)
@@ -150,7 +169,7 @@ export class AgentRunWorker {
       void this.enqueue(() => this.finalizeExit())
     }))
     this.disposers.push(this.process.onSpawn(() => {
-      void this.enqueue(() => this.bootstrap())
+      if (this.startupDeadline.spawned()) void this.enqueue(() => this.bootstrap())
     }))
   }
 
@@ -188,6 +207,7 @@ export class AgentRunWorker {
 
   requestStop() {
     this.stopping = true
+    this.startupDeadline.complete()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
     this.clearExitGuard()
     this.publishStatus('stopping')
@@ -240,6 +260,7 @@ export class AgentRunWorker {
 
   async failLaunch(errorCode: string) {
     this.stopping = true
+    this.startupDeadline.complete()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     if (!this.failureReported) {
       this.failureReported = true
@@ -318,6 +339,7 @@ export class AgentRunWorker {
       : message.category === 'bootstrap_failed' ? 'launch_failed' : 'worker_crash'
     this.failureReported = true
     this.stopping = true
+    this.startupDeadline.complete()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     this.publishStatus(
       'stopping',
@@ -375,6 +397,7 @@ export class AgentRunWorker {
     // settled 表示 Worker 已把终态事件写入 Core；同步记录可避免 stop 等待阻塞消息队列时误报强制终止。
     this.settled = true
     this.stopping = true
+    this.startupDeadline.complete()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
     this.publishStatus('stopping')
     this.scheduleExitGuard()

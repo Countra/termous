@@ -205,8 +205,6 @@ function settingsFixture(): AgentSettings {
     connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true,
     revision: 1,
-    created_at: '2026-08-30T00:00:00Z',
-    updated_at: '2026-08-30T00:00:00Z',
   }
 }
 

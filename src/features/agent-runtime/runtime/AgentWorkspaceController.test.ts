@@ -797,7 +797,7 @@ test('Run 在提交边界进入终态时仍将追加消息交给 Core 判定', a
   }])
 })
 
-test('Run 水合期间收到 WS 增量会丢弃旧响应并自动重跑', async () => {
+for (const response of ['成功', '失败'] as const) test(`Run 水合期间收到 WS 增量会丢弃旧${response}响应并自动重跑`, async (context) => {
   const gateway = new FakeGateway()
   const firstRun = deferred<AgentRun>()
   gateway.runImpl = async (_id, signal) => {
@@ -811,6 +811,7 @@ test('Run 水合期间收到 WS 增量会丢弃旧响应并自动重跑', async 
     gateway,
     socketFactory: () => socket as unknown as WebSocket,
   })
+  context.after(() => controller.close())
   controller.start()
   await settle()
   socket.message({
@@ -824,12 +825,40 @@ test('Run 水合期间收到 WS 增量会丢弃旧响应并自动重跑', async 
     type: 'upsert', revision: 1,
     run_event: agentStatusEventFixture(),
   })
-  firstRun.resolve(agentRunFixture({ event_sequence: 1 }))
+  if (response === '成功') firstRun.resolve(agentRunFixture({ event_sequence: 1 }))
+  else firstRun.reject(new Error('迟到的网络失败'))
   await waitFor(() => gateway.runCalls === 2)
+  await waitFor(() => controller.getSnapshot().runs['agr-run']?.revision === 2)
 
   assert.equal(controller.getSnapshot().run_event_sequences['agr-run'], 1)
   assert.equal(gateway.runEventRequests[0]?.afterSequence, 1)
+  assert.equal(controller.getSnapshot().phase, 'ready')
   controller.close()
+})
+
+test('当前 Run 补读的真实失败仍然报告同步异常，不自动重试', async (context) => {
+  const gateway = new FakeGateway()
+  let reads = 0
+  gateway.runImpl = async () => {
+    reads += 1
+    throw new AgentWorkspaceControllerError('AGENT_RUN_READ_FAILED')
+  }
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  context.after(() => controller.close())
+  controller.start()
+  await settle()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [agentRunFixture({ event_sequence: 1 })],
+  })
+  await waitFor(() => controller.getSnapshot().phase === 'degraded')
+  assert.equal(controller.getSnapshot().error_code, 'AGENT_RUN_READ_FAILED')
+  assert.equal(reads, 1)
 })
 
 for (const entity of ['session', 'run'] as const) {
@@ -976,6 +1005,87 @@ test('revision 缺口关闭当前 WS，等待新连接权威快照', async () =>
   controller.close()
 })
 
+test('旧消息查询晚于新一轮实时消息返回时保留消息与执行状态', async (context) => {
+  const gateway = new FakeGateway()
+  gateway.messagesImpl = async () => ({ items: [] })
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  const pending = deferred<AgentMessagePage>()
+  gateway.messagesImpl = async () => pending.promise
+  controller.selectSession('ags-session')
+  const user = agentMessageFixture({ id: 'agm-user', role: 'user', sequence: 1, status: 'completed' })
+  const assistant = agentMessageFixture()
+  socket.message({ type: 'upsert', revision: 1, message: user })
+  socket.message({ type: 'upsert', revision: 2, message: assistant })
+  socket.message({ type: 'upsert', revision: 3, run: agentRunFixture() })
+  pending.resolve({ items: [] })
+  await settle()
+  assert.deepEqual(controller.getSnapshot().messages['ags-session']?.map(({ id }) => id), ['agm-user', 'agm-assistant'])
+  assert.equal(controller.getSnapshot().messages['ags-session']?.[1]?.status, 'streaming')
+  assert.equal(gateway.runCalls, 0)
+})
+
+test('创建回执先到时补齐本轮消息，不等待首个 token 且不阻塞清空已提交草稿', async (context) => {
+  const gateway = new FakeGateway()
+  gateway.messagesImpl = async () => ({ items: [] })
+  const { controller } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  const pending = deferred<AgentMessagePage>()
+  let reads = 0
+  gateway.messagesImpl = async () => { reads++; return pending.promise }
+  controller.updateDraft('ags-session', '新的问题')
+  await controller.startRun('ags-session', '新的问题')
+  assert.equal(controller.getSnapshot().drafts['ags-session'], undefined)
+  assert.equal(reads, 1)
+  pending.resolve({ items: [
+    agentMessageFixture({ id: 'agm-user', role: 'user', sequence: 1, status: 'completed' }),
+    agentMessageFixture(),
+  ] })
+  await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 2)
+  assert.equal(controller.getSnapshot().messages['ags-session']?.[1]?.status, 'streaming')
+  assert.equal(gateway.runCalls, 0)
+})
+
+test('完整推送先于创建回执到达时不额外查询消息或覆盖较新的执行状态', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  const pending = deferred<AgentRun>()
+  gateway.createRunImpl = async () => pending.promise
+  const submitting = controller.startRun('ags-session', '新的问题')
+  const readCount = gateway.messageSignals.length
+  socket.message({ type: 'upsert', revision: 1, message: agentMessageFixture({ id: 'agm-user', role: 'user', sequence: 1, status: 'completed' }) })
+  socket.message({ type: 'upsert', revision: 2, message: agentMessageFixture() })
+  socket.message({ type: 'upsert', revision: 3, run: agentRunFixture({ status: 'running', revision: 2 }) })
+  pending.resolve(agentRunFixture({ status: 'queued', revision: 1 }))
+  await submitting
+  assert.equal(gateway.messageSignals.length, readCount)
+  assert.equal(controller.getSnapshot().runs['agr-run']?.status, 'running')
+})
+
+test('删除与重连快照之后不接受迟到消息查询', async (context) => {
+  for (const invalidate of ['removed', 'snapshot'] as const) await context.test(invalidate, async (subtest) => {
+    const gateway = new FakeGateway()
+    const { controller, socket } = await startControllerWithQueue(gateway, [])
+    subtest.after(() => controller.close())
+    await settle()
+    const pending = deferred<AgentMessagePage>()
+    gateway.messagesImpl = async () => pending.promise
+    controller.selectSession('ags-session')
+    socket.message(invalidate === 'removed'
+      ? { type: 'removed', revision: 1, entity: 'session', id: 'ags-session' }
+      : { type: 'snapshot', revision: 1, sessions: [], active_runs: [] })
+    const messagesAtBoundary = controller.getSnapshot().messages['ags-session']
+    pending.resolve({ items: [agentMessageFixture({ id: 'late-message', revision: 9 })] })
+    await settle()
+    assert.equal(controller.getSnapshot().messages['ags-session'], messagesAtBoundary)
+    assert.equal(controller.getSnapshot().sessions.length, 0)
+  })
+})
+
 test('正常 Run upsert 不触发 REST 水合，只有 snapshot 水位需要补偿', async () => {
   const gateway = new FakeGateway()
   const socket = new FakeSocket()
@@ -997,6 +1107,52 @@ test('正常 Run upsert 不触发 REST 水合，只有 snapshot 水位需要补�
 
   assert.equal(gateway.runCalls, 0)
   controller.close()
+})
+
+test('较新消息查询成功后，已被替代的旧查询失败不能把工作区重新标成异常', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  const old = deferred<AgentMessagePage>()
+  gateway.messagesImpl = async () => old.promise
+  controller.selectSession('ags-session')
+  gateway.messagesImpl = async () => ({ items: [agentMessageFixture({ revision: 3 })] })
+  controller.selectSession('ags-session')
+  await settle()
+  const confirmed = controller.getSnapshot()
+  old.reject(new Error('迟到的网络失败'))
+  await settle()
+  assert.equal(controller.getSnapshot(), confirmed)
+})
+
+test('当前消息查询的真实失败仍然报告同步异常', async (context) => {
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  gateway.messagesImpl = async () => { throw new AgentWorkspaceControllerError('AGENT_MESSAGE_READ_FAILED') }
+  controller.selectSession('ags-session')
+  await waitFor(() => controller.getSnapshot().phase === 'degraded')
+  assert.equal(controller.getSnapshot().error_code, 'AGENT_MESSAGE_READ_FAILED')
+})
+
+test('重连快照中的排队任务尚无运行事件时，也补齐缺失的本轮消息', async (context) => {
+  const gateway = new FakeGateway()
+  gateway.messagesImpl = async () => ({ items: [] })
+  const { controller, socket } = await startControllerWithQueue(gateway, [])
+  context.after(() => controller.close())
+  await settle()
+  const queued = agentRunFixture({ status: 'queued', event_sequence: 0 })
+  gateway.runImpl = async () => queued
+  gateway.runEvents = async () => ({ items: [] })
+  gateway.messagesImpl = async () => ({ items: [
+    agentMessageFixture({ id: 'agm-user', role: 'user', sequence: 1, status: 'completed' }), agentMessageFixture(),
+  ] })
+  socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture()], active_runs: [queued] })
+  await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 2)
+  assert.equal(controller.getSnapshot().runs[queued.id]?.status, 'queued')
+  assert.equal(controller.getSnapshot().run_event_sequences[queued.id] ?? 0, 0)
 })
 
 test('实时上下文快照优先于在途 HTTP 查询且保留历史 checkpoint', async () => {

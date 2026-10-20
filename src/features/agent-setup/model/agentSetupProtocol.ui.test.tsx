@@ -54,7 +54,7 @@ describe('Agent setup protocol', () => {
 
   it('拒绝零 revision、非法时间和越界 UTF-8 字段', () => {
     expect(() => decodeAgentSettings({ ...settingsFixture(), revision: 0 })).toThrow(AgentSetupProtocolError)
-    expect(() => decodeAgentSettings({ ...settingsFixture(), updated_at: 'not-a-time' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModelProvider({ ...providerFixture(), updated_at: 'not-a-time' })).toThrow(AgentSetupProtocolError)
     expect(() => decodeAgentSettings({ ...settingsFixture(), show_turn_token_usage: 'yes' })).toThrow(AgentSetupProtocolError)
     const missingTurnUsageSetting: Record<string, unknown> = { ...settingsFixture() }
     delete missingTurnUsageSetting.show_turn_token_usage
@@ -124,7 +124,6 @@ function settingsFixture() {
     global_max_output_tokens: 4_096, show_turn_token_usage: true, revision: 1,
     max_concurrent_runs: 4,
     context_compaction_threshold_percent: 80,
-    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }
 

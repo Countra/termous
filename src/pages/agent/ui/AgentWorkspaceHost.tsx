@@ -37,6 +37,7 @@ import {
   projectAgentModelOptions,
   projectAgentSessions
 } from '../model/agentWorkspaceProjection.ts'
+import { createAgentMessageProjector } from '../model/agentMessageProjectionCache.ts'
 import { createOperationBusy, notifyError, type AgentOperationBusy } from '../model/host/agentHostHelpers.ts'
 import { createAgentQueueActions } from '../model/host/createAgentQueueActions.ts'
 import { createAgentResourceActions } from '../model/host/createAgentResourceActions.ts'
@@ -284,9 +285,10 @@ export function AgentWorkspaceHost({
   }, [selected, state.active_run_ids, state.runs])
   const selectedMessageEntities = selected ? state.messages[selected.id] : undefined
   const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
+  const projectMessages = useMemo(() => createAgentMessageProjector(), [])
   const workspaceMessages = useMemo(
-    () => projectAgentMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []),
-    [selectedMessageEntities, selectedRun, selectedRunEvents],
+    () => projectMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []),
+    [projectMessages, selectedMessageEntities, selectedRun, selectedRunEvents],
   )
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []

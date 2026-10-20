@@ -582,6 +582,22 @@ test('非 Skills 启动失败不污染 Skills readiness', async () => {
   }
 })
 
+test('工作目录预检失败报告启动失败并释放分配，后续任务仍能启动', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  factory.createError = new Error('AGENT_RUNTIME_WORKING_DIRECTORY_INVALID')
+  const result = await startPersistedRun(supervisor, primaryRun)
+  assert.equal(result.status.error_code, 'AGENT_RUNTIME_WORKING_DIRECTORY_INVALID')
+  assert.deepEqual(core.failures, [{ ...primaryRun, category: 'launch_failed' }])
+  assert.equal(core.releases.length, 1)
+  assert.equal(supervisor.getStatus().occupied_slots, 0)
+  assert.equal(factory.workers.length, 0)
+  factory.createError = null
+  await startPersistedRun(supervisor, { run_id: 'agr_after_preflight', generation: 1 })
+  assert.equal(factory.workers.length, 1)
+  await supervisor.shutdown()
+})
+
 test('Supervisor 只在 Worker 进入 running 后接受 steer', async () => {
   const { factory, supervisor } = createFixture()
   await supervisor.initialize()

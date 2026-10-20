@@ -9,6 +9,7 @@ import type {
   AgentSession,
 } from '#entities/agent'
 import type { AgentWorkspaceSession } from '#widgets/agent-workspace'
+import { createAgentMessageProjector } from './agentMessageProjectionCache.ts'
 import {
   agentRunInteractionBlocked,
   agentWorkspaceInfrastructureReady,
@@ -19,6 +20,22 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
+  it('投影缓存跟随当前 Run 的状态与用量，后继任务不会借用上一轮元数据', () => {
+    const project = createAgentMessageProjector()
+    const message: AgentMessage = {
+      id: 'message-assistant', session_id: 'session-one', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [], attachments: [],
+    }
+    const first = activeRun({ status: 'completed', usage: tokenUsage(100) })
+    const initial = project([message], first, [])
+    const revised = { ...first, revision: first.revision + 1, usage: tokenUsage(200) }
+    expect(project([message], revised, [])[0]?.usage?.total_tokens).toBe(200)
+    expect(initial[0]?.usage?.total_tokens).toBe(100)
+    const next = activeRun({ id: 'next', assistant_message_id: 'next-assistant' })
+    expect(project([message], next, [])).toEqual(projectAgentMessages([message], next, []))
+    expect(project([message], next, [])[0]?.usage).toBeUndefined()
+  })
+
   it('仅在 Main Runtime 与当前 Run 的 generation 对齐后开放运行态交互', () => {
     const run = activeRun()
     expect(agentRunInteractionBlocked(run.id, run, {
@@ -61,7 +78,6 @@ describe('Agent 工作区页面投影', () => {
         context_compaction_threshold_percent: 80,
         connect_ssh_profile_on_bind: false,
         show_turn_token_usage: true, revision: 1,
-        created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },
     }
 

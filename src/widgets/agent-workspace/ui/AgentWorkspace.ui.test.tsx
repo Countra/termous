@@ -1034,15 +1034,19 @@ describe('AgentWorkspace', () => {
   it('检查器跨响应式断点时保留用户的打开意图', async () => {
     let notifyResize: ((width: number) => void) | undefined
     class ResizeObserverMock {
+      private readonly notify: (width: number) => void
       constructor(callback: ResizeObserverCallback) {
-        notifyResize = (width) => callback([{
+        this.notify = (width) => callback([{
           contentRect: { width } as DOMRectReadOnly,
         } as ResizeObserverEntry], this as unknown as ResizeObserver)
       }
 
-      observe() {}
+      observe(target: Element) {
+        // 正文跟随与响应式布局各自观察不同节点，断点夹具只驱动工作区容器。
+        if (target.hasAttribute('data-agent-workspace')) notifyResize = this.notify
+      }
       unobserve() {}
-      disconnect() {}
+      disconnect() { if (notifyResize === this.notify) notifyResize = undefined }
     }
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     const user = userEvent.setup()
