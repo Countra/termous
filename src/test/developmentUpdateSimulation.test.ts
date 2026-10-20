@@ -120,6 +120,7 @@ test('开发更新窗口不会访问外部下载页或进入真实安装路径',
     platform: simulation.buildInfo.platform,
     arch: 'x64',
     packaged: false,
+    channel: 'development',
   })
   const confirmation = await simulation.updateWindowBridge.prepareInstall()
   const failed = await simulation.updateWindowBridge.install(

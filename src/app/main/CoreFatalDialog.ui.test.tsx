@@ -38,7 +38,7 @@ function installBridge(options: {
   const bridge: TermousBridge = {
     platform: 'win32', getConfig: async () => ({}),
     getBuildInfo: async () => ({ product_name: 'Termous', version: '0.0.0-dev', core_version: null,
-      platform: 'win32', arch: 'x64', packaged: false, update_supported: false, update_support_reason: 'development' }),
+      platform: 'win32', arch: 'x64', packaged: false, channel: 'development', update_supported: false, update_support_reason: 'development' }),
     ...(options.diagnostics === false ? {} : { diagnostics: { copyStartupDiagnostics: copy, openLogsDirectory: logs } }),
     clipboard: { writeText, readText: async () => '' },
     windowControls: {

@@ -35,13 +35,13 @@ function fixture(input: { packaged?: boolean; development?: boolean; platform?: 
       if (!apply) return
       state.openAtLogin = settings.openAtLogin ?? false
       state.launchItems = state.openAtLogin
-        ? [{ name: 'dev.termous.app', scope: 'user', enabled: true, path: executablePath, args: [] }]
+        ? [{ name: 'com.termous.app', scope: 'user', enabled: true, path: executablePath, args: [] }]
         : []
     },
   }
   const adapter = createLoginItemAdapter({
     app, platform: input.platform ?? 'win32', development: input.development ?? false,
-    executablePath, entryName: 'dev.termous.app',
+    executablePath, entryName: 'com.termous.app',
   })
   return {
     reads, writes, state,
@@ -61,7 +61,7 @@ test('注册和查询不写系统，默认关闭，仅布尔切换使用固定�
   assert.deepEqual(f.writes, [])
   const enabled = f.set(true)
   assert.equal(enabled.ok && enabled.value.enabled, true)
-  assert.deepEqual(f.writes, [{ openAtLogin: true, enabled: true, name: 'dev.termous.app', path: 'C:\\Program Files\\Termous\\Termous.exe', args: [] }])
+  assert.deepEqual(f.writes, [{ openAtLogin: true, enabled: true, name: 'com.termous.app', path: 'C:\\Program Files\\Termous\\Termous.exe', args: [] }])
   assert.deepEqual(f.reads[0], { path: '"C:\\Program Files\\Termous\\Termous.exe"', args: [] })
   const disabled = f.set(false)
   assert.equal(disabled.ok && disabled.value.enabled, false)
@@ -110,7 +110,7 @@ test('Windows 含空格、中文及网络安装路径可以回读，写入保留
     const f = fixture({ executablePath })
     const result = f.set(true)
     assert.equal(result.ok && result.value.enabled, true, executablePath)
-    assert.deepEqual(f.writes[0], { openAtLogin: true, enabled: true, path: executablePath, args: [], name: 'dev.termous.app' })
+    assert.deepEqual(f.writes[0], { openAtLogin: true, enabled: true, path: executablePath, args: [], name: 'com.termous.app' })
     assert.deepEqual(f.reads[0], { path: `"${executablePath}"`, args: [] })
     const disabled = f.set(false)
     assert.equal(disabled.ok && disabled.value.enabled, false)

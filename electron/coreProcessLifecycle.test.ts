@@ -52,7 +52,7 @@ function fakeChild(pid = 123) {
 }
 
 test('启动状态订阅者同步重入 initialize 仍复用同一个启动 Promise', async (t) => {
-  const manager = new CoreProcessManager()
+  const manager = new CoreProcessManager({ channel: 'production' })
   const internals = manager as unknown as ManagerInternals
   let launches = 0
   t.mock.method(internals, 'initializeOnce', async () => { launches += 1; return internals.config })
@@ -65,7 +65,7 @@ test('启动状态订阅者同步重入 initialize 仍复用同一个启动 Prom
 })
 
 test('自动失败清理期间用户退出不会被清理结束覆盖，也不会再次初始化 Core', async (t) => {
-  const manager = new CoreProcessManager()
+  const manager = new CoreProcessManager({ channel: 'production' })
   const internals = manager as unknown as ManagerInternals
   const child = fakeChild()
   internals.child = child as unknown as ChildProcessWithoutNullStreams
@@ -85,7 +85,7 @@ test('自动失败清理期间用户退出不会被清理结束覆盖，也不�
 
 test('停止或替换 Core 后的迟到心跳既不触发失败也不更新健康时间', async (t) => {
   for (const ok of [false, true]) {
-    const manager = new CoreProcessManager()
+    const manager = new CoreProcessManager({ channel: 'production' })
     const internals = manager as unknown as ManagerInternals
     internals.config = { ...internals.config, managed: true }
     internals.runtimeReady = true
@@ -104,7 +104,7 @@ test('停止或替换 Core 后的迟到心跳既不触发失败也不更新健�
 })
 
 test('恢复正在等待旧 Core 退出时用户退出，不会在旧进程结束后重启', async (t) => {
-  const manager = new CoreProcessManager()
+  const manager = new CoreProcessManager({ channel: 'production' })
   const internals = manager as unknown as ManagerInternals
   const child = fakeChild()
   internals.child = child as unknown as ChildProcessWithoutNullStreams

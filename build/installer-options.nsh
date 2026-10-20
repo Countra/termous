@@ -6,10 +6,8 @@
 !ifndef BUILD_UNINSTALLER
   Var TermousOptionsDialog
   Var TermousDesktopShortcut
-  Var TermousStartMenuShortcut
   Var TermousPathEntry
   Var TermousDesktopShortcutCheckbox
-  Var TermousStartMenuShortcutCheckbox
   Var TermousPathEntryCheckbox
 !endif
 
@@ -55,7 +53,6 @@
 !ifndef BUILD_UNINSTALLER
   !macro customInit
     StrCpy $TermousDesktopShortcut ${BST_CHECKED}
-    StrCpy $TermousStartMenuShortcut ${BST_CHECKED}
     StrCpy $TermousPathEntry ${BST_UNCHECKED}
 
     ReadRegStr $0 SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateDesktopShortcut"
@@ -63,13 +60,6 @@
       StrCpy $TermousDesktopShortcut ${BST_UNCHECKED}
     ${ElseIf} $0 == "1"
       StrCpy $TermousDesktopShortcut ${BST_CHECKED}
-    ${EndIf}
-
-    ReadRegStr $0 SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateStartMenuShortcut"
-    ${If} $0 == "0"
-      StrCpy $TermousStartMenuShortcut ${BST_UNCHECKED}
-    ${ElseIf} $0 == "1"
-      StrCpy $TermousStartMenuShortcut ${BST_CHECKED}
     ${EndIf}
 
     ReadRegStr $0 SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousAddToPath"
@@ -98,11 +88,7 @@
     Pop $TermousDesktopShortcutCheckbox
     ${NSD_SetState} $TermousDesktopShortcutCheckbox $TermousDesktopShortcut
 
-    ${NSD_CreateCheckbox} 0 48u 100% 12u "创建开始菜单快捷方式"
-    Pop $TermousStartMenuShortcutCheckbox
-    ${NSD_SetState} $TermousStartMenuShortcutCheckbox $TermousStartMenuShortcut
-
-    ${NSD_CreateCheckbox} 0 68u 100% 12u "将 Termous 安装目录添加到当前用户 PATH"
+    ${NSD_CreateCheckbox} 0 48u 100% 12u "将 Termous 安装目录添加到当前用户 PATH"
     Pop $TermousPathEntryCheckbox
     ${NSD_SetState} $TermousPathEntryCheckbox $TermousPathEntry
 
@@ -111,7 +97,6 @@
 
   Function TermousOptionsPageLeave
     ${NSD_GetState} $TermousDesktopShortcutCheckbox $TermousDesktopShortcut
-    ${NSD_GetState} $TermousStartMenuShortcutCheckbox $TermousStartMenuShortcut
     ${NSD_GetState} $TermousPathEntryCheckbox $TermousPathEntry
   FunctionEnd
   !macro customInstall
@@ -123,12 +108,9 @@
       WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateDesktopShortcut" "0"
     ${EndIf}
 
-    ${If} $TermousStartMenuShortcut == ${BST_CHECKED}
-      !insertmacro termousCreateStartMenuShortcut
-      WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateStartMenuShortcut" "1"
-    ${Else}
-      WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateStartMenuShortcut" "0"
-    ${EndIf}
+    ; 固定入口与 Electron 通知注册使用同一位置，避免生成第二份快捷方式。
+    !insertmacro termousCreateStartMenuShortcut
+    WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "TermousCreateStartMenuShortcut" "1"
 
     ${If} $TermousPathEntry == ${BST_CHECKED}
       !insertmacro termousAddInstallDirToUserPath
@@ -140,25 +122,32 @@
   !macroend
 !endif
 
-!macro customUnInstall
-  ; 升级保留用户选择；正式卸载只清理当前安装目录的无参数启动项。
-  ${IfNot} ${isUpdated}
+!macro termousRemoveLoginItem IDENTITY
     Push $0
-    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${IDENTITY}"
     ${If} $0 == '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\"'
     ${OrIf} $0 == "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
       ClearErrors
-      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${IDENTITY}"
       ${If} ${Errors}
         DetailPrint "未能移除 Termous 开机启动项，请在系统启动应用设置中检查。"
       ${Else}
         ; 可选的系统禁用标记可能不存在；启动命令已移除，不影响卸载继续。
         ClearErrors
-        DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${APP_ID}"
+        DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${IDENTITY}"
         ClearErrors
       ${EndIf}
     ${EndIf}
     Pop $0
+!macroend
+
+!macro customUnInstall
+  ; 升级保留用户选择；正式卸载只清理当前安装目录的无参数启动项。
+  ${IfNot} ${isUpdated}
+    !insertmacro termousRemoveLoginItem "${APP_ID}"
+    !if "${APP_ID}" == "com.termous.app"
+      !insertmacro termousRemoveLoginItem "dev.termous.app"
+    !endif
   ${EndIf}
   !insertmacro termousRemoveShortcut "$newDesktopLink"
   !insertmacro termousRemoveShortcut "$oldDesktopLink"

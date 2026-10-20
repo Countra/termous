@@ -1,4 +1,4 @@
-import { appDebugModeArgument, notificationIPCChannels as notificationChannels } from '#common/contracts'
+import { appDebugModeArgument, decodeAppBuildInfo, notificationIPCChannels as notificationChannels } from '#common/contracts'
 import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -137,7 +137,7 @@ const bridge = {
     },
   },
   getConfig: () => ipcRenderer.invoke('core:get-config'),
-  getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
+  getBuildInfo: async () => decodeAppBuildInfo(await ipcRenderer.invoke('app:get-build-info')),
   platform: process.platform,
   core: {
     status: () => ipcRenderer.invoke('core:status'),

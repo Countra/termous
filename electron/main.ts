@@ -1,3 +1,6 @@
+import { desktopChannel, identity, initializeDesktopEnvironment, registerDevelopmentLease } from './platform/environment'
+import { prepareNativeNotifications } from './platform/nativeNotifications'
+import { nativeNotificationOptions } from './notifications/nativeOptions'
 import { registerFileSystemClipboardIPC } from './fileSystemClipboardIPC'
 import { registerSystemClipboardCapabilities } from './system-clipboard/lifecycle'
 import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
@@ -70,16 +73,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+initializeDesktopEnvironment(app)
+
+export const VITE_DEV_SERVER_URL = desktopChannel === 'development' ? process.env['VITE_DEV_SERVER_URL'] : undefined
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
-const APP_NAME = 'Termous'
-const APP_ID = 'dev.termous.app'
-const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
-const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
+const APP_NAME = identity.name
+const APP_ID = identity.appId
+const APP_ICON = desktopChannel === 'development' ? path.join(process.resourcesPath, 'icon.png') : path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+const TRAY_ICON = desktopChannel === 'development' ? APP_ICON : path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const ELECTRON_PROCESS_LOG_FILE = 'electron-process.log'
@@ -97,11 +102,12 @@ if (!hasSingleInstanceLock) {
   app.exit(0)
 }
 if (hasSingleInstanceLock) {
+  registerDevelopmentLease(app, reportElectronProcessEvent)
   app.on('second-instance', () => {
     showMainWindow()
   })
 }
-const coreProcess = new CoreProcessManager({ logger: {
+const coreProcess = new CoreProcessManager({ channel: desktopChannel, logger: {
   info: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   warn: (event, fields = {}) => reportElectronProcessEvent(event, fields),
   error: (event, fields = {}) => reportElectronProcessEvent(event, fields),
@@ -110,6 +116,7 @@ let notificationDisposeIPC: (() => void) | null = null
 let notificationPreferences: NotificationPreferencesStore | null = null
 let notificationRuntime: NotificationRuntime | null = null
 let notificationSubscription: NotificationSubscription | null = null
+let nativeNotificationsSupported = false
 let notificationWarningAt = 0
 function warnNotification() {
   if (Date.now() - notificationWarningAt < 60_000) return
@@ -125,15 +132,30 @@ async function initializeNotifications() {
   notificationRuntime = new NotificationRuntime({
     // 主界面和所有独立窗口共用应用级焦点，窗口间切换不按消息来源分别判断。
     background: () => Boolean(startupCompleted && win && !win.isDestroyed() && !exitCoordinator.isApplicationExiting() && !BrowserWindow.getFocusedWindow()),
-    supported: () => Notification.isSupported(),
+    supported: () => nativeNotificationsSupported,
     preferences: () => preferences.get(), language: () => appLanguage,
-    create: (title, body) => new Notification({ title, body, icon: APP_ICON }),
+    create: (title, body, id) => new Notification(nativeNotificationOptions(title, body, id, APP_ICON, process.platform)),
     activate: () => {
-      revealMainWindow()
+      showMainWindow()
       if (win && !win.isDestroyed()) win.webContents.send(notificationIPCChannels.activation)
     },
     warn: warnNotification,
+    deliveryFailed: () => {
+      nativeNotificationsSupported = false
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'delivery' })
+    },
   })
+  nativeNotificationsSupported = await prepareNativeNotifications(reportElectronProcessEvent)
+  if (process.platform === 'win32' && nativeNotificationsSupported) {
+    try {
+      Notification.handleActivation(details => {
+        if (details.type === 'click') notificationRuntime?.activateNative(new URLSearchParams(details.arguments).get('tag') || '')
+      })
+    } catch {
+      nativeNotificationsSupported = false
+      reportElectronProcessEvent('native-notification-registration-failed', { channel: desktopChannel, stage: 'activation_handler' })
+    }
+  }
   notificationDisposeIPC = registerNotificationIPC({ ipcMain, runtime: notificationRuntime, trusted: isTrustedMainIPCEvent })
   const runtime = notificationRuntime
   notificationSubscription = new NotificationSubscription({ config: () => coreProcess.initialize(), receive: (event) => runtime.accept(event), warn: warnNotification })
@@ -1090,6 +1112,8 @@ function createWindow() {
     },
   })
   registerDevToolsShortcut(win)
+  // 页面标题不能覆盖开发壳的系统窗口名称，两个环境在任务栏中保持可辨认。
+  win.on('page-title-updated', event => event.preventDefault())
   registerRendererHealth(win)
   updateRuntime?.bindMainWindow(win)
 
@@ -1364,6 +1388,7 @@ async function readApplicationBuildInfo() {
     platform: process.platform,
     arch: process.arch,
     packaged: app.isPackaged,
+    channel: desktopChannel,
     update_supported: Boolean(snapshot && snapshot.phase !== 'unsupported'),
     update_support_reason: snapshot?.support_reason
       ?? (updateRuntime ? null : 'update_runtime_unavailable'),
@@ -1377,12 +1402,13 @@ async function readUpdateWindowApplicationInfo() {
     platform: process.platform,
     arch: process.arch,
     packaged: app.isPackaged,
+    channel: desktopChannel,
   }
 }
 
 function createApplicationUpdateEngine(): UpdateEngine {
   try {
-    return createElectronUpdaterEngine()
+    if (desktopChannel === 'production') return createElectronUpdaterEngine()
   } catch (error) {
     reportElectronProcessEvent('update-engine-initialize-failed', {
       message: error instanceof Error ? error.name : 'UnknownError',
@@ -1403,7 +1429,7 @@ function createApplicationUpdateEngine(): UpdateEngine {
     currentVersion,
     support: {
       supported: false,
-      reason: 'update_engine_unavailable',
+      reason: desktopChannel === 'development' ? 'development' : 'update_engine_unavailable',
     },
     checkForUpdates: unavailable,
     downloadUpdate: unavailable,
@@ -1756,13 +1782,9 @@ app.on('activate', () => {
 })
 
 async function initializeApplication() {
-  app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
   appLanguage = readCachedAppLanguage()
   nativeTheme.themeSource = appTheme
-  if (process.platform === 'win32') {
-    app.setAppUserModelId(APP_ID)
-  }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
   const closeClipboardCapabilities = registerSystemClipboardCapabilities(ipcMain, coreProcess, isTrustedMainIPCEvent)
@@ -1814,7 +1836,7 @@ async function initializeApplication() {
   const loginItemAdapter = createLoginItemAdapter({
     app,
     platform: process.platform,
-    development: Boolean(VITE_DEV_SERVER_URL) || process.env.NODE_ENV === 'development',
+    development: desktopChannel === 'development',
     executablePath: process.execPath,
     entryName: APP_ID,
   })
@@ -1861,7 +1883,7 @@ async function initializeApplication() {
   createSplashWindow()
   await initializeNotifications()
   const desktopSettings = new DesktopSettingsRuntime({
-    notifications: notificationSettingsAdapter(() => notificationPreferences, () => Notification.isSupported()),
+    notifications: notificationSettingsAdapter(() => notificationPreferences, () => nativeNotificationsSupported),
     updates: updateSettingsAdapter(() => updateRuntime),
     login_item: loginItemSettingsAdapter(loginItemAdapter),
   }, (event) => {

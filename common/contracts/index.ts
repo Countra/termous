@@ -49,7 +49,7 @@ export type {
   TrayMenuState,
   TrayRecentHost,
 } from './application'
-export { appDebugModeArgument } from './application.ts'
+export { appDebugModeArgument, decodeAppBuildInfo } from './application.ts'
 export type {
   AppearanceSettings,
   ConnectionSettings,

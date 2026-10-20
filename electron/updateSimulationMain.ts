@@ -144,7 +144,7 @@ app.whenReady().then(async () => {
         version: app.getVersion(),
         platform: process.platform,
         arch: process.arch,
-        packaged: app.isPackaged,
+        packaged: app.isPackaged, channel: 'production',
       }),
       logger: {
         info: logEvent,

@@ -1,10 +1,8 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "dev.termous.app",
+  "extends": "./scripts/desktop-development/production-builder.mjs",
   "asar": true,
-  "productName": "Termous",
-  "executableName": "Termous",
   "directories": {
     "buildResources": "build",
     "output": "release/${version}"
@@ -133,7 +131,6 @@
     }
   ],
   "mac": {
-    "icon": "build/icon.icns",
     "identity": null,
     "notarize": false,
     "target": [
@@ -146,7 +143,6 @@
     "sign": false
   },
   "win": {
-    "icon": "build/icon.ico",
     "target": [
       {
         "target": "nsis",
@@ -163,13 +159,11 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": false,
     "createStartMenuShortcut": false,
-    "shortcutName": "Termous",
-    "menuCategory": "Termous",
+    "menuCategory": false,
     "include": "build/installer-options.nsh",
     "deleteAppDataOnUninstall": false
   },
   "linux": {
-    "icon": "build/icon.png",
     "target": [
       "AppImage"
     ],

@@ -102,7 +102,7 @@ Core：流程持久化与执行
 
 开发入口原生验收：`pnpm run test:detached`（需要上述 5183 预览服务）。生产产物验收：完成 Renderer 构建后运行 `pnpm run test:detached:production`；它实际加载 `dist/index.html` 和 `dist-electron/detached-preload.cjs`，不依赖预览服务。
 
-验收产物统一写入 `../TEMP/detached-windows`，Vite 继续使用 `../TEMP/vite`。正常开发继续使用既定 `TERMOUS_DATA_DIR=../dev-data`，Go 缓存沿用 `../TEMP/go`，pnpm 缓存位置不变。
+验收产物统一写入 `../TEMP/detached-windows`，Vite 继续使用 `../TEMP/vite`。正常开发继续使用既定 `TERMOUS_DATA_DIR=../dev-data/.termous`，Go 缓存沿用 `../TEMP/go`，pnpm 缓存位置不变。
 
 这套夹具验证真实 Electron 窗口、专用 preload、受限通信与真实助手视图；业务 Gateway 为合成数据，不能视为真实模型执行或真实 SSH 操作验收。发行包安装、多屏混合 DPI、平台输入法及实际模型流式运行仍需相应环境回归。
 

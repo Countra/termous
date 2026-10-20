@@ -1,0 +1,18 @@
+{
+  "production": {
+    "name": "Termous",
+    "appId": "com.termous.app",
+    "executableName": "Termous",
+    "desktopName": "com.termous.app.desktop",
+    "iconDirectory": "build",
+    "toastClsid": "cbdd7107-f066-4d73-9f6b-c684bcaea8c4"
+  },
+  "development": {
+    "name": "Termous Dev",
+    "appId": "com.termous.app.development",
+    "executableName": "Termous Dev",
+    "desktopName": "com.termous.app.development.desktop",
+    "iconDirectory": "build/development",
+    "toastClsid": "80188c28-25e9-42e7-9b7e-061d2af96e26"
+  }
+}

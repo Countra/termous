@@ -14,6 +14,51 @@ class Native extends EventEmitter {
   close() { this.closed++ }
 }
 
+test('普通点击和应用级激活只消费一次，失去映射只唤起窗口', () => {
+  const native = new Native()
+  let id = ''
+  let wake = 0
+  const runtime = new NotificationRuntime({ background: () => true, supported: () => true,
+    preferences: () => ({ enabled: true, agent: true, file: true, cloud: true, approval: true }), language: () => 'zh-CN',
+    create: (_title, _body, value) => { id = value; return native }, activate: () => { wake++ }, warn() {} })
+  runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+  runtime.accept({ type: 'upsert', message: message(1, { kind: 'agent', session_id: 'session' }) })
+  runtime.activateNative(id)
+  native.emit('click')
+  runtime.activateNative(id)
+  assert.equal(wake, 1)
+  assert.equal(runtime.pending().length, 1)
+  runtime.activateNative('old-notification')
+  assert.equal(wake, 2)
+  assert.equal(runtime.pending().length, 1)
+  runtime.close()
+})
+
+test('同一消息的新修订可独立激活，过期和数据源回退不保留旧定位', t => {
+  let now = Date.now()
+  let wake = 0
+  const ids: string[] = []
+  const runtime = new NotificationRuntime({ background: () => true, supported: () => true,
+    preferences: () => ({ enabled: true, agent: true, file: true, cloud: true, approval: true }), language: () => 'zh-CN',
+    create: (_title, _body, id) => { ids.push(id); return new Native() }, activate: () => { wake++ }, warn() {}, now: () => now })
+  t.after(() => runtime.close())
+  runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+  const patch = { id: 'approval', kind: 'approval' as const, expires_at: new Date(now + 1000).toISOString() }
+  runtime.accept({ type: 'upsert', message: message(1, patch) })
+  runtime.activateNative(ids[0])
+  runtime.accept({ type: 'upsert', message: message(2, patch) })
+  assert.notEqual(ids[0], ids[1])
+  runtime.activateNative(ids[1])
+  assert.equal(runtime.pending().length, 2)
+  runtime.accept({ type: 'upsert', message: message(3, patch) })
+  now += 1001
+  runtime.activateNative(ids[2])
+  assert.equal(wake, 3)
+  assert.equal(runtime.pending().length, 2)
+  runtime.accept({ type: 'snapshot', page: { items: [], watermark: 0, unread_count: 0, next_before: 0 } })
+  assert.deepEqual(runtime.pending(), [])
+})
+
 for (const source of ['agent', 'file', 'approval', 'cloud', 'remote-agent', 'remote-approval'] as const) {
   test(`${source} 消息统一按应用焦点提醒，前台或停用期间的消息不补发`, (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })

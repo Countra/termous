@@ -160,3 +160,5 @@ Windows 是当前重点支持的平台，macOS 和 Linux 体验持续完善；�
 - [更新日志](./docs/CHANGELOG.md)
 - [前端架构](./docs/frontend-architecture.md) · [AI 运行时](./docs/electron-agent-architecture.md) · [桌面自动化](./docs/remote-desktop-workflows.md)
 - [GitHub Issues](https://github.com/Countra/termous/issues)
+
+源码开发使用独立的 Termous Dev 应用壳，可与正式安装同时运行。启动方式、Core 数据目录与系统通知隔离见 [桌面环境](./docs/desktop-environments.md)。

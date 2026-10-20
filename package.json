@@ -18,6 +18,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:clean": "node scripts/desktop-development/clean.mjs",
     "dev:agent-fixture": "node scripts/agent/openai-compatible-fixture.mjs",
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package",
     "build:package": "pnpm run build:skills && node scripts/ci/build-local-package.mjs",
@@ -32,7 +33,7 @@
     "lint:styles": "node scripts/styles/check.mjs && stylelint \"src/**/*.scss\" --allow-empty-input",
     "preview": "vite preview",
     "test": "pnpm run test:node && pnpm run test:ui",
-    "test:node": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"common/**/*.test.ts\" \"scripts/agent/**/*.test.mjs\" \"scripts/architecture/**/*.test.mjs\" \"scripts/ci/**/*.test.mjs\" \"scripts/styles/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
+    "test:node": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"common/**/*.test.ts\" \"scripts/agent/**/*.test.mjs\" \"scripts/desktop-development/**/*.test.mjs\" \"scripts/architecture/**/*.test.mjs\" \"scripts/ci/**/*.test.mjs\" \"scripts/styles/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
     "test:agent-fixture": "node --test scripts/agent/openai-compatible-fixture.test.mjs",
     "test:detached": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs",
     "test:detached:production": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs --production",

@@ -19,9 +19,21 @@ export interface AppBuildInfo {
   core_version: string | null
   platform: string
   arch: string
+  channel: 'production' | 'development'
   packaged: boolean
   update_supported: boolean
   update_support_reason: string | null
+}
+
+export function decodeAppBuildInfo(input: unknown): AppBuildInfo {
+  if (!input || typeof input !== 'object') throw new Error('APP_BUILD_INFO_INVALID')
+  const value = input as Record<string, unknown>
+  if ((value.channel !== 'production' && value.channel !== 'development')
+    || ['product_name', 'version', 'platform', 'arch'].some(key => typeof value[key] !== 'string')
+    || (value.core_version !== null && typeof value.core_version !== 'string')
+    || typeof value.packaged !== 'boolean' || typeof value.update_supported !== 'boolean'
+    || (value.update_support_reason !== null && typeof value.update_support_reason !== 'string')) throw new Error('APP_BUILD_INFO_INVALID')
+  return value as unknown as AppBuildInfo
 }
 
 export interface CoreFatalEvent {

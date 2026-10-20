@@ -1,9 +1,10 @@
+import type { DesktopChannel } from '#common/desktop-identity'
+import { corePolicy } from './platform/corePolicy'
 import { app, BrowserWindow } from 'electron'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
-import path from 'node:path'
 import type {
   AppConfig,
   CoreFatalEvent,
@@ -40,8 +41,6 @@ type CoreProcessState = Omit<CoreStatus, 'config'> & {
   config: CoreRuntimeConfig
 }
 
-const externalCoreDefaultPort = 8122
-const packagedManagedCoreDefaultPort = 8152
 const maxPortSwitches = 3
 const heartbeatIntervalMs = 10_000
 const heartbeatTimeoutMs = 30_000
@@ -51,6 +50,7 @@ const failedChildForceExitTimeoutMs = 2_000
 const coreStartupFailureMessage = '核心服务启动失败，请查看错误详情和日志后重试。'
 
 export interface CoreProcessManagerOptions {
+  channel: DesktopChannel
   logger?: {
     info(message: string, fields?: Record<string, unknown>): void
     warn(message: string, fields?: Record<string, unknown>): void
@@ -61,12 +61,8 @@ export interface CoreProcessManagerOptions {
 export class CoreProcessManager {
   private child: ChildProcessWithoutNullStreams | null = null
   private initializePromise: Promise<CoreRuntimeConfig> | null = null
-  private config: CoreRuntimeConfig = {
-    apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
-    apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
-    version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(),
-    managed: false,
-  }
+  private config: CoreRuntimeConfig
+  private readonly policy: ReturnType<typeof corePolicy>
   private fatal: CoreFatalEvent | null = null
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatGeneration = 0
@@ -83,8 +79,10 @@ export class CoreProcessManager {
   private readonly startup = new CoreStartupState((snapshot) => this.publishStartupStatus(snapshot))
   private readonly options: CoreProcessManagerOptions
 
-  constructor(options: CoreProcessManagerOptions = {}) {
+  constructor(options: CoreProcessManagerOptions) {
     this.options = options
+    this.policy = corePolicy(options.channel, process.env, process.platform, process.execPath, process.env.APP_ROOT || process.cwd())
+    this.config = { apiBaseUrl: this.policy.apiBaseUrl, apiToken: this.policy.apiToken, version: app.getVersion(), managed: false }
   }
 
   initialize() {
@@ -106,12 +104,6 @@ export class CoreProcessManager {
 
   private async initializeOnce() {
     if (this.shouldUseExternalCore()) {
-      this.config = {
-        apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
-        apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
-        version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(),
-        managed: false,
-      }
       this.startup.setExternal(Date.now())
       return this.config
     }
@@ -123,7 +115,7 @@ export class CoreProcessManager {
       return this.config
     }
     const portStart = this.resolveManagedCorePortStart()
-    const packaged = app.isPackaged
+    const packaged = this.options.channel === 'production'
     const logDirectory = packaged ? app.getPath('logs') : undefined
     const attempts = await runManagedCorePortAttempts({
       portStart,
@@ -308,27 +300,11 @@ export class CoreProcessManager {
     return config
   }
 
-  private shouldUseExternalCore() {
-    return Boolean(process.env.VITE_DEV_SERVER_URL || process.env.TERMOUS_API_BASE_URL)
-  }
+  private shouldUseExternalCore() { return this.policy.external }
 
-  private resolveManagedCorePortStart() {
-    return app.isPackaged ? packagedManagedCoreDefaultPort : externalCoreDefaultPort
-  }
+  private resolveManagedCorePortStart() { return this.policy.port }
 
-  private resolveCorePath() {
-    if (process.env.TERMOUS_CORE_PATH) {
-      return process.env.TERMOUS_CORE_PATH
-    }
-    const binary = process.platform === 'win32' ? 'termous-core.exe' : 'termous-core'
-    if (!app.isPackaged) {
-      return path.join(process.env.APP_ROOT, 'build', 'core', binary)
-    }
-    const executableDir = path.dirname(process.execPath)
-    return process.platform === 'darwin'
-      ? path.resolve(executableDir, '..', binary)
-      : path.join(executableDir, binary)
-  }
+  private resolveCorePath() { return this.policy.binary }
 
   private validateCoreBinary(binaryPath: string): CoreFatalEvent | null {
     if (existsSync(binaryPath)) {
@@ -390,7 +366,7 @@ export class CoreProcessManager {
       token,
       packaged,
       logDirectory,
-      environment: process.env,
+      environment: this.policy.environment,
       parentPid: process.pid,
       startupInstance: instanceId,
       onStartupEvent: (event) => {
