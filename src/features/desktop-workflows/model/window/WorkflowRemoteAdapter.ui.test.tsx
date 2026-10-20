@@ -1,10 +1,14 @@
 import { expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WorkflowDetachedCommand } from '#common/contracts'
 import type { WorkflowGateway } from '#entities/desktop-workflow'
 import type { DetachedClient } from '#shared/detached-window'
 import { WorkflowController } from '../workspace/WorkflowController'
 import { WorkflowRemoteAdapter } from './WorkflowRemoteAdapter'
 import { WorkflowSurfaceAdapter } from './WorkflowSurfaceAdapter'
+import { WorkflowCatalog } from '../../ui/catalog/WorkflowCatalog'
+
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 function fixture() {
   const controller = new WorkflowController({} as WorkflowGateway)
@@ -15,7 +19,7 @@ function fixture() {
     kind: 'request', operation: 'command', payload: command,
   })
   const request = vi.fn<(operation: string, command: WorkflowDetachedCommand, timeout: number, id?: string) => ReturnType<typeof deliver>>(
-    (_operation, command) => deliver(command),
+    (_operation, command) => deliver(structuredClone(command)),
   )
   const report = vi.fn()
   const remote = new WorkflowRemoteAdapter({ peer: { request } } as unknown as DetachedClient, report)
@@ -26,6 +30,20 @@ function fixture() {
   }
   return { controller, host, remote, request, deliver, connect, report }
 }
+
+it('实际点击独立窗口目录刷新按钮不把点击事件传入命令', async () => {
+  const f = fixture()
+  const refresh = vi.spyOn(f.controller.actions, 'refresh').mockResolvedValue(undefined)
+  try {
+    render(<WorkflowCatalog scripts={[]} runs={[]} view="scripts" busy={false} loading={false}
+      collapsed={false} queries={{ scripts: '', runs: '' }} runFilter="all"
+      onCreate={vi.fn()} onSelectScript={vi.fn()} onSelectRun={vi.fn()} onViewChange={vi.fn()}
+      onToggle={vi.fn()} onQueriesChange={vi.fn()} onRunFilterChange={vi.fn()} onRefresh={f.connect().actions.refresh} />)
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.refresh' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalledExactlyOnceWith())
+    expect(f.report).not.toHaveBeenCalled()
+  } finally { f.controller.dispose() }
+})
 
 it('模板来源随草稿跨窗口传递，并在宿主回执后保留独立查找区域', async () => {
   const f = fixture()

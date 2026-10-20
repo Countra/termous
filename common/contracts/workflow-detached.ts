@@ -4,6 +4,12 @@ export const workflowDetachedActions = [
   'start', 'control', 'refresh', 'refreshReport', 'viewDesktop', 'dismissNotice', 'presentation',
 ] as const
 export type WorkflowDetachedAction = typeof workflowDetachedActions[number]
+const noArgumentActions = new Set<WorkflowDetachedAction>([
+  'save', 'validate', 'history', 'closeHistory', 'remove', 'closeRun', 'start', 'refresh', 'refreshReport',
+])
+export function isWorkflowDetachedNoArgumentAction(name: WorkflowDetachedAction) {
+  return noArgumentActions.has(name)
+}
 export interface WorkflowDetachedCommand {
   name: WorkflowDetachedAction
   args: unknown[]
@@ -74,7 +80,7 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
       && (arg.queries === undefined || record(arg.queries) && fields(arg.queries, ['scripts', 'runs']) && typeof arg.queries.scripts === 'string' && typeof arg.queries.runs === 'string')
       && (arg.reportExpansion === undefined || record(arg.reportExpansion) && fields(arg.reportExpansion, ['runID', 'allExpanded', 'exceptions'])
         && id(arg.reportExpansion.runID) && typeof arg.reportExpansion.allExpanded === 'boolean' && strings(arg.reportExpansion.exceptions))
-    default: return value.args.length === 0
+    default: return isWorkflowDetachedNoArgumentAction(value.name as WorkflowDetachedAction) && value.args.length === 0
   }
 }
 

@@ -12,7 +12,7 @@ import { WorkflowWorkspaceView } from '../WorkflowWorkspaceView'
 export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) {
   const { t } = useTranslation()
   const [partitions, setPartitions] = useState<Record<string, unknown>>()
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<'failed' | 'syncFailed' | 'operationFailed'>()
   const [ready, setReady] = useState(false)
   const [frozen, setFrozen] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -22,7 +22,7 @@ export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) 
   const waitComposition = useWorkflowComposition()
   const wait = useRef(waitComposition); wait.current = waitComposition
   const receiver = useMemo(() => new DetachedStateReceiver(), [])
-  const adapter = useMemo(() => new WorkflowRemoteAdapter(client, () => setError(true)), [client])
+  const adapter = useMemo(() => new WorkflowRemoteAdapter(client, () => setError('operationFailed')), [client])
   useSyncExternalStore(adapter.subscribe, adapter.getSnapshot, adapter.getSnapshot)
   adapter.interactive = ready && !leaving
   useLayoutEffect(() => {
@@ -41,12 +41,12 @@ export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) 
         setPartitions({ ...receiver.snapshot() }); return
       }
       throw new Error('workflow_state_gap')
-    })().catch(() => { if (alive) setError(true) }).finally(() => { resync = undefined })
+    })().catch(() => { if (alive) setError('syncFailed') }).finally(() => { resync = undefined })
     const unsubscribe = client.subscribe(packet => {
       if (packet.kind === 'ready') { setReady(true); return }
       if (packet.kind !== 'state') return
       if ((packet.payload as { handoffFailed?: boolean })?.handoffFailed) {
-        handoff.current++; setFrozen(false); setLeaving(false); setError(true); return
+        handoff.current++; setFrozen(false); setLeaving(false); setError('failed'); return
       }
       const status = receiver.accept(packet.payload as DetachedStateFrame)
       if (status === 'gap') void hydrate()
@@ -68,21 +68,21 @@ export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) 
   }, [adapter, client, receiver, resyncKey])
   useEffect(() => { if (partitions && !ready) client.ready() }, [client, partitions, ready])
   const returnWindow = async () => {
-    setError(false)
+    setError(undefined)
     try { await client.peer.request('return', true, 120000) }
-    catch { handoff.current++; setError(true); setFrozen(false); setLeaving(false) }
+    catch { handoff.current++; setError('failed'); setFrozen(false); setLeaving(false) }
   }
   const retry = async () => {
-    setError(false)
-    try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError(true) }
+    setError(undefined)
+    try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError('syncFailed') }
   }
-  if (!partitions || !ready) return error ? <Alert type="error" title={t('desktopWorkflow.window.failed')}
-    action={<Button onClick={() => void retry()}>{t('app.retry')}</Button>} /> : <Spin fullscreen />
+  if (!partitions || !ready) return error ? <Alert type="error" title={t(`desktopWorkflow.window.${error}`)}
+    action={<Button onClick={() => void retry()}>{t('app.refresh')}</Button>} /> : <Spin fullscreen />
   const { inputSequence, ...projection } = partitions
   const model = adapter.connect(projection as unknown as Omit<WorkflowSurfaceModel, 'actions'>, Number(inputSequence ?? 0))
   return <div className={styles.surface}>
-    {error && <Alert className={styles.error} type="warning" showIcon title={t('desktopWorkflow.window.failed')}
-      action={<><Button size="small" onClick={() => void retry()}>{t('app.retry')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('desktopWorkflow.window.return')}</Button></>} />}
+    {error && <Alert className={styles.error} type="warning" showIcon title={t(`desktopWorkflow.window.${error}`)}
+      action={<><Button size="small" onClick={() => void retry()}>{t('app.refresh')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('desktopWorkflow.window.return')}</Button></>} />}
     <div ref={content} className={styles.content} data-motion={leaving ? 'leaving' : 'entering'} inert={frozen}>
       <WorkflowWorkspaceView model={model} gateway={adapter.media} onMediaTask={adapter.trackMediaTask}
         windowAction={<DetachedWindowButton label={t('desktopWorkflow.window.return')} returning busy={frozen} onClick={() => void returnWindow()} />} />

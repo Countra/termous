@@ -902,6 +902,8 @@
       "detached": "已在独立窗口打开",
       "detachedDescription": "助手在独立窗口继续工作。会话、草稿与正在进行的任务会保留。",
       "failed": "窗口交接未完成，请重试。未确认的操作不会自动重发。",
+      "syncFailed": "窗口状态同步失败，请刷新后重试。",
+      "operationFailed": "操作未确认，请刷新状态后检查结果。未确认的操作不会自动重发。",
       "approvalWaiting": "正在等待主窗口审批",
       "approval": "前往审批"
     },

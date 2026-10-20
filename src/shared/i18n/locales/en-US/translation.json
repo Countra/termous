@@ -902,6 +902,8 @@
       "detached": "Open in a separate window",
       "detachedDescription": "Your assistant is working in its own window. Conversations, drafts and running tasks stay with you.",
       "failed": "Window handoff did not finish. Please retry. Unconfirmed actions are not sent again automatically.",
+      "syncFailed": "Window state could not be synced. Refresh and try again.",
+      "operationFailed": "The action was not confirmed. Refresh the state to check the result. Unconfirmed actions are not sent again automatically.",
       "approvalWaiting": "Waiting for approval in the main window",
       "approval": "Go to approval"
     },

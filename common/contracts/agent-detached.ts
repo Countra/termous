@@ -91,6 +91,10 @@ const noArgumentCommands = new Set<AgentDetachedCommandName>([
 ])
 const resourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow']
 
+export function isAgentDetachedNoArgumentCommand(name: AgentDetachedCommandName) {
+  return noArgumentCommands.has(name)
+}
+
 function resourceReference(value: unknown) {
   if (!record(value) || !resourceKinds.includes(String(value.kind))) return false
   switch (value.kind) {
@@ -132,7 +136,7 @@ export function isAgentDetachedCommand(value: unknown): value is AgentDetachedCo
     case 'workspace.onRemoveResourceBinding': return args.length === 1 && resourceKinds.includes(String(a))
     case 'workspace.onReplaceResourceBinding': return args.length === 1 && resourceReference(a) && safeJSON(a)
     case 'workspace.onExecuteSlashCommand': return args.length === 1 && record(a) && record(a.capture) && id(a.capture.owner) && ['compact', 'session', 'profile', 'workflow'].includes(String(a.command_id)) && safeJSON(a)
-    default: return noArgumentCommands.has(value.name as AgentDetachedCommandName) ? args.length === 0
+    default: return isAgentDetachedNoArgumentCommand(value.name as AgentDetachedCommandName) ? args.length === 0
       : singleIdCommands.has(value.name as AgentDetachedCommandName) && args.length === 1 && id(a)
   }
 }

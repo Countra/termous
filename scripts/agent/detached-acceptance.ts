@@ -49,6 +49,21 @@ const open = async (reducedMotion = false) => {
 }
 
 try {
+  for (const status of ['queued', 'running']) {
+    if (production) await host.loadFile(path.join(output, 'fixture/scripts/agent/detached-preview.html'), { query: { run: status } })
+    else await host.loadURL(`http://127.0.0.1:5183/scripts/agent/detached-preview.html?run=${status}`)
+    await until(() => js(host, "!!document.querySelector('[data-agent-session-id=\"session-one\"] button:not([aria-label])')"), '停止验收会话未加载')
+    await js(host, `document.querySelector('[data-agent-session-id="session-one"] button:not([aria-label])').click()`)
+    await until(() => js(host, "!!document.querySelector('button[aria-label=\"停止任务\"]:not(:disabled)')"), '停止验收任务未就绪')
+    const stopping = await open()
+    await click(stopping, '停止任务')
+    await until(() => js(stopping, "!document.querySelector('button[aria-label=\"停止任务\"]')"), '独立窗口停止命令未生效')
+    assert(!await js(stopping, "document.body.textContent.includes('操作未确认') || document.body.textContent.includes('窗口交接未完成')"), '停止操作错误提示')
+    stopping.close()
+    await until(() => stopping.isDestroyed(), '停止后未完成交接')
+    assert(!await js(host, "document.querySelector('button[aria-label=\"停止任务\"]') !== null"), '停止结果未同步回主窗口')
+  }
+  console.log('通过：真实独立窗口停止排队及执行中任务，返回主窗口保留停止结果')
   if (production) await host.loadFile(path.join(output, 'fixture/scripts/agent/detached-preview.html'))
   else await host.loadURL('http://127.0.0.1:5183/scripts/agent/detached-preview.html')
   host.show()
@@ -170,7 +185,7 @@ try {
   await until(() => js(fresh, "document.body.textContent.includes('first.txt')"), '新草稿的首次附件未接收')
   await input(fresh, '首次附件创建会话后继续编辑。')
   await js(fresh, `(()=>{const input=document.querySelector('input[type=file]');const transfer=new DataTransfer();transfer.items.add(new File([],'empty.txt',{type:'text/plain'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))})()`)
-  await until(() => js(fresh, "document.body.textContent.includes('窗口交接未完成，请重试')"), '无效附件没有反馈失败')
+  await until(() => js(fresh, "document.body.textContent.includes('操作未确认，请刷新状态后检查结果')"), '无效附件没有反馈失败')
   fresh.close()
   await until(() => fresh.isDestroyed(), '首次附件创建会话后交接阻塞')
   assert.equal(await js(host, "document.querySelector('textarea').value"), '首次附件创建会话后继续编辑。')

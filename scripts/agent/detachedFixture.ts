@@ -1,10 +1,10 @@
 import type { AgentWorkspaceGateway } from '#features/agent-runtime'
 import type { AgentAttachment, AgentSession } from '#entities/agent'
-import { agentMessageFixture, agentSessionFixture, agentTextPartFixture } from '../../src/features/agent-runtime/model/agentRuntimeTestFixtures.ts'
+import { agentMessageFixture, agentRunFixture, agentSessionFixture, agentTextPartFixture } from '../../src/features/agent-runtime/model/agentRuntimeTestFixtures.ts'
 import { modelFixture, providerFixture, readinessFixture } from './detachedFixtureData.ts'
 
 // 验收夹具只在内存中运行，不连接模型、SSH、Core 或开发数据目录。
-export function createDetachedFixture(scenario = 'ready') {
+export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' | 'running') {
   let readiness = scenario === 'ready' ? readinessFixture() : {
     ...readinessFixture('needs_setup', scenario === 'bound' ? 'ready' : 'missing'),
     mcp_runtime: { status: 'missing' as const, message: '' },
@@ -21,12 +21,23 @@ export function createDetachedFixture(scenario = 'ready') {
     host_name: '验收主机', platform: 'linux', bound_at: '2026-08-29T00:00:00Z',
   }]
   const files = new Map<string, File>()
+  let run = runStatus ? agentRunFixture({ session_id: 'session-one', model_id: 'model-one', status: runStatus }) : undefined
   const messages = [agentMessageFixture({ id: 'message-user', session_id: 'session-one', role: 'user', status: 'completed', sequence: 1,
     parts: [agentTextPartFixture({ text: '帮我整理这台主机的检查顺序，先不要执行任何命令。' })] }),
     agentMessageFixture({ session_id: 'session-one', status: 'completed', parts: [agentTextPartFixture({ text: '可以先按下面的顺序确认环境：\n\n1. **观察负载**：CPU、内存与磁盘空间。\n2. **检查服务**：确认进程状态和最近的错误日志。\n3. **核对变更**：查看最近一次发布及配置修改。\n\n```bash\nuptime\nfree -h\ndf -h\n```\n\n选择关联的 SSH 会话后，我们可以继续细化排查步骤。' })] })]
   const methods: Partial<AgentWorkspaceGateway> = {
     runtimeOwnedByHost: true,
-    subscribeWorkspace: observer => { const timer = setTimeout(() => { observer.open(); observer.event({ type: 'snapshot', revision: 1, sessions, active_runs: [] }) }, 5); return { close: () => clearTimeout(timer) } },
+    subscribeWorkspace: observer => { const timer = setTimeout(() => { observer.open(); observer.event({ type: 'snapshot', revision: 1, sessions, active_runs: run && run.status !== 'cancelled' ? [run] : [] }) }, 5); return { close: () => clearTimeout(timer) } },
+    run: async id => {
+      if (!run || run.id !== id) throw new Error('验收任务不存在')
+      return { ...run }
+    },
+    runEvents: async () => ({ items: [] }),
+    stopRun: async (id, revision, generation) => {
+      if (!run || run.id !== id || run.revision !== revision || run.generation !== generation || run.status === 'cancelled') throw new Error('验收任务停止参数不匹配或重复停止')
+      run = { ...run, status: 'cancelled', revision: run.revision + 1 }
+      return { ...run }
+    },
     sessions: async options => ({ items: sessions.filter(session => options?.archived ? !!session.archived_at : !session.archived_at).filter(session => !options?.query || session.title.includes(options.query)), revision: 1 }),
     sessionGroups: async () => ({ items: [] }),
     resourceBindingConnection: async () => ({ instance_id: 'fixture-instance', operation: null }),

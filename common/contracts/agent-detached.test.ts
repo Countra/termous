@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { canTransferAgentDetachedFiles, isAgentDetachedBinary, isAgentDetachedCommand } from './agent-detached.ts'
+import { agentDetachedCommands, canTransferAgentDetachedFiles, isAgentDetachedBinary, isAgentDetachedCommand, isAgentDetachedNoArgumentCommand } from './agent-detached.ts'
+
+test('无参数命令仍严格拒绝外部传入的多余参数，可选参数命令保留参数', () => {
+  for (const name of agentDetachedCommands.filter(isAgentDetachedNoArgumentCommand)) {
+    assert(isAgentDetachedCommand({ name, args: [] }), name)
+    assert(!isAgentDetachedCommand({ name, args: [{ type: 'click' }] }), name)
+  }
+  assert(!isAgentDetachedNoArgumentCommand('workspace.onCreateSession'))
+  assert(!isAgentDetachedNoArgumentCommand('archive.onSelect'))
+})
 
 test('助手命令只接受已声明的能力与参数', () => {
   assert(isAgentDetachedCommand({ name: 'workspace.onSend', args: ['hello', ['attachment-1']] }))

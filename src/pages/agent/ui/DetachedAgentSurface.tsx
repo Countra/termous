@@ -15,7 +15,7 @@ import { detachedWindowStyles as styles } from '#shared/ui'
 export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   const { t } = useTranslation()
   const [partitions, setPartitions] = useState<Record<string, unknown>>()
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<'failed' | 'syncFailed' | 'operationFailed'>()
   const [frozen, setFrozen] = useState(false)
   const [ready, setReady] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -25,7 +25,7 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   const content = useRef<HTMLDivElement>(null)
   const presentation = useRef<AgentPresentation>({})
   const receiver = useMemo(() => new DetachedStateReceiver(), [])
-  const adapter = useMemo(() => new AgentRemoteAdapter(client, () => setError(true)), [client])
+  const adapter = useMemo(() => new AgentRemoteAdapter(client, () => setError('operationFailed')), [client])
   useSyncExternalStore(adapter.subscribe, adapter.getSnapshot, adapter.getSnapshot)
   useEffect(() => {
     let alive = true
@@ -42,11 +42,11 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
         return
       }
       throw new Error('agent_state_gap')
-    })().catch(() => { if (alive) setError(true) }).finally(() => { resync = undefined })
+    })().catch(() => { if (alive) setError('syncFailed') }).finally(() => { resync = undefined })
     const unsubscribe = client.subscribe(packet => {
       if (packet.kind === 'ready') { setReady(true); return }
       if (packet.kind !== 'state') return
-      if ((packet.payload as { handoffFailed?: boolean })?.handoffFailed) { handoff.current++; setFrozen(false); setLeaving(false); setError(true); return }
+      if ((packet.payload as { handoffFailed?: boolean })?.handoffFailed) { handoff.current++; setFrozen(false); setLeaving(false); setError('failed'); return }
       const status = receiver.accept(packet.payload as DetachedStateFrame)
       if (status === 'gap') void hydrate()
       else if (status === 'applied') setPartitions({ ...receiver.snapshot() })
@@ -75,33 +75,33 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   useEffect(() => { if (partitions && !ready) client.ready() }, [client, partitions, ready])
   useEffect(() => {
     if (!ready) return
-    const refresh = () => { void client.peer.request('command', { name: 'surface.onRefreshSetup', args: [] }).catch(() => setError(true)) }
+    const refresh = () => { void client.peer.request('command', { name: 'surface.onRefreshSetup', args: [] }).catch(() => setError('syncFailed')) }
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
   }, [client, ready])
   const returnWindow = async () => {
-    setError(false)
-    try { await client.peer.request('return', true, 120000) } catch { handoff.current++; setError(true); setFrozen(false); setLeaving(false) }
+    setError(undefined)
+    try { await client.peer.request('return', true, 120000) } catch { handoff.current++; setError('failed'); setFrozen(false); setLeaving(false) }
   }
   const retry = async () => {
-    setError(false)
-    try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError(true) }
+    setError(undefined)
+    try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError('syncFailed') }
   }
-  if (!partitions) return error ? <Alert type="error" title={t('agent.window.failed')}
-    action={<Button onClick={() => void retry()}>{t('app.retry')}</Button>} /> : <Spin fullscreen />
+  if (!partitions) return error ? <Alert type="error" title={t(`agent.window.${error}`)}
+    action={<Button onClick={() => void retry()}>{t('app.refresh')}</Button>} /> : <Spin fullscreen />
   const model = adapter.connect(restoreAgentSurface(partitions), partitions.capabilities as AgentDetachedCommandName[] ?? [], Number(partitions.inputSequence ?? 0))
   const feedback = partitions.feedback as AgentFeedbackSnapshot | undefined
   return <div className={styles.surface} ref={root}>
-    {error && <Alert className={styles.error} type="warning" showIcon title={t('agent.window.failed')}
-      action={<><Button size="small" onClick={() => void retry()}>{t('app.retry')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('agent.window.return')}</Button></>} />}
+    {error && <Alert className={styles.error} type="warning" showIcon title={t(`agent.window.${error}`)}
+      action={<><Button size="small" onClick={() => void retry()}>{t('app.refresh')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('agent.window.return')}</Button></>} />}
     <div ref={content} className={styles.content} data-motion={leaving ? 'leaving' : ready ? 'entering' : undefined} inert={frozen || !ready}>
       <AgentSurfaceView model={model} presentation={presentation.current} interactive={ready && !frozen}
         windowAction={<AgentWindowButton returning onClick={() => void returnWindow()} busy={frozen} />}
-        onRevealApprovals={() => { void client.peer.request('reveal').catch(() => setError(true)) }} />
+        onRevealApprovals={() => { void client.peer.request('reveal').catch(() => setError('operationFailed')) }} />
       {feedback && <AgentSurfaceFeedback value={feedback} onDismiss={(id, version) => {
-        void client.peer.request('command', { name: 'feedback.dismiss', args: [id, version] }).catch(() => setError(true))
+        void client.peer.request('command', { name: 'feedback.dismiss', args: [id, version] }).catch(() => setError('operationFailed'))
       }} onAnswer={(id, accepted) => {
-        void client.peer.request('command', { name: 'feedback.answer', args: [id, accepted] }).catch(() => setError(true))
+        void client.peer.request('command', { name: 'feedback.answer', args: [id, accepted] }).catch(() => setError('operationFailed'))
       }} />}
     </div>
   </div>

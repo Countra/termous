@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isWorkflowDetachedCommand, isWorkflowDetachedMedia } from './workflow-detached.ts'
+import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, isWorkflowDetachedNoArgumentAction, workflowDetachedActions } from './workflow-detached.ts'
+
+test('无参数动作只接受空参数，编辑和运行控制仍要求业务参数', () => {
+  for (const name of workflowDetachedActions.filter(isWorkflowDetachedNoArgumentAction)) {
+    assert(isWorkflowDetachedCommand({ name, args: [] }), name)
+    assert(!isWorkflowDetachedCommand({ name, args: [{ type: 'click' }] }), name)
+  }
+  assert(!isWorkflowDetachedNoArgumentAction('change'))
+  assert(!isWorkflowDetachedNoArgumentAction('control'))
+})
 
 test('自动化独立窗口拒绝未知命令、非法输入序号和额外草稿字段', () => {
   assert(isWorkflowDetachedCommand({ name: 'change', args: [{ name: '草稿' }], owner: 'draft', inputSequence: 1 }))

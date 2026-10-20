@@ -1,4 +1,4 @@
-import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, workflowDetachedActions, workflowDetachedInputs,
+import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, isWorkflowDetachedNoArgumentAction, workflowDetachedActions, workflowDetachedInputs,
   type WorkflowDetachedCommand, type WorkflowDetachedMedia } from '#common/contracts'
 import { TermousApiError } from '#shared/api'
 import type { DetachedClient } from '#shared/detached-window'
@@ -52,8 +52,10 @@ export class WorkflowRemoteAdapter {
     for (const [key, echo] of this.echoes) if (echo.sequence <= acknowledged) this.echoes.delete(key)
     let next = structuredClone(model)
     for (const echo of [...this.echoes.values()].sort((a, b) => a.sequence - b.sequence)) next = optimistic(next, echo.command)
-    const actions = Object.fromEntries(workflowDetachedActions.map(name => [name, (...args: unknown[]) => {
+    const actions = Object.fromEntries(workflowDetachedActions.map(name => [name, (...suppliedArgs: unknown[]) => {
       if (!this.interactive) return this.failed('detached_editor_inactive')
+      // 只序列化契约声明的业务参数，避免按钮或对话框事件泄漏到 IPC。
+      const args = isWorkflowDetachedNoArgumentAction(name) ? [] : suppliedArgs
       const owner = this.model?.state.draft?.editingID
       const input = (workflowDetachedInputs as readonly string[]).includes(name)
       const command: WorkflowDetachedCommand = { name, args, owner, ...(input ? { inputSequence: ++this.sequence } : {}) }

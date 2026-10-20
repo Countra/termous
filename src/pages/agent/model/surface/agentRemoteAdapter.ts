@@ -1,4 +1,5 @@
-import { agentDetachedCommands, canTransferAgentDetachedFiles, type AgentDetachedCommandName, type AgentDetachedFile } from '#common/contracts'
+import { agentDetachedCommands, canTransferAgentDetachedFiles, isAgentDetachedCommand, isAgentDetachedNoArgumentCommand,
+  type AgentDetachedCommandName, type AgentDetachedFile } from '#common/contracts'
 import type { DetachedClient } from '#shared/detached-window'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
 import { agentEditorOwner } from './agentSurfaceProjection.ts'
@@ -23,6 +24,7 @@ export class AgentRemoteAdapter {
   private changed() { this.revision++; for (const listener of this.listeners) listener() }
 
   connect(model: AgentSurfaceModel, capabilities: AgentDetachedCommandName[], acknowledged: number): AgentSurfaceModel {
+    this.sequence = Math.max(this.sequence, acknowledged)
     for (const [key, value] of this.echoes) if (value.sequence <= acknowledged) this.echoes.delete(key)
     const owner = agentEditorOwner(model)
     const groups = {
@@ -34,11 +36,18 @@ export class AgentRemoteAdapter {
       const [group, key] = name.split('.')
       const target = groups[group as keyof typeof groups] as Record<string, unknown> | undefined
       if (!target) continue
-      target[key] = (...args: unknown[]) => {
+      target[key] = (...suppliedArgs: unknown[]) => {
+        // 无参数业务回调可能直接绑定按钮；React 点击事件不能进入跨窗口命令。
+        const args = isAgentDetachedNoArgumentCommand(name) ? [] : suppliedArgs
         const input = name === 'workspace.onDraftChange' || name === 'workspace.onQueuedTurnEditChange'
         const sequence = input ? ++this.sequence : undefined
-        if (input) { this.echoes.set(`${owner}:${name}`, { value: args[0] as string, sequence: sequence! }); this.changed() }
         const payload = { name, args, owner, inputSequence: sequence }
+        if (!isAgentDetachedCommand(payload)) {
+          const operation = Promise.reject(new Error('agent_command_invalid'))
+          void operation.catch(this.report)
+          return operation
+        }
+        if (input) { this.echoes.set(`${owner}:${name}`, { value: args[0] as string, sequence: sequence! }); this.changed() }
         const operation = input
           ? this.receipts.start(`${owner}:${name}`, id => this.client.peer.request('command', payload, 10000, id))
           : (requiresInputReceipt.has(name) ? this.receipts.flush(false) : Promise.resolve())

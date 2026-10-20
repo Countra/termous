@@ -5,7 +5,11 @@ import { AgentPage } from '#pages/agent'
 import { createDetachedFixture } from './detachedFixture.ts'
 
 export function DetachedPreview() {
-  const fixture = useMemo(() => createDetachedFixture(new URLSearchParams(location.search).get('readiness') ?? 'ready'), [])
+  const fixture = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const run = params.get('run')
+    return createDetachedFixture(params.get('readiness') ?? 'ready', run === 'queued' || run === 'running' ? run : undefined)
+  }, [])
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
   const [active, setActive] = useState(true)

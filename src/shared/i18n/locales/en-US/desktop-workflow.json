@@ -74,7 +74,9 @@
     "focus": "Go to separate window",
     "detached": "Desktop automation is open in a separate window",
     "description": "Continue editing and reviewing runs in the separate window. Drafts and tasks stay in sync.",
-    "failed": "Window handoff did not finish. Retry or bring it back from the main window."
+    "failed": "Window handoff did not finish. Retry or bring it back from the main window.",
+    "syncFailed": "Window state could not be synced. Refresh and try again.",
+    "operationFailed": "The action was not confirmed. Refresh the state to check the result. Unconfirmed actions are not sent again automatically."
   },
   "expandLibrary": "Expand library",
   "collapseLibrary": "Collapse library",
