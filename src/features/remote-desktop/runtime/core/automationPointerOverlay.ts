@@ -20,8 +20,8 @@ export function createAutomationPointerOverlay(options: Options) {
   root.hidden = true
   const marker = document.createElement('span')
   marker.className = styles.marker
-  // 固定 SVG 使用双层描边，在明暗远端画面上都能保留清楚的指针轮廓。
-  marker.innerHTML = '<svg width="26" height="25" viewBox="0 0 26 25" fill="none"><path d="M3 2.5L23 11.5L14 14.5L10 22L3 2.5Z" fill="currentColor" stroke="#17212b" stroke-opacity=".6" stroke-width="3" stroke-linejoin="round"/><path d="M3 2.5L23 11.5L14 14.5L10 22L3 2.5Z" fill="currentColor" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 6L10.7 17.5" stroke="white" stroke-opacity=".3" stroke-linecap="round"/></svg>'
+  // 与移动端共用视觉规格：圆润橙色、白描边及左上 (2, 2) 热点，不改变回执坐标。
+  marker.innerHTML = '<svg width="26" height="30" viewBox="0 0 26 30" fill="none"><path d="M2 2C2.7 1.7 3.4 2 4.2 2.6L22 18.3C23.4 19.5 22.8 21.4 21 21.5L13.4 21.7C12.2 21.7 11.3 22.1 10.4 22.9L5.3 27C3.8 28.2 1.7 27.3 1.7 25.3L1.5 4.4C1.5 3.2 1.6 2.4 2 2Z" fill="currentColor" stroke="white" stroke-width="1.9" stroke-linejoin="round"/></svg>'
   const label = document.createElement('span')
   label.className = styles.label
   const dot = document.createElement('span')
