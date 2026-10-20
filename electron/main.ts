@@ -83,7 +83,8 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 const APP_NAME = identity.name
 const APP_ID = identity.appId
-const APP_ICON = desktopChannel === 'development' ? path.join(process.resourcesPath, 'icon.png') : path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+// 原生通知 XML 由操作系统读取，两个渠道都使用 ASAR 之外的真实图标文件。
+const APP_ICON = path.join(process.resourcesPath, 'icon.png')
 const TRAY_ICON = desktopChannel === 'development' ? APP_ICON : path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900

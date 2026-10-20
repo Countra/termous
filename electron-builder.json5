@@ -123,6 +123,10 @@
   ],
   "extraResources": [
     {
+      "from": "public/termous-icon.png",
+      "to": "icon.png"
+    },
+    {
       "from": "build/agent/skills",
       "to": "agent/skills",
       "filter": [

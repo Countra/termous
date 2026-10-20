@@ -212,6 +212,8 @@ export async function validatePackageArtifacts({
     normalizedPlatform,
     normalizedArch,
   )
+  // 系统通知直接读取此文件，归档内同名资源不能替代原生可访问的图标。
+  await assertFile(path.join(packagedResources, 'icon.png'), '包内原生图标 icon.png')
   // 与 Electron 的实际启动位置一致：macOS 为 Contents，其他平台为应用根目录。
   const packagedApplication = path.dirname(packagedResources)
   const corePaths = [path.join(packagedApplication, coreName)]

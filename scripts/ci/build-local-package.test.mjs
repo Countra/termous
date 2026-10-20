@@ -44,6 +44,10 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
   assert.equal(config.mac.identity, null)
   assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)
+  assert.equal(config.asar, true)
+  assert.deepEqual(config.extraResources.find(({ to }) => to === 'icon.png'), {
+    from: 'public/termous-icon.png', to: 'icon.png',
+  })
   assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
     ['termous-core.exe', 'termous-core', 'termous-rdp.exe', 'termous-rdp'])
   assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
@@ -334,6 +338,28 @@ test('产物门禁拒绝符号链接形式的第三方许可证', async (context
   }
 })
 
+test('各平台发布包缺少归档外原生图标时拒绝发布', async (context) => {
+  const temporary = new URL('../../../TEMP/native-resource-tests/', import.meta.url)
+  await mkdir(temporary, { recursive: true })
+  for (const [platform, arch, resources] of [
+    ['win32', 'x64', 'win-unpacked/resources'],
+    ['linux', 'x64', 'linux-unpacked/resources'],
+    ['darwin', 'x64', 'mac/Termous.app/Contents/Resources'],
+    ['darwin', 'arm64', 'mac-arm64/Termous.app/Contents/Resources'],
+  ]) await context.test(`${platform}/${arch}`, async () => {
+    const root = await mkdtemp(new URL('package-', temporary))
+    try {
+      const options = { outputDirectory: root, platform, arch, version: '1.2.3' }
+      await writeCompleteFixture(options)
+      await validatePackageArtifacts(options)
+      await rm(path.join(root, resources, 'icon.png'))
+      await assert.rejects(validatePackageArtifacts(options), /包内原生图标 icon\.png不存在/u)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
 test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'termous-package-invalid-'))
   try {
@@ -548,6 +574,7 @@ async function writeCompleteFixture({
   await mkdir(resourcesDirectory, {
     recursive: true,
   })
+  await writeFile(path.join(resourcesDirectory, 'icon.png'), await readFile(new URL('../../public/termous-icon.png', import.meta.url)))
   for (const fileName of files) {
     await writeFile(path.join(outputDirectory, fileName), `fixture:${fileName}`)
   }
