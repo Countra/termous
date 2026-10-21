@@ -1,0 +1,200 @@
+.root {
+  -webkit-app-region: no-drag;
+
+  :global(.ant-modal-mask) {
+    background: rgb(0 0 0 / 44%);
+    backdrop-filter: blur(7px);
+  }
+}
+
+.root .dialog {
+  max-width: calc(100vw - 48px);
+  padding-bottom: 0;
+}
+
+.dialog .container {
+  display: flex;
+  max-height: calc(100dvh - 48px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+
+  // 左栏底色覆盖外框，避免浅色主题在圆角和透明边框处露出亮边。
+  background: #121d2d;
+  background-clip: border-box;
+  padding: 0;
+  box-shadow: 0 32px 100px rgb(0 0 0 / 36%);
+  animation: account-enter 220ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+// 保留对话框名称供辅助技术读取，视觉标题由双栏内容呈现。
+.dialog .header, .accessible-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dialog .close {
+  top: 18px;
+  right: 20px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.dialog .close:hover {
+  border-color: var(--border-strong);
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.dialog .body {
+  display: grid;
+  height: min(660px, calc(100dvh - 50px));
+  min-height: 0;
+  grid-template-columns: 40% minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+  padding: 0;
+}
+
+.access {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--surface-strong);
+}
+
+.content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  padding: 56px 48px 32px;
+
+  > * {
+    width: 100%;
+    max-width: 420px;
+    flex-shrink: 0;
+    margin-block: auto;
+    margin-inline: auto;
+  }
+}
+
+.footer {
+  display: flex;
+  width: calc(100% - 96px);
+  max-width: 420px;
+  min-height: 72px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-inline: auto;
+  border-top: 1px solid var(--border);
+  padding-block: 12px;
+
+  > :global(.ant-btn) {
+    padding-inline: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+}
+
+.fallback {
+  display: grid;
+  gap: 16px;
+}
+
+@keyframes account-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog .container {
+    animation: none;
+  }
+}
+
+@media (width <= 980px) {
+  .content {
+    padding-inline: 32px;
+  }
+
+  .footer {
+    width: calc(100% - 64px);
+  }
+}
+
+@media (height <= 680px) and (width > 860px) {
+  .content {
+    padding-block: 32px 24px;
+  }
+}
+
+@media (width <= 860px) {
+  .root .dialog {
+    width: 520px !important;
+    max-width: calc(100vw - 24px);
+  }
+
+  .dialog .container {
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
+
+  .dialog .body {
+    height: min(640px, calc(100dvh - 26px));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .dialog .close {
+    top: 22px;
+    right: 22px;
+    border-color: rgb(150 182 226 / 22%);
+    background: rgb(150 182 226 / 8%);
+    color: #b5c7df;
+  }
+
+  .content {
+    padding: 24px 28px;
+  }
+
+  .footer {
+    width: calc(100% - 56px);
+    min-height: 64px;
+  }
+}
+
+@media (width <= 380px) {
+  .content {
+    padding-inline: 20px;
+  }
+
+  .footer {
+    width: calc(100% - 40px);
+  }
+}

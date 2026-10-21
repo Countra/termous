@@ -40,7 +40,7 @@ import { useMountManagement } from './model/useMountManagement'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsDialog, type SettingsPageTabKey } from '#pages/settings'
-import { AccountPage } from '#pages/account'
+import { AccountAuthDialog, AccountPage } from '#pages/account'
 import { AccountApprovalCoordinator, useCloudProfile } from '#features/cloud-account'
 import { useAccountWelcome } from './model/useAccountWelcome'
 import { snippetToInput } from '#entities/snippet'
@@ -255,7 +255,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const cloudStatus = useSyncExternalStore(gateways.cloud.subscribeStatus, gateways.cloud.getStatus)
   const cloudProfile = useCloudProfile(gateways.cloud, cloudStatus?.generation ?? '', apiReady && cloudStatus?.authenticated ? cloudStatus.user_id : undefined)
   const { pending: accountWelcomePending, complete: completeAccountWelcome } = useAccountWelcome(cloudStatus?.authenticated === true)
-  const [page, setCurrentPage] = useState<PageKey>(() => accountWelcomePending ? 'account' : 'workbench')
+  const [page, setCurrentPage] = useState<PageKey>('workbench')
+  const [accountAuthOpen, setAccountAuthOpen] = useState(accountWelcomePending)
+  const [accountAuthBusy, setAccountAuthBusy] = useState(false)
+  const accountAfterAuthentication = useRef(false)
+  const closeAccountAuth = useCallback(() => {
+    accountAfterAuthentication.current = false
+    setAccountAuthOpen(false)
+    completeAccountWelcome()
+  }, [completeAccountWelcome])
+  useEffect(() => {
+    if (page === 'account' && cloudStatus && !cloudStatus.authenticated) {
+      setCurrentPage('workbench')
+      setAccountAuthOpen(true)
+    }
+  }, [cloudStatus, page])
   const [hostSaving, setHostSaving] = useState(false)
   const hostSavingRef = useRef(false)
   const settingsBoundary = useRef({ dirty: false, busy: false })
@@ -280,6 +294,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (nextPage !== 'account') completeAccountWelcome()
     setCurrentPage(nextPage)
   }, [completeAccountWelcome])
+  const completeAccountAuth = useCallback(() => {
+    const openAccount = accountAfterAuthentication.current
+    closeAccountAuth()
+    if (openAccount) setPage('account')
+  }, [closeAccountAuth, setPage])
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
@@ -368,7 +387,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [gateways.cloud])
   useEffect(() => { setAccountAuthorization(undefined) }, [cloudStatus?.generation])
   useCloudSubscription(gateways.cloud, apiReady, hostsDirty || vaultDirty || snippetsDirty, actions.reloadCloudDatasets)
-  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked || settingsOpen }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked, settingsOpen])
+  useEffect(() => { notificationNavigationBlocked.current = hostsDirty || vaultDirty || snippetsDirty || workflowNavigationBlocked || settingsOpen || accountAuthOpen }, [hostsDirty, vaultDirty, snippetsDirty, workflowNavigationBlocked, settingsOpen, accountAuthOpen])
   const navigateNotification = useCallback(async (target: NotificationTarget): Promise<boolean> => {
     if (target.kind === 'remote_agent') {
       const generation = gateways.cloud.getStatus()?.generation
@@ -389,11 +408,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     try {
       if (target.kind === 'cloud') {
         const status = await gateways.cloud.status()
-        // 当前绑定认证失效时直接进入登录页；其他账号的历史消息只展示保留摘要。
+        // 当前绑定认证失效时打开登录弹层；其他账号的历史消息只展示保留摘要。
         if (status.binding_id !== target.binding_id || hostSavingRef.current || notificationNavigationBlocked.current) return false
         setAccountTab(target.tab)
         setAccountAuthorization(target.authorization ? { generation: status.generation, target: target.authorization } : undefined)
-        setPage('account')
+        if (status.authenticated) setPage('account')
+        else { accountAfterAuthentication.current = true; setAccountAuthOpen(true) }
         return true
       }
       if (target.kind === 'agent') {
@@ -423,9 +443,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     nextPage: NavigationTarget,
     options?: { settingsTab?: SettingsPageTabKey; accountTab?: CloudTab },
   ) => {
+    if (accountAuthBusy) return Promise.resolve(false)
     if (nextPage === 'settings') {
       if (hostSavingRef.current) return Promise.resolve(false)
       if (!settingsOpen) {
+        setAccountAuthOpen(false)
         setSettingsInitialTab(options?.settingsTab ?? 'general')
         setSettingsOpen(true)
       }
@@ -435,6 +457,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       if (settingsBoundary.current.busy || settingsBoundary.current.dirty) return Promise.resolve(false)
       setSettingsOpen(false)
     }
+    if (nextPage === 'account' && !gateways.cloud.getStatus()?.authenticated) {
+      if (hostSavingRef.current) return Promise.resolve(false)
+      setAccountTab(options?.accountTab ?? 'profile')
+      accountAfterAuthentication.current = false
+      setAccountAuthOpen(true)
+      return Promise.resolve(true)
+    }
+    setAccountAuthOpen(false)
     navigationResultRef.current?.(false)
     navigationResultRef.current = undefined
     setPendingPage(null)
@@ -452,7 +482,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
     return Promise.resolve(true)
-  }, [agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen])
+  }, [accountAuthBusy, gateways.cloud, agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -1314,6 +1344,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     reference, agentResources, agentReferenceTargets, reference.kind === 'ssh_session' ? agentReferenceResourcesReady : agentFileResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
+    || (accountAuthOpen && !productTourActive)
     || hostKeyApprovalBlocking
     || desktopConnectionBlocking
     || actionBusy
@@ -1354,7 +1385,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     _currentStep: ProductTourStep,
     nextStep: ProductTourStep,
   ) => {
-    if (settingsDirty || settingsBusy) return true
+    if (settingsDirty || settingsBusy || accountAuthBusy) return true
     if (nextStep.route === 'settings') return false
     if (workflowNavigationBlocked && nextStep.route && nextStep.route !== 'remote-desktop') return true
     if (page === 'vault' && vaultDirty) {
@@ -1369,7 +1400,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return nextStep.route !== undefined && nextStep.route !== 'snippets'
     }
     return false
-  }, [hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy, workflowNavigationBlocked])
+  }, [accountAuthBusy, hostsDirty, page, snippetsDirty, vaultDirty, settingsDirty, settingsBusy, workflowNavigationBlocked])
   const showProductTourBlocked = useCallback(() => {
     notification.warning({
       title: t('productTour.menuLabel'),
@@ -1442,7 +1473,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       appVersion={appVersion}
                       windowCloseBehavior={data.settings.window.close_behavior}
                       sidebarCollapsed={sidebarCollapsed}
-                      contentInert={settingsOpen}
+                      contentInert={settingsOpen || accountAuthOpen}
                       actionBusy={actionBusy || hostSaving}
                       onNavigate={navigateToPage}
                       onOpenConnectionLauncher={openPageConnectionLauncher}
@@ -1716,6 +1747,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         />
                       </div> : null}
                     </AppShell>
+                    {accountAuthOpen && page !== 'account' ? <AccountAuthDialog api={gateways.cloud} onClose={closeAccountAuth} onAuthenticated={completeAccountAuth}
+                      guided={productTourActive} onBusyChange={setAccountAuthBusy} /> : null}
                     <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
                       settingsGateway={gateways.settings} initialTab={settingsInitialTab}
                       onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}

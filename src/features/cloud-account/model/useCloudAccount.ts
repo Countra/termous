@@ -68,5 +68,7 @@ export function useCloudAccount(api: CloudGateway) {
     }
   }, [api, generation, refresh])
 
-  return { status, busy, error: error ?? statusError, run, refresh }
+  const clearError = useCallback(() => { setError(undefined) }, [])
+
+  return { status, busy, error: error ?? statusError, run, refresh, clearError }
 }

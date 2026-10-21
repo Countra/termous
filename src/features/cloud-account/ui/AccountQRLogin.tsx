@@ -1,6 +1,5 @@
-import { FeedbackMessage } from '#shared/ui'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Button, QRCode, Spin } from 'antd'
+import { Alert, Button, QRCode, Spin } from 'antd'
 import { CheckCircle2, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudGateway } from '#entities/cloud'
@@ -92,21 +91,25 @@ export function AccountQRLogin({ api, generation, reauthenticate }: { api: Cloud
     finally { if (current()) setBusy(false) }
   }
   const remaining = item ? Math.max(0, Math.ceil((observed.seconds * 1000 - Math.max(0, now - observed.at)) / 1000)) : 0
-  const terminal = !!item && (!pending(item.state) && !['approved', 'issued'].includes(item.state) || remaining === 0)
+  const completed = item?.state === 'completed'
+  const timedOut = !!item && pending(item.state) && remaining === 0
+  const terminal = !!item && (!pending(item.state) && !['approved', 'issued', 'completed'].includes(item.state) || timedOut)
   const scanned = !!item && !terminal && item.state !== 'pending'
-  const state = terminal && remaining === 0 ? 'expired' : item?.state ?? 'loading'
+  const state = timedOut ? 'expired' : item?.state ?? 'loading'
   const code = error || item?.error_code
   const showCode = Boolean(item?.qr_code && !terminal && !scanned)
-  const hint = terminal ? 'refreshHint' : ['approved', 'issued'].includes(state) ? 'completingHint' : scanned ? 'confirmHint' : 'hint'
-  return <div className={`${styles.panel} ${scanned || terminal || code ? styles['with-detail'] : ''}`}>
-    <div className={`${styles.code} ${showCode ? styles['has-code'] : ''}`}>
+  const hint = completed ? 'completedHint' : terminal ? 'refreshHint' : ['approved', 'issued'].includes(state) ? 'completingHint' : scanned ? 'confirmHint' : 'hint'
+  return <div className={`${styles.panel}${scanned || terminal ? ` ${styles.compact}` : ''}`}>
+    <div className={`${styles.code} ${showCode ? styles['has-code'] : ''} ${scanned || terminal ? styles['status-icon'] : ''}`}>
       {showCode && item?.qr_code ? <QRCode size={208} value={item.qr_code} color="#0F1116" bgColor="#FFFFFF" bordered={false} /> : <div className={styles.placeholder}>{terminal ? <Smartphone size={40} aria-hidden="true" /> : scanned ? <CheckCircle2 size={40} aria-hidden="true" /> : <Spin size="large" />}</div>}
     </div>
-    <div className={styles.status}><strong role="status">{t(`cloud.qr.${state}`)}</strong><p>{t(`cloud.qr.${hint}`)}</p>
-      {item && !terminal && <small>{t('cloud.qr.remaining', { seconds: remaining })}</small>}
+    <div className={styles.details}>
+      <div className={styles.status}><strong role="status">{t(`cloud.qr.${state}`)}</strong><p>{t(`cloud.qr.${hint}`)}</p>
+        {item && !terminal && pending(item.state) && <small>{t('cloud.qr.remaining', { seconds: remaining })}</small>}
+      </div>
+      {scanned && !completed && <div className={styles.pair}><span>{t('cloud.qr.checkCode')}</span><strong>{item.pairing_code}</strong></div>}
+      {code && <Alert showIcon type="error" title={t(i18n.exists(`cloud.errors.${code}`) ? `cloud.errors.${code}` : 'cloud.errors.local_failed')} />}
+      {terminal ? <Button type="primary" block loading={busy} onClick={() => void act('create')}>{t('cloud.qr.refresh')}</Button> : code && <Button block loading={busy} onClick={() => void act(item ? 'retry' : 'create')}>{t('cloud.qr.retry')}</Button>}
     </div>
-    {scanned && <div className={styles.pair}><span>{t('cloud.qr.checkCode')}</span><strong>{item.pairing_code}</strong></div>}
-    {code && <FeedbackMessage type="error" title={t(i18n.exists(`cloud.errors.${code}`) ? `cloud.errors.${code}` : 'cloud.errors.local_failed')} />}
-    {terminal ? <Button type="primary" block loading={busy} onClick={() => void act('create')}>{t('cloud.qr.refresh')}</Button> : code && <Button block loading={busy} onClick={() => void act(item ? 'retry' : 'create')}>{t('cloud.qr.retry')}</Button>}
   </div>
 }

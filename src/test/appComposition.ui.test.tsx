@@ -8,7 +8,7 @@ const testState = vi.hoisted(() => {
   const action = vi.fn(async () => undefined)
   return {
     cloud: {
-      getStatus: () => undefined,
+      getStatus: vi.fn<() => import('#common/contracts').CloudStatus | undefined>(() => undefined),
       subscribeStatus: () => () => {},
       eventsUrl: () => 'ws://127.0.0.1/cloud/events',
     },
@@ -217,19 +217,28 @@ vi.mock('#widgets/remote-desktop-workspace', () => ({
   RemoteDesktopConnectionCoordinator: () => <div data-testid="desktop-connection-coordinator" />,
 }))
 
+vi.mock('#features/cloud-account', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#features/cloud-account')>(),
+  AccountApprovalCoordinator: () => null,
+}))
+
 vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
     onNavigate,
     onOpenConnectionLauncher,
     onOpenProductTour,
+    onOpenAccount,
+    contentInert,
   }: {
     children: ReactNode
     onNavigate: (page: 'workbench' | 'agent' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings' | 'remote-desktop') => void
     onOpenConnectionLauncher: () => void
     onOpenProductTour: () => void
+    onOpenAccount: (tab: import('#common/contracts').CloudTab) => void
+    contentInert: boolean
   }) => (
-    <div data-provider="app-shell">
+    <div data-provider="app-shell" data-content-inert={String(contentInert)}>
       <button
         type="button"
         data-tour={testState.productTourPageHarness ? 'topbar-connect' : undefined}
@@ -258,6 +267,7 @@ vi.mock('#app/app-shell', () => ({
       <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
       <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
       <button type="button" onClick={() => onNavigate('settings')}>settings</button>
+      <button type="button" onClick={() => onOpenAccount('profile')}>account</button>
       <button type="button" onClick={() => onNavigate('remote-desktop')}>remote-desktop</button>
       {children}
     </div>
@@ -265,6 +275,21 @@ vi.mock('#app/app-shell', () => ({
 }))
 
 vi.mock('#pages/account', () => ({
+  AccountAuthDialog: ({ onClose, onAuthenticated, onBusyChange, guided }: {
+    onClose: () => void
+    onAuthenticated: () => void
+    onBusyChange: (busy: boolean) => void
+    guided: boolean
+  }) => {
+    const [busy, setBusy] = useState(false)
+    useEffect(() => { onBusyChange(busy); return () => onBusyChange(false) }, [busy, onBusyChange])
+    return <div data-testid="account-auth-dialog" data-guided={String(guided)} data-tour="account-workspace">
+      <button type="button" onClick={onClose}>continue-offline</button>
+      <button type="button" onClick={onAuthenticated}>complete-auth</button>
+      <button type="button" onClick={() => setBusy(true)}>auth-busy</button>
+      <button type="button" onClick={() => setBusy(false)}>auth-idle</button>
+    </div>
+  },
   AccountPage: ({ onUseOffline, settingsGateway, activeTab }: { onUseOffline: () => void; settingsGateway: unknown; activeTab: string }) => {
     expect(settingsGateway).toBe(testState.settingsGateway)
     return <div data-testid="account-page" data-active-tab={activeTab}><button type="button" onClick={onUseOffline}>continue-offline</button></div>
@@ -849,18 +874,72 @@ describe('应用运行时组合合同', () => {
     testState.notifications.warning.mockReset()
     window.localStorage.clear()
     window.localStorage.setItem('termous.ui.accountWelcomeCompleted.v1', 'true')
+    testState.cloud.getStatus.mockReset().mockReturnValue(undefined)
   })
 
-  it('首次进入先展示账号选择，选择离线后进入工作站并记住选择', async () => {
+  it('首次选择覆盖工作站，关闭后保留原页面并记住选择', async () => {
     window.localStorage.removeItem('termous.ui.accountWelcomeCompleted.v1')
     const user = userEvent.setup()
     render(<App />)
     expect(screen.getByRole('button', { name: 'continue-offline' })).toBeInTheDocument()
-    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'false')
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
+    expect(screen.getByTestId('workbench').closest('[data-provider="app-shell"]')).toHaveAttribute('data-content-inert', 'true')
     expect(testState.productTourProps?.ready).toBe(false)
     await user.click(screen.getByRole('button', { name: 'continue-offline' }))
     expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
     expect(window.localStorage.getItem('termous.ui.accountWelcomeCompleted.v1')).toBe('true')
+    expect(screen.queryByTestId('account-auth-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('workbench').closest('[data-provider="app-shell"]')).toHaveAttribute('data-content-inert', 'false')
+  })
+
+  it('账号认证覆盖未保存页面，取消或完成后仍保留草稿及离开保护', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    const page = screen.getByTestId('hosts-page')
+    await user.click(screen.getByRole('button', { name: 'account' }))
+    expect(screen.getByTestId('account-auth-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('hosts-page')).toBe(page)
+    await user.click(screen.getByRole('button', { name: 'continue-offline' }))
+    await user.click(screen.getByRole('button', { name: 'account' }))
+    await user.click(screen.getByRole('button', { name: 'complete-auth' }))
+    expect(screen.queryByTestId('account-auth-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('hosts-page')).toBe(page)
+    await user.click(screen.getByRole('button', { name: 'workbench' }))
+    expect(screen.getByTestId('hosts-page')).toBe(page)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('认证提交期间阻止导航与设置覆盖，解除后设置可以替换认证弹层', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'account' }))
+    await user.click(screen.getByRole('button', { name: 'auth-busy' }))
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.getByTestId('account-auth-dialog')).toBeInTheDocument()
+    expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('files-page')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'auth-idle' }))
+    await user.click(screen.getByRole('button', { name: 'settings' }))
+    expect(screen.queryByTestId('account-auth-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+  })
+
+  it('已登录账号保留资料页路由，认证失效后切换为工作站上的认证弹层', async () => {
+    const status: import('#common/contracts').CloudStatus = { revision: 1, generation: 'synthetic', configured: true, authenticated: true, phase: 'ready', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
+    testState.cloud.getStatus.mockReturnValue(status)
+    const user = userEvent.setup()
+    const view = render(<App />)
+    await user.click(screen.getByRole('button', { name: 'account' }))
+    expect(screen.getByTestId('account-page')).toHaveAttribute('data-active-tab', 'profile')
+    expect(screen.queryByTestId('account-auth-dialog')).not.toBeInTheDocument()
+    testState.cloud.getStatus.mockReturnValue({ ...status, revision: 2, authenticated: false, phase: 'signed_out' })
+    view.rerender(<App />)
+    expect(screen.queryByTestId('account-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('account-auth-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('workbench')).toHaveAttribute('data-active', 'true')
   })
 
   it('保持运行时 Provider 的既定嵌套顺序', () => {
@@ -1348,6 +1427,7 @@ describe('应用运行时组合合同', () => {
 
   it('新增专题按目标打开桌面视图和账户页签，不建立连接或写配置', async () => {
     testState.apiReady = true
+    testState.cloud.getStatus.mockReturnValue({ revision: 1, generation: 'synthetic', configured: true, authenticated: true, phase: 'ready', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 })
     render(<App />)
     const signal = new AbortController().signal
     for (const step of buildProductTourSteps((key) => key).filter(step => ['remote-desktop', 'account'].includes(step.route ?? ''))) {
@@ -1358,6 +1438,24 @@ describe('应用运行时组合合同', () => {
       if (step.accountTab) expect(screen.getByTestId('account-page')).toHaveAttribute('data-active-tab', step.accountTab)
     }
     expect(testState.launcherOpen).toBe(false)
+    expect(testState.action).not.toHaveBeenCalled()
+  })
+
+  it('未登录账号专题使用引导弹层，离开专题恢复原页面交互', async () => {
+    testState.apiReady = true
+    render(<App />)
+    act(() => testState.productTourProps?.onActiveChange?.(true))
+    const signal = new AbortController().signal
+    for (const step of buildProductTourSteps((key) => key).filter(step => step.route === 'account')) {
+      await act(async () => { expect(await testState.productTourProps?.onPrepareStep(step, signal)).toBe(true) })
+      expect(screen.getByTestId('account-auth-dialog')).toHaveAttribute('data-guided', 'true')
+      expect(document.querySelector(step.fallbackElement ?? step.element!)).not.toBeNull()
+      expect(screen.queryByTestId('account-page')).not.toBeInTheDocument()
+    }
+    const notifications = buildProductTourSteps((key) => key).find(step => step.id === 'notifications')!
+    await act(async () => { expect(await testState.productTourProps?.onPrepareStep(notifications, signal)).toBe(true) })
+    expect(screen.queryByTestId('account-auth-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('workbench').closest('[data-provider="app-shell"]')).toHaveAttribute('data-content-inert', 'false')
     expect(testState.action).not.toHaveBeenCalled()
   })
 
