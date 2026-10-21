@@ -1,5 +1,5 @@
 import { AgentProgressActivity } from './AgentProgressActivity.tsx'
-import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, Waypoints } from 'lucide-react'
+import { ArrowDown, Bot, BrainCircuit, ChevronRight, FileCode2, Image, LoaderCircle, UserRound, Waypoints } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -198,7 +198,11 @@ const AgentMessageStack = memo(function AgentMessageStack({
       {messagesWithImages.map(({ message, images }) => (
         <article key={message.id} data-agent-message={message.id} className={`${styles.message} ${styles[`is-${message.role}`]}`}>
           <header>
-            <span>{t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}</span>
+            <Tooltip title={t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}>
+              <span className={styles['message-avatar']} role="img" aria-label={t(message.role === 'user' ? 'agent.message.you' : 'agent.message.agent')}>
+                {message.role === 'user' ? <UserRound size={15} aria-hidden="true" /> : <Bot size={17} aria-hidden="true" />}
+              </span>
+            </Tooltip>
           </header>
           <div className={styles['message-content']}>
             {message.role === 'user' && message.resources?.length ? (
