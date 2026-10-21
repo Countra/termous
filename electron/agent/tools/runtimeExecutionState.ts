@@ -92,11 +92,15 @@ export class RuntimeExecutionState {
   summary(notices: [string, ProgressNotice][], recoveries: ExecutionRecovery[]) {
     const facts = this.projectedFacts().reverse()
     const detected = notices.filter(([, notice]) => notice.status === 'detected')
-    const pending = recoveries.filter((entry) => !detected.some(([resource, notice]) => notice.tool_name === entry.tool && resource === entry.resource && notice.guidance.includes(entry.guidance)))
+    const pending = recoveries.filter((entry) => !detected.some(([resource, notice]) => notice.tool_name === entry.tool && resource === entry.resource && notice.guidance.includes(entry.guidance))).reverse()
     const current = facts.filter((fact) => fact.origin === 'current')
+    // 最新失败若已升级为重复诊断，优先展示该诊断，不能让较早的单次失败占据它的位置。
+    const latest = recoveries[recoveries.length - 1]
+    const preferred = latest && (detected.find(([resource, notice]) => notice.tool_name === latest.tool
+      && resource === latest.resource && notice.guidance.includes(latest.guidance))?.[1] ?? latest)
+    const diagnostics = [...new Set([...(preferred ? [preferred] : []), ...detected.reverse().map(([, notice]) => notice), ...pending])]
     const entries = [
-      ...current.slice(0, 1), ...detected.reverse().map(([, notice]) => ({ ...notice, origin: 'current' })),
-      ...pending.reverse().map((entry) => ({ ...entry, origin: 'current' })), ...current.slice(1),
+      ...current.slice(0, 1), ...diagnostics.map((entry) => ({ ...entry, origin: 'current' })), ...current.slice(1),
       ...[...this.historicalNotices.values()].reverse().map(([, notice]) => notice),
       ...[...this.historicalRecoveries.values()].reverse(), ...facts.filter((fact) => fact.origin === 'historical'),
     ]

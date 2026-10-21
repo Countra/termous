@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { RuntimeExecutionState } from './runtimeExecutionState.ts'
+import { RuntimeExecutionState, type ProgressNotice } from './runtimeExecutionState.ts'
 
 const now = Date.parse('2026-10-16T00:00:00Z')
 const attachment = { id: 'a', session_id: 's', connection_generation: 1, execution_generation: 2, state: 'ready',
@@ -10,6 +10,37 @@ const get = 'termous.desktops.get'
 const release = 'termous.desktops.control.release'
 const state = () => new RuntimeExecutionState(() => now, () => true)
 const facts = (value: RuntimeExecutionState) => value.snapshot([], []).facts
+
+test('旧循环诊断拥挤时仍保留最新失败的恢复参数，快照恢复只标为历史参考', () => {
+  const value = state()
+  value.observe(acquire, 'old', {}, { attachment_id: 'old' }, true, 'AGENT_RESOURCE_BINDING_MISMATCH')
+  const notices: [string, ProgressNotice][] = Array.from({ length: 8 }, (_, i) => [`old-${i}`, {
+    pattern_id: `pattern-${i}`, tool_name: get, reason: 'repeated_failure', status: 'detected', count: 3,
+    guidance: '较早诊断'.repeat(125), next_tools: [get],
+  }])
+  const recovery = { tool: acquire, resource: 'old', guidance: '建议实际调用 termous.desktops.get，参数 {"session_id":"current-session"}', next_tools: [get] }
+  const summary = value.summary(notices, [recovery])
+  assert.match(summary, /current-session/)
+  assert.ok(summary.length < 2048)
+  const restored = state()
+  assert.ok(restored.restore(value.snapshot(notices, [recovery])))
+  assert.ok(restored.snapshot([], []).recoveries.every((entry) => entry.origin === 'historical'))
+})
+
+test('最新失败升级为重复诊断后，较早单次失败不能抢占其摘要位置', () => {
+  const value = state()
+  const scope = 'attachment_id:' + 'a'.repeat(128)
+  value.observe(acquire, scope, {}, {}, true, 'AGENT_RESOURCE_BINDING_MISMATCH')
+  const previous = { tool: get, resource: 'older', guidance: '较早单次失败。'.repeat(80), next_tools: [get] }
+  const current = { tool: acquire, resource: scope, guidance: '当前需要核验会话。'.repeat(80), next_tools: [get] }
+  const notice: ProgressNotice = { pattern_id: 'p'.repeat(64), tool_name: acquire, reason: 'repeated_failure', status: 'detected', count: 3,
+    guidance: '最新重复失败：' + current.guidance, next_tools: [get] }
+  const summary = value.summary([[scope, notice]], [previous, current])
+  assert.match(summary, /最新重复失败/)
+  assert.ok(!summary.includes('较早单次失败') || summary.indexOf('最新重复失败') < summary.indexOf('较早单次失败'))
+  assert.equal((summary.match(/最新重复失败/gu) ?? []).length, 1)
+  assert.ok(summary.length < 2048)
+})
 
 test('审批未完成与失败回执均不投影为持有授权', () => {
   for (const approval of ['pending', 'dispatching', 'dispatch_conflict', 'rejected', 'expired', 'cancelled']) {

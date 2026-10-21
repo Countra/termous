@@ -30,14 +30,17 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
   const expectedTarget = desktop?.kind === 'desktop_session'
     ? { session_id: desktop.session_id, connection_generation: desktop.connection_generation }
     : desktop ? { profile_id: desktop.desktop_profile_id } : {}
-  const reject = (expected: Record<string, unknown>, prerequisite?: { session_id: string }) => {
-    const missing = prerequisite && sessions.get(prerequisite.session_id)?.missing === true
+  const reject = (expected: Record<string, unknown>, prerequisite?: { session_id?: string }) => {
+    const missing = prerequisite?.session_id && sessions.get(prerequisite.session_id)?.missing === true
     throw new Error(JSON.stringify({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
       message: missing ? '本轮回执已确认该会话不存在，尚未派发。get 只查询已有会话，不能恢复连接；按本轮精确目标核验现有会话及连接能力，不能使用失效的附着或更换目标。'
-        : prerequisite ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+        : prerequisite?.session_id ? '本轮尚未取得该会话或附着的有效回执，尚未派发。先调用 required_tool 查询 required_arguments，就绪后用当前会话与代次 attach，再使用本轮返回的 attachment.id；原样重试不能补齐查询前置条件，历史附着不可复用。'
+        : prerequisite ? '本轮尚未取得该 Profile 的有效附着，尚未派发。先调用 required_tool 查询 required_arguments，按本轮精确 Profile 选择会话，再用 get 核验就绪与代次后 attach；历史附着不可复用。'
         : '调用目标与本轮引用不一致，尚未派发。请按精确引用修正参数；不要重放结果未知的操作。',
-      expected_arguments: expected,
-      ...(missing ? { cause_code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND' } : prerequisite ? { required_tool: 'termous.desktops.get', required_arguments: prerequisite } : {}) }))
+      ...(Object.keys(expected).length ? { expected_arguments: expected } : {}),
+      ...(missing ? { cause_code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND' } : prerequisite ? {
+        required_tool: prerequisite.session_id ? 'termous.desktops.get' : 'termous.desktops.list', required_arguments: prerequisite,
+      } : {}) }))
   }
   const knownSession = (id: unknown, generation?: unknown, needsReady = true) => {
     const value = typeof id === 'string' ? sessions.get(id) : undefined
@@ -94,8 +97,9 @@ export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: Runti
           || name === 'termous.desktops.control.release' || name === 'termous.desktops.operations.get'
         const owned = typeof args.attachment_id === 'string' ? attachments.get(args.attachment_id) : undefined
         const allowed = ownedOnly ? owned !== undefined && !owned.detached : knownAttachment(args.attachment_id)
-        if (!allowed) reject({ attachment_id: [...attachments.keys()] }, desktop.kind === 'desktop_session' ? { session_id: desktop.session_id }
-          : owned ? { session_id: owned.session } : undefined)
+        // 未核验的附着不能用候选 ID 数组冒充 attachment_id 参数，恢复入口由查询提示说明。
+        if (!allowed) reject({}, desktop.kind === 'desktop_session' ? { session_id: desktop.session_id }
+          : owned ? { session_id: owned.session } : {})
       }
       if (name === 'termous.desktop_workflows.runs.start') {
         if (desktop.kind === 'desktop_session') {

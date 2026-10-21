@@ -44,7 +44,7 @@ export function recoveryNavigation(name: string, errorCode?: string) {
   const kind = runtimeFailureKind(errorCode)
   const normal = !errorCode && capability && step
   let names = capability ? capabilityTools(capability, normal ? step.next ?? capability.recovery
-    : kind === 'missing' ? capability.missing ?? [] : capability.recovery) : []
+    : kind === 'missing' ? capability.missing ?? [] : step?.recovery ?? capability.recovery) : []
   if (!normal && ['blocked', 'unknown', 'invalid'].includes(kind)) names = []
   if (!normal && kind === 'missing') names = names.filter((candidate) => candidate !== name)
   const purpose = capability?.purpose ?? ''

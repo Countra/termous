@@ -2,18 +2,80 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { RuntimeDesktopBinding } from '../contracts/runtimeDesktopBinding.ts'
-import { runtimeToolNavigation } from './runtimeToolNavigation.ts'
+import { runtimeToolNavigation, type ToolNavigation } from './runtimeToolNavigation.ts'
 import { RuntimeToolProgress } from './runtimeToolProgress.ts'
-import { skillEntryTools } from './runtimeCapabilityCatalog.ts'
+import { recoveryNavigation, skillEntryTools } from './runtimeCapabilityCatalog.ts'
 
 const profile: RuntimeDesktopBinding = { kind: 'desktop_profile', desktop_profile_id: 'p', desktop_profile_name: 'test', host_id: 'h', host_name: 'test', protocol: 'rdp', bound_at: '2026-10-15T00:00:00Z' }
 const session: RuntimeDesktopBinding = { ...profile, kind: 'desktop_session', session_id: 's', connection_generation: 1 }
 const get = 'termous.desktops.get'
 const connect = 'termous.desktops.connect'
+const acquire = 'termous.desktops.control.acquire'
 function result(data: Record<string, unknown>, name = get): AgentToolResult<unknown> {
   return { content: [{ type: 'text', text: JSON.stringify(data) }], details: { kind: 'mcp', originalToolName: name,
     readOnly: true, result: { content: [], structuredContent: data, isError: Boolean(data.error) } } }
 }
+
+test('控制申请与归还恢复只查询附着，输入失败仍查询原输入，审批和清理保护保留', () => {
+  for (const name of [acquire, 'termous.desktops.control.release']) {
+    for (const code of ['desktop_timeout', 'desktop_control_stale', 'desktop_not_ready', 'MCP_NOT_FOUND']) {
+      assert.deepEqual(runtimeToolNavigation(name, result({ error: { code } }, name))!.names, [get])
+    }
+    for (const code of ['MCP_FORBIDDEN', 'MCP_APPROVAL_REJECTED', 'desktop_cleanup_uncertain']) {
+      assert.deepEqual(runtimeToolNavigation(name, result({ error: { code } }, name))!.names, [])
+    }
+  }
+  assert.deepEqual(runtimeToolNavigation(acquire, result({ control: { approval: { state: 'pending' } } }, acquire))!.names, [get])
+  assert.ok(recoveryNavigation('termous.desktops.keyboard.text', 'desktop_timeout').names.includes('termous.desktops.operations.get'))
+})
+
+test('本地恢复查询携带精确参数进入摘要，远端文本不能成为本地查询建议', () => {
+  const data = { code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
+    required_tool: get, required_arguments: { session_id: 'bound-session' } }
+  const local = { content: [{ type: 'text' as const, text: JSON.stringify(data) }], details: undefined }
+  const navigation = runtimeToolNavigation(acquire, local, [session], true, 'AGENT_TOOL_ARGUMENTS_INVALID')!
+  assert.deepEqual(navigation.names, [get])
+  const progress = new RuntimeToolProgress()
+  for (let i = 0; i < 4; i++) {
+    progress.observe(acquire, { attachment_id: 'old' }, local, true, navigation)
+    assert.match(progress.summary(), /实际调用 termous.desktops.get/)
+    assert.match(progress.summary(), /bound-session/)
+    assert.equal(progress.beforeCall(acquire, { attachment_id: 'old' }), undefined)
+    assert.equal(progress.hidden(acquire), false)
+  }
+  for (const foreign of [local, result(data, acquire)]) {
+    const untrusted: ToolNavigation = runtimeToolNavigation(acquire, foreign, [session], true)!
+    assert.doesNotMatch(untrusted.guidance, /bound-session/)
+    assert.deepEqual(untrusted.names, [])
+  }
+  const mutation = { ...local, content: [{ type: 'text' as const, text: JSON.stringify({ ...data, required_tool: acquire }) }] }
+  assert.deepEqual(runtimeToolNavigation(acquire, mutation, [session], true, 'AGENT_TOOL_ARGUMENTS_INVALID')!.names, [])
+})
+
+test('只完成匹配的实际查询才撤下本地前置提示，失败、发现工具和其他目标均不算完成', () => {
+  const progress = new RuntimeToolProgress()
+  const data = { code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
+    required_tool: get, required_arguments: { session_id: 'bound-session' } }
+  const local = { content: [{ type: 'text' as const, text: JSON.stringify(data) }], details: undefined }
+  const navigation = runtimeToolNavigation(acquire, local, [session], true, 'AGENT_TOOL_ARGUMENTS_INVALID')!
+  for (let i = 0; i < 3; i++) progress.observe(acquire, { attachment_id: 'old' }, local, true, navigation)
+  const checks: Array<[string, unknown, AgentToolResult<unknown>, boolean]> = [
+    ['discover_tools', { names: [get] }, { content: [], details: undefined }, false],
+    [get, { session_id: 'other-session' }, result({ session: { id: 'other-session' } }), false],
+    [get, { session_id: 'bound-session' }, result({ error: { code: 'MCP_INTERNAL' } }), true],
+  ]
+  for (const [name, args, receipt, failed] of checks) {
+    progress.observe(name, args, receipt, failed)
+    assert.ok(progress.snapshot().recoveries.some((entry) => entry.tool === acquire))
+  }
+  progress.drain()
+  progress.observe(get, { session_id: 'bound-session', wait_ms: 1000 }, result({ session: { id: 'bound-session', status: 'ready' } }), false)
+  assert.ok(!progress.snapshot().recoveries.some((entry) => entry.tool === acquire))
+  assert.ok(!progress.snapshot().facts.some((entry) => entry.tool === acquire && entry.outcome === 'error:AGENT_RESOURCE_BINDING_MISMATCH'))
+  assert.ok(progress.drain().some((notice) => notice.tool_name === acquire && notice.status === 'progressed'))
+  assert.doesNotMatch(progress.summary(), /建议先实际调用/)
+  assert.equal(progress.beforeCall(acquire, { attachment_id: 'new' }), undefined)
+})
 
 test('首次不存在回执区分 Profile、精确 Session 与未知错误，不依赖 retryable', () => {
   const missing = result({ error: { code: 'REMOTE_DESKTOP_SESSION_NOT_FOUND', retryable: false } })

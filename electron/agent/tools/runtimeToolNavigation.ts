@@ -16,6 +16,7 @@ export interface ToolNavigation {
   skill?: string
   recovery?: boolean
   empty?: boolean
+  prerequisite?: { tool: string; arguments: Record<string, unknown> }
 }
 
 function runtimePrerequisiteTools(data: Record<string, unknown>) {
@@ -57,7 +58,7 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   const target: CapabilityTarget = bindings.some((binding) => binding.kind === capability.bindings?.session) ? 'session'
     : bindings.some((binding) => binding.kind === capability.bindings?.profile) ? 'profile' : 'unbound'
   const outcome = runtimeToolOutcome(name, data, failed)
-  if (outcome === 'waiting') return { names: capabilityTools(capability, capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
+  if (outcome === 'waiting') return { names: capabilityTools(capability, step.recovery ?? capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
   for (const rule of capability.cases ?? []) {
     if (!capabilityTools(capability, rule.tools).includes(name)) continue
     const value = rule.path ? capabilityValue(data, rule.path) : undefined
@@ -75,7 +76,12 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   if (local && kind !== 'missing') {
     const prerequisite = runtimePrerequisiteTools(data)
     const recovery = fallback()
-    return { ...recovery, names: prerequisite, guidance: `${recovery.guidance} ${prerequisite.length ? '本轮尚缺有效查询回执，请按本地校验返回的 required_arguments 核验目标。' : ''}` }
+    // 参数准备失败不经过 afterToolCall；把精确查询放在摘要前部，避免只剩工具名或泛化提醒。
+    const query = prerequisite.length && isRecord(data.required_arguments)
+      ? { tool: prerequisite[0]!, arguments: data.required_arguments } : undefined
+    return { ...recovery, names: prerequisite, prerequisite: query, guidance: query
+      ? `本次本地校验未通过，尚未派发。建议先实际调用 ${query.tool}，参数 ${JSON.stringify(query.arguments)}，根据新回执补齐前置条件；重复原调用不会完成查询。 ${recovery.guidance}`
+      : recovery.guidance }
   }
   if (outcome === 'failed') return fallback()
   if (step.role === 'poll' && outcome !== 'settled') return { names: [], guidance: roleGuidance.poll, skill: capability.skill }

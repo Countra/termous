@@ -97,6 +97,29 @@ test('Profile 已有会话可直接用于 workflow，复用不恢复旧附着授
   await assert.rejects(f.tool('termous.desktops.pointer.click').execute('old-grant', { attachment_id: 'previous-run' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
 })
 
+test('Profile 误用历史附着时明确提示查询列表，已有本轮会话仍按原流程核验', async () => {
+  const f = fixture([profile])
+  const acquire = f.tool('termous.desktops.control.acquire')
+  assert.throws(() => acquire.prepareArguments?.({ attachment_id: 'previous-run' }), (error: Error) => {
+    const detail = JSON.parse(error.message)
+    assert.equal(detail.dispatched, false)
+    assert.equal(detail.required_tool, 'termous.desktops.list')
+    assert.deepEqual(detail.required_arguments, {})
+    assert.equal(detail.expected_arguments, undefined)
+    return true
+  })
+  assert.equal(f.calls.length, 0)
+  f.respond({ sessions: [session('vnc')] })
+  await f.tool('termous.desktops.list').execute('list', {})
+  await assert.rejects(f.tool('termous.desktops.attach').execute('unverified', { session_id: 'desk_one', connection_generation: 2 }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  f.respond({ session: session('vnc') })
+  await f.tool('termous.desktops.get').execute('get', { session_id: 'desk_one' })
+  f.respond({ attachment })
+  await f.tool('termous.desktops.attach').execute('attach', { session_id: 'desk_one', connection_generation: 2 })
+  await acquire.execute('acquire', { attachment_id: 'attach_one' })
+  assert.deepEqual(f.calls.map((call) => call.name), ['termous.desktops.list', 'termous.desktops.get', 'termous.desktops.attach', 'termous.desktops.control.acquire'])
+})
+
 test('桌面引用校验精确代次，必须先查询，再建立本轮附着', async () => {
   const f = fixture([desktop])
   const attach = f.tool('termous.desktops.attach')
@@ -113,7 +136,13 @@ test('桌面引用校验精确代次，必须先查询，再建立本轮附着',
     return true
   })
   assert.match(attach.description, /本轮必须先用 termous.desktops.get/)
-  assert.throws(() => click.prepareArguments?.({ attachment_id: 'old_attach' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
+  assert.throws(() => click.prepareArguments?.({ attachment_id: 'old_attach' }), (error: Error) => {
+    const detail = JSON.parse(error.message)
+    assert.equal(detail.code, 'AGENT_RESOURCE_BINDING_MISMATCH')
+    assert.deepEqual(detail.required_arguments, { session_id: 'desk_one' })
+    assert.equal(detail.expected_arguments, undefined)
+    return true
+  })
   const get = f.tool('termous.desktops.get')
   await assert.rejects(get.execute('wrong', { session_id: 'another' }), /AGENT_RESOURCE_BINDING_MISMATCH/)
   f.respond({ session: session() }, true)

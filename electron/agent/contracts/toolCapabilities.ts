@@ -20,6 +20,7 @@ export interface CapabilityStep {
   tools: string[]
   role: CapabilityRole
   next?: string[]
+  recovery?: string[]
   cleanup?: string[]
   guidance?: string
   preparation?: string
