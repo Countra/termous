@@ -45,6 +45,7 @@ export type RemoteDesktopViewerErrorCode =
   | ''
 
 export interface RemoteDesktopViewerState {
+  clipboardError?: DesktopClipboardError | ''
   controlLease?: { id: string; generation: number } | null
   controlOwned?: boolean
   connection: RemoteDesktopViewerConnectionState
@@ -102,6 +103,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
+  onClipboardError?: (code: DesktopClipboardError | '') => void
   onControlChanged?: (owned: boolean, lease?: { id: string; generation: number } | null) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
@@ -124,8 +126,10 @@ export interface RemoteDesktopViewerHandle {
   sendCredentials: (credentials: RemoteDesktopCredentials) => void
   approveServer: () => void
   sendCtrlAltDel: () => void
-  sendClipboard: (text: string) => void
+  sendClipboard: (text: string) => void | Promise<void>
 }
+
+export type DesktopClipboardError = 'clipboard_failed' | 'clipboard_too_large' | 'clipboard_unavailable' | 'clipboard_timeout'
 
 export interface RemoteDesktopViewerCreateOptions {
   pointer?: AutomationPointerFeed

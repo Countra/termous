@@ -337,7 +337,9 @@ export class RemoteDesktopViewerLifecycle {
   }
 
   sendClipboard(sessionId: string, text: string) {
-    this.entries.get(sessionId)?.viewer?.sendClipboard(text)
+    const viewer = this.entries.get(sessionId)?.viewer
+    if (!viewer) throw new Error('clipboard_unavailable')
+    return viewer.sendClipboard(text)
   }
 
   private async attachViewer(
@@ -488,6 +490,9 @@ export class RemoteDesktopViewerLifecycle {
             verification,
           })
         },
+        onClipboardError: (clipboardError) => {
+          if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) this.options.commitViewerState(entry.sessionId, { clipboardError })
+        },
         onClipboard: (remoteClipboard) => {
           if (
             viewer
@@ -522,7 +527,7 @@ export class RemoteDesktopViewerLifecycle {
       return
     }
     entry.viewer = viewer
-    this.options.commitViewerState(entry.sessionId, { connection: 'connecting' })
+    this.options.commitViewerState(entry.sessionId, { connection: 'connecting', clipboardError: '' })
   }
 
   private showCredentialPrompt(

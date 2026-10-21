@@ -2010,7 +2010,10 @@
       "server_identity_missing": "VNC 服务未提供可验证的身份信息。",
       "server_identity_unverifiable": "无法验证 VNC 服务身份。",
       "server_identity_rejected": "已拒绝该远程桌面服务器身份。",
-      "clipboard_too_large": "剪贴板文本不能超过 256 KiB。"
+      "clipboard_too_large": "剪贴板文本不能超过 256 KiB。",
+      "clipboard_failed": "文本剪贴板同步失败，未发送粘贴快捷键。请重新复制后重试。",
+      "clipboard_unavailable": "当前无法发送文本剪贴板，请确认已取得控制权且远端允许剪贴板重定向。",
+      "clipboard_timeout": "等待远端剪贴板确认超时，未发送粘贴快捷键。请检查连接后重试。"
     },
     "status": {
       "connecting": "正在建立连接",

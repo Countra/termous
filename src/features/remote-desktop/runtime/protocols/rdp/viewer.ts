@@ -4,6 +4,8 @@ import type { RemoteDesktopViewerCreateOptions, RemoteDesktopViewerHandle } from
 import { scanCodes } from './keyboard.ts'
 import { createRdpSystemFiles } from './systemFiles.ts'
 import { createAutomationPointerOverlay } from '../../core/automationPointerOverlay.ts'
+import { createRdpIme } from './ime.ts'
+import { createRdpTextClipboard } from './textClipboard.ts'
 
 export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): RemoteDesktopViewerHandle {
   const attachment = options.transport.kind === 'rdp-pixels' ? options.transport.attachment : undefined
@@ -17,12 +19,6 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   canvas.tabIndex = 0
   canvas.setAttribute('aria-label', 'RDP desktop')
   canvas.style.cssText = 'display:block;margin:auto;outline:none;touch-action:none'
-  // 可编辑元素承接系统输入法，画布本身不会可靠地产生组合输入事件。
-  const keyboard = document.createElement('textarea')
-  keyboard.setAttribute('aria-label', 'RDP keyboard input')
-  keyboard.autocomplete = 'off'
-  keyboard.spellcheck = false
-  keyboard.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:1px;min-width:0;min-height:0;padding:0;border:0;margin:0;opacity:0;overflow:hidden;resize:none;pointer-events:none'
   const worker = new Worker(new URL('./pixels.worker.ts', import.meta.url), { type: 'module' })
   let control: WebSocket
   try {
@@ -53,6 +49,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   let mode = options.state.displayMode
   let active = true
   let resizeAvailable = false
+  let clipboardAvailable = false
   let motion: { x: number; y: number } | undefined
   let lastPosition = { x: 0, y: 0 }
   let resizeTimer: ReturnType<typeof setTimeout> | undefined
@@ -64,6 +61,24 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   const buttons = new Set<number>()
   const listeners = new AbortController()
   let inputEpoch = 0
+  const authority = () => owned && !localReadOnly && !disposed && active && !document.hidden ? `${controlGeneration}` : undefined
+  const ime = createRdpIme({ target: options.target, canvas, size: () => ({ width, height }), authority,
+    commit(text) { inputEpoch++; input({ case: 'text', value: { text } }) },
+  })
+  const keyboard = ime.element
+  const focused = () => active && !document.hidden && document.hasFocus() && document.activeElement === keyboard
+  const paste = () => {
+    if (!authority()) return
+    for (const [scancode, down] of [[scanCodes.ControlLeft!, true], [scanCodes.KeyV!, true], [scanCodes.KeyV!, false], [scanCodes.ControlLeft!, false]] as const) input({ case: 'key', value: { scancode, down } })
+  }
+  const textClipboard = createRdpTextClipboard({
+    context: () => clipboardAvailable ? authority() : undefined, focused, inputEpoch: () => inputEpoch, paste,
+    send(text) {
+      const sent = input({ case: 'clipboard', value: { text } })
+      return sent === undefined ? undefined : { sequence: sent, controlGeneration }
+    },
+    onError: code => options.events.onClipboardError?.(code),
+  })
   const pointer = createAutomationPointerOverlay({ target: options.target, feed: options.pointer,
     visible: () => active && connected && !owned && !disposed,
     geometry: () => {
@@ -75,12 +90,9 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   const systemFiles = createRdpSystemFiles({
     id: options.session.id, api: options.desktopFiles,
     context: () => owned && !localReadOnly && !disposed ? { sessionId: options.session.id, generation: Number(generation), subscriptionId: attachment.subscription_id, controlGeneration: Number(controlGeneration) } : undefined,
-    focused: () => active && !document.hidden && document.hasFocus() && document.activeElement === keyboard,
+    focused,
     inputEpoch: () => inputEpoch,
-    paste() {
-      if (!owned || localReadOnly || disposed) return
-      for (const [scancode, down] of [[scanCodes.ControlLeft!, true], [scanCodes.KeyV!, true], [scanCodes.KeyV!, false], [scanCodes.ControlLeft!, false]] as const) input({ case: 'key', value: { scancode, down } })
-    },
+    paste, pasteText: textClipboard.pasteLocal,
   })
 
   function send(payload: MessageInitShape<typeof ClientMessageSchema>['payload']) {
@@ -89,10 +101,12 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     const data = toBinary(ClientMessageSchema, create(ClientMessageSchema, { payload }))
     controlSent += data.byteLength
     control.send(data)
+    return true
   }
   function input(operation: MessageInitShape<typeof InputSchema>['operation']) {
     if (!owned || localReadOnly || disposed) return
-    send({ case: 'input', value: { sessionGeneration: generation, controlGeneration, sequence: ++sequence, operation } })
+    const next = ++sequence
+    if (send({ case: 'input', value: { sessionGeneration: generation, controlGeneration, sequence: next, operation } })) return next
   }
   function flushMotion() {
     if (!motion) return
@@ -108,14 +122,16 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   }
   function dispose() {
     if (disposed) return
-    systemFiles.dispose()
-    pointer.dispose()
     disposed = true
+    systemFiles.dispose()
+    textClipboard.dispose()
+    pointer.dispose()
     // 断开订阅会由服务端释放输入状态；关闭期间不再发送，避免拥塞触发递归清理。
     motion = undefined
     keys.clear()
     buttons.clear()
     listeners.abort()
+    ime.dispose()
     observer?.disconnect()
     clearInterval(renewTimer)
     clearInterval(motionTimer)
@@ -124,7 +140,6 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     worker.terminate()
     control.close()
     canvas.remove()
-    keyboard.remove()
     delete options.target.dataset.termousDesktopSession
   }
   function disconnected() {
@@ -139,6 +154,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     const scale = mode === 'actual' ? 1 : Math.min(rect.width / width, rect.height / height)
     canvas.style.width = `${Math.max(1, width * scale)}px`
     canvas.style.height = `${Math.max(1, height * scale)}px`
+    ime.refresh()
     clearTimeout(resizeTimer)
     if (mode === 'resize' && active && owned && resizeAvailable && rect.width >= 200 && rect.height >= 200) {
       const w = Math.min(8192, Math.floor(rect.width / 2) * 2)
@@ -168,6 +184,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
           const controlChanged = state.control?.generation !== controlGeneration
           if (controlChanged) {
             inputEpoch++
+            ime.reset()
+            textClipboard.invalidate()
             controlGeneration = state.control?.generation ?? 0n
             sequence = 0n
             keys.clear()
@@ -175,12 +193,16 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
             motion = undefined
           }
           const nextOwned = state.control?.subscriptionId === attachment.subscription_id
+          if (nextOwned !== owned) { inputEpoch++; ime.reset(); textClipboard.invalidate() }
           if (!controlKnown || nextOwned !== owned || controlChanged) { controlKnown = true; owned = nextOwned; options.events.onControlChanged?.(owned, owned ? { id: attachment.subscription_id, generation: Number(controlGeneration) } : null) }
           resizeAvailable = state.resizeAvailable
+          if (clipboardAvailable !== state.clipboardAvailable) textClipboard.invalidate()
+          clipboardAvailable = state.clipboardAvailable
           systemFiles.changed()
           layout()
           if (state.state === 'failed' || state.state === 'closed') disconnected()
-        } else if (payload.case === 'clipboard') options.events.onClipboard(payload.value.text)
+        } else if (payload.case === 'inputReceipt') textClipboard.acknowledge(payload.value)
+        else if (payload.case === 'clipboard') { textClipboard.invalidate(); options.events.onClipboard(payload.value.text) }
         else if (payload.case === 'cursor') {
           const c = payload.value
           if (c.kind === 'hidden') canvas.style.cursor = 'none'
@@ -192,6 +214,11 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
             canvas.style.cursor = `url(${cursor.toDataURL()}) ${Math.min(c.hotspotX, c.width - 1)} ${Math.min(c.hotspotY, c.height - 1)}, default`
           }
         } else if (payload.case === 'fault') {
+          if (!payload.value.uncertain && ['rdp_clipboard_unavailable', 'rdp_clipboard_timeout', 'rdp_clipboard_stale'].includes(payload.value.code)) {
+            textClipboard.fail(payload.value.input, payload.value.code === 'rdp_clipboard_timeout' ? 'clipboard_timeout' : 'clipboard_unavailable')
+            return
+          }
+          textClipboard.fail(payload.value.input)
           if (!payload.value.uncertain && ['rdp_control_locked', 'rdp_control_stale'].includes(payload.value.code)) return
           // 输入结果不明时关闭订阅，绝不重放按键或剪贴板写入。
           disconnected()
@@ -233,7 +260,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     canvas.addEventListener('pointerdown', (event) => {
       if (!owned) return
       inputEpoch++
-      event.preventDefault(); keyboard.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId)
+      event.preventDefault(); ime.focus(position(event)); canvas.setPointerCapture(event.pointerId)
       const flag = [0x1000, 0x4000, 0x2000][event.button]
       if (!flag) return
       flushMotion(); buttons.add(flag); input({ case: 'mouse', value: { flags: flag | 0x8000, ...position(event) } })
@@ -254,10 +281,14 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       input({ case: 'mouse', value: { flags: (event.deltaY ? 0x0200 : 0x0400) | rotation, ...position(event) } })
     }, { ...listenerOptions, passive: false })
     keyboard.addEventListener('keydown', (event) => {
-      if (!owned || event.isComposing || event.key === 'Process') return
-      if (event.code === 'KeyV' && event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && systemFiles.interceptPaste()) {
+      if (!authority() || ime.composing || event.isComposing || event.key === 'Process') return
+      if (event.code === 'KeyV' && event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
         event.preventDefault(); event.stopPropagation(); releasePressed()
-        if (!event.repeat) void systemFiles.prepare(false)
+        if (!event.repeat) {
+          if (systemFiles.interceptPaste()) void systemFiles.prepare(false)
+          else if (clipboardAvailable) void textClipboard.pasteLocal()
+          else paste()
+        }
         return
       }
       inputEpoch++
@@ -272,12 +303,11 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       event.preventDefault(); event.stopPropagation(); flushMotion(); keys.delete(scancode)
       input({ case: 'key', value: { scancode, down: false } })
     }, listenerOptions)
-    keyboard.addEventListener('compositionend', (event) => { if (owned && event.data) { inputEpoch++; input({ case: 'text', value: { text: event.data } }) }; keyboard.value = '' }, listenerOptions)
-    keyboard.addEventListener('input', (event) => { if (!(event as InputEvent).isComposing) keyboard.value = '' }, listenerOptions)
-    keyboard.addEventListener('blur', () => { inputEpoch++; releasePressed(); systemFiles.changed() }, listenerOptions)
+    keyboard.addEventListener('compositionstart', () => { inputEpoch++; textClipboard.invalidate(); releasePressed() }, listenerOptions)
+    keyboard.addEventListener('blur', () => { inputEpoch++; textClipboard.invalidate(); releasePressed(); systemFiles.changed() }, listenerOptions)
     keyboard.addEventListener('focus', () => systemFiles.changed(), listenerOptions)
-    canvas.addEventListener('focus', () => keyboard.focus({ preventScroll: true }), listenerOptions)
-    window.addEventListener('blur', () => { inputEpoch++; releasePressed(); systemFiles.changed() }, listenerOptions)
+    canvas.addEventListener('focus', () => ime.focus(), listenerOptions)
+    window.addEventListener('blur', () => { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed(); systemFiles.changed() }, listenerOptions)
     options.target.addEventListener('dragover', event => {
       if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return
       event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = owned && !localReadOnly ? 'copy' : 'none'
@@ -290,7 +320,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       event.preventDefault(); event.stopPropagation()
       if (owned && !localReadOnly) { inputEpoch++; releasePressed(); void systemFiles.prepare(true) }
     }, listenerOptions)
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { inputEpoch++; releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }) }, listenerOptions)
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }) }, listenerOptions)
     layout()
   }
   try {
@@ -303,18 +333,18 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     dispose,
     setDisplayMode(value) { mode = value; layout() },
     setViewOnly(value) {
-      if (value !== localReadOnly) inputEpoch++
+      if (value !== localReadOnly) { inputEpoch++; ime.reset(); textClipboard.invalidate() }
       if (value) { releasePressed(); if (owned) send({ case: 'control', value: { action: 'release', generation: controlGeneration } }) }
       else void options.takeControl?.(attachment.subscription_id).catch(disconnected)
       localReadOnly = value
       systemFiles.changed()
       send({ case: 'viewport', value: { active: active && !document.hidden, readOnly: value } })
     },
-    setViewportActive(value, displayMode) { active = value; mode = displayMode; if (!value) { inputEpoch++; releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }); layout() },
-    focus() { keyboard.focus({ preventScroll: true }) }, blur() { keyboard.blur() },
+    setViewportActive(value, displayMode) { active = value; mode = displayMode; if (!value) { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }); layout() },
+    focus() { ime.focus() }, blur() { keyboard.blur() },
     sendCredentials() { throw new Error('RDP_CREDENTIALS_MANAGED_BY_CORE') },
     approveServer() { throw new Error('RDP_CERTIFICATE_MANAGED_BY_CORE') },
     sendCtrlAltDel() { inputEpoch++; flushMotion(); input({ case: 'specialKey', value: { name: 'ctrl_alt_del' } }) },
-    sendClipboard(text) { if (new TextEncoder().encode(text).length > 256 * 1024) throw new Error('RDP_CLIPBOARD_LIMIT'); inputEpoch++; input({ case: 'clipboard', value: { text } }) },
+    sendClipboard(text) { inputEpoch++; return textClipboard.publish(text) },
   }
 }

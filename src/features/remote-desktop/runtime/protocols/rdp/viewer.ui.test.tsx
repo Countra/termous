@@ -1,8 +1,11 @@
-import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
+import { create, fromBinary, toBinary, type MessageInitShape } from '@bufbuild/protobuf'
 import { ClientMessageSchema, ServerMessageSchema } from '@termous/rdp-protocol'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { emptyRemoteDesktopViewerState, type RemoteDesktopViewerCreateOptions } from '../../core/viewerContracts'
 import { createRdpViewer } from './viewer'
+import { readClipboardText } from '#shared/clipboard'
+
+vi.mock('#shared/clipboard', () => ({ readClipboardText: vi.fn() }))
 
 const files = vi.hoisted(() => ({ intercept: false, prepare: vi.fn() }))
 vi.mock('./systemFiles.ts', () => ({ createRdpSystemFiles: () => ({ interceptPaste: () => files.intercept, prepare: files.prepare, changed: vi.fn(), drag: vi.fn(), dispose: vi.fn() }) }))
@@ -30,12 +33,109 @@ class PixelWorker {
 }
 
 beforeEach(() => {
+	vi.mocked(readClipboardText).mockReset().mockResolvedValue('中文\ntext 😀')
 	files.intercept = false
 	files.prepare.mockReset()
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', Socket)
   vi.stubGlobal('Worker', PixelWorker)
   Object.defineProperty(HTMLCanvasElement.prototype, 'transferControlToOffscreen', { configurable: true, value: vi.fn(() => ({})) })
+})
+
+function receive(socket: Socket, payload: MessageInitShape<typeof ServerMessageSchema>['payload']) {
+  socket.onmessage?.({ data: Uint8Array.from(toBinary(ServerMessageSchema, create(ServerMessageSchema, { payload }))).buffer })
+}
+
+function controllingViewer() {
+  const config = options()
+  const viewer = createRdpViewer(config), socket = Socket.instances[0]
+  receive(socket, { case: 'session', value: { sessionId: 'session', sessionGeneration: 1n, state: 'ready', clipboardAvailable: true, control: { subscriptionId: 'viewer', generation: 1n } } })
+  const keyboard = config.target.querySelector('textarea')!
+  viewer.focus()
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+  const inputs = () => socket.send.mock.calls.flatMap(([bytes]) => {
+    const { payload } = fromBinary(ClientMessageSchema, bytes)
+    return payload.case === 'input' ? [payload.value] : []
+  })
+  return { config, viewer, socket, keyboard, inputs }
+}
+
+test('普通 Ctrl+V 发送本机文本，远端确认后才发送一次粘贴组合键', async () => {
+  const f = controllingViewer()
+  f.keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', key: 'v', ctrlKey: true, cancelable: true }))
+  await Promise.resolve()
+  expect(f.inputs().map(input => input.operation.case)).toEqual(['clipboard'])
+  receive(f.socket, { case: 'inputReceipt', value: { sequence: 1n, controlGeneration: 1n } })
+  await Promise.resolve()
+  expect(f.inputs().map(input => input.operation.case)).toEqual(['clipboard', 'key', 'key', 'key', 'key'])
+  expect(f.inputs().map(input => input.sequence)).toEqual([1n, 2n, 3n, 4n, 5n])
+  f.viewer.dispose()
+})
+
+test('远端拒绝文本同步后连接和后续按键保持可用，手动发送返回失败', async () => {
+  const f = controllingViewer()
+  const sent = expect(f.viewer.sendClipboard('manual')).rejects.toThrow('clipboard_unavailable')
+  receive(f.socket, { case: 'fault', value: { code: 'rdp_clipboard_unavailable', uncertain: false, input: { sequence: 1n, controlGeneration: 1n } } })
+  await sent
+  f.keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', key: 'a' }))
+  expect(f.inputs().map(input => input.operation.case)).toEqual(['clipboard', 'key'])
+  expect(f.config.events.onDisconnected).not.toHaveBeenCalled()
+  f.viewer.dispose()
+})
+
+test('续租失败及旧输入错误不会结束当前文本发布', async () => {
+  const f = controllingViewer(), settled = vi.fn()
+  const sent = Promise.resolve(f.viewer.sendClipboard('manual')).then(settled)
+  receive(f.socket, { case: 'fault', value: { code: 'rdp_control_stale' } })
+  receive(f.socket, { case: 'fault', value: { code: 'rdp_clipboard_stale', input: { sequence: 1n, controlGeneration: 0n } } })
+  await Promise.resolve()
+  expect(settled).not.toHaveBeenCalled()
+  receive(f.socket, { case: 'inputReceipt', value: { sequence: 1n, controlGeneration: 1n } })
+  await sent
+  expect(settled).toHaveBeenCalledOnce()
+  expect(f.config.events.onDisconnected).not.toHaveBeenCalled()
+  f.viewer.dispose()
+})
+
+test.each(['remoteClipboard', 'capability', 'composition', 'blur'] as const)('读取文本期间 %s 变化后不能继续发布', async reason => {
+  const f = controllingViewer()
+  let resolve!: (text: string) => void
+  vi.mocked(readClipboardText).mockReturnValueOnce(new Promise<string>(done => { resolve = done }))
+  f.keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }))
+  if (reason === 'remoteClipboard') receive(f.socket, { case: 'clipboard', value: { text: '远端新内容' } })
+  if (reason === 'capability') {
+    for (const clipboardAvailable of [false, true]) receive(f.socket, { case: 'session', value: { sessionId: 'session', sessionGeneration: 1n, state: 'ready', clipboardAvailable, control: { subscriptionId: 'viewer', generation: 1n } } })
+  }
+  if (reason === 'composition') f.keyboard.dispatchEvent(new CompositionEvent('compositionstart'))
+  if (reason === 'blur') { f.viewer.blur(); f.viewer.focus() }
+  resolve('不能补发')
+  await Promise.resolve(); await Promise.resolve()
+  expect(f.inputs()).toHaveLength(0)
+  f.viewer.dispose()
+})
+
+test('目标不支持文本重定向时，仍然允许远端内部 Ctrl+V', () => {
+  const f = controllingViewer()
+  receive(f.socket, { case: 'session', value: { sessionId: 'session', sessionGeneration: 1n, state: 'ready', clipboardAvailable: false, control: { subscriptionId: 'viewer', generation: 1n } } })
+  f.keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }))
+  expect(f.inputs().map(input => input.operation.case)).toEqual(['key', 'key', 'key', 'key'])
+  expect(readClipboardText).not.toHaveBeenCalled()
+  f.viewer.dispose()
+})
+
+test.each(['blur', 'readonly', 'inactive', 'control', 'remoteClipboard'])('等待文本确认时 %s 不补发粘贴', async reason => {
+  const f = controllingViewer()
+  f.keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }))
+  await Promise.resolve()
+  if (reason === 'blur') f.viewer.blur()
+  if (reason === 'readonly') f.viewer.setViewOnly(true)
+  if (reason === 'inactive') f.viewer.setViewportActive(false, 'fit')
+  if (reason === 'control') receive(f.socket, { case: 'session', value: { sessionId: 'session', sessionGeneration: 1n, state: 'ready', control: { subscriptionId: 'another', generation: 2n } } })
+  if (reason === 'remoteClipboard') receive(f.socket, { case: 'clipboard', value: { text: '远端新内容' } })
+  receive(f.socket, { case: 'inputReceipt', value: { sequence: 1n, controlGeneration: 1n } })
+  await Promise.resolve(); await Promise.resolve()
+  expect(f.inputs().filter(input => input.operation.case === 'key')).toHaveLength(0)
+  f.viewer.dispose()
 })
 
 afterEach(() => {
@@ -72,6 +172,9 @@ function options(): RemoteDesktopViewerCreateOptions {
 test('按键按下后通道拥塞只断开一次，清理不递归且不重放输入', () => {
   const config = options()
   const viewer = createRdpViewer(config)
+  viewer.focus()
+  // 排空 jsdom 聚焦文本框产生的 selectionchange，之后只检查观看端的定时器。
+  vi.advanceTimersByTime(0)
   const socket = Socket.instances[0]
   const state = toBinary(ServerMessageSchema, create(ServerMessageSchema, { payload: { case: 'session', value: {
     sessionId: 'session', sessionGeneration: 1n, state: 'ready', control: { subscriptionId: 'viewer', generation: 1n },

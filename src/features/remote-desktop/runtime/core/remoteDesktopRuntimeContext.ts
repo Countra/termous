@@ -34,7 +34,7 @@ export interface RemoteDesktopRuntimeValue {
   approveServer: (sessionId: string, remember?: boolean) => void | Promise<void>
   rejectServer: (sessionId: string) => Promise<void>
   sendCtrlAltDel: (sessionId: string) => void
-  sendClipboard: (sessionId: string, text: string) => void
+  sendClipboard: (sessionId: string, text: string) => void | Promise<void>
 }
 
 export const RemoteDesktopRuntimeContext = createContext<RemoteDesktopRuntimeValue | null>(null)

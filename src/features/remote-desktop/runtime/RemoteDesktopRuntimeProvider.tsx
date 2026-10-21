@@ -455,7 +455,8 @@ export function RemoteDesktopRuntimeProvider({
     if (utf8Size(text) > 256 * 1024) {
       throw new Error('REMOTE_DESKTOP_CLIPBOARD_TOO_LARGE')
     }
-    lifecycleRef.current?.sendClipboard(sessionId, text)
+    if (!lifecycleRef.current) throw new Error('clipboard_unavailable')
+    return lifecycleRef.current.sendClipboard(sessionId, text)
   }, [])
 
   const value = useMemo(() => ({

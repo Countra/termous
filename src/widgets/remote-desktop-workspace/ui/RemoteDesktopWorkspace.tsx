@@ -23,7 +23,7 @@ import {
   Scan,
   Unplug,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   RemoteDesktopDisplayMode,
@@ -74,6 +74,13 @@ export function RemoteDesktopWorkspace({
   const filesTab = filesSelection?.sessionKey === filesSessionKey ? filesSelection.tab : undefined
   const viewerState = activeSession ? runtime.viewerStates[activeSession.id] : undefined
   const fullscreen = useRemoteDesktopFullscreen()
+  const clipboardRequest = useRef({ revision: 0 })
+
+  useLayoutEffect(() => {
+    // 系统读取完成前切换会话、重连或交接控制，旧的手动发送不能落到新上下文。
+    const request = clipboardRequest.current
+    return () => { request.revision++ }
+  }, [activeSession?.id, activeSession?.connection_generation, viewerState?.connection, viewerState?.viewOnly, viewerState?.controlOwned, viewerState?.controlLease?.id, viewerState?.controlLease?.generation])
 
   useEffect(() => {
     if (fullscreen.isFullscreen && !wasFullscreenRef.current && activeSession) {
@@ -105,14 +112,22 @@ export function RemoteDesktopWorkspace({
   }
 
   const sendClipboard = async () => {
-    if (!activeSession || viewerState?.viewOnly || viewerState?.controlOwned === false) return
+    if (!activeSession || viewerState?.connection !== 'connected' || viewerState.viewOnly || viewerState.controlOwned === false) return
+    const request = clipboardRequest.current
+    const revision = ++request.revision
     try {
-      runtime.sendClipboard(activeSession.id, await readClipboardText())
+      const text = await readClipboardText()
+      if (revision !== request.revision) return
+      await runtime.sendClipboard(activeSession.id, text)
+      if (revision !== request.revision) return
       notification.success({ title: t('remoteDesktop.clipboardSent'), duration: 2, className: termousNotificationClassName })
     } catch (error) {
+      if (revision !== request.revision) return
       notification.error({
         title: t('remoteDesktop.clipboardFailed'),
-        description: publicError(error, t('remoteDesktop.viewerErrors.clipboard_too_large')),
+        description: error instanceof Error && ['clipboard_failed', 'clipboard_too_large', 'clipboard_unavailable', 'clipboard_timeout'].includes(error.message)
+          ? t(`remoteDesktop.viewerErrors.${error.message}`)
+          : publicError(error, t('remoteDesktop.viewerErrors.clipboard_too_large')),
         className: termousNotificationClassName,
       })
     }

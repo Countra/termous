@@ -1,13 +1,16 @@
 import { App as AntdApp, ConfigProvider } from 'antd'
-import { fireEvent, render as renderUI, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render as renderUI, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '#features/remote-desktop'
+import { readClipboardText } from '#shared/clipboard'
 import { RemoteDesktopWorkspace } from './RemoteDesktopWorkspace'
 import { remoteDesktopTabPreferencesKey } from './RemoteDesktopSessionTabs'
 import { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs'
+
+vi.mock('#shared/clipboard', () => ({ readClipboardText: vi.fn(), writeClipboardText: vi.fn() }))
 
 const runtimeMock = vi.hoisted(() => ({
   value: {
@@ -69,6 +72,7 @@ afterAll(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.mocked(readClipboardText).mockReset()
   runtimeMock.value.sessions = []
   runtimeMock.value.sessionsReady = true
   runtimeMock.value.hiddenSessionIds = []
@@ -96,6 +100,42 @@ afterEach(() => {
   runtimeMock.value.approveServer.mockReset()
   runtimeMock.value.rejectServer.mockReset()
   runtimeMock.value.rejectServer.mockResolvedValue(undefined)
+})
+
+test('工具栏发送文本等待远端确认后才提示成功', async () => {
+  const session = remoteDesktopSession('clipboard-test')
+  runtimeMock.value.sessions = [session]
+  runtimeMock.value.activeSessionId = session.id
+  runtimeMock.value.viewerStates = { [session.id]: { connection: 'connected', credentialFields: [] } }
+  vi.mocked(readClipboardText).mockResolvedValue('合成文本')
+  let confirm!: () => void
+  runtimeMock.value.sendClipboard.mockReturnValueOnce(new Promise<void>(resolve => { confirm = resolve }))
+  render(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.sendClipboard' }))
+  await waitFor(() => expect(runtimeMock.value.sendClipboard).toHaveBeenCalledWith(session.id, '合成文本'))
+  expect(screen.queryByText('remoteDesktop.clipboardSent')).not.toBeInTheDocument()
+  await act(async () => confirm())
+  expect(await screen.findByText('remoteDesktop.clipboardSent')).toBeVisible()
+})
+
+test.each(['reconnect', 'inactive', 'unmount'] as const)('读取本机剪贴板期间 %s 不再发送旧内容', async reason => {
+  const session = remoteDesktopSession('clipboard-stale')
+  runtimeMock.value.sessions = [session]
+  runtimeMock.value.activeSessionId = session.id
+  runtimeMock.value.viewerStates = { [session.id]: { connection: 'connected', credentialFields: [] } }
+  let resolve!: (text: string) => void
+  vi.mocked(readClipboardText).mockReturnValueOnce(new Promise<string>(done => { resolve = done }))
+  const view = render(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  fireEvent.click(screen.getByRole('button', { name: 'remoteDesktop.sendClipboard' }))
+  expect(readClipboardText).toHaveBeenCalledOnce()
+  if (reason === 'unmount') view.unmount()
+  else {
+    if (reason === 'reconnect') runtimeMock.value.sessions = [{ ...session, connection_generation: 2 }]
+    else runtimeMock.value.activeSessionId = null
+    view.rerender(<AntdApp><RemoteDesktopWorkspace /></AntdApp>)
+  }
+  await act(async () => resolve('过期内容'))
+  expect(runtimeMock.value.sendClipboard).not.toHaveBeenCalled()
 })
 
 test('无远程桌面会话时加号打开快捷配置菜单，空状态仍打开统一连接器', async () => {

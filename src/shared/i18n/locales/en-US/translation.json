@@ -2012,7 +2012,10 @@
       "server_identity_missing": "The VNC service did not provide a verifiable identity.",
       "server_identity_unverifiable": "Could not verify the VNC service identity.",
       "server_identity_rejected": "The remote desktop server identity was rejected.",
-      "clipboard_too_large": "Clipboard text cannot exceed 256 KiB."
+      "clipboard_too_large": "Clipboard text cannot exceed 256 KiB.",
+      "clipboard_failed": "Text clipboard sync failed. No paste shortcut was sent. Copy the text again and retry.",
+      "clipboard_unavailable": "Text clipboard is unavailable. Take control and check that the remote desktop allows clipboard redirection.",
+      "clipboard_timeout": "The remote clipboard did not confirm in time. No paste shortcut was sent. Check the connection and retry."
     },
     "status": {
       "connecting": "Establishing connection",
