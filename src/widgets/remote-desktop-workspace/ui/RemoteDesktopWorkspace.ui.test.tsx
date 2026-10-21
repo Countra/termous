@@ -35,6 +35,7 @@ const runtimeMock = vi.hoisted(() => ({
     closeSession: vi.fn(async () => undefined),
     selectSession: vi.fn(),
     setDisplayMode: vi.fn(),
+    setFollowWindow: vi.fn(),
     setViewOnly: vi.fn(),
     sendClipboard: vi.fn(),
     sendCtrlAltDel: vi.fn(),
@@ -91,6 +92,7 @@ afterEach(() => {
   runtimeMock.value.closeSession.mockResolvedValue(undefined)
   runtimeMock.value.selectSession.mockReset()
   runtimeMock.value.setDisplayMode.mockReset()
+  runtimeMock.value.setFollowWindow.mockReset()
   runtimeMock.value.setViewOnly.mockReset()
   runtimeMock.value.sendClipboard.mockReset()
   runtimeMock.value.sendCtrlAltDel.mockReset()

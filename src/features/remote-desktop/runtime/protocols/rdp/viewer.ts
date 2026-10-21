@@ -6,6 +6,8 @@ import { createRdpSystemFiles } from './systemFiles.ts'
 import { createAutomationPointerOverlay } from '../../core/automationPointerOverlay.ts'
 import { createRdpIme } from './ime.ts'
 import { createRdpTextClipboard } from './textClipboard.ts'
+import { DesktopResolution } from '../../core/desktopResolution.ts'
+import { createRdpResizeRequest } from './resizeRequest.ts'
 
 export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): RemoteDesktopViewerHandle {
   const attachment = options.transport.kind === 'rdp-pixels' ? options.transport.attachment : undefined
@@ -52,7 +54,6 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   let clipboardAvailable = false
   let motion: { x: number; y: number } | undefined
   let lastPosition = { x: 0, y: 0 }
-  let resizeTimer: ReturnType<typeof setTimeout> | undefined
   let observer: ResizeObserver | undefined
   let renewTimer: ReturnType<typeof setInterval> | undefined
   let motionTimer: ReturnType<typeof setInterval> | undefined
@@ -94,6 +95,21 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     inputEpoch: () => inputEpoch,
     paste, pasteText: textClipboard.pasteLocal,
   })
+  const resizeRequest = createRdpResizeRequest(size => {
+    if (!authority() || !resizeAvailable) return undefined
+    const sent = input({ case: 'resize', value: size })
+    return sent === undefined ? undefined : { sequence: sent, controlGeneration }
+  })
+  const resolution = new DesktopResolution({
+    followWindow: options.state.followWindow,
+    normalize(size) {
+      const width = Math.min(8192, Math.floor(size.width / 2) * 2)
+      const height = Math.min(8192, Math.floor(size.height / 2) * 2)
+      return width >= 200 && height >= 200 && width * height <= 16 * 1024 * 1024 ? { width, height } : undefined
+    },
+    send: resizeRequest.send,
+    changed: state => options.events.onResolutionChanged?.(state),
+  })
 
   function send(payload: MessageInitShape<typeof ClientMessageSchema>['payload']) {
     if (disposed || control.readyState !== WebSocket.OPEN) return
@@ -123,6 +139,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   function dispose() {
     if (disposed) return
     disposed = true
+    resolution.dispose()
+    resizeRequest.reset()
     systemFiles.dispose()
     textClipboard.dispose()
     pointer.dispose()
@@ -136,7 +154,6 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     clearInterval(renewTimer)
     clearInterval(motionTimer)
     clearInterval(metricsTimer)
-    clearTimeout(resizeTimer)
     worker.terminate()
     control.close()
     canvas.remove()
@@ -155,12 +172,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     canvas.style.width = `${Math.max(1, width * scale)}px`
     canvas.style.height = `${Math.max(1, height * scale)}px`
     ime.refresh()
-    clearTimeout(resizeTimer)
-    if (mode === 'resize' && active && owned && resizeAvailable && rect.width >= 200 && rect.height >= 200) {
-      const w = Math.min(8192, Math.floor(rect.width / 2) * 2)
-      const h = Math.min(8192, Math.floor(rect.height / 2) * 2)
-      if (w * h <= 16 * 1024 * 1024 && (w !== width || h !== height)) resizeTimer = setTimeout(() => input({ case: 'resize', value: { width: w, height: h } }), 300)
-    }
+    resolution.setAvailability(active && !document.hidden, owned && !localReadOnly, resizeAvailable)
+    resolution.updateViewport({ width: options.target.clientWidth || rect.width, height: options.target.clientHeight || rect.height })
   }
   const initialize = () => {
     options.target.dataset.termousDesktopSession = options.session.id
@@ -183,6 +196,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
           if (state.sessionGeneration !== generation || state.sessionId !== options.session.id) throw new Error('RDP_SESSION_MISMATCH')
           const controlChanged = state.control?.generation !== controlGeneration
           if (controlChanged) {
+            resizeRequest.reset()
             inputEpoch++
             ime.reset()
             textClipboard.invalidate()
@@ -201,7 +215,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
           systemFiles.changed()
           layout()
           if (state.state === 'failed' || state.state === 'closed') disconnected()
-        } else if (payload.case === 'inputReceipt') textClipboard.acknowledge(payload.value)
+        } else if (payload.case === 'inputReceipt') { textClipboard.acknowledge(payload.value); resizeRequest.acknowledge(payload.value) }
         else if (payload.case === 'clipboard') { textClipboard.invalidate(); options.events.onClipboard(payload.value.text) }
         else if (payload.case === 'cursor') {
           const c = payload.value
@@ -214,6 +228,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
             canvas.style.cursor = `url(${cursor.toDataURL()}) ${Math.min(c.hotspotX, c.width - 1)} ${Math.min(c.hotspotY, c.height - 1)}, default`
           }
         } else if (payload.case === 'fault') {
+          if (resizeRequest.fail(payload.value.input) && !payload.value.uncertain) return
           if (!payload.value.uncertain && ['rdp_clipboard_unavailable', 'rdp_clipboard_timeout', 'rdp_clipboard_stale'].includes(payload.value.code)) {
             textClipboard.fail(payload.value.input, payload.value.code === 'rdp_clipboard_timeout' ? 'clipboard_timeout' : 'clipboard_unavailable')
             return
@@ -228,8 +243,14 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     worker.onmessage = (event: MessageEvent<{ type: string; width: number; height: number; displayEpoch: number; receivedBytes: number; sentBytes: number }>) => {
       if (event.data.type === 'error') { disconnected(); return }
       if (disposed) return
+      if (width !== event.data.width || height !== event.data.height) {
+        // 旧画面的移动不再补发；已按下按钮的释放仍必须落在新桌面范围内。
+        motion = undefined
+        lastPosition = { x: Math.max(0, Math.min(lastPosition.x, event.data.width - 1)), y: Math.max(0, Math.min(lastPosition.y, event.data.height - 1)) }
+      }
       width = event.data.width; height = event.data.height
       displayEpoch = event.data.displayEpoch
+      resolution.updateSize({ width, height })
       displayReceived = event.data.receivedBytes
       displaySent = event.data.sentBytes
       layout()
@@ -320,7 +341,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       event.preventDefault(); event.stopPropagation()
       if (owned && !localReadOnly) { inputEpoch++; releasePressed(); void systemFiles.prepare(true) }
     }, listenerOptions)
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }) }, listenerOptions)
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }); layout() }, listenerOptions)
     layout()
   }
   try {
@@ -332,6 +353,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   return {
     dispose,
     setDisplayMode(value) { mode = value; layout() },
+    setFollowWindow(value) { resolution.setFollowWindow(value) },
     setViewOnly(value) {
       if (value !== localReadOnly) { inputEpoch++; ime.reset(); textClipboard.invalidate() }
       if (value) { releasePressed(); if (owned) send({ case: 'control', value: { action: 'release', generation: controlGeneration } }) }
@@ -339,6 +361,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       localReadOnly = value
       systemFiles.changed()
       send({ case: 'viewport', value: { active: active && !document.hidden, readOnly: value } })
+      layout()
     },
     setViewportActive(value, displayMode) { active = value; mode = displayMode; if (!value) { inputEpoch++; ime.reset(); textClipboard.invalidate(); releasePressed() }; systemFiles.changed(); send({ case: 'viewport', value: { active: active && !document.hidden } }); layout() },
     focus() { ime.focus() }, blur() { keyboard.blur() },

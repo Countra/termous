@@ -8,7 +8,6 @@ import {
 } from 'react'
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
   RemoteDesktopTelemetryEvent,
 } from '#entities/remote-desktop'
@@ -28,6 +27,7 @@ import type {
 } from './core/viewerContracts.ts'
 import { RemoteDesktopViewerLifecycle } from './core/viewerLifecycle.ts'
 import { AutomationPointerStore } from './core/automationPointerState.ts'
+import type { DesktopScaleMode } from './core/desktopResolution.ts'
 import type { DesktopPointerEvent } from '#common/contracts'
 import { resolveRemoteDesktopSessionDrivers } from './core/sessionDriverResolver.ts'
 import {
@@ -143,6 +143,7 @@ export function RemoteDesktopRuntimeProvider({
             desktopName: '',
             remoteClipboard: '',
             capabilities: { power: false },
+            resolution: undefined,
             targetLabel: initial.targetLabel,
             errorCode: '',
           }
@@ -357,9 +358,14 @@ export function RemoteDesktopRuntimeProvider({
     lifecycleRef.current?.setParkingHost(host)
   }, [])
 
-  const setDisplayMode = useCallback((sessionId: string, displayMode: RemoteDesktopDisplayMode) => {
+  const setDisplayMode = useCallback((sessionId: string, displayMode: DesktopScaleMode) => {
     lifecycleRef.current?.setDisplayMode(sessionId, displayMode)
     commitViewerState(sessionId, { displayMode })
+  }, [commitViewerState])
+
+  const setFollowWindow = useCallback((sessionId: string, followWindow: boolean) => {
+    lifecycleRef.current?.setFollowWindow(sessionId, followWindow)
+    commitViewerState(sessionId, { followWindow })
   }, [commitViewerState])
 
   const setViewOnly = useCallback((sessionId: string, viewOnly: boolean) => {
@@ -476,6 +482,7 @@ export function RemoteDesktopRuntimeProvider({
     reconnectSession,
     registerViewport,
     setDisplayMode,
+    setFollowWindow,
     setViewOnly,
     reclaimRemoteViewer,
     focusViewer,
@@ -507,6 +514,7 @@ export function RemoteDesktopRuntimeProvider({
     sessions,
     sessionsReady,
     setDisplayMode,
+    setFollowWindow,
     setViewOnly,
     reclaimRemoteViewer,
     submitCredentials,
@@ -546,6 +554,7 @@ function viewerStateForSession(
       credentialFields: [],
       verification: null,
       displayMode: 'fit',
+      followWindow: false,
       viewOnly: false,
       desktopName: '',
       remoteClipboard: '',

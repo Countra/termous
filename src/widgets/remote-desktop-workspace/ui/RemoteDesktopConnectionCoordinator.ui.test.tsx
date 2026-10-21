@@ -42,7 +42,7 @@ function addSession(id: string, kind: 'verification' | 'credentials' = 'verifica
     connection: kind === 'verification' ? 'verifying_server' : 'credentials_required',
     verification: kind === 'verification' ? { type: protocol.toUpperCase(), fingerprint: `fingerprint-${id}` } : null,
     credentialFields: kind === 'credentials' ? [{ id: 'password', kind: 'secret', required: true }] : [],
-    displayMode: 'fit', viewOnly: false, desktopName: '', remoteClipboard: '', capabilities: { power: false }, targetLabel: '', errorCode: '',
+    displayMode: 'fit', followWindow: false, viewOnly: false, desktopName: '', remoteClipboard: '', capabilities: { power: false }, targetLabel: '', errorCode: '',
   }
   return session
 }

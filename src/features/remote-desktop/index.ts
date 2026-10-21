@@ -6,6 +6,7 @@ export type { DesktopFilesGateway } from './api/DesktopFilesClient.ts'
 export type { RemoteDesktopGateway } from './api/remoteDesktopGateway.ts'
 export { RemoteDesktopRuntimeProvider } from './runtime/RemoteDesktopRuntimeProvider.tsx'
 export { useRemoteDesktopRuntime } from './runtime/core/remoteDesktopRuntimeContext.ts'
+export type { DesktopScaleMode, DesktopResolutionState } from './runtime/core/desktopResolution.ts'
 export { useRemoteDesktopConnectionMetrics } from './runtime/core/connectionMetricsStore.tsx'
 export type {
   RemoteDesktopConnectionMetrics,

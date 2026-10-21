@@ -1,12 +1,12 @@
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopDisplayMode,
   RemoteDesktopProtocol,
   RemoteDesktopSession,
   RdpAttachment,
 } from '#entities/remote-desktop'
 import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
 import type { AutomationPointerFeed } from './automationPointerState.ts'
+import type { DesktopResolutionState, DesktopScaleMode } from './desktopResolution.ts'
 export interface DesktopExecutionConnection {
   connect: (readOnly: boolean) => Promise<{ url: string; ticket: string }>
   reclaim: (readOnly: boolean) => Promise<void>
@@ -51,7 +51,9 @@ export interface RemoteDesktopViewerState {
   connection: RemoteDesktopViewerConnectionState
   credentialFields: RemoteDesktopCredentialField[]
   verification: { type: string; fingerprint: string } | null
-  displayMode: RemoteDesktopDisplayMode
+  displayMode: DesktopScaleMode
+  followWindow: boolean
+  resolution?: DesktopResolutionState
   viewOnly: boolean
   desktopName: string
   remoteClipboard: string
@@ -94,6 +96,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
   credentialFields: [],
   verification: null,
   displayMode: 'fit',
+  followWindow: false,
   viewOnly: false,
   desktopName: '',
   remoteClipboard: '',
@@ -103,6 +106,7 @@ export const emptyRemoteDesktopViewerState: RemoteDesktopViewerState = Object.fr
 })
 
 export interface RemoteDesktopViewerEvents {
+  onResolutionChanged?: (state: DesktopResolutionState) => void
   onClipboardError?: (code: DesktopClipboardError | '') => void
   onControlChanged?: (owned: boolean, lease?: { id: string; generation: number } | null) => void
   onConnected: () => void
@@ -118,9 +122,10 @@ export interface RemoteDesktopViewerEvents {
 
 export interface RemoteDesktopViewerHandle {
   dispose: () => void
-  setDisplayMode: (mode: RemoteDesktopDisplayMode) => void
+  setDisplayMode: (mode: DesktopScaleMode) => void
+  setFollowWindow: (value: boolean) => void
   setViewOnly: (value: boolean) => void
-  setViewportActive: (active: boolean, mode: RemoteDesktopDisplayMode) => void
+  setViewportActive: (active: boolean, mode: DesktopScaleMode) => void
   focus: () => void
   blur: () => void
   sendCredentials: (credentials: RemoteDesktopCredentials) => void

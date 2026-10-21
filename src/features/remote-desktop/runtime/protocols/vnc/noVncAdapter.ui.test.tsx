@@ -28,6 +28,8 @@ const noVncMock = vi.hoisted(() => ({
 
 vi.mock('@novnc/novnc', () => ({
   default: class FakeRfb extends EventTarget {
+    // 对齐 noVNC 的真实事件接口：它不支持 DOM 的 once 或 signal 选项。
+    override addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) { super.addEventListener(type, listener) }
     background = ''
     viewOnly = false
     focusOnClick = false
@@ -37,6 +39,9 @@ vi.mock('@novnc/novnc', () => ({
     scaleViewport = false
     clipViewport = false
     showDotCursor = false
+    capabilities = { resize: true }
+    desktopState = { width: 800, height: 600, sequence: 1, displayEpoch: 1 }
+    requestDesktopSize = vi.fn(() => true)
     focus = vi.fn()
     blur = vi.fn()
     sendCredentials = vi.fn()
@@ -109,6 +114,53 @@ afterEach(() => {
 })
 
 describe('VNC Viewer Adapter', () => {
+  it('连接事件前修改只读偏好，首次执行票据使用最新选择', async () => {
+    const connect = vi.fn(async () => ({ url: 'ws://127.0.0.1/executor', ticket: 'fixture' })), reclaim = vi.fn()
+    const adapter = await VncViewerAdapter.create({ target: document.createElement('div'), url: 'ws://127.0.0.1/stream',
+      shared: true, viewOnly: false, displayMode: 'fit', execution: { connect, reclaim }, events: viewerEvents() })
+    adapter.setViewOnly(true)
+    expect(reclaim).not.toHaveBeenCalled()
+    latestRfb().dispatchEvent(new Event('connect'))
+    await Promise.resolve()
+    expect(connect).toHaveBeenCalledExactlyOnceWith(true)
+    adapter.dispose()
+  })
+
+  it('显示模块初始化失败释放播放器、通道及事件监听', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('ResizeObserver', class { constructor() { throw new Error('fixture observer') } })
+    const events = viewerEvents()
+    await expect(VncViewerAdapter.create({ target: document.createElement('div'), url: 'ws://127.0.0.1/stream',
+      shared: true, viewOnly: true, displayMode: 'fit', events })).rejects.toThrow('fixture observer')
+    const rfb = latestRfb()
+    rfb.dispatchEvent(new Event('connect'))
+    expect(rfb.disconnect).toHaveBeenCalledTimes(1)
+    expect(MockWebSocket.instances[0].close).toHaveBeenCalledTimes(1)
+    expect(events.onConnected).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it.each([true, false])('执行桥接只启动一次，销毁后迟到事件无效（等待首帧：%s）', async awaitFirstFrame => {
+    const connect = vi.fn(async () => ({ url: 'ws://127.0.0.1/executor', ticket: 'fixture' }))
+    const adapter = await VncViewerAdapter.create({ target: document.createElement('div'), url: 'ws://127.0.0.1/stream',
+      shared: true, viewOnly: true, displayMode: 'fit', awaitFirstFrame, execution: { connect, reclaim: vi.fn() }, events: viewerEvents() })
+    const rfb = latestRfb()
+    const trigger = () => rfb.dispatchEvent(new Event(awaitFirstFrame ? 'desktopframe' : 'connect'))
+    trigger(); trigger()
+    await Promise.resolve()
+    expect(connect).toHaveBeenCalledTimes(1)
+    adapter.dispose()
+    trigger()
+    expect(connect).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([true, false])('首个事件前释放不再申请执行票据（等待首帧：%s）', async awaitFirstFrame => {
+    const connect = vi.fn(async () => ({ url: 'ws://127.0.0.1/executor', ticket: 'fixture' }))
+    const adapter = await VncViewerAdapter.create({ target: document.createElement('div'), url: 'ws://127.0.0.1/stream',
+      shared: true, viewOnly: true, displayMode: 'fit', awaitFirstFrame, execution: { connect, reclaim: vi.fn() }, events: viewerEvents() })
+    adapter.dispose()
+    latestRfb().dispatchEvent(new Event(awaitFirstFrame ? 'desktopframe' : 'connect'))
+    expect(connect).not.toHaveBeenCalled()
+  })
   it('准备期间入口取消不消耗票据或创建 RFB', async () => {
     const abort = new AbortController()
     const pending = VncViewerAdapter.create({ signal: abort.signal, target: document.createElement('div'), url: 'ws://127.0.0.1:8122/once', shared: true, viewOnly: true, displayMode: 'fit', events: viewerEvents() })
@@ -150,15 +202,15 @@ describe('VNC Viewer Adapter', () => {
     expect(rfb.scaleViewport).toBe(true)
     expect(rfb.resizeSession).toBe(false)
 
-    adapter.setDisplayMode('resize')
-    expect(rfb.scaleViewport).toBe(false)
-    expect(rfb.clipViewport).toBe(true)
-    expect(rfb.resizeSession).toBe(true)
-
-    adapter.setViewportActive(false, 'resize')
+    adapter.setFollowWindow(true)
+    expect(rfb.scaleViewport).toBe(true)
+    expect(rfb.clipViewport).toBe(false)
     expect(rfb.resizeSession).toBe(false)
-    adapter.setViewportActive(true, 'resize')
-    expect(rfb.resizeSession).toBe(true)
+
+    adapter.setViewportActive(false, 'fit')
+    expect(rfb.resizeSession).toBe(false)
+    adapter.setViewportActive(true, 'fit')
+    expect(rfb.resizeSession).toBe(false)
 
     adapter.setDisplayMode('actual')
     expect(rfb.scaleViewport).toBe(false)

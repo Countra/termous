@@ -21,7 +21,8 @@ export const vncProtocolDriver = Object.freeze({
       connection: session.status === 'streaming' ? 'connecting' : 'idle',
       credentialFields: [],
       verification: null,
-      displayMode: session.vnc.default_display_mode,
+      displayMode: session.vnc.default_display_mode === 'actual' ? 'actual' : 'fit',
+      followWindow: session.vnc.default_display_mode === 'resize',
       viewOnly: session.vnc.default_view_only,
       desktopName: '',
       remoteClipboard: '',
@@ -42,6 +43,7 @@ export const vncProtocolDriver = Object.freeze({
       shared: options.session.vnc.shared,
       viewOnly: options.state.viewOnly,
       displayMode: options.state.displayMode,
+      followWindow: options.state.followWindow,
       credentials: toVncCredentials(options.credentials),
       events: {
         ...options.events,
@@ -55,6 +57,7 @@ export const vncProtocolDriver = Object.freeze({
     return {
       dispose: () => adapter.dispose(),
       setDisplayMode: (mode) => adapter.setDisplayMode(mode),
+      setFollowWindow: (value) => adapter.setFollowWindow(value),
       setViewOnly: (value) => adapter.setViewOnly(value),
       setViewportActive: (active, mode) => adapter.setViewportActive(active, mode),
       focus: () => adapter.focus(),

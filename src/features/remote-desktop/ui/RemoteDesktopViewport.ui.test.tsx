@@ -48,6 +48,7 @@ function runtimeValue(
     reconnectSession: vi.fn(),
     registerViewport: vi.fn(() => vi.fn()),
     setDisplayMode: vi.fn(),
+    setFollowWindow: vi.fn(),
     setViewOnly: vi.fn(),
     focusViewer: vi.fn(),
     blurViewer: vi.fn(),

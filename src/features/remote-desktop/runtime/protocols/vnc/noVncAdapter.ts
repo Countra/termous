@@ -1,6 +1,5 @@
-import type {
-  RemoteDesktopDisplayMode,
-} from '#entities/remote-desktop'
+import type { DesktopResolutionState, DesktopScaleMode } from '../../core/desktopResolution.ts'
+import { VncDisplay } from './display.ts'
 import type {
   RemoteDesktopTransportMetricsSnapshot,
   RemoteDesktopViewerCapabilities,
@@ -21,6 +20,7 @@ export interface VncViewerAdapterError {
 }
 
 export interface VncViewerAdapterEvents {
+  onResolutionChanged?: (state: DesktopResolutionState) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
   onCredentialsRequired: (types: VncCredentialType[]) => void
@@ -34,6 +34,7 @@ export interface VncViewerAdapterEvents {
 
 interface NoVncEventMap {
   connect: Event
+  desktopframe: Event
   disconnect: CustomEvent<{ clean?: boolean }>
   credentialsrequired: CustomEvent<{ types?: string[] }>
   securityfailure: CustomEvent<{ reason?: string; status?: number }>
@@ -56,7 +57,8 @@ export interface CreateVncViewerAdapterOptions {
   url: string
   shared: boolean
   viewOnly: boolean
-  displayMode: RemoteDesktopDisplayMode
+  displayMode: DesktopScaleMode
+  followWindow?: boolean
   credentials?: VncCredentials
   events: VncViewerAdapterEvents
 }
@@ -71,7 +73,10 @@ export class VncViewerAdapter {
   private disconnectRequested = false
   private readonly executionAbort = new AbortController()
   private executionConnection?: VncExecutionConnection
+  private executionStarted = false
+  private viewOnly = false
   private execution?: VncDesktopExecution
+  private display?: VncDisplay
 
   private constructor(
     rfb: InstanceType<typeof import('@novnc/novnc')['default']>,
@@ -97,39 +102,43 @@ export class VncViewerAdapter {
       transportMetrics.close()
       throw error
     }
-    rfb.background = 'var(--remote-desktop-canvas-bg, #090c11)'
-    rfb.viewOnly = options.viewOnly
-    rfb.focusOnClick = true
-    rfb.showDotCursor = true
-    rfb.qualityLevel = 6
-    rfb.compressionLevel = 2
     const adapter = new VncViewerAdapter(rfb, transportMetrics, options.events)
-    if (options.execution) {
-      adapter.executionConnection = options.execution
-      adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => { options.onControlChanged?.(owned); adapter.pointer?.refresh() })
-      const startExecution = () => {
-        void connectVncExecution(options.execution!, adapter.execution!, adapter.executionAbort.signal, () => adapter.disconnect(), options.viewOnly)
-          .catch(() => { if (!adapter.disposed) adapter.disconnect() })
-      }
-      if (options.awaitFirstFrame) {
-        const onFrame = () => {
-          if (!rfb.desktopState.sequence) return
-          rfb.removeEventListener('desktopframe', onFrame)
-          startExecution()
+    try {
+      adapter.viewOnly = options.viewOnly
+      rfb.background = 'var(--remote-desktop-canvas-bg, #090c11)'
+      rfb.viewOnly = options.viewOnly
+      rfb.focusOnClick = true
+      rfb.showDotCursor = true
+      rfb.qualityLevel = 6
+      rfb.compressionLevel = 2
+      if (options.execution) {
+        adapter.executionConnection = options.execution
+        adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => {
+          if (adapter.disposed) return
+          options.onControlChanged?.(owned); adapter.pointer?.refresh(); adapter.display?.refresh()
+        })
+        const startExecution = () => {
+          if (adapter.executionStarted || adapter.executionAbort.signal.aborted || options.awaitFirstFrame && !rfb.desktopState.sequence) return
+          adapter.executionStarted = true
+          void connectVncExecution(options.execution!, adapter.execution!, adapter.executionAbort.signal, () => adapter.disconnect(), adapter.viewOnly)
+            .catch(() => { if (!adapter.disposed) adapter.disconnect() })
         }
-        rfb.addEventListener('desktopframe', onFrame, { signal: adapter.executionAbort.signal })
-      } else rfb.addEventListener('connect', startExecution, { once: true, signal: adapter.executionAbort.signal })
-    }
-    adapter.pointer = createAutomationPointerOverlay({ target: options.target, feed: options.pointer,
-      visible: () => adapter.active && adapter.connected && !adapter.disposed && !!adapter.execution?.describe().control && adapter.execution.describe().control?.owner !== 'local-viewer',
-      geometry: () => rfb.desktopViewport,
-    })
-    rfb.addEventListener('desktopframe', () => adapter.pointer?.refresh(), { signal: adapter.executionAbort.signal })
-    adapter.setDisplayMode(options.displayMode)
+        adapter.listen(options.awaitFirstFrame ? 'desktopframe' : 'connect', startExecution)
+      }
+      adapter.pointer = createAutomationPointerOverlay({ target: options.target, feed: options.pointer,
+        visible: () => adapter.active && adapter.connected && !adapter.disposed && !!adapter.execution?.describe().control && adapter.execution.describe().control?.owner !== 'local-viewer',
+        geometry: () => rfb.desktopViewport,
+      })
+      adapter.listen('desktopframe', () => adapter.pointer?.refresh())
+      adapter.display = new VncDisplay(rfb, options.target,
+        () => adapter.connected && !rfb.viewOnly && (!adapter.execution || adapter.execution.describe().control?.owner === 'local-viewer'),
+        options.followWindow ?? false, state => options.events.onResolutionChanged?.(state))
+      adapter.setDisplayMode(options.displayMode)
+    } catch (error) { adapter.dispose(); throw error }
     return adapter
   }
 
-  setDisplayMode(mode: RemoteDesktopDisplayMode) {
+  setDisplayMode(mode: DesktopScaleMode) {
     this.pointer?.refresh()
     if (mode === 'fit') {
       this.rfb.resizeSession = false
@@ -137,30 +146,25 @@ export class VncViewerAdapter {
       this.rfb.clipViewport = false
       return
     }
-    if (mode === 'resize') {
-      this.rfb.scaleViewport = false
-      this.rfb.clipViewport = true
-      this.rfb.resizeSession = true
-      return
-    }
     this.rfb.resizeSession = false
     this.rfb.scaleViewport = false
     this.rfb.clipViewport = false
   }
 
+  setFollowWindow(value: boolean) { this.display?.setFollowWindow(value) }
+
   setViewOnly(value: boolean) {
+    this.viewOnly = value
     if (this.executionConnection) {
-      void this.executionConnection.reclaim(value).catch(() => this.disconnect())
-    } else this.rfb.viewOnly = value
+      // 执行端尚未创建时把偏好带入首次连接，不向不存在的执行端申请接管。
+      if (this.executionStarted) void this.executionConnection.reclaim(value).catch(() => this.disconnect())
+    } else { this.rfb.viewOnly = value; this.display?.refresh() }
   }
 
-  setViewportActive(active: boolean, mode: RemoteDesktopDisplayMode) {
+  setViewportActive(active: boolean, mode: DesktopScaleMode) {
     this.active = active
     this.pointer?.refresh()
-    if (!active && mode === 'resize') {
-      this.rfb.resizeSession = false
-      return
-    }
+    this.display?.setActive(active)
     if (active) {
       this.setDisplayMode(mode)
     }
@@ -209,6 +213,7 @@ export class VncViewerAdapter {
       return
     }
     this.disposed = true
+    this.display?.dispose()
     this.pointer?.dispose()
     this.executionAbort.abort()
     for (const [name, listener] of this.listeners) {
@@ -225,6 +230,7 @@ export class VncViewerAdapter {
   private bindEvents() {
     this.listen('connect', () => {
       this.connected = true
+      this.display?.refresh()
       this.pointer?.refresh()
       this.transportMetrics.markConnected()
       this.events.onConnected()
@@ -270,7 +276,8 @@ export class VncViewerAdapter {
     name: Name,
     handler: (event: NoVncEventMap[Name]) => void,
   ) {
-    const listener = ((event: Event) => handler(event as NoVncEventMap[Name])) as EventListener
+    // noVNC 不支持 DOM 事件选项，统一显式解绑，并忽略分发过程中发生的释放。
+    const listener = ((event: Event) => { if (!this.disposed) handler(event as NoVncEventMap[Name]) }) as EventListener
     this.rfb.addEventListener(name, listener)
     this.listeners.push([name, listener])
   }

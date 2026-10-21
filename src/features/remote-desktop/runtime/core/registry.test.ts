@@ -92,6 +92,7 @@ function protocolDriver(configVersion: number): RemoteDesktopProtocolDriver {
       credentialFields: [],
       verification: null,
       displayMode: 'fit',
+      followWindow: false,
       viewOnly: false,
       desktopName: '',
       remoteClipboard: '',
@@ -102,6 +103,7 @@ function protocolDriver(configVersion: number): RemoteDesktopProtocolDriver {
     createViewer: async () => ({
       dispose: () => undefined,
       setDisplayMode: () => undefined,
+      setFollowWindow: () => undefined,
       setViewOnly: () => undefined,
       setViewportActive: () => undefined,
       focus: () => undefined,

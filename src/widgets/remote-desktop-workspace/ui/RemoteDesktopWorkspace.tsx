@@ -2,7 +2,6 @@ import {
   App as AntdApp,
   Button,
   Dropdown,
-  Segmented,
   Switch,
   Tooltip,
   type MenuProps,
@@ -12,21 +11,17 @@ import {
   ClipboardPaste,
   Expand,
   Keyboard,
-  Maximize2,
   Minimize2,
   MonitorPlay,
   MoreHorizontal,
   Pin,
   PinOff,
   RefreshCw,
-  Scaling,
-  Scan,
   Unplug,
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
@@ -39,6 +34,7 @@ import {
 import {
   RemoteDesktopViewport,
   type RemoteDesktopViewerState,
+  type DesktopScaleMode,
   useRemoteDesktopRuntime,
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
@@ -48,6 +44,7 @@ import styles from './RemoteDesktopWorkspace.module.scss'
 import { DesktopFilesPanel, type DesktopFilesTab } from './files/DesktopFilesPanel.tsx'
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
+import { RemoteDesktopDisplayControls } from './RemoteDesktopDisplayControls.tsx'
 
 export interface RemoteDesktopWorkspaceProps extends Omit<RemoteDesktopSessionTabsProps, 'onOpenLauncher' | 'onClose'> {
   onOpenConnectionLauncher?: () => void
@@ -220,6 +217,7 @@ export function RemoteDesktopWorkspace({
             fullscreenPinned={fullscreen.toolbarPinned}
             onToggleFullscreenPin={fullscreen.toggleToolbarPinned}
             onDisplayMode={(mode) => runtime.setDisplayMode(activeSession.id, mode)}
+            onFollowWindow={(value) => runtime.setFollowWindow(activeSession.id, value)}
             onViewOnly={(viewOnly) => runtime.setViewOnly(activeSession.id, viewOnly)}
             onSendClipboard={() => void sendClipboard()}
             onReceiveClipboard={() => void receiveClipboard()}
@@ -269,6 +267,7 @@ function RemoteDesktopToolbar({
   fullscreenPinned,
   onToggleFullscreenPin,
   onDisplayMode,
+  onFollowWindow,
   onViewOnly,
   onSendClipboard,
   onReceiveClipboard,
@@ -283,7 +282,8 @@ function RemoteDesktopToolbar({
   fullscreen: boolean
   fullscreenPinned: boolean
   onToggleFullscreenPin: () => void
-  onDisplayMode: (mode: RemoteDesktopDisplayMode) => void
+  onDisplayMode: (mode: DesktopScaleMode) => void
+  onFollowWindow: (value: boolean) => void
   onViewOnly: (value: boolean) => void
   onSendClipboard: () => void
   onReceiveClipboard: () => void
@@ -315,19 +315,10 @@ function RemoteDesktopToolbar({
   }
   return (
     <div className={styles.toolbar}>
-      <Segmented<RemoteDesktopDisplayMode>
-        size="small"
-        value={viewerState?.displayMode ?? 'fit'}
-        options={[
-          { value: 'fit', label: <span className={styles['mode-option']}><Scaling size={14} />{t('remoteDesktop.display.fit')}</span> },
-          { value: 'resize', label: <span className={styles['mode-option']}><Scan size={14} />{t('remoteDesktop.display.resize')}</span> },
-          { value: 'actual', label: <span className={styles['mode-option']}><Maximize2 size={14} />{t('remoteDesktop.display.actual')}</span> },
-        ]}
-        onChange={onDisplayMode}
-      />
+      <RemoteDesktopDisplayControls state={viewerState} onScale={onDisplayMode} onFollow={onFollowWindow} />
       <span className={styles.divider} />
       <label className={styles['view-only']}>
-        <Switch size="small" checked={viewOnly} onChange={onViewOnly} />
+        <Switch size="small" aria-label={t('remoteDesktop.disableInput')} checked={viewOnly} onChange={onViewOnly} />
         <span>{t('remoteDesktop.disableInput')}</span>
       </label>
       {connected && viewerState?.controlOwned === false && !viewOnly ? (

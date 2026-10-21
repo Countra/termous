@@ -1,13 +1,13 @@
 import { createContext, useContext } from 'react'
 import type { DesktopFilesGateway } from '../../api/DesktopFilesClient.ts'
 import type {
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerState,
 } from './viewerContracts.ts'
+import type { DesktopScaleMode } from './desktopResolution.ts'
 
 export interface RemoteDesktopRuntimeValue {
   automation?: import('../../api/remoteDesktopGateway.ts').RemoteDesktopRuntimeGateway['automation']
@@ -25,7 +25,8 @@ export interface RemoteDesktopRuntimeValue {
   closeSession: (sessionId: string) => Promise<void>
   reconnectSession: (sessionId: string) => Promise<void>
   registerViewport: (sessionId: string, host: HTMLDivElement) => () => void
-  setDisplayMode: (sessionId: string, mode: RemoteDesktopDisplayMode) => void
+  setDisplayMode: (sessionId: string, mode: DesktopScaleMode) => void
+  setFollowWindow: (sessionId: string, value: boolean) => void
   setViewOnly: (sessionId: string, value: boolean) => void
   reclaimRemoteViewer?: (sessionId: string) => Promise<void>
   focusViewer: (sessionId: string) => void

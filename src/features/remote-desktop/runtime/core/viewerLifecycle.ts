@@ -1,6 +1,5 @@
 import type {
   RemoteDesktopAccessProfile,
-  RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '../../api/remoteDesktopGateway.ts'
@@ -10,6 +9,7 @@ import type { RemoteDesktopRouteRegistry } from './routeRegistry.ts'
 import { resolveRemoteDesktopSessionDrivers } from './sessionDriverResolver.ts'
 import { RemoteDesktopTargetAuthController } from './targetAuthController.ts'
 import type { AutomationPointerStore } from './automationPointerState.ts'
+import type { DesktopScaleMode } from './desktopResolution.ts'
 import type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerHandle,
@@ -281,8 +281,12 @@ export class RemoteDesktopViewerLifecycle {
     this.ensureViewer(sessionId)
   }
 
-  setDisplayMode(sessionId: string, mode: RemoteDesktopDisplayMode) {
+  setDisplayMode(sessionId: string, mode: DesktopScaleMode) {
     this.entries.get(sessionId)?.viewer?.setDisplayMode(mode)
+  }
+
+  setFollowWindow(sessionId: string, value: boolean) {
+    this.entries.get(sessionId)?.viewer?.setFollowWindow(value)
   }
 
   setViewOnly(sessionId: string, value: boolean) {
@@ -394,6 +398,11 @@ export class RemoteDesktopViewerLifecycle {
       state,
       credentials: entry.credentials ?? undefined,
       events: {
+        onResolutionChanged: (resolution) => {
+          if (isCurrent() || (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer))) {
+            this.options.commitViewerState(entry.sessionId, { resolution })
+          }
+        },
         onControlChanged: (owned, lease) => {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
             this.options.commitViewerState(entry.sessionId, { controlOwned: owned, controlLease: lease ?? null })
@@ -527,6 +536,17 @@ export class RemoteDesktopViewerLifecycle {
       return
     }
     entry.viewer = viewer
+    // 异步附着期间仍可切换显示和输入选项；未变化的输入状态不能重复申请控制权。
+    const current = this.options.viewerState(entry.sessionId) ?? state
+    try {
+      if (current.viewOnly !== state.viewOnly) viewer.setViewOnly(current.viewOnly)
+      viewer.setViewportActive(!!entry.viewport, current.displayMode)
+      viewer.setFollowWindow(current.followWindow)
+    } catch (error) {
+      entry.viewer = null
+      viewer.dispose()
+      throw error
+    }
     this.options.commitViewerState(entry.sessionId, { connection: 'connecting', clipboardError: '' })
   }
 
