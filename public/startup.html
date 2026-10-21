@@ -148,11 +148,13 @@
         --startup-accent: var(--startup-error);
       }
 
-      body[data-phase="database-completed"] {
+      body[data-phase="database-completed"],
+      body[data-phase="ready"] {
         --startup-accent: var(--startup-success);
       }
 
-      body[data-phase="database-completed"] .startup-status::before {
+      body[data-phase="database-completed"] .startup-status::before,
+      body[data-phase="ready"] .startup-status::before {
         width: 11px;
         height: 6px;
         border-radius: 0;
@@ -166,12 +168,15 @@
 
       body[data-phase="database-completed"] .startup-icon,
       body[data-phase="database-completed"] .startup-status::before,
+      body[data-phase="ready"] .startup-icon,
+      body[data-phase="ready"] .startup-status::before,
       body[data-phase="error"] .startup-icon,
       body[data-phase="error"] .startup-status::before {
         animation: none;
       }
 
       body[data-phase="database-completed"] .startup-track,
+      body[data-phase="ready"] .startup-track,
       body[data-phase="error"] .startup-track {
         visibility: hidden;
       }

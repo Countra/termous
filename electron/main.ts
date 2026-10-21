@@ -801,6 +801,7 @@ function onStartupPresentationChanged(view: StartupPresentationView) {
   const target = splashWin
   if (target && !target.isDestroyed()) {
     const expanded = view.phase === 'error' || view.attention !== null
+      || Boolean(view.databases?.some((database) => database.status === 'failed'))
     const workArea = screen.getDisplayMatching(target.getBounds()).workArea
     const width = Math.min(expanded ? 560 : 400, workArea.width)
     const height = Math.min(view.phase === 'error' ? 420 : expanded ? 320 : 236, workArea.height)

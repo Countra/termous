@@ -239,8 +239,24 @@ test('外部 Core 不展示数据库升级但仍等待工作区就绪', () => {
   presentation.setWindowVisible(true)
   advance(650)
   assert.equal(presentation.getView().canComplete, false)
+  assert.equal(presentation.getView().ready, false)
   presentation.setWorkspaceReady(true)
   assert.equal(presentation.getView().canComplete, true)
+  assert.equal(presentation.getView().ready, true)
+})
+
+test('就绪文案以服务和工作区事实为准，不依赖展示时长且失败立即撤销', () => {
+  const { presentation, update } = fixture()
+  update({ phase: 'services', database: { status: 'completed', operation: 'prepare' } })
+  presentation.setWorkspaceReady(true)
+  assert.equal(presentation.getView().ready, false)
+  update({ phase: 'ready', database: { status: 'completed', operation: 'prepare' } })
+  assert.equal(presentation.getView().ready, true)
+  assert.equal(presentation.getView().canComplete, false)
+  presentation.setFailure({ code: 'LOCAL_API_UNAVAILABLE', message: '工作区加载失败' })
+  assert.equal(presentation.getView().ready, false)
+  update({ attemptId: 'attempt-2', phase: 'ready', database: null })
+  assert.equal(presentation.getView().ready, false)
 })
 
 test('销毁展示控制器会清理所有定时器', () => {
