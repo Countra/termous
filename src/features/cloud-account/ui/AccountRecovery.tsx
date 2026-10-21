@@ -79,6 +79,7 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
           } else {
             await api.recoveryPolicy(status.generation, decision.action, decision.revision, buildCloudStepUpProof(state.security?.account.mfa_enabled, proof))
             if (!current()) return
+            form.resetFields()
             if (decision.rotate) {
               // 停止发放已经确认；后续读取或轮换失败只能继续此阶段，不能重做停止请求。
               setDecision({ ...decision, stopped: true }); setRotationUntil(undefined)
@@ -102,9 +103,9 @@ export function AccountRecovery({ api, status, busy, run }: Props) {
           }
           throw cause
         }
-        finally { if (current()) { if (currentPolicy()) form.resetFields(); await state.reload() } }
+        finally { if (current()) { if (currentPolicy()) form.resetFields(['password']); await state.reload() } }
       })}>
-        {!decision?.stopped || !rotationVerified ? <AccountStepUpFields enabled={state.security?.account.mfa_enabled} revision={state.security?.account.mfa_revision} disabled={disabled} /> : null}
+        {!decision?.stopped || !rotationVerified ? <AccountStepUpFields key={String(Boolean(decision?.stopped))} enabled={state.security?.account.mfa_enabled} revision={state.security?.account.mfa_revision} disabled={disabled || unavailable} /> : null}
         <Button type="primary" danger={decision?.action === 'disable'} htmlType="submit" loading={disabled} disabled={unavailable}>{t(decision?.stopped ? 'cloud.rekeyStart' : decision?.rotate ? 'cloud.authorization.disableRotate' : `cloud.authorization.${decision?.action ?? 'disable'}`)}</Button>
       </Form>
     </FeedbackMessageScope></Modal>

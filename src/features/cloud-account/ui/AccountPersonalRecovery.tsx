@@ -120,8 +120,8 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
       const result = await api.setupPersonalRecovery(status.generation, buildCloudStepUpProof(security.value?.account.mfa_enabled, evidence))
       if (!current(scope) || request !== wizardRun.current) return
       if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
-      setSetup(result); setStage(1)
-    } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields() }
+      proof.resetFields(); setSetup(result); setStage(1)
+    } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields(['password']) }
   }
   const exportKey = async (download: boolean) => {
     if (!setup) return
@@ -188,7 +188,7 @@ export function AccountPersonalRecovery({ api, status, busy, run }: Props) {
           if (!current(scope) || request !== wizardRun.current) return
           await api.rekey(status.generation, 'start')
           if (current(scope)) setRotationPending(false)
-        } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields() }
+        } finally { if (current(scope) && request === wizardRun.current && startedPolicy === policy.current) proof.resetFields(['password']) }
       })}>
         {!rotationVerified ? <AccountStepUpFields enabled={security.value?.account.mfa_enabled} revision={security.value?.account.mfa_revision} disabled={disabled} /> : null}
         <Button type="primary" htmlType="submit" loading={disabled} disabled={security.loading || security.error}>{t('cloud.rekeyStart')}</Button>

@@ -73,7 +73,7 @@ export function AccountAuth({ api, generation, busy, run, email: savedEmail, rea
   const motion = useAccountAuthMotion(challenge ? 'challenge' : notice ? `${mode}:notice` : mode === 'login' ? `login:${loginMethod}` : mode, onViewChange)
 
   if (challenge) return <section ref={motion} className={styles.auth}>
-    <AuthIntro title={t('cloud.mfa.loginTitle')} hint={t('cloud.mfa.loginHint')} busy={busy} onBack={() => {
+    <AuthIntro title={t('cloud.mfa.loginTitle')} busy={busy} onBack={() => {
       const id = challenge.id
       changeMode('login')
       void run(() => api.cancelLogin(generation, id))
@@ -81,19 +81,20 @@ export function AccountAuth({ api, generation, busy, run, email: savedEmail, rea
     {blocked || error ? <Alert showIcon type="warning" title={blocked ? t(challengeFailure ? `cloud.errors.${challengeFailure}` : expired ? 'cloud.mfa.challengeExpired' : 'cloud.mfa.loginUncertain') : failure(error!)} /> : null}
     {/* 验证表单按挑战挂载，卸载时清除验证码，避免访问尚未连接的表单实例。 */}
     <Form className={styles.form} key="mfa-login" name="cloud-mfa-login" form={verificationForm} clearOnDestroy layout="vertical" scrollToFirstError={{ block: 'nearest', focus: true }} requiredMark={false} disabled={busy || blocked} onValuesChange={onClearError} onFinish={(values) => {
+      if (busy || blocked) return
       const scope = lifetime.current
       void run(async () => {
         try {
           const result = await api.verifyLogin(generation, challenge.id, method, values.code)
           if (current(scope)) accept(result)
         } catch (cause) {
-          if (current(scope) && isCloudMFAUncertainError(cause)) { setUncertain(true); verificationForm.resetFields() }
-          else if (current(scope) && cause instanceof Error && ['mfa_challenge_expired', 'mfa_challenge_exhausted'].includes(cause.message)) { setChallengeFailure(cause.message); verificationForm.resetFields() }
+          if (current(scope) && isCloudMFAUncertainError(cause)) setUncertain(true)
+          else if (current(scope) && cause instanceof Error && ['mfa_challenge_expired', 'mfa_challenge_exhausted'].includes(cause.message)) setChallengeFailure(cause.message)
           throw cause
         }
       })
     }}>
-      <AccountMFAFields method={method} methods={challenge.methods} disabled={busy || blocked} onMethodChange={(value) => { setMethod(value); verificationForm.resetFields() }} />
+      <AccountMFAFields key={challenge.id} gap={16} method={method} methods={challenge.methods} disabled={busy || blocked} autoFocus onMethodChange={(value) => { setMethod(value); verificationForm.resetFields() }} />
       <Button block size="large" type="primary" htmlType="submit" loading={busy} disabled={blocked}>{t('cloud.mfa.verifyAndLogin')}</Button>
     </Form>
   </section>
@@ -148,7 +149,7 @@ export function AccountAuth({ api, generation, busy, run, email: savedEmail, rea
   </section>
 }
 
-function AuthIntro({ title, hint, busy, onBack }: { title: string; hint: string; busy: boolean; onBack?: () => void }) {
+function AuthIntro({ title, hint, busy, onBack }: { title: string; hint?: string; busy: boolean; onBack?: () => void }) {
   const { t } = useTranslation()
   return <header className={styles.intro}>
     <div className={styles['intro-row']}>
@@ -156,6 +157,6 @@ function AuthIntro({ title, hint, busy, onBack }: { title: string; hint: string;
         aria-label={t('cloud.backToLogin')} title={t('cloud.backToLogin')} disabled={busy} onClick={onBack} /> : null}
       <h2>{title}</h2>
     </div>
-    <p>{hint}</p>
+    {hint ? <p>{hint}</p> : null}
   </header>
 }

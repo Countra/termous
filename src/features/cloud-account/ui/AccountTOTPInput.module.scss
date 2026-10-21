@@ -1,0 +1,52 @@
+.code {
+  --totp-cell-width: 44px;
+  --totp-gap: 12px;
+
+  display: grid;
+  width: min(100%, calc(6 * var(--totp-cell-width) + 5 * var(--totp-gap)));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--totp-gap);
+
+  > input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 52px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    outline: none;
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+    caret-color: var(--accent);
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+
+    &::placeholder {
+      color: var(--text-muted);
+      opacity: 0.45;
+    }
+    &:hover:not(:disabled) { border-color: var(--text-muted); }
+
+    &:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+
+  &[data-status='error'] > input { border-color: var(--danger); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code > input { transition: none; }
+}

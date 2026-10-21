@@ -81,12 +81,6 @@
     line-height: 1.5;
   }
 
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 1.7;
-  }
 }
 
 .manual-key {
@@ -178,12 +172,6 @@
 .setup-confirm {
   padding-top: 20px;
   border-top: 1px solid var(--border);
-
-  :global(.ant-input) {
-    font-family: "Cascadia Code", Consolas, monospace;
-    font-size: 16px;
-    letter-spacing: 0.15em;
-  }
 }
 
 .codes {

@@ -173,7 +173,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
       <p>{t('cloud.authorization.initializeHint')}</p><Checkbox.Group disabled={initializeBusy} value={checked} onChange={values => setChecked(values as string[])} options={devices.filter(d => d.status === 'active').map(d => ({ label: `${d.name} · ${d.id}`, value: d.id, disabled: d.id === status.device_id }))} />
       <AccountOperationError code={initializeFeedback.errorCode} />
       <Form form={proof} layout="vertical" onFinish={evidence => void initializeFeedback.perform(async current => {
-        if (busy || authorization.error || authorization.security?.account.mfa_enabled === undefined) return
+        if (busy || authorization.error || authorization.security?.account.mfa_enabled === undefined || !checked.includes(status.device_id ?? '')) return
         const scope = lifetime.current
         const startedPolicy = policy.current
         try {
@@ -181,10 +181,10 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
           if (!current() || scope?.controller.signal.aborted) return
           if (startedPolicy !== policy.current) throw new Error('mfa_revision_conflict')
           await api.initializeMembership(generation, checked)
-          if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { setInitialize(false); changed() }
-        } finally { if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation && startedPolicy === policy.current) proof.resetFields() }
+          if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation) { proof.resetFields(); setInitialize(false); changed() }
+        } finally { if (!scope?.controller.signal.aborted && generation === api.getStatus()?.generation && startedPolicy === policy.current) proof.resetFields(['password']) }
       })}>
-        <AccountStepUpFields enabled={authorization.security?.account.mfa_enabled} revision={authorization.security?.account.mfa_revision} disabled={initializeBusy} />
+        <AccountStepUpFields enabled={authorization.security?.account.mfa_enabled} revision={authorization.security?.account.mfa_revision} disabled={initializeBusy || authorization.error} autoSubmit={checked.includes(status.device_id ?? '')} />
         <Button type="primary" htmlType="submit" loading={initializeBusy} disabled={!checked.includes(status.device_id ?? '') || authorization.error || authorization.security?.account.mfa_enabled === undefined}>{t('cloud.mfa.confirm')}</Button>
       </Form>
     </FeedbackMessageScope></Modal>
