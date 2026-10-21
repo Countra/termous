@@ -32,13 +32,17 @@ export function HostDraftConnectionEditor({ draft, selection, data, validation, 
   const localSSH = projectHostCreationSSH(draft)
   const ssh = draft.ssh.find((item) => item.id === selection.id)
   const desktop = draft.remoteDesktops.find((item) => item.id === selection.id)
+  const issueFor = (field: string) => submitted
+    ? validation.issues.find((item) => item.kind === selection.kind && item.id === selection.id && item.field === field)
+    : undefined
   const issueMessage = (field: string) => {
-    const issue = submitted ? validation.issues.find((item) => item.kind === selection.kind && item.id === selection.id && item.field === field) : undefined
+    const issue = issueFor(field)
     if (!issue) return undefined
     if (issue.code === 'required') return t('hosts.access.errors.required')
     if (issue.code === 'too_long') return t('hosts.access.errors.tooLong')
     return t(`hosts.creation.errors.${issue.code}`, { defaultValue: t('hosts.creation.invalid') })
   }
+  const nameError = issueFor('name')?.code
   const title = selection.kind === 'file' ? ssh?.fileName : selection.kind === 'ssh' ? ssh?.draft.name : desktop?.draft.name
   return (
     <>
@@ -61,7 +65,8 @@ export function HostDraftConnectionEditor({ draft, selection, data, validation, 
       {selection.kind === 'file' && ssh ? <SFTPProfileEditor
         draft={{ engine: 'sftp', host_id: hostCreationTemporaryHostId, name: ssh.fileName, ssh_profile_id: ssh.id }}
         sshProfiles={localSSH}
-        errors={issueMessage('name') ? { name: 'required' } : undefined}
+        errors={nameError === 'required' || nameError === 'too_long' ? { name: nameError } : undefined}
+        bindingLocked
         disabled={busy}
         onChange={(next) => onChange(updateHostCreationSSH(draft, ssh.id, { fileName: next.name }))}
       /> : null}

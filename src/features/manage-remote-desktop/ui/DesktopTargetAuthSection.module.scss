@@ -1,0 +1,103 @@
+.auth-layout {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.mode-setting {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.mode-label,
+.field > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 18px;
+}
+
+.auth-detail {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.status-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 8px;
+
+  > span {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--text-muted);
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 550;
+  }
+}
+
+.status-copy small,
+.field > small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.status[data-state='saved'] .status-copy > svg { color: var(--success); }
+.status[data-state='removing'] .status-copy > svg { color: var(--warning); }
+
+.replace-action:global(.ant-btn) {
+  margin-top: -4px;
+  color: var(--text-secondary);
+}
+
+.editor {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+
+  > :global(.ant-btn) { margin-top: 24px; }
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+
+  :global(.ant-input-affix-wrapper) {
+    min-height: 38px;
+    border-color: var(--border);
+    border-radius: 8px;
+    background: var(--input-bg);
+  }
+  :global(.ant-input-prefix) { color: var(--text-muted); }
+}
+
+.error { color: var(--danger) !important; }
+
+@container desktop-profile-editor (max-width: 480px) {
+  .status { flex-wrap: wrap; }
+  .replace-action:global(.ant-btn) { margin-left: 20px; }
+}

@@ -9,7 +9,6 @@ import type {
   FileAccessProfileEditorDraft,
   FileAccessProfileEditorErrors,
 } from '../model/types.ts'
-import styles from './FileAccessProfileEditor.module.scss'
 
 interface FileAccessProfileEditorProps {
   mode: 'create' | 'edit'
@@ -33,31 +32,32 @@ export function FileAccessProfileEditor({
   if (!definition) return null
   const Editor = definition.Editor
 
+  const protocolControl = (
+    <CustomSelect
+      label={t('hosts.access.file.type')}
+      value={draft.engine}
+      disabled={disabled || mode === 'edit'}
+      options={listFileAccessProfileEditors().map((item) => ({
+        value: item.engine,
+        label: item.label,
+      }))}
+      onChange={(engine) => {
+        const nextDefinition = getFileAccessProfileEditor(engine)
+        const next = nextDefinition?.createDraft(draft.host_id, sshProfiles)
+        const defaultName = definition.createDraft(draft.host_id, sshProfiles).name
+        if (next) onChange({ ...next, name: draft.name === defaultName ? next.name : draft.name })
+      }}
+    />
+  )
+
   return (
-    <div className={styles.root}>
-      <CustomSelect
-        className={styles.field}
-        label={t('hosts.access.file.type')}
-        value={draft.engine}
-        disabled={disabled || mode === 'edit'}
-        options={listFileAccessProfileEditors().map((item) => ({
-          value: item.engine,
-          label: item.label,
-        }))}
-        onChange={(engine) => {
-          const nextDefinition = getFileAccessProfileEditor(engine)
-          const next = nextDefinition?.createDraft(draft.host_id, sshProfiles)
-          const defaultName = definition.createDraft(draft.host_id, sshProfiles).name
-          if (next) onChange({ ...next, name: draft.name === defaultName ? next.name : draft.name })
-        }}
-      />
-      <Editor
-        draft={draft}
-        sshProfiles={sshProfiles}
-        errors={errors}
-        disabled={disabled}
-        onChange={onChange}
-      />
-    </div>
+    <Editor
+      draft={draft}
+      sshProfiles={sshProfiles}
+      errors={errors}
+      disabled={disabled}
+      protocolControl={protocolControl}
+      onChange={onChange}
+    />
   )
 }

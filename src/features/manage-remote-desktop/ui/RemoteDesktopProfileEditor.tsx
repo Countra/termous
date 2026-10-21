@@ -1,7 +1,7 @@
-import { Segmented } from 'antd'
-import type { ComponentProps } from 'react'
+import { Radio } from 'antd'
+import { Check, Monitor, PanelsTopLeft } from 'lucide-react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDesktopProtocol } from '#entities/remote-desktop'
 import { VNCProfileEditor } from '../protocols/vnc/VNCProfileEditor.tsx'
 import { RDPProfileEditor } from '../protocols/rdp/RDPProfileEditor.tsx'
 import {
@@ -9,11 +9,10 @@ import {
   type RemoteDesktopAccessProfileDraft,
   type RemoteDesktopAccessProfileDraftErrors,
 } from '../model/remoteDesktopAccessProfileDraft.ts'
-import styles from '../protocols/vnc/VNCProfileEditor.module.scss'
-import segmentedStyles from '../protocols/vnc/VNCProfileSegmented.module.scss'
-import protocolStyles from './RemoteDesktopProfileEditor.module.scss'
+import type { DesktopProfileEditorOptions } from './profileEditorTypes.ts'
+import styles from './RemoteDesktopProfileEditor.module.scss'
 
-type Props = Omit<ComponentProps<typeof VNCProfileEditor>, 'draft' | 'onChange' | 'errors'> & {
+interface Props extends DesktopProfileEditorOptions {
   draft: RemoteDesktopAccessProfileDraft
   errors: RemoteDesktopAccessProfileDraftErrors
   onChange: (draft: RemoteDesktopAccessProfileDraft) => void
@@ -21,22 +20,30 @@ type Props = Omit<ComponentProps<typeof VNCProfileEditor>, 'draft' | 'onChange' 
 
 export function RemoteDesktopProfileEditor(props: Props) {
   const { t } = useTranslation()
+  const protocolId = useId()
   const { draft, onChange, disabled } = props
   return (
-    <div className={styles.form}>
-      <div className={protocolStyles.protocol}>
-        <div className={`${styles['section-inner']} ${styles['route-setting']}`}>
-          <span className={styles['route-label']}>{t('remoteDesktop.rdp.protocol')}</span>
-          <Segmented<RemoteDesktopProtocol>
-            block
-            className={segmentedStyles.control}
-            aria-label={t('remoteDesktop.rdp.protocol')}
-            value={draft.protocol ?? 'vnc'}
-            disabled={disabled}
-            options={['VNC', 'RDP'].map((label) => ({ value: label.toLowerCase() as RemoteDesktopProtocol, label }))}
-            onChange={(protocol) => onChange(changeRemoteDesktopAccessProfileProtocol(draft, protocol))}
-          />
-        </div>
+    <div className={styles.editor}>
+      <div className={styles.protocol}>
+        <Radio.Group
+          name={`${protocolId}-protocol`} className={styles.protocols}
+          aria-label={t('remoteDesktop.rdp.protocol')}
+          value={draft.protocol ?? 'vnc'} disabled={disabled}
+          onChange={event => onChange(changeRemoteDesktopAccessProfileProtocol(draft, event.target.value))}
+        >
+          {(['vnc', 'rdp'] as const).map(protocol => (
+            <Radio key={protocol} value={protocol} aria-label={protocol.toUpperCase()} className={styles.option}>
+              <span className={styles['protocol-icon']} aria-hidden="true">
+                {protocol === 'vnc' ? <PanelsTopLeft size={20} /> : <Monitor size={20} />}
+              </span>
+              <span className={styles.copy}>
+                <strong>{protocol.toUpperCase()}</strong>
+                <span>{t(`remoteDesktop.editor.${protocol}Description`)}</span>
+              </span>
+              <span className={styles.check} aria-hidden="true"><Check size={12} /></span>
+            </Radio>
+          ))}
+        </Radio.Group>
       </div>
       {draft.protocol === 'rdp'
         ? <RDPProfileEditor {...props} draft={draft} onChange={onChange} />

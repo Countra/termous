@@ -1,214 +1,161 @@
 .form {
   container-name: ssh-profile-editor;
   container-type: inline-size;
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 12px 16px;
 }
 
 .section {
-  padding: 18px 22px 20px;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 16px;
 }
 
-.section + .section {
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-}
-
-.section-inner {
-  width: 100%;
-  max-width: 1040px;
-  margin-inline: auto;
-}
+.route-section { grid-column: 1 / -1; }
+.section-inner { min-width: 0; }
 
 .section-heading {
   display: grid;
   min-width: 0;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   margin-bottom: 14px;
 }
 
 .section-icon {
   display: inline-grid;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   place-items: center;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
 .section-copy {
-  display: grid;
   min-width: 0;
-  gap: 2px;
-}
 
-.section-copy h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 720;
-  letter-spacing: 0;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 680;
+    line-height: 20px;
+  }
 }
 
 .grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 14px;
+  align-items: start;
+  gap: 8px 12px;
 }
+
+.basic-grid { grid-template-columns: minmax(0, 1fr) 112px; }
+.authentication-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.route-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.profile-name-field,
+.credential-field { grid-column: 1 / -1; }
 
 .field {
   display: grid;
   min-width: 0;
   align-content: start;
   gap: 6px;
-}
 
-.profile-name-field {
-  grid-column: span 4;
-}
+  > label:first-child,
+  > span:first-child,
+  :global(.field-label) {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 550;
+    line-height: 18px;
+  }
 
-.address-field {
-  grid-column: span 6;
-}
+  > :global(.custom-select) { display: contents; }
 
-.port-field {
-  grid-column: span 2;
-}
+  :global(.ant-input-number) { width: 100%; }
 
-.basic-grid[data-profile-name="hidden"] .address-field {
-  grid-column: span 9;
-}
+  :global(.ant-input),
+  :global(.ant-input-number),
+  :global(.ant-select:not(.ant-select-disabled)) {
+    min-height: 38px;
+    border-color: var(--border);
+    border-radius: 8px;
+    background: var(--input-bg);
+    box-shadow: none;
+    font-size: 12px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
 
-.basic-grid[data-profile-name="hidden"] .port-field {
-  grid-column: span 3;
-}
+  :global(.ant-select) { height: 38px; }
 
-.auth-method-field,
-.username-field,
-.credential-field {
-  grid-column: span 4;
-}
+  :global(.ant-input-number-input) {
+    height: 36px;
+    font-variant-numeric: tabular-nums;
+  }
 
-.authentication-grid {
-  align-items: start;
-}
+  :global(.ant-input:focus),
+  :global(.ant-input-number-focused),
+  :global(.ant-select-focused:not(.ant-select-disabled)) {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
 
-.authentication-grid > .field {
-  grid-template-rows: 15px 40px minmax(14px, auto);
-}
-
-.authentication-grid > .field > label:first-child,
-.authentication-grid > .field > span:first-child,
-.credential-field :global(.field-label) {
-  display: block;
-  height: 15px;
-  line-height: 15px;
-}
-
-.credential-field > :global(.custom-select) {
-  display: contents;
-}
-
-.authentication-grid .auth-methods:global(.ant-segmented),
-.authentication-grid .username-field :global(.ant-input),
-.authentication-grid .credential-field :global(.ant-select),
-.authentication-grid .credential-field :global(.ant-select-selector) {
-  height: 40px;
-  min-height: 40px;
-}
-
-.proxy-field,
-.jump-field {
-  grid-column: span 6;
-}
-
-.proxy-field :global(.ant-select),
-.proxy-field :global(.ant-select-selector) {
-  height: 40px;
-  min-height: 40px;
-}
-
-.field > label:first-child,
-.field > span:first-child,
-.field :global(.field-label) {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.field :global(.ant-input-number) {
-  width: 100%;
-}
-
-.field :global(.ant-input),
-.field :global(.ant-input-number),
-.field :global(.ant-select-selector) {
-  min-height: 40px;
-  border-color: var(--border) !important;
-  background: var(--input-bg) !important;
-  box-shadow: none !important;
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
-}
-
-.field :global(.ant-input-number-input) {
-  height: 38px;
-  font-variant-numeric: tabular-nums;
-}
-
-.field :global(.ant-input:focus),
-.field :global(.ant-input-number-focused),
-.field :global(.ant-select-focused .ant-select-selector) {
-  border-color: color-mix(in srgb, var(--accent) 64%, var(--border)) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent) !important;
-}
-
-.field[data-invalid="true"] :global(.ant-select-selector) {
-  border-color: var(--danger) !important;
+  &[data-invalid='true'] :global(.ant-input),
+  &[data-invalid='true'] :global(.ant-input-number),
+  &[data-invalid='true'] :global(.ant-select:not(.ant-select-disabled)) { border-color: var(--danger); }
 }
 
 .feedback {
-  min-height: 14px;
+  min-height: 4px;
+  height: 4px;
   color: transparent;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 14px;
+  overflow-wrap: anywhere;
   visibility: hidden;
-}
 
-.feedback.error {
-  color: var(--danger);
-  visibility: visible;
+  &.error {
+    height: auto;
+    color: var(--danger);
+    visibility: visible;
+  }
 }
 
 .auth-methods:global(.ant-segmented) {
   width: 100%;
-  min-height: 40px;
+  min-height: 38px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
   padding: 3px;
 }
 
-.auth-methods :global(.ant-segmented-group) {
-  min-height: 32px;
-}
+.auth-methods :global(.ant-segmented-group) { min-height: 30px; }
 
 .auth-methods :global(.ant-segmented-item) {
   min-width: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--text-secondary);
 }
 
 .auth-methods :global(.ant-segmented-item-label) {
-  min-height: 32px;
+  min-height: 30px;
   padding-inline: 7px;
-  line-height: 32px;
+  font-size: 12px;
+  line-height: 30px;
 }
 
 .auth-methods :global(.ant-segmented-item-selected) {
@@ -226,35 +173,30 @@
   white-space: nowrap;
 }
 
-@container ssh-profile-editor (max-width: 700px) {
-  .section {
-    padding: 16px 16px 18px;
-  }
+@container ssh-profile-editor (max-width: 800px) {
+  .connection-section,
+  .authentication-section { grid-column: 1 / -1; }
+}
 
-  .grid {
+@container ssh-profile-editor (max-width: 480px) {
+  .section { padding: 14px; }
+
+  .authentication-grid,
+  .route-grid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    gap: 4px;
   }
+}
 
-  .profile-name-field,
-  .address-field,
-  .port-field,
-  .basic-grid[data-profile-name="hidden"] .address-field,
-  .basic-grid[data-profile-name="hidden"] .port-field,
-  .auth-method-field,
-  .username-field,
-  .credential-field,
-  .proxy-field,
-  .jump-field {
-    grid-column: 1 / -1;
+@container ssh-profile-editor (max-width: 320px) {
+  .basic-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
   .field :global(.ant-input),
   .field :global(.ant-input-number),
-  .field :global(.ant-select-selector) {
-    transition: none;
-  }
+  .field :global(.ant-select) { transition: none; }
 }

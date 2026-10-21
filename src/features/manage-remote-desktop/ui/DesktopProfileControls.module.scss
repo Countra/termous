@@ -1,8 +1,8 @@
 .control:global(.ant-segmented) {
   width: 100%;
   min-width: 0;
-  height: 40px;
-  min-height: 40px;
+  height: 38px;
+  min-height: 38px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
@@ -10,12 +10,12 @@
 }
 
 .control :global(.ant-segmented-group) {
-  min-height: 32px;
+  min-height: 30px;
 }
 
 .control :global(.ant-segmented-item) {
   min-width: 0;
-  min-height: 32px;
+  min-height: 30px;
   border-radius: 6px;
   color: var(--text-secondary);
 }
@@ -24,7 +24,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  height: 32px;
+  height: 30px;
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -58,4 +58,15 @@
 
 .control :global(.ant-segmented-item-icon svg) {
   display: block;
+}
+
+@container desktop-profile-editor (max-width: 480px) {
+  .control :global(.ant-segmented-item-icon) { display: none; }
+
+  .control :global(.ant-segmented-item-label) {
+    padding-inline: 4px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: normal;
+  }
 }

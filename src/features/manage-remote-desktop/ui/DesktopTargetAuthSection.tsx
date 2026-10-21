@@ -14,11 +14,12 @@ import { ProfileEditorSectionHeading } from '#shared/ui'
 import type {
   VNCTargetAuthDraft,
   VNCTargetAuthDraftError,
-} from '../../model/vncTargetAuthDraft.ts'
-import styles from './VNCTargetAuthSection.module.scss'
-import segmentedStyles from './VNCProfileSegmented.module.scss'
+} from '../model/vncTargetAuthDraft.ts'
+import styles from './DesktopTargetAuthSection.module.scss'
+import formStyles from './DesktopProfileForm.module.scss'
+import segmentedStyles from './DesktopProfileControls.module.scss'
 
-interface VNCTargetAuthSectionProps {
+interface DesktopTargetAuthSectionProps {
   protocol?: 'vnc' | 'rdp'
   children?: ReactNode
   hasSavedAuth: boolean
@@ -30,7 +31,7 @@ interface VNCTargetAuthSectionProps {
 
 type TargetAuthMode = 'prompt' | 'saved'
 
-export function VNCTargetAuthSection({
+export function DesktopTargetAuthSection({
   protocol = 'vnc',
   children,
   hasSavedAuth,
@@ -38,7 +39,7 @@ export function VNCTargetAuthSection({
   error,
   disabled,
   onChange,
-}: VNCTargetAuthSectionProps) {
+}: DesktopTargetAuthSectionProps) {
   const { t } = useTranslation()
   const authKey = protocol === 'rdp' ? 'remoteDesktop.rdp.targetAuth' : 'remoteDesktop.targetAuth'
   const titleId = useId()
@@ -79,10 +80,10 @@ export function VNCTargetAuthSection({
   }
 
   return (
-    <section className={styles.section} aria-labelledby={titleId}>
-      <div className={styles['section-inner']}>
+    <section className={`${formStyles.section} ${formStyles['auth-section']}`} aria-labelledby={titleId}>
+      <div>
         <ProfileEditorSectionHeading
-          classNames={styles}
+          classNames={formStyles}
           id={titleId}
           icon={<KeyRound size={15} />}
           title={t('remoteDesktop.targetAuth.title')}
@@ -93,6 +94,7 @@ export function VNCTargetAuthSection({
           <div className={styles['mode-setting']}>
             <span className={styles['mode-label']}>{t('remoteDesktop.targetAuth.mode')}</span>
             <Segmented<TargetAuthMode>
+              name={`${titleId}-auth-mode`}
               ref={modeControlRef}
               block
               className={segmentedStyles.control}

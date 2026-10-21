@@ -58,7 +58,20 @@ describe('RemoteDesktopProfileEditor', () => {
   it('没有 SSH 配置时禁用隧道，并解释可用条件', () => {
     render(<Editor profiles={[]} />)
     expect(screen.getByRole('radio', { name: 'remoteDesktop.route.sshTunnel' })).toBeDisabled()
-    expect(screen.getByText('remoteDesktop.rdp.noSSH')).toBeVisible()
+    expect(screen.getByText('remoteDesktop.editor.noSSH')).toBeVisible()
+  })
+
+  it('显示、连接和认证选项相互独立，切换协议不抢占名称输入焦点', () => {
+    render(<Editor />)
+    const protocol = screen.getByRole('radio', { name: 'RDP' })
+    protocol.focus()
+    fireEvent.click(screen.getByRole('radio', { name: 'remoteDesktop.targetAuth.saveOption' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'remoteDesktop.display.actual' }))
+    expect(protocol).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'remoteDesktop.route.direct' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'remoteDesktop.targetAuth.saveOption' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'VNC' }))
+    expect(screen.getByRole('textbox', { name: 'hosts.access.profileName' })).not.toHaveFocus()
   })
 
   it('数字输入可清空，离开字段即提示错误，修正后移除错误关联', () => {
