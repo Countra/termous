@@ -18,7 +18,7 @@ export function preparedAppFiles(layout) {
 }
 
 export function validateLayout(layout) {
-  if (layout.schema_version !== 1 || layout.target !== 'windows-x64') throw new Error('准备产物协议或平台不支持')
+  if (layout.schema_version !== 1 || !['windows-x64', 'linux-x64', 'macos-arm64'].includes(layout.target)) throw new Error('准备产物协议或平台不支持')
   requireReleaseVersion(layout.version, '准备产物版本')
   if (path.resolve(layout.web_directory) !== path.resolve(webDirectory)) throw new Error('准备产物的 Web 归属不匹配')
   if (!Array.isArray(layout.app_files) || layout.app_files.length === 0) throw new Error('准备产物缺少应用文件')
@@ -37,6 +37,12 @@ export function validateLayout(layout) {
 
 export async function packagePrepared(file, verifyOnly = false) {
   const layout = validateLayout(JSON.parse(await readFile(file, 'utf8')))
+  const target = {
+    'windows-x64': { platform: 'win32', arch: 'x64', targets: Platform.WINDOWS.createTarget(['nsis'], Arch.x64) },
+    'linux-x64': { platform: 'linux', arch: 'x64', targets: Platform.LINUX.createTarget(['AppImage'], Arch.x64) },
+    'macos-arm64': { platform: 'darwin', arch: 'arm64', targets: Platform.MAC.createTarget(['dmg', 'zip'], Arch.arm64) },
+  }[layout.target]
+  if (process.platform !== target.platform || process.arch !== target.arch) throw new Error('必须在对应原生平台打包')
   if (!verifyOnly) {
     const base = JSON.parse((await readFile(path.join(webDirectory, 'electron-builder.json5'), 'utf8'))
       .replace(/^\s*\/\/[^\r\n]*(?:\r?\n)?/, ''))
@@ -46,7 +52,7 @@ export async function packagePrepared(file, verifyOnly = false) {
     // 适配器只消费通用产物目录，不负责外部服务或语言运行时的准备。
     await build({
       projectDir: webDirectory,
-      targets: Platform.WINDOWS.createTarget(['nsis'], Arch.x64),
+      targets: target.targets,
       publish: 'never',
       config: {
         ...base,
@@ -67,7 +73,7 @@ export async function packagePrepared(file, verifyOnly = false) {
     })
   }
   return validatePackageArtifacts({ outputDirectory: layout.output,
-    platform: 'win32', arch: 'x64', version: layout.version })
+    platform: target.platform, arch: target.arch, version: layout.version })
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

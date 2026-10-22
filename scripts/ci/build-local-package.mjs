@@ -1,10 +1,8 @@
-import { spawn } from 'node:child_process'
 import {
   lstat,
   readdir,
   readFile,
   realpath,
-  rm,
   stat,
 } from 'node:fs/promises'
 import path from 'node:path'
@@ -129,37 +127,6 @@ export function sanitizePublishEnvironment(input) {
   return output
 }
 
-export function createElectronBuilderArguments({
-  platform,
-  arch,
-  outputDirectory,
-  version,
-}) {
-  const normalizedPlatform = normalizePlatform(platform)
-  const normalizedArch = normalizeArch(arch)
-  const targetArguments = targetArgumentsFor(
-    normalizedPlatform,
-    normalizedArch,
-  )
-
-  return [
-    'exec',
-    'electron-builder',
-    ...targetArguments,
-    '--config',
-    'electron-builder.json5',
-    `--config.directories.output=${outputDirectory}`,
-    `--config.extraMetadata.version=${version}`,
-    ...(
-      normalizedPlatform === 'darwin'
-        ? ['--config.mac.identity=null', '--config.mac.notarize=false']
-        : []
-    ),
-    '--publish',
-    'never',
-  ]
-}
-
 export async function validatePackageArtifacts({
   outputDirectory,
   platform,
@@ -253,10 +220,10 @@ export async function validatePackageArtifacts({
   }
 }
 
-export async function runLocalPackage(
-  options,
-  dependencies = {},
-) {
+export async function runLocalPackage(options) {
+  if (!options.verifyOnly) {
+    throw new Error('完整打包请使用 termous-buildtools，或 pnpm run build；需要有效的准备产物记录。')
+  }
   const webDirectory = path.resolve(options.webDirectory ?? defaultWebDirectory)
   const packageJson = await readPackageJson(webDirectory)
   const version = normalizeVersion(options.version ?? packageJson.version)
@@ -267,29 +234,6 @@ export async function runLocalPackage(
       ?? path.join(webDirectory, 'release', version),
   )
   await assertSafeOutputDirectory(outputDirectory, webDirectory)
-
-  if (!options.verifyOnly) {
-    await rm(outputDirectory, { force: true, recursive: true })
-    const spawnProcess = dependencies.spawnProcess ?? spawnAndWait
-    const environment = sanitizePublishEnvironment(process.env)
-    environment.VITE_TERMOUS_APP_VERSION = version
-    const builderArguments = createElectronBuilderArguments({
-      platform,
-      arch,
-      outputDirectory,
-      version,
-    })
-    const builderCli = path.join(
-      webDirectory,
-      'node_modules',
-      'electron-builder',
-      'cli.js',
-    )
-    await spawnProcess(process.execPath, [builderCli, ...builderArguments.slice(2)], {
-      cwd: webDirectory,
-      env: environment,
-    })
-  }
 
   return validatePackageArtifacts({
     outputDirectory,
@@ -437,19 +381,6 @@ function samePath(left, right) {
   return process.platform === 'win32'
     ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
     : normalizedLeft === normalizedRight
-}
-
-function targetArgumentsFor(platform, arch) {
-  if (platform === 'win32' && arch === 'x64') {
-    return ['--win', 'nsis', '--x64']
-  }
-  if (platform === 'linux' && arch === 'x64') {
-    return ['--linux', 'AppImage', '--x64']
-  }
-  if (platform === 'darwin') {
-    return ['--mac', 'dmg', 'zip', arch === 'arm64' ? '--arm64' : '--x64']
-  }
-  throw new Error(`当前打包目标不受支持: ${platform}/${arch}`)
 }
 
 function expectedArtifacts(platform, arch, version) {
@@ -647,38 +578,8 @@ async function findNamedFiles(root, name, maxDepth) {
   return matches
 }
 
-function spawnAndWait(executable, argumentsList, options) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, argumentsList, {
-      ...options,
-      stdio: 'inherit',
-      shell: false,
-      windowsHide: true,
-    })
-    child.once('error', (error) => {
-      reject(new Error(`无法启动 electron-builder: ${error.message}`, {
-        cause: error,
-      }))
-    })
-    child.once('exit', (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      reject(new Error(
-        signal
-          ? `electron-builder 被信号 ${signal} 终止`
-          : `electron-builder 失败，退出码: ${code ?? 'unknown'}`,
-      ))
-    })
-  })
-}
-
 async function main() {
   const options = parseLocalPackageArguments(process.argv.slice(2))
-  if (options.platform === 'win32' && !options.verifyOnly && process.env.GITHUB_ACTIONS !== 'true') {
-    throw new Error('Windows 完整打包请使用 termous-buildtools，或 pnpm run build；需要有效的准备产物记录。')
-  }
   const result = await runLocalPackage(options)
   console.log('已验证应用更新打包产物:')
   for (const filePath of [...result.files, ...result.appUpdatePaths]) {

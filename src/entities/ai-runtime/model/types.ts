@@ -12,6 +12,7 @@ export interface AIServiceStatus {
   error?: string
 }
 export interface AIRuntimeStatus {
+  capabilities: { gpu_install: boolean; gpu_check: boolean }
   managed: boolean
   state: 'development' | 'unavailable' | 'incomplete' | 'complete'
   profile: 'cpu' | 'cuda' | ''

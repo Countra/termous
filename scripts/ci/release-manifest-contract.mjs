@@ -17,7 +17,7 @@ export const RELEASE_PLATFORMS = Object.freeze([
   "linux",
   "macos",
 ]);
-export const RELEASE_ARCHITECTURES = Object.freeze(["x64", "arm64"]);
+export const RELEASE_ARCHITECTURES = Object.freeze(["arm64"]);
 
 export function requireReleaseVersion(value, label = "版本") {
   if (
@@ -165,7 +165,7 @@ export function expectedReleaseContract(version) {
       name: `${prefix}-linux-x64.AppImage`,
       platform: "linux",
     },
-    ...["x64", "arm64"].flatMap((arch) =>
+    ...RELEASE_ARCHITECTURES.flatMap((arch) =>
       ["zip", "dmg"].map((extension) => ({
         arch,
         manifest: "latest-mac.yml",
@@ -181,9 +181,6 @@ export function expectedReleaseContract(version) {
       (arch) => `${prefix}-macos-${arch}.zip.blockmap`,
     ),
   ];
-  const partials = RELEASE_ARCHITECTURES.map(
-    (arch) => `latest-mac.${arch}.partial.yml`,
-  );
   const receiptTargets = [
     ...payloads,
     ...sidecars.map((name) => {
@@ -203,7 +200,6 @@ export function expectedReleaseContract(version) {
   return {
     finalAssets: [...payloads.map(({ name }) => name), ...sidecars, ...manifests],
     manifests,
-    partials,
     payloads,
     receiptTargets,
     receipts,

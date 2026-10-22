@@ -1,31 +1,19 @@
 name: Release
-
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version; CLI/API --ref must select the matching protected v* tag"
+        description: Release version; CLI/API --ref must select the matching protected v* tag
         required: true
-        default: "0.3.0"
-      core_ref:
-        description: "termous-core tag, branch, or commit to resolve once before building"
-        required: false
-        default: ""
-      skills_ref:
-        description: "termous-skills tag, branch, or commit to resolve once before building"
-        required: false
-        default: ""
+        default: 0.3.0
   push:
     tags:
-      - "v*"
-
+      - v*
 permissions:
   contents: read
-
 concurrency:
   group: release
   cancel-in-progress: false
-
 jobs:
   metadata:
     name: Resolve immutable release metadata
@@ -33,18 +21,13 @@ jobs:
     permissions:
       contents: read
     outputs:
-      core_sha: ${{ steps.core.outputs.sha }}
-      skills_sha: ${{ steps.skills.outputs.sha }}
-      remote_repository: ${{ steps.dependencies.outputs.remote_repository }}
-      remote_sha: ${{ steps.dependencies.outputs.remote_sha }}
-      rdp_repository: ${{ steps.dependencies.outputs.rdp_repository }}
-      rdp_sha: ${{ steps.dependencies.outputs.rdp_sha }}
+      source_lock: ${{ steps.sources.outputs.source_lock }}
+      buildtools_sha: ${{ steps.sources.outputs.buildtools_sha }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       release_date: ${{ steps.release.outputs.release_date }}
       tag: ${{ steps.release.outputs.tag }}
       termous_sha: ${{ steps.termous.outputs.sha }}
       version: ${{ steps.release.outputs.version }}
-
     steps:
       - name: Resolve release metadata
         id: release
@@ -92,15 +75,13 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "release_date=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
-
       - name: Checkout the release tag
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ steps.release.outputs.tag }}
           path: web
           persist-credentials: false
           fetch-depth: 1
-
       - name: Verify and pin Termous tag
         id: termous
         shell: bash
@@ -119,67 +100,24 @@ jobs:
           fi
           echo "Resolved Termous commit: $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout Termous Core
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout buildtools
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
-          repository: Countra/termous-core
-          ref: ${{ github.event.inputs.core_ref || vars.TERMOUS_CORE_REF || steps.release.outputs.tag }}
-          path: backend
+          repository: Countra/termous-buildtools
+          ref: main
+          path: termous-buildtools
           token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
           persist-credentials: false
-
-      - name: Pin resolved Core commit
-        id: core
-        shell: bash
-        run: |
-          sha="$(git -C backend rev-parse HEAD)"
-          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "无法把 Core ref 固定为 40 位 commit SHA。" >&2
-            exit 1
-          fi
-          echo "Resolved termous-core commit: $sha"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Go for dependency resolution
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
-          go-version-file: backend/go.mod
-          cache: false
-
-      - name: Setup Node.js for dependency resolution
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          package-manager-cache: false
-
-      - name: Resolve shared dependencies from Core
-        id: dependencies
+          python-version: "3.12"
+      - name: Resolve configured component revisions
+        id: sources
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-        run: node web/scripts/ci/resolve-core-dependencies.mjs backend
-
-      - name: Checkout Termous Skills
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: Countra/termous-skills
-          ref: ${{ github.event.inputs.skills_ref || vars.TERMOUS_SKILLS_REF || steps.release.outputs.tag }}
-          path: termous-skills
-          persist-credentials: false
-
-      - name: Pin resolved Skills commit
-        id: skills
-        shell: bash
-        run: |
-          sha="$(git -C termous-skills rev-parse HEAD)"
-          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "无法把 Skills ref 固定为 40 位 commit SHA。" >&2
-            exit 1
-          fi
-          echo "Resolved termous-skills commit: $sha"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
+          WEB_SHA: ${{ steps.termous.outputs.sha }}
+          TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+        run: python termous-buildtools/ci.py resolve --web-sha "$WEB_SHA"
   prepare-release:
     name: Prepare Draft Release
     needs: metadata
@@ -188,26 +126,20 @@ jobs:
     permissions:
       contents: write
     outputs:
-      core_sha: ${{ needs.metadata.outputs.core_sha }}
-      skills_sha: ${{ needs.metadata.outputs.skills_sha }}
-      remote_repository: ${{ needs.metadata.outputs.remote_repository }}
-      remote_sha: ${{ needs.metadata.outputs.remote_sha }}
-      rdp_repository: ${{ needs.metadata.outputs.rdp_repository }}
-      rdp_sha: ${{ needs.metadata.outputs.rdp_sha }}
+      source_lock: ${{ needs.metadata.outputs.source_lock }}
+      buildtools_sha: ${{ needs.metadata.outputs.buildtools_sha }}
       prerelease: ${{ needs.metadata.outputs.prerelease }}
       release_date: ${{ needs.metadata.outputs.release_date }}
       tag: ${{ needs.metadata.outputs.tag }}
       termous_sha: ${{ needs.metadata.outputs.termous_sha }}
       version: ${{ needs.metadata.outputs.version }}
-
     steps:
       - name: Checkout pinned Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ needs.metadata.outputs.termous_sha }}
           path: web
           persist-credentials: false
-
       - name: Generate release notes
         shell: pwsh
         env:
@@ -215,7 +147,6 @@ jobs:
           TERMOUS_RELEASE_NOTES_FILE: ${{ github.workspace }}/build/release-notes.md
           TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: ./web/scripts/ci/extract-changelog.ps1
-
       - name: Create or update Draft Release
         shell: bash
         env:
@@ -245,7 +176,6 @@ jobs:
             [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
             gh release create "$TAG" "${args[@]}"
           fi
-
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }}
     needs: prepare-release
@@ -258,248 +188,94 @@ jobs:
       matrix:
         include:
           - platform: windows
-            target_os: win32
             arch: x64
             runner: windows-latest
           - platform: linux
-            target_os: linux
             arch: x64
             runner: ubuntu-24.04
           - platform: macos
-            target_os: darwin
-            arch: x64
-            runner: macos-15-intel
-          - platform: macos
-            target_os: darwin
             arch: arm64
             runner: macos-15
     env:
-      GOWORK: "off"
-      GOPRIVATE: github.com/Countra/termous-rdp,github.com/Countra/termous-remote
       TERMOUS_ARCH: ${{ matrix.arch }}
-      TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
-      TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/${{ matrix.platform }}-${{ matrix.arch }}
-      TERMOUS_SKILLS_DIR: ${{ github.workspace }}/termous-skills/skills
+      TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/termous-buildtools/build
       TERMOUS_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
-      TERMOUS_TARGET_OS: ${{ matrix.target_os }}
       TERMOUS_VERSION: ${{ needs.prepare-release.outputs.version }}
-      TERMOUS_WEB_DIR: ${{ github.workspace }}/web
-
     steps:
-      - name: Checkout Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout pinned Web
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ needs.prepare-release.outputs.termous_sha }}
           path: web
           persist-credentials: false
-
-      - name: Checkout pinned Termous Core
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout buildtools
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
-          repository: Countra/termous-core
-          ref: ${{ needs.prepare-release.outputs.core_sha }}
-          path: backend
+          repository: Countra/termous-buildtools
+          ref: ${{ needs.prepare-release.outputs.buildtools_sha }}
+          path: termous-buildtools
           token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
           persist-credentials: false
-
-      - name: Checkout pinned Termous Skills
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Prepare unified build environment
+        uses: ./web/.github/actions/buildtoolchain
         with:
-          repository: Countra/termous-skills
-          ref: ${{ needs.prepare-release.outputs.skills_sha }}
-          path: termous-skills
-          persist-credentials: false
-
-      - name: Checkout pinned remote core
-        uses: ./web/.github/actions/remote-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.remote_repository }}
-          revision: ${{ needs.prepare-release.outputs.remote_sha }}
+          platform: ${{ matrix.platform }}
+          source-lock: ${{ needs.prepare-release.outputs.source_lock }}
           token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Checkout pinned RDP worker
-        uses: ./web/.github/actions/rdp-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.rdp_repository }}
-          revision: ${{ needs.prepare-release.outputs.rdp_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Install shared protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
-
-      - name: Install RDP protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
-
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: ${{ vars.GO_VERSION }}
-          go-version-file: ${{ !vars.GO_VERSION && 'backend/go.mod' || '' }}
-          cache: false
-
-      - name: Download pinned private modules
+      - name: Build and verify desktop package
         shell: bash
-        working-directory: backend
         env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
           TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
         run: |
-          export GIT_TERMINAL_PROMPT=0
-          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TERMOUS_REPOSITORIES_READ_TOKEN" | base64 | tr -d '\r\n')"
-          printf '::add-mask::%s\n' "$auth_header"
-          export GIT_CONFIG_COUNT=1
-          export GIT_CONFIG_KEY_0=http.https://github.com/Countra/.extraheader
-          export GIT_CONFIG_VALUE_0="$auth_header"
-          go mod download termous/rdp termous/remote
-
-      - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-        with:
-          python-version: '3.13'
-
-      - name: Install Skills validation dependencies
-        shell: bash
-        run: python -m pip install -r termous-skills/requirements-dev.txt
-
-      - name: Install Linux build and packaging dependencies
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libfuse3-dev libopenjp2-tools libasound2-dev
-
-      - name: Install macOS build dependencies
-        if: matrix.platform == 'macos'
-        shell: bash
-        run: |
-          brew install bash
-          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
-          if [[ ! -f /usr/local/include/fuse/fuse.h &&
-                ! -f /usr/local/include/osxfuse/fuse/fuse.h &&
-                ! -f /Library/Frameworks/macFUSE.framework/Headers/fuse.h &&
-                ! -f /opt/homebrew/include/fuse/fuse.h ]]; then
-            brew install --cask macfuse
-          fi
-
-      - name: Setup Windows MSYS2 toolchain
-        if: matrix.platform == 'windows'
-        id: msys2
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
-        with:
-          msystem: MINGW64
-          update: true
-          cache: false
-          install: mingw-w64-x86_64-gcc
-
-      - name: Test Windows build prerequisites
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: node --test web/scripts/ci/go-build-command.test.mjs
-
-      - name: Prepare Windows build
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        env:
-          TERMOUS_BUILD_PHASE: prepare
-          TERMOUS_MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
-        run: ./web/scripts/ci/build-windows.ps1
-
-      - name: Test Unix build prerequisites
-        if: matrix.platform != 'windows'
-        shell: bash
-        run: node --test web/scripts/ci/build-unix.test.mjs
-
-      - name: Prepare Unix build
-        if: matrix.platform != 'windows'
-        shell: bash
-        env:
-          TERMOUS_BUILD_PHASE: prepare
-        run: bash ./web/scripts/ci/build-unix.sh
-
-      - name: Package Windows release
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        env:
-          TERMOUS_BUILD_PHASE: package
-        run: ./web/scripts/ci/build-windows.ps1
-
-      - name: Package Linux AppImage
-        if: matrix.platform == 'linux'
-        shell: bash
-        env:
-          TERMOUS_BUILD_PHASE: package
-        run: bash ./web/scripts/ci/build-unix.sh
-
-      - name: Package macOS release
-        if: matrix.platform == 'macos'
-        shell: bash
-        env:
-          TERMOUS_BUILD_PHASE: package
-        run: bash ./web/scripts/ci/build-unix.sh
-
+          args=(termous-buildtools/build.py build --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)
+          if [[ -n "${TERMOUS_VERSION:-}" ]]; then args+=(--version "$TERMOUS_VERSION"); fi
+          if [[ "$TARGET_PLATFORM" == "linux" ]]; then xvfb-run -a python "${args[@]}"; else python "${args[@]}"; fi
       - name: Create Windows asset receipts
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
+          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "install"
           $exe = "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
-          node web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
+          node termous-buildtools/build/work/sources/web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
             --platform windows --arch x64 --asset (Join-Path $root $exe) `
             --manifest (Join-Path $root "latest.yml") --output (Join-Path $root "$exe.receipt.json")
           $blockmap = "$exe.blockmap"
-          node web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
+          node termous-buildtools/build/work/sources/web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
             --platform windows --arch x64 --asset (Join-Path $root $blockmap) `
             --output (Join-Path $root "$blockmap.receipt.json")
-
       - name: Create Unix asset receipts
         if: matrix.platform != 'windows'
         shell: bash
         env:
           RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
         run: |
-          root="$TERMOUS_OUTPUT_DIR/installer"
+          root="$TERMOUS_OUTPUT_DIR/install"
           if [[ "${{ matrix.platform }}" == "linux" ]]; then
             asset="Termous-$TERMOUS_VERSION-linux-x64.AppImage"
-            node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+            node termous-buildtools/build/work/sources/web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
               --platform linux --arch x64 --asset "$root/$asset" \
               --manifest "$root/latest-linux.yml" --output "$root/$asset.receipt.json"
           else
             base="Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH"
             for extension in dmg zip; do
               asset="$base.$extension"
-              node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+              node termous-buildtools/build/work/sources/web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
                 --platform macos --arch "$TERMOUS_ARCH" --asset "$root/$asset" \
                 --manifest "$root/latest-mac.yml" --output "$root/$asset.receipt.json"
             done
             sidecar="$base.zip.blockmap"
-            node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+            node termous-buildtools/build/work/sources/web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
               --platform macos --arch "$TERMOUS_ARCH" --asset "$root/$sidecar" \
               --output "$root/$sidecar.receipt.json"
-            node web/scripts/ci/merge-macos-update-info.mjs partial \
-              --input "$root/latest-mac.yml" --arch "$TERMOUS_ARCH" \
-              --version "$TERMOUS_VERSION" \
-              --output "$root/latest-mac.$TERMOUS_ARCH.partial.yml" \
-              --release-date "$RELEASE_DATE"
           fi
-
       - name: Upload Windows Draft assets
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
+          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "install"
           $exe = "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
           $assets = @($exe, "$exe.blockmap", "latest.yml", "$exe.receipt.json", "$exe.blockmap.receipt.json") |
             ForEach-Object { (Resolve-Path -LiteralPath (Join-Path $root $_)).Path }
@@ -510,7 +286,6 @@ jobs:
           }
           & gh release upload $env:TERMOUS_RELEASE_TAG @assets --clobber --repo $env:GITHUB_REPOSITORY
           if ($LASTEXITCODE -ne 0) { throw "上传 Windows Draft Assets 失败。" }
-
       - name: Upload Unix Draft assets
         if: matrix.platform != 'windows'
         shell: bash
@@ -526,7 +301,7 @@ jobs:
               exit 1
             }
           }
-          root="$TERMOUS_OUTPUT_DIR/installer"
+          root="$TERMOUS_OUTPUT_DIR/install"
           if [[ "${{ matrix.platform }}" == "linux" ]]; then
             asset="Termous-$TERMOUS_VERSION-linux-x64.AppImage"
             assets=("$root/$asset" "$root/latest-linux.yml" "$root/$asset.receipt.json")
@@ -534,174 +309,33 @@ jobs:
             base="Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH"
             assets=(
               "$root/$base.dmg" "$root/$base.zip" "$root/$base.zip.blockmap"
-              "$root/latest-mac.$TERMOUS_ARCH.partial.yml"
+              "$root/latest-mac.yml"
               "$root/$base.dmg.receipt.json" "$root/$base.zip.receipt.json"
               "$root/$base.zip.blockmap.receipt.json"
             )
           fi
           assert_draft
           gh release upload "$TERMOUS_RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-
-  merge-macos-manifest:
-    name: Merge macOS update manifest
-    needs:
-      - prepare-release
-      - build
-    runs-on: ubuntu-24.04
-    environment: release
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ needs.prepare-release.outputs.termous_sha }}
-          path: web
-          persist-credentials: false
-
-      - name: Checkout pinned remote core
-        uses: ./web/.github/actions/remote-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.remote_repository }}
-          revision: ${{ needs.prepare-release.outputs.remote_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Checkout pinned RDP worker
-        uses: ./web/.github/actions/rdp-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.rdp_repository }}
-          revision: ${{ needs.prepare-release.outputs.rdp_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Install shared protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
-
-      - name: Install RDP protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
-
-      - name: Install locked dependencies
-        shell: bash
-        run: pnpm --dir web install --frozen-lockfile
-
-      - name: Download partial manifests
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.prepare-release.outputs.tag }}
-        run: |
-          mkdir -p build/macos-manifests
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern "latest-mac.x64.partial.yml" \
-            --pattern "latest-mac.arm64.partial.yml" \
-            --dir build/macos-manifests
-
-      - name: Merge canonical macOS manifest
-        shell: bash
-        env:
-          RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: |
-          node web/scripts/ci/merge-macos-update-info.mjs merge \
-            --x64 build/macos-manifests/latest-mac.x64.partial.yml \
-            --arm64 build/macos-manifests/latest-mac.arm64.partial.yml \
-            --output build/macos-manifests/latest-mac.yml \
-            --version "$VERSION" --release-date "$RELEASE_DATE"
-
-      - name: Replace partial manifests with canonical asset
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.prepare-release.outputs.tag }}
-        run: |
-          assert_draft() {
-            local draft
-            draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --json isDraft --jq .isDraft)"
-            [[ "$draft" == "true" ]] || {
-              echo "Release 已不再是 Draft，拒绝修改 macOS manifest。" >&2
-              exit 1
-            }
-          }
-          assert_draft
-          gh release upload "$TAG" build/macos-manifests/latest-mac.yml \
-            --clobber --repo "$GITHUB_REPOSITORY"
-          assert_draft
-          gh release delete-asset "$TAG" latest-mac.x64.partial.yml \
-            --yes --repo "$GITHUB_REPOSITORY"
-          assert_draft
-          gh release delete-asset "$TAG" latest-mac.arm64.partial.yml \
-            --yes --repo "$GITHUB_REPOSITORY"
-
   verify-release:
     name: Verify receipts and clean Draft assets
     needs:
       - prepare-release
       - build
-      - merge-macos-manifest
     runs-on: ubuntu-24.04
     environment: release
     permissions:
       contents: write
     outputs:
       content_fingerprint: ${{ steps.trusted-assets.outputs.content_fingerprint }}
-
     steps:
       - name: Checkout Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ needs.prepare-release.outputs.termous_sha }}
           path: web
           persist-credentials: false
-
-      - name: Checkout pinned remote core
-        uses: ./web/.github/actions/remote-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.remote_repository }}
-          revision: ${{ needs.prepare-release.outputs.remote_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Checkout pinned RDP worker
-        uses: ./web/.github/actions/rdp-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.rdp_repository }}
-          revision: ${{ needs.prepare-release.outputs.rdp_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Install shared protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
-
-      - name: Install RDP protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
-
-      - name: Install locked dependencies
-        shell: bash
-        run: pnpm --dir web install --frozen-lockfile
-
+      - name: Prepare release verifier
+        uses: ./web/.github/actions/release-tools
       - name: Download Draft evidence
         shell: bash
         env:
@@ -715,7 +349,6 @@ jobs:
             --output build/release-evidence/release.receipts.json
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
             --dir build/release-evidence/assets
-
       - name: Verify manifests, receipts and digests
         id: trusted-assets
         shell: bash
@@ -736,7 +369,6 @@ jobs:
             exit 1
           }
           echo "content_fingerprint=$content_fingerprint" >> "$GITHUB_OUTPUT"
-
       - name: Delete temporary receipts
         shell: bash
         env:
@@ -758,7 +390,6 @@ jobs:
             }
             gh release delete-asset "$TAG" "$receipt" --yes --repo "$GITHUB_REPOSITORY"
           done
-
   verify-final-release:
     name: Verify final Draft Release assets
     needs:
@@ -769,51 +400,15 @@ jobs:
       contents: write
     outputs:
       content_fingerprint: ${{ needs.verify-release.outputs.content_fingerprint }}
-
     steps:
       - name: Checkout Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ needs.prepare-release.outputs.termous_sha }}
           path: web
           persist-credentials: false
-
-      - name: Checkout pinned remote core
-        uses: ./web/.github/actions/remote-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.remote_repository }}
-          revision: ${{ needs.prepare-release.outputs.remote_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Checkout pinned RDP worker
-        uses: ./web/.github/actions/rdp-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.rdp_repository }}
-          revision: ${{ needs.prepare-release.outputs.rdp_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Install shared protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
-
-      - name: Install RDP protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
-
-      - name: Install locked dependencies
-        shell: bash
-        run: pnpm --dir web install --frozen-lockfile
-
+      - name: Prepare release verifier
+        uses: ./web/.github/actions/release-tools
       - name: Verify final public asset set
         shell: bash
         env:
@@ -833,7 +428,6 @@ jobs:
             echo "最终 Release 内容已偏离 manifest、receipt 与摘要门禁。" >&2
             exit 1
           }
-
   publish:
     name: Publish GitHub Release
     needs:
@@ -843,51 +437,15 @@ jobs:
     environment: release
     permissions:
       contents: write
-
     steps:
       - name: Checkout pinned Termous
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ needs.prepare-release.outputs.termous_sha }}
           path: web
           persist-credentials: false
-
-      - name: Checkout pinned remote core
-        uses: ./web/.github/actions/remote-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.remote_repository }}
-          revision: ${{ needs.prepare-release.outputs.remote_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Checkout pinned RDP worker
-        uses: ./web/.github/actions/rdp-checkout
-        with:
-          repository: ${{ needs.prepare-release.outputs.rdp_repository }}
-          revision: ${{ needs.prepare-release.outputs.rdp_sha }}
-          token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Install shared protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-remote" install --frozen-lockfile
-
-      - name: Install RDP protocol dependencies
-        run: pnpm --dir "${{ github.workspace }}/termous-rdp" install --frozen-lockfile
-
-      - name: Install locked dependencies
-        shell: bash
-        run: pnpm --dir web install --frozen-lockfile
-
+      - name: Prepare release verifier
+        uses: ./web/.github/actions/release-tools
       - name: Re-verify final Draft after environment approval
         id: final-verification
         shell: bash
@@ -914,7 +472,6 @@ jobs:
             exit 1
           }
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
-
       - name: Publish verified Draft Release
         shell: bash
         env:

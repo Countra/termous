@@ -1,0 +1,66 @@
+name: Prepare desktop build tools
+description: 配置系统编译工具；依赖、源码及构建由 buildtools 管理
+inputs:
+  platform:
+    required: true
+    description: windows、linux 或 macos
+  source-lock:
+    required: true
+    description: 固定的七组件源码提交
+  token:
+    required: true
+    description: 只用于 Git/LFS 检出的读取令牌
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      with:
+        python-version: '3.12'
+    - name: Setup Windows MSYS2
+      if: inputs.platform == 'windows'
+      id: msys2
+      uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+      with:
+        msystem: MINGW64
+        update: true
+        cache: false
+        install: mingw-w64-x86_64-gcc
+    - name: Generate local CI configuration
+      shell: bash
+      env:
+        TERMOUS_SOURCE_LOCK: ${{ inputs.source-lock }}
+        TERMOUS_MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        TARGET_PLATFORM: ${{ inputs.platform }}
+      run: python termous-buildtools/ci.py configure --platform "$TARGET_PLATFORM"
+    - name: Checkout locked sources
+      shell: bash
+      env:
+        TERMOUS_REPOSITORIES_READ_TOKEN: ${{ inputs.token }}
+        TARGET_PLATFORM: ${{ inputs.platform }}
+      run: python termous-buildtools/build.py sources --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json --checkout
+    - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      with:
+        go-version-file: termous-buildtools/build/work/sources/backend/go.mod
+        cache: false
+    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version-file: termous-buildtools/build/work/sources/web/package.json
+        package-manager-cache: false
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      with:
+        package_json_file: termous-buildtools/build/work/sources/web/package.json
+    - name: Install Linux native prerequisites
+      if: inputs.platform == 'linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y build-essential pkg-config python3-dev libfuse3-dev libfuse2t64 libopenjp2-tools libasound2-dev libgl1 libgtk-3-0t64 libnss3 libgbm1 xvfb xauth
+    - name: Install macOS native prerequisites
+      if: inputs.platform == 'macos'
+      shell: bash
+      run: |
+        brew install bash pkg-config
+        echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+        if [[ ! -f /usr/local/include/fuse/fuse.h && ! -f /Library/Frameworks/macFUSE.framework/Headers/fuse.h ]]; then
+          brew install --cask macfuse
+        fi

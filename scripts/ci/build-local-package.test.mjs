@@ -18,7 +18,6 @@ import test from 'node:test'
 import { stringify as stringifyYaml } from 'yaml'
 import { hashRegularFile } from './release-manifest-contract.mjs'
 import {
-  createElectronBuilderArguments,
   packagedThirdPartyFiles,
   runLocalPackage,
   sanitizePublishEnvironment,
@@ -127,25 +126,7 @@ test('本地打包入口固定禁用发布与代码签名', () => {
   assert.equal(environment.CSC_IDENTITY_AUTO_DISCOVERY, 'false')
   assert.equal(environment.PATH, 'path')
 
-  const args = createElectronBuilderArguments({
-    platform: 'darwin',
-    arch: 'arm64',
-    outputDirectory: '/tmp/termous',
-    version: '1.2.3',
-  })
-  assert.deepEqual(args.slice(0, 7), [
-    'exec',
-    'electron-builder',
-    '--mac',
-    'dmg',
-    'zip',
-    '--arm64',
-    '--config',
-  ])
-  assert.equal(args.includes('--config.forceCodeSigning=true'), false)
-  assert.equal(args.includes('--config.mac.identity=null'), true)
-  assert.equal(args.includes('--config.mac.notarize=false'), true)
-  assert.deepEqual(args.slice(-2), ['--publish', 'never'])
+
 })
 
 test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async () => {
@@ -154,7 +135,6 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
     for (const target of [
       { platform: 'win32', arch: 'x64' },
       { platform: 'linux', arch: 'x64' },
-      { platform: 'darwin', arch: 'x64' },
       { platform: 'darwin', arch: 'arm64' },
     ]) {
       const outputDirectory = path.join(
@@ -344,7 +324,6 @@ test('各平台发布包缺少归档外原生图标时拒绝发布', async (cont
   for (const [platform, arch, resources] of [
     ['win32', 'x64', 'win-unpacked/resources'],
     ['linux', 'x64', 'linux-unpacked/resources'],
-    ['darwin', 'x64', 'mac/Termous.app/Contents/Resources'],
     ['darwin', 'arm64', 'mac-arm64/Termous.app/Contents/Resources'],
   ]) await context.test(`${platform}/${arch}`, async () => {
     const root = await mkdtemp(new URL('package-', temporary))
@@ -423,51 +402,11 @@ test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async ()
   }
 })
 
-test('构建完成后才校验产物且子进程看不到发布凭据', async () => {
-  const root = await createCanonicalTempDirectory('termous-package-run-')
-  const webDirectory = path.join(root, 'web')
-  const outputDirectory = path.join(root, 'build', 'output')
-  try {
-    await mkdir(webDirectory, { recursive: true })
-    await writeFile(
-      path.join(webDirectory, 'package.json'),
-      JSON.stringify({ version: '1.2.3' }),
-    )
-    await mkdir(outputDirectory, { recursive: true })
-    await writeFile(path.join(outputDirectory, 'stale.txt'), 'stale')
-    let invocation
-    await runLocalPackage({
-      webDirectory,
-      outputDirectory,
-      platform: 'win32',
-      arch: 'x64',
-      version: '1.2.3',
-    }, {
-      spawnProcess: async (executable, args, options) => {
-        invocation = { executable, args, options }
-        await assert.rejects(
-          readFile(path.join(outputDirectory, 'stale.txt'), 'utf8'),
-          /ENOENT/,
-        )
-        await writeCompleteFixture({
-          outputDirectory,
-          platform: 'win32',
-          arch: 'x64',
-          version: '1.2.3',
-        })
-      },
-    })
-
-    assert.ok(invocation)
-    assert.deepEqual(invocation.args.slice(-2), ['--publish', 'never'])
-    assert.equal(invocation.options.env.GH_TOKEN, undefined)
-    assert.equal(invocation.options.env.GITHUB_TOKEN, undefined)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+test('旧打包入口明确拒绝绕过统一准备流程', async () => {
+  await assert.rejects(runLocalPackage({}), /termous-buildtools/)
 })
 
-test('本地打包拒绝通过输出目录祖先联接清理工作区外文件', async (context) => {
+test('已有产物验证拒绝通过输出目录祖先联接访问工作区外文件', async (context) => {
   const root = await createCanonicalTempDirectory(
     'termous-package-output-root-',
   )
@@ -509,10 +448,7 @@ test('本地打包拒绝通过输出目录祖先联接清理工作区外文件',
         platform: 'win32',
         arch: 'x64',
         version: '1.2.3',
-      }, {
-        spawnProcess: async () => {
-          throw new Error('不应启动打包进程')
-        },
+        verifyOnly: true,
       }),
       (error) => {
         assert.match(error.message, /打包输出目录祖先/)

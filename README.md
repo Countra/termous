@@ -150,7 +150,7 @@ RDP 和 VNC 与终端、文件采用独立会话管理，可按连接需求直�
 | 平台 | 安装包 |
 | --- | --- |
 | Windows x64 | `.exe` |
-| macOS x64／arm64 | `.dmg`、`.zip` |
+| macOS ARM64 | `.dmg`、`.zip` |
 | Linux x64 | `.AppImage` |
 
 Windows 是当前重点支持的平台，macOS 和 Linux 体验持续完善；部分系统集成功能受平台和运行环境限制。

@@ -2,10 +2,12 @@ import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
 import { UtilityWorkerFactory } from './factory.mjs'
 
-const output = process.argv[2]
+// 入口与验收资源位于同一目录，避免 Electron 平台参数改变 argv 的位置。
+const output = path.dirname(fileURLToPath(import.meta.url))
 const profile = path.join(output, 'profile')
 mkdirSync(profile, { recursive: true })
 app.setPath('userData', profile)

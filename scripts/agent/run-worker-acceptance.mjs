@@ -47,10 +47,14 @@ await build({
 })
 await cp(path.join(root, 'scripts/agent/worker-acceptance.mjs'), path.join(output, 'acceptance.mjs'))
 const environment = sanitizedWorkerEnvironment(process.env)
+environment.XDG_CACHE_HOME = path.join(output, 'cache')
+await mkdir(environment.XDG_CACHE_HOME)
 for (const name of ['DISPLAY', 'XAUTHORITY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS']) {
   if (process.env[name]) environment[name] = process.env[name]
 }
-const child = spawn(require('electron'), [path.join(output, 'acceptance.mjs'), output], {
+// 只为隔离容器内的验收进程关闭 sandbox，正式应用启动规则不变。
+const containerArguments = process.platform === 'linux' && process.env.TERMOUS_CONTAINER_ACCEPTANCE === '1' ? ['--no-sandbox'] : []
+const child = spawn(require('electron'), [...containerArguments, path.join(output, 'acceptance.mjs')], {
   cwd: output, stdio: 'inherit', windowsHide: true, env: environment,
 })
 let timedOut = false

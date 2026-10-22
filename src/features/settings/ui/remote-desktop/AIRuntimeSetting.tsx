@@ -20,15 +20,15 @@ export function AIRuntimeSetting({ disabled }: { disabled: boolean }) {
   const failed = error || task?.phase === 'failed' || status?.state === 'incomplete' || status?.check?.cpu_available === false
   return <SettingsGroup title={t('settings.aiRuntime.title')} icon={<Cpu size={16} aria-hidden="true" />}>
     <SettingsField htmlFor={id} descriptionId={`${id}-description`} label={t(device === 'unknown' ? 'settings.aiRuntime.unknown' : device === 'cuda' ? 'settings.aiRuntime.gpu' : 'settings.aiRuntime.cpu')}
-      description={t('settings.aiRuntime.description', { size })} control={<Space wrap>
-        {status?.profile !== 'cuda' && <Button id={id} aria-label={t('settings.aiRuntime.download')} disabled={locked || !status?.device.eligible}
+      description={t(status?.capabilities?.gpu_install ? 'settings.aiRuntime.description' : 'settings.aiRuntime.cpuDescription', { size })} control={<Space wrap>
+        {status?.capabilities?.gpu_install && status.profile !== 'cuda' && <Button id={id} aria-label={t('settings.aiRuntime.download')} disabled={locked || !status?.device.eligible}
           loading={pending} onClick={() => void act('download')}>{t('settings.aiRuntime.download')}</Button>}
-        {status?.profile === 'cuda' && <Button id={id} aria-label={t('settings.aiRuntime.check')} disabled={locked} onClick={() => void act('check')}>{t('settings.aiRuntime.check')}</Button>}
+        {status?.capabilities?.gpu_check && status.profile === 'cuda' && <Button id={id} aria-label={t('settings.aiRuntime.check')} disabled={locked} onClick={() => void act('check')}>{t('settings.aiRuntime.check')}</Button>}
         {active && <Button disabled={pending || !task?.cancellable} onClick={() => void act('cancel')}>{t('app.cancel')}</Button>}
       </Space>}>
       {status?.device.name && <p className={styles.hint}>{status.device.name}</p>}
       {status?.state === 'development' && <p className={styles.hint}>{t('settings.aiRuntime.development')}</p>}
-      {status?.managed && !status.device.eligible && <p className={styles.hint}>{t('settings.aiRuntime.requirements')}</p>}
+      {status?.capabilities?.gpu_install && !status.device.eligible && <p className={styles.hint}>{t('settings.aiRuntime.requirements')}</p>}
       {active && task && <div role="status" aria-live="polite">
         <p className={styles.hint}>{t(`settings.aiRuntime.phases.${task.phase}`)}</p>
         {task.phase === 'downloading' && <Progress percent={task.total ? Math.min(100, Math.round(task.downloaded / task.total * 100)) : 0} />}

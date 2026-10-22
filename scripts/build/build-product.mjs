@@ -15,24 +15,15 @@ function run(command, args) {
 }
 
 async function main() {
-  if (process.platform === 'win32') {
-    const tools = process.env.TERMOUS_BUILDTOOLS_DIR || path.resolve(web, '../termous-buildtools')
-    const entry = path.join(tools, 'build.py')
-    if (!existsSync(entry)) throw new Error('缺少 termous-buildtools，请先准备统一构建工具链')
-    await run(process.env.PYTHON || 'python', [entry, 'build', '--config',
-      process.env.TERMOUS_BUILD_CONFIG || path.join(tools, 'configs/local.windows.json'), ...argumentsList])
-    return
+  const platform = { win32: 'windows', linux: 'linux', darwin: 'macos' }[process.platform]
+  if (!platform || (process.platform === 'darwin' ? process.arch !== 'arm64' : process.arch !== 'x64')) {
+    throw new Error('构建支持 Windows/Linux x64 和 macOS ARM64')
   }
-  const phaseIndex = argumentsList.indexOf('--phase')
-  const packageOnly = phaseIndex >= 0 && argumentsList[phaseIndex + 1] === 'package'
-  if (!packageOnly) {
-    if (!process.env.npm_execpath) throw new Error('请通过 pnpm run 调用构建入口')
-    await run(process.execPath, [process.env.npm_execpath, 'run', 'typecheck'])
-    await run(process.execPath, [process.env.npm_execpath, 'run', 'build:renderer'])
-  }
-  const packageArgs = phaseIndex < 0 ? argumentsList
-    : argumentsList.filter((_, index) => index !== phaseIndex && index !== phaseIndex + 1)
-  await run(process.execPath, ['scripts/ci/build-local-package.mjs', ...packageArgs])
+  const tools = process.env.TERMOUS_BUILDTOOLS_DIR || path.resolve(web, '../termous-buildtools')
+  const entry = path.join(tools, 'build.py')
+  if (!existsSync(entry)) throw new Error('缺少 termous-buildtools，请先准备统一构建工具链')
+  await run(process.env.PYTHON || (platform === 'windows' ? 'python' : 'python3.12'), [entry, 'build', '--config',
+    process.env.TERMOUS_BUILD_CONFIG || path.join(tools, `configs/local.${platform}.json`), ...argumentsList])
 }
 
 main().catch(error => {

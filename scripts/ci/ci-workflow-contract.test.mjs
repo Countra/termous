@@ -1,393 +1,52 @@
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import test from "node:test";
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import { parseDocument } from 'yaml'
 
-import { parseDocument } from "yaml";
-
-const workflowUrl = new URL("../../.github/workflows/ci.yml", import.meta.url);
-const releaseWorkflowUrl = new URL(
-  "../../.github/workflows/release.yml",
-  import.meta.url,
-);
-
-async function loadWorkflow(url = workflowUrl, name = "CI") {
-  const source = await readFile(url, "utf8");
-  const document = parseDocument(source, {
-    maxAliasCount: 0,
-    strict: true,
-    uniqueKeys: true,
-  });
-  assert.deepEqual(
-    document.errors.map(({ message }) => message),
-    [],
-    `${name} workflow 必须是合法且无重复键的 YAML`,
-  );
-  return { source, workflow: document.toJS({ maxAliasCount: 0 }) };
+async function load(name) {
+  const document = parseDocument(await readFile(new URL(`../../.github/${name}`, import.meta.url), 'utf8'), { uniqueKeys: true })
+  assert.deepEqual(document.errors, [])
+  return document.toJS()
 }
 
-function stepsFor(workflow, jobName) {
-  const steps = workflow.jobs?.[jobName]?.steps;
-  assert.ok(Array.isArray(steps), `${jobName} 必须定义 steps`);
-  return steps;
-}
-
-function normalizeBuildStep(step) {
-  const normalized = structuredClone(step);
-  if (
-    normalized.name === "Checkout Termous"
-    || normalized.name === "Checkout pinned Termous Core"
-    || normalized.name === "Checkout pinned Termous Skills"
-  ) {
-    delete normalized.with.ref;
+test('CI 与 Release 共用三平台构建和同一份提交锁', async () => {
+  const ci = await load('workflows/ci.yml')
+  const release = await load('workflows/release.yml')
+  const targets = [ ['windows', 'x64'], ['linux', 'x64'], ['macos', 'arm64'] ]
+  for (const workflow of [ci, release]) {
+    assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(v => [v.platform, v.arch]), targets)
+    const setup = workflow.jobs.build.steps.find(s => s.uses === './web/.github/actions/buildtoolchain')
+    assert.match(setup.with['source-lock'], /needs\..*outputs\.source_lock/)
+    assert.equal(workflow.jobs.build.steps.filter(s => s.run?.includes('build.py build')).length, 1)
+    assert.doesNotMatch(JSON.stringify(workflow), /macos-15-intel|merge-macos|resolve-core-dependencies/)
   }
-  if (normalized.name === "Checkout pinned remote core" || normalized.name === "Checkout pinned RDP worker") {
-    delete normalized.with.repository;
-    delete normalized.with.revision;
+  const ordinary = ci.jobs.sources.steps.find(s => s.id === 'sources')
+  assert.match(ordinary.run, /--matching-branch/)
+  const publishing = release.jobs.metadata.steps.find(s => s.id === 'sources')
+  assert.doesNotMatch(publishing.run, /--matching-branch/)
+  assert.match(publishing.run, /--web-sha/)
+})
+
+test('CI 保持只读且不消费发布凭据或上传构建产物', async () => {
+  const ci = await load('workflows/ci.yml')
+  assert.deepEqual(ci.permissions, { contents: 'read' })
+  assert.match(ci.jobs.sources.if, /head.repo.full_name == github.repository/)
+  assert.doesNotMatch(JSON.stringify(ci), /contents.*write|gh release|upload-artifact|download-artifact|actions\/cache/)
+  for (const job of Object.values(ci.jobs)) for (const step of job.steps ?? []) {
+    if (step.uses?.startsWith('actions/checkout@')) assert.equal(step.with['persist-credentials'], false)
   }
-  if (normalized.name === "Setup pnpm") {
-    delete normalized.with.cache;
+})
+
+test('工具准备在固定源码检出后读取版本，Git 令牌不流入编译工具', async () => {
+  const action = await load('actions/buildtoolchain/action.yml')
+  const steps = action.runs.steps
+  const checkout = steps.findIndex(s => s.name === 'Checkout locked sources')
+  assert.ok(checkout >= 0)
+  for (const name of ['setup-go', 'setup-node', 'action-setup']) {
+    assert.ok(steps.findIndex(s => s.uses?.includes(name + '@')) > checkout)
   }
-  if (normalized.name === "Setup Node.js") {
-    delete normalized.with.cache;
-    delete normalized.with["cache-dependency-path"];
-    delete normalized.with["package-manager-cache"];
-  }
-  if (normalized.name === "Setup Go") {
-    delete normalized.with.cache;
-    delete normalized.with["cache-dependency-path"];
-  }
-  return normalized;
-}
-
-function matrixEntryPattern(entry) {
-  const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return new RegExp(
-    [
-      `platform:\\s+"${escape(entry.platform)}",`,
-      `target_os:\\s+"${escape(entry.target_os)}",`,
-      `arch:\\s+"${escape(entry.arch)}",`,
-      `runner:\\s+"${escape(entry.runner)}"`,
-    ].join("\\s+"),
-    "u",
-  );
-}
-
-test("全部前端分支 push 都会触发 CI", async () => {
-  const { workflow } = await loadWorkflow();
-  assert.deepEqual(workflow.on.push.branches, ["**"]);
-  assert.deepEqual(workflow.on.pull_request.branches, ["main"]);
-  assert.ok(Object.hasOwn(workflow.on, "workflow_dispatch"));
-  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
-  assert.ok(
-    stepsFor(workflow, "web").some(({ name }) => name === "Typecheck"),
-    "基础 Web 质量门禁必须保留",
-  );
-});
-
-test("Core 优先使用前端同名分支并在缺失时回退 main", async () => {
-  const { workflow } = await loadWorkflow();
-  const resolver = workflow.jobs["resolve-core"];
-  const resolverStep = stepsFor(workflow, "resolve-core").find(
-    ({ name }) => name === "Resolve matching branch or main",
-  );
-  assert.ok(resolverStep);
-  const script = resolverStep.run;
-
-  assert.equal(
-    resolver.if,
-    "github.repository == 'Countra/termous' && "
-      + "(github.event_name != 'pull_request' || "
-      + "github.event.pull_request.head.repo.full_name == github.repository)",
-  );
-  assert.equal(resolverStep.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
-  assert.equal(resolverStep.env.DEFAULT_CORE_BRANCH, "main");
-  assert.match(script, /matching: ref/u);
-  assert.match(script, /fallback: ref/u);
-  assert.match(
-    script,
-    /matchingRef="refs\/heads\/\$FRONTEND_BRANCH"/u,
-  );
-  assert.match(
-    script,
-    /fallbackRef="refs\/heads\/\$DEFAULT_CORE_BRANCH"/u,
-  );
-  assert.match(script, /缺少读取 Termous Core/u);
-  assert.match(script, /查询 Termous Core 分支失败/u);
-  assert.match(script, /\.errors/u);
-  assert.match(script, /\.data\.repository/u);
-  assert.match(script, /\^\[0-9a-f\]\{40\}\$/u);
-  assert.ok(
-    script.indexOf('if [[ -n "$graphql_errors" ]]')
-      < script.indexOf('if [[ -n "$matching_sha" ]]'),
-    "GraphQL 错误必须在分支回退前失败",
-  );
-  assert.deepEqual(resolver.outputs, {
-    matrix: "${{ steps.matrix.outputs.matrix }}",
-    sha: "${{ steps.core.outputs.sha }}",
-    remote_repository: "${{ steps.dependencies.outputs.remote_repository }}",
-    remote_sha: "${{ steps.dependencies.outputs.remote_sha }}",
-    rdp_repository: "${{ steps.dependencies.outputs.rdp_repository }}",
-    rdp_sha: "${{ steps.dependencies.outputs.rdp_sha }}",
-  });
-
-  const coreCheckout = stepsFor(workflow, "build").find(
-    ({ name }) => name === "Checkout pinned Termous Core",
-  );
-  assert.ok(coreCheckout);
-  assert.equal(coreCheckout.with.repository, "Countra/termous-core");
-  assert.equal(coreCheckout.with.ref, "${{ needs.resolve-core.outputs.sha }}");
-  assert.equal(
-    coreCheckout.with.token,
-    "${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}",
-  );
-  assert.equal(coreCheckout.with["persist-credentials"], false);
-});
-
-test("公开 Skills 无需专用读取凭据并固定为不可变提交", async () => {
-  const { workflow } = await loadWorkflow();
-  const resolver = workflow.jobs["resolve-skills"];
-  const step = stepsFor(workflow, "resolve-skills").find(
-    ({ name }) => name === "Resolve matching branch or main",
-  );
-  assert.ok(step);
-  assert.equal(resolver.if, "github.repository == 'Countra/termous'");
-  assert.equal(step.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
-  assert.equal(step.env.DEFAULT_SKILLS_BRANCH, "main");
-  assert.equal(
-    step.env.SKILLS_REPOSITORY,
-    "Countra/termous-skills",
-  );
-  assert.equal(step.env.GH_TOKEN, undefined);
-  assert.equal(JSON.stringify(resolver).includes("${{ secrets."), false);
-  assert.match(step.run, /git ls-remote --refs --heads/u);
-  assert.match(step.run, /\$GITHUB_SERVER_URL\/\$SKILLS_REPOSITORY\.git/u);
-  assert.match(step.run, /refs\/heads\/\$FRONTEND_BRANCH/u);
-  assert.match(step.run, /refs\/heads\/\$DEFAULT_SKILLS_BRANCH/u);
-  assert.match(step.run, /if \[\[ -n "\$matching_sha" \]\]; then/u);
-  assert.match(step.run, /selected_branch="\$FRONTEND_BRANCH"/u);
-  assert.match(step.run, /selected_sha="\$matching_sha"/u);
-  assert.match(step.run, /selected_branch="\$DEFAULT_SKILLS_BRANCH"/u);
-  assert.match(step.run, /selected_sha="\$fallback_sha"/u);
-  assert.match(step.run, /\^\[0-9a-f\]\{40\}\$/u);
-  assert.equal(resolver.outputs.sha, "${{ steps.skills.outputs.sha }}");
-
-  for (const jobName of ["web", "web-renderer", "build"]) {
-    const checkout = stepsFor(workflow, jobName).find(
-      ({ name }) => name === "Checkout pinned Termous Skills",
-    );
-    assert.ok(checkout);
-    assert.equal(
-      checkout.with.repository,
-      "Countra/termous-skills",
-    );
-    assert.equal(checkout.with.ref, "${{ needs.resolve-skills.outputs.sha }}");
-    assert.equal(checkout.with.path, "termous-skills");
-    assert.equal(checkout.with.token, undefined);
-    assert.equal(checkout.with["persist-credentials"], false);
-    const testIndex = stepsFor(workflow, jobName).findIndex(({ name }) => name === "Test");
-    if (testIndex >= 0) assert.ok(stepsFor(workflow, jobName).indexOf(checkout) < testIndex);
-  }
-  const rendererBuild = stepsFor(workflow, "web-renderer").find(
-    ({ name }) => name === "Build renderer",
-  );
-  assert.ok(rendererBuild);
-  assert.equal(
-    rendererBuild.env.TERMOUS_SKILLS_DIR,
-    "${{ github.workspace }}/termous-skills/skills",
-  );
-  assert.equal(workflow.jobs.build.env.TERMOUS_SKILLS_DIR, "${{ github.workspace }}/termous-skills/skills");
-});
-
-test("fork PR 跳过依赖私有 Core 和共享协议的任务", async () => {
-  const { workflow } = await loadWorkflow();
-  assert.deepEqual(workflow.jobs.web.needs, ["resolve-core", "resolve-skills"]);
-  assert.deepEqual(workflow.jobs["web-renderer"].needs, [
-    "resolve-core",
-    "resolve-skills",
-  ]);
-  assert.equal(workflow.jobs["web-renderer"].if, undefined);
-  assert.equal(workflow.jobs.build.if, undefined);
-  const rendererSteps = stepsFor(workflow, "web-renderer");
-  assert.ok(rendererSteps.some(({ name }) => name === "Build renderer"));
-  const rendererCheckout = rendererSteps.find(({ name }) => name === "Checkout");
-  assert.equal(
-    rendererCheckout?.uses,
-    "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
-  );
-  const rendererPnpm = rendererSteps.find(({ name }) => name === "Setup pnpm");
-  assert.equal(
-    rendererPnpm?.uses,
-    "pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320",
-  );
-  const rendererNode = rendererSteps.find(({ name }) => name === "Setup Node.js");
-  assert.equal(
-    rendererNode?.uses,
-    "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e",
-  );
-  assert.equal(
-    stepsFor(workflow, "web").some(({ name }) => name === "Build renderer"),
-    false,
-  );
-  assert.match(
-    workflow.jobs["resolve-core"].if,
-    /head\.repo\.full_name == github\.repository/u,
-  );
-  assert.equal(
-    workflow.jobs["resolve-skills"].if,
-    "github.repository == 'Countra/termous'",
-  );
-});
-
-test("提交构建按分支选择平台并复用 Release 打包路径", async () => {
-  const { workflow } = await loadWorkflow();
-  const { workflow: releaseWorkflow } = await loadWorkflow(
-    releaseWorkflowUrl,
-    "Release",
-  );
-  const build = workflow.jobs.build;
-  const releaseBuild = releaseWorkflow.jobs.build;
-
-  assert.deepEqual(build.needs, ["resolve-core", "resolve-skills"]);
-  assert.deepEqual(build.strategy, {
-    "fail-fast": releaseBuild.strategy["fail-fast"],
-    matrix: "${{ fromJSON(needs.resolve-core.outputs.matrix) }}",
-  });
-
-  const matrixStep = stepsFor(workflow, "resolve-core").find(
-    ({ name }) => name === "Resolve platform matrix",
-  );
-  assert.ok(matrixStep);
-  assert.equal(matrixStep.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
-  const branchGate = matrixStep.run.indexOf('if $branch == "main" then');
-  assert.ok(branchGate >= 0, "macOS 矩阵必须由 main 分支条件控制");
-  for (const entry of releaseBuild.strategy.matrix.include) {
-    const match = matrixEntryPattern(entry).exec(matrixStep.run);
-    assert.ok(match, `提交构建缺少 ${entry.platform}-${entry.arch} 平台配置`);
-    if (entry.platform === "macos") {
-      assert.ok(match.index > branchGate, `${entry.arch} macOS 必须仅加入 main 矩阵`);
-    } else {
-      assert.ok(match.index < branchGate, `${entry.platform} 必须在所有分支构建`);
-    }
-  }
-  assert.match(matrixStep.run, /else\s+\[\]\s+end/u);
-  assert.match(matrixStep.run, /echo "matrix=\$matrix" >> "\$GITHUB_OUTPUT"/u);
-
-  for (const name of [
-    "GOWORK",
-    "GOPRIVATE",
-    "TERMOUS_ARCH",
-    "TERMOUS_CORE_DIR",
-    "TERMOUS_OUTPUT_DIR",
-    "TERMOUS_SKILLS_DIR",
-    "TERMOUS_TARGET_OS",
-    "TERMOUS_WEB_DIR",
-  ]) {
-    assert.equal(build.env[name], releaseBuild.env[name], `${name} 必须与 Release 一致`);
-  }
-  assert.equal(build.env.TERMOUS_VERSION, "0.0.0-ci");
-  assert.equal(build.env.TERMOUS_RELEASE_TAG, undefined);
-
-  const releaseSteps = stepsFor(releaseWorkflow, "build");
-  const lastBuildStep = releaseSteps.findIndex(
-    ({ name }) => name === "Package macOS release",
-  );
-  assert.ok(lastBuildStep >= 0);
-  const releaseBuildSteps = releaseSteps.slice(0, lastBuildStep + 1);
-  const steps = stepsFor(workflow, "build");
-  assert.deepEqual(
-    steps.map(normalizeBuildStep),
-    releaseBuildSteps.map(normalizeBuildStep),
-    "除已单独验证的仓库版本来源与缓存配置外，提交构建步骤必须与 Release 完全一致",
-  );
-
-  for (const dependency of ["remote", "rdp"]) {
-    for (const jobName of ["web", "web-renderer", "build"]) {
-      const dependencySteps = stepsFor(workflow, jobName);
-      const checkout = dependencySteps.find(({ uses }) => uses === `./web/.github/actions/${dependency}-checkout`);
-      assert.equal(checkout?.with.repository, `\${{ needs.resolve-core.outputs.${dependency}_repository }}`);
-      assert.equal(checkout?.with.revision, `\${{ needs.resolve-core.outputs.${dependency}_sha }}`);
-      assert.ok(dependencySteps.indexOf(checkout) < dependencySteps.findIndex(({ run }) => run?.includes("pnpm")));
-    }
-  }
-
-  const frontendCheckout = steps.find(
-    ({ name }) => name === "Checkout Termous",
-  );
-  assert.ok(frontendCheckout);
-  assert.equal(frontendCheckout.with.ref, "${{ github.sha }}");
-
-  const coreCheckout = steps.find(
-    ({ name }) => name === "Checkout pinned Termous Core",
-  );
-  assert.ok(coreCheckout);
-  assert.equal(coreCheckout.with.ref, "${{ needs.resolve-core.outputs.sha }}");
-
-  const pnpmStep = steps.find(({ name }) => name === "Setup pnpm");
-  assert.ok(pnpmStep);
-  assert.equal(pnpmStep.with.cache, false);
-
-  const nodeStep = steps.find(({ name }) => name === "Setup Node.js");
-  assert.ok(nodeStep);
-  assert.equal(nodeStep.with["package-manager-cache"], false);
-  assert.equal(nodeStep.with.cache, undefined);
-
-  const goStep = steps.find(({ name }) => name === "Setup Go");
-  assert.ok(goStep);
-  assert.equal(goStep.with.cache, false);
-  assert.equal(goStep.with["go-version"], "${{ vars.GO_VERSION }}");
-  assert.equal(
-    goStep.with["go-version-file"],
-    "${{ !vars.GO_VERSION && 'backend/go.mod' || '' }}",
-  );
-  assert.ok(
-    steps.indexOf(coreCheckout) < steps.indexOf(goStep),
-    "必须先检出固定版本的 Core，再读取其 Go 工具链要求",
-  );
-});
-
-test("提交构建只读且不使用 GitHub Storage", async () => {
-  const { workflow } = await loadWorkflow();
-  const buildScope = JSON.stringify({
-    build: workflow.jobs.build,
-    resolver: workflow.jobs["resolve-core"],
-  });
-
-  assert.deepEqual(workflow.permissions, { contents: "read" });
-  for (const forbidden of [
-    "actions/cache",
-    "actions/upload-artifact",
-    "actions/download-artifact",
-    "cache-dependency-path",
-    "cache_dependency_path",
-    "gh release",
-    "environment: release",
-    "contents: write",
-  ]) {
-    assert.equal(buildScope.includes(forbidden), false, `禁止出现 ${forbidden}`);
-  }
-
-  for (const job of [workflow.jobs["resolve-core"], workflow.jobs.build]) {
-    assert.equal(job.environment, undefined);
-    for (const step of job.steps ?? []) {
-      if (
-        typeof step.uses === "string"
-        && step.uses.startsWith("actions/checkout@")
-      ) {
-        assert.equal(step.with?.["persist-credentials"], false);
-      }
-    }
-  }
-
-  for (const step of stepsFor(workflow, "build")) {
-    if (step.name === "Setup pnpm") {
-      assert.equal(step.with?.cache, false);
-    }
-    if (step.name === "Setup Node.js") {
-      assert.equal(step.with?.["package-manager-cache"], false);
-      assert.equal(step.with?.cache, undefined);
-    }
-    if (step.name === "Setup Go") {
-      assert.equal(step.with?.cache, false);
-    }
-  }
-});
+  const tokenSteps = steps.filter(s => s.env?.TERMOUS_REPOSITORIES_READ_TOKEN)
+  assert.deepEqual(tokenSteps.map(s => s.name), ['Checkout locked sources'])
+  assert.ok(steps.some(s => s.run?.includes('libfuse3-dev')))
+  assert.ok(steps.some(s => s.run?.includes('macfuse')))
+})

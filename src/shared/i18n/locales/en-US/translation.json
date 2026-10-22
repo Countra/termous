@@ -5428,6 +5428,7 @@
     "tabRemoteDesktop": "Remote desktop",
     "rdpSettings": "Connection & sessions",
     "aiRuntime": {
+      "cpuDescription": "This platform includes the CPU inference runtime.",
       "title": "Screen analysis acceleration", "cpu": "Using CPU", "gpu": "Using NVIDIA GPU", "unknown": "Inference device not confirmed",
       "description": "CPU analysis works offline. GPU components require about {{size}} GiB and replace the installed components.",
       "download": "Download GPU components", "check": "Check GPU", "development": "Development environments do not install or replace components.",

@@ -6,10 +6,22 @@ import { AIRuntimeSetting } from './AIRuntimeSetting'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
-const state: AIRuntimeStatus = { managed: true, state: 'complete', profile: 'cpu', download_size: 2762774229,
+const state: AIRuntimeStatus = { capabilities: { gpu_install: true, gpu_check: true }, managed: true, state: 'complete', profile: 'cpu', download_size: 2762774229,
   device: { name: 'NVIDIA', driver: 12080, eligible: true } }
 
 describe('画面分析组件设置', () => {
+  it('CPU 平台保持可用状态并隐藏不支持的 GPU 维护操作', async () => {
+    const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state,
+      capabilities: { gpu_install: false, gpu_check: false }, device: { name: '', driver: 0, eligible: false },
+      service: { state: 'ready', device: 'cpu' } }), download: vi.fn(), cancel: vi.fn(), check: vi.fn() }
+    render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
+    await screen.findByText('settings.aiRuntime.cpu')
+    expect(screen.getByText('settings.aiRuntime.cpuDescription')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.aiRuntime.download' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.aiRuntime.check' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.aiRuntime.requirements')).not.toBeInTheDocument()
+  })
+
   it.each([
     { service: { state: 'ready', device: 'cuda' }, label: 'gpu' },
     { service: { state: 'busy', device: 'cpu' }, label: 'cpu' },

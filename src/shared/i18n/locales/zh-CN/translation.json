@@ -5402,6 +5402,7 @@
     "tabRemoteDesktop": "远程桌面",
     "rdpSettings": "连接与会话",
     "aiRuntime": {
+      "cpuDescription": "当前平台随应用提供 CPU 推理环境。",
       "title": "画面分析加速", "cpu": "使用 CPU", "gpu": "使用 NVIDIA GPU", "unknown": "推理设备待确认",
       "description": "CPU 分析可离线使用。GPU 组件需额外下载约 {{size}} GiB，安装后替换现有组件。",
       "download": "下载 GPU 组件", "check": "检查 GPU", "development": "开发环境不安装或替换组件。",
