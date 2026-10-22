@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../../../scripts/test-support/temp-directory.ts'
 import {
   agentSkillBundleFormatVersion,
   calculateAgentSkillBundleFingerprint,
@@ -216,7 +216,7 @@ test('生产模式拒绝指向包外文件的符号链接', async (context) => {
 })
 
 async function createTempDirectory() {
-  return mkdtemp(path.join(tmpdir(), 'termous-agent-skills-'))
+  return createCanonicalTempDirectory('termous-agent-skills-')
 }
 
 async function writeDevelopmentSkill(root: string, body: string) {

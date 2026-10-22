@@ -2,20 +2,18 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   chmod,
-  mkdtemp,
   mkdir,
   lstat,
   readFile,
-  realpath,
   rename,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { stringify as stringifyYaml } from 'yaml'
+import { createCanonicalTempDirectory } from '../test-support/temp-directory.ts'
 import { hashRegularFile } from './release-manifest-contract.mjs'
 import {
   packagedThirdPartyFiles,
@@ -130,7 +128,7 @@ test('本地打包入口固定禁用发布与代码签名', () => {
 })
 
 test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-contract-'))
+  const root = await createCanonicalTempDirectory('termous-package-contract-')
   try {
     for (const target of [
       { platform: 'win32', arch: 'x64' },
@@ -185,7 +183,7 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
 })
 
 test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-decoy-'))
+  const root = await createCanonicalTempDirectory('termous-package-decoy-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -225,7 +223,7 @@ test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包',
 })
 
 test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-'))
+  const root = await createCanonicalTempDirectory('termous-package-license-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -249,7 +247,7 @@ test('产物门禁拒绝缺失 Agent 第三方许可证', async () => {
 })
 
 test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-tour-license-'))
+  const root = await createCanonicalTempDirectory('termous-package-tour-license-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -278,7 +276,7 @@ test('产物门禁拒绝缺失产品向导第三方许可证', async () => {
 })
 
 test('产物门禁拒绝符号链接形式的第三方许可证', async (context) => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-license-link-'))
+  const root = await createCanonicalTempDirectory('termous-package-license-link-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -319,14 +317,12 @@ test('产物门禁拒绝符号链接形式的第三方许可证', async (context
 })
 
 test('各平台发布包缺少归档外原生图标时拒绝发布', async (context) => {
-  const temporary = new URL('../../../TEMP/native-resource-tests/', import.meta.url)
-  await mkdir(temporary, { recursive: true })
   for (const [platform, arch, resources] of [
     ['win32', 'x64', 'win-unpacked/resources'],
     ['linux', 'x64', 'linux-unpacked/resources'],
     ['darwin', 'arm64', 'mac-arm64/Termous.app/Contents/Resources'],
   ]) await context.test(`${platform}/${arch}`, async () => {
-    const root = await mkdtemp(new URL('package-', temporary))
+    const root = await createCanonicalTempDirectory('termous-package-native-resource-')
     try {
       const options = { outputDirectory: root, platform, arch, version: '1.2.3' }
       await writeCompleteFixture(options)
@@ -340,7 +336,7 @@ test('各平台发布包缺少归档外原生图标时拒绝发布', async (cont
 })
 
 test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-invalid-'))
+  const root = await createCanonicalTempDirectory('termous-package-invalid-')
   try {
     await writeCompleteFixture({
       outputDirectory: root,
@@ -462,11 +458,6 @@ test('已有产物验证拒绝通过输出目录祖先联接访问工作区外�
     await rm(externalRoot, { recursive: true, force: true })
   }
 })
-
-async function createCanonicalTempDirectory(prefix) {
-  const canonicalTempRoot = await realpath(tmpdir())
-  return realpath(await mkdtemp(path.join(canonicalTempRoot, prefix)))
-}
 
 async function writeCompleteFixture({
   outputDirectory,

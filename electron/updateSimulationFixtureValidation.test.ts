@@ -2,21 +2,18 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   mkdir,
-  mkdtemp,
   rm,
   writeFile,
 } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../scripts/test-support/temp-directory.ts'
 import { validateUpdateSimulationInputs } from './updateSimulationFixtureValidation.ts'
 
 const expectedFeedURL = 'http://127.0.0.1:18991'
 
 test('运行时 fixture 校验封闭更新源、路径、大小和 SHA512', async () => {
-  const root = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-runtime-fixture-'),
-  )
+  const root = await createCanonicalTempDirectory('termous-update-runtime-fixture-')
   const resources = path.join(root, 'resources')
   const feed = path.join(root, 'feed')
   const installerName = 'Termous-Update-Simulation-0.0.2-setup.exe'

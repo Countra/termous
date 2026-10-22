@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import {
   mkdir,
-  mkdtemp,
+  readFile,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../test-support/temp-directory.ts'
 import {
   assertProductionBundleExcludesSimulation,
   assertSafeSimulationOutputRoot,
@@ -63,7 +63,7 @@ test('模拟构建环境移除全部发布与签名凭据', () => {
 })
 
 test('fixture 校验要求隔离身份、固定 feed 和完整候选资产', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'termous-update-fixture-'))
+  const root = await createCanonicalTempDirectory('termous-update-fixture-')
   const baselineDirectory = path.join(root, 'baseline')
   const candidateDirectory = path.join(root, 'candidate')
   const resources = path.join(baselineDirectory, 'win-unpacked', 'resources')
@@ -115,10 +115,8 @@ test('fixture 校验要求隔离身份、固定 feed 和完整候选资产', asy
 })
 
 test('生产构建契约拒绝 Renderer 与 Electron 开发模拟标记', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'termous-update-dist-'))
-  const electronRoot = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-electron-dist-'),
-  )
+  const root = await createCanonicalTempDirectory('termous-update-dist-')
+  const electronRoot = await createCanonicalTempDirectory('termous-update-electron-dist-')
   try {
     await writeFile(path.join(root, 'safe.js'), 'console.log("termous")')
     await writeFile(
@@ -141,9 +139,7 @@ test('生产构建契约拒绝 Renderer 与 Electron 开发模拟标记', async 
 })
 
 test('fixture 失败后恢复正式入口并保留调用方正式版本', async () => {
-  const webDirectory = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-build-restore-'),
-  )
+  const webDirectory = await createCanonicalTempDirectory('termous-update-build-restore-')
   const calls = []
   try {
     await assert.rejects(
@@ -189,12 +185,14 @@ test('fixture 失败后恢复正式入口并保留调用方正式版本', async 
 })
 
 test('模拟输出目录拒绝通过 release 联接清理工作区外目录', async (context) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'termous-update-output-root-'))
+  const root = await createCanonicalTempDirectory('termous-update-output-root-')
   const webDirectory = path.join(root, 'web')
   const externalDirectory = path.join(root, 'external')
   try {
     await mkdir(webDirectory)
     await mkdir(externalDirectory)
+    const sentinelPath = path.join(externalDirectory, 'sentinel.txt')
+    await writeFile(sentinelPath, 'keep')
     try {
       await symlink(
         externalDirectory,
@@ -214,8 +212,9 @@ test('模拟输出目录拒绝通过 release 联接清理工作区外目录', as
         path.join(webDirectory, 'release', 'update-simulation'),
         webDirectory,
       ),
-      /不能是符号链接、联接或/,
+      /模拟 release 目录不能是符号链接、联接或/,
     )
+    assert.equal(await readFile(sentinelPath, 'utf8'), 'keep')
   } finally {
     await rm(root, { force: true, recursive: true })
   }

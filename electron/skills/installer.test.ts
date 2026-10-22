@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import fs, { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import fs, { mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../../scripts/test-support/temp-directory.ts'
 import { testAgentSkillBundle } from '../agent/test-support/skillBundleTestFixture.ts'
 import { AppExitCoordinator } from '../appExitCoordinator.ts'
 import { SkillInstaller } from './installer.ts'
@@ -15,7 +15,7 @@ function deferred() {
 }
 
 async function fixture(t: test.TestContext) {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-skill-install-'))
+  const root = await createCanonicalTempDirectory('termous-skill-install-')
   t.after(() => rm(root, { recursive: true, force: true }))
   const source = path.join(root, 'source')
   const base = path.join(root, '用户 项目')

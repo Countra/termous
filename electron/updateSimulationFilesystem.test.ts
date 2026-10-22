@@ -1,21 +1,18 @@
 import assert from 'node:assert/strict'
 import {
   mkdir,
-  mkdtemp,
   rm,
   symlink,
   stat,
   writeFile,
 } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectory } from '../scripts/test-support/temp-directory.ts'
 import { prepareUpdateSimulationDirectories } from './updateSimulationFilesystem.ts'
 
 test('模拟运行目录只允许规范隔离目录和已知报告', async () => {
-  const parent = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-simulation-root-'),
-  )
+  const parent = await createCanonicalTempDirectory('termous-update-simulation-root-')
   const root = path.join(parent, 'run')
   try {
     const prepared = prepareUpdateSimulationDirectories(root)
@@ -51,9 +48,7 @@ test('模拟运行目录只允许规范隔离目录和已知报告', async () =>
 })
 
 test('模拟运行目录拒绝伪装成报告临时文件的目录', async () => {
-  const parent = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-simulation-report-entry-'),
-  )
+  const parent = await createCanonicalTempDirectory('termous-update-simulation-report-entry-')
   const root = path.join(parent, 'run')
   try {
     prepareUpdateSimulationDirectories(root)
@@ -71,9 +66,7 @@ test('模拟运行目录拒绝伪装成报告临时文件的目录', async () =>
 })
 
 test('模拟运行根目录拒绝符号链接或目录联接', async () => {
-  const parent = await mkdtemp(
-    path.join(os.tmpdir(), 'termous-update-simulation-link-'),
-  )
+  const parent = await createCanonicalTempDirectory('termous-update-simulation-link-')
   const target = path.join(parent, 'target')
   const linked = path.join(parent, 'linked')
   try {

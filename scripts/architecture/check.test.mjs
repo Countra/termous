@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { createCanonicalTempDirectorySync } from '../test-support/temp-directory.ts'
 import { runArchitectureCheck } from './check.mjs'
 import {
   collectArchitectureViolations,
@@ -16,7 +16,7 @@ function writeFile(projectRoot, relativePath, content) {
 }
 
 function createFixture(t, files = {}, options = {}) {
-  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'termous-architecture-'))
+  const projectRoot = createCanonicalTempDirectorySync('termous-architecture-')
   t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }))
   writeFile(projectRoot, 'package.json', JSON.stringify({
     name: 'architecture-fixture',
@@ -446,7 +446,7 @@ test('解析到受管目录外的本地源码会被明确标记', (t) => {
 
 test('相对导入到项目根外的本地源码不会被静默忽略', (t) => {
   const projectRoot = createFixture(t)
-  const externalRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'termous-architecture-external-'))
+  const externalRoot = createCanonicalTempDirectorySync('termous-architecture-external-')
   t.after(() => fs.rmSync(externalRoot, { recursive: true, force: true }))
   const externalFile = path.join(externalRoot, 'helper.ts')
   writeFile(externalRoot, 'helper.ts', 'export const helper = true\n')
