@@ -222,6 +222,19 @@ jobs:
           platform: ${{ matrix.platform }}
           source-lock: ${{ needs.prepare-release.outputs.source_lock }}
           token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
+      - name: Skip repeated tests for release
+        shell: python
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          config_path = Path("termous-buildtools/configs") / f"ci.{os.environ['TARGET_PLATFORM']}.json"
+          config = json.loads(config_path.read_text(encoding="utf-8"))
+          config["checks"]["tests"] = False
+          config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
       - name: Build and verify desktop package
         shell: bash
         env:
