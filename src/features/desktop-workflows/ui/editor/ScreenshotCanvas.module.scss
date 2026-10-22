@@ -5,6 +5,17 @@
   flex-direction: column;
 }
 
+.root[data-analysis='true'] {
+  min-height: min-content;
+  flex-shrink: 0;
+
+  .stage {
+    min-height: 220px;
+    flex-basis: 220px;
+    flex-shrink: 0;
+  }
+}
+
 .stage {
   display: flex;
   position: relative;

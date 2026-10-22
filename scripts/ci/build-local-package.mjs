@@ -676,6 +676,9 @@ function spawnAndWait(executable, argumentsList, options) {
 
 async function main() {
   const options = parseLocalPackageArguments(process.argv.slice(2))
+  if (options.platform === 'win32' && !options.verifyOnly && process.env.GITHUB_ACTIONS !== 'true') {
+    throw new Error('Windows 完整打包请使用 termous-buildtools，或 pnpm run build；需要有效的准备产物记录。')
+  }
   const result = await runLocalPackage(options)
   console.log('已验证应用更新打包产物:')
   for (const filePath of [...result.files, ...result.appUpdatePaths]) {

@@ -77,12 +77,12 @@ export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) 
     try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError('syncFailed') }
   }
   if (!partitions || !ready) return error ? <Alert type="error" title={t(`desktopWorkflow.window.${error}`)}
-    action={<Button onClick={() => void retry()}>{t('app.refresh')}</Button>} /> : <Spin fullscreen />
+    action={<Button onClick={() => void retry()}>{t('app.reload')}</Button>} /> : <Spin fullscreen />
   const { inputSequence, ...projection } = partitions
   const model = adapter.connect(projection as unknown as Omit<WorkflowSurfaceModel, 'actions'>, Number(inputSequence ?? 0))
   return <div className={styles.surface}>
     {error && <Alert className={styles.error} type="warning" showIcon title={t(`desktopWorkflow.window.${error}`)}
-      action={<><Button size="small" onClick={() => void retry()}>{t('app.refresh')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('desktopWorkflow.window.return')}</Button></>} />}
+      action={<><Button size="small" onClick={() => void retry()}>{t('app.reload')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('desktopWorkflow.window.return')}</Button></>} />}
     <div ref={content} className={styles.content} data-motion={leaving ? 'leaving' : 'entering'} inert={frozen}>
       <WorkflowWorkspaceView model={model} gateway={adapter.media} onMediaTask={adapter.trackMediaTask}
         windowAction={<DetachedWindowButton label={t('desktopWorkflow.window.return')} returning busy={frozen} onClick={() => void returnWindow()} />} />

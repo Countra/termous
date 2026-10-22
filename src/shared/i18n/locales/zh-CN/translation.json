@@ -5401,6 +5401,18 @@
     "tabConnection": "连接",
     "tabRemoteDesktop": "远程桌面",
     "rdpSettings": "连接与会话",
+    "aiRuntime": {
+      "title": "画面分析加速", "cpu": "使用 CPU", "gpu": "使用 NVIDIA GPU", "unknown": "推理设备待确认",
+      "description": "CPU 分析可离线使用。GPU 组件需额外下载约 {{size}} GiB，安装后替换现有组件。",
+      "download": "下载 GPU 组件", "check": "检查 GPU", "development": "开发环境不安装或替换组件。",
+      "requirements": "GPU 加速需要 NVIDIA 显卡与支持 CUDA 12.8 的驱动，建议 570.65 或更新版本。",
+      "writing": "正在写入组件，暂时无法取消。画面分析恢复前请保持应用运行。",
+      "failed": "运行时操作未完成", "repair": "组件不完整，请重新运行 Termous 安装包修复 CPU 环境。",
+      "retry": "请检查网络、磁盘空间和权限后重试。其他功能可以继续使用。",
+      "fallback": "GPU 检查未通过，已使用 CPU。GPU 组件仍保留，可更新驱动后再次检查。",
+      "ready": "GPU 运算与三个画面分析模型检查通过。",
+      "phases": { "preflight": "检查运行环境…", "downloading": "下载 GPU 组件…", "waiting": "等待当前画面分析结束…", "preparing": "校验组件并等待安装权限…", "installing": "安装 GPU 组件…", "checking": "检查 CPU、GPU 与模型…", "complete": "已完成", "failed": "未完成", "cancelled": "已取消" }
+    },
     "rdpFileExchange": "文件交换",
     "systemFileClipboard": "系统文件剪贴板",
     "systemFileClipboardHint": "在本机与 RDP 桌面间复制粘贴文件和文件夹。",

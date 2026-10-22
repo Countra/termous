@@ -3,7 +3,9 @@ import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, isWorkflowDetachedN
 import { TermousApiError } from '#shared/api'
 import type { DetachedClient } from '#shared/detached-window'
 import type { Asset, ImageTarget, Located, Preview, Snapshot } from '#entities/desktop-workflow'
+import type { ScreenAnalysis } from '#entities/desktop-workflow'
 import type { WorkflowActions, WorkflowFailure, WorkflowMediaGateway, WorkflowSurfaceModel } from '../workspace/types'
+import { analysisRequestTimeout } from '../../config/analysis'
 
 interface Echo { sequence: number; command: WorkflowDetachedCommand }
 export class WorkflowRemoteAdapter {
@@ -26,8 +28,8 @@ export class WorkflowRemoteAdapter {
     void operation.catch(this.report)
     return operation
   }
-  private async request(operation: 'binary' | 'command', payload: unknown, id?: string) {
-    const response = await this.client.peer.request(operation, payload, 120000, id) as { ok: boolean; value?: unknown; error?: WorkflowFailure }
+  private async request(operation: 'binary' | 'command', payload: unknown, id?: string, timeout = 120000) {
+    const response = await this.client.peer.request(operation, payload, timeout, id) as { ok: boolean; value?: unknown; error?: WorkflowFailure }
     if (!response.ok) throw new TermousApiError(response.error?.message ?? 'Request failed', response.error?.code ?? 'detached_operation_failed', response.error?.status ?? 0)
     return response.value
   }
@@ -77,6 +79,23 @@ export class WorkflowRemoteAdapter {
     return this.model
   }
   readonly media: WorkflowMediaGateway = {
+    runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
+    openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },
+    analyze: async (id, signal) => {
+      signal?.throwIfAborted()
+      const requestID = crypto.randomUUID()
+      const cancel = () => { void this.mediaRequest({ kind: 'analysis-cancel', id, requestID }).catch(this.report) }
+      const operation = this.mediaRequest({ kind: 'analyze', id, requestID })
+      signal?.addEventListener('abort', cancel, { once: true })
+      try { const result = await operation as ScreenAnalysis; signal?.throwIfAborted(); return result }
+      finally { signal?.removeEventListener('abort', cancel) }
+    },
+    analysisImage: async (id, analysisID, image, signal) => {
+      signal?.throwIfAborted()
+      const result = await this.mediaRequest({ kind: 'analysis-image', id, analysisID, image }) as Binary
+      signal?.throwIfAborted(); return blob(result)
+    },
+    deleteAnalysis: async (id, analysisID) => { await this.mediaRequest({ kind: 'analysis-delete', id, analysisID }) },
     openPreview: (session, generation) => this.mediaRequest({ kind: 'open', session, generation }) as Promise<Preview>,
     closePreview: async id => { await this.mediaRequest({ kind: 'close', id }) },
     upload: async blob => this.mediaRequest({ kind: 'upload', type: blob.type, bytes: await blob.arrayBuffer() }) as Promise<Asset>,
@@ -98,7 +117,7 @@ export class WorkflowRemoteAdapter {
   }
   private mediaRequest(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) return Promise.reject(new Error('workflow_media_invalid'))
-    const task = this.request('binary', payload)
+    const task = this.request('binary', payload, undefined, payload.kind === 'analyze' ? analysisRequestTimeout : 120000)
     this.trackMediaTask(task)
     return task
   }

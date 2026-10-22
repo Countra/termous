@@ -1742,6 +1742,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
+                          aiRuntimeGateway={gateways.aiRuntime}
+                          onOpenAnalysisSettings={async () => { await navigateToPage('settings', { settingsTab: 'remote-desktop' }) }}
                           getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
                           onReferenceAgentConnection={referenceAgentConnection}
                         />
@@ -1750,7 +1752,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     {accountAuthOpen && page !== 'account' ? <AccountAuthDialog api={gateways.cloud} onClose={closeAccountAuth} onAuthenticated={completeAccountAuth}
                       guided={productTourActive} onBusyChange={setAccountAuthBusy} /> : null}
                     <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
-                      settingsGateway={gateways.settings} initialTab={settingsInitialTab}
+                      settingsGateway={gateways.settings} aiRuntimeGateway={gateways.aiRuntime} initialTab={settingsInitialTab}
                       onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}
                       language={data.settings.language} appearanceSettings={data.settings.appearance}
                       terminalSettings={data.settings.terminal} sshSmoothScrollEnabled={sshSmoothScrollEnabled}

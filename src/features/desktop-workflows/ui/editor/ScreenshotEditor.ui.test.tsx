@@ -10,7 +10,7 @@ import { ScreenshotEditor } from './ScreenshotEditor'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 const step: Step = { id: 'image', kind: 'image.assert', name: '', action: {}, image: { asset_id: 'original', offset: { x: 4, y: 6 }, threshold: .95, anchor: { x: 2, y: 3 } } }
-const gateway = (): WorkflowMediaGateway => ({ openPreview: vi.fn().mockResolvedValue({ id: 'preview', state: 'ready' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), match: vi.fn(), upload: vi.fn(), asset: vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' })) })
+const gateway = (): WorkflowMediaGateway => ({ openPreview: vi.fn().mockResolvedValue({ id: 'preview', state: 'ready' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), match: vi.fn(), analyze: vi.fn(), analysisImage: vi.fn(), deleteAnalysis: vi.fn().mockResolvedValue(undefined), upload: vi.fn(), asset: vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' })) })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('模板预览与选区应用', () => {

@@ -19,6 +19,11 @@ export interface WorkflowDetachedCommand {
 export const workflowDetachedInputs = ['change', 'selectStep', 'target', 'view', 'changeRun', 'presentation'] as const
 export const workflowMediaLimit = 32 * 1024 * 1024
 export type WorkflowDetachedMedia =
+  | { kind: 'runtime-status' }
+  | { kind: 'runtime-settings' }
+  | { kind: 'analyze' | 'analysis-cancel'; id: string; requestID: string }
+  | { kind: 'analysis-image'; id: string; analysisID: string; image: 'original' | 'annotated' }
+  | { kind: 'analysis-delete'; id: string; analysisID: string }
   | { kind: 'open'; session: string; generation: number }
   | { kind: 'close' | 'capture' | 'asset'; id: string }
   | { kind: 'match'; id: string; target: Record<string, unknown> }
@@ -86,6 +91,10 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
 
 export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetachedMedia {
   if (!record(value)) return false
+  if (value.kind === 'runtime-status' || value.kind === 'runtime-settings') return fields(value, ['kind'])
+  if (value.kind === 'analyze' || value.kind === 'analysis-cancel') return id(value.id) && id(value.requestID)
+  if (value.kind === 'analysis-image') return id(value.id) && id(value.analysisID) && ['original', 'annotated'].includes(String(value.image))
+  if (value.kind === 'analysis-delete') return id(value.id) && id(value.analysisID)
   if (value.kind === 'upload') return value.bytes instanceof ArrayBuffer && value.bytes.byteLength > 0
     && value.bytes.byteLength <= 8 * 1024 * 1024 && ['image/png', 'image/jpeg'].includes(String(value.type))
   if (value.kind === 'open') return id(value.session) && Number.isSafeInteger(value.generation) && Number(value.generation) > 0

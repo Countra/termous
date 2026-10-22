@@ -5,6 +5,7 @@ import { ConnectionToggleSetting } from '../connection/ConnectionToggleSetting'
 import { SettingsGroup } from '../controls/SettingsGroup'
 import { RdpRetentionSetting } from './RdpRetentionSetting'
 import { SystemClipboardSetting } from './SystemClipboardSetting'
+import { AIRuntimeSetting } from './AIRuntimeSetting'
 
 interface RemoteDesktopSettingsProps {
   value: ConnectionSettings
@@ -22,5 +23,6 @@ export function RemoteDesktopSettings({ value, disabled, onChange }: RemoteDeskt
       <RdpRetentionSetting value={value} disabled={disabled} onChange={onChange} />
     </SettingsGroup>
     <SystemClipboardSetting disabled={disabled} />
+    <AIRuntimeSetting disabled={disabled} />
   </div>
 }

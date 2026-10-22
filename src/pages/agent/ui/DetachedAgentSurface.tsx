@@ -88,12 +88,12 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
     try { await adapter.flush(); setResyncKey(key => key + 1) } catch { setError('syncFailed') }
   }
   if (!partitions) return error ? <Alert type="error" title={t(`agent.window.${error}`)}
-    action={<Button onClick={() => void retry()}>{t('app.refresh')}</Button>} /> : <Spin fullscreen />
+    action={<Button onClick={() => void retry()}>{t('app.reload')}</Button>} /> : <Spin fullscreen />
   const model = adapter.connect(restoreAgentSurface(partitions), partitions.capabilities as AgentDetachedCommandName[] ?? [], Number(partitions.inputSequence ?? 0))
   const feedback = partitions.feedback as AgentFeedbackSnapshot | undefined
   return <div className={styles.surface} ref={root}>
     {error && <Alert className={styles.error} type="warning" showIcon title={t(`agent.window.${error}`)}
-      action={<><Button size="small" onClick={() => void retry()}>{t('app.refresh')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('agent.window.return')}</Button></>} />}
+      action={<><Button size="small" onClick={() => void retry()}>{t('app.reload')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('agent.window.return')}</Button></>} />}
     <div ref={content} className={styles.content} data-motion={leaving ? 'leaving' : ready ? 'entering' : undefined} inert={frozen || !ready}>
       <AgentSurfaceView model={model} presentation={presentation.current} interactive={ready && !frozen}
         windowAction={<AgentWindowButton returning onClick={() => void returnWindow()} busy={frozen} />}

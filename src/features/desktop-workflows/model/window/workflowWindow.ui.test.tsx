@@ -6,6 +6,31 @@ import { WorkflowSurfaceAdapter } from './WorkflowSurfaceAdapter'
 import { WorkflowMediaHost } from './WorkflowMediaHost'
 
 const connection = { module: 'desktop-workflow', instance: 'workspace', generation: 'test' }
+
+it('独立窗口接收宿主提供的真实推理设备，不依赖组件检查记录', async () => {
+  const { controller } = fixture()
+  controller.runtimeStatus = async () => ({ service: { state: 'ready', device: 'cuda' } })
+  const media = new WorkflowMediaHost(controller.media, controller)
+  expect(await media.handle({ kind: 'runtime-status' })).toEqual({ service: { state: 'ready', device: 'cuda' } })
+  controller.dispose()
+})
+
+it('独立窗口分析校验预览归属，取消只影响同一预览的请求', async () => {
+  const { gateway, controller } = fixture()
+  gateway.analyze = vi.fn().mockImplementation((_id, signal: AbortSignal) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')))))
+  gateway.analysisImage = vi.fn()
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  const media = new WorkflowMediaHost(gateway, controller)
+  await expect(media.handle({ kind: 'analyze', id: 'foreign', requestID: 'request' })).rejects.toThrow('workflow_preview_unavailable')
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  const pending = media.handle({ kind: 'analyze', id: 'owned', requestID: 'request' })
+  const rejection = expect(pending).rejects.toThrow('Cancelled')
+  await media.handle({ kind: 'analysis-cancel', id: 'owned', requestID: 'request' })
+  await rejection
+  await expect(media.handle({ kind: 'analysis-image', id: 'foreign', analysisID: 'analysis', image: 'original' })).rejects.toThrow('workflow_preview_unavailable')
+  expect(gateway.analysisImage).not.toHaveBeenCalled()
+  await media.reset(); controller.dispose()
+})
 function fixture() {
   const gateway = { save: vi.fn(), start: vi.fn(), control: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn(), upload: vi.fn(), asset: vi.fn(), run: vi.fn() } as unknown as WorkflowGateway
   const controller = new WorkflowController(gateway)

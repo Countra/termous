@@ -1,6 +1,7 @@
 import type { Definition, Diagnostic, Run, Script, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { WorkflowTarget } from '../target'
+import type { AIRuntimeStatus } from '#entities/ai-runtime'
 
 export interface WorkflowDraft { editingID: string; script?: Script; name: string; description: string; tags: string[]; definition: Definition }
 export interface WorkflowFailure { message: string; code?: string; status?: number }
@@ -19,7 +20,10 @@ export interface WorkflowPresentation {
 }
 export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' | 'protocol' | 'connection_generation' | 'status'>
 export type WorkflowProfile = Pick<RemoteDesktopAccessProfile, 'id' | 'name' | 'protocol'>
-export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset'>
+export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset' | 'analyze' | 'analysisImage' | 'deleteAnalysis'> & {
+  runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
+  openRuntimeSettings?: () => Promise<void>
+}
 export interface WorkflowLaunch {
   script: Script; definition: Definition; target: WorkflowTarget; debug: boolean
   takeover: boolean; keep: boolean; parameters: StartInput['parameters']

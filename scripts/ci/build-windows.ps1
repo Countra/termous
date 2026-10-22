@@ -1,6 +1,28 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# 本地沿用统一工具链；现有 Actions 在全平台迁移前继续执行下方原构建流程。
+if ($env:GITHUB_ACTIONS -ne "true") {
+  $toolRoot = if ($env:TERMOUS_BUILDTOOLS_DIR) { $env:TERMOUS_BUILDTOOLS_DIR } else {
+      Join-Path $PSScriptRoot '../../../termous-buildtools'
+  }
+  $entry = Join-Path $toolRoot 'build.py'
+  if (!(Test-Path -LiteralPath $entry -PathType Leaf)) {
+      throw '缺少 termous-buildtools，请检出本地构建工具链仓库。'
+  }
+  $config = if ($env:TERMOUS_BUILD_CONFIG) { $env:TERMOUS_BUILD_CONFIG } else {
+      Join-Path $toolRoot 'configs/local.windows.json'
+  }
+  $python = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
+  $phase = if ($env:TERMOUS_BUILD_PHASE) { $env:TERMOUS_BUILD_PHASE } else { 'all' }
+  $arguments = @($entry, 'build', '--config', $config, '--phase', $phase)
+  if ($env:TERMOUS_VERSION) { $arguments += @('--version', $env:TERMOUS_VERSION) }
+  & $python @arguments
+  if ($LASTEXITCODE -ne 0) { throw "统一构建失败：$LASTEXITCODE" }
+  return
+}
+
+
 function Resolve-ExistingDirectory {
   param(
     [Parameter(Mandatory = $false)][string]$Value,
@@ -82,21 +104,6 @@ function Prepare-CoreOutputDirectory {
       Remove-Item -LiteralPath $binaryPath -Force
     }
   }
-}
-
-function Set-LocalGoCache {
-  # 仅设置本地磁盘路径；Actions 沿用 runner 环境，不在此处管理远端缓存。
-  if ($env:GITHUB_ACTIONS -eq "true") { return }
-  $goCacheRoot = Join-Path $workspaceDir "TEMP/go"
-  $env:GOCACHE = Join-Path $goCacheRoot "build"
-  $env:GOMODCACHE = Join-Path $goCacheRoot "mod"
-  $env:GOTMPDIR = Join-Path $goCacheRoot "tmp"
-  foreach ($directory in @($env:GOCACHE, $env:GOMODCACHE, $env:GOTMPDIR)) {
-    New-Item -ItemType Directory -Force -Path $directory | Out-Null
-  }
-  $env:TEMP = $env:GOTMPDIR
-  $env:TMP = $env:GOTMPDIR
-  $env:TMPDIR = $env:GOTMPDIR
 }
 
 function Invoke-Native {
@@ -256,7 +263,6 @@ $env:TERMOUS_SKILLS_DIR = $skillsDir
 $env:TERMOUS_CORE_DIR = $coreDir
 
 if ($phase -in @("all", "prepare")) {
-  Set-LocalGoCache
   Prepare-CoreOutputDirectory `
     -BuildRoot (Join-Path $webDir "build") `
     -OutputDirectory $coreOutputDir

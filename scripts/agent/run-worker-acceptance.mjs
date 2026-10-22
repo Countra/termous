@@ -8,6 +8,7 @@ import { testAgentSkillBundle } from '../../electron/agent/test-support/skillBun
 import { completionTestBootstrap, completionTestRequest } from '../../electron/terminalCompletion/testFixture.ts'
 import { agentRuntimeProtocolVersion } from '../../common/contracts/index.ts'
 import { sanitizedWorkerEnvironment } from '../../electron/agent/host/workerEnvironment.ts'
+import { buildOutputPaths } from '../build/output-paths.mjs'
 
 const require = createRequire(import.meta.url)
 // 使用打包工具链自身的 ASAR 实现，与正式包格式一致。
@@ -15,12 +16,13 @@ const builderRequire = createRequire(require.resolve('electron-builder'))
 const asarRequire = createRequire(builderRequire.resolve('app-builder-lib'))
 const { createPackage } = asarRequire('@electron/asar')
 const root = fileURLToPath(new URL('../../', import.meta.url))
-const temporary = path.resolve(root, '../TEMP')
+const outputs = buildOutputPaths(root)
+const temporary = outputs.verification
 await mkdir(temporary, { recursive: true })
 const output = await mkdtemp(path.join(temporary, 'agent workers '))
 const source = path.join(output, 'source')
 await mkdir(source)
-await cp(path.join(root, 'dist-electron'), path.join(source, 'dist-electron'), { recursive: true })
+await cp(outputs.electron, path.join(source, 'dist-electron'), { recursive: true })
 await writeFile(path.join(source, 'package.json'), JSON.stringify({ type: 'module' }))
 await writeFile(path.join(source, 'probe.cjs'), `process.parentPort.on('message', ({ data }) => {
   if (data.type === 'probe') process.parentPort.postMessage({ cwd: process.cwd() })
@@ -35,7 +37,7 @@ await writeFile(path.join(output, 'requests.json'), JSON.stringify({
 }))
 await createPackage(source, path.join(output, 'fixture.asar'))
 await build({
-  configFile: false, root, cacheDir: path.join(temporary, 'vite'), logLevel: 'warn',
+  configFile: false, root, logLevel: 'warn',
   ssr: { noExternal: true, external: ['electron', 'original-fs'] },
   build: {
     ssr: path.join(root, 'electron/agent/host/utilityWorkerFactory.ts'), outDir: output,

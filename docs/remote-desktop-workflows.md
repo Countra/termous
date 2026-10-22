@@ -45,6 +45,14 @@ features/desktop-workflows/
 
 ## 后端与仓库协作
 
+### 手动分析画面
+
+截图工具栏的“分析画面”经类型化 `WorkflowMediaGateway` 调用 Core。`useScreenAnalysis` 管理请求代次、过期、取消和选择；`AnalysisOverlay` 与 `AnalysisPanel` 分别提供原图覆盖层、编号列表、文字和置信度。支持筛选、复制 OCR、导出 JSON/标注 PNG，并将选定区域应用为现有步骤的坐标、搜索区域或原图模板。
+
+实际分析原图和结构一起更新，覆盖层不修改原图。刷新截图、切换目标或连接换代会清除旧结果，迟到响应不能覆盖新画面。模板解码、裁剪和上传属于同一媒体任务；切换步骤后不应用旧操作。裁剪继续经过已有资产校验，不缩放不合格区域。
+
+独立窗口通过现有媒体宿主桥接分析、取图和释放；宿主检查预览归属，取消使用请求 ID，分析期限为 200 秒。前端始终不持有 Python 端口或管理令牌。无合适步骤时只查看结果，不发送桌面输入。
+
 Core 的 `desktopworkflow` 服务组合控制服务、桌面来源与资产存储，维护脚本、不可变版本、运行报告和步骤结果。数据库由启动阶段的 `storage.Prepare` 协调，Goose 管理迁移；主配置库、Agent、Workflow 和审计具有独立归属及故障边界。参见后端的 `docs/database-migrations.md`、`docs/storage-layout.md` 和 `docs/desktop-workflows.md`。
 
 Workflow 当前是本机能力，不进入云端配置同步或配置备份快照。`termous-service` 的 PostgreSQL、加密同步协议和 Goose 版本独立演进；`termous-mobile` 使用 Flutter／Kotlin／进程内 Go 核心，不能访问桌面开发数据。`termous-skills` 维护静态工作流和 MCP 合同，前端构建负责校验和打包；本次布局变更不修改工具合同。

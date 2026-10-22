@@ -2,6 +2,7 @@ import { lstat, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { buildOutputPaths } from '../build/output-paths.mjs'
 
 // pi 1.2.0 加回执归一化与跨轮状态投影的闭包约 1.38 MiB；按既有 64 KiB 档位留出余量，依赖白名单独立检查。
 export const maximumAgentWorkerBundleBytes = 1472 * 1024
@@ -132,10 +133,11 @@ function assertAllowedRuntimePackages(content) {
 async function main() {
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
   const webDirectory = path.resolve(scriptDirectory, '..', '..')
-  const bundlePath = path.join(webDirectory, 'dist-electron', 'agent-worker.js')
+  const directory = buildOutputPaths(webDirectory).electron
+  const bundlePath = path.join(directory, 'agent-worker.js')
   const size = await checkAgentWorkerBundle(bundlePath)
   console.log(`Agent Worker 产物检查通过: ${size} bytes`)
-  const completionSize = await checkAgentWorkerBundle(path.join(webDirectory, 'dist-electron', 'terminal-completion-worker.js'))
+  const completionSize = await checkAgentWorkerBundle(path.join(directory, 'terminal-completion-worker.js'))
   console.log(`Terminal Completion Worker 产物检查通过: ${completionSize} bytes`)
 }
 

@@ -1,4 +1,5 @@
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
+import type { ScreenAnalysis } from './analysis'
 
 export interface Point { x: number; y: number }
 export interface Region extends Point { width: number; height: number }
@@ -67,6 +68,9 @@ export interface Located { capture: { metadata: DesktopSnapshotMetadata }; resul
 export interface Snapshot { metadata: DesktopSnapshotMetadata; blob: Blob }
 
 export interface WorkflowGateway {
+  analyze(id: string, signal?: AbortSignal): Promise<ScreenAnalysis>
+  analysisImage(id: string, analysisID: string, kind: 'original' | 'annotated', signal?: AbortSignal): Promise<Blob>
+  deleteAnalysis(id: string, analysisID: string): Promise<void>
   list(signal?: AbortSignal): Promise<Script[]>
   get(id: string): Promise<{ script: Script; version: Version }>
   save(id: string | undefined, input: SaveInput): Promise<Script>

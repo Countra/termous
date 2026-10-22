@@ -1,13 +1,21 @@
 import { useMemo, useState } from 'react'
 import { Button, Modal } from 'antd'
 import { TermousUiProvider } from '#app/ui-runtime'
-import { WorkflowWorkspace } from '#features/desktop-workflows'
+import { WorkflowClient, WorkflowWorkspace } from '#features/desktop-workflows'
 import { createWorkflowWindowFixture } from './workflow-window-fixture'
 
 // 合成事件源不访问 Core 或真实会话；刷新仍经过产品自己的数据装配逻辑。
 window.WebSocket = class { close() {} } as unknown as typeof WebSocket
 export function WorkflowWindowPreview() {
-  const fixture = useMemo(() => createWorkflowWindowFixture({ history: new URLSearchParams(location.search).has('history') }), [])
+  const fixture = useMemo(() => {
+    const value = createWorkflowWindowFixture({ history: new URLSearchParams(location.search).has('history') })
+    if (new URLSearchParams(location.search).has('analysis')) {
+      const client = new WorkflowClient({ apiBaseUrl: location.origin, apiToken: 'ai-fixture' })
+      const media = ['openPreview', 'closePreview', 'capture', 'match', 'upload', 'asset', 'analyze', 'analysisImage', 'deleteAnalysis'] as const
+      for (const key of media) Object.assign(value.gateway, { [key]: client[key].bind(client) })
+    }
+    return value
+  }, [])
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
   const [active, setActive] = useState(true)

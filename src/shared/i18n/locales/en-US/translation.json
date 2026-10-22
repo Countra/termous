@@ -5427,6 +5427,18 @@
     "tabConnection": "Connection",
     "tabRemoteDesktop": "Remote desktop",
     "rdpSettings": "Connection & sessions",
+    "aiRuntime": {
+      "title": "Screen analysis acceleration", "cpu": "Using CPU", "gpu": "Using NVIDIA GPU", "unknown": "Inference device not confirmed",
+      "description": "CPU analysis works offline. GPU components require about {{size}} GiB and replace the installed components.",
+      "download": "Download GPU components", "check": "Check GPU", "development": "Development environments do not install or replace components.",
+      "requirements": "GPU acceleration requires an NVIDIA GPU and a CUDA 12.8 compatible driver. Version 570.65 or newer is recommended.",
+      "writing": "Writing components; cancellation is unavailable. Keep the application open until analysis is ready.",
+      "failed": "Runtime operation did not complete", "repair": "Components are incomplete. Run the Termous installer again to repair the CPU runtime.",
+      "retry": "Check your network, disk space and permissions, then retry. Other features remain available.",
+      "fallback": "GPU checks failed. Analysis uses CPU; GPU components remain installed. Check again after updating the driver.",
+      "ready": "GPU operations and all three analysis models passed their checks.",
+      "phases": { "preflight": "Checking environment…", "downloading": "Downloading GPU components…", "waiting": "Waiting for the current analysis…", "preparing": "Validating components and requesting permission…", "installing": "Installing GPU components…", "checking": "Checking CPU, GPU and models…", "complete": "Complete", "failed": "Failed", "cancelled": "Cancelled" }
+    },
     "rdpFileExchange": "File exchange",
     "systemFileClipboard": "System file clipboard",
     "systemFileClipboardHint": "Copy and paste files and folders between this device and the RDP desktop.",

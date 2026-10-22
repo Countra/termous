@@ -7,6 +7,7 @@ import { prepareDevelopmentShell } from './scripts/desktop-development/prepare.m
 import { createDevelopmentStarter } from './scripts/desktop-development/start.mjs'
 import { developmentBranding } from './scripts/desktop-development/branding.mjs'
 import type { ChildProcess } from 'node:child_process'
+import { buildOutputPaths } from './scripts/build/output-paths.mjs'
 
 const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
   ? 'electron/updateSimulationMain.ts'
@@ -18,6 +19,7 @@ const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
+  const outputs = buildOutputPaths(__dirname, command === 'build' ? process.env : {})
   const development = createDevelopmentStarter({
     prepare: prepareDevelopmentShell,
     child: () => (process as NodeJS.Process & { electronApp?: ChildProcess }).electronApp,
@@ -25,7 +27,8 @@ export default defineConfig(({ command }) => {
     report: error => console.error('Termous Dev 启动或重载失败：', error),
   })
   return {
-  cacheDir: path.resolve(__dirname, '../TEMP/vite'),
+  ...(!outputs.managed ? { cacheDir: path.resolve(__dirname, '../TEMP/vite') } : {}),
+  build: { outDir: outputs.renderer, emptyOutDir: !outputs.managed },
   plugins: [
     react(),
     developmentBranding(),
@@ -41,13 +44,18 @@ export default defineConfig(({ command }) => {
     electron([
       {
         entry: electronMainEntry,
-        vite: { define: { __TERMOUS_DESKTOP_CHANNEL__: JSON.stringify(command === 'serve' ? 'development' : 'production') } },
+        vite: {
+          define: { __TERMOUS_DESKTOP_CHANNEL__: JSON.stringify(command === 'serve' ? 'development' : 'production') },
+          build: { outDir: outputs.electron, emptyOutDir: false },
+        },
         onstart: context => development.run(context, true),
       },
       {
         onstart: context => development.run(context),
         vite: {
           build: {
+            outDir: outputs.electron,
+            emptyOutDir: false,
             rolldownOptions: {
               platform: 'node',
               input: {
@@ -70,6 +78,8 @@ export default defineConfig(({ command }) => {
         onstart: context => development.run(context),
         vite: {
           build: {
+            outDir: outputs.electron,
+            emptyOutDir: false,
             // 沙箱 preload 不能 require 本地共享 chunk，使用单独构建确保入口自包含。
             rolldownOptions: {
               input: { [entry]: path.join(__dirname, `electron/${entry}.ts`) },

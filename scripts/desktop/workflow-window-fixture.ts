@@ -33,6 +33,7 @@ export function createWorkflowWindowFixture({ history = false } = {}) {
     region: { x: 0, y: 0, width: 1280, height: 720 }, width: 1280, height: 720, captured_at: now }
   const missing = async (): Promise<never> => { throw new Error('此合成数据夹具不支持该操作') }
   const gateway: WorkflowGateway = {
+    analyze: missing, analysisImage: missing, deleteAnalysis: missing,
     list: async () => [structuredClone(script)], listRuns: async () => structuredClone(runs),
     get: async () => ({ script: structuredClone(script), version: { script_id: script.id, number: script.revision, definition: structuredClone(definition), created_at: now } }),
     save: async (_id, value) => { definition = structuredClone(value.definition); script = { ...script, ...value, revision: script.revision + 1 }; versions.unshift({ script_id: script.id, number: script.revision, definition: structuredClone(definition), created_at: now }); return structuredClone(script) },

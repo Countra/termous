@@ -1,6 +1,8 @@
 import type { Asset, Definition, Diagnostic, ImageTarget, Located, Preview, Run, SaveInput, Script, Snapshot, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
+import type { ScreenAnalysis } from '#entities/desktop-workflow'
 import { TermousApiError, TermousApiTransport } from '#shared/api'
+import { analysisRequestTimeout } from '../config/analysis'
 
 const scripts = '/api/v1/desktop-workflows'
 const runs = '/api/v1/desktop-workflow-runs'
@@ -9,6 +11,9 @@ const assets = '/api/v1/desktop-workflow-assets'
 const key = encodeURIComponent
 
 export class WorkflowClient extends TermousApiTransport implements WorkflowGateway {
+  analyze(id: string, signal?: AbortSignal) { return this.request<ScreenAnalysis>(`${previews}/${key(id)}/analyses`, { method: 'POST', signal, timeoutMs: analysisRequestTimeout }) }
+  analysisImage(id: string, analysisID: string, kind: 'original' | 'annotated', signal?: AbortSignal) { return this.requestBlob(`${previews}/${key(id)}/analyses/${key(analysisID)}/images/${kind}`, { signal }) }
+  deleteAnalysis(id: string, analysisID: string) { return this.request<void>(`${previews}/${key(id)}/analyses/${key(analysisID)}`, { method: 'DELETE' }) }
   list(signal?: AbortSignal) { return this.request<Script[]>(scripts, { signal }) }
   get(id: string) { return this.request<{ script: Script; version: Version }>(`${scripts}/${key(id)}`) }
   save(id: string | undefined, input: SaveInput) { return this.request<Script>(id ? `${scripts}/${key(id)}` : scripts, { method: id ? 'PUT' : 'POST', body: input }) }

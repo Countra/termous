@@ -40,7 +40,7 @@ it('操作失败与交接失败分别提示，刷新只同步状态和输入回�
     expect(view.getByRole('alert')).toHaveTextContent('agent.window.operationFailed')
     expect(view.getByRole('alert')).not.toHaveTextContent('agent.window.failed')
     sent.length = 0
-    fireEvent.click(view.getByRole('button', { name: 'app.refresh' }))
+    fireEvent.click(view.getByRole('button', { name: 'app.reload' }))
     await waitFor(() => expect(sent.some(packet => packet.operation === 'snapshot')).toBe(true))
     expect(sent.some(packet => packet.operation === 'command')).toBe(false)
     expect(flush).toHaveBeenCalledOnce()

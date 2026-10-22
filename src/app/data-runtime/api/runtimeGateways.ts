@@ -1,4 +1,6 @@
 import { NotificationClient } from './gateways/notificationClient'
+import { AIRuntimeClient } from './gateways/aiRuntimeClient'
+import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import { CloudClient } from './gateways/cloudClient'
 import type { CloudGateway } from '#entities/cloud'
 import type { NotificationGateway } from '#entities/notification'
@@ -51,6 +53,7 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly aiRuntime: AIRuntimeGateway
   readonly invalidateFileRenamePresets: () => void
   readonly cloud: CloudGateway
   readonly notifications: NotificationGateway
@@ -119,6 +122,7 @@ export function createRuntimeGatewaysFromConfig(
   const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
+    aiRuntime: new AIRuntimeClient(config),
     desktopWorkflow: new WorkflowClient(config),
     cloud: new CloudClient(config),
     invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),

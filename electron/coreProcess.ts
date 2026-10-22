@@ -213,6 +213,21 @@ export class CoreProcessManager {
     this.shutdownPreparing = true
     const child = this.child
     const result = await awaitCoreShutdown({
+      maintenance: async () => {
+        const headers = { 'X-Termous-Token': this.config.apiToken }
+        const response = await this.fetchWithTimeout('/api/v1/ai-service/runtime', { headers })
+        if (response.status === 404 || response.status === 503) return false
+        if (!response.ok) throw new Error('runtime_status_unavailable')
+        const value = await response.json() as { task?: { id: string; phase: string; cancellable: boolean } }
+        const task = value.task
+        if (!task || ['complete', 'failed', 'cancelled'].includes(task.phase)) return false
+        if (task.cancellable) {
+          const cancelled = await this.fetchWithTimeout(`/api/v1/ai-service/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE', headers })
+          // 取消与进入写入阶段可能并发；冲突时继续等待，其他错误不能无限轮询。
+          if (!cancelled.ok && cancelled.status !== 404 && cancelled.status !== 409) throw new Error('runtime_cancel_failed')
+        }
+        return true
+      },
       request: async () => (await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
         method: 'POST',
         headers: {

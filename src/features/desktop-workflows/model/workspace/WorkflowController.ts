@@ -18,6 +18,8 @@ export class WorkflowController {
   readonly execution: WorkflowExecution
   reload = () => {}
   onViewDesktop: (id: string) => void | Promise<void> = () => {}
+  runtimeStatus?: WorkflowMediaGateway['runtimeStatus']
+  onRuntimeSettings?: () => Promise<void>
 
   constructor(private readonly gateway: WorkflowGateway) {
     this.execution = new WorkflowExecution(gateway, run => { this.update({ selectedRun: run.id, view: 'runs' }); this.reload() })
@@ -25,6 +27,9 @@ export class WorkflowController {
     this.snapshot = this.project()
   }
   readonly media: WorkflowMediaGateway = {
+    runtimeStatus: async () => this.runtimeStatus?.() ?? {},
+    openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
+    analyze: (...args) => this.gateway.analyze(...args), analysisImage: (...args) => this.gateway.analysisImage(...args), deleteAnalysis: (...args) => this.gateway.deleteAnalysis(...args),
     openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
     capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
     upload: blob => {

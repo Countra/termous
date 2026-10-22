@@ -1,4 +1,5 @@
 import { SettingsGatewayContext, type SettingsEditor, type SettingsGateway } from '#entities/settings'
+import { AIRuntimeGatewayContext, type AIRuntimeGateway } from '#entities/ai-runtime'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useLayoutEffect, useState, type ReactNode } from 'react'
 import { ConfirmDialog, SettingsSaveBar } from '#shared/ui'
@@ -43,6 +44,7 @@ import styles from './SettingsWorkspace.module.scss'
 import { settingsPages, type SettingsPageTabKey } from '../model/registry'
 
 export interface SettingsWorkspaceProps {
+  aiRuntimeGateway?: AIRuntimeGateway
   settingsGateway?: SettingsGateway
   onDirtyChange?: (dirty: boolean) => void
   onBusyChange?: (busy: boolean) => void
@@ -77,6 +79,7 @@ export interface SettingsWorkspaceProps {
 }
 
 export function SettingsWorkspace({
+  aiRuntimeGateway,
   settingsGateway,
   initialTab = 'general',
   onDirtyChange,
@@ -235,6 +238,7 @@ export function SettingsWorkspace({
 
   return (
     <SettingsGatewayContext.Provider value={settingsGateway ?? null}>
+      <AIRuntimeGatewayContext value={aiRuntimeGateway ?? null}>
       <section className={styles.workspace} data-tour="settings-workspace">
         <SettingsNavigation active={activeTab} disabled={busy} onSelect={selectTab} />
         <div className={styles.canvas}>
@@ -261,6 +265,7 @@ export function SettingsWorkspace({
             setPendingTab(null)
           }} />
       </section>
+      </AIRuntimeGatewayContext>
     </SettingsGatewayContext.Provider>
   )
 }

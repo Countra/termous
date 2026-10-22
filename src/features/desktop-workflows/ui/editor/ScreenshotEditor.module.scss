@@ -9,6 +9,10 @@
   flex-direction: column;
 }
 
+.screen-panel[data-analysis='true'] {
+  overflow-y: auto;
+}
+
 .screen-toolbar, .screen-tools, .screen-footer {
   display: flex;
   min-width: 0;

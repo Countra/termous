@@ -100,6 +100,9 @@
     ${NSD_GetState} $TermousPathEntryCheckbox $TermousPathEntry
   FunctionEnd
   !macro customInstall
+    !ifmacrodef termousRuntimeInstall
+      !insertmacro termousRuntimeInstall
+    !endif
     !insertmacro termousWriteInstallDiscovery
     ${If} $TermousDesktopShortcut == ${BST_CHECKED}
       !insertmacro termousCreateDesktopShortcut
@@ -161,6 +164,9 @@
 
 ; 成功回调不新增卸载 Section，避免安装器自动显示组件选择页。
 !macro customHeader
+  !ifmacrodef termousRuntimeHeader
+    !insertmacro termousRuntimeHeader
+  !endif
   !ifdef BUILD_UNINSTALLER
     Function un.onUninstSuccess
       !insertmacro termousRemoveInstallDiscovery
