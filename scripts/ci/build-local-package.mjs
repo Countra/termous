@@ -222,7 +222,7 @@ export async function validatePackageArtifacts({
 
 export async function runLocalPackage(options) {
   if (!options.verifyOnly) {
-    throw new Error('完整打包请使用 termous-buildtools，或 pnpm run build；需要有效的准备产物记录。')
+    throw new Error('此入口仅支持校验已有打包产物；完整构建请使用 termous-buildtools，或 pnpm run build。')
   }
   const webDirectory = path.resolve(options.webDirectory ?? defaultWebDirectory)
   const packageJson = await readPackageJson(webDirectory)
@@ -515,7 +515,7 @@ async function validateManifest(manifest, expectation) {
   for (const payloadName of expectation.payloadNames) {
     const entry = files.get(payloadName)
     if (!entry) {
-      throw new Error(`${expectation.name} 未引用更新载荷: ${payloadName}`)
+      throw new Error(`${expectation.name} 未引用更新文件: ${payloadName}`)
     }
     const digest = await hashRegularFile(
       path.join(expectation.outputDirectory, payloadName),

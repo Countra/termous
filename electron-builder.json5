@@ -137,6 +137,7 @@
   "mac": {
     "identity": null,
     "notarize": false,
+    "minimumSystemVersion": "13.0",
     "target": [
       "dmg",
       "zip"

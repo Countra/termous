@@ -38,6 +38,7 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     publishAutoUpdate: true,
   }])
   assert.deepEqual(config.mac.target, ['dmg', 'zip'])
+  assert.equal(config.mac.minimumSystemVersion, '13.0')
   assert.equal(config.mac.identity, null)
   assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)

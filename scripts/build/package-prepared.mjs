@@ -18,13 +18,13 @@ export function preparedAppFiles(layout) {
 }
 
 export function validateLayout(layout) {
-  if (layout.schema_version !== 1 || !['windows-x64', 'linux-x64', 'macos-arm64'].includes(layout.target)) throw new Error('准备产物协议或平台不支持')
-  requireReleaseVersion(layout.version, '准备产物版本')
-  if (path.resolve(layout.web_directory) !== path.resolve(webDirectory)) throw new Error('准备产物的 Web 归属不匹配')
-  if (!Array.isArray(layout.app_files) || layout.app_files.length === 0) throw new Error('准备产物缺少应用文件')
+  if (layout.schema_version !== 1 || !['windows-x64', 'linux-x64', 'macos-arm64'].includes(layout.target)) throw new Error('不支持打包文件清单中的格式版本或目标平台')
+  requireReleaseVersion(layout.version, '打包文件清单中的应用版本')
+  if (path.resolve(layout.web_directory) !== path.resolve(webDirectory)) throw new Error('打包文件清单中的 Web 源码目录与当前仓库不匹配')
+  if (!Array.isArray(layout.app_files) || layout.app_files.length === 0) throw new Error('打包文件清单缺少应用文件配置')
   for (const entry of layout.app_files) {
     if (!entry || !Array.isArray(entry.filter) || entry.filter.some(value => typeof value !== 'string')) {
-      throw new Error('准备产物的文件过滤规则不合法')
+      throw new Error('打包文件清单中的文件过滤规则不合法')
     }
     requireManagedPath(layout.root, entry.from)
   }

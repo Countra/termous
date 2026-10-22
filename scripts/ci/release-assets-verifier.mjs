@@ -53,7 +53,7 @@ function validateReleaseMetadata(release, { tag, version }) {
     );
   }
   if (release.draft !== true) {
-    throw new Error("Release 必须保持 Draft，才能执行公开前门禁");
+    throw new Error("Release 必须保持 Draft（草稿）状态，才能执行发布前校验");
   }
   if (release.prerelease !== expectedPrerelease(version)) {
     throw new Error("Release prerelease 标志与版本不一致");
