@@ -5402,6 +5402,10 @@
     "tabRemoteDesktop": "远程桌面",
     "rdpSettings": "连接与会话",
     "aiRuntime": {
+      "serviceShortStates": { "starting": "启动中", "idle": "待预热", "loading": "加载中", "warming": "预热中", "ready": "已就绪", "busy": "分析中", "disconnected": "重连中", "maintenance": "维护中", "stopping": "停止中", "failed": "未就绪", "unavailable": "暂不可用" },
+      "serviceStates": { "starting": "正在启动服务并检测环境…", "idle": "环境已就绪，打开截图编辑器后预热模型", "loading": "正在加载模型…", "warming": "正在预热模型…", "ready": "模型已就绪", "busy": "正在分析画面…", "disconnected": "服务未连接，正在重连…", "maintenance": "正在维护推理环境…", "stopping": "服务正在停止", "failed": "推理准备失败", "unavailable": "服务状态暂不可用" },
+      "preparationFailed": "预热请求未完成，可点击分析画面重试",
+      "serviceFailed": "请检查 AI 服务日志、模型与运行环境，修复后重启服务。其他功能可继续使用。",
       "cpuDescription": "当前平台随应用提供 CPU 推理环境。",
       "title": "画面分析加速", "cpu": "使用 CPU", "gpu": "使用 NVIDIA GPU", "unknown": "推理设备待确认",
       "description": "CPU 分析可离线使用。GPU 组件需额外下载约 {{size}} GiB，安装后替换现有组件。",

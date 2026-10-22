@@ -80,6 +80,7 @@ export class WorkflowRemoteAdapter {
   }
   readonly media: WorkflowMediaGateway = {
     runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
+    warmupRuntime: async () => { await this.mediaRequest({ kind: 'runtime-warmup' }) },
     openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },
     analyze: async (id, signal) => {
       signal?.throwIfAborted()

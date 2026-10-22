@@ -57,9 +57,9 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
     return () => window.removeEventListener('beforeunload', handler)
   }, [controller])
   useLayoutEffect(() => {
+    controller.warmupRuntime = () => aiRuntimeGateway?.warmup() ?? Promise.resolve()
     controller.runtimeStatus = async () => {
-      const value = await aiRuntimeGateway?.status()
-      return { service: value?.service }
+      return { service: await aiRuntimeGateway?.serviceStatus() }
     }
     controller.onRuntimeSettings = async () => { await reveal(); await onOpenAnalysisSettings?.() }
     controller.reload = () => { void reload() }; controller.onViewDesktop = async id => { await reveal(); await onViewDesktop(id) }

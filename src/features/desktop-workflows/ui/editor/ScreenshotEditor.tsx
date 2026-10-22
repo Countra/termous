@@ -161,7 +161,7 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
       <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => { analysis.clear(); void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } }) }} /></Tooltip>
       <Button size="small" icon={<ScanSearch size={14} />} disabled={!preview || busy} onClick={analysis.analyze}>{t('desktopWorkflow.analysis.analyze')}</Button>
-      <AnalysisRuntimeStatus gateway={gateway} onError={setError} />
+      <AnalysisRuntimeStatus gateway={gateway} active={enabled && !!preview} onError={setError} />
     </header>
     {session && !generation && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
     {error != null && <Alert type="error" title={workflowError(error, t)} closable onClose={() => setError(undefined)} action={<Button size="small" disabled={busy || !session} onClick={() => setPreviewRevision((v) => v + 1)}>{t('desktopWorkflow.refresh')}</Button>} />}

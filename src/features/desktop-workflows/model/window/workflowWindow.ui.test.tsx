@@ -10,8 +10,11 @@ const connection = { module: 'desktop-workflow', instance: 'workspace', generati
 it('独立窗口接收宿主提供的真实推理设备，不依赖组件检查记录', async () => {
   const { controller } = fixture()
   controller.runtimeStatus = async () => ({ service: { state: 'ready', device: 'cuda' } })
+  controller.warmupRuntime = vi.fn().mockResolvedValue(undefined)
   const media = new WorkflowMediaHost(controller.media, controller)
   expect(await media.handle({ kind: 'runtime-status' })).toEqual({ service: { state: 'ready', device: 'cuda' } })
+  await media.handle({ kind: 'runtime-warmup' })
+  expect(controller.warmupRuntime).toHaveBeenCalledTimes(1)
   controller.dispose()
 })
 

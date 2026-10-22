@@ -22,6 +22,7 @@ export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' |
 export type WorkflowProfile = Pick<RemoteDesktopAccessProfile, 'id' | 'name' | 'protocol'>
 export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset' | 'analyze' | 'analysisImage' | 'deleteAnalysis'> & {
   runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
+  warmupRuntime?: () => Promise<void>
   openRuntimeSettings?: () => Promise<void>
 }
 export interface WorkflowLaunch {

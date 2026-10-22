@@ -5428,6 +5428,10 @@
     "tabRemoteDesktop": "Remote desktop",
     "rdpSettings": "Connection & sessions",
     "aiRuntime": {
+      "serviceShortStates": { "starting": "Starting", "idle": "Not warmed up", "loading": "Loading", "warming": "Warming up", "ready": "Ready", "busy": "Analyzing", "disconnected": "Reconnecting", "maintenance": "Maintenance", "stopping": "Stopping", "failed": "Not ready", "unavailable": "Unavailable" },
+      "serviceStates": { "starting": "Starting service and detecting environment…", "idle": "Environment ready; opening the screenshot editor warms up models", "loading": "Loading models…", "warming": "Warming up models…", "ready": "Models ready", "busy": "Analyzing screen…", "disconnected": "Service disconnected; reconnecting…", "maintenance": "Maintaining inference environment…", "stopping": "Service stopping", "failed": "Inference preparation failed", "unavailable": "Service status unavailable" },
+      "preparationFailed": "Warmup request failed; click Analyze screen to retry",
+      "serviceFailed": "Check AI service logs, models and runtime, then restart the service after resolving the issue. Other features remain available.",
       "cpuDescription": "This platform includes the CPU inference runtime.",
       "title": "Screen analysis acceleration", "cpu": "Using CPU", "gpu": "Using NVIDIA GPU", "unknown": "Inference device not confirmed",
       "description": "CPU analysis works offline. GPU components require about {{size}} GiB and replace the installed components.",

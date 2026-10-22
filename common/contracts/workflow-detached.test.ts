@@ -24,6 +24,8 @@ test('自动化独立窗口拒绝未知命令、非法输入序号和额外草�
 })
 
 test('自动化媒体只接受有界图片与指定的预览操作', () => {
+  assert(isWorkflowDetachedMedia({ kind: 'runtime-warmup' }))
+  assert(!isWorkflowDetachedMedia({ kind: 'runtime-warmup', endpoint: 'http://example.invalid' }))
   assert(isWorkflowDetachedMedia({ kind: 'upload', bytes: new ArrayBuffer(10), type: 'image/png' }))
   assert(!isWorkflowDetachedMedia({ kind: 'upload', bytes: new ArrayBuffer(8 * 1024 * 1024 + 1), type: 'image/png' }))
   assert(!isWorkflowDetachedMedia({ kind: 'upload', bytes: new ArrayBuffer(1), type: 'text/plain' }))

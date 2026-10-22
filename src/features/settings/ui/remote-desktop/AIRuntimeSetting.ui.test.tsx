@@ -13,7 +13,7 @@ describe('画面分析组件设置', () => {
   it('CPU 平台保持可用状态并隐藏不支持的 GPU 维护操作', async () => {
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state,
       capabilities: { gpu_install: false, gpu_check: false }, device: { name: '', driver: 0, eligible: false },
-      service: { state: 'ready', device: 'cpu' } }), download: vi.fn(), cancel: vi.fn(), check: vi.fn() }
+      service: { state: 'ready', device: 'cpu' } }), download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
     render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
     await screen.findByText('settings.aiRuntime.cpu')
     expect(screen.getByText('settings.aiRuntime.cpuDescription')).toBeInTheDocument()
@@ -23,24 +23,28 @@ describe('画面分析组件设置', () => {
   })
 
   it.each([
+    { service: { state: 'idle', device: 'cuda' }, label: 'gpu' },
+    { service: { state: 'loading', device: 'cpu' }, label: 'cpu' },
+    { service: { state: 'warming', device: 'cuda' }, label: 'gpu' },
     { service: { state: 'ready', device: 'cuda' }, label: 'gpu' },
     { service: { state: 'busy', device: 'cpu' }, label: 'cpu' },
     { service: { state: 'not_started' }, label: 'unknown' },
     { service: { state: 'failed', device: 'cuda' }, label: 'unknown' },
   ])('开发环境按实际服务显示设备：$label / $service.state', async ({ service, label }) => {
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, managed: false,
-      state: 'development', profile: '', service }), download: vi.fn(), cancel: vi.fn(), check: vi.fn() }
+      state: 'development', profile: '', service }), download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
     render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
     await waitFor(() => expect(screen.getByText(`settings.aiRuntime.${label}`)).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'settings.aiRuntime.download' })).toBeDisabled()
     if (label !== 'cpu') expect(screen.queryByText('settings.aiRuntime.cpu')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.aiRuntime.ready')).not.toBeInTheDocument()
+    expect(gateway.warmup).not.toHaveBeenCalled()
   })
 
   it('历史 GPU 检查通过不能覆盖当前 CPU 服务的实际设备', async () => {
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue({ ...state, profile: 'cuda',
       check: { cpu_available: true, gpu_available: true, device: 'cuda' }, service: { state: 'ready', device: 'cpu' } }),
-      download: vi.fn(), cancel: vi.fn(), check: vi.fn() }
+      download: vi.fn(), cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
     render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
     await screen.findByText('settings.aiRuntime.cpu')
     expect(screen.queryByText('settings.aiRuntime.gpu')).not.toBeInTheDocument()
@@ -50,7 +54,7 @@ describe('画面分析组件设置', () => {
     const installing = { id: 'one', phase: 'installing' as const, downloaded: 100, total: 100, cancellable: false }
     const gateway: AIRuntimeGateway = { status: vi.fn().mockResolvedValue(state),
       download: vi.fn(async () => { vi.mocked(gateway.status).mockResolvedValue({ ...state, task: installing }); return installing }),
-      cancel: vi.fn(), check: vi.fn() }
+      cancel: vi.fn(), check: vi.fn(), warmup: vi.fn(), serviceStatus: vi.fn() }
     render(<AIRuntimeGatewayContext value={gateway}><AIRuntimeSetting disabled={false} /></AIRuntimeGatewayContext>)
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.aiRuntime.download' })).toBeEnabled())
     await userEvent.click(screen.getByRole('button', { name: 'settings.aiRuntime.download' }))

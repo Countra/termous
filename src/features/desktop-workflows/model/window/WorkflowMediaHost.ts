@@ -25,6 +25,7 @@ export class WorkflowMediaHost {
   async handle(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) throw new Error('workflow_media_invalid')
     if (payload.kind === 'runtime-status') return this.gateway.runtimeStatus?.() ?? {}
+    if (payload.kind === 'runtime-warmup') return this.gateway.warmupRuntime?.()
     if (payload.kind === 'runtime-settings') return this.gateway.openRuntimeSettings?.()
     const epoch = this.epoch
     if (payload.kind === 'open') {

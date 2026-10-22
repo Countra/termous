@@ -10,6 +10,10 @@ export interface AIServiceStatus {
   state: string
   device?: string
   error?: string
+  instance_id?: string
+  device_name?: string
+  torch_variant?: 'cpu' | 'cuda'
+  cuda_available?: boolean
 }
 export interface AIRuntimeStatus {
   capabilities: { gpu_install: boolean; gpu_check: boolean }
@@ -24,6 +28,8 @@ export interface AIRuntimeStatus {
   service?: AIServiceStatus
 }
 export interface AIRuntimeGateway {
+  serviceStatus(signal?: AbortSignal): Promise<AIServiceStatus>
+  warmup(): Promise<void>
   status(signal?: AbortSignal): Promise<AIRuntimeStatus>
   download(): Promise<AIRuntimeTask>
   cancel(id: string): Promise<void>

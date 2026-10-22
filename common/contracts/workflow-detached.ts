@@ -20,6 +20,7 @@ export const workflowDetachedInputs = ['change', 'selectStep', 'target', 'view',
 export const workflowMediaLimit = 32 * 1024 * 1024
 export type WorkflowDetachedMedia =
   | { kind: 'runtime-status' }
+  | { kind: 'runtime-warmup' }
   | { kind: 'runtime-settings' }
   | { kind: 'analyze' | 'analysis-cancel'; id: string; requestID: string }
   | { kind: 'analysis-image'; id: string; analysisID: string; image: 'original' | 'annotated' }
@@ -91,7 +92,7 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
 
 export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetachedMedia {
   if (!record(value)) return false
-  if (value.kind === 'runtime-status' || value.kind === 'runtime-settings') return fields(value, ['kind'])
+  if (value.kind === 'runtime-status' || value.kind === 'runtime-settings' || value.kind === 'runtime-warmup') return fields(value, ['kind'])
   if (value.kind === 'analyze' || value.kind === 'analysis-cancel') return id(value.id) && id(value.requestID)
   if (value.kind === 'analysis-image') return id(value.id) && id(value.analysisID) && ['original', 'annotated'].includes(String(value.image))
   if (value.kind === 'analysis-delete') return id(value.id) && id(value.analysisID)

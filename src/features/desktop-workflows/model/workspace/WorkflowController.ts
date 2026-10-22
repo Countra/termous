@@ -19,6 +19,7 @@ export class WorkflowController {
   reload = () => {}
   onViewDesktop: (id: string) => void | Promise<void> = () => {}
   runtimeStatus?: WorkflowMediaGateway['runtimeStatus']
+  warmupRuntime?: WorkflowMediaGateway['warmupRuntime']
   onRuntimeSettings?: () => Promise<void>
 
   constructor(private readonly gateway: WorkflowGateway) {
@@ -28,6 +29,7 @@ export class WorkflowController {
   }
   readonly media: WorkflowMediaGateway = {
     runtimeStatus: async () => this.runtimeStatus?.() ?? {},
+    warmupRuntime: async () => { await this.warmupRuntime?.() },
     openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
     analyze: (...args) => this.gateway.analyze(...args), analysisImage: (...args) => this.gateway.analysisImage(...args), deleteAnalysis: (...args) => this.gateway.deleteAnalysis(...args),
     openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),

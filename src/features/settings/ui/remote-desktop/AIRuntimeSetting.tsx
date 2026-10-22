@@ -2,7 +2,7 @@ import { Alert, Button, Progress, Space } from 'antd'
 import { Cpu } from 'lucide-react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { analysisDevice, useAIRuntime } from '#entities/ai-runtime'
+import { analysisDevice, analysisPhase, useAIRuntime } from '#entities/ai-runtime'
 import { SettingsField, SettingsGroup } from '../controls/SettingsGroup'
 import styles from '../controls/SettingsGroup.module.scss'
 
@@ -26,7 +26,9 @@ export function AIRuntimeSetting({ disabled }: { disabled: boolean }) {
         {status?.capabilities?.gpu_check && status.profile === 'cuda' && <Button id={id} aria-label={t('settings.aiRuntime.check')} disabled={locked} onClick={() => void act('check')}>{t('settings.aiRuntime.check')}</Button>}
         {active && <Button disabled={pending || !task?.cancellable} onClick={() => void act('cancel')}>{t('app.cancel')}</Button>}
       </Space>}>
-      {status?.device.name && <p className={styles.hint}>{status.device.name}</p>}
+      <p className={styles.hint} role="status">{t(`settings.aiRuntime.serviceStates.${analysisPhase(error ? undefined : status?.service)}`)}</p>
+      {(status?.service?.device_name || status?.device.name) && <p className={styles.hint}>{status?.service?.device_name || status?.device.name}</p>}
+      {status?.service?.state === 'failed' && <Alert type="error" title={t('settings.aiRuntime.serviceFailed')} />}
       {status?.state === 'development' && <p className={styles.hint}>{t('settings.aiRuntime.development')}</p>}
       {status?.capabilities?.gpu_install && !status.device.eligible && <p className={styles.hint}>{t('settings.aiRuntime.requirements')}</p>}
       {active && task && <div role="status" aria-live="polite">
