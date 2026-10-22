@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ConfigProvider } from 'antd'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { FileOperationTask } from '#entities/file'
 import { TermousApiError } from '#shared/api'
 import type { FileOperationGateway } from '../model/fileOperationGateway'
+import { FileOperationWebSocket } from '../../../test/fileOperationWebSocket'
 import { FileDeleteOperationModal } from './FileDeleteOperationModal'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -30,7 +31,15 @@ function setup() {
   return { api, onStart, onFinished, onClose, view }
 }
 
-afterEach(() => { vi.useRealTimers() })
+beforeEach(() => {
+  FileOperationWebSocket.instances = []
+  vi.stubGlobal('WebSocket', FileOperationWebSocket)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 it('等待超过请求期限并恢复查询连接，不重复提交或误报任务失败', async () => {
   vi.useFakeTimers()

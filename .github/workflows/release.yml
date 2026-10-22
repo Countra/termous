@@ -226,6 +226,7 @@ jobs:
         shell: bash
         env:
           TARGET_PLATFORM: ${{ matrix.platform }}
+          TERMOUS_ELECTRON_ACCEPTANCE_NO_SANDBOX: ${{ matrix.platform == 'linux' && '1' || '0' }}
           TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
         run: |
           args=(termous-buildtools/build.py build --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)

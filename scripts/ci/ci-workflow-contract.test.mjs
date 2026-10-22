@@ -37,6 +37,20 @@ test('CI 保持只读且不消费发布凭据或上传构建产物', async () =>
   }
 })
 
+test('CI 与 Release 仅在 Linux 构建步骤显式配置 Worker 隔离验收', async () => {
+  for (const name of ['ci', 'release']) {
+    const workflow = await load(`workflows/${name}.yml`)
+    const configured = Object.values(workflow.jobs).flatMap(job => job.steps ?? [])
+      .filter(step => step.env?.TERMOUS_ELECTRON_ACCEPTANCE_NO_SANDBOX !== undefined)
+    assert.equal(configured.length, 1)
+    assert.match(configured[0].run, /build\.py build/)
+    assert.match(configured[0].run, /xvfb-run/)
+    assert.equal(configured[0].env.TERMOUS_ELECTRON_ACCEPTANCE_NO_SANDBOX,
+      "${{ matrix.platform == 'linux' && '1' || '0' }}")
+    assert.doesNotMatch(JSON.stringify(workflow.env ?? {}), /ACCEPTANCE_NO_SANDBOX/)
+  }
+})
+
 test('工具准备在固定源码检出后读取版本，Git 令牌不流入编译工具', async () => {
   const action = await load('actions/buildtoolchain/action.yml')
   const steps = action.runs.steps
