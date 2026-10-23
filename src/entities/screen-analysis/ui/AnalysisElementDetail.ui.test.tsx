@@ -8,11 +8,11 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const text = { text: 'Save', text_offset: 0, text_length: 4, text_truncated: false }
 
 test('文字段展示自身中心，新增坐标不把文字段误当父元素开放应用操作', async () => {
-  const span: AnalysisSpanView = { ...text, id: 2, element_id: 9, text_confidence: .9, bbox_xyxy: [100, 200, 260, 240], center_xy: [180, 220] }
+  const span: AnalysisSpanView = { ...text, id: 2, element_id: 9, text_confidence: .9, bbox_xyxy: [100, 200, 260, 240], center_xy: [179, 219] }
   const gateway = { analysisSpan: vi.fn(async () => span), analysisSpans: vi.fn() } as unknown as AnalysisGateway
   const apply = vi.fn()
   render(<AnalysisElementDetail gateway={gateway} id="analysis" selected={9} span={2} filter={{}} active canPoint canRegion onApply={apply} onError={vi.fn()} />)
-  expect(await screen.findByText('desktopWorkflow.analysis.center: 180, 220')).toBeInTheDocument()
+  expect(await screen.findByText('desktopWorkflow.analysis.center: 179, 219')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'desktopWorkflow.analysis.usePoint' })).not.toBeInTheDocument()
   expect(gateway.analysisSpans).not.toHaveBeenCalled()
   expect(apply).not.toHaveBeenCalled()

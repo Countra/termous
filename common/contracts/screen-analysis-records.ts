@@ -7,7 +7,7 @@ export interface AnalysisElement {
 }
 export interface AnalysisText {
   element_id: number; text: string; text_confidence: number
-  bbox_xyxy: [number, number, number, number]; polygon_xy: [number, number][]
+  bbox_xyxy: [number, number, number, number]; center_xy: [number, number]; polygon_xy: [number, number][]
 }
 export interface AnalysisSummary {
   element_count: number; region_count: number; text_count: number; ocr_span_count: number
@@ -20,7 +20,8 @@ export interface AnalysisDiagnostics {
   ocr_spans: AnalysisText[] | null
 }
 export interface AnalysisResult {
-  schema_version: 2; image: AnalysisImage; summary: AnalysisSummary; elements: AnalysisElement[]; diagnostics: AnalysisDiagnostics
+  schema_version: 2; image: AnalysisImage; summary: AnalysisSummary; elements: AnalysisElement[]
+  diagnostics: AnalysisDiagnostics & { ocr_spans: AnalysisText[] }
 }
 export interface AnalysisImage { width: number; height: number; coordinate_space: 'original_pixels' }
 export type AnalysisState = 'preparing' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelling' | 'cancelled' | 'interrupted'

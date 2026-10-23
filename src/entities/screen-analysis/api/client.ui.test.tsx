@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { ScreenAnalysisClient } from './client'
 import { analysisRemoteGateway, handleAnalysisMedia } from './bridge'
-import type { AnalysisGateway } from '#common/contracts'
+import type { AnalysisGateway, AnalysisText } from '#common/contracts'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -44,9 +44,13 @@ test('图片元数据缺失、所属记录不一致或坐标越界明确失败',
 })
 
 test('独立窗口转发 full 不调用提交接口', async () => {
-  const full = { id: 'analysis', schema_version: 2 }
+  const span: AnalysisText = { element_id: 9, text: 'Save', text_confidence: .9,
+    bbox_xyxy: [100, 200, 260, 240], center_xy: [179, 219], polygon_xy: [[100, 200], [260, 200], [260, 240], [100, 240]] }
+  const full = { id: 'analysis', schema_version: 2, result: { diagnostics: { ocr_spans: [span] } } }
   const gateway = { analysisFull: vi.fn().mockResolvedValue(full), submitAnalysis: vi.fn() } as unknown as AnalysisGateway
   const remote = analysisRemoteGateway(request => handleAnalysisMedia(gateway, request))
-  expect(await remote.analysisFull('analysis')).toBe(full)
+  const received = await remote.analysisFull('analysis')
+  expect(received).toBe(full)
+  expect(received.result.diagnostics.ocr_spans[0].center_xy).toEqual([179, 219])
   expect(gateway.submitAnalysis).not.toHaveBeenCalled()
 })
