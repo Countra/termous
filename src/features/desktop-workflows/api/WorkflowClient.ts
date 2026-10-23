@@ -2,6 +2,10 @@ import type { Asset, Definition, Diagnostic, ImageTarget, Located, Preview, Run,
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
 import { TermousApiError } from '#shared/api'
 import { ScreenAnalysisClient } from '#entities/screen-analysis'
+import type { OCRParameters, OCRPreview, OCRQuery, OCRReportPage } from '#entities/desktop-workflow'
+import type { SettingsSnapshot } from '#common/contracts'
+import { isWorkflowOCRQuery } from '#common/contracts'
+import { decodeOCRPreview } from './ocrResponse'
 
 const scripts = '/api/v1/desktop-workflows'
 const runs = '/api/v1/desktop-workflow-runs'
@@ -10,6 +14,23 @@ const assets = '/api/v1/desktop-workflow-assets'
 const key = encodeURIComponent
 
 export class WorkflowClient extends ScreenAnalysisClient implements WorkflowGateway {
+  async ocrDefaults(signal?: AbortSignal): Promise<OCRParameters> {
+    const saved = await this.request<SettingsSnapshot<OCRParameters>>('/api/v1/settings/screen_analysis', { signal })
+    const value = { text_confidence: saved.value.text_confidence, ocr_max_side: saved.value.ocr_max_side }
+    if (!isWorkflowOCRQuery(value)) throw new TermousApiError('文字识别设置无效', 'desktop_workflow_ocr_invalid', 0)
+    return value
+  }
+  async previewOCR(id: string, query: OCRQuery, signal?: AbortSignal): Promise<OCRPreview> {
+    let contentType = ''
+    const blob = await this.requestBlob(`${previews}/${key(id)}/ocr`, {
+      method: 'POST', body: query, signal, timeoutMs: 35_000,
+      onHeaders: headers => { contentType = headers.get('Content-Type') ?? '' },
+    })
+    return decodeOCRPreview(blob, contentType)
+  }
+  ocrReport(id: string, index: number, offset = 0, limit = 20, signal?: AbortSignal) {
+    return this.request<OCRReportPage>(`${runs}/${key(id)}/steps/${index}/ocr?offset=${offset}&limit=${limit}`, { signal })
+  }
   list(signal?: AbortSignal) { return this.request<Script[]>(scripts, { signal }) }
   get(id: string) { return this.request<{ script: Script; version: Version }>(`${scripts}/${key(id)}`) }
   save(id: string | undefined, input: SaveInput) { return this.request<Script>(id ? `${scripts}/${key(id)}` : scripts, { method: id ? 'PUT' : 'POST', body: input }) }

@@ -1,4 +1,26 @@
 {
+  "ocr": {
+    "text": "识别文字", "match": "匹配方式", "exact": "相等", "contains": "包含", "regex": "正则表达式",
+    "caseSensitive": "区分大小写", "whitespace": "规范化空白", "confidence": "文字置信度", "maxSide": "OCR 检测最长边",
+    "fixedParameters": "这些参数随脚本版本保存，不受之后全局设置修改影响。读取文字可留空，其他用途必须填写。",
+    "occurrence": "目标序号（从 1 开始）", "unique": "默认要求唯一", "target": "文字",
+    "targetHint": "包含和正则定位整段文字框；序号按空间顺序排列。识别文字不保证对应可点击控件。",
+    "interval": "采样间隔（毫秒）", "stable": "连续确认次数", "settingsFailed": "无法读取 OCR 默认设置，请重试后添加文字配置。",
+    "test": "测试 OCR", "preview": "文字观察", "matched": "匹配", "coordinates": "像素边界",
+    "scope": "识别范围", "scopeAll": "全屏", "scopeRegion": "指定区域",
+    "selectScope": "框选范围", "editScope": "修改范围", "cancelScope": "取消框选",
+    "drawScopeHint": "拖动框选后点击“应用区域”，再测试 OCR。",
+    "staleScope": "桌面尺寸已变化，请重新框选或恢复全屏。",
+    "previewHint": "范围可选；不框选时匹配全屏文字。测试只观察，不操作远端。",
+    "matchCount": "匹配 {{count}} 段文字", "matchedResults": "OCR 匹配结果",
+    "previewCounts": "全图识别 {{recognized}} 段；图与列表仅显示匹配结果，编号保持不变。",
+    "emptyMatches": "当前范围和文字条件下没有匹配结果", "useText": "使用此文字作为匹配条件",
+    "counts": "识别 {{recognized}} 段 · 匹配 {{matched}} 段", "samples": "采样 {{count}} 次",
+    "incomplete": "OCR 结果已截断，不能证明目标不存在或唯一。", "reportTruncated": "报告明细达到存储上限，统计仍是完整观察结果。",
+    "details": "查看 OCR 明细", "redacted": "查询绑定了敏感参数，仅保留统计，不保存文字正文及截图。",
+    "roles": {"condition":"文字条件","target":"起点目标","end_target":"终点目标"},
+    "anchors": {"top_left":"左上","top":"上中","top_right":"右上","left":"左中","center":"中心","right":"右中","bottom_left":"左下","bottom":"下中","bottom_right":"右下"}
+  },
   "analysis": {
     "bounds": "像素边界",
     "center": "中心点",
@@ -152,6 +174,7 @@
   "screenPreview": "桌面预览",
   "readonly": "只读",
   "stepGroups": {
+    "ocr": "文字识别",
     "pointer": "鼠标操作",
     "keyboard": "键盘与剪贴板",
     "image": "画面与识别",
@@ -323,6 +346,7 @@
   "validationFailed": "请完善以下项目",
   "closeValidation": "关闭校验提示",
   "kinds": {
+    "ocr_read": "读取文字", "ocr_wait": "等待文字", "ocr_assert": "文字断言",
     "pointer_move": "移动鼠标",
     "pointer_click": "点击",
     "pointer_scroll": "滚轮",
@@ -355,6 +379,14 @@
     "assertion_passed": "断言通过"
   },
   "errors": {
+    "desktop_workflow_ocr_invalid": "文字查询参数无效，请检查正则、范围和识别尺寸。",
+    "desktop_workflow_ocr_missing": "期限内未满足文字条件。",
+    "desktop_workflow_ocr_ambiguous": "匹配到多个文字目标，请缩小范围或指定空间序号。",
+    "desktop_workflow_ocr_incomplete": "识别结果截断，无法可靠判断不存在或定位目标。",
+    "desktop_workflow_ocr_unavailable": "OCR 推理服务不可用。",
+    "desktop_workflow_ocr_invalid_response": "OCR 服务返回了无效结果，本次观察已终止。",
+    "desktop_workflow_ocr_runtime_changed": "OCR 服务已重启，请重新运行。",
+    "desktop_workflow_ocr_target_stale": "目标区域持续变化，未派发鼠标操作。",
     "analysis_busy": "画面分析正在运行，请稍后重试。",
     "analysis_unavailable": "本地画面分析服务不可用，请检查 Python 环境和模型文件后重试。",
     "analysis_version_mismatch": "画面分析协议版本不匹配，请同步更新 Core、Python 和 Web",
@@ -432,6 +464,7 @@
     "boolean": "布尔值"
   },
   "phases": {
+    "preparing_ocr": "准备 OCR 模型",
     "waiting_approval": "等待审批",
     "connecting": "建立连接",
     "attaching": "准备执行端",
@@ -446,6 +479,7 @@
     "ambiguous": "多个匹配"
   },
   "fields": {
+    "ocr_text": "查询文字", "target_ocr_text": "起点目标文字", "end_target_ocr_text": "终点目标文字",
     "text": "文本",
     "code": "按键",
     "count": "点击次数",

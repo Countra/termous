@@ -21,7 +21,7 @@ export interface WorkflowPresentation {
 }
 export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' | 'protocol' | 'connection_generation' | 'status'>
 export type WorkflowProfile = Pick<RemoteDesktopAccessProfile, 'id' | 'name' | 'protocol'>
-export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset'> & AnalysisGateway & {
+export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset' | 'ocrDefaults' | 'previewOCR' | 'ocrReport'> & AnalysisGateway & {
   runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
   warmupRuntime?: () => Promise<void>
   openRuntimeSettings?: () => Promise<void>

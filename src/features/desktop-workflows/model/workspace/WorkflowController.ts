@@ -31,6 +31,7 @@ export class WorkflowController {
       warmupRuntime: async () => { await this.warmupRuntime?.() },
       openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
       ...bindAnalysisGateway(gateway),
+      ocrDefaults: (...args) => this.gateway.ocrDefaults(...args), previewOCR: (...args) => this.gateway.previewOCR(...args), ocrReport: (...args) => this.gateway.ocrReport(...args),
       openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
       capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
       upload: blob => {

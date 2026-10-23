@@ -21,6 +21,8 @@ import styles from './WorkflowWorkspace.module.scss'
 import overlays from './shared/WorkflowOverlays.module.scss'
 import { useWorkflowFeedback } from './shared/useWorkflowFeedback'
 import { AnalysisRuntimeStatus } from './shared/AnalysisRuntimeStatus'
+import { useOCRDefaults } from './editor/useOCRDefaults'
+import { newOCRQuery } from '../model/ocr'
 
 export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask, active = true, guided = false }: {
   model: WorkflowSurfaceModel; gateway: WorkflowMediaGateway; headerActions?: ReactNode; windowAction?: ReactNode; onMediaTask: (task: Promise<unknown>) => void
@@ -28,6 +30,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
 }) {
   const { t } = useTranslation(); const { modal, message } = App.useApp()
   useWorkflowFeedback(model)
+  const ocrDefaults = useOCRDefaults(gateway)
   const confirmations = useRef(new Set<ReturnType<typeof modal.confirm>>())
   useEffect(() => {
     const instances = confirmations.current
@@ -62,7 +65,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
     if (!dirty) { next(); return }
     confirm({ title: t('desktopWorkflow.unsavedTitle'), content: t('desktopWorkflow.unsavedDescription'), okText: t('desktopWorkflow.discard'), onOk: next })
   }
-  const change = actions.change
+  const change: typeof actions.change = patch => actions.change({...patch,...(patch.definition ? {definition:{...patch.definition,schema_version:2}} : {})})
   const changeStep = (value: Step) => {
     if (draft) change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, value.id, () => value) } })
   }
@@ -75,7 +78,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
   const openRun = actions.openRun
   const remove = () => confirm({ title: t('desktopWorkflow.deleteScript'), content: t('desktopWorkflow.deleteHint'), okButtonProps: { danger: true }, onOk: actions.remove })
   const showRun = actions.showRun
-  const properties = step && <StepProperties step={step} parameters={draft?.definition.parameters ?? []} onChange={changeStep} />
+  const properties = step && <StepProperties step={step} ocrDefaults={ocrDefaults.value} parameters={draft?.definition.parameters ?? []} onChange={changeStep} />
   const latest = model.scripts.find((item) => item.id === draft?.script?.id)
   const externallyUpdated = !!draft?.script && !!latest && latest.revision > draft.script.revision
   const activeCount = model.runs.filter((run) => isRunActive(run.state)).length
@@ -99,19 +102,20 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
       {view !== 'analyses' && compact && !catalogCollapsed && <button type="button" className={styles['catalog-mask']} aria-label={t('desktopWorkflow.collapseLibrary')} onClick={() => setCatalogPreference(true)} />}
       <main className={styles.main} inert={view !== 'analyses' && compact && !catalogCollapsed}>
         {view === 'scripts' ? draft ? <>
+          {ocrDefaults.error != null && <Alert type="warning" title={t('desktopWorkflow.ocr.settingsFailed')} action={<Button onClick={ocrDefaults.refresh}>{t('app.retry')}</Button>} />}
           {externallyUpdated && <Alert type="info" title={t('desktopWorkflow.externalUpdate')} description={t('desktopWorkflow.externalUpdateHint')} action={<Button size="small" disabled={busy} onClick={() => guard(() => void load(draft!.script!.id))}>{t('desktopWorkflow.loadLatest')}</Button>} />}
           <WorkflowEditorToolbar key={draft.editingID} name={draft.name} description={draft.description} tags={draft.tags} revision={draft.script?.revision} parameterCount={draft.definition.parameters.length} dirty={dirty} busy={busy} propertiesVisible={narrow ? propertiesOpen : propertiesVisible} onChange={change} onSave={() => void save()} onValidate={() => void validate()} onRun={openRun} onProperties={() => narrow ? setPropertiesOpen((open) => !open) : setPropertiesVisible(!propertiesVisible)} onParameters={() => setParametersOpen(true)} onHistory={() => void history()} onCopy={() => guard(() => actions.copy(t('desktopWorkflow.copyName', { name: draft.name })))} onRemove={remove} />
           <div inert={busy} className={styles['editor-grid']} data-properties={!narrow && propertiesVisible || undefined}>
             <StepTree steps={draft.definition.steps} selected={selected} onSelect={actions.selectStep}
               foldedSteps={presentation.foldedSteps ?? []} onFoldChange={foldedSteps => actions.presentation({ foldedSteps })}
-              onAdd={(kind, parent, branch) => { const value = newStep(kind); change({ definition: { ...draft.definition, steps: insertStep(draft.definition.steps, value, parent, branch) } }); actions.selectStep(value.id) }}
+              onAdd={(kind, parent, branch) => { if (kind.startsWith('ocr.') && !ocrDefaults.value) { void message.warning(t('desktopWorkflow.ocr.settingsFailed')); return }; const value = newStep(kind); if (kind.startsWith('ocr.') && ocrDefaults.value) value.ocr = newOCRQuery(ocrDefaults.value); change({ definition: { ...draft.definition, steps: insertStep(draft.definition.steps, value, parent, branch) } }); actions.selectStep(value.id) }}
               onMove={(id, delta) => change({ definition: { ...draft.definition, steps: moveStep(draft.definition.steps, id, delta) } })}
               onCopy={(id) => change({ definition: { ...draft.definition, steps: copyStep(draft.definition.steps, id) } })}
               onRemove={(id) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, () => undefined) } })}
               onToggle={(id, disabled) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, (value) => ({ ...value, disabled })) } })} />
             <ScreenshotEditor active={active} key={draft.editingID} enabled={!guided} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
               const latest = current.current.state.draft
-              if (latest?.editingID === draft.editingID) current.current.actions.change({ definition: { ...latest.definition, steps: editStep(latest.definition.steps, id, edit) } })
+              if (latest?.editingID === draft.editingID) current.current.actions.change({ definition: { ...latest.definition, schema_version:2, steps: editStep(latest.definition.steps, id, edit) } })
             }} />
             {!narrow && propertiesVisible && <aside className={styles['property-panel']} aria-label={t('desktopWorkflow.properties')}><header className={styles['panel-header']}><SlidersHorizontal size={14} /><strong>{t('desktopWorkflow.properties')}</strong><Button type="text" size="small" aria-label={t('desktopWorkflow.collapseProperties')} icon={<PanelRightClose size={15} />} onClick={() => setPropertiesVisible(false)} /></header>{properties || <p className={styles.hint}>{t('desktopWorkflow.selectStep')}</p>}</aside>}
           </div>

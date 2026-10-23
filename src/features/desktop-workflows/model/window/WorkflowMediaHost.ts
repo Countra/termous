@@ -9,6 +9,7 @@ export class WorkflowMediaHost {
   private uploaded = new Set<string>()
   private epoch = 0
   private opening = 0
+  private observations = new Map<string, { preview: string; controller: AbortController }>()
   constructor(private readonly gateway: WorkflowMediaGateway, private readonly controller: WorkflowController) {}
   private assetAllowed(id: string) {
     if (this.uploaded.has(id)) return true
@@ -24,6 +25,19 @@ export class WorkflowMediaHost {
   }
   async handle(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) throw new Error('workflow_media_invalid')
+    const epoch = this.epoch
+    if (payload.kind === 'ocr-defaults') return this.gateway.ocrDefaults()
+    if (payload.kind === 'ocr-report') {
+      if (this.controller.getSnapshot().execution.report.value?.run.id !== payload.id) throw new Error('workflow_report_unavailable')
+      const result = await this.gateway.ocrReport(payload.id,payload.index,payload.offset,payload.limit)
+      if (epoch !== this.epoch || this.controller.getSnapshot().execution.report.value?.run.id !== payload.id) throw new Error('workflow_report_unavailable')
+      return result
+    }
+    if (payload.kind === 'ocr-cancel') {
+      const pending = this.observations.get(payload.request)
+      if (pending?.preview === payload.id) pending.controller.abort()
+      return
+    }
     if (payload.kind === 'runtime-status') return this.gateway.runtimeStatus?.() ?? {}
     if (payload.kind === 'runtime-warmup') return this.gateway.warmupRuntime?.()
     if (payload.kind === 'runtime-settings') return this.gateway.openRuntimeSettings?.()
@@ -33,7 +47,6 @@ export class WorkflowMediaHost {
       if (request.operation === 'submit' && request.input.source.kind === 'preview' && !this.previews.has(request.input.source.id)) throw new Error('workflow_preview_unavailable')
       return handleAnalysisMedia(this.gateway, request)
     }
-    const epoch = this.epoch
     if (payload.kind === 'open') {
       const session = this.controller.getSnapshot().environment.sessions.find(item => item.id === payload.session)
       if (this.previews.size + this.opening >= 4 || !session || session.connection_generation !== payload.generation) throw new Error('desktop_session_generation_changed')
@@ -54,7 +67,21 @@ export class WorkflowMediaHost {
       return this.binary(await this.gateway.asset(payload.id))
     }
     if (!this.previews.has(payload.id)) throw new Error('workflow_preview_unavailable')
+    if (payload.kind === 'ocr-preview') {
+      if (this.observations.size >= 4 || this.observations.has(payload.request)) throw new Error('desktop_workflow_busy')
+      const controller = new AbortController()
+      this.observations.set(payload.request,{ preview: payload.id,controller })
+      try {
+        const result = await this.gateway.previewOCR(payload.id,payload.query,controller.signal)
+        controller.signal.throwIfAborted()
+        const image = await this.binary(result.image)
+        controller.signal.throwIfAborted()
+        if (epoch !== this.epoch || !this.previews.has(payload.id)) throw new Error('workflow_preview_unavailable')
+        return { capture:result.capture, observation:result.observation, ...image }
+      } finally { this.observations.delete(payload.request) }
+    }
     if (payload.kind === 'close') {
+      for (const value of this.observations.values()) if (value.preview === payload.id) value.controller.abort()
       await this.gateway.closePreview(payload.id); this.previews.delete(payload.id); return
     }
     if (payload.kind === 'capture') {
@@ -71,6 +98,7 @@ export class WorkflowMediaHost {
     return { bytes: await blob.arrayBuffer(), type: blob.type }
   }
   async reset() {
+    for (const value of this.observations.values()) value.controller.abort()
     this.epoch++; this.uploaded.clear()
     const previews = [...this.previews]; this.previews.clear()
     const results = await Promise.allSettled(previews.map(id => this.gateway.closePreview(id)))

@@ -7,6 +7,67 @@ import { WorkflowMediaHost } from './WorkflowMediaHost'
 
 const connection = { module: 'desktop-workflow', instance: 'workspace', generation: 'test' }
 
+it('独立窗口 OCR 只接受所属预览，取消后拒绝迟到结果', async () => {
+  const { gateway, controller } = fixture()
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  let finish!: (value: unknown) => void
+  gateway.previewOCR = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  const media = new WorkflowMediaHost(gateway, controller)
+  const query = { text_confidence: .5, ocr_max_side: 1600 }
+  await expect(media.handle({ kind: 'ocr-preview', id: 'foreign', request: 'request', query })).rejects.toThrow('workflow_preview_unavailable')
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  const pending = media.handle({ kind: 'ocr-preview', id: 'owned', request: 'request', query })
+  const rejected = expect(pending).rejects.toThrow()
+  await media.handle({ kind: 'ocr-cancel', id: 'owned', request: 'request' })
+  expect(vi.mocked(gateway.previewOCR).mock.calls[0][2]?.aborted).toBe(true)
+  finish({})
+  await rejected
+  await media.reset()
+  controller.dispose()
+})
+
+it('OCR 图片传输准备期间取消预览也拒绝迟到响应', async () => {
+  const { gateway, controller } = fixture()
+  vi.mocked(gateway.openPreview).mockResolvedValue({ id: 'owned', state: 'ready' })
+  const image = new Blob(['image'], { type: 'image/png' })
+  let finish!: (value: ArrayBuffer) => void
+  const bytes = vi.spyOn(image, 'arrayBuffer').mockImplementation(() => new Promise(resolve => { finish = resolve }))
+  gateway.previewOCR = vi.fn().mockResolvedValue({ image })
+  const media = new WorkflowMediaHost(gateway, controller)
+  await media.handle({ kind: 'open', session: 'desktop', generation: 1 })
+  const pending = media.handle({ kind: 'ocr-preview', id: 'owned', request: 'request', query: { text_confidence: .5, ocr_max_side: 1600 } })
+  const rejected = expect(pending).rejects.toThrow()
+  await waitFor(() => expect(bytes).toHaveBeenCalledOnce())
+  await media.handle({ kind: 'close', id: 'owned' })
+  finish(new ArrayBuffer(0))
+  await rejected
+  controller.dispose()
+})
+
+it('OCR 明细读取完成前切换报告或释放窗口，不再交付旧报告正文', async () => {
+  for (const reset of [false, true]) {
+    const { gateway, controller } = fixture()
+    const run = { id: 'run' } as Run
+    vi.mocked(gateway.run).mockResolvedValue({ run, steps: [] })
+    controller.execution.selectReport(run.id, true)
+    await waitFor(() => expect(controller.getSnapshot().execution.report.value?.run.id).toBe('run'))
+    let finish!: (value: unknown) => void
+    gateway.ocrReport = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const media = new WorkflowMediaHost(gateway, controller)
+    const pending = media.handle({ kind: 'ocr-report', id: 'run', index: 1, offset: 0, limit: 20 })
+    const rejected = expect(pending).rejects.toThrow('workflow_report_unavailable')
+    if (reset) await media.reset()
+    else {
+      vi.mocked(gateway.run).mockResolvedValue({ run: { ...run, id: 'next' }, steps: [] })
+      controller.execution.selectReport('next', true)
+      await waitFor(() => expect(controller.getSnapshot().execution.report.value?.run.id).toBe('next'))
+    }
+    finish({ items: [] })
+    await rejected
+    controller.dispose()
+  }
+})
+
 it('独立窗口接收宿主提供的真实推理设备，不依赖组件检查记录', async () => {
   const { controller } = fixture()
   controller.runtimeStatus = async () => ({ service: { state: 'ready', device: 'cuda' } })

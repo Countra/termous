@@ -1,5 +1,6 @@
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
 import type { AnalysisGateway } from '#common/contracts'
+import type { OCRParameters, OCRPreview, OCRQuery, OCRReportPage, OCRStepSummary, OCRTarget } from './ocr'
 
 export interface Point { x: number; y: number }
 export interface Region extends Point { width: number; height: number }
@@ -17,21 +18,23 @@ export interface ImageTarget {
   offset: Point
 }
 export interface Target extends Partial<Point> {
-  kind: 'point' | 'image'
+  kind: 'point' | 'image' | 'ocr'
   reference_width?: number
   reference_height?: number
   image?: ImageTarget
+  ocr?: OCRTarget
 }
 export interface Action {
   button?: string; count?: number; delta?: number; horizontal?: boolean
   points?: Point[]; duration_ms?: number; code?: string; codes?: string[]
   text?: string; width?: number; height?: number
 }
-export const stepKinds = ['pointer.click', 'pointer.move', 'pointer.scroll', 'pointer.drag', 'keyboard.key', 'keyboard.shortcut', 'keyboard.text', 'clipboard.set_text', 'resize', 'capture', 'delay', 'image.wait', 'image.assert', 'if', 'repeat', 'breakpoint'] as const
+export const stepKinds = ['pointer.click', 'pointer.move', 'pointer.scroll', 'pointer.drag', 'keyboard.key', 'keyboard.shortcut', 'keyboard.text', 'clipboard.set_text', 'resize', 'capture', 'delay', 'image.wait', 'image.assert', 'ocr.read', 'ocr.wait', 'ocr.assert', 'if', 'repeat', 'breakpoint'] as const
 export type StepKind = typeof stepKinds[number]
 export interface Step {
   id: string; name: string; kind: StepKind; disabled?: boolean; action: Action
   target?: Target; end_target?: Target; image?: ImageTarget; absent?: boolean
+  ocr?: OCRQuery; poll_interval_ms?: number; stable_samples?: number
   timeout_ms?: number; delay_ms?: number; iterations?: number
   bindings?: Record<string, string>; steps?: Step[]; else?: Step[]
 }
@@ -39,7 +42,7 @@ export interface Parameter {
   id: string; name: string; type: 'string' | 'number' | 'boolean'
   sensitive?: boolean; default?: string | number | boolean
 }
-export interface Definition { schema_version: 1; parameters: Parameter[]; steps: Step[] }
+export interface Definition { schema_version: 1 | 2; parameters: Parameter[]; steps: Step[] }
 export interface Author { origin: 'app' | 'mcp'; client_id?: string; client_name?: string; client_source?: 'external' | 'builtin_agent' }
 export interface Script { origin?: 'app' | 'mcp'; creator?: Author; id: string; name: string; description: string; tags: string[]; revision: number; created_at: string; updated_at: string }
 export interface Version { author?: Author; name?: string; description?: string; tags?: string[]; script_id: string; number: number; definition: Definition; created_at: string }
@@ -54,6 +57,7 @@ export interface Run {
   started_at: string; finished_at?: string
 }
 export interface StepResult {
+  ocr?: OCRStepSummary
   run_id: string; index: number; step_id: string; occurrence: string; kind: StepKind; state: string
   error_code?: string; asset_id?: string; evidence_cleared?: boolean; started_at: string; finished_at?: string
 }
@@ -81,6 +85,9 @@ export interface WorkflowGateway extends AnalysisGateway {
   closePreview(id: string): Promise<void>
   capture(id: string, signal?: AbortSignal): Promise<Snapshot>
   match(id: string, target: ImageTarget, signal?: AbortSignal): Promise<Located>
+  ocrDefaults(signal?: AbortSignal): Promise<OCRParameters>
+  previewOCR(id: string, query: OCRQuery, signal?: AbortSignal): Promise<OCRPreview>
+  ocrReport(id: string, index: number, offset?: number, limit?: number, signal?: AbortSignal): Promise<OCRReportPage>
   listRuns(signal?: AbortSignal): Promise<Run[]>
   run(id: string, signal?: AbortSignal): Promise<{ run: Run; steps: StepResult[] }>
   start(input: StartInput): Promise<Run>

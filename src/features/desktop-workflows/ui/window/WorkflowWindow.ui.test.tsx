@@ -27,7 +27,7 @@ function setup(navigate = vi.fn().mockResolvedValue(true), aiRuntimeGateway?: AI
     send: packet => { if (packet.kind !== 'initialize') client.accept(packet) },
   }
   Object.defineProperty(window, 'termous', { configurable: true, value: { detachedWindows: bridge } })
-  const gateway = { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), eventsURL: () => 'ws://fixture/events' } as unknown as WorkflowGateway
+  const gateway = { ocrDefaults: vi.fn().mockResolvedValue({text_confidence:.5,ocr_max_side:1600}), list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), eventsURL: () => 'ws://fixture/events' } as unknown as WorkflowGateway
   const host = render(<WorkflowWorkspace gateway={gateway} aiRuntimeGateway={aiRuntimeGateway} active={active} sessions={[]} profiles={[]} onDirtyChange={() => {}} onViewDesktop={() => {}} onReturnToPage={navigate} />, { wrapper })
   return { host, bridge, client, connection, listeners, navigate }
 }

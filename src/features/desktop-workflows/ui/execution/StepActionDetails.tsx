@@ -26,7 +26,7 @@ export function StepActionDetails({ step, parameters, gateway, onImage }: {
   const target = (name: 'target' | 'endTarget', point?: Target) => point && <div className={styles.field} key={name}>
     <dt>{t(`desktopWorkflow.${name}`)}</dt><dd>{point.kind === 'point'
       ? `${name === 'target' ? value('x', point.x) : point.x ?? '—'}, ${name === 'target' ? value('y', point.y) : point.y ?? '—'}`
-      : t('desktopWorkflow.imageTarget')}{point.reference_width && point.reference_height ? <small>{t('desktopWorkflow.referenceSize', { width: point.reference_width, height: point.reference_height })}</small> : null}</dd>
+      : t(point.kind === 'ocr' ? 'desktopWorkflow.ocr.target' : 'desktopWorkflow.imageTarget')}{point.reference_width && point.reference_height ? <small>{t('desktopWorkflow.referenceSize', { width: point.reference_width, height: point.reference_height })}</small> : null}</dd>
   </div>
   const action = step.action
   const template = (image: ImageTarget, targetName?: 'target' | 'endTarget') => {
@@ -45,6 +45,9 @@ export function StepActionDetails({ step, parameters, gateway, onImage }: {
     <h5>{t('desktopWorkflow.configuredAction')}</h5>
     <dl>
       {step.kind.startsWith('pointer.') && target('target', step.target)}
+      {step.ocr && field('ocr_text',step.ocr.text,'ocr.text','text')}
+      {step.target?.ocr && field('target_ocr_text',step.target.ocr.text,'fields.target_ocr_text','text')}
+      {step.end_target?.ocr && field('end_target_ocr_text',step.end_target.ocr.text,'fields.end_target_ocr_text','text')}
       {step.kind === 'pointer.drag' && target('endTarget', step.end_target)}
       {(step.kind === 'pointer.click' || step.kind === 'pointer.drag') && field('button', action.button ? t(`desktopWorkflow.${action.button}`, { defaultValue: action.button }) : undefined)}
       {step.kind === 'pointer.click' && field('count', action.count)}
@@ -56,7 +59,7 @@ export function StepActionDetails({ step, parameters, gateway, onImage }: {
       {step.kind === 'delay' && field('delay_ms', step.delay_ms, 'delay')}
       {step.kind === 'repeat' && field('iterations', step.iterations)}
       {step.kind === 'resize' && <>{field('width', action.width)}{field('height', action.height)}</>}
-      {(step.kind.startsWith('image.') || step.kind === 'if') && field('condition', t(step.absent ? 'desktopWorkflow.absent' : 'desktopWorkflow.present'))}
+      {(step.kind.startsWith('image.') || step.kind === 'if' || step.kind === 'ocr.wait' || step.kind === 'ocr.assert') && field('condition', t(step.absent ? 'desktopWorkflow.absent' : 'desktopWorkflow.present'))}
       {(step.kind.startsWith('image.') || step.kind === 'if') && step.image && template(step.image)}
       {step.kind.startsWith('pointer.') && step.target?.kind === 'image' && step.target.image && template(step.target.image, step.kind === 'pointer.drag' ? 'target' : undefined)}
       {step.kind === 'pointer.drag' && step.end_target?.kind === 'image' && step.end_target.image && template(step.end_target.image, 'endTarget')}

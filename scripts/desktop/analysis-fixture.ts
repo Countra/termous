@@ -22,6 +22,7 @@ const image = async () => {
   return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG 生成失败')), 'image/png'))
 }
 export const analysisFixture: AnalysisGateway = {
+  analysisFull: unsupported, renderAnalysisImage: unsupported,
   submitAnalysis: unsupported, cancelAnalysis: unsupported, deleteAnalysis: unsupported, clearAnalyses: unsupported, validateAnalysisAction: unsupported,
   listAnalyses: async () => page([record]), getAnalysis: async () => record,
   analysisElements: async (_id, query = {}) => page(elements.filter(item => (!query.kind || item.kind === query.kind) && (!query.q || item.text.includes(query.q)))),

@@ -10,22 +10,23 @@ import { stepIcons, stepLabel } from '../shared/stepPresentation'
 import { runDuration, runTime, runTone } from '../shared/runPresentation'
 import { StepActionDetails } from './StepActionDetails'
 import { ExecutionImageCard } from './ExecutionImageCard'
+import { OCRReportDetails } from './OCRReportDetails'
 import styles from './RunStepTimeline.module.scss'
 
 type Expansion = Omit<WorkflowReportExpansion, 'runID'>
 interface Props {
-  steps: StepResult[]; definition?: Definition; gateway: Pick<WorkflowMediaGateway, 'asset'>; onImage: (source: ImagePreviewSource) => void
+  steps: StepResult[]; definition?: Definition; gateway: Pick<WorkflowMediaGateway, 'asset' | 'ocrReport'>; onImage: (source: ImagePreviewSource) => void; active?: boolean
   expansion?: Expansion; onExpansionChange?: (value: Expansion) => void
 }
 
-function Result({ step, configured, parameters, expanded, onToggle, gateway, onImage }: Pick<Props, 'gateway' | 'onImage'> & {
+function Result({ step, configured, parameters, expanded, onToggle, gateway, onImage, active }: Pick<Props, 'gateway' | 'onImage' | 'active'> & {
   step: StepResult; configured?: Step; parameters: Parameter[]; expanded: boolean; onToggle: () => void
 }) {
   const { t } = useTranslation()
   const failed = !!step.error_code || ['failed', 'uncertain', 'timed_out', 'interrupted'].includes(step.state)
   const complete = ['completed', 'accepted', 'assertion_passed'].includes(step.state)
-  const active = ['running', 'dispatching'].includes(step.state)
-  const StateIcon = failed ? X : complete ? Check : active ? LoaderCircle : CircleDashed
+  const executing = ['running', 'dispatching'].includes(step.state)
+  const StateIcon = failed ? X : complete ? Check : executing ? LoaderCircle : CircleDashed
   const Icon = stepIcons[step.kind] ?? CircleDashed
   return <li className={styles.result} data-tone={runTone(step.state)}>
     <span className={styles.marker}><StateIcon size={14} /></span>
@@ -45,6 +46,7 @@ function Result({ step, configured, parameters, expanded, onToggle, gateway, onI
       </button>
       {failed && step.error_code && <p className={styles.error}>{workflowError({ code: step.error_code }, t)}</p>}
       {expanded && <div className={styles.details}>
+        {active && step.ocr && <OCRReportDetails step={step} gateway={gateway} />}
         {configured ? <StepActionDetails step={configured} parameters={parameters} gateway={gateway} onImage={onImage} /> : <p className={styles.hint}>{t('desktopWorkflow.actionDetailsUnavailable')}</p>}
         <dl className={styles.timing}><div><dt>{t('desktopWorkflow.stepOccurrence')}</dt><dd>{step.occurrence || '—'}</dd></div><div><dt>{t('desktopWorkflow.startedAt')}</dt><dd>{runTime(step.started_at)}</dd></div><div><dt>{t('desktopWorkflow.finishedAt')}</dt><dd>{runTime(step.finished_at)}</dd></div></dl>
         {step.asset_id && <div className={styles.evidence}><ExecutionImageCard assetID={step.asset_id} title={t('desktopWorkflow.evidence')} actionLabel={t('desktopWorkflow.viewEvidence')} gateway={gateway} onImage={onImage} /></div>}
@@ -54,7 +56,7 @@ function Result({ step, configured, parameters, expanded, onToggle, gateway, onI
   </li>
 }
 
-export function RunStepTimeline({ steps, definition, gateway, onImage, expansion, onExpansionChange }: Props) {
+export function RunStepTimeline({ steps, definition, gateway, onImage, expansion, onExpansionChange, active = true }: Props) {
   const { t } = useTranslation()
   const [local, setLocal] = useState<Expansion>({ allExpanded: false, exceptions: [] })
   const { allExpanded, exceptions } = expansion ?? local
@@ -81,7 +83,7 @@ export function RunStepTimeline({ steps, definition, gateway, onImage, expansion
       const key = `${step.run_id}:${step.index}`
       const expanded = excluded.has(key) ? !allExpanded : allExpanded
       const candidate = configured.get(step.step_id)
-      return <Result key={key} step={step} configured={candidate?.kind === step.kind ? candidate : undefined} parameters={definition?.parameters ?? []} expanded={expanded} onToggle={() => toggle(key)} gateway={gateway} onImage={onImage} />
+      return <Result key={key} step={step} active={active} configured={candidate?.kind === step.kind ? candidate : undefined} parameters={definition?.parameters ?? []} expanded={expanded} onToggle={() => toggle(key)} gateway={gateway} onImage={onImage} />
     })}</ol> : <p className={styles.hint}>{t('desktopWorkflow.noStepResults')}</p>}
   </section>
 }

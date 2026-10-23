@@ -1,4 +1,5 @@
 import { isAnalysisMediaRequest, type AnalysisMediaRequest } from './analysis-media.ts'
+import { isWorkflowOCRQuery, type WorkflowOCRQuery } from './workflow-ocr.ts'
 
 export const workflowDetachedActions = [
   'create', 'load', 'change', 'selectStep', 'target', 'view', 'showRun', 'save', 'validate',
@@ -21,6 +22,10 @@ export interface WorkflowDetachedCommand {
 export const workflowDetachedInputs = ['change', 'selectStep', 'target', 'view', 'changeRun', 'presentation'] as const
 export const workflowMediaLimit = 32 * 1024 * 1024
 export type WorkflowDetachedMedia =
+  | { kind: 'ocr-defaults' }
+  | { kind: 'ocr-preview'; id: string; request: string; query: WorkflowOCRQuery }
+  | { kind: 'ocr-cancel'; id: string; request: string }
+  | { kind: 'ocr-report'; id: string; index: number; offset: number; limit: number }
   | { kind: 'runtime-status' }
   | { kind: 'runtime-warmup' }
   | { kind: 'runtime-settings' }
@@ -36,7 +41,7 @@ const strings = (value: unknown) => Array.isArray(value) && value.every(item => 
 const fields = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every(key => allowed.includes(key))
 
 function definition(value: unknown): boolean {
-  return record(value) && value.schema_version === 1 && Array.isArray(value.parameters) && Array.isArray(value.steps)
+  return record(value) && (value.schema_version === 1 || value.schema_version === 2) && Array.isArray(value.parameters) && Array.isArray(value.steps)
     && value.parameters.every(item => record(item) && typeof item.id === 'string' && typeof item.name === 'string' && ['string', 'number', 'boolean'].includes(String(item.type)))
     && value.steps.every(step)
 }
@@ -92,6 +97,10 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
 
 export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetachedMedia {
   if (!record(value)) return false
+  if (value.kind === 'ocr-defaults') return fields(value, ['kind'])
+  if (value.kind === 'ocr-preview') return fields(value, ['kind','id','request','query']) && id(value.id) && id(value.request) && isWorkflowOCRQuery(value.query)
+  if (value.kind === 'ocr-cancel') return fields(value, ['kind','id','request']) && id(value.id) && id(value.request)
+  if (value.kind === 'ocr-report') return fields(value, ['kind','id','index','offset','limit']) && id(value.id) && Number.isSafeInteger(value.index) && Number(value.index) > 0 && Number.isSafeInteger(value.offset) && Number(value.offset) >= 0 && Number.isSafeInteger(value.limit) && Number(value.limit) >= 1 && Number(value.limit) <= 100
   if (value.kind === 'runtime-status' || value.kind === 'runtime-settings' || value.kind === 'runtime-warmup') return fields(value, ['kind'])
   if (value.kind === 'analysis') return fields(value, ['kind', 'request']) && isAnalysisMediaRequest(value.request)
   if (value.kind === 'upload') return value.bytes instanceof ArrayBuffer && value.bytes.byteLength > 0

@@ -78,6 +78,18 @@ export class WorkflowRemoteAdapter {
     return this.model
   }
   readonly media: WorkflowMediaGateway = {
+    ocrDefaults: async signal => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-defaults'}) as Awaited<ReturnType<WorkflowMediaGateway['ocrDefaults']>>; signal?.throwIfAborted(); return result },
+    ocrReport: async (id,index,offset=0,limit=20,signal) => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-report',id,index,offset,limit}) as Awaited<ReturnType<WorkflowMediaGateway['ocrReport']>>; signal?.throwIfAborted(); return result },
+    previewOCR: async (id,query,signal) => {
+      signal?.throwIfAborted()
+      const request = crypto.randomUUID()
+      const cancel = () => { void this.mediaRequest({kind:'ocr-cancel',id,request}).catch(this.report) }
+      signal?.addEventListener('abort',cancel,{once:true})
+      try {
+        const result = await this.mediaRequest({kind:'ocr-preview',id,request,query}) as Binary & Omit<Awaited<ReturnType<WorkflowMediaGateway['previewOCR']>>, 'image'>
+        signal?.throwIfAborted(); return {capture:result.capture,observation:result.observation,image:blob(result)}
+      } finally { signal?.removeEventListener('abort',cancel) }
+    },
     runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
     warmupRuntime: async () => { await this.mediaRequest({ kind: 'runtime-warmup' }) },
     openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },

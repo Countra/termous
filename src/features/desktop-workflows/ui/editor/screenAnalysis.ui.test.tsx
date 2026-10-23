@@ -18,7 +18,7 @@ const result = (): AnalysisRecord => ({ id: 'analysis', state: 'succeeded', stag
 function setup() {
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen'); vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
   const gateway: WorkflowMediaGateway = {
-    openPreview: vi.fn().mockResolvedValue({ id: 'preview' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn().mockResolvedValue({ metadata, blob: new Blob(['original']) }),
+    ocrDefaults: vi.fn().mockResolvedValue({text_confidence:.5,ocr_max_side:1600}), previewOCR: vi.fn(), ocrReport: vi.fn(), openPreview: vi.fn().mockResolvedValue({ id: 'preview' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn().mockResolvedValue({ metadata, blob: new Blob(['original']) }),
     analysisFull: vi.fn(), renderAnalysisImage: vi.fn(), submitAnalysis: vi.fn().mockResolvedValue({ ...result(), state: 'queued' }), getAnalysis: vi.fn().mockResolvedValue(result()),
     analysisImage: vi.fn().mockResolvedValue(new Blob(['analyzed-original'])), deleteAnalysis: vi.fn(), cancelAnalysis: vi.fn().mockResolvedValue({ ...result(), state: 'cancelling' }),
     match: vi.fn(), asset: vi.fn(), upload: vi.fn(), listAnalyses: vi.fn(), clearAnalyses: vi.fn(), analysisStorage: vi.fn(),

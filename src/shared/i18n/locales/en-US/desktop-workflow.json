@@ -1,4 +1,26 @@
 {
+  "ocr": {
+    "text": "Recognized text", "match": "Match", "exact": "Equals", "contains": "Contains", "regex": "Regular expression",
+    "caseSensitive": "Case sensitive", "whitespace": "Normalize whitespace", "confidence": "Text confidence", "maxSide": "OCR longest edge",
+    "fixedParameters": "Parameters are saved with this script version. Later global changes do not affect them. Text is optional only for Read text.",
+    "occurrence": "Target position (from 1)", "unique": "Require a unique match", "target": "Text",
+    "targetHint": "Contains and regex locate the entire text span. Positions follow spatial order. Recognized text does not guarantee a clickable control.",
+    "interval": "Sampling interval (ms)", "stable": "Consecutive confirmations", "settingsFailed": "OCR defaults could not be read. Retry before adding text configuration.",
+    "test": "Test OCR", "preview": "Text observation", "matched": "Matched", "coordinates": "Pixel bounds",
+    "scope": "OCR scope", "scopeAll": "Full screen", "scopeRegion": "Selected region",
+    "selectScope": "Select region", "editScope": "Edit region", "cancelScope": "Cancel selection",
+    "drawScopeHint": "Draw a region and choose Apply region before testing OCR.",
+    "staleScope": "Desktop dimensions changed. Select a new region or use the full screen.",
+    "previewHint": "A region is optional. Without one, matching uses the full screen. Testing never sends desktop input.",
+    "matchCount": "{{count}} matched text spans", "matchedResults": "OCR matches",
+    "previewCounts": "{{recognized}} recognized across the screen. Only matches are shown, with their original IDs.",
+    "emptyMatches": "No text matches the current region and conditions", "useText": "Use this text as the matching condition",
+    "counts": "{{recognized}} recognized · {{matched}} matched", "samples": "{{count}} samples",
+    "incomplete": "OCR results were truncated. Absence and uniqueness cannot be established.", "reportTruncated": "Stored details reached their limit. Statistics still describe the complete observation.",
+    "details": "View OCR details", "redacted": "This query uses a sensitive parameter. Only statistics are retained; text and screenshots are omitted.",
+    "roles": {"condition":"Text condition","target":"Start target","end_target":"End target"},
+    "anchors": {"top_left":"Top left","top":"Top center","top_right":"Top right","left":"Middle left","center":"Center","right":"Middle right","bottom_left":"Bottom left","bottom":"Bottom center","bottom_right":"Bottom right"}
+  },
   "analysis": {
     "bounds": "Pixel bounds",
     "center": "Center point",
@@ -152,6 +174,7 @@
   "screenPreview": "Desktop preview",
   "readonly": "Read only",
   "stepGroups": {
+    "ocr": "Text recognition",
     "pointer": "Pointer",
     "keyboard": "Keyboard & clipboard",
     "image": "Screen & recognition",
@@ -323,6 +346,7 @@
   "validationFailed": "Review the following items",
   "closeValidation": "Dismiss validation results",
   "kinds": {
+    "ocr_read": "Read text", "ocr_wait": "Wait for text", "ocr_assert": "Assert text",
     "pointer_move": "Move pointer",
     "pointer_click": "Click",
     "pointer_scroll": "Scroll",
@@ -355,6 +379,14 @@
     "assertion_passed": "Assertion passed"
   },
   "errors": {
+    "desktop_workflow_ocr_invalid": "Invalid text query. Check the expression, region and OCR size.",
+    "desktop_workflow_ocr_missing": "The text condition was not met before the deadline.",
+    "desktop_workflow_ocr_ambiguous": "Multiple text targets matched. Narrow the region or specify a spatial position.",
+    "desktop_workflow_ocr_incomplete": "Truncated OCR cannot establish absence or locate a target reliably.",
+    "desktop_workflow_ocr_unavailable": "OCR inference is unavailable.",
+    "desktop_workflow_ocr_invalid_response": "OCR returned an invalid result. This observation was stopped.",
+    "desktop_workflow_ocr_runtime_changed": "The OCR service restarted. Start a new run.",
+    "desktop_workflow_ocr_target_stale": "The target kept changing. No mouse action was dispatched.",
     "analysis_busy": "Screen analysis is busy. Try again shortly.",
     "analysis_unavailable": "Local analysis is unavailable. Check the Python environment and models.",
     "analysis_version_mismatch": "Screen analysis versions do not match. Update Core, Python and Web together.",
@@ -432,6 +464,7 @@
     "boolean": "Boolean"
   },
   "phases": {
+    "preparing_ocr": "Preparing OCR models",
     "waiting_approval": "Waiting for approval",
     "connecting": "Connecting",
     "attaching": "Preparing executor",
@@ -446,6 +479,7 @@
     "ambiguous": "Multiple matches"
   },
   "fields": {
+    "ocr_text": "Query text", "target_ocr_text": "Start target text", "end_target_ocr_text": "End target text",
     "text": "Text",
     "code": "Key",
     "count": "Click count",

@@ -1,14 +1,16 @@
-import type { Definition, Run, Script, Version, WorkflowGateway } from '#entities/desktop-workflow'
+import type { Definition, OCRSpan, Run, Script, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import { createReviewHistory, reviewDefinition } from './workflow-review-fixture'
+import { decodeOCRPreview } from '../../src/features/desktop-workflows/api/ocrResponse'
 
 export function createWorkflowWindowFixture({ history = false } = {}) {
   const now = new Date().toISOString()
   let script: Script = { id: 'inspection', name: '发布前环境检查', description: '检查服务状态并保存截图。', tags: ['巡检'], revision: 1, created_at: now, updated_at: now }
-  let definition: Definition = { schema_version: 1, parameters: [], steps: [
+  let definition: Definition = { schema_version: 2, parameters: [], steps: [
     { id: 'open', kind: 'pointer.click', name: '打开监控面板', action: {}, target: { kind: 'point', x: 120, y: 100 } },
     { id: 'wait', kind: 'delay', name: '等待页面加载', action: {}, delay_ms: 1000 },
     { id: 'capture', kind: 'capture', name: '保存检查结果', action: {} },
+    { id: 'ocr', kind: 'ocr.read', name: '读取状态文字', action: {}, ocr: { text: 'Healthy', text_confidence: .5, ocr_max_side: 1600 } },
   ] }
   if (history) definition = structuredClone(reviewDefinition)
   const versions: Version[] = [{ script_id: script.id, number: script.revision, definition: structuredClone(definition), created_at: now }]
@@ -33,6 +35,29 @@ export function createWorkflowWindowFixture({ history = false } = {}) {
     region: { x: 0, y: 0, width: 1280, height: 720 }, width: 1280, height: 720, captured_at: now }
   const missing = async (): Promise<never> => { throw new Error('此合成数据夹具不支持该操作') }
   const gateway: WorkflowGateway = {
+    analysisFull: missing, renderAnalysisImage: missing, ocrDefaults: async () => ({ text_confidence: .5, ocr_max_side: 1600 }), ocrReport: missing,
+    previewOCR: async (_id, query, signal) => {
+      signal?.throwIfAborted()
+      // 受控样例包含四行相同文字，用于验证范围筛选后不重新编号。
+      const spans: OCRSpan[] = Array.from({ length: 4 }, (_, id) => {
+        const y = 136 + id * 132
+        const region = query.region
+        const matched = (!region || (1129 >= region.x && 1129 < region.x + region.width && y >= region.y && y < region.y + region.height)) && (!query.text || query.text === 'Healthy')
+        return { id, text: 'Healthy', confidence: .96, bbox_xyxy: [1100, 126 + id * 132, 1160, 148 + id * 132], center_xy: [1129, y], matched }
+      })
+      const result = { capture: { metadata }, observation: {
+        role: '', width: 1280, height: 720, parameters: { text_confidence: query.text_confidence, ocr_max_side: query.ocr_max_side },
+        recognized_count: spans.length, matched_count: spans.filter(span => span.matched).length, selected_ids: [], truncated: false, truncation_reasons: [],
+        device: 'cpu', fingerprint: 'a'.repeat(64), duration_ms: 12,
+        spans,
+      } }
+      // 真实 Chromium 解析 multipart，覆盖 Blob 丢失分隔符及独立窗口二进制转发。
+      const form = new FormData()
+      form.append('result', new Blob([JSON.stringify(result)], { type: 'application/json' }), 'result')
+      form.append('image', await screenshot, 'image')
+      const response = new Response(form)
+      return decodeOCRPreview(await response.blob(), response.headers.get('Content-Type') ?? '')
+    },
     validateAnalysisAction: missing, submitAnalysis: missing, getAnalysis: missing, listAnalyses: missing, cancelAnalysis: missing, clearAnalyses: missing, analysisElements: missing, analysisElement: missing, analysisSpans: missing, analysisSpan: missing, analysisGeometry: missing, analysisDiagnostics: missing, exportAnalysis: missing, analysisStorage: missing, analysisImage: missing, deleteAnalysis: missing,
     list: async () => [structuredClone(script)], listRuns: async () => structuredClone(runs),
     get: async () => ({ script: structuredClone(script), version: { script_id: script.id, number: script.revision, definition: structuredClone(definition), created_at: now } }),
