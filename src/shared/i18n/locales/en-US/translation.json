@@ -1,5 +1,6 @@
 {
   "analysisCenter": {
+        "id": "Analysis ID",
     "image": {
       "boundary": "boundary",
       "open": "View result image",
@@ -92,6 +93,7 @@
       "complete": "Complete"
     },
     "sources": {
+        "attachment": "MCP / Agent attachment",
       "all": "All sources",
       "preview": "Desktop preview",
       "analysis": "Historical image",
@@ -6340,6 +6342,8 @@
       "unavailable": "MCP service status is temporarily unavailable",
       "operationFailed": "The MCP setting could not be changed",
       "enable": "Enable MCP service",
+      "analysisDeleteTitle": "Delete analysis record?",
+      "analysisDeleteDescription": "Delete this terminal record. Images and results referenced by other records remain. No desktop input is sent.",
       "enableHint": "The service uses the current Core address and a separate client token.",
       "endpoint": "Connection URL",
       "endpointHint": "The Core port may change after Termous restarts. Update your MCP client with the latest address shown here. After creating or rotating a token, you can copy the complete address-and-token configuration.",
@@ -6360,6 +6364,9 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "screen_analyses_read": "Read screen analyses",
+        "screen_analyses_create": "Create screen analyses",
+        "screen_analyses_delete": "Delete analysis records",
         "desktop_workflows_read": "Read scripts",
         "desktop_workflows_write": "Edit scripts",
         "desktop_workflows_run": "Run scripts",
@@ -6407,6 +6414,9 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "screen_analyses_read": "Read local history, detected regions, OCR and images.",
+        "screen_analyses_create": "Analyze your attached desktop or reanalyze saved images; no input is sent.",
+        "screen_analyses_delete": "Delete terminal records according to approval policy; shared content is retained while referenced.",
         "desktop_workflows_read": "Read local scripts, versions and reports.",
         "desktop_workflows_write": "Edit scripts and templates without approval.",
         "desktop_workflows_run": "Run a pinned version; control your own runs.",
@@ -6454,6 +6464,7 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "screen_analyses": "Screen analyses",
         "desktop_workflows": "Desktop scripts",
         "desktops": "Remote desktops",
         "hosts": "Hosts and discovery",
@@ -6469,6 +6480,7 @@
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "screen_analyses": "Region detection, OCR, result images and targeted queries",
         "desktop_workflows": "Script management, image templates and bounded runs",
         "desktops": "RDP / VNC observation and bounded automation control",
         "hosts": "View saved hosts and network reachability",

@@ -110,6 +110,6 @@ export class RuntimeImageWorkingSet {
 function isDesktopImageMessage(message: AgentMessage) {
   if (message.role !== 'toolResult') return false
   const name = decodeMCPToolName(message.toolName) ?? message.toolName
-  return (name.startsWith('termous.desktops.') || name.startsWith('termous.desktop_workflows.') || name === 'read_history_image')
+  return (name.startsWith('termous.desktops.') || name.startsWith('termous.desktop_workflows.') || name.startsWith('termous.screen_analyses.') || name === 'read_history_image')
     && message.content.some(part => part.type === 'image')
 }

@@ -10,7 +10,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const metadata = { width: 800, height: 400, desktop_width: 800, desktop_height: 400, connection_generation: 1, execution_generation: 1, display_epoch: 1, frame_sequence: 1, captured_at: '', region: { x: 0, y: 0, width: 800, height: 400 } }
 const element: AnalysisElementView = { id: 0, kind: 'region', source: 'detector+ocr', text: 'Connect', detection_confidence: .9,
   bbox_xyxy: [10, 20, 110, 60], center_xy: [60, 40], text_offset: 0, text_length: 7, text_truncated: false, matched_ocr_spans: 1 }
-const result = (): AnalysisRecord => ({ id: 'analysis', state: 'succeeded', stage: 'complete', source: { kind: 'preview', id: 'preview' },
+const result = (): AnalysisRecord => ({ id: 'analysis', state: 'succeeded', stage: 'complete', creator: { origin: 'local' }, source: { kind: 'preview', id: 'preview' },
   parameters: { ...screenAnalysisDefaults }, parameter_source: 'settings', session_id: 'session', settings_revision: 1, sha256: 'digest', metadata,
   created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 86400000).toISOString(), action_expires_at: new Date(Date.now() + 300000).toISOString(),
   reused: false, reuse_allowed: true, duration_ms: 10, inference_ms: 5, schema_version: 2, image: { width: 800, height: 400, coordinate_space: 'original_pixels' },

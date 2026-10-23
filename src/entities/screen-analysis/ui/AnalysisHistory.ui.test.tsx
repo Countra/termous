@@ -8,7 +8,7 @@ import { AnalysisFilters } from './AnalysisFilters'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
-const record: AnalysisRecord = { id: 'analysis-fixture', state: 'succeeded', stage: 'complete', source: { kind: 'preview', id: 'closed-preview', name: '测试桌面' },
+const record: AnalysisRecord = { id: 'analysis-fixture', state: 'succeeded', stage: 'complete', creator: { origin: 'local' }, source: { kind: 'preview', id: 'closed-preview', name: '测试桌面' },
   created_at: '2026-10-23T00:00:00Z', expires_at: '2026-10-30T00:00:00Z', duration_ms: 10, inference_ms: 1000, reused: true, reuse_allowed: true,
   parameters: screenAnalysisDefaults, parameter_source: 'settings', schema_version: 2,
   summary: { element_count: 0, region_count: 0, text_count: 0, ocr_span_count: 0, truncated: false, truncation_reasons: [] } }

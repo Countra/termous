@@ -30,7 +30,8 @@ export interface AnalysisSnapshotMetadata {
   connection_generation: number; execution_generation: number; display_epoch: number; frame_sequence: number; captured_at: string
 }
 export interface AnalysisRecord {
-  id: string; state: AnalysisState; stage: string; source: { kind: 'preview' | 'analysis'; id: string; name?: string }
+  id: string; state: AnalysisState; stage: string; source: { kind: 'preview' | 'analysis' | 'attachment'; id: string; name?: string }
+  creator: { origin: 'local' | 'mcp' | 'agent'; client_id?: string; name?: string }
   parameters: ScreenAnalysisParameters; parameter_source: 'settings' | 'request_override' | 'reanalysis'; settings_revision?: number
   session_id?: string; metadata?: AnalysisSnapshotMetadata; sha256?: string; image?: AnalysisImage
   created_at: string; finished_at?: string; expires_at: string; action_expires_at?: string; error?: string
@@ -57,13 +58,13 @@ export interface AnalysisImageMetadata {
 }
 export interface AnalysisRenderedImage { blob: Blob; metadata: AnalysisImageMetadata }
 export interface AnalysisRecordQuery {
-  q?: string; state?: AnalysisState; source?: 'preview' | 'analysis'; after?: string; before?: string; limit?: number; cursor?: string
+  q?: string; state?: AnalysisState; source?: 'preview' | 'analysis' | 'attachment'; after?: string; before?: string; limit?: number; cursor?: string
 }
 export interface AnalysisPage<T> { items: T[]; total: number; next_cursor?: string; limited_by_inference: boolean }
 export interface AnalysisTextPart { text: string; text_offset: number; text_next_offset?: number; text_length: number; text_truncated: boolean }
 export interface AnalysisElementView extends AnalysisElement, AnalysisTextPart { matched_ocr_spans: number }
 export interface AnalysisSpanView extends AnalysisTextPart {
-  id: number; element_id: number; text_confidence: number; bbox_xyxy: [number, number, number, number]; polygon_xy?: [number, number][]
+  id: number; element_id: number; text_confidence: number; bbox_xyxy: [number, number, number, number]; center_xy: [number, number]; polygon_xy?: [number, number][]
 }
 export type AnalysisGeometry = Pick<AnalysisElement, 'id' | 'kind' | 'bbox_xyxy' | 'center_xy'>
 export interface AnalysisIdentity {

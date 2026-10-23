@@ -15,12 +15,14 @@ export function progressDigest(value: unknown): string {
 }
 
 export function progressResource(args: unknown, data?: Record<string, unknown>): string {
+  const analysis = isRecord(data?.data) ? data.data.analysis : undefined
+  if (isRecord(analysis) && typeof analysis.id === 'string') return `analysis_id:${analysis.id.slice(0, 160)}`
   const attachment = data?.attachment
   if (isRecord(attachment) && typeof attachment.session_id === 'string' && Number.isSafeInteger(attachment.connection_generation)) {
     return `session_id:${attachment.session_id}:generation:${attachment.connection_generation}`.slice(0, 256)
   }
   if (!isRecord(args)) return 'unresolved'
-  const identity = ['attachment_id', 'run_id', 'task_id', 'operation_id', 'transfer_id', 'forward_id', 'snapshot_id', 'preview_id', 'session_id', 'file_session_id', 'source_file_session_id', 'script_id', 'profile_id', 'ssh_profile_id', 'file_access_profile_id', 'host_id', 'uri', 'id']
+  const identity = ['analysis_id', 'attachment_id', 'run_id', 'task_id', 'operation_id', 'transfer_id', 'forward_id', 'snapshot_id', 'preview_id', 'session_id', 'file_session_id', 'source_file_session_id', 'script_id', 'profile_id', 'ssh_profile_id', 'file_access_profile_id', 'host_id', 'uri', 'id']
     .find((key) => typeof args[key] === 'string')
   if (identity) {
     const target = Object.fromEntries(['path', 'remote_path', 'unit_id', 'pid', 'container_id', 'resource_id', 'job_id', 'snippet_id', 'group_id', 'target_file_session_id'].filter((key) => args[key] !== undefined).map((key) => [key, args[key]]))
@@ -79,8 +81,9 @@ export function progressFact(name: string, resource: string, data: Record<string
   const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'operation_state', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'number', 'exit_code', 'error_code', 'cleanup_error', 'executed', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed', 'attachment_id', 'grant_id', 'grant_status', 'grant_expires_at', 'grant_idle_expires_at', 'control_status', 'control_reason', 'desktop_available']
   const capture = isRecord(data.capture) ? data.capture : isRecord(data.snapshot) ? data.snapshot : {}
   const detail = isRecord(data.detail) ? data.detail : {}
+  const analysis = isRecord(data.data) && isRecord(data.data.analysis) ? data.data.analysis : undefined
   // 当前脚本 revision 与所读版本 number 各自保留，不能把历史定义误作最新修改前置版本。
-  for (const branch of [data, ...['session', 'attachment', 'snapshot', 'preview', 'script', 'run', 'operation', 'task', 'transfer', 'instance', 'mutation', 'crontab'].map((key) => data[key]), capture.metadata, capture.source, detail.script, detail.version, isRecord(data.report) ? data.report.run : undefined]) {
+  for (const branch of [data, ...['session', 'attachment', 'snapshot', 'preview', 'script', 'run', 'operation', 'task', 'transfer', 'instance', 'mutation', 'crontab'].map((key) => data[key]), capture.metadata, capture.source, detail.script, detail.version, isRecord(data.report) ? data.report.run : undefined, analysis]) {
     if (!isRecord(branch)) continue
     for (const field of fields) {
       const value = branch[field]

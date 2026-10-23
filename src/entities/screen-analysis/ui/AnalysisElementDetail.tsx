@@ -25,12 +25,12 @@ export function AnalysisElementDetail({ gateway, id, selected, span, filter, act
   const spans = useVisibleQuery(JSON.stringify([id, selected, filter, cursor]), signal => gateway.analysisSpans(id,
     { q: filter.q, text_min: filter.text_min, text_max: filter.text_max, text_gt: filter.text_gt, text_lt: filter.text_lt, element_id: selected, cursor, limit: 20 }, signal), active && span === undefined)
   const current = detail.data
-  const element = current && 'center_xy' in current ? current : undefined
+  const element = current && 'kind' in current ? current : undefined
   return <div className={styles.detail}>
     {detail.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={detail.reload}>{t('app.retry')}</Button>} />}
     {current && <>
       <div><strong>#{current.id}</strong><span>{t('desktopWorkflow.analysis.bounds')}: {current.bbox_xyxy.join(', ')}</span></div>
-      {element && <small>{t('desktopWorkflow.analysis.center')}: {element.center_xy.join(', ')}</small>}
+      <small>{t('desktopWorkflow.analysis.center')}: {current.center_xy.join(', ')}</small>
       {element?.detection_confidence != null && <small>{t('desktopWorkflow.analysis.detectionScore')}: {element.detection_confidence.toFixed(3)}</small>}
       {current.text_confidence != null && <small>{t('desktopWorkflow.analysis.textScore')}: {current.text_confidence.toFixed(3)}</small>}
       <p>{current.text}</p>

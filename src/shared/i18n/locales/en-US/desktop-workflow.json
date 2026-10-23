@@ -1,5 +1,7 @@
 {
   "ocr": {
+    "present": "Text present",
+    "absent": "Text absent",
     "text": "Recognized text", "match": "Match", "exact": "Equals", "contains": "Contains", "regex": "Regular expression",
     "caseSensitive": "Case sensitive", "whitespace": "Normalize whitespace", "confidence": "Text confidence", "maxSide": "OCR longest edge",
     "fixedParameters": "Parameters are saved with this script version. Later global changes do not affect them. Text is optional only for Read text.",
@@ -284,7 +286,7 @@
   "text": "Text",
   "delay": "Delay (ms)",
   "iterations": "Iterations",
-  "condition": "Image condition",
+  "condition": "Condition",
   "present": "Image present",
   "absent": "Image absent",
   "timeout": "Locate / wait timeout (ms)",

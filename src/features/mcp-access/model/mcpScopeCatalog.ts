@@ -6,6 +6,7 @@ import {
 } from '#entities/mcp-access'
 
 export type McpScopeGroupKey =
+  | 'screen_analyses'
   | 'desktops'
   | 'desktop_workflows'
   | 'hosts'
@@ -36,6 +37,7 @@ export interface McpScopeCatalogEntry {
 }
 
 export const mcpScopeGroups: readonly McpScopeGroup[] = [
+  { key: 'screen_analyses', scopes: ['screen_analyses:read', 'screen_analyses:create', 'screen_analyses:delete'] },
   { key: 'hosts', scopes: ['hosts:read', 'hosts:probe'] },
   { key: 'sessions', scopes: ['sessions:read', 'sessions:connect', 'sessions:close'] },
   { key: 'commands', scopes: ['commands:execute', 'commands:read', 'commands:interrupt'] },
@@ -88,7 +90,7 @@ export const mcpScopeCatalog: readonly McpScopeCatalogEntry[] = mcpScopes.map((s
     defaultEnabled: defaultMcpScopes.includes(scope),
     requiresApproval: approvalRequiredScopes.includes(scope),
     destructive: scope === 'sessions:close' || scope === 'files:delete' || scope === 'desktops:close' || scope === 'desktops:control'
-      || scope === 'desktop_workflows:run' || scope === 'desktop_workflows:delete'
+      || scope === 'desktop_workflows:run' || scope === 'desktop_workflows:delete' || scope === 'screen_analyses:delete'
       || scope === 'docker:images:manage' || scope === 'docker:volumes:manage' || scope === 'docker:networks:manage',
   }
 })

@@ -1,4 +1,5 @@
 import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
+import { localToolNames } from '../contracts/toolNames.ts'
 
 interface SearchEntry { original: string; group: string; keywords: string; tool: { name: string; description: string } }
 export interface DiscoveryInput { query?: string; operation?: string; group?: string; names?: string[] }
@@ -51,7 +52,7 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
       if (best > 0 && (!capability || !scores.has(capability.id))) return 0
       if (query && best === 0 && !group && (!capability || !preferredCapabilities.has(capability.id))) return 0
       const browse = !query && role && ['list', 'inspect', 'observe'].includes(role) ? 20 : 0
-      const entryIndex = capability?.entry.findIndex((name) => (name.startsWith('termous.') || name === 'wait_workflow_run' ? name : capability.prefix + name) === entry.original) ?? -1
+      const entryIndex = capability?.entry.findIndex((name) => (name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name) === entry.original) ?? -1
       const entryPriority = !query && entryIndex >= 0 ? 100 - entryIndex : 0
       const continuity = capability && preferredCapabilities.has(capability.id) ? 30 : 0
       const phase = /状态|进度|终态|\bstatus\b/u.test(query) && role === 'poll' ? 20 : 0

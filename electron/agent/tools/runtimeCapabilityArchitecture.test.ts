@@ -17,7 +17,7 @@ const names = runtimeCapabilities.flatMap((capability) => capability.steps.flatM
 test('全部 MCP 工具具有唯一职责与真实 Skill，新增工具不能静默落入缺省导航', () => {
   const contract = JSON.parse(readFileSync(new URL('../../../../termous-skills/contracts/mcp-tools.json', import.meta.url), 'utf8')) as { tools: Array<{ name: string; skill: string }> }
   assert.equal(new Set(names).size, names.length)
-  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), 'wait_workflow_run'].sort())
+  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), 'wait_workflow_run', 'wait_screen_analysis'].sort())
   for (const tool of contract.tools) {
     const capability = runtimeCapability(tool.name)!
     assert.ok(capability.skill.startsWith(`skill://${tool.skill}/`), tool.name)

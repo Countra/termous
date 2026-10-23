@@ -1,5 +1,6 @@
 {
   "analysisCenter": {
+        "id": "分析 ID",
     "image": {
       "boundary": "边界",
       "open": "查看结果图",
@@ -92,6 +93,7 @@
       "complete": "完成"
     },
     "sources": {
+        "attachment": "MCP / Agent 桌面附着",
       "all": "全部来源",
       "preview": "桌面预览",
       "analysis": "历史原图",
@@ -6314,6 +6316,8 @@
       "unavailable": "暂时无法读取 MCP 服务状态",
       "operationFailed": "MCP 设置操作失败",
       "enable": "启用 MCP 服务",
+      "analysisDeleteTitle": "删除分析记录？",
+      "analysisDeleteDescription": "删除该终态记录。仍被其他记录引用的图片和结果将保留；不会操作远程桌面。",
       "enableHint": "服务复用当前 Core 地址，并使用独立的客户端令牌鉴权。",
       "endpoint": "连接地址",
       "endpointHint": "Termous 重启后 Core 端口可能变化，请将这里的最新地址更新到 MCP 客户端。创建或轮换令牌后，可以复制包含地址和令牌的完整配置。",
@@ -6334,6 +6338,9 @@
         "disabled": "已停用"
       },
       "scope": {
+        "screen_analyses_read": "读取画面分析",
+        "screen_analyses_create": "创建画面分析",
+        "screen_analyses_delete": "删除分析记录",
         "desktop_workflows_read": "读取脚本",
         "desktop_workflows_write": "编辑脚本",
         "desktop_workflows_run": "运行脚本",
@@ -6381,6 +6388,9 @@
         "snippets_write": "管理代码片段"
       },
       "scopeDescription": {
+        "screen_analyses_read": "读取统一本机历史、候选区域、OCR 和结果图。",
+        "screen_analyses_create": "分析本人附着的桌面或重算历史原图，不发送输入。",
+        "screen_analyses_delete": "按审批策略删除指定终态记录，共享内容按引用回收。",
         "desktop_workflows_read": "查看本机脚本、版本和运行报告。",
         "desktop_workflows_write": "管理脚本与模板，编辑免确认。",
         "desktop_workflows_run": "执行固定版本并控制自己的运行。",
@@ -6428,6 +6438,7 @@
         "snippets_write": "新增、修改、删除或调整代码片段及分组顺序；默认需逐次批准。"
       },
       "permissionGroup": {
+        "screen_analyses": "画面分析",
         "desktop_workflows": "桌面脚本",
         "desktops": "远程桌面",
         "hosts": "主机与发现",
@@ -6443,6 +6454,7 @@
         "snippets": "代码片段"
       },
       "permissionGroupHint": {
+        "screen_analyses": "区域检测、OCR、结果图与按需查询",
         "desktop_workflows": "脚本管理、图像模板与有界运行",
         "desktops": "RDP / VNC 画面观察与有限期自动化控制",
         "hosts": "查看已保存主机与网络可达性",

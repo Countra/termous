@@ -1,6 +1,7 @@
 import catalogData from '../contracts/capabilities.generated.json' with { type: 'json' }
 import type { CapabilityCatalog, CapabilityStep, ToolCapability } from '../contracts/toolCapabilities.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { localToolNames } from '../contracts/toolNames.ts'
 import { recoveryGuidance, runtimeFailureKind } from './runtimeToolRecovery.ts'
 
 // 源契约位于 termous-skills/contracts；构建检查生成副本，运行时不读取文档正则或外部路径。
@@ -13,7 +14,7 @@ for (const capability of runtimeCapabilities) for (const step of capability.step
 }
 
 export function capabilityToolName(capability: ToolCapability, name: string) {
-  return name.startsWith('termous.') || name === 'wait_workflow_run' ? name : capability.prefix + name
+  return name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name
 }
 
 export function runtimeCapability(name: string) { return index.get(name)?.capability }

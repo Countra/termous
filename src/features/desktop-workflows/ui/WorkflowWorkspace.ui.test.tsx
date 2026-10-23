@@ -58,7 +58,7 @@ describe('桌面脚本手动管理', () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway()
     const record: AnalysisRecord = { id: 'analysis-history', state: 'succeeded', stage: 'complete',
-      source: { kind: 'preview', id: 'closed-preview', name: '已断开的测试桌面' },
+      creator: { origin: 'local' }, source: { kind: 'preview', id: 'closed-preview', name: '已断开的测试桌面' },
       parameters: screenAnalysisDefaults, parameter_source: 'settings', settings_revision: 1,
       created_at: '2026-10-23T00:00:00Z', expires_at: '2026-10-30T00:00:00Z',
       reused: false, reuse_allowed: true, duration_ms: 10, inference_ms: 5, schema_version: 2,

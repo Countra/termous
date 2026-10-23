@@ -20,7 +20,7 @@ export function AnalysisHistory({ gateway, active }: { gateway: AnalysisGateway;
       <Input.Search allowClear placeholder={t('analysisCenter.search')} aria-label={t('analysisCenter.search')} onSearch={q => change({ q })} />
       <Select aria-label={t('analysisCenter.state')} value={query.state ?? 'all'} options={['all', 'preparing', 'queued', 'running', 'cancelling', 'succeeded', 'failed', 'cancelled', 'interrupted'].map(state => ({ value: state, label: t(`analysisCenter.states.${state}`) }))}
         onChange={state => change({ state: state === 'all' ? undefined : state as AnalysisState })} />
-      <Select aria-label={t('analysisCenter.source')} value={query.source ?? 'all'} options={['all', 'preview', 'analysis'].map(source => ({ value: source, label: t(`analysisCenter.sources.${source}`) }))}
+      <Select aria-label={t('analysisCenter.source')} value={query.source ?? 'all'} options={['all', 'preview', 'analysis', 'attachment'].map(source => ({ value: source, label: t(`analysisCenter.sources.${source}`) }))}
         onChange={source => change({ source: source === 'all' ? undefined : source as AnalysisRecordQuery['source'] })} />
       {(['after', 'before'] as const).map(key => <label key={key}>{t(`analysisCenter.${key}`)}<Input type="datetime-local" aria-label={t(`analysisCenter.${key}`)} onChange={event => change({ [key]: event.target.value ? new Date(event.target.value).toISOString() : undefined })} /></label>)}
       {list.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={list.reload}>{t('app.retry')}</Button>} />}

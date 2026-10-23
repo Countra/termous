@@ -36,6 +36,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
 ])
 const approvalKinds = new Set<McpApprovalKind>([
   'desktop_workflow',
+  'screen_analysis',
   'desktop',
   'command',
   'files',
@@ -160,6 +161,7 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   }
   if (normalizedKind === 'desktop') return { ...common, kind: 'desktop', command: '', operation: operation! }
   if (normalizedKind === 'desktop_workflow') return { ...common, kind: 'desktop_workflow', command: '', operation: operation! }
+  if (normalizedKind === 'screen_analysis') return { ...common, kind: 'screen_analysis', command: '', operation: operation! }
   if (normalizedKind === 'snippet') {
     return {
       ...common,
@@ -195,6 +197,10 @@ function decodeMcpApprovalOperation(
     }
   }
   const internal = optionalBoolean(operation.internal, 'MCP Docker 内部网络标识无效')
+  if (kind === 'screen_analysis') {
+    requireString(operation.resource_id, 'MCP 分析记录审批目标缺失')
+    if (action !== 'delete' || operation.domain !== 'screen_analysis' || resourceKind) throw new McpAccessProtocolError('MCP 分析记录审批范围无效')
+  }
   if (kind === 'desktop_workflow') {
     requireString(operation.script_id, 'MCP 脚本审批目标缺失')
     if (requireNonNegativeInteger(operation.script_version, 'MCP 脚本审批版本无效') < 1 || !['run', 'delete'].includes(action)) {
@@ -339,6 +345,7 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
 }
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
+  screen_analysis: 'MCP 分析记录审批操作缺失',
   desktop_workflow: 'MCP 桌面脚本审批操作缺失',
   desktop: 'MCP 桌面控制审批操作缺失',
   files: 'MCP 文件管理审批操作缺失',

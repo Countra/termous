@@ -3,11 +3,12 @@ import catalogData from './capabilities.generated.json' with { type: 'json' }
 import type { CapabilityCatalog } from './toolCapabilities.ts'
 import { isMCPToolDetails } from './mcpTools.ts'
 import { isRecord } from './validation.ts'
+import { localToolNames } from './toolNames.ts'
 
 const defaultApprovalPaths = ['approval', 'report.approval']
 const approvalPaths = new Map((catalogData as CapabilityCatalog).capabilities.flatMap((capability) =>
   capability.steps.flatMap((step) => step.tools.map((tool) => [
-    tool.startsWith('termous.') || tool === 'wait_workflow_run' ? tool : capability.prefix + tool,
+    tool.startsWith('termous.') || localToolNames.has(tool) ? tool : capability.prefix + tool,
     capability.evidence?.approvals ?? defaultApprovalPaths,
   ] as const))))
 

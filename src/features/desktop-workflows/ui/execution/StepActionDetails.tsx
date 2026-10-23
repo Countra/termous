@@ -59,7 +59,7 @@ export function StepActionDetails({ step, parameters, gateway, onImage }: {
       {step.kind === 'delay' && field('delay_ms', step.delay_ms, 'delay')}
       {step.kind === 'repeat' && field('iterations', step.iterations)}
       {step.kind === 'resize' && <>{field('width', action.width)}{field('height', action.height)}</>}
-      {(step.kind.startsWith('image.') || step.kind === 'if' || step.kind === 'ocr.wait' || step.kind === 'ocr.assert') && field('condition', t(step.absent ? 'desktopWorkflow.absent' : 'desktopWorkflow.present'))}
+      {(step.kind.startsWith('image.') || step.kind === 'if' || step.kind === 'ocr.wait' || step.kind === 'ocr.assert') && field('condition', t(`desktopWorkflow.${step.ocr ? 'ocr.' : ''}${step.absent ? 'absent' : 'present'}`))}
       {(step.kind.startsWith('image.') || step.kind === 'if') && step.image && template(step.image)}
       {step.kind.startsWith('pointer.') && step.target?.kind === 'image' && step.target.image && template(step.target.image, step.kind === 'pointer.drag' ? 'target' : undefined)}
       {step.kind === 'pointer.drag' && step.end_target?.kind === 'image' && step.end_target.image && template(step.end_target.image, 'endTarget')}

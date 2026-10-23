@@ -42,11 +42,12 @@ test('中文意图可发现输入工具；资源控制与清理入口不会因�
   assert.ok(discovery.publish().some((tool) => tool.name.endsWith('control.release')))
 })
 
-test('桌面图片只保留两个观察组及待确认预览，持久化原消息不变', () => {
+test('桌面、分析和 OCR 图片共用两个观察组及待确认预览，持久化原消息不变', () => {
   const images = new RuntimeContextImages({ context: { estimated_tokens: 0, warning: false }, messages: [] })
   const messages: AgentMessage[] = []
+  const names = ['termous.desktop_workflows.templates.preview', 'termous.screen_analyses.images.get', 'termous.desktop_workflows.ocr.test', 'termous.desktops.capture', 'termous.screen_analyses.images.get']
   for (let i = 0; i < 5; i++) {
-    const message: AgentMessage = { role: 'toolResult', toolCallId: `call${i}`, toolName: encodeMCPToolName(i === 0 ? 'termous.desktop_workflows.templates.preview' : 'termous.desktops.capture'), content: [{ type: 'image', mimeType: 'image/png', data: Buffer.from(`image${i}`).toString('base64') }], isError: false, timestamp: i }
+    const message: AgentMessage = { role: 'toolResult', toolCallId: `call${i}`, toolName: encodeMCPToolName(names[i]!), content: [{ type: 'image', mimeType: 'image/png', data: Buffer.from(`image${i}`).toString('base64') }], isError: false, timestamp: i }
     if (i === 0) message.content.push({ type: 'text', text: JSON.stringify({ preview: { preview_id: 'preview', expires_at: '2099-01-01T00:00:00Z' } }) })
     images.registerToolResult(`part${i}`, message)
     messages.push(message)

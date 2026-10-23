@@ -42,6 +42,7 @@ interface McpScopeSelectorProps {
 
 const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
   desktops: Monitor,
+  screen_analyses: Monitor,
   desktop_workflows: ListChecks,
   hosts: Server,
   sessions: KeyRound,

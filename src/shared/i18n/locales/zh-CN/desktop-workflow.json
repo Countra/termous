@@ -1,5 +1,7 @@
 {
   "ocr": {
+    "present": "文字存在",
+    "absent": "文字不存在",
     "text": "识别文字", "match": "匹配方式", "exact": "相等", "contains": "包含", "regex": "正则表达式",
     "caseSensitive": "区分大小写", "whitespace": "规范化空白", "confidence": "文字置信度", "maxSide": "OCR 检测最长边",
     "fixedParameters": "这些参数随脚本版本保存，不受之后全局设置修改影响。读取文字可留空，其他用途必须填写。",
@@ -284,7 +286,7 @@
   "text": "文本",
   "delay": "等待时长（毫秒）",
   "iterations": "循环次数",
-  "condition": "图像条件",
+  "condition": "条件",
   "present": "图像存在",
   "absent": "图像不存在",
   "timeout": "定位／等待超时（毫秒）",

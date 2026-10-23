@@ -8,7 +8,7 @@ import { WorkflowController } from './WorkflowController'
 
 const root = '/api/v1/screen-analyses'
 const record: AnalysisRecord = {
-  id: 'analysis', state: 'queued', stage: 'queued', source: { kind: 'preview', id: 'preview' },
+  id: 'analysis', state: 'queued', stage: 'queued', creator: { origin: 'local' }, source: { kind: 'preview', id: 'preview' },
   parameters: screenAnalysisDefaults, parameter_source: 'settings', settings_revision: 1,
   created_at: '2026-10-23T00:00:00Z', expires_at: '2026-10-30T00:00:00Z',
   reused: false, reuse_allowed: true, duration_ms: 0, inference_ms: 0, schema_version: 2,

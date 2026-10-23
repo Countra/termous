@@ -22,6 +22,7 @@ import { RuntimeInputSafety } from '../execution/runtimeInputSafety.ts'
 import { measuredRuntimeStream } from './runtimeRequestMetrics.ts'
 import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeImageWorkingSet.ts'
 import { bindWorkflowPreparation, createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
+import { createAnalysisWaitTool } from '../tools/runtimeAnalysisWait.ts'
 import { RuntimeToolProgress } from '../tools/runtimeToolProgress.ts'
 import { RuntimeSkillContext, skillResourcePresent } from '../tools/runtimeSkillContext.ts'
 import { progressData, progressDigest } from '../tools/runtimeToolEvidence.ts'
@@ -106,7 +107,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     await options.events.flush()
     return options.readHistoryImage(reference, signal)
   })
-  const discovery = new RuntimeToolDiscovery([...boundTools, ...createWorkflowWaitTool(boundTools, options.mcp.originalName)], options.mcp.originalName, [skillTool, historyTool],
+  const discovery = new RuntimeToolDiscovery([...boundTools, ...createWorkflowWaitTool(boundTools, options.mcp.originalName), ...createAnalysisWaitTool(boundTools, options.mcp.originalName)], options.mcp.originalName, [skillTool, historyTool],
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
     (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) })
   let tools = discovery.active()
