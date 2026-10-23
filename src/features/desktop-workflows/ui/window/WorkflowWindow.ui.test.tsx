@@ -3,6 +3,7 @@ import { App, ConfigProvider } from 'antd'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { DetachedConnection, DetachedPacket, DetachedOwnerBridge } from '#common/contracts'
 import type { WorkflowGateway } from '#entities/desktop-workflow'
+import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import { DetachedClient } from '#shared/detached-window'
 import { WorkflowWorkspace } from '../WorkflowWorkspace'
 import { DetachedWorkflowSurface } from './DetachedWorkflowSurface'
@@ -12,7 +13,7 @@ class SocketFixture { close() {} }
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 afterEach(() => { delete (window as Window & { termous?: unknown }).termous; vi.unstubAllGlobals() })
 
-function setup(navigate = vi.fn().mockResolvedValue(true)) {
+function setup(navigate = vi.fn().mockResolvedValue(true), aiRuntimeGateway?: AIRuntimeGateway, active = true) {
   vi.stubGlobal('WebSocket', SocketFixture)
   const listeners = new Set<(packet: DetachedPacket) => void>()
   const connection: DetachedConnection = { module: 'desktop-workflow', instance: 'workspace', generation: 'test' }
@@ -27,9 +28,32 @@ function setup(navigate = vi.fn().mockResolvedValue(true)) {
   }
   Object.defineProperty(window, 'termous', { configurable: true, value: { detachedWindows: bridge } })
   const gateway = { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), eventsURL: () => 'ws://fixture/events' } as unknown as WorkflowGateway
-  const host = render(<WorkflowWorkspace gateway={gateway} sessions={[]} profiles={[]} onDirtyChange={() => {}} onViewDesktop={() => {}} onReturnToPage={navigate} />, { wrapper })
+  const host = render(<WorkflowWorkspace gateway={gateway} aiRuntimeGateway={aiRuntimeGateway} active={active} sessions={[]} profiles={[]} onDirtyChange={() => {}} onViewDesktop={() => {}} onReturnToPage={navigate} />, { wrapper })
   return { host, bridge, client, connection, listeners, navigate }
 }
+
+it('主页面未激活且没有连接和草稿时，独立窗口仍通过宿主自动预热', async () => {
+  const runtime: AIRuntimeGateway = {
+    serviceStatus: vi.fn().mockResolvedValue({ state: 'idle', device: 'cpu', instance_id: 'fixture' }),
+    warmup: vi.fn().mockResolvedValue(undefined), status: vi.fn(), download: vi.fn(), cancel: vi.fn(), check: vi.fn(),
+  }
+  const f = setup(undefined, runtime, false)
+  let unmountChild: (() => void) | undefined
+  try {
+    await within(f.host.container).findByRole('button', { name: 'settings.aiRuntime.cpu' })
+    expect(runtime.warmup).not.toHaveBeenCalled()
+    fireEvent.click(within(f.host.container).getByRole('button', { name: 'desktopWorkflow.window.open' }))
+    await waitFor(() => expect(f.bridge.open).toHaveBeenCalledTimes(1))
+    const child = render(<DetachedWorkflowSurface client={f.client} />, { wrapper })
+    unmountChild = child.unmount
+    await within(child.container).findByRole('button', { name: 'settings.aiRuntime.cpu' })
+    await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(1))
+    expect(within(child.container).queryByRole('button', { name: 'desktopWorkflow.analysis.analyze' })).not.toBeInTheDocument()
+    fireEvent.click(within(child.container).getByRole('button', { name: 'desktopWorkflow.window.return' }))
+    await waitFor(() => expect(f.bridge.close).toHaveBeenCalledTimes(1))
+    expect(runtime.warmup).toHaveBeenCalledTimes(1)
+  } finally { unmountChild?.(); f.host.unmount(); f.client.dispose() }
+})
 
 it('独立窗口与主窗口交接草稿，取消导航保留小窗，确认返回后收回同一份状态', async () => {
   const f = setup(vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true))

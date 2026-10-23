@@ -28,7 +28,7 @@ export function AnalysisRuntimeStatus({ gateway, onError, active = false }: { ga
           setPreparationFailed(false)
           try { await gateway.warmupRuntime() }
           catch {
-            // 切换预览不会丢弃该实例的请求结果；旧轮询停止后由新轮询读取。
+            // 页面隐藏不会丢弃该实例的请求结果；旧轮询停止后由新轮询读取。
             attempt.failed = true
             if (alive) setPreparationFailed(true)
           }

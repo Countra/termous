@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { Step } from '#entities/desktop-workflow'
 import type { WorkflowMediaGateway, WorkflowSurfaceModel } from '../model/workspace/types'
 import { copyStep, editStep, findStep, insertStep, moveStep, newStep } from '../model/steps'
-import { isRunActive } from '../model/messages'
+import { isRunActive, workflowError } from '../model/messages'
 import { ParameterDialog } from './editor/ParameterDialog'
 import { RunDialogView } from './execution/RunDialog'
 import { RunReportView } from './execution/RunReport'
@@ -19,12 +19,13 @@ import { workflowAuthor } from '../model/author'
 import styles from './WorkflowWorkspace.module.scss'
 import overlays from './shared/WorkflowOverlays.module.scss'
 import { useWorkflowFeedback } from './shared/useWorkflowFeedback'
+import { AnalysisRuntimeStatus } from './shared/AnalysisRuntimeStatus'
 
-export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask, guided = false }: {
+export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask, active = true, guided = false }: {
   model: WorkflowSurfaceModel; gateway: WorkflowMediaGateway; headerActions?: ReactNode; windowAction?: ReactNode; onMediaTask: (task: Promise<unknown>) => void
-  guided?: boolean
+  active?: boolean; guided?: boolean
 }) {
-  const { t } = useTranslation(); const { modal } = App.useApp()
+  const { t } = useTranslation(); const { modal, message } = App.useApp()
   useWorkflowFeedback(model)
   const confirmations = useRef(new Set<ReturnType<typeof modal.confirm>>())
   useEffect(() => {
@@ -85,6 +86,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
     <header className={styles['workspace-header']}>
       <div className={styles.breadcrumb}><Workflow size={18} /><strong>{t('desktopWorkflow.workflow')}</strong><ChevronRight size={13} /><span>{t(view === 'scripts' ? 'desktopWorkflow.compose' : 'desktopWorkflow.executionHistory')}</span></div>
       <div className={styles['workspace-actions']} data-tour="automation-actions">
+        <AnalysisRuntimeStatus gateway={gateway} active={active && !guided} onError={error => { void message.error(workflowError(error, t)) }} />
         {activeCount > 0 && <button type="button" className={styles['active-runs']} onClick={() => { const first = model.runs.find((run) => isRunActive(run.state)); if (first) showRun(first.id) }}>{t('desktopWorkflow.activeRuns', { count: activeCount })}</button>}
         <Button data-tour="automation-history" size="small" type="text" icon={<History size={15} />} onClick={() => actions.view(view === 'scripts' ? 'runs' : 'scripts')}>{t(view === 'scripts' ? 'desktopWorkflow.executionHistory' : 'desktopWorkflow.backToEditor')}</Button>
         {windowAction}{headerActions && <div className={styles['header-extension']}>{headerActions}</div>}

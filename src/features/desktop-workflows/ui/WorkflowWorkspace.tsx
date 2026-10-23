@@ -21,11 +21,11 @@ export interface WorkflowWorkspaceProps {
   activeSessionId?: string; headerActions?: ReactNode; appearance?: DetachedAppearance
   onDirtyChange: (dirty: boolean) => void; onViewDesktop: (session: string) => void | Promise<void>
   onReturnToPage?: () => Promise<boolean>; onDetachedChange?: (detached: boolean) => void
-  guided?: boolean
+  active?: boolean; guided?: boolean
 }
 
 export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSettings, sessions, activeSessionId, profiles, headerActions, appearance,
-  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, guided }: WorkflowWorkspaceProps) {
+  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, active = true, guided }: WorkflowWorkspaceProps) {
   const { t, i18n } = useTranslation()
   const root = useRef<HTMLDivElement>(null)
   const placeholder = useRef<HTMLElement>(null)
@@ -89,7 +89,7 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
       action={<Button size="small" onClick={() => { if (background) void windowState.focus(); else void windowState.open(root.current) }}>{t(background ? 'desktopWorkflow.window.focus' : 'app.retry')}</Button>} />}
     {(!detached || windowState.restoring) && <div className={styles.content} data-motion={windowState.restoring ? 'restoring' : undefined}
       inert={windowState.restoring || windowState.phase === 'opening' && windowState.frozen}>
-      <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask} guided={guided}
+      <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask} active={active && !background} guided={guided}
         windowAction={windowState.available ? <DetachedWindowButton label={t('desktopWorkflow.window.open')} busy={windowState.phase === 'opening'} onClick={() => void windowState.open(root.current)} /> : undefined} />
     </div>}
     {detached && <DetachedWindowPlaceholder ref={placeholder} capture={windowState.capture} busy={windowState.phase === 'returning'} restoring={windowState.restoring} headerActions={headerActions}

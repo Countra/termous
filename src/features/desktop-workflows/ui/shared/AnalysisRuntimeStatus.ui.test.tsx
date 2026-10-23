@@ -33,7 +33,7 @@ it.each([
   await waitFor(() => expect(screen.getByRole('button', { name: `settings.aiRuntime.${label}` })).toBeInTheDocument())
 })
 
-it('编辑器启用后每个实例预热一次，断线重启后预热新实例', async () => {
+it('工作区激活后每个实例预热一次，断线重启后预热新实例', async () => {
   vi.useFakeTimers()
   let service = { state: 'idle', device: 'cpu', instance_id: 'first' }
   const gateway = media(async () => ({ service }))
@@ -74,7 +74,7 @@ it('预热请求失败保留提示，不在同一实例上循环重试', async (
   } finally { view.unmount(); vi.useRealTimers() }
 })
 
-it('切换预览后仍显示在途预热请求的失败结果', async () => {
+it('页面隐藏后仍保留在途预热请求的失败结果', async () => {
   vi.useFakeTimers()
   let reject!: (reason: Error) => void
   const gateway = media(async () => ({ service: { state: 'idle', device: 'cpu', instance_id: 'fixture' } }))
@@ -88,4 +88,22 @@ it('切换预览后仍显示在途预热请求的失败结果', async () => {
     expect(screen.getByRole('button')).toHaveAttribute('title', 'settings.aiRuntime.preparationFailed')
     expect(gateway.warmupRuntime).toHaveBeenCalledTimes(1)
   } finally { view.unmount(); vi.useRealTimers() }
+})
+
+it('页面隐藏后返回的旧状态不触发预热，重新进入时使用当前状态', async () => {
+  let resolve!: (value: Awaited<ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>>) => void
+  const status = { service: { state: 'idle', device: 'cpu', instance_id: 'fixture' } }
+  const read = vi.fn<NonNullable<WorkflowMediaGateway['runtimeStatus']>>()
+    .mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    .mockResolvedValue(status)
+  const gateway = media(read)
+  gateway.warmupRuntime = vi.fn().mockResolvedValue(undefined)
+  const view = render(<AnalysisRuntimeStatus gateway={gateway} active onError={vi.fn()} />)
+  try {
+    view.rerender(<AnalysisRuntimeStatus gateway={gateway} active={false} onError={vi.fn()} />)
+    await act(async () => resolve(status))
+    expect(gateway.warmupRuntime).not.toHaveBeenCalled()
+    view.rerender(<AnalysisRuntimeStatus gateway={gateway} active onError={vi.fn()} />)
+    await waitFor(() => expect(gateway.warmupRuntime).toHaveBeenCalledTimes(1))
+  } finally { view.unmount() }
 })

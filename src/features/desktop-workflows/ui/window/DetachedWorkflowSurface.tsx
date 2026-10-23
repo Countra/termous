@@ -84,7 +84,7 @@ export function DetachedWorkflowSurface({ client }: { client: DetachedClient }) 
     {error && <Alert className={styles.error} type="warning" showIcon title={t(`desktopWorkflow.window.${error}`)}
       action={<><Button size="small" onClick={() => void retry()}>{t('app.reload')}</Button><Button size="small" onClick={() => void returnWindow()}>{t('desktopWorkflow.window.return')}</Button></>} />}
     <div ref={content} className={styles.content} data-motion={leaving ? 'leaving' : 'entering'} inert={frozen}>
-      <WorkflowWorkspaceView model={model} gateway={adapter.media} onMediaTask={adapter.trackMediaTask}
+      <WorkflowWorkspaceView model={model} gateway={adapter.media} onMediaTask={adapter.trackMediaTask} active={!frozen && !leaving}
         windowAction={<DetachedWindowButton label={t('desktopWorkflow.window.return')} returning busy={frozen} onClick={() => void returnWindow()} />} />
     </div>
   </div>

@@ -17,9 +17,9 @@ vi.mock('#widgets/remote-desktop-workspace', () => ({
   RemoteDesktopWorkspace: ({ tools, toolsButtonRef }: { tools?: Array<{ label: string; onClick: () => void }>; toolsButtonRef?: Ref<HTMLButtonElement> }) => <section><input aria-label="桌面会话状态" defaultValue="已连接" /><header><button ref={toolsButtonRef}>桌面工具</button>{tools?.map((tool) => <button key={tool.label} onClick={tool.onClick}>{tool.label}</button>)}</header></section>,
 }))
 vi.mock('#features/desktop-workflows', () => ({
-  WorkflowWorkspace: ({ onViewDesktop, headerActions }: { onViewDesktop: (id: string) => Promise<void>; headerActions?: ReactNode }) => {
+  WorkflowWorkspace: ({ onViewDesktop, headerActions, active }: { onViewDesktop: (id: string) => Promise<void>; headerActions?: ReactNode; active?: boolean }) => {
     const [name, setName] = useState('')
-    return <><header>{headerActions}</header><input aria-label="流程草稿" value={name} onChange={(event) => setName(event.target.value)} /><button onClick={() => void onViewDesktop('desktop')}>查看目标桌面</button></>
+    return <><header>{headerActions}</header><input aria-label="流程草稿" data-active={active} value={name} onChange={(event) => setName(event.target.value)} /><button onClick={() => void onViewDesktop('desktop')}>查看目标桌面</button></>
   },
 }))
 
@@ -35,6 +35,7 @@ it('自动化归属桌面工具，头部返回后保留会话、草稿并转移�
   fireEvent.click(workflow)
   const automation = screen.getByRole('region', { name: 'desktopWorkflow.workflow' })
   expect(automation).toHaveFocus()
+  expect(screen.getByLabelText('流程草稿')).toHaveAttribute('data-active', 'true')
   fireEvent.change(screen.getByLabelText('流程草稿'), { target: { value: '未保存流程' } })
   const back = within(automation).getByRole('button', { name: 'desktopWorkflow.backToDesktop' })
   expect(back.closest('header')).not.toBeNull()
@@ -42,9 +43,11 @@ it('自动化归属桌面工具，头部返回后保留会话、草稿并转移�
   expect(tools).toHaveFocus()
   expect(screen.getByLabelText('桌面会话状态')).toHaveValue('持续连接')
   expect(screen.getByLabelText('流程草稿')).not.toBeVisible()
+  expect(screen.getByLabelText('流程草稿')).toHaveAttribute('data-active', 'false')
   expect(screen.getByLabelText('流程草稿').closest('[hidden]')).toHaveAttribute('inert')
   fireEvent.click(workflow)
   expect(screen.getByLabelText('流程草稿')).toHaveValue('未保存流程')
+  expect(screen.getByLabelText('流程草稿')).toHaveAttribute('data-active', 'true')
   expect(automation).toHaveFocus()
 })
 
@@ -77,9 +80,11 @@ it('主页面隐藏释放观看视图但保留流程宿主，明确放弃修改�
   fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.workflow' }))
   fireEvent.change(screen.getByLabelText('流程草稿'), { target: { value: '跨页面保留' } })
   view.rerender(<RemoteDesktopPage {...props} active={false} />)
+  expect(screen.getByLabelText('流程草稿')).toHaveAttribute('data-active', 'false')
   expect(screen.queryByLabelText('桌面会话状态')).not.toBeInTheDocument()
   expect(screen.getByLabelText('流程草稿')).toHaveValue('跨页面保留')
   view.rerender(<RemoteDesktopPage {...props} active />)
+  expect(screen.getByLabelText('流程草稿')).toHaveAttribute('data-active', 'true')
   expect(screen.getByLabelText('流程草稿')).toHaveValue('跨页面保留')
   view.rerender(<RemoteDesktopPage {...props} workflowResetKey={1} />)
   expect(screen.getByLabelText('流程草稿')).toHaveValue('')
