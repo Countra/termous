@@ -31,6 +31,11 @@ function moduleId(value: unknown): SettingsModuleId {
   return value as SettingsModuleId
 }
 function schemaVersion(id: SettingsModuleId, value: unknown): number {
+  // 画面分析三模式依赖 detector_enabled，不能将旧合同缺失的开关解释为关闭。
+  if (id === 'screen_analysis') {
+    if (value === 2) return value
+    throw new Error('SETTINGS_UNSUPPORTED_VERSION')
+  }
   if (value === 1 || (id === 'agent' || id === 'connection') && value === 2) return value
   throw new Error('SETTINGS_UNSUPPORTED_VERSION')
 }

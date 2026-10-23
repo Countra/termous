@@ -1,4 +1,4 @@
-import type { AnalysisGateway, AnalysisMediaRequest } from '#common/contracts'
+import type { AnalysisGateway, AnalysisMediaRequest, AnalysisImageMetadata } from '#common/contracts'
 
 type Binary = { bytes: ArrayBuffer; type: string }
 export function analysisRemoteGateway(send: (input: AnalysisMediaRequest) => Promise<unknown>): AnalysisGateway {
@@ -15,6 +15,11 @@ export function analysisRemoteGateway(send: (input: AnalysisMediaRequest) => Pro
   return {
     validateAnalysisAction: (id, preview, signal) => request({ operation: 'action-context', id, preview }, signal),
     submitAnalysis: (input, signal) => request({ operation: 'submit', input }, signal),
+    analysisFull: (id, signal) => request({ operation: 'full', id }, signal),
+    renderAnalysisImage: async (id, query, signal) => {
+      const value = await request<Binary & { metadata: AnalysisImageMetadata }>({ operation: 'render', id, query }, signal)
+      return { blob: new Blob([value.bytes], { type: value.type }), metadata: value.metadata }
+    },
     getAnalysis: (id, signal) => request({ operation: 'get', id }, signal),
     listAnalyses: (query, signal) => request({ operation: 'list', query }, signal),
     cancelAnalysis: id => request({ operation: 'cancel', id }),
@@ -39,6 +44,8 @@ export async function handleAnalysisMedia(gateway: AnalysisGateway, request: Ana
   }
   switch (request.operation) {
     case 'action-context': return gateway.validateAnalysisAction(request.id, request.preview)
+    case 'full': return gateway.analysisFull(request.id)
+    case 'render': { const value = await gateway.renderAnalysisImage(request.id, request.query); return { ...await binary(Promise.resolve(value.blob)), metadata: value.metadata } }
     case 'submit': return gateway.submitAnalysis(request.input)
     case 'list': return gateway.listAnalyses(request.query)
     case 'storage': return gateway.analysisStorage()
@@ -60,6 +67,7 @@ export async function handleAnalysisMedia(gateway: AnalysisGateway, request: Ana
 // 组合显式绑定领域方法，避免展开类实例时遗漏原型方法。
 export function bindAnalysisGateway(gateway: AnalysisGateway): AnalysisGateway {
   return {
+    analysisFull: (...args) => gateway.analysisFull(...args), renderAnalysisImage: (...args) => gateway.renderAnalysisImage(...args),
     validateAnalysisAction: (...args) => gateway.validateAnalysisAction(...args),
     submitAnalysis: (...args) => gateway.submitAnalysis(...args), getAnalysis: (...args) => gateway.getAnalysis(...args),
     listAnalyses: (...args) => gateway.listAnalyses(...args), cancelAnalysis: (...args) => gateway.cancelAnalysis(...args),

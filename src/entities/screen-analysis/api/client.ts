@@ -1,10 +1,12 @@
 import { TermousApiError, TermousApiTransport } from '#shared/api'
 import type { AnalysisGateway, AnalysisSubmit, AnalysisRecord, AnalysisRecordQuery, AnalysisPage, AnalysisQuery,
-  AnalysisElementView, AnalysisSpanView, AnalysisGeometry, AnalysisDiagnosticView, AnalysisStorageUsage } from '#common/contracts'
+  AnalysisElementView, AnalysisSpanView, AnalysisGeometry, AnalysisDiagnosticView, AnalysisStorageUsage, AnalysisFullRecord, AnalysisImageQuery, AnalysisImageMetadata } from '#common/contracts'
+
+import { parseAnalysisImageMetadata } from './image-metadata'
 
 const root = '/api/v1/screen-analyses'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
-const search = (value: AnalysisQuery | AnalysisRecordQuery = {}) => {
+const search = (value: AnalysisQuery | AnalysisRecordQuery | AnalysisImageQuery = {}) => {
   const query = new URLSearchParams()
   for (const [key, item] of Object.entries(value)) if (item !== undefined && item !== '') query.set(key, Array.isArray(item) ? item.join(',') : String(item))
   return query.size ? `?${query}` : ''
@@ -13,6 +15,19 @@ export class ScreenAnalysisClient extends TermousApiTransport implements Analysi
   validateAnalysisAction(id: string, preview: string, signal?: AbortSignal) { return this.request<void>(`${path(id)}/action-context?preview_id=${encodeURIComponent(preview)}`, { signal }) }
   async submitAnalysis(input: AnalysisSubmit, signal?: AbortSignal) {
     return this.check(await this.request<AnalysisRecord>(root, { method: 'POST', body: input, signal }))
+  }
+  async analysisFull(id: string, signal?: AbortSignal) {
+    const value = await this.request<AnalysisFullRecord>(`${path(id)}?response_detail=full`, { signal })
+    this.check(value)
+    if (value.result?.schema_version !== 2 || !value.inference_identity) throw new TermousApiError('画面分析完整结果无效', 'analysis_invalid_response', 502)
+    return value
+  }
+  async renderAnalysisImage(id: string, query: AnalysisImageQuery, signal?: AbortSignal) {
+    let metadata: AnalysisImageMetadata | undefined
+    const blob = await this.requestBlob(`${path(id)}/images/annotated${search({ ...query, layer: query.layer ?? 'elements' })}`, { signal, timeoutMs: 20_000,
+      onHeaders: headers => { metadata = parseAnalysisImageMetadata(headers.get('X-Termous-Analysis-Image'), id) } })
+    if (!metadata) throw new TermousApiError('画面分析图片元数据缺失', 'analysis_invalid_response', 502)
+    return { blob, metadata }
   }
   async getAnalysis(id: string, signal?: AbortSignal) { return this.check(await this.request<AnalysisRecord>(path(id), { signal })) }
   async listAnalyses(query?: AnalysisRecordQuery, signal?: AbortSignal) {

@@ -19,7 +19,7 @@ function setup() {
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:screen'); vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
   const gateway: WorkflowMediaGateway = {
     openPreview: vi.fn().mockResolvedValue({ id: 'preview' }), closePreview: vi.fn().mockResolvedValue(undefined), capture: vi.fn().mockResolvedValue({ metadata, blob: new Blob(['original']) }),
-    submitAnalysis: vi.fn().mockResolvedValue({ ...result(), state: 'queued' }), getAnalysis: vi.fn().mockResolvedValue(result()),
+    analysisFull: vi.fn(), renderAnalysisImage: vi.fn(), submitAnalysis: vi.fn().mockResolvedValue({ ...result(), state: 'queued' }), getAnalysis: vi.fn().mockResolvedValue(result()),
     analysisImage: vi.fn().mockResolvedValue(new Blob(['analyzed-original'])), deleteAnalysis: vi.fn(), cancelAnalysis: vi.fn().mockResolvedValue({ ...result(), state: 'cancelling' }),
     match: vi.fn(), asset: vi.fn(), upload: vi.fn(), listAnalyses: vi.fn(), clearAnalyses: vi.fn(), analysisStorage: vi.fn(),
     analysisElements: vi.fn().mockResolvedValue({ items: [element], total: 1, limited_by_inference: false }),

@@ -64,3 +64,17 @@ test('无效空间范围显示错误并保留当前筛选', () => {
   fireEvent.change(corrected, { target: { value: '0,0,10,20' } }); fireEvent.keyDown(corrected, { key: 'Enter' }); fireEvent.keyUp(corrected, { key: 'Enter' })
   expect(change).toHaveBeenCalledWith({ bbox: [0, 0, 10, 20], cursor: undefined })
 })
+
+test('未填写分数时切换严格上界使用 1，已有阈值切换保持数值', () => {
+  const change = vi.fn()
+  const view = render(<AnalysisFilters value={{}} spans={false} onChange={change} />)
+  const upper = () => screen.getByRole('combobox', { name: 'analysisCenter.detection_max analysisCenter.image.boundary' })
+  fireEvent.mouseDown(upper())
+  fireEvent.click(screen.getByText('<'))
+  expect(change).toHaveBeenLastCalledWith({ detection_max: undefined, detection_lt: 1, cursor: undefined })
+  view.rerender(<AnalysisFilters value={{ detection_lt: .7 }} spans={false} onChange={change} />)
+  fireEvent.mouseDown(upper())
+  const inclusive = screen.getAllByText('≤')
+  fireEvent.click(inclusive[inclusive.length - 1])
+  expect(change).toHaveBeenLastCalledWith({ detection_lt: undefined, detection_max: .7, cursor: undefined })
+})

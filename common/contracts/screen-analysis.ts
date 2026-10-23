@@ -2,6 +2,7 @@ export interface ScreenAnalysisParameters {
   confidence: number
   image_size: number
   ocr_enabled: boolean
+  detector_enabled: boolean
   text_confidence: number
   nms_iou: number
   max_detections: number
@@ -10,9 +11,9 @@ export interface ScreenAnalysisParameters {
 
 export const screenAnalysisDefaults: Readonly<ScreenAnalysisParameters> = Object.freeze({
   confidence: 0.05, image_size: 1280, ocr_enabled: true, text_confidence: 0.5,
-  nms_iou: 0.45, max_detections: 300, ocr_max_side: 1600,
+  nms_iou: 0.45, max_detections: 300, ocr_max_side: 1600, detector_enabled: true,
 })
-export type AnalysisNumberParameter = Exclude<keyof ScreenAnalysisParameters, 'ocr_enabled'>
+export type AnalysisNumberParameter = Exclude<keyof ScreenAnalysisParameters, 'ocr_enabled' | 'detector_enabled'>
 export const analysisParameterBounds = {
   confidence: { min: 0, max: 1, step: 0.01 },
   image_size: { min: 320, max: 1920, step: 32 },
@@ -32,6 +33,18 @@ export function validAnalysisNumber(key: AnalysisNumberParameter, value: unknown
 export function isScreenAnalysisParameters(value: unknown): value is ScreenAnalysisParameters {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const fields = value as Record<string, unknown>
-  return Object.keys(fields).length === 7 && typeof fields.ocr_enabled === 'boolean'
+  return Object.keys(fields).length === 8 && typeof fields.ocr_enabled === 'boolean' && typeof fields.detector_enabled === 'boolean'
+    && (fields.ocr_enabled || fields.detector_enabled)
     && (Object.keys(analysisParameterBounds) as AnalysisNumberParameter[]).every(key => validAnalysisNumber(key, fields[key]))
+}
+
+export type AnalysisMode = 'combined' | 'detector' | 'ocr'
+export function analysisMode(value: Pick<ScreenAnalysisParameters, 'detector_enabled' | 'ocr_enabled'>): AnalysisMode {
+  return value.detector_enabled ? value.ocr_enabled ? 'combined' : 'detector' : 'ocr'
+}
+export function analysisModeParameters(mode: AnalysisMode) {
+  return { detector_enabled: mode !== 'ocr', ocr_enabled: mode !== 'detector' }
+}
+export function analysisParameterEnabled(key: AnalysisNumberParameter, value: Pick<ScreenAnalysisParameters, 'detector_enabled' | 'ocr_enabled'>) {
+  return key === 'text_confidence' || key === 'ocr_max_side' ? value.ocr_enabled : value.detector_enabled
 }

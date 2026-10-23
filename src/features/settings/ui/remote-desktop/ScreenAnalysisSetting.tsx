@@ -1,14 +1,15 @@
-import { Button, InputNumber, Switch } from 'antd'
+import { Button, InputNumber } from 'antd'
 import { ScanSearch } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { analysisParameterBounds, isScreenAnalysisParameters, screenAnalysisDefaults, validAnalysisNumber, type AnalysisNumberParameter } from '#common/contracts'
+import { analysisParameterBounds, isScreenAnalysisParameters, screenAnalysisDefaults, validAnalysisNumber, analysisParameterEnabled, type AnalysisNumberParameter } from '#common/contracts'
 import { settingsErrorCode, useSettingsModule } from '#entities/settings'
 import { SettingsDetails, SettingsField, SettingsGroup } from '../controls/SettingsGroup'
 import styles from '../controls/SettingsGroup.module.scss'
+import { AnalysisModeSelect } from '#entities/screen-analysis'
 import layout from './ScreenAnalysisSetting.module.scss'
 
-type Draft = { [K in AnalysisNumberParameter]: number | null } & { ocr_enabled: boolean }
+type Draft = { [K in AnalysisNumberParameter]: number | null } & { ocr_enabled: boolean; detector_enabled: boolean }
 interface Edit { value: Draft; revision: number }
 
 export function ScreenAnalysisSetting({ disabled }: { disabled: boolean }) {
@@ -43,7 +44,7 @@ export function ScreenAnalysisSetting({ disabled }: { disabled: boolean }) {
       description={t(`settings.screenAnalysis.${key}Hint`)} descriptionId={`${id}-${key}-hint`}
       control={<InputNumber<number> id={`${id}-${key}`} aria-describedby={`${id}-${key}-hint`} aria-invalid={!valid}
         aria-valuemin={bounds.min} aria-valuemax={bounds.max} step={bounds.step} changeOnBlur={false}
-        value={value?.[key]} disabled={locked || (key === 'text_confidence' || key === 'ocr_max_side') && !value?.ocr_enabled}
+        value={value?.[key]} disabled={locked || !!value && !analysisParameterEnabled(key, value)}
         status={valid ? undefined : 'error'} onChange={next => { if (value) setDraft({ ...value, [key]: next }) }}
         onBlur={() => void save()} onPressEnter={() => void save()} />}>
       {!valid && <p role="alert" className={styles.error}>{t('settings.screenAnalysis.invalid')}</p>}
@@ -58,10 +59,10 @@ export function ScreenAnalysisSetting({ disabled }: { disabled: boolean }) {
     <div className={layout.notice}><p className={styles.hint}>{t('settings.screenAnalysis.hint')}</p></div>
     {number('confidence')}
     {number('image_size')}
-    <SettingsField label={t('settings.screenAnalysis.ocr_enabled')} htmlFor={`${id}-ocr`}
-      description={t('settings.screenAnalysis.ocr_enabledHint')} descriptionId={`${id}-ocr-hint`}
-      control={<Switch id={`${id}-ocr`} checked={value?.ocr_enabled ?? false} disabled={locked}
-        aria-describedby={`${id}-ocr-hint`} onChange={enabled => { if (value) void save(setDraft({ ...value, ocr_enabled: enabled })) }} />} />
+    <SettingsField label={t('settings.screenAnalysis.mode')} htmlFor={`${id}-mode`}
+      description={t('settings.screenAnalysis.modeHint')} descriptionId={`${id}-mode-hint`}
+      control={<AnalysisModeSelect id={`${id}-mode`} value={value ?? screenAnalysisDefaults} disabled={locked}
+        onChange={modes => { if (value) void save(setDraft({ ...value, ...modes })) }} />} />
     {number('text_confidence')}
     <div className={layout.advanced}><SettingsDetails summary={t('settings.screenAnalysis.advanced')}>
       {number('nms_iou')}{number('max_detections')}{number('ocr_max_side')}

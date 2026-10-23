@@ -7,7 +7,7 @@ import { ScreenAnalysisSetting } from './ScreenAnalysisSetting'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 function fixture() {
-  let saved: SettingsSnapshot = { id: 'screen_analysis', schema_version: 1, revision: 1, value: { ...screenAnalysisDefaults }, state: { status: 'applied' } }
+  let saved: SettingsSnapshot = { id: 'screen_analysis', schema_version: 2, revision: 1, value: { ...screenAnalysisDefaults }, state: { status: 'applied' } }
   const update = vi.fn<SettingsTransport['update']>(async (_id, request) => {
     saved = { ...saved, revision: saved.revision + 1, value: request.patch }
     return saved
@@ -31,7 +31,8 @@ test('数字输入确认时保存，关闭 OCR 保留参数，恢复默认只提
   await waitFor(() => expect(f.update).toHaveBeenCalledTimes(1))
   expect(f.update.mock.calls[0][1]).toEqual({ expected_revision: 1, patch: { ...screenAnalysisDefaults, confidence: .2 } })
   await waitFor(() => expect(confidence).toBeEnabled())
-  fireEvent.click(screen.getByRole('switch', { name: 'settings.screenAnalysis.ocr_enabled' }))
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'settings.screenAnalysis.mode' }))
+  fireEvent.click(await screen.findByText('settings.screenAnalysis.modes.detector'))
   await waitFor(() => expect(f.update).toHaveBeenCalledTimes(2))
   expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.text_confidence' })).toBeDisabled()
   expect(f.update.mock.calls[1][1].patch).toMatchObject({ ocr_enabled: false, text_confidence: .5, ocr_max_side: 1600 })
@@ -57,6 +58,19 @@ test('非法尺寸不提交，保存失败保留草稿并支持显式重试', as
   fireEvent.click(screen.getByRole('button', { name: 'app.retry' }))
   await waitFor(() => expect(f.update).toHaveBeenCalledTimes(2))
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+})
+
+test('仅 OCR 保留检测参数并禁用检测输入，文字参数继续可编辑', async () => {
+  const f = fixture()
+  const mode = screen.getByRole('combobox', { name: 'settings.screenAnalysis.mode' })
+  await waitFor(() => expect(mode).toBeEnabled())
+  fireEvent.mouseDown(mode)
+  fireEvent.click(await screen.findByText('settings.screenAnalysis.modes.ocr'))
+  await waitFor(() => expect(f.update).toHaveBeenCalledOnce())
+  expect(f.update.mock.calls[0][1].patch).toEqual({ ...screenAnalysisDefaults, detector_enabled: false })
+  expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.confidence' })).toBeDisabled()
+  expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.image_size' })).toBeDisabled()
+  await waitFor(() => expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.text_confidence' })).toBeEnabled())
 })
 
 test('编辑期间外部版本变化不覆盖草稿，冲突不会自动重试或覆盖新设置', async () => {

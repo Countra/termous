@@ -1,5 +1,20 @@
 {
   "analysisCenter": {
+    "image": {
+      "boundary": "边界",
+      "open": "查看结果图",
+      "title": "筛选结果图",
+      "ocrHint": "OCR 图层包含区域内文字和独立文字；编号格式为“文字段 ID / 元素 ID”。",
+      "elementsHint": "元素图层显示候选区域和独立文字，保留原始元素编号。检测结果不保证可点击。",
+      "filterHint": "使用当前筛选条件的全部匹配项，不限当前页。空裁剪框保留全图；图片下方的信息对应最近一次生成。",
+      "crop": "裁剪范围（原图像素，可选）",
+      "maxSide": "输出最长边（可选）",
+      "generate": "生成预览",
+      "export": "导出筛选结果图",
+      "invalidCrop": "裁剪范围必须是原图内有效的整数像素框。",
+      "invalidSize": "输出最长边必须为 256～4096 的整数。",
+      "counts": "匹配 {{matched}} 项，绘制 {{drawn}} 项 · 输出 {{width}}×{{height}} · 原图范围 {{crop}}"
+    },
     "title": "分析记录",
     "details": "分析记录详情",
     "state": "任务状态",
@@ -19,10 +34,10 @@
     "readFailed": "读取失败，请重试",
     "operationFailed": "操作失败，请重试",
     "submitFailed": "任务提交失败。重试会沿用请求标识。",
-    "detection_min": "检测 ≥",
-    "detection_max": "检测 ≤",
-    "text_min": "文字 ≥",
-    "text_max": "文字 ≤",
+    "detection_min": "检测下界",
+    "detection_max": "检测上界",
+    "text_min": "文字下界",
+    "text_max": "文字上界",
     "sort": "排序",
     "bbox": "相交范围",
     "bboxHint": "像素范围 x1,y1,x2,y2，回车应用",
@@ -5450,6 +5465,13 @@
   },
   "settings": {
     "screenAnalysis": {
+      "mode": "分析模式",
+      "modeHint": "保存默认模式；只执行所选推理，模型仍统一预热。",
+      "modes": {
+        "combined": "检测＋文字识别",
+        "detector": "仅检测",
+        "ocr": "仅 OCR"
+      },
       "title": "画面分析",
       "hint": "保存后从下一次分析生效。分析结果是候选区域和识别文字，不代表真实控件语义或可点击性。",
       "confidence": "检测置信度阈值",
@@ -5457,7 +5479,7 @@
       "image_size": "检测输入尺寸",
       "image_sizeHint": "320～1920，32 的倍数。更大通常更慢，有利于识别小目标。",
       "ocr_enabled": "文字识别",
-      "ocr_enabledHint": "开启时识别全图文字；关闭后仅检测候选区域。",
+      "detector_enabled": "候选区域检测",
       "text_confidence": "文字置信度阈值",
       "text_confidenceHint": "0～1，过滤低置信度文字。",
       "nms_iou": "重叠框阈值",

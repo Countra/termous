@@ -31,20 +31,31 @@ export interface AnalysisSnapshotMetadata {
 }
 export interface AnalysisRecord {
   id: string; state: AnalysisState; stage: string; source: { kind: 'preview' | 'analysis'; id: string; name?: string }
-  parameters: ScreenAnalysisParameters; parameter_source: 'settings' | 'reanalysis'; settings_revision?: number
+  parameters: ScreenAnalysisParameters; parameter_source: 'settings' | 'request_override' | 'reanalysis'; settings_revision?: number
   session_id?: string; metadata?: AnalysisSnapshotMetadata; sha256?: string; image?: AnalysisImage
   created_at: string; finished_at?: string; expires_at: string; action_expires_at?: string; error?: string
   reused: boolean; reuse_allowed: boolean; duration_ms: number; inference_ms: number; computed_at?: string
   summary?: AnalysisSummary; confidence_distribution?: { detection: number[]; ocr: number[] }; schema_version: 2
+  images?: { original?: string; annotated?: string }
 }
+export interface AnalysisFullRecord extends AnalysisRecord { result: AnalysisResult; inference_identity: AnalysisIdentity }
 export interface AnalysisSubmit {
   request_id: string; source: { kind: 'preview' | 'analysis'; id: string }; parameters?: Partial<ScreenAnalysisParameters>; reuse?: boolean
 }
 export interface AnalysisQuery {
   q?: string; kind?: 'region' | 'text'; source?: AnalysisElement['source']; detection_min?: number; detection_max?: number
   text_min?: number; text_max?: number; bbox?: [number, number, number, number]; element_id?: number
+  detection_gt?: number; detection_lt?: number; text_gt?: number; text_lt?: number; element_ids?: number[]; span_ids?: number[]
   sort?: 'spatial' | 'confidence_asc' | 'confidence_desc'; limit?: number; cursor?: string
 }
+export interface AnalysisImageQuery extends Omit<AnalysisQuery, 'sort' | 'limit' | 'cursor'> {
+  layer?: 'elements' | 'ocr'; crop?: [number, number, number, number]; max_side?: number
+}
+export interface AnalysisImageMetadata {
+  analysis_id: string; layer: 'elements' | 'ocr'; original: AnalysisImage; crop: [number, number, number, number]
+  width: number; height: number; matched_count: number; drawn_count: number; limited_by_inference: boolean
+}
+export interface AnalysisRenderedImage { blob: Blob; metadata: AnalysisImageMetadata }
 export interface AnalysisRecordQuery {
   q?: string; state?: AnalysisState; source?: 'preview' | 'analysis'; after?: string; before?: string; limit?: number; cursor?: string
 }
@@ -69,6 +80,8 @@ export interface AnalysisGateway {
   validateAnalysisAction(id: string, preview: string, signal?: AbortSignal): Promise<void>
   submitAnalysis(input: AnalysisSubmit, signal?: AbortSignal): Promise<AnalysisRecord>
   getAnalysis(id: string, signal?: AbortSignal): Promise<AnalysisRecord>
+  analysisFull(id: string, signal?: AbortSignal): Promise<AnalysisFullRecord>
+  renderAnalysisImage(id: string, query: AnalysisImageQuery, signal?: AbortSignal): Promise<AnalysisRenderedImage>
   listAnalyses(query?: AnalysisRecordQuery, signal?: AbortSignal): Promise<AnalysisPage<AnalysisRecord>>
   cancelAnalysis(id: string): Promise<AnalysisRecord>
   deleteAnalysis(id: string): Promise<void>

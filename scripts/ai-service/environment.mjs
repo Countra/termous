@@ -24,10 +24,11 @@ export function developmentPython(env = process.env) {
 
 export function developmentEnvironment(env = process.env) {
   const python = developmentPython(env)
-  const cache = env.TERMOUS_AI_CACHE || path.join(workspace, 'dev-data/.termous/cache/ai-service')
+  const data = env.TERMOUS_DATA_DIR || path.join(workspace, 'dev-data/.termous')
+  const cache = env.TERMOUS_AI_CACHE || path.join(data, 'cache/ai-service')
   const result = { ...env, PYTHON: python, TERMOUS_AI_PYTHON: python, TERMOUS_AI_DEVELOPMENT: '1',
     TERMOUS_AI_SOURCE: path.join(workspace, 'termous-aiService'), TERMOUS_AI_MODELS: path.join(workspace, 'termous-buildbin/models'),
-    TERMOUS_AI_CACHE: cache, TERMOUS_DATA_DIR: path.join(workspace, 'dev-data'), PYTHONUTF8: '1', PYTHONNOUSERSITE: '1',
+    TERMOUS_AI_CACHE: cache, TERMOUS_DATA_DIR: data, PYTHONUTF8: '1', PYTHONNOUSERSITE: '1',
     PATH: `${path.dirname(python)}${path.delimiter}${path.join(path.dirname(python), 'Scripts')}${path.delimiter}${env.PATH || env.Path || ''}` }
   return result
 }

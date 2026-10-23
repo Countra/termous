@@ -1,0 +1,19 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-block: 12px;
+}
+
+.controls label {
+  display: grid;
+  gap: 4px;
+}
+
+.preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}

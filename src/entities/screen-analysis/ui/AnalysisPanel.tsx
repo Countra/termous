@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { AnalysisGateway, AnalysisRecord, AnalysisQuery, AnalysisPage, AnalysisElementView, AnalysisSpanView } from '#common/contracts'
 import { useVisibleQuery } from '../model/useVisibleQuery'
 import { AnalysisFilters } from './AnalysisFilters'
+import { AnalysisImageActions } from './AnalysisImageActions'
 import { AnalysisDiagnostics } from './AnalysisDiagnostics'
 import { AnalysisElementDetail, type AnalysisActions } from './AnalysisElementDetail'
 import styles from './Analysis.module.scss'
@@ -41,6 +42,7 @@ export function AnalysisPanel({ analysis, gateway, selected, hovered, onSelect, 
     <Segmented size="small" value={mode} options={[{ value: 'elements', label: t('desktopWorkflow.analysis.elements') }, { value: 'spans', label: t('analysisCenter.ocrSpans') }]}
       onChange={value => { setMode(value as 'elements' | 'spans'); setFilter({}); setCursors([undefined]); setSpanSelection(undefined) }} />
     <AnalysisFilters key={mode} value={filter} spans={mode === 'spans'} onChange={value => { setFilter(value); setCursors([undefined]) }} />
+    <AnalysisImageActions record={analysis} gateway={gateway} query={filter} layer={mode === 'spans' ? 'ocr' : 'elements'} active={active} />
     {result.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button size="small" onClick={result.reload}>{t('app.retry')}</Button>} />}
     {result.data?.limited_by_inference && <p className={styles.notice}>{t('analysisCenter.inferenceLimited')}</p>}
     <small>{t('analysisCenter.matches', { count: result.data?.total ?? 0 })}</small>

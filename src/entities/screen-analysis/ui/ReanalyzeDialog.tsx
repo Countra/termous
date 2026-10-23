@@ -1,12 +1,13 @@
-import { Alert, InputNumber, Modal, Switch } from 'antd'
+import { Alert, InputNumber, Modal } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { analysisParameterBounds, isScreenAnalysisParameters, type AnalysisNumberParameter, type AnalysisGateway, type AnalysisRecord } from '#common/contracts'
+import { analysisParameterBounds, analysisParameterEnabled, isScreenAnalysisParameters, type AnalysisNumberParameter, type AnalysisGateway, type AnalysisRecord } from '#common/contracts'
+import { AnalysisModeSelect } from './AnalysisModeSelect'
 import styles from './History.module.scss'
 
 export function ReanalyzeDialog({ record, gateway, onDone, onClose }: { record: AnalysisRecord; gateway: AnalysisGateway; onDone: (id: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
-  const [value, setValue] = useState<{ [K in AnalysisNumberParameter]: number | null } & { ocr_enabled: boolean }>({ ...record.parameters })
+  const [value, setValue] = useState<{ [K in AnalysisNumberParameter]: number | null } & { ocr_enabled: boolean; detector_enabled: boolean }>({ ...record.parameters })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const pending = useRef<{ content: string; id: string } | undefined>(undefined)
@@ -28,8 +29,8 @@ export function ReanalyzeDialog({ record, gateway, onDone, onClose }: { record: 
     <div className={styles.parameters}>
       {(Object.keys(analysisParameterBounds) as AnalysisNumberParameter[]).map(key => <label key={key}>{t(`settings.screenAnalysis.${key}`)}
         <InputNumber aria-label={t(`settings.screenAnalysis.${key}`)} value={value[key]} {...analysisParameterBounds[key]}
-          disabled={busy || !value.ocr_enabled && ['text_confidence', 'ocr_max_side'].includes(key)} onChange={next => setValue({ ...value, [key]: next })} /></label>)}
-      <label>{t('settings.screenAnalysis.ocr_enabled')}<Switch checked={value.ocr_enabled} disabled={busy} onChange={next => setValue({ ...value, ocr_enabled: next })} /></label>
+          disabled={busy || !analysisParameterEnabled(key, value)} onChange={next => setValue({ ...value, [key]: next })} /></label>)}
+      <label>{t('settings.screenAnalysis.mode')}<AnalysisModeSelect value={value} disabled={busy} onChange={modes => setValue({ ...value, ...modes })} /></label>
     </div>
   </Modal>
 }

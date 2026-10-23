@@ -15,3 +15,13 @@ test('独立窗口分析协议只接受有界业务请求，不接受路径或�
     { operation: 'elements', id: 'r', query: { q: 'a'.repeat(2049) } },
   ]) assert.equal(isAnalysisMediaRequest(value), false)
 })
+
+test('独立窗口允许模式覆盖和筛选图读取，拒绝图片分页及未知字段', () => {
+  assert.equal(isAnalysisMediaRequest({ operation: 'full', id: 'record' }), true)
+  assert.equal(isAnalysisMediaRequest({ operation: 'submit', input: { request_id: 'ocr', source: { kind: 'preview', id: 'p' }, parameters: { detector_enabled: false, ocr_enabled: true } } }), true)
+  assert.equal(isAnalysisMediaRequest({ operation: 'render', id: 'record', query: { layer: 'ocr', text_gt: .5, element_ids: [1, 2], span_ids: [4], crop: [0, 0, 500, 300], max_side: 256 } }), true)
+  for (const query of [{ limit: 20 }, { cursor: 'page' }, { sort: 'spatial' }, { crop: [0, 0, NaN, 10] }, { text_gt: Infinity }, { path: 'original' }]) {
+    assert.equal(isAnalysisMediaRequest({ operation: 'render', id: 'record', query }), false)
+  }
+  assert.equal(isAnalysisMediaRequest({ operation: 'submit', input: { request_id: 'off', source: { kind: 'preview', id: 'p' }, parameters: { detector_enabled: false, ocr_enabled: false } } }), false)
+})

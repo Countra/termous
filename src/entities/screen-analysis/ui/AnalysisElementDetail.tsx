@@ -23,7 +23,7 @@ export function AnalysisElementDetail({ gateway, id, selected, span, filter, act
   const detail = useVisibleQuery<AnalysisElementView | AnalysisSpanView>(`${id}:${selected}:${span}:${offset}`, signal => span === undefined
     ? gateway.analysisElement(id, selected, offset, signal) : gateway.analysisSpan(id, span, offset, signal), active)
   const spans = useVisibleQuery(JSON.stringify([id, selected, filter, cursor]), signal => gateway.analysisSpans(id,
-    { q: filter.q, text_min: filter.text_min, text_max: filter.text_max, element_id: selected, cursor, limit: 20 }, signal), active && span === undefined)
+    { q: filter.q, text_min: filter.text_min, text_max: filter.text_max, text_gt: filter.text_gt, text_lt: filter.text_lt, element_id: selected, cursor, limit: 20 }, signal), active && span === undefined)
   const current = detail.data
   const element = current && 'center_xy' in current ? current : undefined
   return <div className={styles.detail}>

@@ -1,5 +1,20 @@
 {
   "analysisCenter": {
+    "image": {
+      "boundary": "boundary",
+      "open": "View result image",
+      "title": "Filtered result image",
+      "ocrHint": "OCR includes text inside regions and standalone text. Labels show span ID / element ID.",
+      "elementsHint": "The element layer shows candidate regions and standalone text with their original IDs. Detection does not imply clickability.",
+      "filterHint": "Render all matches from the current filter, across all pages. Leave crop empty for the full image. Metadata describes the last generated preview.",
+      "crop": "Crop in original pixels (optional)",
+      "maxSide": "Maximum side (optional)",
+      "generate": "Generate preview",
+      "export": "Export filtered image",
+      "invalidCrop": "Crop must be a valid integer box within the original image.",
+      "invalidSize": "Maximum side must be an integer between 256 and 4096.",
+      "counts": "{{matched}} matched, {{drawn}} drawn · {{width}}×{{height}} output · Original bounds {{crop}}"
+    },
     "title": "Analysis history",
     "details": "Analysis details",
     "state": "Task state",
@@ -19,10 +34,10 @@
     "readFailed": "Could not load data. Please retry.",
     "operationFailed": "Operation failed. Please retry.",
     "submitFailed": "Submission failed. Retrying keeps the same request ID.",
-    "detection_min": "Detection ≥",
-    "detection_max": "Detection ≤",
-    "text_min": "OCR ≥",
-    "text_max": "OCR ≤",
+    "detection_min": "Detection lower bound",
+    "detection_max": "Detection upper bound",
+    "text_min": "OCR lower bound",
+    "text_max": "OCR upper bound",
     "sort": "Sort",
     "bbox": "Intersecting bounds",
     "bboxHint": "Pixel bounds x1,y1,x2,y2; Enter to apply",
@@ -5476,6 +5491,13 @@
   },
   "settings": {
     "screenAnalysis": {
+      "mode": "Analysis mode",
+      "modeHint": "Save the default inference mode. All models remain warmed up.",
+      "modes": {
+        "combined": "Detection and OCR",
+        "detector": "Detection only",
+        "ocr": "OCR only"
+      },
       "title": "Screen analysis",
       "hint": "Saved settings apply to the next analysis. Results describe candidate regions and recognized text, not actual control semantics or clickability.",
       "confidence": "Detection confidence",
@@ -5483,7 +5505,7 @@
       "image_size": "Detection input size",
       "image_sizeHint": "320–1920, in multiples of 32. Larger inputs usually take longer and help detect small targets.",
       "ocr_enabled": "Text recognition",
-      "ocr_enabledHint": "Recognize text across the entire image. Turn off to detect regions only.",
+      "detector_enabled": "Candidate region detection",
       "text_confidence": "Text confidence",
       "text_confidenceHint": "0–1. Exclude text below this confidence.",
       "nms_iou": "Overlap threshold",
