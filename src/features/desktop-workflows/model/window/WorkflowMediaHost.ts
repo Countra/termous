@@ -1,3 +1,4 @@
+import { handleAnalysisMedia } from '#entities/screen-analysis'
 import { isWorkflowDetachedMedia, workflowMediaLimit, type WorkflowDetachedMedia } from '#common/contracts'
 import type { ImageTarget } from '#entities/desktop-workflow'
 import type { WorkflowController } from '../workspace/WorkflowController'
@@ -8,7 +9,6 @@ export class WorkflowMediaHost {
   private uploaded = new Set<string>()
   private epoch = 0
   private opening = 0
-  private analyses = new Map<string, { preview: string; abort: AbortController }>()
   constructor(private readonly gateway: WorkflowMediaGateway, private readonly controller: WorkflowController) {}
   private assetAllowed(id: string) {
     if (this.uploaded.has(id)) return true
@@ -27,6 +27,12 @@ export class WorkflowMediaHost {
     if (payload.kind === 'runtime-status') return this.gateway.runtimeStatus?.() ?? {}
     if (payload.kind === 'runtime-warmup') return this.gateway.warmupRuntime?.()
     if (payload.kind === 'runtime-settings') return this.gateway.openRuntimeSettings?.()
+    if (payload.kind === 'analysis') {
+      const request = payload.request
+      if (request.operation === 'action-context' && !this.previews.has(request.preview)) throw new Error('workflow_preview_unavailable')
+      if (request.operation === 'submit' && request.input.source.kind === 'preview' && !this.previews.has(request.input.source.id)) throw new Error('workflow_preview_unavailable')
+      return handleAnalysisMedia(this.gateway, request)
+    }
     const epoch = this.epoch
     if (payload.kind === 'open') {
       const session = this.controller.getSnapshot().environment.sessions.find(item => item.id === payload.session)
@@ -48,22 +54,7 @@ export class WorkflowMediaHost {
       return this.binary(await this.gateway.asset(payload.id))
     }
     if (!this.previews.has(payload.id)) throw new Error('workflow_preview_unavailable')
-    if (payload.kind === 'analysis-cancel') {
-      const pending = this.analyses.get(payload.requestID)
-      if (pending?.preview === payload.id) pending.abort.abort()
-      return
-    }
-    if (payload.kind === 'analyze') {
-      if (this.analyses.has(payload.requestID)) throw new Error('analysis_busy')
-      const abort = new AbortController()
-      this.analyses.set(payload.requestID, { preview: payload.id, abort })
-      try { return await this.gateway.analyze(payload.id, abort.signal) }
-      finally { this.analyses.delete(payload.requestID) }
-    }
-    if (payload.kind === 'analysis-image') return this.binary(await this.gateway.analysisImage(payload.id, payload.analysisID, payload.image))
-    if (payload.kind === 'analysis-delete') return this.gateway.deleteAnalysis(payload.id, payload.analysisID)
     if (payload.kind === 'close') {
-      for (const pending of this.analyses.values()) if (pending.preview === payload.id) pending.abort.abort()
       await this.gateway.closePreview(payload.id); this.previews.delete(payload.id); return
     }
     if (payload.kind === 'capture') {
@@ -80,8 +71,6 @@ export class WorkflowMediaHost {
     return { bytes: await blob.arrayBuffer(), type: blob.type }
   }
   async reset() {
-    for (const pending of this.analyses.values()) pending.abort.abort()
-    this.analyses.clear()
     this.epoch++; this.uploaded.clear()
     const previews = [...this.previews]; this.previews.clear()
     const results = await Promise.allSettled(previews.map(id => this.gateway.closePreview(id)))

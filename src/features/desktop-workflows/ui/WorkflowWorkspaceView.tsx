@@ -1,3 +1,4 @@
+import { AnalysisHistory } from '#entities/screen-analysis'
 import { Alert, App, Button, ConfigProvider, Drawer, Modal } from 'antd'
 import { ChevronRight, History, PanelRightClose, SlidersHorizontal, Workflow } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -84,18 +85,19 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
     modal={{ classNames: { container: overlays.dialog, header: overlays['dialog-header'] } }}
   ><div ref={root} className={styles.workspace} data-narrow={narrow || undefined}>
     <header className={styles['workspace-header']}>
-      <div className={styles.breadcrumb}><Workflow size={18} /><strong>{t('desktopWorkflow.workflow')}</strong><ChevronRight size={13} /><span>{t(view === 'scripts' ? 'desktopWorkflow.compose' : 'desktopWorkflow.executionHistory')}</span></div>
+      <div className={styles.breadcrumb}><Workflow size={18} /><strong>{t('desktopWorkflow.workflow')}</strong><ChevronRight size={13} /><span>{t(view === 'analyses' ? 'analysisCenter.title' : view === 'scripts' ? 'desktopWorkflow.compose' : 'desktopWorkflow.executionHistory')}</span></div>
       <div className={styles['workspace-actions']} data-tour="automation-actions">
         <AnalysisRuntimeStatus gateway={gateway} active={active && !guided} onError={error => { void message.error(workflowError(error, t)) }} />
         {activeCount > 0 && <button type="button" className={styles['active-runs']} onClick={() => { const first = model.runs.find((run) => isRunActive(run.state)); if (first) showRun(first.id) }}>{t('desktopWorkflow.activeRuns', { count: activeCount })}</button>}
         <Button data-tour="automation-history" size="small" type="text" icon={<History size={15} />} onClick={() => actions.view(view === 'scripts' ? 'runs' : 'scripts')}>{t(view === 'scripts' ? 'desktopWorkflow.executionHistory' : 'desktopWorkflow.backToEditor')}</Button>
+        <Button size="small" type="text" onClick={() => actions.view(view === 'analyses' ? 'scripts' : 'analyses')}>{t(view === 'analyses' ? 'desktopWorkflow.backToEditor' : 'analysisCenter.title')}</Button>
         {windowAction}{headerActions && <div className={styles['header-extension']}>{headerActions}</div>}
       </div>
     </header>
-    <div className={styles.body} data-collapsed={catalogCollapsed || undefined} data-overlay={compact && !catalogCollapsed || undefined}>
-      <WorkflowCatalog scripts={model.scripts} runs={model.runs} view={view} selectedScript={draft?.script?.id} selectedRun={selectedRun} busy={busy} loading={model.loading} collapsed={catalogCollapsed} onToggle={() => setCatalogPreference(!catalogCollapsed)} onCreate={() => { create(); if (compact) setCatalogPreference(true) }} onSelectScript={(id) => guard(() => { void load(id); if (compact) setCatalogPreference(true) })} onSelectRun={(id) => { showRun(id); if (compact) setCatalogPreference(true) }} onViewChange={actions.view} queries={presentation.queries} runFilter={presentation.runFilter} onQueriesChange={queries => actions.presentation({ queries })} onRunFilterChange={runFilter => actions.presentation({ runFilter })} onRefresh={actions.refresh} />
-      {compact && !catalogCollapsed && <button type="button" className={styles['catalog-mask']} aria-label={t('desktopWorkflow.collapseLibrary')} onClick={() => setCatalogPreference(true)} />}
-      <main className={styles.main} inert={compact && !catalogCollapsed}>
+    <div className={styles.body} data-history={view === 'analyses' || undefined} data-collapsed={catalogCollapsed || undefined} data-overlay={compact && !catalogCollapsed || undefined}>
+      {view !== 'analyses' && <WorkflowCatalog scripts={model.scripts} runs={model.runs} view={view} selectedScript={draft?.script?.id} selectedRun={selectedRun} busy={busy} loading={model.loading} collapsed={catalogCollapsed} onToggle={() => setCatalogPreference(!catalogCollapsed)} onCreate={() => { create(); if (compact) setCatalogPreference(true) }} onSelectScript={(id) => guard(() => { void load(id); if (compact) setCatalogPreference(true) })} onSelectRun={(id) => { showRun(id); if (compact) setCatalogPreference(true) }} onViewChange={actions.view} queries={presentation.queries} runFilter={presentation.runFilter} onQueriesChange={queries => actions.presentation({ queries })} onRunFilterChange={runFilter => actions.presentation({ runFilter })} onRefresh={actions.refresh} />}
+      {view !== 'analyses' && compact && !catalogCollapsed && <button type="button" className={styles['catalog-mask']} aria-label={t('desktopWorkflow.collapseLibrary')} onClick={() => setCatalogPreference(true)} />}
+      <main className={styles.main} inert={view !== 'analyses' && compact && !catalogCollapsed}>
         {view === 'scripts' ? draft ? <>
           {externallyUpdated && <Alert type="info" title={t('desktopWorkflow.externalUpdate')} description={t('desktopWorkflow.externalUpdateHint')} action={<Button size="small" disabled={busy} onClick={() => guard(() => void load(draft!.script!.id))}>{t('desktopWorkflow.loadLatest')}</Button>} />}
           <WorkflowEditorToolbar key={draft.editingID} name={draft.name} description={draft.description} tags={draft.tags} revision={draft.script?.revision} parameterCount={draft.definition.parameters.length} dirty={dirty} busy={busy} propertiesVisible={narrow ? propertiesOpen : propertiesVisible} onChange={change} onSave={() => void save()} onValidate={() => void validate()} onRun={openRun} onProperties={() => narrow ? setPropertiesOpen((open) => !open) : setPropertiesVisible(!propertiesVisible)} onParameters={() => setParametersOpen(true)} onHistory={() => void history()} onCopy={() => guard(() => actions.copy(t('desktopWorkflow.copyName', { name: draft.name })))} onRemove={remove} />
@@ -107,7 +109,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
               onCopy={(id) => change({ definition: { ...draft.definition, steps: copyStep(draft.definition.steps, id) } })}
               onRemove={(id) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, () => undefined) } })}
               onToggle={(id, disabled) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, (value) => ({ ...value, disabled })) } })} />
-            <ScreenshotEditor key={draft.editingID} enabled={!guided} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
+            <ScreenshotEditor active={active} key={draft.editingID} enabled={!guided} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
               const latest = current.current.state.draft
               if (latest?.editingID === draft.editingID) current.current.actions.change({ definition: { ...latest.definition, steps: editStep(latest.definition.steps, id, edit) } })
             }} />
@@ -116,6 +118,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
           {parametersOpen && <ParameterDialog value={draft.definition.parameters} onSave={(parameters) => change({ definition: { ...draft.definition, parameters } })} onClose={() => setParametersOpen(false)} />}
           {model.execution.launch && <RunDialogView launch={model.execution.launch} environment={model.environment} onTargetChange={actions.target} onChange={actions.changeRun} onSubmit={actions.start} onClose={actions.closeRun} />}
         </> : <div className={styles['overview-scroll']}><WorkflowOverview scriptCount={model.scripts.length} runs={model.runs} onCreate={create} onRun={showRun} /></div> : null}
+        {view === 'analyses' && <AnalysisHistory gateway={gateway} active={active && !guided} />}
         {/* 保留未确认控制请求的标识；隐藏报告只暂停读取，不取消远端执行。 */}
         <RunReportView gateway={gateway} id={selectedRun} report={model.execution.report} active={view === 'runs'} onControl={actions.control} onRefresh={actions.refreshReport} onView={actions.viewDesktop}
           expansion={state.presentation.reportExpansion} onExpansionChange={reportExpansion => actions.presentation({ reportExpansion })} />

@@ -1,3 +1,4 @@
+import type { AnalysisGateway } from '#entities/screen-analysis'
 import { SettingsGatewayContext, type SettingsEditor, type SettingsGateway } from '#entities/settings'
 import { AIRuntimeGatewayContext, type AIRuntimeGateway } from '#entities/ai-runtime'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +45,7 @@ import styles from './SettingsWorkspace.module.scss'
 import { settingsPages, type SettingsPageTabKey } from '../model/registry'
 
 export interface SettingsWorkspaceProps {
+  analysisGateway?: AnalysisGateway
   aiRuntimeGateway?: AIRuntimeGateway
   settingsGateway?: SettingsGateway
   onDirtyChange?: (dirty: boolean) => void
@@ -79,7 +81,7 @@ export interface SettingsWorkspaceProps {
 }
 
 export function SettingsWorkspace({
-  aiRuntimeGateway,
+  aiRuntimeGateway, analysisGateway,
   settingsGateway,
   initialTab = 'general',
   onDirtyChange,
@@ -195,7 +197,7 @@ export function SettingsWorkspace({
     ),
     'remote-desktop': (
       <div className={styles['tab-scroll']}>
-        <RemoteDesktopSettings value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
+        <RemoteDesktopSettings analysisGateway={analysisGateway} value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
       </div>
     ),
     mount: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,

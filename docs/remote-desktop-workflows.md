@@ -47,11 +47,13 @@ features/desktop-workflows/
 
 ### 手动分析画面
 
-截图工具栏的“分析画面”经类型化 `WorkflowMediaGateway` 调用 Core。`useScreenAnalysis` 管理请求代次、过期、取消和选择；`AnalysisOverlay` 与 `AnalysisPanel` 分别提供原图覆盖层、编号列表、文字和置信度。支持筛选、复制 OCR、导出 JSON/标注 PNG，并将选定区域应用为现有步骤的坐标、搜索区域或原图模板。
+截图工具栏的“分析画面”经类型化 `WorkflowMediaGateway` 向 Core 提交后台任务，202 响应提供稳定分析 ID。`useScreenAnalysis` 观察任务、控制实时操作期限和选择；独立领域 `entities/screen-analysis` 提供历史与编辑器复用的概览、分页筛选、OCR 明细、几何覆盖层和导出组件。关闭面板只停止观察；原图保存后任务继续，结果进入“分析记录”，无桌面连接也可浏览。
+
+普通分析在接受时固定全局设置；历史“重新分析”允许覆盖所选记录参数，默认强制推理，不修改全局设置。概览不夹带全文，列表按需分页，文字与检测分数分开筛选；查询不会重新推理或找回已过滤候选。长文字分段读取，诊断按需展开，只有显式导出才下载完整 v2 JSON。坐标与字段语义见[结果合同及示例](../../termous-aiService/docs/screen-analysis-v2.md)，任务、保留和查询规则见[记录中心](../../backend/docs/screen-analysis-center.md)。
 
 实际分析原图和结构一起更新，覆盖层不修改原图。刷新截图、切换目标或连接换代会清除旧结果，迟到响应不能覆盖新画面。模板解码、裁剪和上传属于同一媒体任务；切换步骤后不应用旧操作。裁剪继续经过已有资产校验，不缩放不合格区域。
 
-独立窗口通过现有媒体宿主桥接分析、取图和释放；宿主检查预览归属，取消使用请求 ID，分析期限为 200 秒。前端始终不持有 Python 端口或管理令牌。无合适步骤时只查看结果，不发送桌面输入。
+独立窗口通过现有媒体宿主桥接提交、概览、查询、取图和显式取消；宿主检查预览归属，请求重试沿用 `request_id`，取消使用分析 ID。可见任务约一秒轮询，隐藏暂停，短暂错误重试并保留提示；恢复可见后补读。前端不持有 Python 端口或管理令牌。历史不直接应用坐标；实时操作再次通过 Core 的 `action-context` 核对原预览、连接和尺寸代次以及五分钟有效期。
 
 Core 的 `desktopworkflow` 服务组合控制服务、桌面来源与资产存储，维护脚本、不可变版本、运行报告和步骤结果。数据库由启动阶段的 `storage.Prepare` 协调，Goose 管理迁移；主配置库、Agent、Workflow 和审计具有独立归属及故障边界。参见后端的 `docs/database-migrations.md`、`docs/storage-layout.md` 和 `docs/desktop-workflows.md`。
 

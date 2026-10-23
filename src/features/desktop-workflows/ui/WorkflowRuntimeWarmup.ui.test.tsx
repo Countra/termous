@@ -16,7 +16,7 @@ function fixture() {
   const gateway: WorkflowGateway = {
     list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), get: vi.fn(), save: vi.fn(),
     remove: vi.fn(), versions: vi.fn(), restore: vi.fn(), validate: vi.fn(), upload: vi.fn(), asset: vi.fn(),
-    openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), analyze: vi.fn(),
+    openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), validateAnalysisAction: vi.fn(), submitAnalysis: vi.fn(), getAnalysis: vi.fn(), listAnalyses: vi.fn(), cancelAnalysis: vi.fn(), clearAnalyses: vi.fn(), analysisElements: vi.fn(), analysisElement: vi.fn(), analysisSpans: vi.fn(), analysisSpan: vi.fn(), analysisGeometry: vi.fn(), analysisDiagnostics: vi.fn(), exportAnalysis: vi.fn(), analysisStorage: vi.fn(),
     analysisImage: vi.fn(), deleteAnalysis: vi.fn(), run: vi.fn(), start: vi.fn(), control: vi.fn(), eventsURL: () => 'ws://127.0.0.1/events',
   }
   const runtime: AIRuntimeGateway = {

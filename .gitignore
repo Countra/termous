@@ -15,6 +15,7 @@ release
 build/core/
 build/agent/
 build/desktop-automation-fixture/
+build/analysis-center-ui/
 /.harness/
 .playwright-cli/
 output/playwright/

@@ -11,7 +11,7 @@ export function WorkflowWindowPreview() {
     const value = createWorkflowWindowFixture({ history: new URLSearchParams(location.search).has('history') })
     if (new URLSearchParams(location.search).has('analysis')) {
       const client = new WorkflowClient({ apiBaseUrl: location.origin, apiToken: 'ai-fixture' })
-      const media = ['openPreview', 'closePreview', 'capture', 'match', 'upload', 'asset', 'analyze', 'analysisImage', 'deleteAnalysis'] as const
+      const media = ['openPreview', 'closePreview', 'capture', 'match', 'upload', 'asset', 'validateAnalysisAction', 'submitAnalysis', 'getAnalysis', 'listAnalyses', 'cancelAnalysis', 'clearAnalyses', 'analysisElements', 'analysisElement', 'analysisSpans', 'analysisSpan', 'analysisGeometry', 'analysisDiagnostics', 'exportAnalysis', 'analysisStorage', 'analysisImage', 'deleteAnalysis'] as const
       for (const key of media) Object.assign(value.gateway, { [key]: client[key].bind(client) })
     }
     return value

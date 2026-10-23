@@ -1,3 +1,4 @@
+import type { AnalysisGateway } from '#common/contracts'
 import type { Definition, Diagnostic, Run, Script, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { WorkflowTarget } from '../target'
@@ -20,7 +21,7 @@ export interface WorkflowPresentation {
 }
 export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' | 'protocol' | 'connection_generation' | 'status'>
 export type WorkflowProfile = Pick<RemoteDesktopAccessProfile, 'id' | 'name' | 'protocol'>
-export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset' | 'analyze' | 'analysisImage' | 'deleteAnalysis'> & {
+export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset'> & AnalysisGateway & {
   runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
   warmupRuntime?: () => Promise<void>
   openRuntimeSettings?: () => Promise<void>
@@ -36,7 +37,7 @@ export interface WorkflowReport {
 }
 export interface WorkflowExecutionState { launch?: WorkflowLaunch; report: WorkflowReport }
 export interface WorkflowState {
-  draft?: WorkflowDraft; dirty: boolean; view: 'scripts' | 'runs'; selected?: string; selectedRun?: string
+  draft?: WorkflowDraft; dirty: boolean; view: 'scripts' | 'runs' | 'analyses'; selected?: string; selectedRun?: string
   notice?: WorkflowNotice; busy: boolean; versions?: Version[]; chosenTarget?: WorkflowTarget
   presentation: WorkflowPresentation
 }
@@ -47,7 +48,7 @@ export interface WorkflowActions {
   change: (patch: Partial<Pick<WorkflowDraft, 'name' | 'description' | 'tags' | 'definition'>>) => void
   selectStep: (id?: string) => void
   target: (target: WorkflowTarget) => void
-  view: (view: 'scripts' | 'runs') => void
+  view: (view: 'scripts' | 'runs' | 'analyses') => void
   showRun: (id: string) => void
   save: () => Promise<void>
   validate: () => Promise<void>

@@ -2,7 +2,7 @@ import { Alert, Button, Select, Spin, Tooltip } from 'antd'
 import { ImagePlus, LockKeyhole, Monitor, RefreshCw, ScanSearch } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AnalysisElement, Located, Point, Region, Snapshot, Step } from '#entities/desktop-workflow'
+import type { Located, Point, Region, Snapshot, Step } from '#entities/desktop-workflow'
 import type { WorkflowMediaGateway, WorkflowSession } from '../../model/workspace/types'
 import { blankImage, setStepImage, stepImage, type ImageSlot } from '../../model/images'
 import { workflowError } from '../../model/messages'
@@ -11,14 +11,13 @@ import styles from './ScreenshotEditor.module.scss'
 import { PreviewModeControl, type PreviewMode } from './PreviewModeControl'
 import { ScreenshotCanvas } from './ScreenshotCanvas'
 import { ScreenshotTemplatePreview } from './ScreenshotTemplatePreview'
-import { AnalysisOverlay } from './AnalysisOverlay'
-import { AnalysisPanel } from './AnalysisPanel'
+import { AnalysisOverlay, AnalysisPanel, type AnalysisElement } from '#entities/screen-analysis'
 import { useScreenAnalysis } from './useScreenAnalysis'
 import { analysisRegion } from '../../model/analysis'
 
-interface Props { enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
+interface Props { active?: boolean; enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
 
-export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true }: Props) {
+export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true, active = true }: Props) {
   const { t } = useTranslation()
   const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
@@ -108,7 +107,7 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     const meta = snapshot.metadata
     onChange(step.id, (existing) => ({ ...existing, [field]: { kind: 'point', ...point, reference_width: meta.desktop_width, reference_height: meta.desktop_height } }))
   }
-  const analysis = useScreenAnalysis(gateway, preview, perform, value => { setSnapshot(value); setMatched(undefined) })
+  const analysis = useScreenAnalysis(gateway, preview, perform, value => { setSnapshot(value); setMatched(undefined) }, setError, active)
   const applySelection = async (region: Region, image?: HTMLImageElement, kind: PreviewMode = selectionMode) => {
     if (!step || !selectable || !snapshot || busy) return false
     const meta = snapshot.metadata
@@ -139,12 +138,13 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     })
   }
   const applyElement = (kind: 'point' | 'template' | 'region', element: AnalysisElement) => {
-    if (!snapshot || !url || busy) return
-    if (kind === 'point') {
-      selectPoint({ x: Math.min(snapshot.metadata.width - 1, Math.floor(element.center_xy[0])), y: Math.min(snapshot.metadata.height - 1, Math.floor(element.center_xy[1])) })
-      return
-    }
-    void applySelection(analysisRegion(element, snapshot.metadata.width, snapshot.metadata.height), undefined, kind)
+    if (!snapshot || !url || busy || !analysis.actionable || !preview || !analysis.analysis) return
+    const version = epoch.current; const selection = selectionVersion.current
+    void gateway.validateAnalysisAction(analysis.analysis.id, preview).then(() => {
+      if (version !== epoch.current || selection !== selectionVersion.current) return
+      if (kind === 'point') selectPoint({ x: element.center_xy[0], y: element.center_xy[1] })
+      else void applySelection(analysisRegion(element, snapshot.metadata.width, snapshot.metadata.height), undefined, kind)
+    }).catch(setError)
   }
   const sameFrame = matched && snapshot && matched.capture.metadata.frame_sequence === snapshot.metadata.frame_sequence && matched.capture.metadata.display_epoch === snapshot.metadata.display_epoch
   // Core 在参考桌面尺寸变化后拒绝旧坐标；画面中也不能将旧选区伪装成当前坐标。
@@ -159,12 +159,13 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       <Monitor size={16} className={styles['screen-icon']} />
       <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
       <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => { analysis.clear(); void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } }) }} /></Tooltip>
-      <Button size="small" icon={<ScanSearch size={14} />} disabled={!preview || busy} onClick={analysis.analyze}>{t('desktopWorkflow.analysis.analyze')}</Button>
+      <Button size="small" icon={<ScanSearch size={14} />} disabled={!preview || busy || analysis.analyzing} onClick={analysis.analyze}>{t('desktopWorkflow.analysis.analyze')}</Button>
     </header>
     {session && !generation && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
     {error != null && <Alert type="error" title={workflowError(error, t)} closable onClose={() => setError(undefined)} action={<Button size="small" disabled={busy || !session} onClick={() => setPreviewRevision((v) => v + 1)}>{t('desktopWorkflow.refresh')}</Button>} />}
     <div className={styles['screen-tools']}>
-      {analysis.analyzing && <Alert type="info" title={t('desktopWorkflow.analysis.loading')} action={<Button size="small" onClick={() => { request.current?.abort(); analysis.clear() }}>{t('desktopWorkflow.analysis.cancel')}</Button>} />}
+      {analysis.readError != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button size="small" onClick={analysis.retry}>{t('app.retry')}</Button>} />}
+      {analysis.analyzing && <Alert type="info" title={t(`analysisCenter.stages.${analysis.record?.stage ?? 'capture'}`)} action={<Button size="small" onClick={analysis.cancel}>{t('desktopWorkflow.analysis.cancel')}</Button>} />}
       {step?.kind === 'pointer.drag' && <Select aria-label={t('desktopWorkflow.target')} value={slot} options={['target', 'end_target'].map((value) => ({ value, label: t(`desktopWorkflow.${value === 'target' ? 'target' : 'endTarget'}`) }))} onChange={setSlot} />}
       <PreviewModeControl disabled={!selectable || busy} value={selectionMode} pointDisabled={!step?.kind.startsWith('pointer.')} onChange={value => setMode({ context: modeContext, value })} />
       <div className={styles['tool-actions']}>
@@ -175,10 +176,10 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     </div>
     {url && snapshot ? <ScreenshotCanvas key={canvasKey} url={url} size={snapshot.metadata} mode={selectionMode} disabled={!selectable || busy} busy={busy}
       initialRegion={validRegion} point={point} matches={sameFrame ? matched.result.candidates : undefined} onPoint={selectPoint} onApply={applySelection}
-      overlay={analysis.analysis && <AnalysisOverlay elements={analysis.analysis.result.elements} selected={analysis.selected} hovered={analysis.hovered} disabled={busy} onSelect={analysis.setSelected} onHover={analysis.setHovered} />}
+      overlay={analysis.analysis && <AnalysisOverlay elements={analysis.geometry} image={analysis.analysis.image!} selected={analysis.selected} hovered={analysis.hovered} disabled={busy} onSelect={analysis.setSelected} onHover={analysis.setHovered} />}
       emptyHint={selectionMode === 'template' && target?.asset_id && !target.template_source ? t('desktopWorkflow.selection.templateSourceMissing') : undefined} />
       : <div className={styles['canvas-scroll']}>{busy && <Spin size="small" />}<div className={styles['screen-empty']}><span><Monitor size={30} strokeWidth={1.2} /></span><strong>{t('desktopWorkflow.screenPreview')}</strong><p>{t('desktopWorkflow.previewHint')}</p></div></div>}
-    {analysis.analysis && <AnalysisPanel analysis={analysis.analysis} selected={analysis.selected} hovered={analysis.hovered} busy={busy} canPoint={!!step?.kind.startsWith('pointer.')} canRegion={selectable}
+    {analysis.analysis && <AnalysisPanel key={analysis.analysis.id} gateway={gateway} active={active} analysis={analysis.analysis} selected={analysis.selected} hovered={analysis.hovered} busy={busy} canPoint={analysis.actionable && !!step?.kind.startsWith('pointer.')} canRegion={analysis.actionable && selectable}
       onSelect={analysis.setSelected} onHover={analysis.setHovered} onApply={applyElement} onExport={analysis.download} onError={setError} />}
     <footer className={styles['screen-footer']}>
       <span className={styles['readonly-badge']}><LockKeyhole size={12} />{t('desktopWorkflow.readonly')}</span>

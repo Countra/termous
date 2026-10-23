@@ -140,6 +140,9 @@ export type {
 } from './bridge'
 
 export * from './settings-center.ts'
+export * from './screen-analysis.ts'
+export * from './screen-analysis-records.ts'
+export * from './analysis-media.ts'
 export * from './system-clipboard.ts'
 export type { DesktopAutomationHost, DesktopAutomationBootstrap, DesktopAutomationBridge } from './desktop-automation'
 export { isDesktopPointer, isDesktopPointerEvent } from './desktop-pointer.ts'

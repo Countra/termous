@@ -1,3 +1,4 @@
+import { bindAnalysisGateway } from '#entities/screen-analysis'
 import type { WorkflowGateway } from '#entities/desktop-workflow'
 import { newDefinition } from '../steps'
 import { sessionTarget } from '../target'
@@ -16,6 +17,7 @@ export class WorkflowController {
   private edits = 0
   private mediaTasks = new Set<Promise<unknown>>()
   readonly execution: WorkflowExecution
+  readonly media: WorkflowMediaGateway
   reload = () => {}
   onViewDesktop: (id: string) => void | Promise<void> = () => {}
   runtimeStatus?: WorkflowMediaGateway['runtimeStatus']
@@ -23,21 +25,22 @@ export class WorkflowController {
   onRuntimeSettings?: () => Promise<void>
 
   constructor(private readonly gateway: WorkflowGateway) {
+    // 原生类字段先于参数属性赋值；在构造函数内绑定，避免捕获未初始化的 gateway。
+    this.media = {
+      runtimeStatus: async () => this.runtimeStatus?.() ?? {},
+      warmupRuntime: async () => { await this.warmupRuntime?.() },
+      openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
+      ...bindAnalysisGateway(gateway),
+      openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
+      capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
+      upload: blob => {
+        const task = this.gateway.upload(blob); this.trackMediaTask(task)
+        return task
+      },
+    }
     this.execution = new WorkflowExecution(gateway, run => { this.update({ selectedRun: run.id, view: 'runs' }); this.reload() })
     this.execution.subscribe(() => this.publish())
     this.snapshot = this.project()
-  }
-  readonly media: WorkflowMediaGateway = {
-    runtimeStatus: async () => this.runtimeStatus?.() ?? {},
-    warmupRuntime: async () => { await this.warmupRuntime?.() },
-    openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
-    analyze: (...args) => this.gateway.analyze(...args), analysisImage: (...args) => this.gateway.analysisImage(...args), deleteAnalysis: (...args) => this.gateway.deleteAnalysis(...args),
-    openPreview: (...args) => this.gateway.openPreview(...args), closePreview: id => this.gateway.closePreview(id),
-    capture: (...args) => this.gateway.capture(...args), match: (...args) => this.gateway.match(...args), asset: (...args) => this.gateway.asset(...args),
-    upload: blob => {
-      const task = this.gateway.upload(blob); this.trackMediaTask(task)
-      return task
-    },
   }
   readonly trackMediaTask = (task: Promise<unknown>) => {
     this.mediaTasks.add(task)

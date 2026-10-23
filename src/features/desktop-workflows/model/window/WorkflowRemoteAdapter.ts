@@ -3,9 +3,8 @@ import { isWorkflowDetachedCommand, isWorkflowDetachedMedia, isWorkflowDetachedN
 import { TermousApiError } from '#shared/api'
 import type { DetachedClient } from '#shared/detached-window'
 import type { Asset, ImageTarget, Located, Preview, Snapshot } from '#entities/desktop-workflow'
-import type { ScreenAnalysis } from '#entities/desktop-workflow'
+import { analysisRemoteGateway } from '#entities/screen-analysis'
 import type { WorkflowActions, WorkflowFailure, WorkflowMediaGateway, WorkflowSurfaceModel } from '../workspace/types'
-import { analysisRequestTimeout } from '../../config/analysis'
 
 interface Echo { sequence: number; command: WorkflowDetachedCommand }
 export class WorkflowRemoteAdapter {
@@ -82,21 +81,7 @@ export class WorkflowRemoteAdapter {
     runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
     warmupRuntime: async () => { await this.mediaRequest({ kind: 'runtime-warmup' }) },
     openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },
-    analyze: async (id, signal) => {
-      signal?.throwIfAborted()
-      const requestID = crypto.randomUUID()
-      const cancel = () => { void this.mediaRequest({ kind: 'analysis-cancel', id, requestID }).catch(this.report) }
-      const operation = this.mediaRequest({ kind: 'analyze', id, requestID })
-      signal?.addEventListener('abort', cancel, { once: true })
-      try { const result = await operation as ScreenAnalysis; signal?.throwIfAborted(); return result }
-      finally { signal?.removeEventListener('abort', cancel) }
-    },
-    analysisImage: async (id, analysisID, image, signal) => {
-      signal?.throwIfAborted()
-      const result = await this.mediaRequest({ kind: 'analysis-image', id, analysisID, image }) as Binary
-      signal?.throwIfAborted(); return blob(result)
-    },
-    deleteAnalysis: async (id, analysisID) => { await this.mediaRequest({ kind: 'analysis-delete', id, analysisID }) },
+    ...analysisRemoteGateway(request => this.mediaRequest({ kind: 'analysis', request })),
     openPreview: (session, generation) => this.mediaRequest({ kind: 'open', session, generation }) as Promise<Preview>,
     closePreview: async id => { await this.mediaRequest({ kind: 'close', id }) },
     upload: async blob => this.mediaRequest({ kind: 'upload', type: blob.type, bytes: await blob.arrayBuffer() }) as Promise<Asset>,
@@ -118,7 +103,7 @@ export class WorkflowRemoteAdapter {
   }
   private mediaRequest(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) return Promise.reject(new Error('workflow_media_invalid'))
-    const task = this.request('binary', payload, undefined, payload.kind === 'analyze' ? analysisRequestTimeout : 120000)
+    const task = this.request('binary', payload, undefined, 120000)
     this.trackMediaTask(task)
     return task
   }
@@ -140,7 +125,7 @@ function optimistic(model: Omit<WorkflowSurfaceModel, 'actions'>, command: Workf
   switch (command.name) {
     case 'change': if (state.draft && state.draft.editingID === command.owner) { state.draft = { ...state.draft, ...arg as object }; state.dirty = true }; break
     case 'selectStep': state.selected = arg as string | undefined; break
-    case 'view': state.view = arg as 'scripts' | 'runs'; break
+    case 'view': state.view = arg as WorkflowSurfaceModel['state']['view']; break
     case 'target': state.chosenTarget = arg as WorkflowSurfaceModel['target']; model.target = state.chosenTarget
       if (model.execution.launch && !model.execution.launch.request) model.execution.launch.target = model.target
       break

@@ -1,5 +1,7 @@
 {
   "analysis": {
+    "bounds": "Pixel bounds",
+    "center": "Center point",
     "analyze": "Analyze screen",
     "title": "Screen structure",
     "loading": "Loading models and analyzing the screen. First use may take longer…",
@@ -11,8 +13,7 @@
     "search": "Filter by number or text",
     "elements": "Screen regions",
     "unlabelled": "No associated text",
-    "interactive_region": "Interactive region",
-    "text": "Text",
+    "text": "Independent text",
     "empty": "No regions or text found",
     "previous": "Previous",
     "next": "Next",
@@ -21,7 +22,35 @@
     "usePoint": "Use as point",
     "useTemplate": "Use as template",
     "useRegion": "Use as search region",
-    "element": "Region {{id}}: {{text}}"
+    "element": "Region {{id}}: {{text}}",
+    "region": "Candidate region",
+    "all": "All types",
+    "filter": "Filter by type",
+    "counts": "Regions {{regions}} · Independent text {{texts}} · OCR spans {{spans}}",
+    "diagnostics": "Analysis diagnostics",
+    "device": "Inference device",
+    "settingsRevision": "Settings revision",
+    "boundary": "Coordinates use original screenshot pixels; right and bottom edges are exclusive. A center point does not guarantee clickability.",
+    "textScore": "Text recognition confidence",
+    "enabled": "On",
+    "disabled": "Off",
+    "models": {
+      "detector": "Detection model",
+      "ocr_detection": "OCR detection model",
+      "ocr_recognition": "OCR recognition model"
+    },
+    "timings": {
+      "detection": "Region detection",
+      "ocr": "Text recognition",
+      "association": "Association and assembly",
+      "annotation": "Annotation",
+      "total": "Total"
+    },
+    "truncation": {
+      "detection_limit": "Detection limit reached",
+      "ocr_candidate_limit": "OCR candidate limit reached",
+      "ocr_text_limit": "OCR text limit reached"
+    }
   },
   "dragStep": "Drag to reorder",
   "settingsBasics": "Basic information",
@@ -328,6 +357,7 @@
   "errors": {
     "analysis_busy": "Screen analysis is busy. Try again shortly.",
     "analysis_unavailable": "Local analysis is unavailable. Check the Python environment and models.",
+    "analysis_version_mismatch": "Screen analysis versions do not match. Update Core, Python and Web together.",
     "analysis_invalid_response": "Analysis returned invalid or mismatched results.",
     "analysis_result_limit": "Screen analysis exceeded the capacity limit.",
     "analysis_not_found": "Analysis expired. Analyze the screen again.",

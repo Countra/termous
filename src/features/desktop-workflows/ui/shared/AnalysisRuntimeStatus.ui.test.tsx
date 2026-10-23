@@ -7,7 +7,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 
 function media(runtimeStatus: NonNullable<WorkflowMediaGateway['runtimeStatus']>): WorkflowMediaGateway {
   return { runtimeStatus, openRuntimeSettings: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn(),
-    capture: vi.fn(), match: vi.fn(), upload: vi.fn(), asset: vi.fn(), analyze: vi.fn(),
+    capture: vi.fn(), match: vi.fn(), upload: vi.fn(), asset: vi.fn(), validateAnalysisAction: vi.fn(), submitAnalysis: vi.fn(), getAnalysis: vi.fn(), listAnalyses: vi.fn(), cancelAnalysis: vi.fn(), clearAnalyses: vi.fn(), analysisElements: vi.fn(), analysisElement: vi.fn(), analysisSpans: vi.fn(), analysisSpan: vi.fn(), analysisGeometry: vi.fn(), analysisDiagnostics: vi.fn(), exportAnalysis: vi.fn(), analysisStorage: vi.fn(),
     analysisImage: vi.fn(), deleteAnalysis: vi.fn() }
 }
 

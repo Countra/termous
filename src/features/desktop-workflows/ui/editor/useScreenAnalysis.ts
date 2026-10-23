@@ -1,61 +1,71 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ScreenAnalysis, Snapshot } from '#entities/desktop-workflow'
+import type { Snapshot } from '#entities/desktop-workflow'
+import { analysisTerminal, saveAnalysisDownload, useVisibleQuery, type AnalysisRecord, type AnalysisGeometry } from '#entities/screen-analysis'
 import type { WorkflowMediaGateway } from '../../model/workspace/types'
-import { exportAnalysis } from '../../model/analysis'
 
 type Perform = (work: (signal: AbortSignal) => Promise<void>) => Promise<boolean>
 
-export function useScreenAnalysis(gateway: WorkflowMediaGateway, preview: string | undefined, perform: Perform, onSnapshot: (value: Snapshot) => void) {
-  const [analysis, setAnalysis] = useState<ScreenAnalysis>()
+export function useScreenAnalysis(gateway: WorkflowMediaGateway, preview: string | undefined, perform: Perform,
+  onSnapshot: (value: Snapshot) => void, onError: (error: unknown) => void, active = true) {
+  const [submitted, setSubmitted] = useState<AnalysisRecord>()
+  const [analysis, setAnalysis] = useState<AnalysisRecord>()
+  const [geometry, setGeometry] = useState<AnalysisGeometry[]>([])
   const [selected, setSelected] = useState<number>()
   const [hovered, setHovered] = useState<number>()
-  const [analyzing, setAnalyzing] = useState(false)
+  const [actionable, setActionable] = useState(false)
+  const [imageError, setImageError] = useState<unknown>()
+  const [imageRevision, setImageRevision] = useState(0)
   const version = useRef({ value: 0 })
-  const clear = () => { version.current.value++; setAnalysis(undefined); setSelected(undefined); setHovered(undefined); setAnalyzing(false) }
-
+  const request = useRef<{ preview: string; id: string } | undefined>(undefined)
+  const callbacks = useRef({ onSnapshot, onError }); callbacks.current = { onSnapshot, onError }
+  const poll = useVisibleQuery(submitted?.id ?? '', signal => gateway.getAnalysis(submitted!.id, signal), !!submitted && active, value => !analysisTerminal(value.state))
+  const record = poll.data ?? submitted
+  const clear = () => { version.current.value++; request.current = undefined; setSubmitted(undefined); setAnalysis(undefined); setGeometry([]); setSelected(undefined); setHovered(undefined); setActionable(false); setImageError(undefined) }
+  useEffect(() => { const counter = version.current; clear(); return () => { counter.value++ } }, [preview])
   useEffect(() => {
-    const counter = version.current
-    ++counter.value
-    setAnalysis(undefined); setSelected(undefined); setHovered(undefined); setAnalyzing(false)
-    return () => { ++counter.value }
-  }, [preview])
-
+    if (record?.state === 'failed' || record?.state === 'interrupted') callbacks.current.onError(new Error(record.error ?? 'analysis_failed'))
+  }, [record?.state, record?.error])
   useEffect(() => {
-    if (!analysis || !preview) return
-    const timer = setTimeout(() => { setAnalysis(undefined); setSelected(undefined); setHovered(undefined) }, Math.max(0, Date.parse(analysis.expires_at) - Date.now()))
-    return () => {
-      clearTimeout(timer)
-      void gateway.deleteAnalysis(preview, analysis.id).catch(() => console.warn('[termous:workflow] 分析结果清理失败，将由缓存租约回收'))
-    }
-  }, [analysis, gateway, preview])
-
+    if (record?.state !== 'succeeded' || !record.metadata || !active) return
+    const current = version.current.value
+    const controller = new AbortController()
+    setImageError(undefined)
+    void Promise.all([gateway.analysisImage(record.id, 'original', controller.signal), gateway.analysisGeometry(record.id, controller.signal)])
+      .then(([blob, geometry]) => {
+        if (controller.signal.aborted || current !== version.current.value) return
+        callbacks.current.onSnapshot({ metadata: record.metadata!, blob }); setGeometry(geometry); setAnalysis(record)
+      }).catch(error => { if (!controller.signal.aborted) setImageError(error) })
+    return () => controller.abort()
+  }, [gateway, record, active, imageRevision])
+  useEffect(() => {
+    if (!analysis?.action_expires_at || analysis.source.kind !== 'preview' || analysis.source.id !== preview) { setActionable(false); return }
+    const remaining = Date.parse(analysis.action_expires_at) - Date.now()
+    setActionable(remaining > 0)
+    const timer = setTimeout(() => setActionable(false), Math.max(0, remaining))
+    return () => clearTimeout(timer)
+  }, [analysis, preview])
   const analyze = () => {
     if (!preview) return
-    clear()
+    const pending = request.current?.preview === preview ? request.current : { preview, id: crypto.randomUUID() }
+    request.current = pending
     const current = version.current.value
     void perform(async signal => {
-      setAnalyzing(true)
-      let result: ScreenAnalysis | undefined
-      let published = false
-      try {
-        result = await gateway.analyze(preview, signal)
-        const blob = await gateway.analysisImage(preview, result.id, 'original', signal)
-        if (!signal.aborted && current === version.current.value) {
-          onSnapshot({ metadata: result.metadata, blob }); setAnalysis(result); published = true
-        }
-      } finally {
-        if (current === version.current.value) setAnalyzing(false)
-        if (result && !published) void gateway.deleteAnalysis(preview, result.id).catch(() => console.warn('[termous:workflow] 已取消的分析将由缓存租约回收'))
+      const value = await gateway.submitAnalysis({ request_id: pending.id, source: { kind: 'preview', id: preview } }, signal)
+      if (!signal.aborted && current === version.current.value) {
+        request.current = undefined; setSubmitted(value); setAnalysis(undefined); setGeometry([]); setSelected(undefined); setHovered(undefined); setImageError(undefined)
       }
     })
   }
+  const cancel = () => { if (record) void gateway.cancelAnalysis(record.id).then(() => poll.reload()).catch(callbacks.current.onError) }
   const download = (kind: 'json' | 'png') => {
-    if (!analysis || !preview) return
+    if (!analysis) return
     const value = analysis
     void perform(async signal => {
-      const blob = kind === 'json' ? new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }) : await gateway.analysisImage(preview, value.id, 'annotated', signal)
-      if (!signal.aborted) exportAnalysis(blob, `termous-analysis-${value.id}.${kind}`)
+      const blob = kind === 'json' ? await gateway.exportAnalysis(value.id, signal) : await gateway.analysisImage(value.id, 'annotated', signal)
+      if (!signal.aborted) saveAnalysisDownload(blob, `termous-analysis-${value.id}.${kind}`)
     })
   }
-  return { analysis, selected, hovered, analyzing, setSelected, setHovered, clear, analyze, download }
+  return { analysis, record, geometry, actionable, selected, hovered, analyzing: !!record && !analysisTerminal(record.state),
+    readError: poll.error ?? imageError, setSelected, setHovered, clear, analyze, cancel, download,
+    retry: () => { if (imageError) setImageRevision(value => value + 1); else poll.reload() } }
 }

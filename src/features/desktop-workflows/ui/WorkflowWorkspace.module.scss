@@ -234,3 +234,5 @@
     gap: 4px;
   }
 }
+
+.body[data-history] { grid-template-columns: minmax(0, 1fr); }

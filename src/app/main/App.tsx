@@ -1752,7 +1752,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     {accountAuthOpen && page !== 'account' ? <AccountAuthDialog api={gateways.cloud} onClose={closeAccountAuth} onAuthenticated={completeAccountAuth}
                       guided={productTourActive} onBusyChange={setAccountAuthBusy} /> : null}
                     <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
-                      settingsGateway={gateways.settings} aiRuntimeGateway={gateways.aiRuntime} initialTab={settingsInitialTab}
+                      settingsGateway={gateways.settings} aiRuntimeGateway={gateways.aiRuntime} analysisGateway={gateways.desktopWorkflow} initialTab={settingsInitialTab}
                       onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}
                       language={data.settings.language} appearanceSettings={data.settings.appearance}
                       terminalSettings={data.settings.terminal} sshSmoothScrollEnabled={sshSmoothScrollEnabled}

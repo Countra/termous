@@ -1,5 +1,7 @@
 {
   "analysis": {
+    "bounds": "像素边界",
+    "center": "中心点",
     "analyze": "分析画面",
     "title": "画面结构",
     "loading": "正在加载模型并分析画面，首次启动可能需要较长时间…",
@@ -11,8 +13,7 @@
     "search": "按编号或文字筛选",
     "elements": "画面区域列表",
     "unlabelled": "无关联文字",
-    "interactive_region": "交互区域",
-    "text": "文字",
+    "text": "独立文字",
     "empty": "未找到区域或文字",
     "previous": "上一页",
     "next": "下一页",
@@ -21,7 +22,35 @@
     "usePoint": "应用为坐标",
     "useTemplate": "应用为模板",
     "useRegion": "应用为搜索区域",
-    "element": "区域 {{id}}：{{text}}"
+    "element": "区域 {{id}}：{{text}}",
+    "region": "候选区域",
+    "all": "全部类型",
+    "filter": "按类型筛选",
+    "counts": "候选区域 {{regions}} · 独立文字 {{texts}} · OCR 文字段 {{spans}}",
+    "diagnostics": "分析诊断",
+    "device": "推理设备",
+    "settingsRevision": "设置版本",
+    "boundary": "坐标以原始截图像素计，右、下边界不包含在框内。中心点不保证可点击。",
+    "textScore": "文字识别置信度",
+    "enabled": "开启",
+    "disabled": "关闭",
+    "models": {
+      "detector": "检测模型",
+      "ocr_detection": "OCR 检测模型",
+      "ocr_recognition": "OCR 识别模型"
+    },
+    "timings": {
+      "detection": "区域检测",
+      "ocr": "文字识别",
+      "association": "关联与结果组装",
+      "annotation": "编号标注",
+      "total": "总耗时"
+    },
+    "truncation": {
+      "detection_limit": "达到检测数量上限",
+      "ocr_candidate_limit": "达到 OCR 候选上限",
+      "ocr_text_limit": "达到 OCR 文字上限"
+    }
   },
   "dragStep": "拖动调整顺序",
   "settingsBasics": "基本信息",
@@ -328,6 +357,7 @@
   "errors": {
     "analysis_busy": "画面分析正在运行，请稍后重试。",
     "analysis_unavailable": "本地画面分析服务不可用，请检查 Python 环境和模型文件后重试。",
+    "analysis_version_mismatch": "画面分析协议版本不匹配，请同步更新 Core、Python 和 Web",
     "analysis_invalid_response": "分析服务返回了不匹配或无效的结果。",
     "analysis_result_limit": "画面分析超过容量限制。",
     "analysis_not_found": "分析结果已过期，请重新分析。",

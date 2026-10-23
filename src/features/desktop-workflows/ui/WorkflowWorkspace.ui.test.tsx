@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
 import { describe, expect, it, vi } from 'vitest'
+import { screenAnalysisDefaults, type AnalysisRecord } from '#common/contracts'
 import type { Definition, Run, Script, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -21,7 +22,7 @@ class SocketFixture {
   close() {}
 }
 function gateway(): WorkflowGateway {
-  return { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), get: vi.fn(), save: vi.fn(), remove: vi.fn(), versions: vi.fn(), restore: vi.fn(), validate: vi.fn().mockResolvedValue([]), upload: vi.fn(), asset: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), analyze: vi.fn(), analysisImage: vi.fn(), deleteAnalysis: vi.fn().mockResolvedValue(undefined), run: vi.fn(), start: vi.fn(), control: vi.fn(), eventsURL: () => 'ws://127.0.0.1/events' }
+  return { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), get: vi.fn(), save: vi.fn(), remove: vi.fn(), versions: vi.fn(), restore: vi.fn(), validate: vi.fn().mockResolvedValue([]), upload: vi.fn(), asset: vi.fn(), openPreview: vi.fn(), closePreview: vi.fn(), capture: vi.fn(), match: vi.fn(), validateAnalysisAction: vi.fn(), submitAnalysis: vi.fn(), getAnalysis: vi.fn(), listAnalyses: vi.fn(), cancelAnalysis: vi.fn(), clearAnalyses: vi.fn(), analysisElements: vi.fn(), analysisElement: vi.fn(), analysisSpans: vi.fn(), analysisSpan: vi.fn(), analysisGeometry: vi.fn(), analysisDiagnostics: vi.fn(), exportAnalysis: vi.fn(), analysisStorage: vi.fn(), analysisImage: vi.fn(), deleteAnalysis: vi.fn().mockResolvedValue(undefined), run: vi.fn(), start: vi.fn(), control: vi.fn(), eventsURL: () => 'ws://127.0.0.1/events' }
 }
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}><App>{children}</App></ConfigProvider>
 
@@ -53,6 +54,33 @@ function RunReport({ gateway, id, revision, active = true, onView }: { gateway: 
 }
 
 describe('桌面脚本手动管理', () => {
+  it('从工作区进入分析记录，无桌面连接也能通过控制器加载列表和详情', async () => {
+    vi.stubGlobal('WebSocket', SocketFixture)
+    const api = gateway()
+    const record: AnalysisRecord = { id: 'analysis-history', state: 'succeeded', stage: 'complete',
+      source: { kind: 'preview', id: 'closed-preview', name: '已断开的测试桌面' },
+      parameters: screenAnalysisDefaults, parameter_source: 'settings', settings_revision: 1,
+      created_at: '2026-10-23T00:00:00Z', expires_at: '2026-10-30T00:00:00Z',
+      reused: false, reuse_allowed: true, duration_ms: 10, inference_ms: 5, schema_version: 2,
+      summary: { element_count: 0, region_count: 0, text_count: 0, ocr_span_count: 0, truncated: false, truncation_reasons: [] } }
+    vi.mocked(api.listAnalyses).mockResolvedValue({ items: [record], total: 1, limited_by_inference: false })
+    vi.mocked(api.getAnalysis).mockResolvedValue(record)
+    vi.mocked(api.analysisElements).mockResolvedValue({ items: [], total: 0, limited_by_inference: false })
+    vi.mocked(api.analysisGeometry).mockResolvedValue([])
+    const view = render(<WorkflowWorkspace gateway={api} sessions={[]} profiles={[]} onDirtyChange={() => undefined} onViewDesktop={() => undefined} />, { wrapper })
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'analysisCenter.title' }))
+      fireEvent.click(await screen.findByRole('button', { name: /已断开的测试桌面/ }))
+      expect(await screen.findByText('analysisCenter.historyReadonly')).toBeVisible()
+      await waitFor(() => expect(api.analysisElements).toHaveBeenCalledWith(record.id, {}, expect.any(AbortSignal)))
+      expect(api.getAnalysis).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+      expect(screen.queryByText('analysisCenter.readFailed')).not.toBeInTheDocument()
+      expect(api.openPreview).not.toHaveBeenCalled()
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+    expect(api.cancelAnalysis).not.toHaveBeenCalled()
+    expect(api.deleteAnalysis).not.toHaveBeenCalled()
+  })
+
   it('校验反馈使用消息提示，重复校验可再次显示，诊断可以定位步骤且不占据编排区域', async () => {
     vi.stubGlobal('WebSocket', SocketFixture)
     const api = gateway()
