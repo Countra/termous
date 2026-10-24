@@ -1,6 +1,7 @@
 import { agentDetachedCommands, type AgentDetachedCommandName } from '#common/contracts'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
 import type { AgentWorkspaceMessage } from '#widgets/agent-workspace'
+import { AgentSurfaceRestoreCache } from './agentSurfaceRestoreCache.ts'
 
 export function agentEditorOwner(model: AgentSurfaceModel) {
   return `${model.workspace?.selected_session_id ?? 'new'}:${model.workspace?.queued_turn_edit?.turn_id ?? 'draft'}`
@@ -70,8 +71,9 @@ export function projectAgentSurface(model: AgentSurfaceModel, cache = new AgentS
   return partitions
 }
 
-export function restoreAgentSurface(partitions: Record<string, unknown>): AgentSurfaceModel {
+export function restoreAgentSurface(partitions: Record<string, unknown>, cache = new AgentSurfaceRestoreCache()): AgentSurfaceModel {
   const model: Record<string, unknown> = {}
+  const messageGroups = new Set<string>()
   for (const [path, value] of Object.entries(partitions)) {
     if (value === null || value === undefined) continue
     const [group, key] = path.split('.')
@@ -79,20 +81,20 @@ export function restoreAgentSurface(partitions: Record<string, unknown>): AgentS
     if (!key) model[group] = value
     else {
       const target = (model[group] ??= {}) as Record<string, unknown>
-      if (key === 'messageIds') target.messages = (value as string[]).flatMap(id => {
-        const message = partitions[`message:${group}:${id}`] as { partIds: string[] } | undefined
-        if (!message) return []
-        const { partIds, ...metadata } = message
-        return [{ ...metadata, parts: partIds.map(partId => partitions[`part:${group}:${id}:${partId}`]).filter(Boolean) }]
-      })
+      if (key === 'messageIds') {
+        messageGroups.add(group)
+        target.messages = cache.messages(group, value as string[], partitions)
+      }
       else target[key] = value
     }
   }
   const result = model as AgentSurfaceModel
   if (result.workspace?.session_management) result.workspace.session_management = {
     ...result.workspace.session_management,
-    pendingIds: new Set(result.workspace.session_management.pendingIds as unknown as string[]),
+    pendingIds: result.workspace.session_management.pendingIds
+      ? cache.pendingIds(result.workspace.session_management.pendingIds as unknown as string[]) : new Set(),
   }
-  if (result.archive?.pendingIds) result.archive.pendingIds = new Set(result.archive.pendingIds as unknown as string[])
+  if (result.archive?.pendingIds) result.archive.pendingIds = cache.pendingIds(result.archive.pendingIds as unknown as string[])
+  cache.retain(messageGroups)
   return result
 }

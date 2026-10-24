@@ -40,6 +40,7 @@
     "test:agent-fixture": "node --test scripts/agent/openai-compatible-fixture.test.mjs",
     "test:agent-workers:electron": "node scripts/agent/run-worker-acceptance.mjs",
     "test:detached": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs",
+    "test:detached:input": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs --input",
     "test:detached:production": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs --production",
     "test:workflow-window": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-window.json && node scripts/agent/run-detached-acceptance.mjs --workflow",
     "test:workflow-window:production": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-window.json && node scripts/agent/run-detached-acceptance.mjs --workflow --production",

@@ -10,11 +10,13 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const output = path.resolve(root, '../TEMP/detached-windows')
 const production = process.argv.includes('--production')
 const workflow = process.argv.includes('--workflow')
-const acceptance = workflow ? 'workflow-acceptance.mjs' : 'acceptance.mjs'
+const input = process.argv.includes('--input')
+if (input && (workflow || production)) throw new Error('输入验收独立使用 --input；通过 TERMOUS_INPUT_URL 选择待测 renderer 服务')
+const acceptance = workflow ? 'workflow-acceptance.mjs' : input ? 'input-acceptance.mjs' : 'acceptance.mjs'
 const preview = workflow ? 'scripts/desktop/workflow-window-preview.html' : 'scripts/agent/detached-preview.html'
 await mkdir(output, { recursive: true })
 for (const [entry, filename, format] of [
-  [workflow ? 'scripts/desktop/workflow-window-acceptance.ts' : 'scripts/agent/detached-acceptance.ts', acceptance, 'es'],
+  [workflow ? 'scripts/desktop/workflow-window-acceptance.ts' : input ? 'scripts/agent/detached-input-acceptance.ts' : 'scripts/agent/detached-acceptance.ts', acceptance, 'es'],
   ['electron/detached-preload.ts', 'detached-preload.cjs', 'cjs'],
   ['scripts/agent/detached-host-preload.ts', 'host-preload.cjs', 'cjs'],
 ]) {

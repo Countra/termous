@@ -46,6 +46,43 @@ function fixture() {
 }
 
 describe('助手独立窗口业务命令', () => {
+  it('重复回显和确认不改写宿主快照，撤回的能力不会留在复用模型里', async () => {
+    const f = fixture()
+    const source = restoreAgentSurface(projectAgentSurface(f.host.model))
+    Object.freeze(source.workspace!.session_management)
+    Object.freeze(source.workspace)
+    Object.freeze(source)
+    const capabilities = [...agentSurfaceActions(f.host.model).keys()]
+    try {
+      const connected = f.remote.connect(source, capabilities, 0)
+      await connected.workspace!.onDraftChange('当前输入')
+      const echoed = f.remote.connect(source, capabilities, 0)
+      expect(echoed.workspace!.draft).toBe('当前输入')
+      expect(source.workspace!.draft).toBe('')
+      expect(source.workspace!.onDraftChange).toBeUndefined()
+      const confirmed = f.remote.connect({ ...source, workspace: { ...source.workspace!, draft: '宿主最终值' } }, [], f.host.inputSequence)
+      expect(confirmed.workspace!.draft).toBe('宿主最终值')
+      expect(confirmed.workspace!.onDraftChange).toBeUndefined()
+    } finally { f.dispose() }
+  })
+
+  it('旧确认不能覆盖新输入，排队问题编辑不会污染原始快照或其他草稿', async () => {
+    const f = fixture()
+    try {
+      const workspace = f.connect().workspace!
+      await workspace.onDraftChange('第一版')
+      await workspace.onDraftChange('第二版')
+      expect(f.remote.connect(restoreAgentSurface(projectAgentSurface(f.host.model)), [], 1).workspace!.draft).toBe('第二版')
+      f.host.model.workspace!.queued_turn_edit = { turn_id: 'turn-one', text: '待编辑', retained_attachment_ids: [] }
+      const source = restoreAgentSurface(projectAgentSurface(f.host.model))
+      const edit = f.remote.connect(source, ['workspace.onQueuedTurnEditChange'], 2)
+      await edit.workspace!.onQueuedTurnEditChange('修改后的排队问题')
+      expect(f.remote.connect(source, [], 2).workspace!.queued_turn_edit!.text).toBe('修改后的排队问题')
+      expect(source.workspace!.queued_turn_edit!.text).toBe('待编辑')
+      expect(source.workspace!.draft).toBe('')
+    } finally { f.dispose() }
+  })
+
   it.each(['queued', 'running'] as const)('实际点击 %s 任务的停止按钮只调用一次宿主取消操作', async status => {
     const f = fixture()
     f.host.model.workspace!.sessions[0]!.run_status = status

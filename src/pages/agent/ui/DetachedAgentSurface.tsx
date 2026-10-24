@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { DetachedStateReceiver, finishDetachedMotion, settleDetachedRender, type DetachedStateFrame, type DetachedClient } from '#shared/detached-window'
 import type { AgentDetachedCommandName } from '#common/contracts'
 import { restoreAgentSurface } from '../model/surface/agentSurfaceProjection.ts'
+import { AgentSurfaceRestoreCache } from '../model/surface/agentSurfaceRestoreCache.ts'
 import { AgentRemoteAdapter } from '../model/surface/agentRemoteAdapter.ts'
 import { waitForAgentComposition, type AgentPresentation } from '../model/surface/agentPresentation.ts'
 import type { AgentFeedbackSnapshot } from '../model/surface/agentFeedback.ts'
@@ -26,6 +27,9 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   const presentation = useRef<AgentPresentation>({})
   const receiver = useMemo(() => new DetachedStateReceiver(), [])
   const adapter = useMemo(() => new AgentRemoteAdapter(client, () => setError('operationFailed')), [client])
+  const restoreCache = useMemo(() => new AgentSurfaceRestoreCache(), [])
+  // 本地输入仅叠加草稿；只有宿主分区变化才还原消息，避免每次按键扫描历史。
+  const restored = useMemo(() => partitions ? restoreAgentSurface(partitions, restoreCache) : undefined, [partitions, restoreCache])
   useSyncExternalStore(adapter.subscribe, adapter.getSnapshot, adapter.getSnapshot)
   useEffect(() => {
     let alive = true
@@ -89,7 +93,7 @@ export function DetachedAgentSurface({ client }: { client: DetachedClient }) {
   }
   if (!partitions) return error ? <Alert type="error" title={t(`agent.window.${error}`)}
     action={<Button onClick={() => void retry()}>{t('app.reload')}</Button>} /> : <Spin fullscreen />
-  const model = adapter.connect(restoreAgentSurface(partitions), partitions.capabilities as AgentDetachedCommandName[] ?? [], Number(partitions.inputSequence ?? 0))
+  const model = adapter.connect(restored!, partitions.capabilities as AgentDetachedCommandName[] ?? [], Number(partitions.inputSequence ?? 0))
   const feedback = partitions.feedback as AgentFeedbackSnapshot | undefined
   return <div className={styles.surface} ref={root}>
     {error && <Alert className={styles.error} type="warning" showIcon title={t(`agent.window.${error}`)}

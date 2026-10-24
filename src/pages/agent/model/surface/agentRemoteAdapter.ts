@@ -25,7 +25,14 @@ export class AgentRemoteAdapter {
   readonly getSnapshot = () => this.revision
   private changed() { this.revision++; for (const listener of this.listeners) listener() }
 
-  connect(model: AgentSurfaceModel, capabilities: AgentDetachedCommandName[], acknowledged: number): AgentSurfaceModel {
+  connect(source: AgentSurfaceModel, capabilities: AgentDetachedCommandName[], acknowledged: number): AgentSurfaceModel {
+    // 操作及乐观回显只写入视图外壳，不能污染复用的宿主快照。
+    const model: AgentSurfaceModel = { ...source,
+      workspace: source.workspace && { ...source.workspace,
+        session_management: source.workspace.session_management && { ...source.workspace.session_management } },
+      archive: source.archive && { ...source.archive }, readiness: source.readiness && { ...source.readiness },
+      reference: source.reference && { ...source.reference },
+    }
     this.sequence = Math.max(this.sequence, acknowledged)
     for (const [key, value] of this.echoes) if (value.sequence <= acknowledged) this.echoes.delete(key)
     const owner = agentEditorOwner(model)

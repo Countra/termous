@@ -4,7 +4,7 @@ import { agentMessageFixture, agentRunFixture, agentSessionFixture, agentTextPar
 import { modelFixture, providerFixture, readinessFixture } from './detachedFixtureData.ts'
 
 // 验收夹具只在内存中运行，不连接模型、SSH、Core 或开发数据目录。
-export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' | 'running') {
+export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' | 'running', longHistory = false) {
   let readiness = scenario === 'ready' ? readinessFixture() : {
     ...readinessFixture('needs_setup', scenario === 'bound' ? 'ready' : 'missing'),
     mcp_runtime: { status: 'missing' as const, message: '' },
@@ -25,6 +25,16 @@ export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' |
   const messages = [agentMessageFixture({ id: 'message-user', session_id: 'session-one', role: 'user', status: 'completed', sequence: 1,
     parts: [agentTextPartFixture({ text: '帮我整理这台主机的检查顺序，先不要执行任何命令。' })] }),
     agentMessageFixture({ session_id: 'session-one', status: 'completed', parts: [agentTextPartFixture({ text: '可以先按下面的顺序确认环境：\n\n1. **观察负载**：CPU、内存与磁盘空间。\n2. **检查服务**：确认进程状态和最近的错误日志。\n3. **核对变更**：查看最近一次发布及配置修改。\n\n```bash\nuptime\nfree -h\ndf -h\n```\n\n选择关联的 SSH 会话后，我们可以继续细化排查步骤。' })] })]
+  if (longHistory) {
+    // 保持与内容窗口相同的片段上限，复现长工具轮与多会话下的输入路径。
+    messages[1].parts = Array.from({ length: 199 }, (_, index) => agentTextPartFixture({
+      id: `history-part-${index}`, sequence: index + 1,
+      text: `### 检查记录 ${index + 1}\n\n**服务状态**：正常。请保留历史观察内容。\n\n| 指标 | 结果 |\n| --- | --- |\n| CPU | 12% |\n| 内存 | 512 MiB |\n\n` + '这是一段用于输入性能验收的合成记录。'.repeat(12),
+    }))
+    for (let index = sessions.length; index < 80; index++) sessions.push(agentSessionFixture({
+      id: `session-history-${index}`, title: `历史巡检 ${index + 1}`, model_id: 'model-one', reasoning_level: 'off',
+    }))
+  }
   const methods: Partial<AgentWorkspaceGateway> = {
     runtimeOwnedByHost: true,
     subscribeWorkspace: observer => { const timer = setTimeout(() => { observer.open(); observer.event({ type: 'snapshot', revision: 1, sessions, active_runs: run && run.status !== 'cancelled' ? [run] : [] }) }, 5); return { close: () => clearTimeout(timer) } },

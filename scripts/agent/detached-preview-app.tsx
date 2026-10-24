@@ -8,7 +8,7 @@ export function DetachedPreview() {
   const fixture = useMemo(() => {
     const params = new URLSearchParams(location.search)
     const run = params.get('run')
-    return createDetachedFixture(params.get('readiness') ?? 'ready', run === 'queued' || run === 'running' ? run : undefined)
+    return createDetachedFixture(params.get('readiness') ?? 'ready', run === 'queued' || run === 'running' ? run : undefined, params.get('history') === 'long')
   }, [])
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
