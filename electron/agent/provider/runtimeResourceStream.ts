@@ -21,12 +21,15 @@ export function runtimeResourceStream(base: StreamFn,
       }
     }
     if (!images.size) return base(model, context, options)
+    options?.signal?.throwIfAborted()
     // 编码可按摘要复用，但请求序列化会再次展开每次引用，二者分别计入峰值。
     const sizes = [...images.values()]
     const bytes = serializedBytes + sizes.reduce((sum, size) => sum + size * 2, 0) + Math.max(...sizes) * 2
     const release = await reserve?.(bytes, options?.signal) ?? (() => undefined)
     try {
       const messages = await materializeResourceImages(context.messages, read, options?.signal)
+      // 预算或读取完成与取消可能同时发生，交给 Provider 前再次核验，避免迟到结果继续派发。
+      options?.signal?.throwIfAborted()
       const source = await base(model, normalizeContext({ messages }), options)
       return new ResourceStream(source, release)
     } catch (error) { release(); throw error }

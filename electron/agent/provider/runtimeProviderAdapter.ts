@@ -3,6 +3,7 @@ import type { Model, SimpleStreamOptions, ThinkingLevelMap } from '@earendil-wor
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import type { RuntimeModelSnapshot } from '../contracts/modelSnapshot.ts'
+import { runtimeToolImageContext } from './runtimeToolImageContext.ts'
 
 const unauthenticatedAPIKeySentinel = 'termous-local-no-auth'
 const providerRequestTimeoutMs = 10 * 60_000
@@ -126,9 +127,13 @@ export function createRuntimeStreamFunction(
   return (model, context, options) => {
     const sharedOptions = createRuntimeStreamOptions(apiKey, providerFetch, options, timeoutMs)
     if (model.api === 'openai-responses') {
+      const endpoint = validateProviderBaseURL(model.baseUrl)
+      // 官方端点已有多模态工具结果合同，保留 SDK 原格式；兼容网关使用文字结果及独立图片。
+      const nativeToolImages = endpoint.protocol === 'https:' && endpoint.port === ''
+        && endpoint.hostname.toLowerCase().replace(/\.$/u, '') === 'api.openai.com'
       return streamOpenAIResponses(
         model as Model<'openai-responses'>,
-        context,
+        model.input.includes('image') && !nativeToolImages ? runtimeToolImageContext(context) : context,
         sharedOptions,
       )
     }

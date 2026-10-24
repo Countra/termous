@@ -9,9 +9,11 @@ import { testAgentSkillBundle } from '../test-support/skillBundleTestFixture.ts'
 import { mapMCPTools } from '../tools/mcpClientAdapter.ts'
 import { createPiAgent } from './piAgentAdapter.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { runtimeToolResponse } from '../test-support/runtimeToolResponseFixture.ts'
 
-test('真实 SDK 跨三个循环保持工具身份和 Steer，持久事件只携带图片引用', async () => {
+for (const api of ['chat_completions', 'responses'] as const) test(`${api} 真实 SDK 跨三个循环保持工具身份和 Steer，持久事件只携带图片引用`, async () => {
   const bootstrap = runtimeBootstrap()
+  bootstrap.model.snapshot.api_mode = api
   bootstrap.messages = [runtimeUserMessage([], { text: '按顺序观察二十五轮' })]
   bootstrap.model.snapshot.supports_images = true
   bootstrap.model.snapshot.context_window_tokens = 262144
@@ -47,6 +49,11 @@ test('真实 SDK 跨三个循环保持工具身份和 Steer，持久事件只携
       const body = String(init?.body)
       if (calls.length) assert.ok(body.includes(png), '模型请求仍须收到原始图片')
       if (calls.length >= 10 && body.includes('分段之后仍须遵循此指令')) steerSeen = true
+      if (api === 'responses') {
+        const input = (JSON.parse(body) as { input: Array<{ type?: string; output?: unknown }> }).input
+        assert.ok(input.filter(item => item.type === 'function_call_output').every(item => typeof item.output === 'string'))
+        return runtimeToolResponse(api, requests <= 25 ? mapped.tools[0]!.name : undefined, { round: requests }, String(requests))
+      }
       const delta = requests <= 25 ? { tool_calls: [{ index: 0, id: `call_${requests}`, type: 'function', function: { name: mapped.tools[0]!.name, arguments: JSON.stringify({ round: requests }) } }] } : { content: '全部完成' }
       const chunk = { id: `response_${requests}`, object: 'chat.completion.chunk', created: 1, model: 'test-model', choices: [{ index: 0, delta: { role: 'assistant', ...delta }, finish_reason: requests <= 25 ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 1000, completion_tokens: 10, total_tokens: 1010 } }
       return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })

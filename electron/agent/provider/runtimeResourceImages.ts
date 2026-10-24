@@ -18,7 +18,12 @@ export async function materializeResourceImages(
       if (!read) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
       const ref = block.resource_image
       let data = encoded.get(ref.sha256)
-      if (!data) { data = await read(ref, signal); encoded.set(ref.sha256, data) }
+      if (!data) {
+        data = await read(ref, signal)
+        // 同一消息可能携带多张图片；取消后不继续读取下一张，也不发布刚返回的编码。
+        signal?.throwIfAborted()
+        encoded.set(ref.sha256, data)
+      }
       content.push({ type: 'image', mimeType: ref.mime_type, data })
     }
     result.push({ ...message, content })
