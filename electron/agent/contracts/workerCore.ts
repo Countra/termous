@@ -5,7 +5,9 @@ import type { RuntimeEventInput, RuntimeSteerInput, RuntimeSteerResult } from '.
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from './runtimeCheckpoint.ts'
 
 export interface WorkerCoreClientPort {
-  readHistoryImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('./runtimeCheckpoint.ts').RuntimeContextImageReference, signal?: AbortSignal): Promise<{ data: string; mime_type: string }>
+  readResourceText?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('#common/contracts').TextResourceReference, signal?: AbortSignal): Promise<string>
+  readResourceImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('#common/contracts').ImageResourceReference, signal?: AbortSignal): Promise<string>
+  readHistoryImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('./runtimeCheckpoint.ts').RuntimeContextImageReference, signal?: AbortSignal): Promise<RuntimeHistoryImage>
   appendAuditEvents(start: AgentWorkerStartMessage, runtimeBearer: string, events: RuntimeAuditEvent[], signal: AbortSignal): Promise<void>
   bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal): Promise<RuntimeBootstrap>
   appendEvents(
@@ -25,6 +27,8 @@ export interface WorkerCoreClientPort {
     signal?: AbortSignal,
   ): Promise<RuntimeCheckpointResult>
 }
+
+export type RuntimeHistoryImage = { data: string; mime_type: string; resource?: never } | { resource: import('#common/contracts').ImageResourceReference; mime_type: string; data?: never }
 
 export class WorkerCoreError extends Error {
   readonly code: string

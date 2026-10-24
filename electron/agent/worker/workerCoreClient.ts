@@ -1,4 +1,6 @@
 import { WorkerCoreError, type WorkerCoreClientPort } from '../contracts/workerCore.ts'
+import { createHash } from 'node:crypto'
+import { isImageResourceReference, isTextResourceReference, type ImageResourceReference, type TextResourceReference } from '#common/contracts'
 import { isRuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import { normalizeRuntimeResourceBindings } from '../contracts/resourceBindings.ts'
 import { validRuntimeSteerInput, type RuntimeEventInput, type RuntimeSteerInput } from '../contracts/runtimeEvents.ts'
@@ -127,9 +129,48 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     const value = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-images`, {
       method: 'POST', body: JSON.stringify({ generation: start.generation, reference }),
     }, runtimeBearer, signal)
+    if (isRecord(value) && isImageResourceReference(value.resource) && value.resource.mime_type === reference.mime_type && value.resource.sha256 === reference.sha256 && value.data === undefined) return { resource: value.resource, mime_type: reference.mime_type }
     if (!isRecord(value) || typeof value.data !== 'string' || typeof value.mime_type !== 'string'
       || value.mime_type !== reference.mime_type || value.data.length > 12 * 1024 * 1024) throw new WorkerCoreError('AGENT_RUNTIME_IMAGE_INVALID')
     return { data: value.data, mime_type: value.mime_type }
+  }
+
+  async readResourceImage(start: AgentWorkerStartMessage, runtimeBearer: string, reference: ImageResourceReference, signal?: AbortSignal) {
+    if (!isImageResourceReference(reference)) throw new WorkerCoreError('AGENT_RUNTIME_IMAGE_INVALID')
+    return this.readResource(start, runtimeBearer, reference, signal)
+  }
+
+  async readResourceText(start: AgentWorkerStartMessage, runtimeBearer: string, reference: TextResourceReference, signal?: AbortSignal) {
+    if (!isTextResourceReference(reference)) throw new WorkerCoreError('AGENT_RUNTIME_ATTACHMENT_INVALID')
+    return this.readResource(start, runtimeBearer, reference, signal)
+  }
+
+  private async readResource(start: AgentWorkerStartMessage, runtimeBearer: string, reference: ImageResourceReference | TextResourceReference, signal?: AbortSignal) {
+    const invalidCode = reference.kind === 'image' ? 'AGENT_RUNTIME_IMAGE_INVALID' : 'AGENT_RUNTIME_ATTACHMENT_INVALID'
+    const url = new URL(`/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-resources/${encodeURIComponent(reference.resource_id)}`, validateCoreBaseURL(start.core_base_url))
+    const operationSignal = AbortSignal.any([AbortSignal.timeout(this.requestTimeoutMs), ...(signal ? [signal] : [])])
+    const response = await this.fetchImplementation(url, { headers: { Authorization: `Bearer ${runtimeBearer}` }, signal: operationSignal, redirect: 'error' })
+    if (!response.ok) throw new WorkerCoreError(await responseErrorCode(response), response.status)
+    if (response.headers.get('content-type')?.split(';')[0] !== reference.mime_type || !response.body) {
+      await response.body?.cancel()
+      throw new WorkerCoreError(invalidCode)
+    }
+    const reader = response.body.getReader()
+    const bytes = Buffer.allocUnsafe(reference.size_bytes)
+    let offset = 0
+    try {
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        if (chunk.value.byteLength > bytes.length - offset) throw new WorkerCoreError(invalidCode)
+        bytes.set(chunk.value, offset); offset += chunk.value.byteLength
+      }
+      if (offset !== bytes.length || createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new WorkerCoreError(invalidCode)
+      return bytes.toString('base64')
+    } finally {
+      // 网络流已失败时 cancel 也会拒绝，仍须释放读取锁及底层缓冲引用。
+      try { await reader.cancel() } finally { reader.releaseLock() }
+    }
   }
 
   async commitCheckpoint(

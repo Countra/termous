@@ -1,5 +1,6 @@
 import { isRecord } from '../contracts/validation.ts'
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
+import { resourceImage } from '../contracts/runtimeResourceImages.ts'
 import {
   decodeRuntimeAttachment,
   maximumImageAttachmentBytes,
@@ -50,6 +51,13 @@ function appendRuntimeAttachments(
       throw new Error('AGENT_RUNTIME_ATTACHMENT_INVALID')
     }
     attachmentIDs.add(attachment.id)
+    if (attachment.resource) {
+      if (attachment.kind !== 'image' || attachment.resource.kind !== 'image' || !supportsImages) throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
+      imageBytes += attachment.resource.size_bytes
+      if (imageBytes > maximumImageAttachmentTotalBytes) throw new Error('AGENT_RUNTIME_ATTACHMENT_LIMIT_EXCEEDED')
+      content.push({ type: 'text', text: `[Termous 用户图片附件 id=${attachment.id} mime=${attachment.mime_type}]` }, resourceImage(attachment.resource))
+      continue
+    }
     const bytes = decodeRuntimeAttachment(attachment)
     if (attachment.kind === 'text') {
       textBytes += bytes.byteLength
@@ -75,7 +83,7 @@ function appendRuntimeAttachments(
       type: 'text',
       text: `[Termous 用户图片附件 id=${attachment.id} mime=${attachment.mime_type}]`,
     })
-    content.push({ type: 'image', data: attachment.content_base64, mimeType: attachment.mime_type })
+    content.push({ type: 'image', data: bytes.toString('base64'), mimeType: attachment.mime_type })
   }
 }
 

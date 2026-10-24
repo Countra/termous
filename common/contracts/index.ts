@@ -158,3 +158,4 @@ export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboard
 
 export type { FileClipboardImport, FileClipboardImportRequest, FileSystemClipboardBridge, FileSystemClipboardRequest, FileSystemClipboardState } from "./file-system-clipboard"
 export { agentToolImageReference, isAgentToolImageReference, isAgentDisplayImageMIMEType } from './agent-images.ts'
+export { isImageResourceReference, isTextResourceReference, type ContentResourceReference, type ImageResourceReference, type TextResourceReference } from './content-resources.ts'

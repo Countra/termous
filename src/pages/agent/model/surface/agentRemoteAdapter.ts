@@ -1,6 +1,7 @@
 import { agentDetachedCommands, canTransferAgentDetachedFiles, isAgentDetachedCommand, isAgentDetachedNoArgumentCommand,
   type AgentDetachedCommandName, type AgentDetachedFile } from '#common/contracts'
 import type { DetachedClient } from '#shared/detached-window'
+import { AgentImageRequests } from '#features/agent-runtime'
 import type { AgentSurfaceModel } from './agentSurfaceModel.ts'
 import { agentEditorOwner } from './agentSurfaceProjection.ts'
 import { AgentPendingReceipts } from './agentPendingReceipts.ts'
@@ -13,6 +14,7 @@ const requiresInputReceipt = new Set<AgentDetachedCommandName>([
 ])
 
 export class AgentRemoteAdapter {
+  private readonly imageRequests = new AgentImageRequests()
   private sequence = 0
   private readonly receipts = new AgentPendingReceipts()
   private echoes = new Map<string, { value: string; sequence: number }>()
@@ -87,15 +89,17 @@ export class AgentRemoteAdapter {
   // 状态流更新不改变读取能力的身份，避免缩略图和预览反复取消、重新读取。
   private readonly loadLocalAttachment = (clientId: string, signal?: AbortSignal) => this.load({ kind: 'local', clientId }, signal)
   private readonly loadAttachmentContent: NonNullable<AgentSurfaceModel['workspace']>['onLoadAttachmentContent'] =
-    (source, signal) => this.load({ kind: 'attachment', source }, signal)
+    (source, signal, variant) => this.load({ kind: 'attachment', source, variant }, signal)
   private readonly loadToolImage: NonNullable<AgentSurfaceModel['workspace']>['onLoadToolImage'] =
-    (source, signal) => this.load({ kind: 'image', source }, signal)
+    (source, signal, variant) => this.load({ kind: 'image', source, variant }, signal)
 
   private async load(payload: unknown, signal?: AbortSignal) {
-    signal?.throwIfAborted()
-    const result = await this.client.peer.request('binary', payload, 30000) as { bytes: ArrayBuffer; type: string }
-    signal?.throwIfAborted()
-    return new Blob([result.bytes], { type: result.type })
+    // 在跨窗口传输前合并并限制读取，离开视口的等待项不能继续涌入宿主。
+    return this.imageRequests.read(JSON.stringify(payload), async requestSignal => {
+      const result = await this.client.peer.request('binary', payload, 30000) as { bytes: ArrayBuffer; type: string }
+      requestSignal.throwIfAborted()
+      return new Blob([result.bytes], { type: result.type })
+    }, signal)
   }
 
   async flush() {

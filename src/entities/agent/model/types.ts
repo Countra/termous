@@ -478,6 +478,7 @@ export interface AgentRequestUsage {
 }
 
 export interface AgentMessage {
+  image_sources?: Array<AgentToolImageSource & { reference: string; mime_type: string; size_bytes: number }>
   progress?: AgentProgressActivity[]
   request_usage?: AgentRequestUsage[]
   id: string
@@ -561,6 +562,10 @@ export interface AgentMessageTurnUsage {
 }
 
 export interface AgentMessagePage {
+  before_cursor?: string
+  after_cursor?: string
+  has_older?: boolean
+  has_newer?: boolean
   items: AgentMessage[]
   next_after_sequence?: number
 }

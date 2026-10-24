@@ -20,6 +20,22 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
+  it('分页从工具结果开始时仍展示结果和图片，合并调用页后只显示一次', () => {
+    const result = { id: 'result', message_id: 'message', sequence: 2, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_result' as const, tool_result: { tool_call_id: 'call', tool_name: 'termous.screen_analyses.images.get',
+        content: [{ type: 'text', text: 'observation' }], is_error: false,
+        images: [{ content_index: 1, mime_type: 'image/png', size_bytes: 100 }],
+      } }
+    const message: AgentMessage = { id: 'message', session_id: 'session', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [result], attachments: [] }
+    const projected = projectAgentMessages([message], undefined, [])[0]!.parts
+    expect(projected).toHaveLength(1)
+    expect(projected[0]).toMatchObject({ kind: 'tool', status: 'completed', images: [{ part_id: 'result', content_index: 1 }] })
+    const call = { ...result, id: 'call-part', sequence: 1, kind: 'tool_call' as const,
+      tool_call: { tool_call_id: 'call', tool_name: result.tool_result.tool_name, arguments: { analysis_id: 'analysis' } } }
+    expect(projectAgentMessages([{ ...message, parts: [call, result] }], undefined, [])[0]!.parts).toHaveLength(1)
+  })
+
   it('投影缓存跟随当前 Run 的状态与用量，后继任务不会借用上一轮元数据', () => {
     const project = createAgentMessageProjector()
     const message: AgentMessage = {

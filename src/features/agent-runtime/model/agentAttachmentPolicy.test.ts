@@ -8,9 +8,9 @@ import {
 
 test('附件策略按文件签名识别 PNG、JPEG 和 WebP，并规范缺失的 MIME', async () => {
   const fixtures = [
-    ['image/png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
-    ['image/jpeg', [0xff, 0xd8, 0xff, 0xe0]],
-    ['image/webp', [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]],
+    ['image/png', pngHeader()],
+    ['image/jpeg', new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 8, 8, 0, 1, 0, 1, 0])],
+    ['image/webp', Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA', 'base64')],
   ] as const
 
   for (const [mimeType, bytes] of fixtures) {
@@ -64,11 +64,25 @@ test('附件策略执行数量、单文件和分类总量限制', async () => {
   await assert.rejects(
     validateAgentAttachmentSelection(
       [{ kind: 'image', size_bytes: agentAttachmentLimits.maximumImageTotalBytes }],
-      [file([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'extra.png')],
+      [file(pngHeader(), 'extra.png')],
     ),
     (error: unknown) => errorCode(error) === 'AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL',
   )
 })
+
+test('本地图片在建立 Blob 展示前拒绝异常像素尺寸与截断头部', async () => {
+  for (const data of [pngHeader(100000, 100000), pngHeader(0, 1), pngHeader().subarray(0, 8)]) {
+    await assert.rejects(validateAgentAttachmentSelection([], [file(data, 'image.png', 'image/png')]), error => errorCode(error) === 'AGENT_ATTACHMENT_IMAGE_SIGNATURE')
+  }
+})
+
+function pngHeader(width = 1, height = 1) {
+  const bytes = new Uint8Array(24)
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10])
+  const view = new DataView(bytes.buffer)
+  view.setUint32(16, width); view.setUint32(20, height)
+  return bytes
+}
 
 function file(content: BlobPart | number[], name: string, type = '') {
   const part = Array.isArray(content) ? new Uint8Array(content) : content

@@ -19,7 +19,7 @@ describe('消息投影缓存', () => {
       const projected = project([historical, active], undefined, [])
       expect(projected).toEqual(projectAgentMessages([historical, active], undefined, []))
       expect(projected[0]).toBe(first[0])
-      expect(projected[1]).not.toBe(first[1])
+      expect(projected[1]).toBe(first[1])
     }
     const revised = { ...historical, status: 'failed' as const }
     expect(project([revised], undefined, [])[0]).not.toBe(first[0])
@@ -36,5 +36,21 @@ describe('消息投影缓存', () => {
     const updated = project([active], undefined, [event])
     expect(initial[0]?.parts[0]).toMatchObject({ streaming: true })
     expect(updated[0]?.parts[0]).toMatchObject({ streaming: false })
+  })
+
+  it('同一长消息输出时复用未变化片段，内容或状态变化及时可见', () => {
+    const project = createAgentMessageProjector()
+    const original = historical.parts[0]!
+    if (original.kind !== 'text') throw new Error('测试需要文字片段')
+    const parts = Array.from({ length: 199 }, (_, index) => ({ ...original, id: `text-${index}`, sequence: index + 1 }))
+    const active = { ...historical, status: 'streaming' as const, parts }
+    const first = project([active], undefined, [])
+    const next = project([{ ...active, parts: [...parts, { ...parts[0]!, id: 'latest', sequence: 200, text: '新增正文' }] }], undefined, [])
+    expect(next[0]!.parts).toHaveLength(200)
+    for (let i = 0; i < 199; i++) expect(next[0]!.parts[i]).toBe(first[0]!.parts[i])
+    const changed = project([{ ...active, parts: [{ ...parts[0]!, text: '修订正文' }, ...parts.slice(1)] }], undefined, [])
+    expect(changed[0]!.parts[0]).not.toBe(first[0]!.parts[0])
+    expect(changed[0]!.parts[0]).toMatchObject({ text: '修订正文' })
+    expect(project([], undefined, [])).toEqual([])
   })
 })

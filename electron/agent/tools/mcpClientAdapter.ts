@@ -10,6 +10,8 @@ import type { TSchema } from 'typebox'
 import { Compile } from 'typebox/compile'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
 import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
+import { isImageResourceReference } from '#common/contracts'
+import { resourceImage, isRuntimeImage, isResourceImage } from '../contracts/runtimeResourceImages.ts'
 
 export const agentMCPProtocolVersion = '2025-11-25'
 
@@ -78,7 +80,7 @@ export async function connectAgentMCP(
     })
     const invocation = createSerialToolInvoker(async (definition, args, signal, toolCallID) => {
       return await client.callTool(
-        { name: definition.name, arguments: args, ...(toolCallID ? { _meta: { 'termous/tool-call-id': toolCallID } } : {}) },
+        { name: definition.name, arguments: args, ...(toolCallID ? { _meta: { 'termous/tool-call-id': toolCallID, 'termous/resource-refs': '1' } } : {}) },
         {
           signal,
           timeout: mcpToolTimeoutMs,
@@ -246,12 +248,16 @@ function projectMCPContent(result: CallToolResult, toolCallID: string) {
       content.push({ type: 'text', text: block.text })
     } else if (block.type === 'image') {
       content.push({ type: 'image', data: block.data, mimeType: block.mimeType })
+    } else if (block.type === 'resource_link' && block.uri.startsWith('termous-resource://')) {
+      const ref = block._meta?.['termous/resource']
+      if (!isImageResourceReference(ref) || block.uri !== `termous-resource://${ref.resource_id}` || block.mimeType !== ref.mime_type) throw new Error('AGENT_RUNTIME_IMAGE_INVALID')
+      content.push(resourceImage(ref))
     } else {
       content.push({ type: 'text', text: JSON.stringify(block) })
     }
   }
   const imageReferences = content.flatMap((block, index) => {
-    const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+    const reference = isRuntimeImage(block) && isAgentDisplayImageMIMEType(isResourceImage(block) ? block.resource_image.mime_type : block.mimeType)
       ? agentToolImageReference(toolCallID, index) : undefined
     return reference ? [reference] : []
   })

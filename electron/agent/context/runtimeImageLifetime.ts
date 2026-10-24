@@ -2,17 +2,19 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { ImageContent, ToolResultMessage } from '@earendil-works/pi-ai'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
+import type { RuntimeResourceImage } from '../contracts/runtimeResourceImages.ts'
 
 export function runtimeImageHistory(ref: RuntimeContextImageReference, size: { width: number; height: number }, message: { timestamp: number; toolName: string }) {
   return { type: 'text' as const, text: JSON.stringify({ history_image: ref, ...size, observed_at: message.timestamp, source_tool: message.toolName,
     notice: '此处只保留历史图片引用，当前看不到像素。需要检查时调用 read_history_image；历史图片不能用于实时点击授权。' }) }
 }
 
-export function releaseRuntimeImage(image: ImageContent, history: ReturnType<typeof runtimeImageHistory>) {
+export function releaseRuntimeImage(image: ImageContent | RuntimeResourceImage, history: ReturnType<typeof runtimeImageHistory>) {
   // SDK 循环、历史和压缩尾部共享内容块；确认落盘后原位释放，避免只换数组留下另一条强引用。
   Object.assign(image, history)
   Reflect.deleteProperty(image, 'data')
   Reflect.deleteProperty(image, 'mimeType')
+  Reflect.deleteProperty(image, 'resource_image')
 }
 
 export function runtimeMessageDetails(details: ToolResultMessage['details']): ToolResultMessage['details'] {

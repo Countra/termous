@@ -699,6 +699,7 @@ function runEventMessageProjectionValid(
   run: AgentRun,
   event: AgentRunEvent,
 ) {
+  if (!current.messages[run.session_id]) return true
   if (event.kind === 'compaction') {
     return event.payload.compaction.assistant_message_id === run.assistant_message_id
       && Boolean(current.messages[run.session_id]?.some(({ id }) => id === run.assistant_message_id))

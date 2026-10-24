@@ -51,6 +51,7 @@ const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  readonly timelineSupported = true
   private readonly runtimeBridge?: AgentRuntimeBridge
 
   constructor(config: Partial<AppConfig> = {}, runtimeBridge = getTermousBridge()?.agentRuntime) {
@@ -186,15 +187,15 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
       .then(decodeAgentAttachment)
   }
 
-  attachmentContent(id: string, signal?: AbortSignal) {
-    return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content`, {
+  attachmentContent(id: string, signal?: AbortSignal, variant?: 'thumbnail') {
+    return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content${variant ? '?variant=thumbnail' : ''}`, {
       signal, timeoutMs: 45_000,
     })
   }
 
-  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal) {
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal, variant?: 'thumbnail') {
     const { session_id, message_id, part_id, content_index, revision } = source
-    return this.requestBlob(`${agentPath}/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}/parts/${encodeURIComponent(part_id)}/images/${content_index}?revision=${revision}`, {
+    return this.requestBlob(`${agentPath}/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}/parts/${encodeURIComponent(part_id)}/images/${content_index}?revision=${revision}${variant ? '&variant=thumbnail' : ''}`, {
       signal, timeoutMs: 45_000,
     })
   }
@@ -208,6 +209,9 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
   messages(sessionId: string, options: AgentMessageListOptions = {}) {
     const query = new URLSearchParams({ limit: String(options.limit ?? 200) })
     if (options.afterSequence !== undefined) query.set('after_sequence', String(options.afterSequence))
+    if (options.view) query.set('view', options.view)
+    if (options.cursor) query.set('cursor', options.cursor)
+    if (options.direction) query.set('direction', options.direction)
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/messages?${query.toString()}`, {
       signal: options.signal,
     }).then(decodeAgentMessagePage)

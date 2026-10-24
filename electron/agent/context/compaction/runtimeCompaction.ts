@@ -90,6 +90,7 @@ export interface RuntimeCompactionController {
   observeContext(messages: AgentMessage[], providerUsage?: RuntimeProviderUsage): Promise<void>
   beforeProviderRequest(): void
   checkpoint(): RuntimeCompactionCheckpoint | undefined
+  rebase(messages: AgentMessage[]): AgentMessage[]
   failure(): RuntimeCompactionError | undefined
 }
 
@@ -238,6 +239,14 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   return {
+    rebase: (messages) => {
+      const projected = projectHistory(runtimeCompactionProjection(validUsage(messages), checkpoint), true)
+      if (checkpoint) {
+        const boundary = 1 + checkpoint.retainedTail.length
+        checkpoint = { ...checkpoint, coveredRawLength: boundary, retainedTail: projected.slice(1, boundary) }
+      }
+      return projected
+    },
     invalidateUsage,
     updateTools: (tools, messages) => {
       budget = runtimeCompactionBudget(options.model, options.thresholdPercent ?? 80, options.systemPrompt, tools)

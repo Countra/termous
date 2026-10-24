@@ -10,3 +10,5 @@ export {
   type AgentResourceBindingConnectionState,
 } from './AgentResourceBindingConnectionCoordinator.ts'
 export { AgentDraftSessionCoordinator } from './AgentDraftSessionCoordinator.ts'
+export { AgentImageRequests } from './agentImageRequests.ts'
+export { loadAgentMessageText } from './loadAgentMessageText.ts'

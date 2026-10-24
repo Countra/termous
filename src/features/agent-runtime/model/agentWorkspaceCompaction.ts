@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentRunEvent } from '#entities/agent'
+import type { AgentCompactionActivity, AgentMessage, AgentRunEvent } from '#entities/agent'
 
 export function mergeAgentCompactionActivity(
   message: AgentMessage,
@@ -13,12 +13,16 @@ export function mergeAgentCompactionActivity(
     ...message,
     compactions: [
       ...compactions.filter(({ compaction_id }) => compaction_id !== activity.compaction_id),
-      {
-        ...activity,
-        context_window_tokens: activity.context_window_tokens ?? previous?.context_window_tokens,
-        duration_ms: activity.duration_ms ?? previous?.duration_ms,
-        created_at: previous?.created_at ?? event.created_at,
-      },
+      mergeCompactionValue(previous, { ...activity, created_at: event.created_at }),
     ],
+  }
+}
+
+export function mergeCompactionValue(previous: AgentCompactionActivity | undefined, incoming: AgentCompactionActivity): AgentCompactionActivity {
+  if (previous && previous.status !== 'started' && incoming.status === 'started') return previous
+  return { ...incoming,
+    context_window_tokens: incoming.context_window_tokens ?? previous?.context_window_tokens,
+    duration_ms: incoming.duration_ms ?? previous?.duration_ms,
+    created_at: previous?.created_at ?? incoming.created_at,
   }
 }

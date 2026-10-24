@@ -15,6 +15,7 @@ import {
 import type { AgentWorkerProcess } from '../contracts/workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { WorkerStartupDeadline } from './workerStartupDeadline.ts'
+import { imageMaterializationBudget } from './imageMaterializationBudget.ts'
 
 export interface AgentRunWorkerLogger {
   info(event: string, details?: Record<string, unknown>): void
@@ -324,6 +325,20 @@ export class AgentRunWorker {
       }
       return
     }
+    if (message.type === 'image_budget') {
+      if (message.action === 'release') imageMaterializationBudget.release(this.executionID, message.request_id)
+      else if (!this.stopping && !this.settled) {
+        const reject = () => {
+          try { this.process.postMessage({ type: 'image_budget_rejected', run_id: this.runID, generation: this.generation, request_id: message.request_id }) }
+          catch { this.requestStop() }
+        }
+        try {
+          imageMaterializationBudget.acquire({ owner: this.executionID, id: message.request_id, bytes: message.bytes, reject,
+            grant: () => this.process.postMessage({ type: 'image_budget_granted', run_id: this.runID, generation: this.generation, request_id: message.request_id }) })
+        } catch { reject() }
+      }
+      return
+    }
     if (message.type === 'settled') {
       this.acceptSettled()
       return
@@ -530,6 +545,7 @@ export class AgentRunWorker {
   }
 
   private dispose() {
+    imageMaterializationBudget.release(this.executionID)
     for (const dispose of this.disposers.splice(0)) {
       dispose()
     }

@@ -4,6 +4,12 @@ import '#shared/i18n'
 import '#shared/styles'
 import { loadRendererSurface } from './rendererSurface.ts'
 import { installDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
+import { installDevelopmentReactTimingCleanup } from './developmentReactTiming.ts'
+
+if (import.meta.env.DEV) {
+  const dispose = installDevelopmentReactTimingCleanup()
+  import.meta.hot?.dispose(dispose)
+}
 
 const rootElement = document.getElementById('root')
 

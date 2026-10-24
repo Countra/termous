@@ -1,5 +1,5 @@
 import { isAgentProgressData } from '#common/contracts'
-import { isAgentDisplayImageMIMEType, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
+import { isAgentDisplayImageMIMEType, isAgentToolImageReference, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
   agentApiModes,
   agentAttachmentStates,
@@ -288,7 +288,8 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
       ...base,
       ...responseFailure,
       kind,
-      text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true),
+      // 与 Core 的单条输入上限一致，长上下文不能在历史恢复时被较小的展示限制拒绝。
+      text: utf8(body.text, `Agent ${kind} 文本无效`, 1024 * 1024, true),
       ...(kind === 'text' && body.source_context !== undefined
         ? { source_context: decodeAgentSourceContext(body.source_context) }
         : {}),
@@ -382,6 +383,7 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   }
   return {
     id,
+    ...(source.image_sources === undefined ? {} : { image_sources: decodeImageSources(source.image_sources, sessionId) }),
     session_id: sessionId,
     role,
     status,
@@ -397,6 +399,19 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     ...(retries ? { retries } : {}),
     ...(progress ? { progress } : {}),
   }
+}
+
+function decodeImageSources(value: unknown, sessionId: string): NonNullable<AgentMessage['image_sources']> {
+  return array(value, '图片引用列表无效').map(raw => {
+    const item = record(raw, '图片引用无效')
+    const reference = utf8(item.reference, '图片引用无效', 2048)
+    if (item.session_id !== sessionId || !isAgentToolImageReference(reference) || !isAgentDisplayImageMIMEType(item.mime_type)) throw new AgentRuntimeProtocolError('图片引用归属或格式无效')
+    const size = positiveInteger(item.size_bytes, '图片大小无效')
+    if (size > 10 * 1024 * 1024) throw new AgentRuntimeProtocolError('图片超过限额')
+    return { session_id: sessionId, reference, mime_type: item.mime_type, size_bytes: size,
+      message_id: identifier(item.message_id, '图片消息无效'), part_id: identifier(item.part_id, '图片片段无效'),
+      revision: positiveInteger(item.revision, '图片修订无效'), content_index: nonNegativeInteger(item.content_index, '图片索引无效') }
+  })
 }
 
 export function decodeAgentAttachment(value: unknown): AgentAttachment {
@@ -460,6 +475,10 @@ export function decodeAgentMessagePage(value: unknown): AgentMessagePage {
   ascending(items.map(({ sequence }) => sequence), 'Agent 消息 sequence 无序')
   return {
     items,
+    before_cursor: optionalString(source.before_cursor, 'Agent 时间线游标无效', 512),
+    after_cursor: optionalString(source.after_cursor, 'Agent 时间线游标无效', 512),
+    has_older: source.has_older === true,
+    has_newer: source.has_newer === true,
     next_after_sequence: optionalPositiveInteger(source.next_after_sequence, 'Agent 消息增量游标无效'),
   }
 }

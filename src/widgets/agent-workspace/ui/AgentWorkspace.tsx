@@ -32,6 +32,10 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     setPreviewAttachment(attachment)
   }, [])
   const onDraftChange = useStableEventHandler(props.onDraftChange)
+  const onLoadOlder = useStableEventHandler(props.onLoadOlder ?? ignoreHistoryLoad)
+  const onLoadNewer = useStableEventHandler(props.onLoadNewer ?? ignoreHistoryLoad)
+  const onLoadLatest = useStableEventHandler(props.onLoadLatest ?? ignoreHistoryLoad)
+  const onLoadMessageText = useStableEventHandler(props.onLoadMessageText ?? unavailableMessageText)
   const onAttachFiles = useStableEventHandler(props.onAttachFiles)
   const onRemoveAttachment = useStableEventHandler(props.onRemoveAttachment)
   const onRetryAttachment = useStableEventHandler(props.onRetryAttachment)
@@ -150,9 +154,13 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onStop={() => void props.onStop()}
         />
         <AgentConversation
+          onLoadOlder={props.onLoadOlder ? onLoadOlder : undefined}
+          onLoadMessageText={props.onLoadMessageText ? onLoadMessageText : undefined}
+          onLoadNewer={props.onLoadNewer ? onLoadNewer : undefined}
+          onLoadLatest={props.onLoadLatest ? onLoadLatest : undefined}
           active={props.composerActive}
           presentation={props.presentation}
-          onPrompt={props.onDraftChange}
+          onPrompt={onDraftChange}
           messages={props.messages}
           runStatus={runStatus}
           loading={props.loading}
@@ -290,6 +298,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     </div>
   )
 }
+
+const ignoreHistoryLoad = async () => undefined
+const unavailableMessageText = async (): Promise<string> => { throw new Error('AGENT_MESSAGE_NOT_FOUND') }
 
 function useStableEventHandler<Arguments extends unknown[], Result>(
   handler: (...args: Arguments) => Result,

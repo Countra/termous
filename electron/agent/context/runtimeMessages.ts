@@ -1,4 +1,6 @@
 import { isRecord } from '../contracts/validation.ts'
+import { isImageResourceReference } from '#common/contracts'
+import { resourceImage, restoreResourceImages, isRuntimeImage } from '../contracts/runtimeResourceImages.ts'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { AssistantMessage, Message, ToolResultMessage } from '@earendil-works/pi-ai'
 import type { RuntimeModel } from '../provider/runtimeProviderAdapter.ts'
@@ -26,9 +28,9 @@ export function hydrateRuntimeMessages(
       }],
       timestamp: validTimestamp(bootstrap.messages[0]?.created_at ?? new Date(0).toISOString()),
     })
-    for (const message of bootstrap.context.checkpoint.retained_tail ?? []) {
+    for (const message of restoreResourceImages(bootstrap.context.checkpoint.retained_tail ?? [])) {
       if (!model.input.includes('image') && (message.role === 'user' || message.role === 'toolResult')
-        && Array.isArray(message.content) && message.content.some((part) => part.type === 'image')) {
+        && Array.isArray(message.content) && message.content.some(isRuntimeImage)) {
         throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
       }
       messages.push(projectRuntimeToolHistory(message))
@@ -185,6 +187,7 @@ function runtimeToolResultContent(value: unknown): ToolResultMessage['content'] 
         mimeType: requiredString(item.mimeType),
       }
     }
+    if (item.type === 'image_ref' && isImageResourceReference(item.resource) && item.mimeType === item.resource.mime_type) return resourceImage(item.resource)
     throw new Error('AGENT_RUNTIME_MESSAGE_INVALID')
   })
 }

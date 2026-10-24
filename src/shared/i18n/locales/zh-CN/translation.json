@@ -1174,7 +1174,9 @@
       }
     },
     "conversation": {
-      "jumpToLatest": "回到最新消息"
+      "jumpToLatest": "回到最新消息",
+      "loadOlder": "加载更早内容",
+      "loadNewer": "加载后续内容"
     },
     "terminalReference": {
       "confirmTitle": "切换 SSH 关联？",

@@ -44,6 +44,7 @@ export class RuntimeEventWriter {
   private readonly requestEnvelopeBytes: number
   private sequence: number
   private queuedBytes = 0
+  private queuedCount = 0
   private timer: ReturnType<typeof setTimeout> | null = null
   private sendTail: Promise<void> = Promise.resolve()
   private backgroundFlushActive = false
@@ -88,6 +89,7 @@ export class RuntimeEventWriter {
     }
     this.sequence = event.sequence
     this.pending.push({ value: event, serializedBytes })
+    this.queuedCount++
     this.queuedBytes += serializedBytes
     if (this.pending.length >= maxEventBatchSize) {
       this.flushInBackground()
@@ -108,7 +110,7 @@ export class RuntimeEventWriter {
   async waitForCapacity() {
     this.assertHealthy()
     // SDK 等待事件监听器；包括在途批次的字节水位将慢 Core 的压力传回生产者，不丢弃事件。
-    if (this.queuedBytes >= maxEventRequestBytes) await this.flush()
+    if (this.queuedBytes >= maxEventRequestBytes || this.queuedCount >= maxEventBatchSize) await this.flush()
   }
 
   currentSequence() {
@@ -254,7 +256,7 @@ export class RuntimeEventWriter {
         if (persisted !== expectedSequence) {
           throw new Error('AGENT_RUNTIME_EVENT_SEQUENCE_INVALID')
         }
-      }).finally(() => { this.queuedBytes -= queuedBytes })
+      }).finally(() => { this.queuedBytes -= queuedBytes; this.queuedCount -= batch.length })
       this.trackOperation(operation)
     }
   }

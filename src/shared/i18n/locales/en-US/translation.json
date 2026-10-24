@@ -1174,7 +1174,9 @@
       }
     },
     "conversation": {
-      "jumpToLatest": "Jump to latest message"
+      "jumpToLatest": "Jump to latest message",
+      "loadOlder": "Load earlier content",
+      "loadNewer": "Load later content"
     },
     "terminalReference": {
       "confirmTitle": "Switch SSH connection?",

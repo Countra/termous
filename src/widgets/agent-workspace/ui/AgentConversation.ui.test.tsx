@@ -450,6 +450,7 @@ describe('AgentConversation', () => {
     await waitFor(() => expect(onLoadAttachmentContent).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'attachment-image' }),
       expect.any(AbortSignal),
+      'thumbnail',
     ))
     fireEvent.click(preview)
     expect(onPreviewAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-image' }))

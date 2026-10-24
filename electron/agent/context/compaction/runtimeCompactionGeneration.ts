@@ -1,6 +1,7 @@
 import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
+import { isResourceImage, isRuntimeImage } from '../../contracts/runtimeResourceImages.ts'
 import type { RuntimeCompactionPreparation } from './runtimeCompactionTypes.ts'
 import { RuntimeCompactionError, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
 
@@ -59,11 +60,11 @@ export function serializeRuntimeConversation(messages: AgentMessage[]): string {
       const body = text.length <= 2000 ? text : `${text.slice(0, 2000)}\n[... ${text.length - 2000} more characters truncated]`
       output.push(`[Tool result ${message.toolName} (${message.toolCallId}), ${message.isError ? 'error' : 'success'}]: ${body}`)
     } else if (text) output.push(`[${message.role}]: ${text}`)
-    if (Array.isArray(message.content) && message.content.some((block) => block.type === 'image')) {
+    if (Array.isArray(message.content) && message.content.some(isRuntimeImage)) {
       output.push('[图片正文省略；原始图片仍在消息记录中]')
       if (message.role === 'toolResult') {
         const references = message.content.flatMap((block, index) => {
-          const reference = block.type === 'image' && isAgentDisplayImageMIMEType(block.mimeType)
+          const reference = isRuntimeImage(block) && isAgentDisplayImageMIMEType(isResourceImage(block) ? block.resource_image.mime_type : block.mimeType)
             ? agentToolImageReference(message.toolCallId, index) : undefined
           return reference ? [reference] : []
         })

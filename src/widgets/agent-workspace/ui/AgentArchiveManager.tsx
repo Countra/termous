@@ -11,6 +11,9 @@ import { AgentArchiveSessionList } from './AgentArchiveSessionList.tsx'
 import styles from './AgentArchiveManager.module.scss'
 
 export interface AgentArchiveManagerProps {
+  onLoadMessageText?: (id: string) => Promise<string>
+  onLoadOlder?: () => Promise<void>
+  onLoadNewer?: () => Promise<void>
   open: boolean
   sessions: AgentSession[]
   groups?: AgentSessionGroup[]
@@ -30,7 +33,7 @@ export interface AgentArchiveManagerProps {
   onReloadPreview: () => void
   onRestore: (session: AgentSession) => Promise<boolean | void>
   onDelete: (session: AgentSession) => Promise<boolean | void>
-  onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
   onLoadToolImage?: AgentImageLoader
 }
 
@@ -57,6 +60,8 @@ function ArchiveContents({
   sessions, groups, query, listLoading, listError, selectedSession, messages,
   previewLoading, previewError, pendingIds, showTurnTokenUsage, onQueryChange, onSelect,
   onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent, onLoadToolImage,
+  onLoadOlder, onLoadNewer,
+  onLoadMessageText,
 }: AgentArchiveManagerProps) {
   const { t } = useTranslation()
   const [previewAttachment, setPreviewAttachment] = useState<AgentAttachment>()
@@ -152,6 +157,9 @@ function ArchiveContents({
                   <div className={styles.placeholder}><MessageSquare size={24} aria-hidden="true" /><p>{t('agent.archives.emptyHistory')}</p></div>
                 ) : (
                   <AgentConversation
+                    onLoadOlder={onLoadOlder}
+                    onLoadMessageText={onLoadMessageText}
+                    onLoadNewer={onLoadNewer}
                     sessionKey={`archive:${selectedSession.id}`}
                     messages={messages}
                     loading={false}

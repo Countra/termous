@@ -1,4 +1,8 @@
 export const agentDetachedCommands = [
+  "workspace.onLoadOlder",
+  "workspace.onLoadMessageText",
+  "workspace.onLoadNewer",
+  "workspace.onLoadLatest",
   "workspace.onCreateSession",
   "workspace.onSelectSession",
   "workspace.onReturnToActiveRun",
@@ -40,6 +44,9 @@ export const agentDetachedCommands = [
   "archive.onSelect",
   "archive.onReload",
   "archive.onReloadPreview",
+  "archive.onLoadOlder",
+  "archive.onLoadMessageText",
+  "archive.onLoadNewer",
   "archive.onRestore",
   "archive.onDelete",
   "readiness.onRefresh",
@@ -76,17 +83,19 @@ const ids = (value: unknown) => Array.isArray(value) && value.length <= 8 && val
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const placement = (value: unknown) => value === 'before' || value === 'after'
 const singleIdCommands = new Set<AgentDetachedCommandName>([
+  'workspace.onLoadMessageText', 'archive.onLoadMessageText',
   'workspace.onSelectSession', 'workspace.onArchiveSession', 'workspace.onDeleteSession', 'workspace.onModelChange',
   'workspace.onRemoveAttachment', 'workspace.onRetryAttachment', 'workspace.onBeginQueuedTurnEdit',
   'workspace.onRemoveQueuedTurnEditAttachment', 'workspace.onDeleteQueuedTurn', 'workspace.onSteerQueuedTurn',
   'management.onDeleteGroup',
 ])
 const noArgumentCommands = new Set<AgentDetachedCommandName>([
+  'workspace.onLoadOlder', 'workspace.onLoadNewer', 'workspace.onLoadLatest',
   'workspace.onReturnToActiveRun', 'workspace.onResetResponseOptions', 'workspace.onOpenSettings', 'workspace.onStop',
   'workspace.onRetryContext', 'workspace.onCancelQueuedTurnEdit', 'workspace.onResumeQueue', 'workspace.onRetryUsage',
   'workspace.onRecoverResourceBinding', 'workspace.onCancelResourceRecovery', 'workspace.onCancelProfileConnection',
   'workspace.onRetryProfileConnection', 'workspace.onDismissProfileConnection', 'archive.onClose', 'archive.onReload',
-  'archive.onReloadPreview', 'readiness.onRefresh', 'readiness.onPrepare', 'reference.onConfirm', 'reference.onRetry',
+  'archive.onReloadPreview', 'archive.onLoadOlder', 'archive.onLoadNewer', 'readiness.onRefresh', 'readiness.onPrepare', 'reference.onConfirm', 'reference.onRetry',
   'reference.onDismiss', 'reference.onOpenSettings', 'management.onSearchRetry', 'management.onOpenArchives', 'surface.onRetry', 'surface.onRefreshSetup',
 ])
 const resourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow']
@@ -152,7 +161,7 @@ function safeJSON(value: unknown, depth = 0): boolean {
 export interface AgentDetachedFile { name: string; type: string; lastModified: number; bytes: ArrayBuffer }
 export type AgentDetachedBinary = { kind: 'attach'; files: AgentDetachedFile[]; owner: string }
   | { kind: 'local'; clientId: string }
-  | { kind: 'attachment' | 'image'; source: Record<string, unknown> }
+  | { kind: 'attachment' | 'image'; source: Record<string, unknown>; variant?: 'thumbnail' }
 
 export function canTransferAgentDetachedFiles(files: readonly { name: string; type: string; lastModified: number; size: number }[]) {
   if (!files.length || files.length > 8) return false
@@ -173,6 +182,7 @@ export function isAgentDetachedBinary(value: unknown): value is AgentDetachedBin
     return canTransferAgentDetachedFiles(value.files.map(file => ({ ...file, size: file.bytes.byteLength })))
   }
   if (value.kind === 'local') return id(value.clientId)
+  if (value.variant !== undefined && value.variant !== 'thumbnail') return false
   if (!record(value.source)) return false
   if (value.kind === 'attachment') return id(value.source.id)
   return value.kind === 'image' && id(value.source.session_id) && id(value.source.message_id)

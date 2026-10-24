@@ -18,6 +18,7 @@ import {
 import {
   AgentDraftSessionCoordinator,
   AgentWorkspaceController,
+  loadAgentMessageText,
   projectAgentReferenceTargets,
   useAgentArchives,
   useAgentQueuedTurnEditOwners,
@@ -34,10 +35,10 @@ import {
   agentWorkspaceInfrastructureReady,
   latestSessionRun,
   projectAgentMessages,
-  projectAgentModelOptions,
-  projectAgentSessions
+  projectAgentModelOptions
 } from '../model/agentWorkspaceProjection.ts'
 import { createAgentMessageProjector } from '../model/agentMessageProjectionCache.ts'
+import { createAgentSessionProjector } from '../model/agentSessionProjectionCache.ts'
 import { createOperationBusy, notifyError, type AgentOperationBusy } from '../model/host/agentHostHelpers.ts'
 import { createAgentQueueActions } from '../model/host/createAgentQueueActions.ts'
 import { createAgentResourceActions } from '../model/host/createAgentResourceActions.ts'
@@ -185,13 +186,15 @@ export function AgentWorkspaceHost({
     () => projectAgentModelOptions(models, providerById),
     [models, providerById],
   )
+  const projectSessions = useMemo(() => createAgentSessionProjector(), [])
+  const projectSearchSessions = useMemo(() => createAgentSessionProjector(), [])
   const workspaceSessions = useMemo(
-    () => projectAgentSessions(state.sessions, models, providers, state.runs),
-    [models, providers, state.runs, state.sessions],
+    () => projectSessions(state.sessions, models, providers, state.runs),
+    [projectSessions, models, providers, state.runs, state.sessions],
   )
   const searchSessions = useMemo(
-    () => projectAgentSessions(management.searchResults, models, providers, state.runs),
-    [management.searchResults, models, providers, state.runs],
+    () => projectSearchSessions(management.searchResults, models, providers, state.runs),
+    [projectSearchSessions, management.searchResults, models, providers, state.runs],
   )
   const archiveMessages = useMemo(() => projectAgentMessages(archives.messages, undefined, []), [archives.messages])
   const referenceTargets = useMemo(() => projectAgentReferenceTargets(state, enabled), [state, enabled])
@@ -287,8 +290,8 @@ export function AgentWorkspaceHost({
   const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
   const projectMessages = useMemo(() => createAgentMessageProjector(), [])
   const workspaceMessages = useMemo(
-    () => projectMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []),
-    [projectMessages, selectedMessageEntities, selectedRun, selectedRunEvents],
+    () => active ? projectMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []) : [],
+    [active, projectMessages, selectedMessageEntities, selectedRun, selectedRunEvents],
   )
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
@@ -495,7 +498,21 @@ export function AgentWorkspaceHost({
       ? queuedTurnEditAttachments.retry
       : draftAttachments.retry,
     onLoadAttachmentContent: loadAttachmentContent,
+    onLoadMessageText: gateway.timelineSupported && selected ? async id => {
+      const message = controller.getSnapshot().messages[selected.id]?.find(message => message.id === id)
+      if (!message) throw new Error('AGENT_MESSAGE_NOT_FOUND')
+      return loadAgentMessageText(gateway, message)
+    } : undefined,
     onLoadToolImage: loadToolImage,
+    onLoadOlder: gateway.timelineSupported && selected && controller.canLoadOlder(selected.id) ? async () => {
+      try { await controller.loadHistory(selected.id) } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
+    onLoadNewer: gateway.timelineSupported && selected && controller.viewingHistory(selected.id) ? async () => {
+      try { await controller.loadHistory(selected.id, 'after') } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
+    onLoadLatest: gateway.timelineSupported && selected ? async () => {
+      try { await controller.loadLatest(selected.id) } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
+    } : undefined,
     onExecuteSlashCommand: executeSlashCommand,
     onCancelProfileConnection: async () => selected
       ? profileConnection.coordinator.cancel(selected.id)
@@ -556,6 +573,13 @@ export function AgentWorkspaceHost({
     onSelect: archives.selectSession,
     onReload: archives.reload,
     onReloadPreview: archives.reloadPreview,
+    onLoadMessageText: gateway.timelineSupported ? async id => {
+      const message = archives.messages.find(message => message.id === id)
+      if (!message) throw new Error('AGENT_MESSAGE_NOT_FOUND')
+      return loadAgentMessageText(gateway, message)
+    } : undefined,
+    onLoadOlder: archives.loadOlder,
+    onLoadNewer: archives.loadNewer,
     onLoadAttachmentContent: loadAttachmentContent,
     onLoadToolImage: loadToolImage,
     onRestore: async (session) => {

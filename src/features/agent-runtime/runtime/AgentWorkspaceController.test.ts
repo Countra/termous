@@ -26,6 +26,7 @@ import {
   agentDeltaEventFixture,
   agentFixtureTime,
   agentMessageFixture,
+  agentTextPartFixture,
   agentRunFixture,
   agentSessionFixture,
   agentStatusEventFixture,
@@ -36,6 +37,85 @@ import {
 } from './AgentWorkspaceController.ts'
 import { decodeAgentRunEventPage } from '../model/agentRuntimeProtocol.ts'
 import type { AgentWorkspaceObserver } from '../api/agentSubscription.ts'
+
+test('时间线首屏和历史空页保留准确边界，不重复请求已到头的内容', async () => {
+  const gateway = new FakeGateway()
+  gateway.timelineSupported = true
+  let reads = 0
+  gateway.messagesImpl = async (_id, options) => {
+    reads++
+    assert.equal(options.limit, 100)
+    return { items: [agentMessageFixture({ parts: [agentTextPartFixture()] })], has_older: false }
+  }
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => new FakeSocket() as unknown as WebSocket })
+  try {
+    controller.start()
+    await settle()
+    assert.equal(controller.canLoadOlder('ags-session'), false)
+    const before = reads
+    await controller.loadHistory('ags-session')
+    assert.equal(reads, before)
+    assert.equal(controller.viewingHistory('ags-session'), false)
+  } finally { controller.close() }
+})
+
+test('历史窗口仍含最新片段时，空后续页也会恢复实时跟随', async () => {
+  const gateway = new FakeGateway()
+  gateway.timelineSupported = true
+  const page = (sequence: number) => ({ items: [agentMessageFixture({ parts: [agentTextPartFixture({
+    id: `part-${sequence}`, sequence,
+  })] })], has_older: true, has_newer: false })
+  gateway.messagesImpl = async (_id, options) => options.direction === 'after'
+    ? { items: [], has_newer: false } : page(options.direction === 'before' ? 1 : 2)
+  const controller = new AgentWorkspaceController({ gateway, socketFactory: () => new FakeSocket() as unknown as WebSocket })
+  try {
+    controller.start()
+    await settle()
+    await controller.loadHistory('ags-session')
+    assert.equal(controller.viewingHistory('ags-session'), true)
+    const before = controller.getSnapshot().messages['ags-session']
+    await controller.loadHistory('ags-session', 'after')
+    assert.equal(controller.viewingHistory('ags-session'), false)
+    assert.deepEqual(controller.getSnapshot().messages['ags-session'], before)
+  } finally { controller.close() }
+})
+
+test('历史片段不被实时事件挤出，返回最新后继续跟随且迟到页不能覆盖会话切换', async () => {
+  const gateway = new FakeGateway()
+  gateway.timelineSupported = true
+  let observer!: AgentWorkspaceObserver
+  gateway.subscribeWorkspace = value => { observer = value; return { close: () => undefined } }
+  let latestSequence = 200
+  const page = (start: number) => ({ items: [agentMessageFixture({ parts: Array.from({ length: 100 }, (_, i) =>
+    agentTextPartFixture({ id: `part-${start + i}`, sequence: start + i })) })], has_older: start > 1 })
+  gateway.messagesImpl = async (_id, options) => options.direction === 'before' ? page(1) : page(latestSequence)
+  const controller = new AgentWorkspaceController({ gateway })
+  try {
+    controller.start()
+    await settle()
+    observer.event({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture()], active_runs: [] })
+    await settle()
+    await controller.loadHistory('ags-session')
+    assert.equal(controller.viewingHistory('ags-session'), true)
+    const previous = controller.getSnapshot().messages['ags-session']
+    latestSequence = 300
+    observer.event({ type: 'upsert', revision: 2, session: agentSessionFixture({ revision: 2 }) })
+    await settle()
+    assert.equal(controller.getSnapshot().messages['ags-session'], previous)
+    await controller.loadLatest('ags-session')
+    assert.equal(controller.viewingHistory('ags-session'), false)
+    assert.equal(controller.getSnapshot().messages['ags-session']?.[0]?.parts[0]?.sequence, 300)
+    let finish!: (value: AgentMessagePage) => void
+    gateway.messagesImpl = async () => new Promise(resolve => { finish = resolve })
+    const pending = controller.loadHistory('ags-session')
+    controller.selectSession(undefined)
+    finish(page(1))
+    await pending
+    assert.equal(controller.getSnapshot().selected_session_id, undefined)
+    assert.equal(controller.viewingHistory('ags-session'), false)
+    assert.equal(controller.getSnapshot().messages['ags-session']?.[0]?.parts[0]?.sequence, 300)
+  } finally { controller.close() }
+})
 
 test('旧订阅迟到的关闭事件不能使重新打开的工作区进入重连', async () => {
   const gateway: AgentWorkspaceGateway = new FakeGateway()
@@ -2544,6 +2624,8 @@ test('会话管理写入失败仍拒绝操作，不启动写后补读', async (c
 })
 
 class FakeGateway implements AgentWorkspaceGateway {
+  subscribeWorkspace?: AgentWorkspaceGateway['subscribeWorkspace']
+  timelineSupported = false
   groups: AgentSessionGroup[] = []
   sessionGroups: AgentWorkspaceGateway['sessionGroups'] = async () => ({ items: this.groups })
   createSessionGroup: AgentWorkspaceGateway['createSessionGroup'] = async (name) => {

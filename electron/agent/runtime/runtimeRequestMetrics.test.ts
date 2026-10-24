@@ -7,9 +7,21 @@ import { measuredRuntimeStream } from './runtimeRequestMetrics.ts'
 import { RuntimeExecutionBudget, defaultExecutionBudget } from '../execution/runtimeExecutionBudget.ts'
 import { createRuntimeRetryStreamFunction } from '../provider/runtimeProviderRetry.ts'
 import type { RuntimeEventInput } from '../contracts/runtimeEvents.ts'
+import { resourceImage } from '../contracts/runtimeResourceImages.ts'
 
 const model: Model<'openai-completions'> = { id: 'fixture', name: 'fixture', provider: 'fixture', api: 'openai-completions', baseUrl: 'http://127.0.0.1', reasoning: false, input: ['text', 'image'], contextWindow: 128000, maxTokens: 1000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }
 const context = normalizeContext({ systemPrompt: '测试', tools: [{ name: 'fixture', description: '测试工具', parameters: { type: 'object', properties: { secret: { type: 'string' } } } }], messages: [{ role: 'user', content: '不会进入统计的正文', timestamp: 1 }] })
+
+test('资源图片用受校验元数据记录尺寸，不读取编码正文', async () => {
+  const payloads: Record<string, unknown>[] = []
+  const stream = measuredRuntimeStream(() => { throw new Error('fixture') }, new RuntimeExecutionBudget(), {
+    push: (kind, payload) => { payloads.push(payload); return { event_id: 'e', generation: 1, sequence: 1, kind, payload } },
+  }, true, 'response')
+  await (await stream(model, normalizeContext({ messages: [{ role: 'user', timestamp: 1, content: [resourceImage({
+    resource_id: 'agres_image', kind: 'image', mime_type: 'image/png', size_bytes: 1024, sha256: 'a'.repeat(64), image: { width: 1280, height: 720 },
+  })] }] }))).result()
+  assert.deepEqual((payloads[0]!.request_usage as { images: unknown }).images, [{ width: 1280, height: 720 }])
+})
 
 test('每次实际请求和压缩共用预算，缓存用量计入，统计不保存正文', async () => {
   const budget = new RuntimeExecutionBudget({ enabled: true, limits: { ...defaultExecutionBudget.limits, model_requests: 2 } })

@@ -34,6 +34,8 @@ import type { RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import { RuntimeContextImages } from '../context/runtimeContextImages.ts'
 import { ownRuntimeImageMessages } from '../context/runtimeImageLifetime.ts'
+import type { ImageResourceReference } from '#common/contracts'
+import { runtimeResourceStream } from '../provider/runtimeResourceStream.ts'
 import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import { createRuntimeContextGate, runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { createRuntimeRetryStreamFunction } from '../provider/runtimeProviderRetry.ts'
@@ -52,6 +54,7 @@ export interface PiAgentController {
 }
 
 export interface CreatePiAgentOptions {
+  reserveImageBytes?(bytes: number, signal?: AbortSignal): Promise<() => void>
   audit?: { capture(event: AgentEvent): void }
   bootstrap: RuntimeBootstrap
   mcp: AgentMCPConnection
@@ -60,7 +63,8 @@ export interface CreatePiAgentOptions {
   fetch?: typeof globalThis.fetch
   now?: () => number
   newPartID?: () => string
-  readHistoryImage?(reference: RuntimeContextImageReference, signal?: AbortSignal): Promise<{ data: string; mime_type: string }>
+  readHistoryImage?(reference: RuntimeContextImageReference, signal?: AbortSignal): Promise<import('../contracts/runtimeResourceImages.ts').RuntimeHistoryImage>
+  readResourceImage?(reference: ImageResourceReference, signal?: AbortSignal): Promise<string>
   commitCheckpoint(input: RuntimeCheckpointInput, signal?: AbortSignal): Promise<RuntimeCheckpointResult>
   onFailure?: (error: unknown) => void
 }
@@ -114,7 +118,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let toolDeclarations = tools.map(toToolDeclaration)
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
   let contextFingerprint = fingerprint()
-  const baseStream = createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch)
+  const baseStream = runtimeResourceStream(createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch), options.readResourceImage, options.reserveImageBytes)
   const secrets = options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : []
   const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: toolProgress.summary(), timestamp: 0 }) }) : undefined
   const streamFn = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'response', secrets, diagnostics)
@@ -232,6 +236,18 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   imageWorkingSet.releasePersisted(initialMessages)
   options = { ...options, bootstrap: runtimeBootstrapConfiguration(options.bootstrap) }
   const steerSources = new WeakMap<AgentMessage, Pick<RuntimeSteerResult, 'message_id' | 'part_id'>>()
+  let segmentTurns = 0
+  let rotateSegment = false
+  let checkpointBoundary = compaction.checkpoint()?.timestamp
+  const prepareTools = (messages: AgentMessage[]) => {
+    const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
+    if (next.map((tool) => tool.name).join() !== tools.map((tool) => tool.name).join()) {
+      tools = next
+      toolDeclarations = tools.map(toToolDeclaration)
+      contextFingerprint = fingerprint()
+      compaction.updateTools(tools, messages)
+    }
+  }
   const agent = new Agent({
     initialState: {
       systemPrompt,
@@ -241,18 +257,10 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       messages: initialMessages,
     },
     // 系统提示和工具只来自本轮可信配置；压缩与 Core 快照仍只处理业务历史。
-    convertToLlm: (messages) => normalizeContext({
-      systemPrompt, tools: toolDeclarations, messages: standardMessages(messages),
-    }).messages,
+    convertToLlm: (messages) => normalizeContext({ systemPrompt, tools: toolDeclarations, messages: standardMessages(messages) }).messages,
     transformContext: (messages, signal) => compaction.transformContext(standardMessages(messages), signal),
     prepareNextTurnWithContext: ({ context }) => {
-      const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
-      if (next.map((tool) => tool.name).join() !== tools.map((tool) => tool.name).join()) {
-        tools = next
-        toolDeclarations = tools.map(toToolDeclaration)
-        contextFingerprint = fingerprint()
-        compaction.updateTools(tools, context.messages)
-      }
+      prepareTools(context.messages)
       return { context: { ...context, tools } }
     },
     finishTurn: async ({ toolResults, context }, signal) => {
@@ -269,6 +277,15 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       }
       const failure = executionFailure()
       if (failure) { bridge.stopLocally(failure); return { action: 'end' } }
+      if (toolResults.length && !compaction.failure()) {
+        segmentTurns += 1
+        const boundary = compaction.checkpoint()?.timestamp
+        if (segmentTurns >= 10 || boundary !== checkpointBoundary) {
+          checkpointBoundary = boundary
+          rotateSegment = true
+          return { action: 'end' }
+        }
+      }
       return undefined
     },
     streamFn: (requestModel, context, streamOptions) => {
@@ -350,8 +367,21 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
 
   return {
     continue: async () => {
-      await agent.continue()
-      await agent.waitForIdle()
+      do {
+        rotateSegment = false
+        await agent.continue()
+        await agent.waitForIdle()
+        if (rotateSegment && !aborted && !executionFailure()) {
+          // 新循环首轮不调用 prepareNextTurn，必须同步实际执行工具，避免声明可用却执行失败。
+          prepareTools(agent.state.messages)
+          agent.state.tools = tools
+          // 保留当前系统与工具基线，切换仅释放 SDK 循环，不产生新的业务 Run。
+          agent.state.messages = normalizeContext({ systemPrompt, tools: toolDeclarations,
+            messages: standardMessages(compaction.rebase(standardMessages(agent.state.messages))) }).messages
+          images.retain(agent.state.messages)
+          segmentTurns = 0
+        }
+      } while (rotateSegment && !aborted && !executionFailure())
       if (executionFailure() && bridge.outcome() !== 'cancelled') bridge.stopLocally(executionFailure()!)
       return aborted ? 'cancelled' : bridge.outcome()
     },

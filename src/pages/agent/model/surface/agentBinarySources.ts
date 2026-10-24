@@ -13,11 +13,11 @@ export function resolveAgentBinarySource(model: AgentSurfaceModel, request: Extr
     ]
     const attachment = attachments.find(item => item.id === request.source.id)
     if (!attachment || !workspace) throw new Error('agent_attachment_missing')
-    return workspace.onLoadAttachmentContent(attachment)
+    return workspace.onLoadAttachmentContent(attachment, undefined, request.variant)
   }
-  const images = messages.flatMap(message => message.parts.flatMap(part => part.kind === 'tool' ? part.images ?? [] : []))
+  const images = messages.flatMap(message => [...message.image_sources ?? [], ...message.parts.flatMap(part => part.kind === 'tool' ? part.images ?? [] : [])])
   const image = images.find(item => ['session_id', 'message_id', 'part_id', 'content_index', 'revision']
     .every(key => item[key as keyof typeof item] === request.source[key]))
   if (!image || !workspace?.onLoadToolImage) throw new Error('agent_image_unavailable')
-  return workspace.onLoadToolImage(image)
+  return workspace.onLoadToolImage(image, undefined, request.variant)
 }

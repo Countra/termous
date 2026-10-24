@@ -28,6 +28,8 @@ export interface AgentWorkerSteerMessage {
 }
 
 export type AgentWorkerInboundMessage =
+  | { type: 'image_budget_rejected'; run_id: string; generation: number; request_id: string }
+  | { type: 'image_budget_granted'; run_id: string; generation: number; request_id: string }
   | AgentWorkerStartMessage
   | AgentWorkerAbortMessage
   | AgentWorkerSteerMessage
@@ -66,6 +68,7 @@ export interface AgentWorkerSteerAckMessage {
 }
 
 export type AgentWorkerOutboundMessage =
+  | { type: 'image_budget'; protocol_version: typeof agentRuntimeProtocolVersion; run_id: string; generation: number; request_id: string; bytes: number; action: 'acquire' | 'release' }
   | AgentWorkerStartedMessage
   | AgentWorkerSettledMessage
   | AgentWorkerFatalMessage
@@ -80,6 +83,10 @@ export function isAgentWorkerOutboundMessage(value: unknown): value is AgentWork
   }
   if (value.type === 'started') {
     return true
+  }
+  if (value.type === 'image_budget') {
+    return validClientRequestID(value.request_id) && Number.isSafeInteger(value.bytes) && Number(value.bytes) > 0
+      && (value.action === 'acquire' || value.action === 'release')
   }
   if (value.type === 'settled') {
     return value.outcome === 'completed'

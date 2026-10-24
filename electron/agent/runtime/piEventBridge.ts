@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core'
+import { persistedImage } from '../contracts/runtimeResourceImages.ts'
 import type {
   AssistantMessage,
   AssistantMessageEvent,
@@ -252,7 +253,7 @@ export class PiEventBridge {
         tool_call_id: message.toolCallId,
         tool_name: this.requireOriginalToolName(message.toolName),
         // 事件属于持久化记录，不共享运行工作集随后会释放的图片内容块。
-        content: message.content.map(block => ({ ...block })),
+        content: message.content.map(block => ({ ...persistedImage(block) })),
         is_error: message.isError,
       },
     })

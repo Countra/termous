@@ -2,11 +2,13 @@ import type { StreamFn } from '@earendil-works/pi-agent-core'
 import { getCurrentTools, getCurrentSystemPrompt } from '@earendil-works/pi-ai/utils/transcript'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream'
+import { RuntimeBoundedStream } from '../provider/runtimeBoundedStream.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import type { RuntimeExecutionBudget } from '../execution/runtimeExecutionBudget.ts'
 import { projectPiUsage } from '../provider/runtimeUsage.ts'
 import { estimateRuntimeMessageTokens } from '../context/runtimeContextTokens.ts'
 import { runtimeImageDimensions } from '../context/runtimeImageDimensions.ts'
+import { isResourceImage, isRuntimeImage } from '../contracts/runtimeResourceImages.ts'
 import { runtimeProviderFailure, sanitizeRuntimeProviderError } from '../provider/runtimeProviderFailure.ts'
 
 export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBudget, events: Pick<RuntimeEventWriter, 'push'>, supported: boolean, purpose: 'response' | 'compaction', secrets: readonly string[] = [], diagnostics?: () => { context_fingerprint: string; execution_summary_tokens: number }): StreamFn {
@@ -27,9 +29,9 @@ export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBu
     }
     const requestIndex = budget.usage.beginRequest()
     const started = Date.now()
-    const stream = new AssistantMessageEventStream()
+    const stream = new RuntimeBoundedStream()
     const images = context.messages.flatMap((message) => message.role === 'user' || message.role === 'toolResult'
-      ? typeof message.content === 'string' ? [] : message.content.filter((block) => block.type === 'image').map((block) => runtimeImageDimensions(block.data)) : [])
+      ? typeof message.content === 'string' ? [] : message.content.filter(isRuntimeImage).map((block) => isResourceImage(block) ? block.resource_image.image : runtimeImageDimensions(block.data)) : [])
     void (async () => {
       let final: AssistantMessage | undefined
       let charged = false
@@ -49,8 +51,12 @@ export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBu
         } })
       }
       try {
-        const source = await base(model, context, options)
+        const source = await base(model, context, { ...options, onProviderStreamEvent: async (data, currentModel) => {
+          await stream.waitForCapacity(options?.signal)
+          await options?.onProviderStreamEvent?.(data, currentModel)
+        } })
         for await (const event of source) {
+          await stream.waitForCapacity(options?.signal)
           if (event.type === 'done' || event.type === 'error') final = event.type === 'done' ? event.message : event.error
           // 用量与统计必须先于结束事件发布，避免工具派发或运行关闭抢先发生。
           if (final) account(final)

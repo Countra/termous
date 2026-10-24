@@ -157,7 +157,7 @@ export interface AgentWorkspaceImage extends AgentToolImageSource {
   size_bytes: number
 }
 
-export type AgentImageLoader = (image: AgentWorkspaceImage, signal?: AbortSignal) => Promise<Blob>
+export type AgentImageLoader = (image: AgentWorkspaceImage, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
 
 export type AgentWorkspaceMessagePart =
   | AgentWorkspaceTextPart
@@ -169,6 +169,7 @@ export type AgentWorkspaceMessagePart =
   | { id: string; kind: 'response_failure'; failure: AgentResponseFailure; after_part_sequence: number }
 
 export interface AgentWorkspaceMessage {
+  image_sources?: AgentWorkspaceImage[]
   request_usage?: import('#entities/agent').AgentRequestUsage[]
   id: string
   role: 'user' | 'assistant'
@@ -274,6 +275,10 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  onLoadMessageText?: (id: string) => Promise<string>
+  onLoadOlder?: () => Promise<void>
+  onLoadNewer?: () => Promise<void>
+  onLoadLatest?: () => Promise<void>
   presentation?: AgentWorkspacePresentation
   windowAction?: import('react').ReactNode
   onLoadLocalAttachment?: (clientId: string, signal?: AbortSignal) => Promise<Blob>
@@ -329,7 +334,7 @@ export interface AgentWorkspaceProps {
   onAttachFiles: (files: File[]) => Promise<void>
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
-  onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
   onLoadToolImage?: AgentImageLoader
   onSend: (message: string, attachmentIds: string[]) => Promise<void>
   onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>

@@ -10,7 +10,7 @@ import { AgentDetachedPlaceholder } from './AgentDetachedPlaceholder.tsx'
 import { AgentSurfaceFeedback } from './AgentSurfaceFeedback.tsx'
 import { AgentFeedbackStore } from '../model/surface/agentFeedback.ts'
 import { AgentSurfaceAdapter } from '../model/surface/agentSurfaceAdapter.ts'
-import { projectAgentSurface } from '../model/surface/agentSurfaceProjection.ts'
+import { AgentSurfaceMessageCache, projectAgentSurface } from '../model/surface/agentSurfaceProjection.ts'
 import { waitForAgentComposition, type AgentPresentation } from '../model/surface/agentPresentation.ts'
 import type { AgentSurfaceModel } from '../model/surface/agentSurfaceModel.ts'
 import { detachedWindowStyles as styles } from '#shared/ui'
@@ -76,11 +76,13 @@ function SurfacePublication({ model, adapter, publisher, feedback, presentation,
   model: AgentSurfaceModel; adapter: AgentSurfaceAdapter; publisher: DetachedStatePublisher; feedback: AgentFeedbackStore;
   presentation: AgentPresentation; publish: (value: unknown) => void; publishing: boolean; children: import('react').ReactNode
 }) {
+  // 收回独立窗口时一并释放其序列化缓存，不让主窗口长期保留第二份历史。
+  const messageCache = useMemo(() => publishing ? new AgentSurfaceMessageCache() : undefined, [publishing])
   useLayoutEffect(() => {
     adapter.model = model
     // 嵌入和远控页面无需序列化整段历史；收回后及时释放独立窗口的投影副本。
     if (!publishing) { publisher.clear(); return }
-    const update = publisher.update({ ...projectAgentSurface(model), inputSequence: adapter.inputSequence,
+    const update = publisher.update({ ...projectAgentSurface(model, messageCache), inputSequence: adapter.inputSequence,
       feedback: feedback.getSnapshot(), presentation: structuredClone(presentation) })
     if (update) publish(update)
   })

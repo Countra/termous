@@ -39,6 +39,9 @@ export interface AgentSessionListOptions {
 }
 
 export interface AgentMessageListOptions {
+  view?: 'timeline'
+  cursor?: string
+  direction?: 'before' | 'after'
   afterSequence?: number
   limit?: number
   signal?: AbortSignal
@@ -59,6 +62,7 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  readonly timelineSupported?: boolean
   readonly runtimeOwnedByHost?: boolean
   subscribeWorkspace?(observer: AgentWorkspaceObserver): AgentWorkspaceSubscription
   sessionGroups(signal?: AbortSignal): Promise<{ items: AgentSessionGroup[] }>
@@ -84,8 +88,8 @@ export interface AgentWorkspaceGateway {
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   uploadAttachment(sessionId: string, file: File, signal?: AbortSignal, origin?: AgentAttachment['origin']): Promise<AgentAttachment>
   attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
-  attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
-  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal): Promise<Blob>
+  attachmentContent(id: string, signal?: AbortSignal, variant?: 'thumbnail'): Promise<Blob>
+  toolImageContent(source: AgentToolImageSource, signal?: AbortSignal, variant?: 'thumbnail'): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   queuedTurns(sessionId: string, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<AgentQueuedTurnPage>

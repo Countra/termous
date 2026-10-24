@@ -1,11 +1,11 @@
 import { Check, ChevronRight, CircleAlert, Clock3, LoaderCircle, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { AgentImageLoader, AgentWorkspaceToolPart } from '../model/types.ts'
 import { AgentImage } from './AgentImage.tsx'
 import styles from './AgentToolTimeline.module.scss'
 
-export function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorkspaceToolPart; onLoadToolImage?: AgentImageLoader }) {
+export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorkspaceToolPart; onLoadToolImage?: AgentImageLoader }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const StatusIcon = tool.status === 'completed'
@@ -38,7 +38,7 @@ export function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorksp
       </details>
     </div>
   )
-}
+})
 
 function formatDuration(value: number) {
   return value < 1_000 ? `${Math.max(0, Math.round(value))} ms` : `${(value / 1_000).toFixed(1)} s`

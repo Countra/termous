@@ -1,6 +1,6 @@
 import { Archive, FolderPlus, GripVertical, MessageSquarePlus, PanelLeftClose, Pin, Search } from 'lucide-react'
 import { Button, Input, Tooltip } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentSessionGroup } from '#entities/agent'
 import { usePersistentJsonState } from '#shared/hooks'
@@ -52,6 +52,24 @@ export interface AgentSessionSidebarProps {
 }
 
 export function AgentSessionSidebar(props: AgentSessionSidebarProps) {
+  const latest = useRef(props)
+  latest.current = props
+  // 草稿和流式消息不应重绘全部会话；稳定回调仍调用当前窗口的授权与业务上下文。
+  const handlers = useMemo(() => Object.fromEntries(sidebarEventNames.map(key => [key, (...args: unknown[]) => {
+    const handler = latest.current[key] as ((...values: unknown[]) => unknown) | undefined
+    return handler?.(...args)
+  }])), [])
+  const events = Object.fromEntries(sidebarEventNames.map(key => [key, props[key] ? handlers[key] : undefined]))
+  return <AgentSessionSidebarContent {...props} {...events} />
+}
+
+const sidebarEventNames = [
+  'onCreate', 'onSelect', 'onArchive', 'onDelete', 'onClose', 'onRename', 'onPin', 'onMoveToGroup',
+  'onCreateGroup', 'onRenameGroup', 'onDeleteGroup', 'onMoveGroup', 'onMovePin', 'onMoveSession',
+  'onOpenArchives', 'onSearchQueryChange', 'onSearchRetry',
+] as const satisfies ReadonlyArray<keyof AgentSessionSidebarProps>
+
+const AgentSessionSidebarContent = memo(function AgentSessionSidebarContent(props: AgentSessionSidebarProps) {
   const { t } = useTranslation()
   const { sessions, groups = noGroups, pendingIds = noPending, selectedSessionId, disabled } = props
   const [localQuery, setLocalQuery] = useState('')
@@ -179,4 +197,4 @@ export function AgentSessionSidebar(props: AgentSessionSidebarProps) {
       }} />
     </aside>
   )
-}
+})
