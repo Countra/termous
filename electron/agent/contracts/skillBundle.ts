@@ -10,6 +10,11 @@ export interface AgentSkillCatalogEntry {
   entry_uri: string
 }
 
+export function builtinAgentSkillAvailable(skill: AgentSkillCatalogEntry) {
+  // 内置助手没有本机脚本执行器，不能推荐仅供外部客户端启动应用的说明。
+  return skill.name !== 'termous-desktop'
+}
+
 export interface AgentSkillResource {
   uri: string
   sha256: string

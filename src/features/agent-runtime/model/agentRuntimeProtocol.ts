@@ -590,10 +590,13 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
     case 'message_part':
       return { ...base, kind, payload: { message_part: decodeAgentMessagePart(payload.message_part) } }
     case 'tool_started':
+    case 'tool_prepared':
+    case 'tool_progress':
     case 'tool_completed':
     case 'tool_failed': {
       const tool = record(payload.tool, 'Agent Tool 事件无效')
       return { ...base, kind, payload: { tool: {
+        phase: tool.phase === undefined ? undefined : enumValue(tool.phase, ['preparing', 'waiting', 'executing'] as const, 'Agent Tool 阶段无效'),
         tool_call_id: identifier(tool.tool_call_id, 'Agent Tool Call ID 无效', 256),
         tool_name: utf8(tool.tool_name, 'Agent Tool 名称无效', 256),
         arguments: tool.arguments === undefined ? undefined : jsonValue(tool.arguments),

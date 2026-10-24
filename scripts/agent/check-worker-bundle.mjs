@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { buildOutputPaths } from '../build/output-paths.mjs'
 
-// pi 1.2.0 加回执归一化与跨轮状态投影的闭包约 1.38 MiB；按既有 64 KiB 档位留出余量，依赖白名单独立检查。
-export const maximumAgentWorkerBundleBytes = 1472 * 1024
+// 加入参数准备、来源隔离和目录后闭包实测约 1.52 MiB；沿用 64 KiB 档位，依赖白名单仍独立检查。
+export const maximumAgentWorkerBundleBytes = 1600 * 1024
 
 const requiredProviderAdapters = Object.freeze([
   'openai-completions.js',

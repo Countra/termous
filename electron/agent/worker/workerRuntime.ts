@@ -169,6 +169,10 @@ export class AgentWorkerRuntime {
         bootstrap,
         mcp: this.mcp,
         events: this.events,
+        lookupPreparedCall: (toolCallID, step, signal) => {
+          if (!this.core.readToolPreparation) throw new Error('AGENT_RUNTIME_PREPARATION_UNAVAILABLE')
+          return this.core.readToolPreparation(start, bootstrap.runtime_bearer, toolCallID, step, signal)
+        },
         skills: start.skills,
         readResourceImage: (reference, signal) => {
           if (!this.core.readResourceImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')

@@ -50,7 +50,7 @@ export class PiEventBridge {
   private readonly now: () => number
   private readonly newPartID: () => string
   private readonly streamParts = new Map<number, StreamPartRef>()
-  private readonly toolStartedAt = new Map<string, number>()
+  private readonly toolStartedAt = new Map<string, { at: number; name: string; phase?: string }>()
   private messagePartSequence = 0
   private persistedAssistantPartID: string | undefined
   private runOutcome: PiRunOutcome = 'completed'
@@ -261,7 +261,7 @@ export class PiEventBridge {
   }
 
   private handleToolStart(toolCallID: string, encodedName: string, args: unknown) {
-    this.toolStartedAt.set(toolCallID, this.now())
+    this.toolStartedAt.set(toolCallID, { at: this.now(), name: this.requireOriginalToolName(encodedName) })
     this.writer.push('tool_started', {
       tool: {
         tool_call_id: toolCallID,
@@ -269,6 +269,14 @@ export class PiEventBridge {
         arguments: projectToolTimelineValue(args),
       },
     })
+  }
+
+  toolProgress(toolCallID: string, phase: 'preparing' | 'waiting' | 'executing') {
+    const active = this.toolStartedAt.get(toolCallID)
+    if (!active || active.phase === phase) return
+    active.phase = phase
+    // 本地等待工具内部会调用其他读取工具，展示仍绑定最外层真实工具调用。
+    this.writer.push('tool_progress', { tool: { tool_call_id: toolCallID, tool_name: active.name, phase } })
   }
 
   private handleToolEnd(
@@ -281,7 +289,7 @@ export class PiEventBridge {
     this.toolStartedAt.delete(toolCallID)
     const duration = startedAt === undefined
       ? 0
-      : Math.max(0, Math.round(this.now() - startedAt))
+      : Math.max(0, Math.round(this.now() - startedAt.at))
     const projected = projectToolResult(result)
     this.writer.push(isError ? 'tool_failed' : 'tool_completed', {
       tool: {

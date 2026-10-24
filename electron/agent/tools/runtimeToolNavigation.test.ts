@@ -47,12 +47,14 @@ function fixture(errorCode?: string, names = ['list', 'get', 'attach', 'capture'
   return { discovery, calls, mapped }
 }
 
-test('精确名称或能力组独立发现，空参数及过量名称仍被校验拒绝', async () => {
+test('精确名称或能力组独立发现，空参数浏览目录，过量名称仍被拒绝', async () => {
   const { discovery } = fixture()
   const schema = Compile(discovery.tool.parameters)
   assert.equal(schema.Check({ names: ['termous.desktops.list'] }), true)
   assert.equal(schema.Check({ group: 'desktop_observe' }), true)
-  for (const value of [{}, { names: [] }, { query: '' }, { group: 'invented' }, { names: Array(9).fill('list') }]) assert.equal(schema.Check(value), false)
+  assert.equal(schema.Check({}), true)
+  assert.equal(schema.Check({ group: 'external-source' }), true)
+  for (const value of [{ names: [] }, { query: '' }, { limit: 9 }, { names: Array(9).fill('list') }]) assert.equal(schema.Check(value), false)
   await discovery.tool.execute('find', { names: ['termous.desktops.list'] })
   assert.deepEqual(discovery.publish().map((tool) => tool.name), ['discover_tools', 'm_termous_ddesktops_dlist'])
 })

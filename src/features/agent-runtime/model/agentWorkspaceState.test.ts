@@ -198,6 +198,22 @@ test('长流只保留消息投影和游标，同时保留 Tool 与审批时间�
   ])
 })
 
+test('准备阶段只保留当前调用的最新状态，终态释放阶段缓存', () => {
+  let state = workspaceWithRun()
+  for (let sequence = 1; sequence <= 1000; sequence++) {
+    state = applyAgentWorkspaceEvent(state, { type: 'upsert', revision: sequence, run_event: {
+      id: `progress-${sequence}`, run_id: 'agr-run', generation: 1, sequence, created_at: agentFixtureTime,
+      kind: 'tool_progress', payload: { tool: { tool_call_id: 'call', tool_name: 'termous.test', phase: sequence % 2 ? 'preparing' : 'executing' } },
+    } }).state
+  }
+  assert.equal(state.run_events['agr-run']?.length, 1)
+  state = applyAgentWorkspaceEvent(state, { type: 'upsert', revision: 1001, run_event: {
+    id: 'done', run_id: 'agr-run', generation: 1, sequence: 1001, created_at: agentFixtureTime,
+    kind: 'tool_completed', payload: { tool: { tool_call_id: 'call', tool_name: 'termous.test' } },
+  } }).state
+  assert.deepEqual(state.run_events['agr-run']?.map((v) => v.kind), ['tool_completed'])
+})
+
 test('reasoning delta 保持独立类型且最终 message part 覆盖临时投影', () => {
   let state = workspaceWithRun()
   const reasoning = agentDeltaEventFixture({

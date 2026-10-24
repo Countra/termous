@@ -352,6 +352,7 @@ function projectToolPart(
   ))
   const terminalEvent = [...toolEvents].reverse().find((event) => event.kind === 'tool_completed' || event.kind === 'tool_failed')
   const duration = terminalEvent && 'tool' in terminalEvent.payload ? terminalEvent.payload.tool.duration_ms : undefined
+  const phaseEvent = [...toolEvents].reverse().find((event) => event.kind === 'tool_progress')
   const status = call.response_failure ? 'failed' : result
     ? result.tool_result.is_error ? 'failed' : 'completed'
     : run?.status === 'waiting_approval' ? 'waiting_approval'
@@ -362,6 +363,7 @@ function projectToolPart(
     kind: 'tool',
     name: canonicalizeMcpFileToolName(call.tool_call.tool_name),
     status,
+    phase: (status === 'running' || status === 'waiting_approval') && phaseEvent?.kind === 'tool_progress' ? phaseEvent.payload.tool.phase : undefined,
     duration_ms: duration,
     ...(result ? { images: projectAgentToolImages(sessionID, result) } : {}),
     detail: toolDetails.detail(call, result),

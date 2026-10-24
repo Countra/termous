@@ -5,6 +5,7 @@ import type { RuntimeEventInput, RuntimeSteerInput, RuntimeSteerResult } from '.
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from './runtimeCheckpoint.ts'
 
 export interface WorkerCoreClientPort {
+  readToolPreparation?(start: AgentWorkerStartMessage, runtimeBearer: string, toolCallID: string, step: string, signal?: AbortSignal): Promise<import('./toolPreparation.ts').PreparedCall | undefined>
   readResourceText?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('#common/contracts').TextResourceReference, signal?: AbortSignal): Promise<string>
   readResourceImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('#common/contracts').ImageResourceReference, signal?: AbortSignal): Promise<string>
   readHistoryImage?(start: AgentWorkerStartMessage, runtimeBearer: string, reference: import('./runtimeCheckpoint.ts').RuntimeContextImageReference, signal?: AbortSignal): Promise<RuntimeHistoryImage>

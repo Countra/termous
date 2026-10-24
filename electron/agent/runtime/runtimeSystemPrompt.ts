@@ -5,6 +5,7 @@ import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { skillCatalogPrompt } from '../tools/skillResourceTool.ts'
 import { runtimeResourceIdentity } from '../tools/runtimeResourceRouting.ts'
 import { runtimeDesktopRules } from './runtimeDesktopRules.ts'
+import { managedResourceRules, managedToolRules } from './runtimeManagedRules.ts'
 
 const builtinAgentSystemPrompt = [
   '你是 Termous 内置 AI 助手。',
@@ -13,8 +14,7 @@ const builtinAgentSystemPrompt = [
   '首次失败即复查实际回执：先核对工具职责是否匹配下一动作，再检查当前 schema 的必填字段、类型、枚举、标识来源和本轮前置回执。参数错误查声明，职责不符查 discover_tools；已有准确声明直接使用。参数修正或环境变化后可以重试，进行中任务查询原 ID。retryable=false 不代表选错工具，未知错误不代表资源不存在。',
   '纠错应落实到下一次实际工具及参数：说要查询就选择查询工具，说要建立附着就选择附着工具；口头重述计划、换请求 ID 或重新发现工具不等于修复。依据新回执选择后续动作，仍缺信息时做最小必要查询；确实缺少能力或用户信息再说明阻碍。',
   'tool_navigation 是候选引导，available_next_turn 以实际声明为准；不改变目标、绑定或权限。无匹配时拆分动作与资源再搜索，或说明能力限制，不编造参数。',
-  '每次新任务的 MCP 会话独立：历史中的桌面 attachment_id、grant_id 和截图引用不构成本轮有效授权。先复验当前绑定目标并建立自己的观察入口；发送输入前必须取得本轮控制授权，结果不确定的输入不得重放。',
-  '能力组：desktop_observe（连接截图）、desktop_input（输入控制）、screen_analysis（分析任务）、screen_analysis_query（区域、OCR、结果图）、screen_analysis_history（分析记录）、workflow_edit（脚本编辑与 OCR 测试）、workflow_templates（模板选区）、workflow_runs（运行报告）、ssh、files、system、forwarding、snippets。实际可用性由发现结果决定。',
+  '每次新任务的授权独立：历史中的桌面 attachment_id、grant_id 和截图引用不构成本轮有效授权。当前工具和 Core 必须复验目标、观察和输入权限；结果不确定的输入不得重放。',
   '图片历史引用表示像素已退出上下文；需要重看时使用 read_history_image，不得假装仍看得到。',
   '远程操作只能通过当前提供的 MCP 工具完成，不得假设存在 Shell、SSH、SFTP 或其他私有能力。',
   '工具可能需要用户审批；等待审批时不要重复调用，也不要把已开始但结果未知的调用重新执行。',
@@ -57,8 +57,11 @@ const verifiedFileResourceSystemRules = [
 export function createRuntimeSystemPrompt(
   bootstrap: RuntimeBootstrap,
   skills: AgentSkillBundleSnapshot,
+  managedTools = false,
+  capabilityIndex?: string,
 ) {
   const sections = [builtinAgentSystemPrompt]
+  if (managedTools) sections.push(managedToolRules)
   const policy = bootstrap.model.snapshot.execution_budget ?? defaultExecutionBudget
   if (policy.enabled) {
     const limits = policy.limits
@@ -66,18 +69,18 @@ export function createRuntimeSystemPrompt(
   } else {
     sections.push('本轮未启用累计执行预算，可持续处理复杂任务；仍应避免无效重试。用户取消、权限、授权期限和输入不确定保护始终生效。')
   }
-  for (const binding of bootstrap.session.resource_bindings ?? []) sections.push(runtimeVerifiedResourcePrompt(binding))
-  sections.push(skillCatalogPrompt(skills))
+  for (const binding of bootstrap.session.resource_bindings ?? []) sections.push(runtimeVerifiedResourcePrompt(binding, managedTools))
+  sections.push(capabilityIndex ?? skillCatalogPrompt(skills))
   return sections.join('\n\n')
 }
 
-function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding) {
+function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding, managedTools: boolean) {
   const resource = runtimeResourceIdentity(binding)
   return [
     '[TERMOUS_VERIFIED_RESOURCE]',
     JSON.stringify(resource),
     '[/TERMOUS_VERIFIED_RESOURCE]',
-    ...(binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' ? runtimeDesktopRules(binding) : binding.kind === 'ssh_session'
+    ...(managedTools ? managedResourceRules(binding) : binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' ? runtimeDesktopRules(binding) : binding.kind === 'ssh_session'
       ? verifiedResourceSystemRules
       : binding.kind === 'ssh_profile'
         ? verifiedSSHProfileSystemRules

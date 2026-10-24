@@ -8,8 +8,9 @@ import { RuntimeImageWorkingSet, pendingPreviewCall } from '../context/runtimeIm
 import { prepareRuntimeCompaction } from '../context/compaction/runtimeCompactionPreparation.ts'
 import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
 import { createWorkflowWaitTool } from '../tools/runtimeWorkflowWait.ts'
+import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 
-const tool = (name: string): AgentTool => ({ name, label: name, description: `测试能力 ${name}`, parameters: Type.Object({ id: Type.String() }), execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }) })
+const tool = (name: string): AgentTool => identifyTool({ name, label: name, description: `测试能力 ${name}`, parameters: Type.Object({ id: Type.String() }), execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }) }, termousToolSource)
 
 test('134 个工具不进入初始声明；按轮发布、精确加载和 LRU 上限不扩权', async () => {
   const names = Array.from({ length: 134 }, (_, i) => `termous.fixture.tool${i}`)
@@ -33,7 +34,7 @@ test('134 个工具不进入初始声明；按轮发布、精确加载和 LRU �
   assert.ok(batched.publish().length <= 32)
 })
 
-test('中文意图可发现输入工具；资源控制与清理入口不会因其他领域加载被卸载', async () => {
+test('中文意图可发现输入工具，活动输入声明保留必要清理依赖', async () => {
   const names = ['termous.desktops.pointer.click', 'termous.desktops.keyboard.text', 'termous.desktops.control.release', 'termous.desktops.detach']
   const discovery = new RuntimeToolDiscovery(names.map(tool), (name) => name, [])
   await discovery.tool.execute('find', { query: '帮我点击远程桌面并输入文字' })

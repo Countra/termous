@@ -20,6 +20,25 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
+  it('准备阶段跟随当前调用，审批与终态优先于迟到的阶段', () => {
+    const run = activeRun()
+    const call = { id: 'call-part', message_id: run.assistant_message_id, sequence: 1, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_call' as const, tool_call: { tool_call_id: 'call', tool_name: 'termous.desktop_workflows.runs.start', arguments: {} } }
+    const message: AgentMessage = { id: run.assistant_message_id, session_id: run.session_id, role: 'assistant', status: 'streaming',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [call], attachments: [] }
+    const progress: AgentRunEvent = { id: 'progress', run_id: run.id, generation: run.generation, sequence: 2, created_at: '',
+      kind: 'tool_progress', payload: { tool: { tool_call_id: 'call', tool_name: call.tool_call.tool_name, phase: 'preparing' } } }
+    expect(projectAgentMessages([message], run, [progress])[0]!.parts[0]).toMatchObject({ status: 'running', phase: 'preparing' })
+    expect(projectAgentMessages([message], { ...run, status: 'waiting_approval' }, [progress])[0]!.parts[0])
+      .toMatchObject({ status: 'waiting_approval', phase: 'preparing' })
+    const result = { ...call, id: 'result-part', sequence: 2, kind: 'tool_result' as const,
+      tool_result: { tool_call_id: 'call', tool_name: call.tool_call.tool_name, content: [], is_error: false } }
+    expect(projectAgentMessages([{ ...message, parts: [call, result] }], run, [progress])[0]!.parts[0])
+      .toMatchObject({ status: 'completed', phase: undefined })
+    expect(projectAgentMessages([message], run, [{ ...progress, generation: run.generation - 1 }])[0]!.parts[0])
+      .toMatchObject({ status: 'running', phase: undefined })
+  })
+
   it('分页从工具结果开始时仍展示结果和图片，合并调用页后只显示一次', () => {
     const result = { id: 'result', message_id: 'message', sequence: 2, revision: 1, created_at: '', updated_at: '',
       kind: 'tool_result' as const, tool_result: { tool_call_id: 'call', tool_name: 'termous.screen_analyses.images.get',

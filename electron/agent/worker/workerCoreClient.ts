@@ -21,6 +21,19 @@ export interface WorkerCoreClientOptions {
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
+  async readToolPreparation(start: AgentWorkerStartMessage, runtimeBearer: string, toolCallID: string, step: string, signal?: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-tool-preparations`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, tool_call_id: toolCallID, step }),
+    }, runtimeBearer, signal)
+    if (!isRecord(result)) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    if (result.preparation === undefined) return undefined
+    const value = result.preparation
+    if (!isRecord(value) || value.tool_call_id !== toolCallID || value.step !== step || !Number.isSafeInteger(value.generation) || Number(value.generation) <= 0 || Number(value.generation) > start.generation
+      || typeof value.tool_name !== 'string' || typeof value.request_id !== 'string'
+      || typeof value.arguments_sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(value.arguments_sha256) || !isRecord(value.values)) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    if (result.operation !== undefined && (!isRecord(result.operation) || result.operation.id !== value.request_id || !['accepted', 'failed', 'uncertain', 'running'].includes(String(result.operation.state)))) throw new WorkerCoreError('AGENT_PREPARATION_RESPONSE_INVALID')
+    return { ...value, ...(isRecord(result.operation) ? { operation_result: result.operation } : {}) } as unknown as import('../contracts/toolPreparation.ts').PreparedCall
+  }
   private readonly fetchImplementation: typeof globalThis.fetch
   private readonly requestTimeoutMs: number
   private readonly bootstrapRequestTimeoutMs: number

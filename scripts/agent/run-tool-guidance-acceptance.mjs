@@ -11,6 +11,8 @@ import { createAgentSkillBundleSnapshot } from '../../electron/agent/contracts/s
 import { validateAgentSkillsBundleDirectory } from './validate-skills-bundle.mjs'
 import { guidanceFixture, guidanceMessages } from './tool-guidance-fixture.mjs'
 import { assertGuidanceCoreIdle, guidanceHeartbeat } from './tool-guidance-core.mjs'
+import { discoveryCases, discoveryFixture, discoveryMessages } from './capability-discovery-fixture.mjs'
+import { projectDiscoveryRequest, runDiscoveryMatrix } from './capability-discovery-acceptance.mjs'
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const output = path.resolve(web, '../TEMP/runtime/agent-guidance')
@@ -20,12 +22,15 @@ const modelName = argument('model')
 assert.ok(modelName, '请用 --model 指定已有模型，不自动替换模型')
 const repetitions = Number(argument('repetitions') ?? 3)
 assert.ok(Number.isInteger(repetitions) && repetitions > 0 && repetitions <= 10)
-const scenarios = (argument('scenarios') ?? 'first,history,compaction,discover').split(',')
-assert.ok(scenarios.every((value) => ['first', 'history', 'compaction', 'discover'].includes(value)))
+const matrix = argument('suite') === 'catalog'
+const scenarios = matrix ? ['catalog_matrix'] : (argument('scenarios') ?? 'first,history,compaction,discover').split(',')
+assert.ok(scenarios.every((value) => ['catalog_matrix', 'first', 'history', 'compaction', 'discover', ...discoveryCases.map((item) => item.id)].includes(value)))
 const baseline = argument('baseline')
-const variants = baseline ? [['baseline', (await import(pathToFileURL(path.resolve(baseline)).href)).createPiAgent], ['current', createPiAgent]] : [['current', createPiAgent]]
+const variants = baseline ? [['baseline', (await import(pathToFileURL(path.resolve(baseline)).href)).createPiAgent], ['current', createPiAgent]]
+  : argument('compare-index') === 'true' ? [['without_index', createPiAgent], ['current', createPiAgent]] : [['current', createPiAgent]]
 const supervisor = `guidance_${randomUUID()}`
-const report = { model: modelName, synthetic: true, started_at: new Date().toISOString(), cases: [], cleanup_errors: [] }
+const report = { model: modelName, synthetic: true, scope: argument('suite') === 'catalog' ? 'business_tool_selection_only' : 'synthetic_desktop_workflow',
+  comparison: argument('compare-index') === 'true' ? 'index_ablation_not_historical_release' : baseline ? 'supplied_baseline' : 'current_only', started_at: new Date().toISOString(), cases: [], cleanup_errors: [] }
 let lease, heartbeat, claimSequence = 1
 await mkdir(output, { recursive: true })
 const reportPath = path.join(output, argument('report') ?? 'report.json')
@@ -47,7 +52,7 @@ try {
     skills_bundle: { status: 'ready', fingerprint: skills.fingerprint, skill_count: skills.catalog.length, resource_count: skills.resources.length } }) }
   await register()
   heartbeat = guidanceHeartbeat(register)
-  for (const scenario of scenarios) for (let index = 1; index <= repetitions; index++) for (const [variant, create] of variants) {
+  for (const scenario of scenarios) for (let index = 1; index <= (matrix ? 1 : repetitions); index++) for (const [variant, create] of matrix ? [['matrix', createPiAgent]] : variants) {
     heartbeat.check()
     await assertGuidanceCoreIdle(coreURL)
     const result = { variant, scenario, index, requests: [], usage_records: [], calls: [], discoveries: [], discovery_results: [], tool_failures: [], compactions: 0, progress: [], errors: [] }
@@ -64,7 +69,13 @@ try {
       const start = { type: 'start', protocol_version: agentRuntimeProtocolVersion, core_base_url: coreURL, ticket: ticket.ticket, run_id: run.id, generation: run.generation, skills }
       // 凭据只通过既有 ticket/bootstrap 交换进入内存，不读取凭据文件、不写入报告。
       const bootstrap = await new WorkerCoreClient().bootstrap(start)
-      bootstrap.messages = guidanceMessages(scenario)
+      if (matrix) {
+        report.cases.pop()
+        await runDiscoveryMatrix({ bootstrap, skills, start, variants, repetitions, report, save, heartbeat,
+          concurrency: Number(argument('concurrency') ?? 4), timeout: Number(argument('timeout') ?? 90000) })
+        continue
+      }
+      bootstrap.messages = scenario.startsWith('catalog_') ? discoveryMessages(scenario) : guidanceMessages(scenario)
       bootstrap.context = { estimated_tokens: 0, warning: false, progress_supported: true, request_usage_supported: true }
       result.configured_context_window = bootstrap.model.snapshot.context_window_tokens
       if (scenario === 'compaction') {
@@ -72,7 +83,7 @@ try {
         bootstrap.model = { ...bootstrap.model, snapshot: { ...bootstrap.model.snapshot, force_context_compression: true } }
         result.fixture_forced_compaction = true
       }
-      const fixture = guidanceFixture(scenario, (call) => {
+      const fixture = (scenario.startsWith('catalog_') ? discoveryFixture : guidanceFixture)(scenario, (call) => {
         result.calls.push({ ...call, request: result.requests.length })
         if (call.input && result.first_input_request === undefined) result.first_input_request = result.requests.length
       })
@@ -89,8 +100,8 @@ try {
       controller = create({ bootstrap, events: writer, skills: variant === 'baseline' ? baselineSkills : skills, mcp: fixture.mcp,
         fetch: async (url, init) => {
           const body = JSON.parse(String(init?.body))
-          result.requests.push({ tools: (body.tools ?? []).map((tool) => tool.name ?? tool.function?.name) })
-          return fetch(url, init)
+          result.requests.push(projectDiscoveryRequest(body, variant))
+          return fetch(url, { ...init, body: JSON.stringify(body) })
         },
         audit: { capture: (event) => {
           if (event.type === 'message_end' && event.message.role === 'assistant') for (const part of event.message.content) {
@@ -125,7 +136,10 @@ try {
       const firstInput = result.calls.findIndex((call) => call.input)
       const preceding = firstInput < 0 ? result.calls : result.calls.slice(0, firstInput)
       result.nonprogress_calls = preceding.filter((call, position) => preceding.slice(0, position).some((old) => old.name === call.name && old.error === call.error)).length
-    } catch (error) { result.success = false; result.error = error.code ?? error.name }
+    } catch (error) {
+      result.success = false; result.error = error.code ?? error.name
+      if (matrix && !report.cases.includes(result)) report.matrix_error = result.error
+    }
     finally {
       if (run) await api(`/agent/runs/${run.id}/runtime-failures`, 'POST', { supervisor_instance_id: supervisor, generation: run.generation, category: 'forced_stop' }).catch(() => report.cleanup_errors.push('结束验收运行失败'))
       if (allocation?.execution_id) await api('/agent/runtime/executions/release', 'POST', { supervisor_instance_id: supervisor, supervisor_epoch: lease.supervisor_epoch,
@@ -142,7 +156,8 @@ try {
   report.completed_at = new Date().toISOString()
   await save()
 }
-process.exitCode = report.cases.every((entry) => entry.success) && !report.cleanup_errors.length ? 0 : 1
+process.exitCode = report.cases.length > 0 && report.cases.every((entry) => entry.success) && !report.cleanup_errors.length && !report.interrupted && !report.matrix_error
+  && (!report.expected_samples || report.expected_samples === report.cases.length) ? 0 : 1
 
 async function api(resource, method = 'GET', body) {
   const response = await fetch(`${coreURL}/api/v1${resource}`, { method, headers: { 'X-Termous-Token': 'dev-token', 'Content-Type': 'application/json' },

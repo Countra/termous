@@ -25,7 +25,9 @@ test('授权和附着查询后的下一阶段包含实际输入，普通截图�
     for (const input of inputs) assert.ok(navigation.names.includes(input), input)
     assert.ok(!navigation.names.includes(acquire))
   }
-  assert.deepEqual(runtimeToolNavigation('termous.desktops.capture', receipt({ capture: { screenshot_id: 'shot' } }))!.names, [])
+  const next = runtimeToolNavigation('termous.desktops.capture', receipt({ capture: { screenshot_id: 'shot' } }))!.names
+  assert.ok(next.includes('termous.desktops.pointer.click'))
+  assert.ok(next.every((name) => name.startsWith('termous.desktops.')))
 })
 
 test('嵌套审批终态、未取得授权和过期授权不被当作已可输入', () => {

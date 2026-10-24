@@ -1296,6 +1296,9 @@
       "completed": "思考过程"
     },
     "tool": {
+      "phase": { "preparing": "准备中", "waiting": "等待中", "executing": "执行中" },
+      "controlApproval": "申请桌面控制权限",
+      "inputNotDispatched": "等待授权，尚未发送输入",
       "status": {
         "queued": "等待执行",
         "running": "执行中",

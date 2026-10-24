@@ -140,6 +140,7 @@ export interface AgentWorkspaceReasoningPart {
 }
 
 export interface AgentWorkspaceToolPart {
+  phase?: 'preparing' | 'waiting' | 'executing'
   id: string
   kind: 'tool'
   name: string

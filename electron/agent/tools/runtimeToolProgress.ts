@@ -77,6 +77,10 @@ export class RuntimeToolProgress {
     const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, args, error, code) === true
     const readOnly = progressMetaTools.has(name) || mcp?.readOnly === true
     const role = runtimeCapabilityStep(name)?.role
+    // 只诊断已确认接收的按键，不把普通连续输入、未派发或结果不确定的操作归入此路径。
+    const repeatedKey = !error && mcp && ['termous.desktops.keyboard.shortcut', 'termous.desktops.keyboard.key'].includes(name)
+      && isRecord(data.operation) && data.operation.state === 'accepted'
+      && isRecord(args) && (Array.isArray(args.codes) && args.codes.length > 0 || typeof args.code === 'string')
     // 连续输入可以是合法任务；协议接收本身不能消除尚未解决的观察诊断。
     let polling = progressPolling(name, args, data)
     if (polling && runtimeToolOutcome(name, data) === 'pending') {
@@ -97,13 +101,14 @@ export class RuntimeToolProgress {
         this.advance(resource, name, '同一操作已取得该资源的成功回执；继续核验目标是否完成。', true)
       }
     }
-    if (!error && (polling || !readOnly && (!role || role === 'input'))) {
+    if (!error && (polling || !readOnly && (!role || role === 'input') && !repeatedKey)) {
       this.recent = [...this.recent, ''].slice(-12)
       return undefined
     }
     const key = `${name}:${resource}:${error ? `error:${code ?? 'tool_failed'}` : progressDigest(progressArguments(args))}`
     const fingerprint = error ? progressDigest(code ?? 'tool_failed')
-      : role === 'submit' || role === 'cancel' ? progressDigest({ role }) : progressFingerprint(name, data, result)
+      : repeatedKey ? progressDigest({ role, observation: [...this.observations.values()].reverse().find((item) => item.resource === resource && item.name === 'termous.desktops.capture')?.fingerprint })
+        : role === 'submit' || role === 'cancel' ? progressDigest({ role }) : progressFingerprint(name, data, result)
     const previous = this.observations.get(key)
     if (previous && previous.fingerprint !== fingerprint && !progressMetaTools.has(name)) this.advance(resource, name)
     const count = previous?.fingerprint === fingerprint ? previous.count + 1 : 1
@@ -133,7 +138,7 @@ export class RuntimeToolProgress {
     const recovery = navigation ?? recoveryNavigation(name, code)
     const nextTools = recovery.names.filter(this.available).slice(0, 8)
     const unavailable = recovery.names.some((name) => !this.available(name)) ? '部分流程入口不在当前可用目录中；先说明缺失能力或门禁限制，不得反复发现或绕过。' : ''
-    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : reason === 'cycle' ? '工具调用正在重复往返' : role === 'submit' ? '重复取得相同前置状态或提交回执' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${recovery.guidance} ${recovery.skill ? `流程说明：${recovery.skill}。` : ''}${unavailable}任务继续；让下一次实际工具及参数对应纠正后的动作，缺少准确声明时 discover_tools。口头改计划、更换请求标识或重复发现不等于进展；有新依据可重试。`
+    const guidance = `${reason === 'repeated_failure' ? '同类操作反复失败' : repeatedKey ? '相同按键反复被协议接收，但尚无画面变化证据；这不证明应用已响应。先观察结果，已定位的可见控件使用鼠标点击，不继续猜测焦点或快捷键' : reason === 'cycle' ? '工具调用正在重复往返' : role === 'submit' ? '重复取得相同前置状态或提交回执' : '同一观察反复返回相同有效信息'}（${repetitions} 次，工具 ${name}${code ? `，错误 ${code}` : ''}）。${recovery.guidance} ${recovery.skill ? `流程说明：${recovery.skill}。` : ''}${unavailable}任务继续；让下一次实际工具及参数对应纠正后的动作，缺少准确声明时 discover_tools。口头改计划、更换请求标识或重复发现不等于进展；有新依据可重试。`
     const notice: ProgressNotice = { pattern_id: pattern, tool_name: name, reason, status: 'detected', count: repetitions, guidance, next_tools: nextTools }
     const old = this.notices.get(pattern)
     remember(this.notices, pattern, notice, 12)

@@ -36,7 +36,9 @@ it('独立出去后的占位页可返回远程桌面，保留会话和独立窗�
     send: packet => { if (packet.kind !== 'initialize') client.accept(packet) },
   }
   Object.defineProperty(window, 'termous', { configurable: true, value: { detachedWindows: bridge } })
-  const gateway = { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), eventsURL: () => 'ws://fixture/events' } as unknown as WorkflowGateway
+  const gateway = { list: vi.fn().mockResolvedValue([]), listRuns: vi.fn().mockResolvedValue([]), eventsURL: () => 'ws://fixture/events',
+    ocrDefaults: vi.fn().mockResolvedValue({ text_confidence: .5, ocr_max_side: 1600 }),
+  } as unknown as WorkflowGateway
   const dirty = vi.fn(); const detached = vi.fn()
   const host = render(<RemoteDesktopPage workflow={gateway} profiles={[]} onDirtyChange={dirty} onDetachedChange={detached} />, { wrapper })
   const desktop = within(host.container).getByLabelText('桌面会话状态')

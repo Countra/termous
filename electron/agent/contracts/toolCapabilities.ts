@@ -30,6 +30,7 @@ export interface CapabilityStep {
 }
 
 export interface ToolCapability {
+  discovery: { summary: string; entry: string[]; preload?: Array<{ tool: string; bindings: string[]; priority: number }> }
   id: string
   group: string
   prefix: string
@@ -48,7 +49,13 @@ export interface ToolCapability {
 
 export interface CapabilityCatalog {
   version: 1
+  builtin: { version: 1; tools: Record<string, BuiltinToolAdapter> }
   operations: Record<string, string>
   capabilities: ToolCapability[]
   skillEntries: Record<string, string[]>
+}
+
+export interface BuiltinToolAdapter {
+  adapter: 'identity' | 'desktop' | 'workflow' | 'analysis' | 'ssh' | 'files' | 'revision' | 'operation'
+  managed: string[]
 }

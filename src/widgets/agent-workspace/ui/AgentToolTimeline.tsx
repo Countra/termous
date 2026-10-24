@@ -8,22 +8,24 @@ import styles from './AgentToolTimeline.module.scss'
 export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorkspaceToolPart; onLoadToolImage?: AgentImageLoader }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const preparingControl = (tool.status === 'running' || tool.status === 'waiting_approval')
+    && tool.phase === 'waiting' && tool.name.startsWith('termous.desktops.')
   const StatusIcon = tool.status === 'completed'
     ? Check
     : tool.status === 'failed' || tool.status === 'interrupted'
       ? CircleAlert
-      : tool.status === 'waiting_approval'
+      : tool.status === 'waiting_approval' || preparingControl
         ? ShieldAlert
         : LoaderCircle
   return (
     <div>
-      <details className={`${styles['tool-row']} ${styles[`is-${tool.status.replace('_', '-')}`]}`}
+      <details className={`${styles['tool-row']} ${styles[`is-${preparingControl ? 'waiting-approval' : tool.status.replace('_', '-')}`]}`}
         onToggle={(event) => setExpanded(event.currentTarget.open)}>
         <summary>
           <span className={styles['tool-disclosure']}><ChevronRight size={13} aria-hidden="true" /></span>
           <span className={styles['tool-status-icon']}><StatusIcon size={14} aria-hidden="true" /></span>
-          <strong>{tool.name}</strong>
-          <span className={styles['tool-state']}>{t(`agent.tool.status.${tool.status}`)}</span>
+          <strong title={tool.name}>{preparingControl ? t('agent.tool.controlApproval') : tool.name}</strong>
+          <span className={styles['tool-state']}>{t(preparingControl ? 'agent.tool.inputNotDispatched' : tool.status === 'running' && tool.phase ? `agent.tool.phase.${tool.phase}` : `agent.tool.status.${tool.status}`)}</span>
           {tool.duration_ms !== undefined ? (
             <span className={styles['tool-duration']}><Clock3 size={12} />{formatDuration(tool.duration_ms)}</span>
           ) : null}

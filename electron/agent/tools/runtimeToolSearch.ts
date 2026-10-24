@@ -1,8 +1,14 @@
 import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
 import { localToolNames } from '../contracts/toolNames.ts'
 
-interface SearchEntry { original: string; group: string; keywords: string; tool: { name: string; description: string } }
-export interface DiscoveryInput { query?: string; operation?: string; group?: string; names?: string[] }
+interface SearchEntry { original: string; group: string; keywords: string; trusted?: boolean; searchText?: string; tool: { name: string; description: string } }
+export interface DiscoveryInput { query?: string; operation?: string; group?: string; names?: string[]; source?: string; kind?: 'tools' | 'skills' | 'all'; limit?: number; cursor?: string }
+
+export function genericSearchScore(query: string, text: string) {
+  const words = query.toLowerCase().split(/[\s.,，。/;:_-]+/u).filter(Boolean)
+  const value = text.toLowerCase()
+  return words.reduce((score, word) => score + (value.includes(word) ? 10 : 0), 0)
+}
 
 const vocabulary = Object.entries(runtimeOperations).flatMap(([operation, keywords]) => keywords.split(' ').map((word) => ({ operation, word })))
 
@@ -43,20 +49,28 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
     const original = entry.original.toLowerCase()
     if (query === original || query === entry.tool.name.toLowerCase()) return 10000
     const capability = runtimeCapability(entry.original)
+    if (entry.trusted === false || !capability) {
+      if (args.group && args.group !== entry.group) return 0
+      const terms = [query, args.operation ?? ''].filter(Boolean).join(' ')
+      return terms ? genericSearchScore(terms, entry.searchText ?? `${entry.original} ${entry.tool.description}`) : 1
+    }
     const operations = runtimeToolOperations(entry.original)
     const role = runtimeCapabilityStep(original)?.role
+    const lexicalScore = genericSearchScore(query, entry.searchText ?? `${entry.original} ${entry.tool.description}`)
     const score = query.split(/[\s,，。/]+/u).filter(Boolean).reduce((sum, token) => sum + (original.split('.').includes(token) ? 20 : entry.tool.description.toLowerCase().includes(token) ? 3 : 0), 0)
     return Math.max(0, ...candidates.map(({ operation, scores, best, group }) => {
       if (group && group !== entry.group || operation && !operations.includes(operation)) return 0
       const resource = capability ? scores.get(capability.id) ?? 0 : 0
       if (best > 0 && (!capability || !scores.has(capability.id))) return 0
-      if (query && best === 0 && !group && (!capability || !preferredCapabilities.has(capability.id))) return 0
+      // 未命中业务词汇时仍检索真实声明；连续性只补足已识别的动作，不为任意无关查询兜底。
+      if (query && best === 0 && !group && !lexicalScore && !(operation && preferredCapabilities.has(capability.id))) return 0
       const browse = !query && role && ['list', 'inspect', 'observe'].includes(role) ? 20 : 0
       const entryIndex = capability?.entry.findIndex((name) => (name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name) === entry.original) ?? -1
       const entryPriority = !query && entryIndex >= 0 ? 100 - entryIndex : 0
       const continuity = capability && preferredCapabilities.has(capability.id) ? 30 : 0
       const phase = /状态|进度|终态|\bstatus\b/u.test(query) && role === 'poll' ? 20 : 0
-      return (group ? 100 : 0) + resource * 30 + (operation ? 200 : 0) + score + browse + entryPriority + continuity + phase
+      // 浏览时所有通过过滤的工具都进入分页，入口优先级只影响排序。
+      return (query ? 0 : 1) + (group ? 100 : 0) + resource * 30 + (operation ? 200 : 0) + score + (best === 0 ? lexicalScore : 0) + browse + entryPriority + continuity + phase
     }))
   }
 }

@@ -3,6 +3,7 @@ import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import { isRecord } from '../contracts/validation.ts'
 import { runtimeCapability, runtimeCapabilityStep } from './runtimeCapabilityCatalog.ts'
 import { runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
+import { isResourceImage } from '../contracts/runtimeResourceImages.ts'
 
 export { runtimeToolResultData as progressData } from '../contracts/runtimeToolResult.ts'
 
@@ -59,7 +60,9 @@ export function progressFingerprint(name: string, data: Record<string, unknown>,
     const metadata = isRecord(capture.metadata) ? capture.metadata : isRecord(capture.source) ? capture.source : {}
     const view = isRecord(capture.image_view) ? capture.image_view : {}
     return progressDigest({
-      images: result.content.filter((part) => part.type === 'image').map((part) => progressDigest(part.data)),
+      // 资源引用按已校验的内容摘要比较，不能把新资源 ID 当成画面变化，也不重新读取图片。
+      images: result.content.flatMap((part) => isResourceImage(part) ? [part.resource_image.sha256]
+        : part.type === 'image' ? [createHash('sha256').update(part.data, 'base64').digest('hex')] : []),
       connection_generation: metadata.connection_generation, execution_generation: metadata.execution_generation,
       display_epoch: metadata.display_epoch, region: metadata.region,
       image_view: { width: view.width, height: view.height, source_region: view.source_region },

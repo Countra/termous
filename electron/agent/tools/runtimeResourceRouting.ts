@@ -4,6 +4,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { isMCPToolDetails, type AgentMCPConnection } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import type { RuntimeResourceBinding, RuntimeSSHProfileBinding } from '../contracts/resourceBindings.ts'
+import { builtinTool } from '../contracts/toolSources.ts'
 
 export function runtimeResourceIdentity(binding: RuntimeResourceBinding) {
   if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') return runtimeDesktopIdentity(binding)
@@ -51,6 +52,7 @@ function bindRuntimeSSHSessionTools(
   const sessionID = binding.session_id
   const resource = runtimeResourceIdentity(binding)
   return mcp.tools.map((tool) => {
+    if (!builtinTool(tool)) return tool
     const selector = sshSelector(mcp.originalName(tool.name) ?? '')
     const originalSchema: unknown = tool.parameters
     const properties: unknown = isRecord(originalSchema) ? originalSchema.properties : undefined
@@ -107,6 +109,7 @@ function bindRuntimeSSHProfileTools(mcp: AgentMCPConnection, binding: RuntimeSSH
   const sessions = new Map<string, ProfileSessionState>()
   const resource = runtimeResourceIdentity(binding)
   return mcp.tools.map((tool) => {
+    if (!builtinTool(tool)) return tool
     const name = mcp.originalName(tool.name) ?? ''
     if (name === 'termous.sessions.connect') {
       return bindProfileConnectTool(tool, binding, resource, sessions)
@@ -312,7 +315,9 @@ function registerProfileSession(
     return false
   }
   // 清单和建连结果只登记候选；执行 SSH 操作前必须再以 sessions.get 确认实时就绪状态。
+  sessions.delete(value.id)
   sessions.set(value.id, { ready: readyConfirmed && value.status === 'connected' && value.phase === 'ready' })
+  while (sessions.size > 256) sessions.delete(sessions.keys().next().value!)
   return true
 }
 

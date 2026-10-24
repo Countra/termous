@@ -9,6 +9,7 @@ import type { CapabilityTarget } from '../contracts/toolCapabilities.ts'
 import { progressData } from './runtimeToolEvidence.ts'
 import { runtimeFailureKind } from './runtimeToolRecovery.ts'
 import { desktopAttachment, desktopGrantCurrent } from './runtimeDesktopObservation.ts'
+import { executionRecovery } from './runtimeExecutionRecovery.ts'
 
 export interface ToolNavigation {
   names: string[]
@@ -39,6 +40,13 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     data = isRecord(data.control) ? { ...data, control: { ...data.control, attachment: observed } } : { ...data, attachment: observed }
   }
   const failed = runtimeToolOutcome(name, data, isError || response?.isError === true) === 'failed'
+  const structured = executionRecovery(data)
+  if (structured && structured.kind !== 'none') {
+    const tool = structured.tool && runtimeCapabilityStep(structured.tool) ? structured.tool : undefined
+    return { names: tool ? [tool] : [], recovery: true, guidance: structured.guidance,
+      ...(tool && structured.arguments ? { prerequisite: { tool, arguments: structured.arguments } } : {}),
+    }
+  }
   const safety = runtimeDesktopSafetyOutcome(name, result, failed)
   if (safety.cleanupUncertain && !safety.inputUncertain) return {
     names: [], guidance: desktopCleanupGuidance, recovery: true,

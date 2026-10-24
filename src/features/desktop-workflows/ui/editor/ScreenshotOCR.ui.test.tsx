@@ -95,6 +95,8 @@ describe('OCR 可选范围与匹配预览', () => {
     await canvas()
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.ocr.test' }))
     const panel = await screen.findByRole('region', { name: 'desktopWorkflow.ocr.preview' })
+    // OCR 返回新帧后图片组件会重建，load 必须发送给新帧而不是旧截图。
+    await waitFor(() => expect(screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' })).toHaveAttribute('src', 'blob:ocr-2'))
     await canvas()
     expect(within(panel).getByRole('button', { name: '保存' })).toBeVisible()
     expect(screen.queryByText('范围外')).not.toBeInTheDocument()

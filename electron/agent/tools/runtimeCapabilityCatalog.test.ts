@@ -5,10 +5,11 @@ import { Type } from 'typebox'
 import { RuntimeToolDiscovery } from './runtimeToolDiscovery.ts'
 import { RuntimeSkillContext, skillResourceMarker } from './runtimeSkillContext.ts'
 import { createAgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
+import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 
 test('workflow 根说明不依赖正文工具名，截图语义搜索只加载创建入口', async () => {
   const names = ['schema', 'list', 'get', 'captures.create', 'captures.release', 'templates.preview', 'delete'].map((name) => `termous.desktop_workflows.${name}`)
-  const tools = names.map((name) => ({ name, label: name, description: 'workflow 快照截图', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }))
+  const tools = names.map((name) => identifyTool({ name, label: name, description: 'workflow 快照截图', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource))
   const discovery = new RuntimeToolDiscovery(tools, (name) => name, [])
   assert.deepEqual(discovery.loadReferencedTools('只有流程说明，不写工具名称', 'skill://termous-desktop-workflows/SKILL.md').map((tool) => tool.original_name), names.slice(0, 4))
   for (const query of ['workflow 截图', '创建快照']) {

@@ -13,7 +13,7 @@ const steerAck = {
 }
 
 test('Agent Worker 使用包含多会话执行分配的协议 v11', () => {
-  assert.equal(agentRuntimeProtocolVersion, '14')
+  assert.equal(agentRuntimeProtocolVersion, '15')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

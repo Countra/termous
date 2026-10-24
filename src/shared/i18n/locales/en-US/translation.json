@@ -1297,6 +1297,9 @@
       "completed": "Reasoning"
     },
     "tool": {
+      "phase": { "preparing": "Preparing", "waiting": "Waiting", "executing": "Executing" },
+      "controlApproval": "Requesting desktop control",
+      "inputNotDispatched": "Awaiting authorization; input not sent",
       "status": {
         "queued": "Queued",
         "running": "Running",

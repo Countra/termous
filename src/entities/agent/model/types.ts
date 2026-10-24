@@ -698,6 +698,8 @@ export const agentRunEventKinds = [
   'message_delta',
   'message_part',
   'tool_started',
+  'tool_prepared',
+  'tool_progress',
   'tool_completed',
   'tool_failed',
   'approval_waiting',
@@ -715,6 +717,7 @@ export const agentRunEventKinds = [
 export type AgentRunEventKind = (typeof agentRunEventKinds)[number]
 
 export interface AgentToolEventData {
+  phase?: 'preparing' | 'waiting' | 'executing'
   tool_call_id: string
   tool_name: string
   arguments?: AgentJsonValue
@@ -744,7 +747,7 @@ export type AgentRunEvent =
       }
     }>
   | AgentRunEventBase<'message_part', { message_part: AgentMessagePart }>
-  | AgentRunEventBase<'tool_started' | 'tool_completed' | 'tool_failed', {
+  | AgentRunEventBase<'tool_started' | 'tool_prepared' | 'tool_progress' | 'tool_completed' | 'tool_failed', {
       tool: AgentToolEventData
     }>
   | AgentRunEventBase<'approval_waiting' | 'approval_resolved', {

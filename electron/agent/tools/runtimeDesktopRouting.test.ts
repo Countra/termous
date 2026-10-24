@@ -65,6 +65,24 @@ function session(protocol = 'rdp', generation = 2) {
 }
 const attachment = { id: 'attach_one', session_id: 'desk_one', connection_generation: 2, execution_generation: 1 }
 
+test('路由窗口淘汰旧附着后拒绝旧身份，迟到查询不能恢复它', async () => {
+  const f = fixture([desktop])
+  f.respond({ session: session() })
+  await f.tool('termous.desktops.get').execute('get', { session_id: 'desk_one' })
+  f.respond({ attachment: { ...attachment, state: 'ready' } })
+  await f.tool('termous.desktops.attach').execute('attach', { session_id: 'desk_one', connection_generation: 2 })
+  const finish = f.deferNext()
+  const pending = f.tool('termous.desktops.get').execute('old-get', { attachment_id: 'attach_one' })
+  for (let i = 0; i < 257; i++) {
+    f.respond({ attachment: { ...attachment, id: `attach_${i + 2}`, state: 'ready' } })
+    await f.tool('termous.desktops.attach').execute(`attach-${i}`, { session_id: 'desk_one', connection_generation: 2 })
+  }
+  finish()
+  await pending
+  assert.throws(() => f.tool('termous.desktops.pointer.click').prepareArguments!({ attachment_id: 'attach_one' }), /AGENT_RESOURCE_BINDING_MISMATCH/u)
+  assert.doesNotThrow(() => f.tool('termous.desktops.pointer.click').prepareArguments!({ attachment_id: 'attach_258' }))
+})
+
 test('明确不存在的会话不再提示重复 get，未知失败仍保留查询前置条件', async () => {
   for (const code of ['REMOTE_DESKTOP_SESSION_NOT_FOUND', 'MCP_INTERNAL']) {
     const f = fixture([profile])

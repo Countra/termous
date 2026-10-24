@@ -1,0 +1,17 @@
+import type { BuiltinToolAdapter } from '../../contracts/toolCapabilities.ts'
+
+export function builtinDescription(name: string, original: string, adapter: BuiltinToolAdapter): string {
+  const purpose = original.split(/。|\n/u)[0]
+  let usage = 'Specify business choices; request identity is supplied by the runtime.'
+  if (name === 'termous.screen_analyses.create') usage = 'Analyze the current verified desktop directly: {"parameters":{"detector_enabled":true,"ocr_enabled":true}}. Omit source for automatic observation preparation; no separate attach or capture is needed. Keep analysis_id and read that task. For historical reanalysis, specify source explicitly.'
+  else if (name === 'termous.desktop_workflows.runs.start') usage = 'Run the chosen script: {"script_id":"actual-script-id","parameters":{}}. The runtime pins the version and target; Core handles approval and safe control handoff. Do not manually release control first. Read the returned run_id for completion.'
+  else if (name === 'termous.desktops.connect') usage = 'On a uniquely bound desktop Profile, omit the target. Otherwise select the real host_id from termous.hosts.list or profile_id from termous.hosts.access_profiles.list; a display name is not an ID. Never invent IDs. Reuse the returned session and do not reconnect to bypass control conflicts.'
+  else if (name === 'termous.desktops.capture' || name === 'termous.desktop_workflows.captures.create') usage = 'Call {} on a uniquely bound or verified desktop. Connection and observation preparation are internal. Preserve the returned screenshot or snapshot reference for its intended purpose.'
+  else if (name.startsWith('termous.desktops.pointer.')) usage = 'Supply the observed screenshot_id and explicit coordinates; the runtime prepares attachment and control. Original screen-analysis center_xy uses coordinate_space="desktop". A stale screenshot requires a new observation and target location; input is never replayed automatically.'
+  else if (adapter.adapter === 'operation') usage = 'Query the original input with {"tool_call_id":"original-call-id"}. This only reads its outcome and never restores authority or resends input.'
+  else if (adapter.adapter === 'ssh') usage = 'A unique verified SSH binding supplies the session. Keep commands and operation targets explicit.'
+  else if (adapter.adapter === 'files') usage = 'The runtime prepares the owned file session and generation. Keep paths, source/destination choices and overwrite or delete scope explicit; read or preview before editing.'
+  else if (adapter.adapter === 'revision') usage = 'Keep the intended edit explicit. The runtime carries metadata from the corresponding read or preview; a conflict requires rereading and reconciling, never an automatic overwrite.'
+  else if (adapter.adapter === 'desktop' && adapter.managed.includes('grant_id')) usage = 'Choose the input action and business parameters. Observation and control are prepared internally under existing approval; do not acquire or release control as a prerequisite.'
+  return `${purpose}. Built-in Agent: ${usage}`
+}

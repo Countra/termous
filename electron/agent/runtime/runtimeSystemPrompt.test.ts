@@ -4,6 +4,16 @@ import { createRuntimeSystemPrompt } from './runtimeSystemPrompt.ts'
 import { testAgentSkillBundle } from '../test-support/skillBundleTestFixture.ts'
 import { runtimeBootstrap } from '../test-support/runtimeBootstrapTestFixture.ts'
 
+test('内置简化合同不再要求模型交接授权或构造请求身份', () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.session.resource_bindings = [{ kind: 'desktop_session', session_id: 'desk', connection_generation: 1, desktop_profile_id: 'profile', desktop_profile_name: 'untrusted', host_id: 'host', host_name: 'untrusted', protocol: 'rdp', bound_at: 'now' }]
+  const prompt = createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle(), true)
+  assert.match(prompt, /Core 安全交接/u)
+  assert.match(prompt, /不填写已隐藏的 client_request_id/u)
+  assert.doesNotMatch(prompt, /已有即时控制应先 release|先调用.*termous\.desktops\./u)
+  assert.doesNotMatch(prompt, /untrusted/u)
+})
+
 test('可信 SSH 资源以安全投影进入系统提示且不包含展示字段', () => {
   const bootstrap = runtimeBootstrap()
   bootstrap.session.resource_bindings = [{

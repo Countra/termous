@@ -40,6 +40,10 @@ import { runtimeBootstrapConfiguration } from '../contracts/runtimeBootstrap.ts'
 import { createRuntimeContextGate, runtimeContextFailureMessage } from './runtimeContextGate.ts'
 import { createRuntimeRetryStreamFunction } from '../provider/runtimeProviderRetry.ts'
 import { bindRuntimeResourceTools } from '../tools/runtimeResourceRouting.ts'
+import { prepareBuiltinTools } from '../tools/preparation/index.ts'
+import { builtinName, identifyTool, isolateToolNames, localToolSource, termousToolSource, trustedTool } from '../contracts/toolSources.ts'
+import { RuntimeSkillDirectory, type SkillSourceSnapshot } from '../tools/runtimeSkillDirectory.ts'
+import type { PreparedCall } from '../contracts/toolPreparation.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from '../contracts/runtimeCheckpoint.ts'
 import type { RuntimeSteerResult } from '../contracts/runtimeEvents.ts'
 import { runtimeContextFingerprint, runtimeProviderUsage } from '../provider/runtimeProviderUsage.ts'
@@ -54,12 +58,14 @@ export interface PiAgentController {
 }
 
 export interface CreatePiAgentOptions {
+  lookupPreparedCall?(toolCallID: string, step: string, signal?: AbortSignal): Promise<PreparedCall | undefined>
   reserveImageBytes?(bytes: number, signal?: AbortSignal): Promise<() => void>
   audit?: { capture(event: AgentEvent): void }
   bootstrap: RuntimeBootstrap
   mcp: AgentMCPConnection
   events: RuntimeEventWriter
   skills: AgentSkillBundleSnapshot
+  skillSources?: SkillSourceSnapshot[]
   fetch?: typeof globalThis.fetch
   now?: () => number
   newPartID?: () => string
@@ -74,6 +80,7 @@ export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
 }
 
 export function createPiAgent(options: CreatePiAgentOptions): PiAgentController {
+  options = { ...options, mcp: isolateToolNames(options.mcp) }
   const restoredCheckpoint = options.bootstrap.context.checkpoint
   if (restoredCheckpoint?.retained_tail) options = { ...options, bootstrap: { ...options.bootstrap,
     context: { ...options.bootstrap.context, checkpoint: { ...restoredCheckpoint,
@@ -85,11 +92,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     options.fetch,
   )
   const images = new RuntimeContextImages(options.bootstrap)
-  const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills)
   const budget = new RuntimeExecutionBudget(options.bootstrap.model.snapshot.execution_budget)
   const inputSafety = new RuntimeInputSafety()
   const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name), options.bootstrap.session.resource_bindings)
   const skillContext = new RuntimeSkillContext(options.skills)
+  const skillDirectory = new RuntimeSkillDirectory([{ source: termousToolSource, snapshot: options.skills }, ...options.skillSources ?? []])
   let supplementalFingerprint = progressDigest([])
   let supplementalTokens = 0
   let requestSupplementalTokens = 0
@@ -97,24 +104,38 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let aborted = false
   const executionFailure = () => aborted ? undefined : inputSafety.failure() ?? budget.failure()
   const imageWorkingSet = new RuntimeImageWorkingSet(images)
-  const boundTools = bindWorkflowPreparation(bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings), options.mcp.originalName).map((tool) => {
+  const resourceTools = bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings)
+  const managedTools = options.lookupPreparedCall ? prepareBuiltinTools({ ...options.mcp, tools: resourceTools }, {
+    runID: options.bootstrap.run.id, generation: options.bootstrap.run.generation, bindings: options.bootstrap.session.resource_bindings,
+    lookup: options.lookupPreparedCall,
+    progress: (tool_call_id, _tool_name, phase) => bridge.toolProgress(tool_call_id, phase),
+    blocked: (name, args) => inputSafety.blockedTool(name, args),
+    persist: async (call) => {
+      options.events.push('tool_prepared', { tool: { tool_call_id: call.tool_call_id, tool_name: call.tool_name, preparation: call } })
+      await options.events.flush()
+    },
+  }) : resourceTools
+  const originalBuiltin = (name: string) => builtinName(options.mcp, name)
+  const boundTools = bindWorkflowPreparation(managedTools, originalBuiltin).map((tool) => {
     const properties = (tool.parameters as { properties?: Record<string, unknown> }).properties
     if (options.mcp.originalName(tool.name) !== 'termous.desktop_workflows.templates.preview' || !properties?.compact) return tool
     return { ...tool, execute: (id, args, signal, update) => tool.execute(id, { compact: true, ...(args as Record<string, unknown>) }, signal, update) } as typeof tool
   })
   let modelMessages: AgentMessage[] = []
   const hasSkill = (content: string, uri: string, sha256: string) => skillResourcePresent(modelMessages, content, uri, sha256)
-  const skillTool = createSkillResourceTool(options.skills, hasSkill, (content, uri) => discovery.loadReferencedTools(content, uri))
+  const skillTool = identifyTool(createSkillResourceTool(skillDirectory, hasSkill, (content, uri) => discovery.loadReferencedTools(content, uri)), localToolSource)
   const historyTool = createHistoryImageTool(async (reference, signal) => {
     if (!model.input.includes('image')) throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
     if (!options.readHistoryImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
     await options.events.flush()
     return options.readHistoryImage(reference, signal)
   })
-  const discovery = new RuntimeToolDiscovery([...boundTools, ...createWorkflowWaitTool(boundTools, options.mcp.originalName), ...createAnalysisWaitTool(boundTools, options.mcp.originalName)], options.mcp.originalName, [skillTool, historyTool],
+  const waits = [...createWorkflowWaitTool(boundTools, originalBuiltin), ...createAnalysisWaitTool(boundTools, originalBuiltin)].map((tool) => identifyTool(tool, localToolSource))
+  const discovery = new RuntimeToolDiscovery([...boundTools, ...waits], options.mcp.originalName, [skillTool, identifyTool(historyTool, localToolSource)],
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
-    (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) })
-  let tools = discovery.active()
+    (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory)
+  let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? []) : discovery.active()
+  const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
   let toolDeclarations = tools.map(toToolDeclaration)
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
   let contextFingerprint = fingerprint()
@@ -209,7 +230,13 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const observeToolResult = (id: string, name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean) => {
     if (observedCalls.has(id)) return
     observedCalls.add(id)
+    discovery.complete(name)
     const original = options.mcp.originalName(name) ?? name
+    const entry = discovery.registry.entries.find((candidate) => candidate.tool.name === name)
+    if (entry && !trustedTool(entry.tool)) {
+      budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
+      return undefined
+    }
     if (isMCPToolDetails(result.details) && !['failed', 'waiting'].includes(runtimeToolOutcome(original, progressData(result), isError || result.details.result.isError === true))) discovery.used(original)
     inputSafety.observe(original, result, isError)
     budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
@@ -218,7 +245,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       ? tools.some((tool) => tool.name === name) ? 'AGENT_TOOL_ARGUMENTS_INVALID' : 'AGENT_TOOL_UNAVAILABLE' : undefined
     const navigation = runtimeToolNavigation(original, result, options.bootstrap.session.resource_bindings, isError, preparationCode)
     const guidance = toolProgress.observe(original, args, result, isError, navigation)
-    const navigationText = navigation ? discovery.navigate(navigation) : undefined
+    const navigationText = navigation ? discovery.navigate(navigation, Boolean(options.lookupPreparedCall && !isError && !navigation.recovery && runtimeToolOutcome(original, progressData(result), false) === 'settled')) : undefined
     for (const progress of toolProgress.drain()) {
       if (progress.status === 'detected') discovery.loadNames(progress.next_tools)
       if (options.bootstrap.context.progress_supported) options.events.push('progress', { progress: {
