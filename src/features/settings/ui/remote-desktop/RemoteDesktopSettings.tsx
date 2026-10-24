@@ -5,19 +5,14 @@ import { ConnectionToggleSetting } from '../connection/ConnectionToggleSetting'
 import { SettingsGroup } from '../controls/SettingsGroup'
 import { RdpRetentionSetting } from './RdpRetentionSetting'
 import { SystemClipboardSetting } from './SystemClipboardSetting'
-import { AIRuntimeSetting } from './AIRuntimeSetting'
-import { ScreenAnalysisSetting } from './ScreenAnalysisSetting'
-import { ScreenAnalysisStorageSetting } from './ScreenAnalysisStorageSetting'
-import type { AnalysisGateway } from '#entities/screen-analysis'
 
 interface RemoteDesktopSettingsProps {
-  analysisGateway?: AnalysisGateway
   value: ConnectionSettings
   disabled: boolean
   onChange: (patch: ConnectionSettingsPatch) => Promise<void>
 }
 
-export function RemoteDesktopSettings({ value, disabled, onChange, analysisGateway }: RemoteDesktopSettingsProps) {
+export function RemoteDesktopSettings({ value, disabled, onChange }: RemoteDesktopSettingsProps) {
   const { t } = useTranslation()
   return <div>
     <SettingsGroup title={t('settings.rdpSettings')} icon={<MonitorPlay size={16} aria-hidden="true" />}>
@@ -27,8 +22,5 @@ export function RemoteDesktopSettings({ value, disabled, onChange, analysisGatew
       <RdpRetentionSetting value={value} disabled={disabled} onChange={onChange} />
     </SettingsGroup>
     <SystemClipboardSetting disabled={disabled} />
-    <AIRuntimeSetting disabled={disabled} />
-    <ScreenAnalysisSetting disabled={disabled} />
-    <ScreenAnalysisStorageSetting disabled={disabled} gateway={analysisGateway} />
   </div>
 }

@@ -44,3 +44,45 @@ test('隐藏或停用会取消在途读取并结束加载标记，迟到数据�
   expect(view.result.current.loading).toBe(false)
   expect(load.mock.calls[1][0].aborted).toBe(true)
 })
+
+test('同一查询刷新期间和刷新失败保留确认值，重试成功后更新', async () => {
+  const load = vi.fn().mockResolvedValue('confirmed')
+  const view = renderHook(() => useVisibleQuery('task', load))
+  await act(async () => { await Promise.resolve() })
+  let fail!: (reason: Error) => void
+  load.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+  act(() => view.result.current.reload())
+  expect(view.result.current.loading).toBe(true)
+  expect(view.result.current.data).toBe('confirmed')
+  const error = new Error('temporary')
+  await act(async () => fail(error))
+  expect(view.result.current.data).toBe('confirmed')
+  expect(view.result.current.error).toBe(error)
+  expect(view.result.current.loading).toBe(false)
+  load.mockResolvedValueOnce('updated')
+  await act(async () => view.result.current.reload())
+  expect(view.result.current.data).toBe('updated')
+  expect(view.result.current.error).toBeUndefined()
+})
+
+test('切换查询目标和停用仍清空旧数据，并拒绝旧刷新迟到的结果', async () => {
+  const load = vi.fn().mockResolvedValue('first')
+  const view = renderHook(({ key, active }) => useVisibleQuery(key, load, active), { initialProps: { key: 'first', active: true } })
+  await act(async () => { await Promise.resolve() })
+  let finishOld!: (value: string) => void
+  let finishNew!: (value: string) => void
+  load.mockImplementationOnce(() => new Promise<string>(resolve => { finishOld = resolve }))
+    .mockImplementationOnce(() => new Promise<string>(resolve => { finishNew = resolve }))
+  act(() => view.result.current.reload())
+  const oldSignal = load.mock.calls[1][0] as AbortSignal
+  view.rerender({ key: 'second', active: true })
+  expect(oldSignal.aborted).toBe(true)
+  expect(view.result.current.data).toBeUndefined()
+  await act(async () => finishOld('late first'))
+  expect(view.result.current.data).toBeUndefined()
+  await act(async () => finishNew('second'))
+  expect(view.result.current.data).toBe('second')
+  view.rerender({ key: 'second', active: false })
+  expect(view.result.current.data).toBeUndefined()
+  expect(view.result.current.loading).toBe(false)
+})

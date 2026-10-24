@@ -31,8 +31,7 @@ test('数字输入确认时保存，关闭 OCR 保留参数，恢复默认只提
   await waitFor(() => expect(f.update).toHaveBeenCalledTimes(1))
   expect(f.update.mock.calls[0][1]).toEqual({ expected_revision: 1, patch: { ...screenAnalysisDefaults, confidence: .2 } })
   await waitFor(() => expect(confidence).toBeEnabled())
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'settings.screenAnalysis.mode' }))
-  fireEvent.click(await screen.findByText('settings.screenAnalysis.modes.detector'))
+  fireEvent.click(screen.getByRole('radio', { name: /settings.screenAnalysis.modes.detector/ }))
   await waitFor(() => expect(f.update).toHaveBeenCalledTimes(2))
   expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.text_confidence' })).toBeDisabled()
   expect(f.update.mock.calls[1][1].patch).toMatchObject({ ocr_enabled: false, text_confidence: .5, ocr_max_side: 1600 })
@@ -62,10 +61,9 @@ test('非法尺寸不提交，保存失败保留草稿并支持显式重试', as
 
 test('仅 OCR 保留检测参数并禁用检测输入，文字参数继续可编辑', async () => {
   const f = fixture()
-  const mode = screen.getByRole('combobox', { name: 'settings.screenAnalysis.mode' })
+  const mode = screen.getByRole('radio', { name: /settings.screenAnalysis.modes.ocr/ })
   await waitFor(() => expect(mode).toBeEnabled())
-  fireEvent.mouseDown(mode)
-  fireEvent.click(await screen.findByText('settings.screenAnalysis.modes.ocr'))
+  fireEvent.click(mode)
   await waitFor(() => expect(f.update).toHaveBeenCalledOnce())
   expect(f.update.mock.calls[0][1].patch).toEqual({ ...screenAnalysisDefaults, detector_enabled: false })
   expect(screen.getByRole('spinbutton', { name: 'settings.screenAnalysis.confidence' })).toBeDisabled()

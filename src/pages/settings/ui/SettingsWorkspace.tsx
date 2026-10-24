@@ -27,6 +27,7 @@ import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
   RemoteDesktopSettings,
+  ScreenAnalysisSettings,
   GeneralSettings,
   NotificationSettings,
   MountSettings,
@@ -197,7 +198,7 @@ export function SettingsWorkspace({
     ),
     'remote-desktop': (
       <div className={styles['tab-scroll']}>
-        <RemoteDesktopSettings analysisGateway={analysisGateway} value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
+        <RemoteDesktopSettings value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
       </div>
     ),
     mount: <div className={styles['tab-scroll']} data-tour="settings-mount"><MountSettings gateway={mountSettingsGateway} disabled={actionBusy} /></div>,
@@ -217,6 +218,9 @@ export function SettingsWorkspace({
       </div>
     ),
     models: <div className={styles['tab-scroll']} data-tour="settings-models"><AgentSettingsPanel gateway={agentSetupGateway} view="models" active={activeTab === 'models'} /></div>,
+    'screen-analysis': <div className={styles['tab-scroll']}>
+      <ScreenAnalysisSettings gateway={analysisGateway} disabled={actionBusy} active={activeTab === 'screen-analysis'} />
+    </div>,
     mcp: (
       <div className={styles['tab-scroll']} data-tour="settings-mcp">
         <McpSettingsPanel />

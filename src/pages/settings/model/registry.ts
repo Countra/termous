@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Bot, ClipboardList, CloudCog, DatabaseBackup, HardDrive, Keyboard, MonitorPlay, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, ClipboardList, CloudCog, DatabaseBackup, HardDrive, Keyboard, MonitorPlay, Network, RefreshCw, ScanSearch, Settings2, SquareTerminal } from 'lucide-react'
 import { McpIcon } from '#shared/ui'
 import type { SettingsModuleId } from '#common/contracts'
 
@@ -23,6 +23,7 @@ export const settingsPages = [
   { id: 'mount', title: 'settings.tabMount', icon: HardDrive, modules: ['mount'], tour: 'settings-mount-tab', group: 'connections', mode: 'manual' },
   { id: 'agent', title: 'settings.tabAgent', icon: Bot, modules: ['agent'], tour: 'settings-agent-tab', group: 'intelligence', mode: 'manual' },
   { id: 'models', title: 'settings.tabModels', tour: 'settings-models-tab', icon: CloudCog, modules: ['agent'], group: 'intelligence', mode: 'manual' },
+  { id: 'screen-analysis', title: 'settings.screenAnalysis.title', icon: ScanSearch, modules: ['screen_analysis', 'screen_analysis_storage'], group: 'intelligence', mode: 'automatic' },
   { id: 'mcp', title: 'settings.tabMcp', icon: McpIcon, modules: ['mcp'], tour: 'settings-mcp-tab', group: 'intelligence', mode: 'resources' },
   { id: 'audit', title: 'settings.tabAudit', icon: ClipboardList, modules: ['audit'], group: 'maintenance', mode: 'manual' },
   { id: 'data', title: 'settings.tabData', icon: DatabaseBackup, modules: [], tour: 'settings-data-tab', group: 'maintenance', mode: 'resources' },

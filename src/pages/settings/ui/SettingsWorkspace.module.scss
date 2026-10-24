@@ -18,6 +18,7 @@
   background: color-mix(in srgb, var(--surface-subtle) 66%, var(--surface));
   padding: 18px 10px;
   scrollbar-width: thin;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
 }
 
 .group {
@@ -135,6 +136,7 @@
   padding: 0 24px 20px;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
 }
 
 .tab-scroll > * {

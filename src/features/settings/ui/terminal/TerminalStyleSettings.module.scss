@@ -161,17 +161,13 @@
 
 .number-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px;
+  grid-template-columns: minmax(0, 1fr) 128px;
   align-items: center;
   gap: 12px;
 }
 
 .number-control :global(.ant-slider) {
   margin: 8px 2px;
-}
-
-.number-control :global(.ant-input-number) {
-  width: 76px;
 }
 
 .reset-row {
@@ -295,9 +291,5 @@
 @container terminal-style (width <= 400px) {
   .setting-line {
     grid-template-columns: 1fr;
-  }
-
-  .number-control {
-    grid-template-columns: minmax(0, 1fr) 72px;
   }
 }

@@ -1,4 +1,4 @@
-import { Button, Collapse, InputNumber, Select, Segmented, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Button, Collapse, Select, Segmented, Slider, Switch, Tooltip, Upload } from 'antd'
 import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import {
   normalizeTerminalSettings,
 } from '#entities/settings'
 import surfaceStyles from '../SettingsSurface.module.scss'
+import { SettingsNumberInput } from '../controls/SettingsNumberInput'
 import styles from './TerminalStyleSettings.module.scss'
 
 interface TerminalStyleSettingsProps {
@@ -390,7 +391,7 @@ function NumberSetting({
     <SettingLine label={label}>
       <div className={styles['number-control']}>
         <Slider min={min} max={max} step={step} value={value} disabled={disabled} onChange={onChange} />
-        <InputNumber
+        <SettingsNumberInput
           min={min}
           max={max}
           step={step}

@@ -9,7 +9,11 @@ export function useVisibleQuery<T>(key: string, load: (signal: AbortSignal) => P
   const latest = useRef({ load, poll }); latest.current = { load, poll }
   const reload = useCallback(() => setRevision(value => value + 1), [])
   useEffect(() => {
-    setData(undefined); setError(undefined); setLoading(false)
+    // 同一查询刷新时保留已确认内容，避免布局塌缩和明细展开状态丢失；切换目标或停用时才清空。
+    setData(undefined)
+  }, [key, active])
+  useEffect(() => {
+    setError(undefined); setLoading(false)
     if (!active) return
     let stopped = false
     let controller: AbortController | undefined

@@ -1743,7 +1743,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onDirtyChange={setWorkflowDirty}
                           onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
                           aiRuntimeGateway={gateways.aiRuntime}
-                          onOpenAnalysisSettings={async () => { await navigateToPage('settings', { settingsTab: 'remote-desktop' }) }}
+                          onOpenAnalysisSettings={async () => { await navigateToPage('settings', { settingsTab: 'screen-analysis' }) }}
                           getAgentConnectionReferenceSnapshot={getAgentConnectionReferenceSnapshot}
                           onReferenceAgentConnection={referenceAgentConnection}
                         />

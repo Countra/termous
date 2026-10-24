@@ -1,20 +1,6 @@
 .control {
-  width: 150px;
+  width: 160px;
   max-width: 100%;
-}
-
-.input {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.input > :global(.ant-input-number) {
-  width: 80px;
-  font-variant-numeric: tabular-nums;
 }
 
 .range {

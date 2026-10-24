@@ -58,6 +58,8 @@ vi.mock('#features/settings', () => ({
   },
   MountSettings: () => <div data-testid="mount-settings" />,
   RemoteDesktopSettings: () => <div data-testid="remote-desktop-settings" />,
+  ScreenAnalysisSettings: ({ active, disabled }: { active: boolean; disabled: boolean }) =>
+    <div data-testid="screen-analysis-settings" data-active={active} data-disabled={disabled} />,
   NotificationSettings: () => <div data-testid="notification-settings" />,
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
@@ -383,12 +385,12 @@ describe('设置弹层装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('提供十二个页签并保持通用设置默认页签和命令委托', async () => {
+  it('提供十三个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsDialog()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(12)
+    expect(tabs).toHaveLength(13)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabShortcuts',
@@ -398,6 +400,7 @@ describe('设置弹层装配合同', () => {
       'settings.tabMount',
       'settings.tabAgent',
       'settings.tabModels',
+      'settings.screenAnalysis.title',
       'settings.tabMcp',
       'settings.tabAudit',
       'settings.tabData',
@@ -507,8 +510,13 @@ describe('设置弹层装配合同', () => {
     await user.click(screen.getByRole('tab', { name: 'settings.tabRemoteDesktop' }))
     expect(screen.getByTestId('remote-desktop-settings')).toBeInTheDocument()
 
+    await user.click(screen.getByRole('tab', { name: 'settings.screenAnalysis.title' }))
+    expect(screen.getByTestId('screen-analysis-settings')).toHaveAttribute('data-active', 'true')
+    expect(screen.getByRole('tabpanel')).not.toContainElement(screen.getByTestId('remote-desktop-settings'))
+
     await user.click(screen.getByRole('tab', { name: 'settings.tabMcp' }))
     expect(screen.getByTestId('mcp-settings')).toBeInTheDocument()
+    expect(screen.getByTestId('screen-analysis-settings')).toHaveAttribute('data-active', 'false')
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabData' }))
     expect(screen.getByTestId('data-portability')).toHaveAttribute('data-app-version', '1.2.3')

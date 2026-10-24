@@ -1,10 +1,11 @@
-import { Alert, Button, InputNumber, Spin, Switch } from 'antd'
+import { Alert, Button, Spin, Switch } from 'antd'
 import { ClipboardList } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { decodeAuditSettings, type AuditSettings as Settings } from '#entities/audit'
 import { useSettingsModule, useSettingsEditor, settingsErrorCode } from '#entities/settings'
 import { SettingsSaveBar } from '#shared/ui'
+import { SettingsNumberInput } from '../controls/SettingsNumberInput'
 import type { AuditSettingsGateway } from '../../api/auditSettingsGateway'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './AuditSettings.module.scss'
@@ -88,11 +89,11 @@ export function AuditSettings({ gateway, disabled }: { gateway: AuditSettingsGat
           <div className={styles.retention}>
             <div className={styles.row}>
               <label htmlFor={`${id}-days`}>{t('settings.audit.days')}</label>
-              <InputNumber id={`${id}-days`} value={days} min={1} max={3650} precision={0} suffix={t('settings.audit.dayUnit')} disabled={locked} status={validDays ? undefined : 'error'} onChange={setDays} />
+              <SettingsNumberInput id={`${id}-days`} value={days} min={1} max={3650} precision={0} unit={t('settings.audit.dayUnit')} disabled={locked} status={validDays ? undefined : 'error'} onChange={setDays} />
             </div>
             <div className={styles.row}>
               <div><label htmlFor={`${id}-records`}>{t('settings.audit.records')}</label><p className={surfaceStyles.hint} id={`${id}-records-hint`}>{t('settings.audit.recordsHint')}</p></div>
-              <InputNumber id={`${id}-records`} aria-describedby={`${id}-records-hint`} value={records} min={0} max={1_000_000} step={1000} precision={0} disabled={locked} status={validRecords ? undefined : 'error'} onChange={setRecords} />
+              <SettingsNumberInput id={`${id}-records`} aria-describedby={`${id}-records-hint`} value={records} min={0} max={1_000_000} step={1000} precision={0} disabled={locked} status={validRecords ? undefined : 'error'} onChange={setRecords} />
             </div>
             <p className={surfaceStyles.hint}>{t('settings.audit.retentionHint')}</p>
           </div>
