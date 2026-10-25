@@ -1458,6 +1458,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                   fileSessions={data.fileSessions}
                 >
                   <RemoteDesktopRuntimeProvider
+                    settingsGateway={gateways.settings}
                     api={gateways.remoteDesktop}
                     enabled={apiReady && !coreFatal}
                     profiles={data.remoteDesktopProfiles}

@@ -10,7 +10,7 @@ const numberInputTheme: ThemeConfig = {
   components: { InputNumber: { handleVisible: true, handleWidth: 28, handleFontSize: 10 } },
 }
 
-// 仅组合设置页的展示；校验、草稿和保存时机仍由各业务设置负责。
+// 统一数值、单位与步进按钮的展示；校验、草稿和保存时机仍由业务层负责。
 export function SettingsNumberInput({ unit, className, ...props }: SettingsNumberInputProps) {
   return <ConfigProvider theme={numberInputTheme}>
     <div className={[styles.control, className].filter(Boolean).join(' ')} data-disabled={props.disabled || undefined}

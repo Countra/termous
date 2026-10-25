@@ -12,7 +12,7 @@ test('初始化回调失败时释放观察器与协议监听，不遗留跟随�
   const remove = vi.spyOn(rfb, 'removeEventListener')
   const changed = vi.fn(() => { throw new Error('fixture callback') })
   expect(() => new VncDisplay(rfb as unknown as RFB, target, () => true, true, changed)).toThrow('fixture callback')
-  expect(remove.mock.calls.map(([name]) => name)).toEqual(['desktopframe', 'capabilities', 'desktopresize'])
+  expect(remove.mock.calls.map(([name]) => name)).toEqual(['desktopframe', 'capabilities'])
   rfb.dispatchEvent(new Event('desktopframe'))
   document.dispatchEvent(new Event('visibilitychange'))
   await vi.advanceTimersByTimeAsync(1000)

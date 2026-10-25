@@ -1,4 +1,4 @@
-export const coreSettingsModules = ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp', 'cloud', 'desktop_files', 'desktop_clipboard', 'screen_analysis', 'screen_analysis_storage'] as const
+export const coreSettingsModules = ['language', 'appearance', 'terminal', 'completion', 'connection', 'shortcuts', 'window', 'mount', 'audit', 'agent', 'mcp', 'cloud', 'desktop_files', 'desktop_clipboard', 'desktop_presentation', 'screen_analysis', 'screen_analysis_storage'] as const
 export type CoreSettingsModule = typeof coreSettingsModules[number]
 export const desktopSettingsModules = ['notifications', 'updates', 'login_item'] as const
 export type DesktopSettingsModule = typeof desktopSettingsModules[number]
@@ -24,7 +24,7 @@ export interface SettingsSnapshot<T = Record<string, unknown>> {
   schema_version: number
   revision: number
   value: T
-  state: { status: 'applied' | 'restart_required' | 'unavailable'; [key: string]: unknown }
+  state: { status: 'applied' | 'saved' | 'restart_required' | 'unavailable'; [key: string]: unknown }
 }
 
 export interface SettingsCatalogue {

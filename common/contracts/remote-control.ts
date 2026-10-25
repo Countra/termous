@@ -1,6 +1,7 @@
 import type { JsonValue } from '@bufbuild/protobuf'
 import type { AppLanguage, AppTheme } from './application'
 import type { NotificationTarget } from './notification'
+import type { SettingsSnapshot } from './settings-center'
 
 export interface RemoteConnection {
   id: string
@@ -58,6 +59,7 @@ export interface RemoteLauncher {
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  desktopQualityDefaults?(connectionId: string): Promise<RemoteResult<SettingsSnapshot>>
   debugMode?: boolean
   desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>
   windowControls?: {

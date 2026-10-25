@@ -45,7 +45,7 @@ export function decodeSettingsSnapshot(input: unknown, expected?: SettingsModule
   if (id !== (expected ?? id)) throw new Error('SETTINGS_UNSUPPORTED_VERSION')
   const version = schemaVersion(id, data.schema_version)
   const state = object(data.state)
-  if (!['applied', 'restart_required', 'unavailable'].includes(String(state.status))) throw new Error('SETTINGS_INVALID_STATE')
+  if (!['applied', 'saved', 'restart_required', 'unavailable'].includes(String(state.status))) throw new Error('SETTINGS_INVALID_STATE')
   return { id, schema_version: version, revision: revision(data.revision), value: object(data.value), state: state as SettingsSnapshot['state'] }
 }
 export function decodeSettingsCatalogue(input: unknown): SettingsCatalogue {

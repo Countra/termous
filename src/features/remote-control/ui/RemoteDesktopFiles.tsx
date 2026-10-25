@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Button, Drawer, Skeleton, Tooltip, Typography } from 'antd'
 import { FolderOpen, Monitor, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,8 @@ export function RemoteDesktopFiles({ client, session, desktop, available, localT
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<{ code: string; uncertain: boolean }>()
   const requests = useRef({ revision: 0, pending: false })
-  useEffect(() => {
+  // 附着切换在按钮可交互前清理，避免延后的 effect 抹掉用户刚提交的请求。
+  useLayoutEffect(() => {
     const current = requests.current
     current.revision++
     current.pending = false

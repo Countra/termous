@@ -1,3 +1,4 @@
+import { useDesktopPresentationDefaults, type SettingsGateway } from '#entities/settings'
 import {
   useCallback,
   useEffect,
@@ -37,6 +38,7 @@ import {
 import styles from './RemoteDesktopRuntimeProvider.module.scss'
 
 interface RemoteDesktopRuntimeProviderProps {
+  settingsGateway?: SettingsGateway
   api: RemoteDesktopGateway
   enabled: boolean
   profiles: RemoteDesktopAccessProfile[]
@@ -47,6 +49,7 @@ interface RemoteDesktopRuntimeProviderProps {
 }
 
 export function RemoteDesktopRuntimeProvider({
+  settingsGateway,
   api,
   enabled,
   profiles,
@@ -67,6 +70,9 @@ export function RemoteDesktopRuntimeProvider({
   const profilesRef = useRef(new Map<string, RemoteDesktopAccessProfile>())
   const viewerStatesRef = useRef(viewerStates)
   const initialSessionsRef = useRef(initialSessions)
+  const readPresentationDefaults = useDesktopPresentationDefaults(settingsGateway)
+  const defaultsReaderRef = useRef(readPresentationDefaults)
+  defaultsReaderRef.current = readPresentationDefaults
   const apiRef = useRef(api)
   const metricsStoreRef = useRef(new RemoteDesktopConnectionMetricsStore())
   const [pointerStore] = useState(() => new AutomationPointerStore())
@@ -93,6 +99,7 @@ export function RemoteDesktopRuntimeProvider({
 
   if (!lifecycleRef.current) {
     lifecycleRef.current = new RemoteDesktopViewerLifecycle({
+      readPresentationDefaults: () => defaultsReaderRef.current(),
       api: () => apiRef.current,
       protocolRegistry: remoteDesktopProtocolRegistry,
       routeRegistry: remoteDesktopRouteRegistry,
@@ -144,6 +151,7 @@ export function RemoteDesktopRuntimeProvider({
             remoteClipboard: '',
             capabilities: { power: false },
             resolution: undefined,
+            presentation: undefined,
             targetLabel: initial.targetLabel,
             errorCode: '',
           }
@@ -368,6 +376,15 @@ export function RemoteDesktopRuntimeProvider({
     commitViewerState(sessionId, { followWindow })
   }, [commitViewerState])
 
+  const resizeDesktop = useCallback((sessionId: string, width: number, height: number) => {
+    lifecycleRef.current?.resizeDesktop(sessionId, width, height)
+    commitViewerState(sessionId, { followWindow: false })
+  }, [commitViewerState])
+
+  const setPresentation = useCallback((sessionId: string, settings: import('@termous/remote-protocol/presentation').PresentationSettings) => {
+    lifecycleRef.current?.setPresentation(sessionId, settings)
+  }, [])
+
   const setViewOnly = useCallback((sessionId: string, viewOnly: boolean) => {
     lifecycleRef.current?.setViewOnly(sessionId, viewOnly)
     commitViewerState(sessionId, { viewOnly })
@@ -483,6 +500,8 @@ export function RemoteDesktopRuntimeProvider({
     registerViewport,
     setDisplayMode,
     setFollowWindow,
+    setPresentation,
+    resizeDesktop,
     setViewOnly,
     reclaimRemoteViewer,
     focusViewer,
@@ -515,6 +534,8 @@ export function RemoteDesktopRuntimeProvider({
     sessionsReady,
     setDisplayMode,
     setFollowWindow,
+    setPresentation,
+    resizeDesktop,
     setViewOnly,
     reclaimRemoteViewer,
     submitCredentials,

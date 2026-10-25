@@ -1,3 +1,4 @@
+import { PixelPresentation } from './presentation.ts'
 import { create, fromBinary, toBinary, type MessageInitShape } from '@bufbuild/protobuf'
 import { ClientMessageSchema, ServerMessageSchema, InputSchema } from '@termous/rdp-protocol'
 import type { RemoteDesktopViewerCreateOptions, RemoteDesktopViewerHandle } from '../../core/viewerContracts.ts'
@@ -57,6 +58,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   let observer: ResizeObserver | undefined
   let renewTimer: ReturnType<typeof setInterval> | undefined
   let motionTimer: ReturnType<typeof setInterval> | undefined
+  let pictureUpdates = 0, lastPictureUpdates = 0, lastDisplayReceived = 0
   let metricsTimer: ReturnType<typeof setInterval> | undefined
   const keys = new Set<number>()
   const buttons = new Set<number>()
@@ -111,6 +113,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     changed: state => options.events.onResolutionChanged?.(state),
   })
 
+  const presentation = attachment.capabilities?.includes('desktop-pixels-presentation-v1') ? new PixelPresentation(generation, request => send({ case: 'pixelPresentation', value: request }), state => options.events.onPresentationChanged?.(state), options.presentation) : undefined
+
   function send(payload: MessageInitShape<typeof ClientMessageSchema>['payload']) {
     if (disposed || control.readyState !== WebSocket.OPEN) return
     if (control.bufferedAmount > 256 * 1024) { disconnected(); return }
@@ -140,6 +144,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     if (disposed) return
     disposed = true
     resolution.dispose()
+    presentation?.dispose()
     resizeRequest.reset()
     systemFiles.dispose()
     textClipboard.dispose()
@@ -181,6 +186,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     options.target.appendChild(keyboard)
     control.onopen = () => {
       send({ case: 'authenticate', value: { ticket: attachment.control_ticket } })
+      presentation?.start()
       send({ case: 'viewport', value: { active: active && !document.hidden, readOnly: localReadOnly } })
     }
     control.onerror = disconnected
@@ -215,7 +221,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
           systemFiles.changed()
           layout()
           if (state.state === 'failed' || state.state === 'closed') disconnected()
-        } else if (payload.case === 'inputReceipt') { textClipboard.acknowledge(payload.value); resizeRequest.acknowledge(payload.value) }
+        } else if (payload.case === 'pixelPresentation') { presentation?.receive(payload.value) } else if (payload.case === 'inputReceipt') { textClipboard.acknowledge(payload.value); resizeRequest.acknowledge(payload.value) }
         else if (payload.case === 'clipboard') { textClipboard.invalidate(); options.events.onClipboard(payload.value.text) }
         else if (payload.case === 'cursor') {
           const c = payload.value
@@ -243,6 +249,7 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
     worker.onmessage = (event: MessageEvent<{ type: string; width: number; height: number; displayEpoch: number; receivedBytes: number; sentBytes: number }>) => {
       if (event.data.type === 'error') { disconnected(); return }
       if (disposed) return
+      pictureUpdates++
       if (width !== event.data.width || height !== event.data.height) {
         // 旧画面的移动不再补发；已按下按钮的释放仍必须落在新桌面范围内。
         motion = undefined
@@ -269,6 +276,8 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
       const receivedBytes = controlReceived + displayReceived
       const sentBytes = controlSent + displaySent
       options.events.onMetrics({ connectedAt, sampledAt: now, receivedBytes, sentBytes, receiveBytesPerSecond: (receivedBytes - lastReceived) / elapsed, sendBytesPerSecond: (sentBytes - lastSent) / elapsed, bufferedAmount: control.bufferedAmount, outboundMeasured: true })
+      if (connected) presentation?.observe({ width, height, bitrate: (displayReceived - lastDisplayReceived) * 8 / elapsed, updateRate: (pictureUpdates - lastPictureUpdates) / elapsed })
+      lastPictureUpdates = pictureUpdates; lastDisplayReceived = displayReceived
       lastMetricsAt = now; lastReceived = receivedBytes; lastSent = sentBytes
     }, 1000)
     const listenerOptions = { signal: listeners.signal }
@@ -352,7 +361,9 @@ export function createRdpViewer(options: RemoteDesktopViewerCreateOptions): Remo
   }
   return {
     dispose,
+    setPresentation: presentation ? value => presentation.set(value) : undefined,
     setDisplayMode(value) { mode = value; layout() },
+    resizeDesktop(width, height) { resolution.request({ width, height }) },
     setFollowWindow(value) { resolution.setFollowWindow(value) },
     setViewOnly(value) {
       if (value !== localReadOnly) { inputEpoch++; ime.reset(); textClipboard.invalidate() }

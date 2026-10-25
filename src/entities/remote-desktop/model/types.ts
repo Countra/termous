@@ -56,6 +56,7 @@ export interface RdpProfileSettings {
 }
 
 export interface RdpAttachment {
+  capabilities?: string[]
   subscription_id: string
   control_url: string
   display_url: string

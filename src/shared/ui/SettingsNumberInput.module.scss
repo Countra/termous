@@ -50,6 +50,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.number :global(.ant-input-number-input) {
+  // 外层已有边框，扣除 borderless 模式的补偿，使高度与公共下拉框一致。
+  padding-block: calc(var(--ant-input-number-input-padding-block) - 1px);
+}
+
 .control[data-controls='true'][data-unit='false'] .number:global(.ant-input-number) {
   padding-inline-end: 34px;
 }

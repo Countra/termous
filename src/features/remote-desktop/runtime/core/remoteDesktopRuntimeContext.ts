@@ -27,6 +27,8 @@ export interface RemoteDesktopRuntimeValue {
   registerViewport: (sessionId: string, host: HTMLDivElement) => () => void
   setDisplayMode: (sessionId: string, mode: DesktopScaleMode) => void
   setFollowWindow: (sessionId: string, value: boolean) => void
+  resizeDesktop?: (sessionId: string, width: number, height: number) => void
+  setPresentation?: (sessionId: string, value: import('@termous/remote-protocol/presentation').PresentationSettings) => void
   setViewOnly: (sessionId: string, value: boolean) => void
   reclaimRemoteViewer?: (sessionId: string) => Promise<void>
   focusViewer: (sessionId: string) => void

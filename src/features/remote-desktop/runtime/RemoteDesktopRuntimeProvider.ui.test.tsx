@@ -15,6 +15,8 @@ import { RemoteDesktopTargetAuthController } from './core/targetAuthController.t
 import type { AutomationPointerFeed } from './core/automationPointerState.ts'
 import { RemoteDesktopRuntimeProvider } from './RemoteDesktopRuntimeProvider'
 import { RemoteDesktopConnectionCoordinator } from '#widgets/remote-desktop-workspace'
+import { presentationDefaults, type PresentationPreference } from '@termous/remote-protocol/presentation'
+import type { SettingsGateway } from '#entities/settings'
 
 const adapterCreate = vi.hoisted(() => vi.fn())
 const adapterPrepare = vi.hoisted(() => vi.fn())
@@ -1340,6 +1342,33 @@ function SessionActionProbe({ onRuntime }: { onRuntime: (value: ReturnType<typeo
   useLayoutEffect(() => { onRuntime(runtime) }, [runtime, onRuntime])
   return null
 }
+
+test('关闭观看窗口不清除会话覆盖，设置网关默认只读取一次', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  adapterCreate.mockImplementation(async () => viewerAdapter())
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket', credential_ticket: '', expires_at: '2099-01-01T00:00:00Z', connection_generation: 1, stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  const readModule = vi.fn<SettingsGateway['readModule']>(async () => ({ id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults('economy') }, state: { status: 'saved' } }))
+  const settings: SettingsGateway = { getModule: () => undefined, readModule, updateModule: vi.fn(), subscribeSettings: () => () => {} }
+  let runtime!: ReturnType<typeof useRemoteDesktopRuntime>
+  const tree = (visible: boolean) => <RemoteDesktopRuntimeProvider api={api} settingsGateway={settings} enabled profiles={[]} initialSessions={[session]}>
+    <SessionActionProbe onRuntime={value => { runtime = value }} />{visible && <ViewerHarness />}
+  </RemoteDesktopRuntimeProvider>
+  const view = render(tree(true))
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  const first = (adapterCreate.mock.calls[0][0] as { presentation: PresentationPreference }).presentation
+  expect(first.defaults?.rfb.quality).toBe(3)
+  first.settings = { kind: 'rfb', quality: 5, compression: 4 }
+  act(() => runtime.closeViewer(session.id))
+  view.rerender(tree(false))
+  act(() => runtime.selectSession(session.id))
+  view.rerender(tree(true))
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(2))
+  expect((adapterCreate.mock.calls[1][0] as { presentation: PresentationPreference }).presentation).toBe(first)
+  expect(readModule).toHaveBeenCalledTimes(1)
+})
 
 test.each([false, true])('播放器附着期间应用最新显示与输入选择，不重复请求原有控制权（变更输入：%s）', async changeInput => {
   vi.stubGlobal('WebSocket', MockWebSocket)

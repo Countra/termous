@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionSettings, ConnectionSettingsPatch } from '#common/contracts'
 import { SettingsDetails, SettingsField } from '../controls/SettingsGroup'
-import { SettingsNumberInput } from '../controls/SettingsNumberInput'
+import { SettingsNumberInput } from '#shared/ui'
 import fieldStyles from '../controls/SettingsGroup.module.scss'
 import styles from './RdpRetentionSetting.module.scss'
 

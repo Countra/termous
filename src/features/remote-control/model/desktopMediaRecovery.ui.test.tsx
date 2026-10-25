@@ -3,7 +3,7 @@ import { RemoteDesktopSession, type DesktopGateway, type DesktopPeerEvents } fro
 import { DesktopPacketSchema, DesktopResponseSchema, type DesktopResponse } from '@termous/remote-protocol/desktop-protocol'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopPeerEvents | undefined, close: vi.fn(), input: vi.fn(), resets: vi.fn() }))
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopPeerEvents | undefined, close: vi.fn(), input: vi.fn(), resets: vi.fn(), resize: vi.fn(async () => {}) }))
 vi.mock('../../../../../termous-remote/browser/desktop/peer.ts', () => ({
   DesktopPeer: class {
     constructor(_attachment: unknown, _ice: unknown, events: DesktopPeerEvents) { fixture.events = events }
@@ -16,6 +16,7 @@ vi.mock('../../../../../termous-remote/browser/desktop/peer.ts', () => ({
     resetInputSequence = fixture.resets
     close = fixture.close
     input = fixture.input
+    resize = fixture.resize
   },
 }))
 
@@ -29,7 +30,7 @@ async function startRecoveryFixture(owned: boolean) {
   const request = vi.fn(async (input: Parameters<DesktopGateway['request']>[0]) => {
     if (input.action === 'attach') return create(DesktopResponseSchema, { attachment: { id: 'attachment', participantId: 'viewer', transport: 'h264', connectionGeneration: 1n, mediaGeneration: 1n } })
     // 故意持续返回释放前的快照，验证在途查询不能复活旧租约。
-    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, control: owned ? control : undefined } })
+    if (input.action === 'describe') return create(DesktopResponseSchema, { state: { available: true, phase: 'viewing', displayEpoch: 1n, width: 1920, height: 1080, capabilities: ['resize'], control: owned ? control : undefined } })
     if (input.action === 'release') return released
     return create(DesktopResponseSchema)
   })
@@ -209,5 +210,32 @@ test('新租约不会立即续租，持续忙碌也不能延长本地控制有�
     expect(fixture.input).not.toHaveBeenCalled()
     expect(status).toHaveBeenLastCalledWith('viewing')
     expect(request.mock.calls.filter(([input]) => ['detach', 'acquire'].includes(input.action ?? ''))).toHaveLength(0)
+  } finally { await runtime.close() }
+})
+
+test('RDP 尺寸回执后继续禁止旧坐标输入，缺少尺寸通知时安全重附着', async () => {
+  const { runtime, status } = await startRecoveryFixture(true)
+  try {
+    await runtime.resize(1280, 720)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(fixture.resize).toHaveBeenCalledOnce()
+    expect(runtime.owned).toBe(false)
+    expect(() => runtime.input({ kind: 'move', x: 1, y: 1 })).toThrow('desktop_control_locked')
+    await expect(runtime.acquire(true)).rejects.toThrow('desktop_busy')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(status).toHaveBeenLastCalledWith('closed', 'desktop_display_changed')
+    expect(fixture.input).not.toHaveBeenCalled()
+  } finally { await runtime.close() }
+})
+
+test('RDP 尺寸请求被明确拒绝后恢复原坐标输入', async () => {
+  const { runtime } = await startRecoveryFixture(true)
+  fixture.resize.mockRejectedValueOnce(new Error('desktop_resize_rejected'))
+  try {
+    await runtime.resize(1280, 720)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(runtime.owned).toBe(true)
+    runtime.input({ kind: 'move', x: 1, y: 1 })
+    expect(fixture.input).toHaveBeenCalledOnce()
   } finally { await runtime.close() }
 })

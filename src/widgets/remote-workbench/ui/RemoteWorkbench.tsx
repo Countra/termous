@@ -70,6 +70,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
       setLocalTasks(local)
       setReadError(undefined)
       const value = result.result.value
+      current.presentations.reconcile(value.sessions.filter(session => session.kind === 'desktop' && !['closed', 'stopping', 'failed'].includes(session.state)))
       setInventory(value)
       setTabs(previous => previous.map(tab => value.sessions.find(item => item.id === tab.id) ?? tab))
     } catch (reason) { if (liveClient.current === current && !abort.signal.aborted) setReadError(reason) }

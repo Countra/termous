@@ -2,6 +2,8 @@
 
 ## 目标与边界
 
+远程桌面呈现沿用 FSD：`entities/remote-desktop` 提供公共模型和受控“显示与画质”组件，`features/remote-desktop` 与 `features/remote-control` 接入共享协调器及适配器，工作区负责组合。目标尺寸、本地缩放、视频/RFB 参数独立调用，界面依据能力展示。合同、会话偏好与兼容规则见 [统一呈现设计](../../termous-remote/docs/desktop-presentation.md)。
+
 Termous Web 采用 FSD 启发式模块化单体。目录调整不得改变 API、IPC、WebSocket、存储键、错误语义或交互行为。
 
 当前生产源码目录如下：

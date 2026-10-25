@@ -7,7 +7,7 @@ import type { MountSettings as MountSettingsValue, MountSettingsState } from '#c
 import { getTermousBridge } from '#shared/bridge'
 import { SettingsSaveBar } from '#shared/ui'
 import type { MountSettingsGateway } from '../../api/mountSettingsGateway'
-import { SettingsNumberInput } from '../controls/SettingsNumberInput'
+import { SettingsNumberInput } from '#shared/ui'
 import surfaceStyles from '../SettingsSurface.module.scss'
 import styles from './MountSettings.module.scss'
 import { MountCacheUsage } from './MountCacheUsage'

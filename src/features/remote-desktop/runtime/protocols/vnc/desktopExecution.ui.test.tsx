@@ -4,6 +4,35 @@ import { VncDesktopExecution } from './desktopExecution.ts'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
+test.each([false, true])('异步尺寸调整期间续租不恢复人工输入，结束后遵守最新控制权（释放：%s）', async released => {
+  class Rfb extends EventTarget {
+    localInputEnabled = false
+    viewOnly = false
+    capabilities = { resize: true }
+    desktopState = { width: 800, height: 600, displayEpoch: 1, sequence: 1 }
+    sendKey = vi.fn()
+    sendPointer = vi.fn()
+    requestDesktopSize = vi.fn(() => true)
+  }
+  const rfb = new Rfb(), changed = vi.fn()
+  const execution = new VncDesktopExecution(rfb as unknown as RFB, 1, changed)
+  const lease = { id: 'lease', owner: 'local-viewer', generation: 1, expires_at: '2040-01-01T00:00:00Z', remaining_ms: 30000 }
+  execution.setControl(lease)
+  const pending = execution.execute({ expected_connection_generation: 1, lease_id: lease.id, control_generation: 1, sequence: 1, display_epoch: 1, operation: { kind: 'resize', width: 1280, height: 720 } })
+  execution.setControl({ ...lease, expires_at: '2040-01-01T00:00:10Z' }, true)
+  expect(rfb.localInputEnabled).toBe(false)
+  expect(changed).toHaveBeenLastCalledWith(false)
+  if (released) execution.setControl(null)
+  rfb.dispatchEvent(new CustomEvent('desktopresize', { detail: { success: true } }))
+  expect(rfb.localInputEnabled).toBe(false)
+  rfb.desktopState = { width: 1280, height: 720, displayEpoch: 2, sequence: 2 }
+  rfb.dispatchEvent(new Event('desktopframe'))
+  await pending
+  expect(rfb.localInputEnabled).toBe(!released)
+  expect(changed).toHaveBeenLastCalledWith(!released)
+  execution.dispose()
+})
+
 test.each([false, true])('到期回调延迟时重复租约不能重新启用输入（续租：%s）', (renew) => {
   vi.useFakeTimers()
   const clock = vi.spyOn(performance, 'now').mockReturnValue(0)

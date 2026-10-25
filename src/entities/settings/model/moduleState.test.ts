@@ -5,6 +5,11 @@ import { SettingsModuleStore, decodeSettingsCatalogue, decodeSettingsSnapshot } 
 
 const snapshot = (id: SettingsModuleId, revision = 1, value = { enabled: true }): SettingsSnapshot => ({ id, schema_version: 1, revision, value, state: { status: 'applied' } })
 
+test('默认质量已保存状态不伪装成当前目标连接已应用', () => {
+  const value = { ...snapshot('desktop_presentation'), state: { status: 'saved', apply: 'next_connection' } }
+  assert.equal(decodeSettingsSnapshot(value).state.status, 'saved')
+})
+
 test('连接模块支持旧版本和 RDP 回收设置版本，拒绝未来版本', () => {
   for (const version of [1, 2]) assert.equal(decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: version }).schema_version, version)
   assert.throws(() => decodeSettingsSnapshot({ ...snapshot('connection'), schema_version: 3 }), /SETTINGS_UNSUPPORTED_VERSION/)

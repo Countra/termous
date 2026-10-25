@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { fromJson, toJson, type JsonValue } from '@bufbuild/protobuf'
 import { RequestSchema } from '@termous/remote-protocol'
-import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDevice, RemotePolicy, RemoteLocalTask, RemoteLocalSelection } from '#common/contracts'
+import type { AppLanguage, AppTheme, RemoteBootstrap, RemoteConnection, RemoteDevice, RemotePolicy, RemoteLocalTask, RemoteLocalSelection, SettingsSnapshot } from '#common/contracts'
 import { appDebugModeArgument } from '#common/contracts'
 import { RemoteCore, RemoteCoreError, result, validId } from './core'
 import { RemoteTerminalStream } from './stream'
@@ -115,6 +115,11 @@ export class RemoteControlRuntime {
     ipcMain.handle('remote:desktop-ice', (event, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
       return (await this.options.core.request<{ ice_servers: RTCIceServer[] }>(`${base}/desktop-ice`, { generation: entry.bootstrap.generation })).ice_servers
+    }))
+    ipcMain.handle('remote:desktop-quality-defaults', (event, id: string) => result(async () => {
+      await this.active(event, id)
+      // 只读取观看端的固定模块，不向独立窗口开放任意设置路径或修改宿主策略的能力。
+      return this.options.core.request<SettingsSnapshot>('/settings/desktop_presentation')
     }))
     ipcMain.handle('remote:configure-desktops', (event, generation: string, revision: number, profiles: unknown, exchangeProfiles: unknown) => result(async () => {
       this.main(event, generation)

@@ -197,7 +197,7 @@ describe('VNC Viewer Adapter', () => {
     }])
     expect(rfb.viewOnly).toBe(true)
     expect(rfb.showDotCursor).toBe(true)
-    expect(rfb.qualityLevel).toBe(6)
+    expect(rfb.qualityLevel).toBe(9)
     expect(rfb.compressionLevel).toBe(2)
     expect(rfb.scaleViewport).toBe(true)
     expect(rfb.resizeSession).toBe(false)

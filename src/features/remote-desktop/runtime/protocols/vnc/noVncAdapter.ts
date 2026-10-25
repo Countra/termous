@@ -1,5 +1,7 @@
 import type { DesktopResolutionState, DesktopScaleMode } from '../../core/desktopResolution.ts'
 import { VncDisplay } from './display.ts'
+import { VncPresentation } from '@termous/remote-protocol/vnc'
+import { PresentationController, type PresentationPreference, type PresentationSettings, type PresentationState } from '@termous/remote-protocol/presentation'
 import type {
   RemoteDesktopTransportMetricsSnapshot,
   RemoteDesktopViewerCapabilities,
@@ -20,6 +22,7 @@ export interface VncViewerAdapterError {
 }
 
 export interface VncViewerAdapterEvents {
+  onPresentationChanged?: (state: PresentationState) => void
   onResolutionChanged?: (state: DesktopResolutionState) => void
   onConnected: () => void
   onDisconnected: (clean: boolean) => void
@@ -47,6 +50,7 @@ interface NoVncEventMap {
 type NoVncEventName = keyof NoVncEventMap
 
 export interface CreateVncViewerAdapterOptions {
+  presentation?: PresentationPreference
   pointer?: AutomationPointerFeed
   signal?: AbortSignal
   awaitFirstFrame?: boolean
@@ -64,6 +68,8 @@ export interface CreateVncViewerAdapterOptions {
 }
 
 export class VncViewerAdapter {
+  private presentation?: PresentationController
+  private presentationAdapter?: VncPresentation
   private pointer?: ReturnType<typeof createAutomationPointerOverlay>
   private active = true
   private connected = false
@@ -109,8 +115,8 @@ export class VncViewerAdapter {
       rfb.viewOnly = options.viewOnly
       rfb.focusOnClick = true
       rfb.showDotCursor = true
-      rfb.qualityLevel = 6
-      rfb.compressionLevel = 2
+      adapter.presentationAdapter = new VncPresentation(rfb)
+      adapter.presentation = new PresentationController(adapter.presentationAdapter, state => options.events.onPresentationChanged?.(state), options.presentation)
       if (options.execution) {
         adapter.executionConnection = options.execution
         adapter.execution = new VncDesktopExecution(rfb, options.generation ?? 0, (owned) => {
@@ -151,7 +157,9 @@ export class VncViewerAdapter {
     this.rfb.clipViewport = false
   }
 
+  resizeDesktop(width: number, height: number) { this.display?.resizeDesktop(width, height) }
   setFollowWindow(value: boolean) { this.display?.setFollowWindow(value) }
+  setPresentation(value: PresentationSettings) { this.presentation?.set(value) }
 
   setViewOnly(value: boolean) {
     this.viewOnly = value
@@ -213,6 +221,7 @@ export class VncViewerAdapter {
       return
     }
     this.disposed = true
+    this.presentation?.dispose()
     this.display?.dispose()
     this.pointer?.dispose()
     this.executionAbort.abort()
@@ -230,6 +239,7 @@ export class VncViewerAdapter {
   private bindEvents() {
     this.listen('connect', () => {
       this.connected = true
+      if (this.presentationAdapter) this.presentation?.update(this.presentationAdapter.snapshot())
       this.display?.refresh()
       this.pointer?.refresh()
       this.transportMetrics.markConnected()

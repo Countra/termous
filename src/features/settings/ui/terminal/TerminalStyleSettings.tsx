@@ -11,7 +11,7 @@ import {
   normalizeTerminalSettings,
 } from '#entities/settings'
 import surfaceStyles from '../SettingsSurface.module.scss'
-import { SettingsNumberInput } from '../controls/SettingsNumberInput'
+import { SettingsNumberInput } from '#shared/ui'
 import styles from './TerminalStyleSettings.module.scss'
 
 interface TerminalStyleSettingsProps {

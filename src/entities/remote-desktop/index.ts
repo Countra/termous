@@ -40,3 +40,7 @@ export type {
 } from './model/accessProfileProjection.ts'
 export type { DesktopControl, DesktopState, DesktopRegion, DesktopScreenshotRequest, DesktopSnapshotMetadata, DesktopOperation, DesktopInput } from './model/desktop.ts'
 export type { DesktopDirectoryMapping, DesktopExchange, DesktopFileEntry, DesktopFilesState, DesktopFileClipboard, DesktopClipboardQuery } from './model/files.ts'
+export { DesktopPresentationControls } from './ui/DesktopPresentationControls.tsx'
+export { DesktopQualityFields } from './ui/DesktopQualityFields.tsx'
+export { DesktopQualityDefaultsEditor } from './ui/DesktopQualityDefaultsEditor.tsx'
+export type { PresentationSettings, PresentationState } from '@termous/remote-protocol/presentation'

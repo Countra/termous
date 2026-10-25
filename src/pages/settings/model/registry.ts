@@ -19,7 +19,7 @@ export const settingsPages = [
   { id: 'shortcuts', title: 'settings.tabShortcuts', icon: Keyboard, modules: ['shortcuts'], group: 'basics', mode: 'resources' },
   { id: 'terminal', title: 'settings.tabTerminal', icon: SquareTerminal, modules: ['terminal', 'completion', 'terminal_local'], tour: 'settings-terminal-tab', group: 'connections', mode: 'automatic' },
   { id: 'connection', title: 'settings.tabConnection', icon: Network, modules: ['connection'], group: 'connections', mode: 'automatic' },
-  { id: 'remote-desktop', title: 'settings.tabRemoteDesktop', icon: MonitorPlay, modules: ['connection'], group: 'connections', mode: 'automatic' },
+  { id: 'remote-desktop', title: 'settings.tabRemoteDesktop', icon: MonitorPlay, modules: ['connection', 'desktop_presentation'], group: 'connections', mode: 'automatic' },
   { id: 'mount', title: 'settings.tabMount', icon: HardDrive, modules: ['mount'], tour: 'settings-mount-tab', group: 'connections', mode: 'manual' },
   { id: 'agent', title: 'settings.tabAgent', icon: Bot, modules: ['agent'], tour: 'settings-agent-tab', group: 'intelligence', mode: 'manual' },
   { id: 'models', title: 'settings.tabModels', tour: 'settings-models-tab', icon: CloudCog, modules: ['agent'], group: 'intelligence', mode: 'manual' },

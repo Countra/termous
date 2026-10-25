@@ -34,6 +34,7 @@ export const vncProtocolDriver = Object.freeze({
   async createViewer(options) {
     if (options.transport.kind !== 'rfb') throw new Error('VNC_TRANSPORT_REQUIRED')
     const adapter = await VncViewerAdapter.create({
+      presentation: options.presentation ?? { settings: options.state.presentation?.requested },
       pointer: options.pointer,
       target: options.target,
       url: options.transport.url,
@@ -55,6 +56,8 @@ export const vncProtocolDriver = Object.freeze({
       },
     })
     return {
+      resizeDesktop: (width, height) => adapter.resizeDesktop(width, height),
+      setPresentation: (value) => adapter.setPresentation(value),
       dispose: () => adapter.dispose(),
       setDisplayMode: (mode) => adapter.setDisplayMode(mode),
       setFollowWindow: (value) => adapter.setFollowWindow(value),

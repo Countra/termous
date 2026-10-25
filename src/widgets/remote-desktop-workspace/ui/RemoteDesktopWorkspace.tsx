@@ -45,6 +45,7 @@ import { DesktopFilesPanel, type DesktopFilesTab } from './files/DesktopFilesPan
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 import { RemoteDesktopDisplayControls } from './RemoteDesktopDisplayControls.tsx'
+import { DesktopPresentationControls, type PresentationSettings } from '#entities/remote-desktop'
 
 export interface RemoteDesktopWorkspaceProps extends Omit<RemoteDesktopSessionTabsProps, 'onOpenLauncher' | 'onClose'> {
   onOpenConnectionLauncher?: () => void
@@ -218,6 +219,8 @@ export function RemoteDesktopWorkspace({
             onToggleFullscreenPin={fullscreen.toggleToolbarPinned}
             onDisplayMode={(mode) => runtime.setDisplayMode(activeSession.id, mode)}
             onFollowWindow={(value) => runtime.setFollowWindow(activeSession.id, value)}
+            onResize={(width, height) => runtime.resizeDesktop?.(activeSession.id, width, height)}
+            onPresentation={(value) => runtime.setPresentation?.(activeSession.id, value)}
             onViewOnly={(viewOnly) => runtime.setViewOnly(activeSession.id, viewOnly)}
             onSendClipboard={() => void sendClipboard()}
             onReceiveClipboard={() => void receiveClipboard()}
@@ -268,6 +271,8 @@ function RemoteDesktopToolbar({
   onToggleFullscreenPin,
   onDisplayMode,
   onFollowWindow,
+  onPresentation,
+  onResize,
   onViewOnly,
   onSendClipboard,
   onReceiveClipboard,
@@ -284,6 +289,8 @@ function RemoteDesktopToolbar({
   onToggleFullscreenPin: () => void
   onDisplayMode: (mode: DesktopScaleMode) => void
   onFollowWindow: (value: boolean) => void
+  onResize: (width: number, height: number) => void
+  onPresentation: (value: PresentationSettings) => void
   onViewOnly: (value: boolean) => void
   onSendClipboard: () => void
   onReceiveClipboard: () => void
@@ -316,6 +323,7 @@ function RemoteDesktopToolbar({
   return (
     <div className={styles.toolbar}>
       <RemoteDesktopDisplayControls state={viewerState} onScale={onDisplayMode} onFollow={onFollowWindow} />
+      <DesktopPresentationControls state={viewerState?.presentation} disabled={!connected} onChange={onPresentation} scale={viewerState?.displayMode} onScale={onDisplayMode} onResize={onResize} resizeSupported={viewerState?.resolution?.supported === true} resizeAvailable={viewerState?.resolution?.supported === true && viewerState?.controlOwned === true && !viewOnly} resolutionStatus={viewerState?.resolution?.status} />
       <span className={styles.divider} />
       <label className={styles['view-only']}>
         <Switch size="small" aria-label={t('remoteDesktop.disableInput')} checked={viewOnly} onChange={onViewOnly} />

@@ -4,6 +4,7 @@ import { appDebugModeArgument } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
   debugMode: process.argv.includes(appDebugModeArgument),
+  desktopQualityDefaults: id => ipcRenderer.invoke('remote:desktop-quality-defaults', id),
   desktopICE: id => ipcRenderer.invoke('remote:desktop-ice', id),
   windowControls: {
     minimize: () => ipcRenderer.invoke('remote:window-minimize'),
