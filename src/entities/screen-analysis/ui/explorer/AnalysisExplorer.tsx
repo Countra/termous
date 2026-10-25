@@ -34,6 +34,6 @@ export function AnalysisExplorer({ gateway, record, state, onChange, history, pa
   return <AnalysisExplorerLayout state={state} onChange={onChange} pane={mobile} onPane={setMobile} history={history} results={results}>
       {image.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={image.reload}>{t('app.retry')}</Button>} />}
       <AnalysisCanvas key={record?.id ?? 'empty'} blob={image.data?.id === record?.id ? image.data?.blob : undefined} image={record?.image} geometry={result.data?.geometry ?? []} selected={state.selected} crop={crop}
-        preference={state.view} onViewChange={view => onChange({ view })} onSelect={selected => { if (!result.loading) onChange({ selected }) }} />
+        disabled={result.loading || !!result.error} contextKey={key} preference={state.view} onViewChange={view => onChange({ view })} onSelect={selected => { if (!result.loading) onChange({ selected }) }} />
   </AnalysisExplorerLayout>
 }

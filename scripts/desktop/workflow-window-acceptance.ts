@@ -6,6 +6,7 @@ import { DetachedWindows } from '../../electron/detached-windows/manager.ts'
 import { checkTransferredLayout, checkWorkflowLayout } from './workflow-layout-acceptance.ts'
 import { checkAnalysisLayout } from './analysis-layout-acceptance.ts'
 import { checkOCRSelection } from './workflow-ocr-selection-acceptance.ts'
+import { analysisResourceProbe } from './analysis-resource-probe.ts'
 
 async function main() {
   const output = path.resolve(process.argv[2])
@@ -108,14 +109,19 @@ async function main() {
     await writeFile(path.join(output, 'workflow-analysis-detached.png'), (await detached.webContents.capturePage()).toPNG())
     await click(detached, 'Close')
     await until(() => js(detached, `!document.querySelector('[role=dialog]')&&!document.querySelector('img[alt="分析原图"]')`), '分析关闭未释放结果视图')
-    const analysisCycles: { cycle: number; nodes: number }[] = []
-    for (let cycle = 1; cycle <= 50; cycle++) {
+    const probe = await analysisResourceProbe(detached)
+    const analysisCycles = [await probe.sample(0)]
+    try { for (let cycle = 1; cycle <= 50; cycle++) {
       await click(detached, '画面分析')
       await until(() => js(detached, `!!document.querySelector('img[alt="分析原图"]')?.naturalWidth&&document.querySelectorAll('[data-analysis-layout] [role=listitem]').length===2`), `第 ${cycle} 次重新打开未恢复分析图片和结果`)
       await click(detached, 'Close')
       await until(() => js(detached, `!document.querySelector('[role=dialog]')&&!document.querySelector('img[alt="分析原图"]')&&document.getAnimations().every(animation=>animation.playState!=='running')`), '反复关闭后仍残留分析视图')
-      if (cycle % 10 === 0) analysisCycles.push({ cycle, nodes: await js(detached, `document.querySelectorAll('*').length`) })
-    }
+      if (cycle % 10 === 0) {
+        const sample = await probe.sample(cycle)
+        assert.equal(sample.activeURLs, 0, '关闭分析后仍保留新建的 Blob URL')
+        analysisCycles.push(sample)
+      }
+    } } finally { await probe.close() }
     await writeFile(path.join(output, 'workflow-analysis-cycles.json'), JSON.stringify(analysisCycles, null, 2))
     assert.equal(analysisCycles[analysisCycles.length - 1].nodes, analysisCycles[0].nodes, '反复开关后 DOM 持续累积')
     await click(host, '返回远程桌面')

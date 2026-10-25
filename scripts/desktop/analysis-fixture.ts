@@ -5,6 +5,15 @@ const elements: AnalysisElementView[] = [
   { id: 0, kind: 'region', source: 'detector+ocr', text: '连接 Connect', text_offset: 0, text_length: 10, text_truncated: false, matched_ocr_spans: 1, bbox_xyxy: [80, 60, 240, 120], center_xy: [159, 89], detection_confidence: .86 },
   { id: 1, kind: 'text', source: 'ocr', text: '工作站已就绪', text_offset: 0, text_length: 6, text_truncated: false, matched_ocr_spans: 1, bbox_xyxy: [80, 160, 330, 200], center_xy: [204, 179], text_confidence: .94 },
 ]
+if (new URLSearchParams(location.search).has('overlap')) elements.push({
+  ...elements[0], id: 2, text: '连接', bbox_xyxy: [100, 70, 180, 110], center_xy: [139, 89], detection_confidence: .72,
+})
+// 长菜单用于回归 Portal 内滚动，几何保持相交但不完全重复。
+if (new URLSearchParams(location.search).has('dense-overlap')) {
+  for (let id = elements.length; id < 32; id++) elements.push({
+    ...elements[0], id, bbox_xyxy: [90 + id, 65, 220 - id, 115], center_xy: [154, 89],
+  })
+}
 const spans: AnalysisSpanView[] = elements.map(({ id, text, text_offset, text_length, text_truncated, bbox_xyxy, center_xy }) => ({
   id, element_id: id, text, text_offset, text_length, text_truncated, bbox_xyxy, center_xy, text_confidence: id === 0 ? .87 : .94,
 }))
@@ -14,7 +23,7 @@ const record: AnalysisRecord = { id: 'analysis_fixture', creator: { origin: 'loc
   reused: true, reuse_allowed: true, duration_ms: 4.2, inference_ms: 2342,
   image: { width: 640, height: 360, coordinate_space: 'original_pixels' },
   confidence_distribution: { detection: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0], ocr: [0, 0, 0, 0, 0, 0, 0, 0, 1, 1] },
-  summary: { element_count: 2, region_count: 1, text_count: 1, ocr_span_count: 2, truncated: false, truncation_reasons: [] } }
+  summary: { element_count: elements.length, region_count: elements.length - 1, text_count: 1, ocr_span_count: elements.length, truncated: false, truncation_reasons: [] } }
 const page = <T>(items: T[]) => ({ items, total: items.length, limited_by_inference: false })
 const unsupported = async (): Promise<never> => { throw new Error('合成界面不执行持久操作') }
 const image = async () => {

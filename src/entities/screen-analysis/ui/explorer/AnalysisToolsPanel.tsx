@@ -37,7 +37,7 @@ export function AnalysisToolsPanel({ kind, record, gateway, state, busy, onReana
       else if (format === 'original') blob = await gateway.analysisImage(record.id, 'original', controller.signal)
       else {
         if (maxSide === null || !Number.isInteger(maxSide) || maxSide < 256 || maxSide > 4096) throw new Error(t('analysisCenter.image.invalidSize'))
-        const query: AnalysisImageQuery = { ...filter, layer: state.layer, crop: parseCrop(crop), max_side: maxSide }
+        const query: AnalysisImageQuery = { ...filter, layer: state.layer, crop: parseCrop(crop), max_side: maxSide, label_mode: state.view?.labelMode ?? 'auto' }
         blob = (await gateway.renderAnalysisImage(record.id, query, controller.signal)).blob
       }
       if (!controller.signal.aborted) saveAnalysisDownload(blob, `termous-analysis-${record.id}-${format}.${format === 'json' ? 'json' : 'png'}`)

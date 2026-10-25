@@ -50,12 +50,15 @@ export interface AnalysisQuery {
   detection_gt?: number; detection_lt?: number; text_gt?: number; text_lt?: number; element_ids?: number[]; span_ids?: number[]
   sort?: 'spatial' | 'confidence_asc' | 'confidence_desc'; limit?: number; cursor?: string
 }
+export type AnalysisLabelMode = 'auto' | 'all' | 'none'
 export interface AnalysisImageQuery extends Omit<AnalysisQuery, 'sort' | 'limit' | 'cursor'> {
   layer?: 'elements' | 'ocr'; crop?: [number, number, number, number]; max_side?: number
+  label_mode?: AnalysisLabelMode
 }
 export interface AnalysisImageMetadata {
   analysis_id: string; layer: 'elements' | 'ocr'; original: AnalysisImage; crop: [number, number, number, number]
   width: number; height: number; matched_count: number; drawn_count: number; limited_by_inference: boolean
+  label_mode?: AnalysisLabelMode; labeled_count?: number; unlabeled_count?: number
 }
 export interface AnalysisRenderedImage { blob: Blob; metadata: AnalysisImageMetadata }
 export interface AnalysisRecordQuery {
@@ -78,7 +81,7 @@ export interface AnalysisPanelPreferences { historyWidth: number; resultsWidth: 
 export type AnalysisGeometryQuery = Omit<AnalysisQuery, 'sort' | 'cursor' | 'limit'> & { layer?: AnalysisLayer }
 export interface AnalysisPresentation {
   open: boolean; id?: string; layer: AnalysisLayer; filter: AnalysisQuery; selected?: number; history: boolean
-  view?: { zoom: number | 'fit'; boxes: boolean }
+  view?: { zoom: number | 'fit'; boxes: boolean; labelMode?: AnalysisLabelMode }
   panels?: AnalysisPanelPreferences; resultsVisible?: boolean
 }
 export interface AnalysisIdentity {

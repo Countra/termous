@@ -84,7 +84,7 @@ it('导出采用全部已提交筛选，非法裁剪拒绝请求，关闭后取�
   fireEvent.change(crop, { target: { value: '0,0,400,300' } })
   fireEvent.click(screen.getByText('desktopWorkflow.analysisWorkspace.exportFiltered'))
   await waitFor(() => expect(renderImage).toHaveBeenCalledOnce())
-  expect(renderImage).toHaveBeenCalledWith('record', { text_gt: .5, layer: 'ocr', crop: [0, 0, 400, 300], max_side: 1600 }, expect.any(AbortSignal))
+  expect(renderImage).toHaveBeenCalledWith('record', { text_gt: .5, layer: 'ocr', crop: [0, 0, 400, 300], max_side: 1600, label_mode: 'auto' }, expect.any(AbortSignal))
   const signal = renderImage.mock.calls[0][2]
   view.unmount()
   expect(signal?.aborted).toBe(true)

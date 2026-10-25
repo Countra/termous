@@ -15,7 +15,7 @@ it('恢复已保存视图不重复回报，真实调整才提交，卸载取消�
   expect(changed).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.boxes' }))
   await act(() => vi.advanceTimersByTimeAsync(250))
-  expect(changed).toHaveBeenCalledExactlyOnceWith({ zoom: 'fit', boxes: false })
+  expect(changed).toHaveBeenCalledExactlyOnceWith({ zoom: 'fit', boxes: false, labelMode: 'auto' })
   view.rerender(<AnalysisCanvas {...props} preference={{ zoom: 'fit', boxes: false }} />)
   await act(() => vi.advanceTimersByTimeAsync(250))
   expect(changed).toHaveBeenCalledOnce()

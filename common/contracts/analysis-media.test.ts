@@ -5,7 +5,7 @@ import { isAnalysisMediaRequest } from './analysis-media.ts'
 test('几何查询兼容无参调用并支持 OCR 筛选，但拒绝分页和图片变换', () => {
   assert(isAnalysisMediaRequest({ operation: 'geometry', id: 'record' }))
   assert(isAnalysisMediaRequest({ operation: 'geometry', id: 'record', query: { layer: 'ocr', q: '连接', text_gt: .5, bbox: [0, 0, 100, 200] } }))
-  for (const query of [{ cursor: 'next' }, { limit: 20 }, { sort: 'spatial' }, { crop: [0, 0, 10, 10] }, { max_side: 1600 }]) {
+  for (const query of [{ cursor: 'next' }, { limit: 20 }, { sort: 'spatial' }, { crop: [0, 0, 10, 10] }, { max_side: 1600 }, { label_mode: 'auto' }]) {
     assert(!isAnalysisMediaRequest({ operation: 'geometry', id: 'record', query }))
   }
 })
@@ -28,6 +28,8 @@ test('独立窗口允许模式覆盖和筛选图读取，拒绝图片分页及�
   assert.equal(isAnalysisMediaRequest({ operation: 'full', id: 'record' }), true)
   assert.equal(isAnalysisMediaRequest({ operation: 'submit', input: { request_id: 'ocr', source: { kind: 'preview', id: 'p' }, parameters: { detector_enabled: false, ocr_enabled: true } } }), true)
   assert.equal(isAnalysisMediaRequest({ operation: 'render', id: 'record', query: { layer: 'ocr', text_gt: .5, element_ids: [1, 2], span_ids: [4], crop: [0, 0, 500, 300], max_side: 256 } }), true)
+  for (const label_mode of ['auto', 'all', 'none']) assert(isAnalysisMediaRequest({ operation: 'render', id: 'record', query: { label_mode } }))
+  for (const label_mode of [null, ['auto'], 'unknown', 1]) assert(!isAnalysisMediaRequest({ operation: 'render', id: 'record', query: { label_mode } }))
   for (const query of [{ limit: 20 }, { cursor: 'page' }, { sort: 'spatial' }, { crop: [0, 0, NaN, 10] }, { text_gt: Infinity }, { path: 'original' }]) {
     assert.equal(isAnalysisMediaRequest({ operation: 'render', id: 'record', query }), false)
   }

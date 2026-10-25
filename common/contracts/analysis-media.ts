@@ -22,6 +22,7 @@ function query(value: unknown, history: boolean, image = false) {
   const strings = history ? ['q', 'state', 'source', 'after', 'before', 'cursor'] : image ? ['q', 'kind', 'source', 'layer'] : ['q', 'kind', 'source', 'sort', 'cursor']
   const numbers = history ? ['limit'] : [...(image ? ['max_side'] : ['limit']), 'element_id', 'detection_min', 'detection_max', 'text_min', 'text_max', 'detection_gt', 'detection_lt', 'text_gt', 'text_lt']
   return Object.entries(value).every(([key, item]) => item === undefined || strings.includes(key) && typeof item === 'string' && item.length <= 2048
+    || image && key === 'label_mode' && typeof item === 'string' && ['auto', 'all', 'none'].includes(item)
     || numbers.includes(key) && typeof item === 'number' && Number.isFinite(item)
     || !history && (key === 'element_ids' || key === 'span_ids') && Array.isArray(item) && item.length <= 1300 && item.every(Number.isSafeInteger)
     || !history && (key === 'bbox' || image && key === 'crop') && Array.isArray(item) && item.length === 4 && item.every(Number.isSafeInteger))
@@ -46,7 +47,7 @@ export function isAnalysisMediaRequest(value: unknown): value is AnalysisMediaRe
     case 'storage': case 'clear': return fields(value, ['operation'])
     case 'get': case 'full': case 'cancel': case 'delete': case 'diagnostics': case 'export': return fields(value, ['operation', 'id']) && id(value.id)
     case 'geometry': return fields(value, ['operation', 'id', 'query']) && id(value.id) && query(value.query, false, true)
-      && (value.query === undefined || object(value.query) && !('crop' in value.query) && !('max_side' in value.query))
+      && (value.query === undefined || object(value.query) && !('crop' in value.query) && !('max_side' in value.query) && !('label_mode' in value.query))
     case 'elements': case 'spans': return fields(value, ['operation', 'id', 'query']) && id(value.id) && query(value.query, false)
     case 'element': case 'span': return fields(value, ['operation', 'id', 'item', 'offset']) && id(value.id)
       && Number.isSafeInteger(value.item) && Number(value.item) >= 0 && Number(value.item) < 1300

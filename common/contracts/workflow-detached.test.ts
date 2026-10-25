@@ -15,6 +15,8 @@ test('分析跨窗口状态只传轻量筛选与视图，取消读取不复用�
   const state = { open: true, id: 'record', layer: 'ocr', filter: { text_gt: .5 }, selected: 2, history: false, view: { zoom: 1, boxes: true } }
   const valid = (analysis: unknown) => isWorkflowDetachedCommand({ name: 'presentation', inputSequence: 1, args: [{ analysis }] })
   assert(valid(state))
+  for (const labelMode of ['auto', 'all', 'none']) assert(valid({ ...state, view: { ...state.view, labelMode } }))
+  for (const labelMode of [null, ['auto'], 'unknown', 1]) assert(!valid({ ...state, view: { ...state.view, labelMode } }))
   assert(valid({ ...state, resultsVisible: false, panels: { historyWidth: 220, resultsWidth: 520 } }))
   for (const panels of [null, {}, { historyWidth: 219, resultsWidth: 348 }, { historyWidth: 252, resultsWidth: Infinity }, { historyWidth: 252, resultsWidth: 521 }, { historyWidth: 252, resultsWidth: 348, blob: 'image' }]) assert(!valid({ ...state, panels }))
   assert(!valid({ ...state, resultsVisible: 'false' }))
