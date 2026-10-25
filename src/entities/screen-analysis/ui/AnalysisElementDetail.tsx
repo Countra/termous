@@ -1,54 +1,62 @@
-import { Alert, Button } from 'antd'
+import { Alert, Button, Collapse, Skeleton } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Crosshair, ImagePlus, Scan } from 'lucide-react'
-import type { AnalysisElement, AnalysisElementView, AnalysisSpanView, AnalysisGateway, AnalysisQuery } from '#common/contracts'
+import { ChevronRight, Copy, Type } from 'lucide-react'
+import type { AnalysisElementView, AnalysisSpanView, AnalysisGateway, AnalysisQuery } from '#common/contracts'
 import { writeClipboardText } from '#shared/clipboard'
 import { useVisibleQuery } from '../model/useVisibleQuery'
-import styles from './Analysis.module.scss'
+import styles from './AnalysisElementDetail.module.scss'
 
-export interface AnalysisActions {
-  busy?: boolean; canPoint?: boolean; canRegion?: boolean
-  onApply?: (kind: 'point' | 'template' | 'region', element: AnalysisElement) => void
-  onError: (error: unknown) => void
-}
-export function AnalysisElementDetail({ gateway, id, selected, span, filter, active, ...actions }: AnalysisActions & {
-  gateway: AnalysisGateway; id: string; selected: number; span?: number; filter: AnalysisQuery; active: boolean
+export function AnalysisElementDetail({ gateway, id, selected, span, filter, active, onError, onSelectSpan }: {
+  gateway: AnalysisGateway; id: string; selected: number; span?: number; filter: AnalysisQuery; active: boolean; onError: (error: unknown) => void; onSelectSpan?: (id: number) => void
 }) {
   const { t } = useTranslation()
   const [offsets, setOffsets] = useState([0])
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
+  const [showSpans, setShowSpans] = useState(false)
   const cursor = cursors[cursors.length - 1]
   const offset = offsets[offsets.length - 1]
   const detail = useVisibleQuery<AnalysisElementView | AnalysisSpanView>(`${id}:${selected}:${span}:${offset}`, signal => span === undefined
     ? gateway.analysisElement(id, selected, offset, signal) : gateway.analysisSpan(id, span, offset, signal), active)
   const spans = useVisibleQuery(JSON.stringify([id, selected, filter, cursor]), signal => gateway.analysisSpans(id,
-    { q: filter.q, text_min: filter.text_min, text_max: filter.text_max, text_gt: filter.text_gt, text_lt: filter.text_lt, element_id: selected, cursor, limit: 20 }, signal), active && span === undefined)
+    { q: filter.q, text_min: filter.text_min, text_max: filter.text_max, text_gt: filter.text_gt, text_lt: filter.text_lt, element_id: selected, cursor, limit: 20 }, signal), active && span === undefined && showSpans)
   const current = detail.data
   const element = current && 'kind' in current ? current : undefined
-  return <div className={styles.detail}>
+  return <div className={styles.detail} aria-busy={detail.loading}>
     {detail.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={detail.reload}>{t('app.retry')}</Button>} />}
+    {!current && detail.loading && <Skeleton active title={false} paragraph={{ rows: 4 }} />}
     {current && <>
-      <div><strong>#{current.id}</strong><span>{t('desktopWorkflow.analysis.bounds')}: {current.bbox_xyxy.join(', ')}</span></div>
-      <small>{t('desktopWorkflow.analysis.center')}: {current.center_xy.join(', ')}</small>
-      {element?.detection_confidence != null && <small>{t('desktopWorkflow.analysis.detectionScore')}: {element.detection_confidence.toFixed(3)}</small>}
-      {current.text_confidence != null && <small>{t('desktopWorkflow.analysis.textScore')}: {current.text_confidence.toFixed(3)}</small>}
-      <p>{current.text}</p>
+      <div className={styles.identity}><strong>{element ? t(`desktopWorkflow.analysis.${element.kind}`) : t('desktopWorkflow.analysisWorkspace.ocr')}</strong>
+        {'element_id' in current && <span>{t('desktopWorkflow.analysisWorkspace.parent', { id: current.element_id })}</span>}</div>
+      <dl className={styles.geometry}>
+        <div><dt>{t('desktopWorkflow.analysis.center')}</dt><dd>{current.center_xy.join(', ')}</dd></div>
+        <div><dt>{t('desktopWorkflow.analysis.bounds')}</dt><dd>{current.bbox_xyxy.join(', ')}</dd></div>
+        {element?.detection_confidence != null && <div><dt>{t('desktopWorkflow.analysis.detectionScore')}</dt><dd>{element.detection_confidence.toFixed(3)}</dd></div>}
+        {current.text_confidence != null && <div><dt>{t('desktopWorkflow.analysis.textScore')}</dt><dd>{current.text_confidence.toFixed(3)}</dd></div>}
+      </dl>
+      <section className={styles.text}>
+        <header><Type size={14} /><strong>{t('desktopWorkflow.analysisWorkspace.recognizedText')}</strong>
+          {current.text && <Button type="text" size="small" icon={<Copy size={13} />} onClick={() => void writeClipboardText(current.text).catch(onError)}>{t(current.text_truncated ? 'analysisCenter.copyPart' : 'desktopWorkflow.analysis.copy')}</Button>}</header>
+        <p>{current.text || t('desktopWorkflow.analysis.unlabelled')}</p>
       {current.text_truncated && <small>{t('analysisCenter.textPart', { offset: current.text_offset, count: current.text_length })}</small>}
       <div className={styles.actions}>
         {offsets.length > 1 && <Button size="small" onClick={() => setOffsets(offsets.slice(0, -1))}>{t('desktopWorkflow.analysis.previous')}</Button>}
         {current.text_next_offset !== undefined && <Button size="small" onClick={() => setOffsets([...offsets, current.text_next_offset!])}>{t('analysisCenter.moreText')}</Button>}
-        {current.text && <Button size="small" icon={<Copy size={13} />} onClick={() => void writeClipboardText(current.text).catch(actions.onError)}>{t(current.text_truncated ? 'analysisCenter.copyPart' : 'desktopWorkflow.analysis.copy')}</Button>}
-        {element && actions.onApply && <>
-          <Button size="small" disabled={actions.busy || !actions.canPoint} icon={<Crosshair size={13} />} onClick={() => actions.onApply?.('point', element)}>{t('desktopWorkflow.analysis.usePoint')}</Button>
-          <Button size="small" disabled={actions.busy || !actions.canRegion} icon={<ImagePlus size={13} />} onClick={() => actions.onApply?.('template', element)}>{t('desktopWorkflow.analysis.useTemplate')}</Button>
-          <Button size="small" disabled={actions.busy || !actions.canRegion} icon={<Scan size={13} />} onClick={() => actions.onApply?.('region', element)}>{t('desktopWorkflow.analysis.useRegion')}</Button>
-        </>}
       </div>
+      </section>
     </>}
-    {spans.error != null && <Button onClick={spans.reload}>{t('app.retry')}</Button>}
-    {spans.data?.items.map(item => <p key={item.id}>OCR #{item.id} · {item.text}{item.text_truncated && '…'} <small>{t('desktopWorkflow.analysis.textScore')} {item.text_confidence.toFixed(3)} · {item.bbox_xyxy.join(', ')}</small></p>)}
-    {cursors.length > 1 && <Button size="small" disabled={spans.loading} onClick={() => setCursors(cursors.slice(0, -1))}>{t('desktopWorkflow.analysis.previous')}</Button>}
-    {spans.data?.next_cursor && <Button size="small" disabled={spans.loading} onClick={() => setCursors([...cursors, spans.data!.next_cursor])}>{t('analysisCenter.moreOCR')}</Button>}
+    {element && <Collapse ghost activeKey={showSpans ? ['ocr'] : []} onChange={keys => setShowSpans(keys.includes('ocr'))} items={[{ key: 'ocr', label: t('desktopWorkflow.analysisWorkspace.relatedText'), children: <div className={styles.related} aria-busy={spans.loading}>
+      {spans.loading && !spans.data && <Skeleton title={false} paragraph={{ rows: 2 }} />}
+      {spans.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={spans.reload}>{t('app.retry')}</Button>} />}
+      {spans.data?.items.map(item => <article key={item.id}>
+        <header><span>OCR #{item.id}</span><small>{item.text_confidence.toFixed(3)}</small>{onSelectSpan && <Button type="text" size="small" icon={<ChevronRight size={13} />} aria-label={t('desktopWorkflow.analysisWorkspace.viewOCR', { id: item.id })} onClick={() => onSelectSpan(item.id)} />}</header>
+        <p>{item.text}{item.text_truncated && '…'}</p>
+      </article>)}
+      {spans.data?.total === 0 && <small>{t('desktopWorkflow.analysis.empty')}</small>}
+      <div className={styles.actions}>
+        {cursors.length > 1 && <Button size="small" disabled={spans.loading} onClick={() => setCursors(cursors.slice(0, -1))}>{t('desktopWorkflow.analysis.previous')}</Button>}
+        {spans.data?.next_cursor && <Button size="small" disabled={spans.loading} onClick={() => setCursors([...cursors, spans.data!.next_cursor])}>{t('analysisCenter.moreOCR')}</Button>}
+      </div>
+    </div> }]} />}
   </div>
 }

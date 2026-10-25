@@ -19,6 +19,39 @@ const preview: OCRPreview = {
 const wrapper = ({ children }: { children: React.ReactNode }) => <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider>
 
 describe('OCR 编辑观察生命周期', () => {
+  it('选中其他分页的文字框时跳到对应列表页，仍允许手动翻页', () => {
+    const spans = Array.from({ length: 41 }, (_, id) => ({ ...preview.observation.spans[0], id, text: `结果 ${id}` }))
+    const observation = { ...preview.observation, spans }
+    const select = vi.fn()
+    const view = render(<OCRPreviewPanel observation={observation} spans={spans} onSelect={select} />, { wrapper })
+    expect(screen.queryByRole('button', { name: '结果 40' })).not.toBeInTheDocument()
+    view.rerender(<OCRPreviewPanel observation={observation} spans={spans} selected={40} onSelect={select} />)
+    expect(screen.getByRole('button', { name: '结果 40' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByTitle('Previous Page'))
+    expect(screen.getByRole('button', { name: '结果 20' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '结果 40' })).not.toBeInTheDocument()
+    view.rerender(<OCRPreviewPanel observation={observation} spans={spans} selected={0} onSelect={select} />)
+    expect(screen.getByRole('button', { name: '结果 0' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('选择保留仅适用于当前上下文的正文填入，重新测试替换观察', async () => {
+    const request = vi.fn().mockResolvedValue(preview)
+    const gateway = { previewOCR: request } as unknown as WorkflowMediaGateway
+    const snapshot = vi.fn()
+    const view = renderHook(({ value, context }) => useOCRPreview(gateway, 'preview', context, value, snapshot), { initialProps: { value: query, context: 'step' } })
+    await act(() => view.result.current.test(new AbortController().signal))
+    act(() => view.result.current.retainText('Save'))
+    view.rerender({ value: { ...query, text: 'Save' }, context: 'step' })
+    expect(view.result.current.value).toBe(preview)
+    const next = { ...preview, observation: { ...preview.observation, spans: [] } }
+    request.mockResolvedValue(next)
+    await act(() => view.result.current.test(new AbortController().signal))
+    expect(view.result.current.value).toBe(next)
+    act(() => view.result.current.retainText('Save'))
+    view.rerender({ value: { ...query, text: 'Save' }, context: 'other-step' })
+    expect(view.result.current.value).toBeUndefined()
+  })
+
   it('条件变化取消旧请求，迟到的画面不能覆盖新条件', async () => {
     let finish!: (value: OCRPreview) => void
     const request = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))

@@ -13,10 +13,11 @@ const limitOffset = (point: Point, size: Size, bounds: Size, scale: number): Poi
   y: clamp(point.y, Math.max(0, (size.height * scale - bounds.height) / 2)),
 })
 
-export function useImageViewport(size: Size | undefined, enabled: boolean) {
+export function useImageViewport(size: Size | undefined, enabled: boolean, initialZoom: Zoom = 'fit') {
   const viewport = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState<Size>({ width: 0, height: 0 })
-  const [view, setView] = useState<View>(initial)
+  const [view, setView] = useState<View>({ ...initial, zoom: initialZoom })
+  const resetZoom = useRef(initialZoom)
   const [dragging, setDragging] = useState(false)
   const gesture = useRef<{ pointer: number; start: Point; offset: Point } | undefined>(undefined)
   const fit = size && bounds.width > 0 && bounds.height > 0 ? Math.min(1, bounds.width / size.width, bounds.height / size.height) : 1
@@ -47,7 +48,7 @@ export function useImageViewport(size: Size | undefined, enabled: boolean) {
     if (viewport.current?.hasPointerCapture?.(current.pointer)) viewport.current.releasePointerCapture(current.pointer)
   }, [])
   useEffect(() => {
-    if (!enabled) { stopDragging(); setView(initial) }
+    if (!enabled) { stopDragging(); setView({ ...initial, zoom: resetZoom.current }) }
   }, [enabled, stopDragging])
   useEffect(() => { stopDragging() }, [bounds.width, bounds.height, stopDragging])
   useEffect(() => {
@@ -129,9 +130,20 @@ export function useImageViewport(size: Size | undefined, enabled: boolean) {
       setView({ zoom: current.zoom, ...offset })
     }
   }
+  const reveal = (box: [number, number, number, number]) => {
+    const current = metrics.current
+    if (!enabled || !current.size) return
+    stopDragging()
+    const scale = Math.max(current.minimum, Math.min(maximum, Math.max(current.scale,
+      Math.min(2, current.bounds.width / Math.max(1, (box[2] - box[0]) * 3), current.bounds.height / Math.max(1, (box[3] - box[1]) * 3)))))
+    const offset = limitOffset({ x: (current.size.width / 2 - (box[0] + box[2]) / 2) * scale,
+      y: (current.size.height / 2 - (box[1] + box[3]) / 2) * scale }, current.size, current.bounds, scale)
+    metrics.current = { ...current, zoom: scale, scale, offset }
+    setView({ zoom: scale, ...offset })
+  }
   return {
     viewport, zoom: view.zoom, scale, offset, dragging, canPan, canZoomIn: scale < maximum, canZoomOut: scale > minimum,
-    adjustZoom, changeZoom, stopPanning: stopDragging,
+    adjustZoom, changeZoom, reveal, stopPanning: stopDragging,
     handlers: { onPointerDown: start, onPointerMove: move, onPointerUp: finish, onPointerCancel: finish, onLostPointerCapture: finish,
       onBlur: stopDragging, onKeyDown: keyDown, onDoubleClick: () => { if (enabled) changeZoom(metrics.current.zoom === 1 ? 'fit' : 1) } },
   }

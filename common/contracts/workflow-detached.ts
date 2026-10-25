@@ -1,5 +1,7 @@
 import { isAnalysisMediaRequest, type AnalysisMediaRequest } from './analysis-media.ts'
 import { isWorkflowOCRQuery, type WorkflowOCRQuery } from './workflow-ocr.ts'
+import { isWorkflowEditorPanels } from './workflow-layout.ts'
+import { analysisPanelLimits } from './screen-analysis-records.ts'
 
 export const workflowDetachedActions = [
   'create', 'load', 'change', 'selectStep', 'target', 'view', 'showRun', 'save', 'validate',
@@ -29,7 +31,8 @@ export type WorkflowDetachedMedia =
   | { kind: 'runtime-status' }
   | { kind: 'runtime-warmup' }
   | { kind: 'runtime-settings' }
-  | { kind: 'analysis'; request: AnalysisMediaRequest }
+  | { kind: 'analysis'; request: AnalysisMediaRequest; read_id?: string }
+  | { kind: 'analysis-read-cancel'; id: string }
   | { kind: 'open'; session: string; generation: number }
   | { kind: 'close' | 'capture' | 'asset'; id: string }
   | { kind: 'match'; id: string; target: Record<string, unknown> }
@@ -73,7 +76,7 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
     case 'create': case 'copy': return value.args.length === 1 && typeof arg === 'string' && arg.length <= 240
     case 'load': case 'showRun': case 'viewDesktop': case 'dismissNotice': return value.args.length === 1 && id(arg)
     case 'selectStep': return value.args.length === 1 && (arg === undefined || id(arg))
-    case 'view': return value.args.length === 1 && ['scripts', 'runs', 'analyses'].includes(String(arg))
+    case 'view': return value.args.length === 1 && ['scripts', 'runs'].includes(String(arg))
     case 'control': return value.args.length === 1 && ['pause', 'resume', 'step', 'cancel'].includes(String(arg))
     case 'openRun': return value.args.length === 1 && typeof arg === 'boolean'
     case 'restore': return value.args.length === 1 && Number.isSafeInteger(arg) && Number(arg) > 0
@@ -85,7 +88,23 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
     case 'changeRun': return record(arg) && fields(arg, ['takeover', 'keep', 'parameters'])
       && (arg.takeover === undefined || typeof arg.takeover === 'boolean') && (arg.keep === undefined || typeof arg.keep === 'boolean')
       && (arg.parameters === undefined || record(arg.parameters) && Object.values(arg.parameters).every(value => ['string', 'number', 'boolean'].includes(typeof value)))
-    case 'presentation': return record(arg) && fields(arg, ['catalogCollapsed', 'propertiesVisible', 'foldedSteps', 'queries', 'runFilter', 'reportExpansion'])
+    case 'presentation': return record(arg) && fields(arg, ['catalogCollapsed', 'propertiesVisible', 'chainCollapsed', 'editorPanels', 'foldedSteps', 'queries', 'runFilter', 'reportExpansion', 'analysis'])
+      && (arg.chainCollapsed === undefined || typeof arg.chainCollapsed === 'boolean')
+      && (arg.editorPanels === undefined || isWorkflowEditorPanels(arg.editorPanels))
+      && (arg.analysis === undefined || record(arg.analysis) && fields(arg.analysis, ['open', 'id', 'layer', 'filter', 'selected', 'history', 'view', 'panels', 'resultsVisible'])
+        && (arg.analysis.resultsVisible === undefined || typeof arg.analysis.resultsVisible === 'boolean')
+        && (arg.analysis.panels === undefined || record(arg.analysis.panels) && fields(arg.analysis.panels, ['historyWidth', 'resultsWidth'])
+          && (['history', 'results'] as const).every(side => {
+            const value = (arg.analysis as Record<string, unknown>).panels as Record<string, unknown>
+            const width = value[`${side}Width`]
+            return typeof width === 'number' && Number.isFinite(width) && width >= analysisPanelLimits[side].min && width <= analysisPanelLimits[side].max
+          }))
+        && typeof arg.analysis.open === 'boolean' && typeof arg.analysis.history === 'boolean' && ['elements', 'ocr'].includes(String(arg.analysis.layer))
+        && (arg.analysis.id === undefined || id(arg.analysis.id)) && record(arg.analysis.filter)
+        && isAnalysisMediaRequest({ operation: 'elements', id: 'presentation', query: arg.analysis.filter })
+        && (arg.analysis.view === undefined || record(arg.analysis.view) && fields(arg.analysis.view, ['zoom', 'boxes'])
+          && typeof arg.analysis.view.boxes === 'boolean' && (arg.analysis.view.zoom === 'fit' || typeof arg.analysis.view.zoom === 'number' && Number.isFinite(arg.analysis.view.zoom) && arg.analysis.view.zoom > 0 && arg.analysis.view.zoom <= 4))
+        && (arg.analysis.selected === undefined || Number.isSafeInteger(arg.analysis.selected) && Number(arg.analysis.selected) >= 0 && Number(arg.analysis.selected) < 1300))
       && (arg.catalogCollapsed === undefined || typeof arg.catalogCollapsed === 'boolean') && (arg.propertiesVisible === undefined || typeof arg.propertiesVisible === 'boolean')
       && (arg.foldedSteps === undefined || strings(arg.foldedSteps)) && (arg.runFilter === undefined || ['all', 'active'].includes(String(arg.runFilter)))
       && (arg.queries === undefined || record(arg.queries) && fields(arg.queries, ['scripts', 'runs']) && typeof arg.queries.scripts === 'string' && typeof arg.queries.runs === 'string')
@@ -102,7 +121,8 @@ export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetach
   if (value.kind === 'ocr-cancel') return fields(value, ['kind','id','request']) && id(value.id) && id(value.request)
   if (value.kind === 'ocr-report') return fields(value, ['kind','id','index','offset','limit']) && id(value.id) && Number.isSafeInteger(value.index) && Number(value.index) > 0 && Number.isSafeInteger(value.offset) && Number(value.offset) >= 0 && Number.isSafeInteger(value.limit) && Number(value.limit) >= 1 && Number(value.limit) <= 100
   if (value.kind === 'runtime-status' || value.kind === 'runtime-settings' || value.kind === 'runtime-warmup') return fields(value, ['kind'])
-  if (value.kind === 'analysis') return fields(value, ['kind', 'request']) && isAnalysisMediaRequest(value.request)
+  if (value.kind === 'analysis-read-cancel') return fields(value, ['kind', 'id']) && id(value.id)
+  if (value.kind === 'analysis') return fields(value, ['kind', 'request', 'read_id']) && isAnalysisMediaRequest(value.request) && (value.read_id === undefined || id(value.read_id))
   if (value.kind === 'upload') return value.bytes instanceof ArrayBuffer && value.bytes.byteLength > 0
     && value.bytes.byteLength <= 8 * 1024 * 1024 && ['image/png', 'image/jpeg'].includes(String(value.type))
   if (value.kind === 'open') return id(value.session) && Number.isSafeInteger(value.generation) && Number(value.generation) > 0

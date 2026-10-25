@@ -1,6 +1,6 @@
 import { TermousApiError, TermousApiTransport } from '#shared/api'
 import type { AnalysisGateway, AnalysisSubmit, AnalysisRecord, AnalysisRecordQuery, AnalysisPage, AnalysisQuery,
-  AnalysisElementView, AnalysisSpanView, AnalysisGeometry, AnalysisDiagnosticView, AnalysisStorageUsage, AnalysisFullRecord, AnalysisImageQuery, AnalysisImageMetadata } from '#common/contracts'
+  AnalysisElementView, AnalysisSpanView, AnalysisGeometry, AnalysisGeometryQuery, AnalysisDiagnosticView, AnalysisStorageUsage, AnalysisFullRecord, AnalysisImageQuery, AnalysisImageMetadata } from '#common/contracts'
 
 import { parseAnalysisImageMetadata } from './image-metadata'
 
@@ -42,7 +42,7 @@ export class ScreenAnalysisClient extends TermousApiTransport implements Analysi
   analysisElement(id: string, element: number, offset = 0, signal?: AbortSignal) { return this.request<AnalysisElementView>(`${path(id)}/elements/${element}?text_offset=${offset}`, { signal }) }
   analysisSpans(id: string, query?: AnalysisQuery, signal?: AbortSignal) { return this.request<AnalysisPage<AnalysisSpanView>>(`${path(id)}/ocr-spans${search(query)}`, { signal }) }
   analysisSpan(id: string, span: number, offset = 0, signal?: AbortSignal) { return this.request<AnalysisSpanView>(`${path(id)}/ocr-spans/${span}?text_offset=${offset}`, { signal }) }
-  analysisGeometry(id: string, signal?: AbortSignal) { return this.request<AnalysisGeometry[]>(`${path(id)}/geometry`, { signal }) }
+  analysisGeometry(id: string, signal?: AbortSignal, query?: AnalysisGeometryQuery) { return this.request<AnalysisGeometry[]>(`${path(id)}/geometry${search(query)}`, { signal }) }
   analysisDiagnostics(id: string, signal?: AbortSignal) { return this.request<AnalysisDiagnosticView>(`${path(id)}/diagnostics`, { signal }) }
   analysisImage(id: string, kind: 'original' | 'annotated', signal?: AbortSignal) { return this.requestBlob(`${path(id)}/images/${kind}`, { signal }) }
   exportAnalysis(id: string, signal?: AbortSignal) { return this.requestBlob(`${path(id)}/export`, { signal }) }

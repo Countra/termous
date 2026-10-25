@@ -1,4 +1,4 @@
-import { Button, Dropdown, Tooltip } from 'antd'
+import { Button, Dropdown } from 'antd'
 import { Bug, CheckCheck, Copy, History, MoreHorizontal, Play, Save, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,12 +15,10 @@ interface Props {
   parameterCount: number
   dirty: boolean
   busy: boolean
-  propertiesVisible: boolean
   onChange: (patch: { name?: string; description?: string; tags?: string[] }) => void
   onSave: () => void
   onValidate: () => void
   onRun: (debug: boolean) => void
-  onProperties: () => void
   onParameters: () => void
   onHistory: () => void
   onCopy: () => void
@@ -38,7 +36,6 @@ export function WorkflowEditorToolbar(props: Props) {
       </div>
       <div className={styles.actions}>
         <Button icon={<Settings2 size={15} />} disabled={props.busy} aria-haspopup="dialog" aria-expanded={settings} onClick={() => setSettings(true)}>{t('desktopWorkflow.workflowSettings')}</Button>
-        <Tooltip title={t('desktopWorkflow.properties')}><Button type={props.propertiesVisible ? 'default' : 'text'} icon={<SlidersHorizontal size={16} />} disabled={props.busy} aria-label={t('desktopWorkflow.properties')} aria-expanded={props.propertiesVisible} onClick={props.onProperties} /></Tooltip>
         <Dropdown trigger={['click']} classNames={{ root: overlays.menu }} menu={{ items: [
           { key: 'validate', label: t('desktopWorkflow.validate'), icon: <CheckCheck size={15} />, disabled: props.busy, onClick: props.onValidate },
           { key: 'debug', label: t('desktopWorkflow.debug'), icon: <Bug size={15} />, disabled: props.dirty || props.busy || !props.revision, onClick: () => props.onRun(true) },

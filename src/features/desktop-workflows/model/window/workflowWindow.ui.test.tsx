@@ -199,3 +199,22 @@ it('独立窗口仅能读取当前执行固定版本的模板，切换报告后�
   expect(gateway.asset).toHaveBeenCalledOnce()
   controller.dispose()
 })
+
+it('独立窗口取消图像读取会传到宿主，不调用任务取消', async () => {
+  const { gateway, controller } = fixture()
+  let observed: AbortSignal | undefined
+  gateway.analysisImage = vi.fn((_id, _kind, signal) => new Promise<Blob>((_resolve, reject) => {
+    observed = signal
+    signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+  }))
+  gateway.cancelAnalysis = vi.fn()
+  const media = new WorkflowMediaHost(gateway, controller)
+  const pending = media.handle({ kind: 'analysis', read_id: 'read', request: { operation: 'image', id: 'analysis', image: 'original' } })
+  const rejection = expect(pending).rejects.toThrow('cancelled')
+  await media.handle({ kind: 'analysis-read-cancel', id: 'read' })
+  await rejection
+  expect(observed?.aborted).toBe(true)
+  expect(gateway.cancelAnalysis).not.toHaveBeenCalled()
+  await media.reset()
+  controller.dispose()
+})

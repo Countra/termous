@@ -7,8 +7,8 @@ import { PreviewModeControl } from './PreviewModeControl'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 it('明确的流程设置入口可管理草稿，进入参数配置时收起设置面板', async () => {
-  const props = { name: '流程', description: '', tags: [], revision: 2, parameterCount: 1, dirty: true, busy: false, propertiesVisible: true,
-    onChange: vi.fn(), onSave: vi.fn(), onValidate: vi.fn(), onRun: vi.fn(), onProperties: vi.fn(), onParameters: vi.fn(), onHistory: vi.fn(), onCopy: vi.fn(), onRemove: vi.fn() }
+  const props = { name: '流程', description: '', tags: [], revision: 2, parameterCount: 1, dirty: true, busy: false,
+    onChange: vi.fn(), onSave: vi.fn(), onValidate: vi.fn(), onRun: vi.fn(), onParameters: vi.fn(), onHistory: vi.fn(), onCopy: vi.fn(), onRemove: vi.fn() }
   render(<ConfigProvider theme={{ token: { motion: false } }}><WorkflowEditorToolbar {...props} /></ConfigProvider>)
   fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.workflowSettings' }))
   const drawer = await screen.findByRole('dialog')

@@ -29,6 +29,23 @@
 
 .panel-header > div > svg {
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.panel-header > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.panel-header > div:last-child {
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.panel-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-header > div > span {

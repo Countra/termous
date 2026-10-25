@@ -40,13 +40,12 @@ it('主页面未激活且没有连接和草稿时，独立窗口仍通过宿主�
   const f = setup(undefined, runtime, false)
   let unmountChild: (() => void) | undefined
   try {
-    await within(f.host.container).findByRole('button', { name: 'settings.aiRuntime.cpu' })
+    await waitFor(() => expect(runtime.serviceStatus).toHaveBeenCalled())
     expect(runtime.warmup).not.toHaveBeenCalled()
     fireEvent.click(within(f.host.container).getByRole('button', { name: 'desktopWorkflow.window.open' }))
     await waitFor(() => expect(f.bridge.open).toHaveBeenCalledTimes(1))
     const child = render(<DetachedWorkflowSurface client={f.client} />, { wrapper })
     unmountChild = child.unmount
-    await within(child.container).findByRole('button', { name: 'settings.aiRuntime.cpu' })
     await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(1))
     expect(within(child.container).queryByRole('button', { name: 'desktopWorkflow.analysis.analyze' })).not.toBeInTheDocument()
     fireEvent.click(within(child.container).getByRole('button', { name: 'desktopWorkflow.window.return' }))

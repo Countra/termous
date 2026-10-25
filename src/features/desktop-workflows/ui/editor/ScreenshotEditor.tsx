@@ -1,8 +1,8 @@
 import { Alert, Button, Select, Spin, Tooltip } from 'antd'
-import { ImagePlus, LockKeyhole, Monitor, RefreshCw, ScanSearch } from 'lucide-react'
+import { ImagePlus, Monitor, RefreshCw, ScanSearch } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Located, Point, Region, Snapshot, Step } from '#entities/desktop-workflow'
+import type { Located, OCRObservation, OCRSpan, Point, Region, Snapshot, Step } from '#entities/desktop-workflow'
 import type { WorkflowMediaGateway, WorkflowSession } from '../../model/workspace/types'
 import { blankImage, setStepImage, stepImage, type ImageSlot } from '../../model/images'
 import { workflowError } from '../../model/messages'
@@ -11,17 +11,16 @@ import styles from './ScreenshotEditor.module.scss'
 import { PreviewModeControl, type PreviewMode } from './PreviewModeControl'
 import { ScreenshotCanvas } from './ScreenshotCanvas'
 import { ScreenshotTemplatePreview } from './ScreenshotTemplatePreview'
-import { AnalysisOverlay, AnalysisPanel, type AnalysisElement } from '#entities/screen-analysis'
-import { useScreenAnalysis } from './useScreenAnalysis'
-import { analysisRegion } from '../../model/analysis'
+import type { AnalysisTransfer } from '../analysis/WorkflowAnalysis'
 import { stepOCR, setStepOCR } from '../../model/ocr'
 import { useOCRPreview } from './useOCRPreview'
-import { OCROverlay, OCRPreviewPanel } from './OCRPreviewPanel'
+import { OCRPreviewPanel } from './OCRPreviewPanel'
+import { OCROverlay } from './OCROverlay'
 import { OCRScopeControl } from './OCRScopeControl'
 
-interface Props { active?: boolean; enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
+interface Props { slot?: ImageSlot; onSlotChange?: (slot: ImageSlot) => void; analysisTransfer?: AnalysisTransfer; onTransferApplied?: () => void; enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
 
-export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true, active = true }: Props) {
+export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTransfer, onTransferApplied, target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true }: Props) {
   const { t } = useTranslation()
   const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
@@ -29,10 +28,13 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
   const [url, setURL] = useState<string>()
   const [mode, setMode] = useState<{ context: string; value: PreviewMode }>()
   const [editingOCR, setEditingOCR] = useState<string>()
-  const [slot, setSlot] = useState<ImageSlot>('target')
+  const [localSlot, setLocalSlot] = useState<ImageSlot>('target')
+  const slot = externalSlot ?? localSlot
+  const setSlot = (value: ImageSlot) => { setLocalSlot(value); onSlotChange?.(value) }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>()
   const [matched, setMatched] = useState<Located>()
+  const [ocrSelection, setOCRSelection] = useState<{ observation: OCRObservation; id: number }>()
   const [previewRevision, setPreviewRevision] = useState(0)
   const request = useRef<AbortController | undefined>(undefined)
   const working = useRef(false)
@@ -56,6 +58,12 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
   const ocrEditing = !!ocrQuery && editingOCR === scopeContext
 
   useEffect(() => { ++selectionVersion.current }, [step?.id, activeSlot, snapshot])
+  useEffect(() => {
+    if (!analysisTransfer || analysisTransfer.stepID !== step?.id || analysisTransfer.slot !== activeSlot) return
+    request.current?.abort()
+    setSnapshot(analysisTransfer.snapshot); setMatched(undefined); setBusy(false)
+    onTransferApplied?.()
+  }, [analysisTransfer, activeSlot, step?.id, onTransferApplied])
 
   useEffect(() => {
     let closed = false; let id: string | undefined
@@ -75,8 +83,8 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
       if (closed) return
       setPreview(id)
       const shot = await gateway.capture(id, controller.signal)
-      if (!closed) setSnapshot(shot)
-    }).catch((reason) => { if (!closed) setError(reason) }).finally(() => {
+      if (!closed && !controller.signal.aborted) setSnapshot(shot)
+    }).catch((reason) => { if (!closed && !controller.signal.aborted) setError(reason) }).finally(() => {
       if (!closed) setBusy(false)
       else close()
     })
@@ -117,11 +125,23 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
     const meta = snapshot.metadata
     onChange(step.id, (existing) => ({ ...existing, [field]: { kind: 'point', ...point, reference_width: meta.desktop_width, reference_height: meta.desktop_height } }))
   }
-  const analysis = useScreenAnalysis(gateway, preview, perform, value => { setSnapshot(value); setMatched(undefined) }, setError, active)
   const ocr = useOCRPreview(gateway,preview,`${step?.id}:${activeSlot}`,ocrQuery,value => {setSnapshot(value);setMatched(undefined)})
   const currentOCR = !ocrEditing && ocr.value?.image === snapshot?.blob ? ocr.value : undefined
   // 列表和覆盖层使用同一组服务端匹配结果，保留原始编号与完整观察统计。
   const ocrSpans = currentOCR?.observation.spans.filter(span => span.matched) ?? []
+  const selectedOCR = ocrSelection?.observation === currentOCR?.observation ? ocrSelection?.id : undefined
+  useEffect(() => { if (!currentOCR) setOCRSelection(undefined) }, [currentOCR])
+  const selectOCR = (span: OCRSpan) => {
+    if (!currentOCR || busy || !step || !ocrQuery) return
+    setOCRSelection({ observation: currentOCR.observation, id: span.id })
+    if (ocrBound) return
+    ocr.retainText(span.text)
+    onChange(step.id, existing => {
+      const query = stepOCR(existing, activeSlot)
+      const binding = activeSlot === 'image' ? 'ocr_text' : activeSlot === 'target' ? 'target_ocr_text' : 'end_target_ocr_text'
+      return query && !existing.bindings?.[binding] ? setStepOCR(existing, activeSlot, { ...query, text: span.text }) : existing
+    })
+  }
   const applySelection = async (region: Region, image?: HTMLImageElement, kind: PreviewMode = selectionMode) => {
     if (!step || !selectable || !snapshot || busy) return false
     const meta = snapshot.metadata
@@ -157,15 +177,6 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
         template_source: { region, reference_width: meta.desktop_width, reference_height: meta.desktop_height } }))
     })
   }
-  const applyElement = (kind: 'point' | 'template' | 'region', element: AnalysisElement) => {
-    if (!snapshot || !url || busy || !analysis.actionable || !preview || !analysis.analysis) return
-    const version = epoch.current; const selection = selectionVersion.current
-    void gateway.validateAnalysisAction(analysis.analysis.id, preview).then(() => {
-      if (version !== epoch.current || selection !== selectionVersion.current) return
-      if (kind === 'point') selectPoint({ x: element.center_xy[0], y: element.center_xy[1] })
-      else void applySelection(analysisRegion(element, snapshot.metadata.width, snapshot.metadata.height), undefined, kind)
-    }).catch(setError)
-  }
   const sameFrame = matched && snapshot && matched.capture.metadata.frame_sequence === snapshot.metadata.frame_sequence && matched.capture.metadata.display_epoch === snapshot.metadata.display_epoch
   // Core 在参考桌面尺寸变化后拒绝旧坐标；画面中也不能将旧选区伪装成当前坐标。
   const referenceMatches = (value?: { reference_width?: number; reference_height?: number }) => !!snapshot && value?.reference_width === snapshot.metadata.desktop_width && value.reference_height === snapshot.metadata.desktop_height
@@ -175,42 +186,36 @@ export function ScreenshotEditor({ target: desktopTarget, onTargetChange, gatewa
   const point = pointTarget?.kind === 'point' && referenceMatches(pointTarget) && pointTarget.x != null && pointTarget.y != null ? { x: pointTarget.x, y: pointTarget.y } : undefined
   const staleOCRScope = !!(snapshot && ocrQuery?.region && !validRegion)
   const canvasKey = [url, step?.id, activeSlot, selectionMode, ocrEditing].join(':')
-  return <section data-tour="automation-preview" data-analysis={!!analysis.analysis || !!currentOCR} className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
+  return <section data-tour="automation-preview" data-analysis={!!currentOCR} className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
     <header className={styles['screen-toolbar']}>
       <Monitor size={16} className={styles['screen-icon']} />
       <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
-      <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => { analysis.clear(); void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } }) }} /></Tooltip>
-      <Button size="small" icon={<ScanSearch size={14} />} disabled={!preview || busy || analysis.analyzing || ocrEditing} onClick={() => { ocr.clear(); analysis.analyze() }}>{t('desktopWorkflow.analysis.analyze')}</Button>
-      {ocrQuery && <Button size="small" disabled={!preview || busy || ocrBound || ocrEditing || staleOCRScope} onClick={() => {analysis.clear();void perform(ocr.test)}}>{t('desktopWorkflow.ocr.test')}</Button>}
+      <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => { void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } }) }} /></Tooltip>
+      {ocrQuery && <Button size="small" disabled={!preview || busy || ocrBound || ocrEditing || staleOCRScope} onClick={() => {void perform(ocr.test)}}>{t('desktopWorkflow.ocr.test')}</Button>}
     </header>
     {session && !generation && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
     {error != null && <Alert type="error" title={workflowError(error, t)} closable onClose={() => setError(undefined)} action={<Button size="small" disabled={busy || !session} onClick={() => setPreviewRevision((v) => v + 1)}>{t('desktopWorkflow.refresh')}</Button>} />}
     <div className={styles['screen-tools']}>
-      {analysis.readError != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button size="small" onClick={analysis.retry}>{t('app.retry')}</Button>} />}
-      {analysis.analyzing && <Alert type="info" title={t(`analysisCenter.stages.${analysis.record?.stage ?? 'capture'}`)} action={<Button size="small" onClick={analysis.cancel}>{t('desktopWorkflow.analysis.cancel')}</Button>} />}
       {step?.kind === 'pointer.drag' && <Select aria-label={t('desktopWorkflow.target')} value={slot} options={['target', 'end_target'].map((value) => ({ value, label: t(`desktopWorkflow.${value === 'target' ? 'target' : 'endTarget'}`) }))} onChange={setSlot} />}
       {ocrQuery ? <OCRScopeControl region={ocrQuery.region} editing={ocrEditing} stale={staleOCRScope} disabled={busy} canEdit={!!snapshot}
-        onEdit={() => { analysis.clear(); setEditingOCR(scopeContext) }} onCancel={() => setEditingOCR(undefined)}
+        onEdit={() => setEditingOCR(scopeContext)} onCancel={() => setEditingOCR(undefined)}
         onClear={() => { if (step) onChange(step.id, existing => setStepOCR(existing, activeSlot, { ...ocrQuery, region: undefined, reference_width: undefined, reference_height: undefined })); setEditingOCR(undefined) }} />
         : <PreviewModeControl disabled={!selectable || busy} value={selectionMode} pointDisabled={!step?.kind.startsWith('pointer.')} onChange={value => setMode({ context: modeContext, value })} />}
       {!ocrQuery && <div className={styles['tool-actions']}>
+      {target?.asset_id && <ScreenshotTemplatePreview key={target.asset_id} assetID={target.asset_id} gateway={gateway} />}
       <Tooltip title={t('desktopWorkflow.importTemplate')}><Button type="text" size="small" aria-label={t('desktopWorkflow.importTemplate')} icon={<ImagePlus size={15} />} disabled={!selectable || busy} onClick={() => fileInput.current?.click()} /></Tooltip>
       <input ref={fileInput} type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = '' }} />
-      <Tooltip title={t('desktopWorkflow.testMatch')}><Button type="text" size="small" aria-label={t('desktopWorkflow.testMatch')} icon={<ScanSearch size={15} />} disabled={!preview || !target?.asset_id || busy} onClick={() => { analysis.clear(); void perform(async (signal) => { const value = await gateway.match(preview!, target!, signal); if (!signal.aborted) { setMatched(value); setSnapshot({ metadata: value.capture.metadata, blob: value.image }) } }) }} /></Tooltip>
+      <Tooltip title={t('desktopWorkflow.testMatch')}><Button type="text" size="small" aria-label={t('desktopWorkflow.testMatch')} icon={<ScanSearch size={15} />} disabled={!preview || !target?.asset_id || busy} onClick={() => { void perform(async (signal) => { const value = await gateway.match(preview!, target!, signal); if (!signal.aborted) { setMatched(value); setSnapshot({ metadata: value.capture.metadata, blob: value.image }) } }) }} /></Tooltip>
+      {matched && <Tooltip title={<>{matched.result.candidates.map((c, i) => <div key={i}>{c.x}, {c.y} ({c.score.toFixed(3)})</div>)}{!sameFrame && <div>{t('desktopWorkflow.frameChanged')}</div>}</>}>
+        <span className={styles['match-status']} role="status">{t(`desktopWorkflow.match.${matched.result.state}`)}</span>
+      </Tooltip>}
       </div>}
     </div>
     {url && snapshot ? <ScreenshotCanvas key={canvasKey} url={url} size={snapshot.metadata} mode={selectionMode} editing={!ocrQuery || ocrEditing} disabled={!selectable || busy} busy={busy}
       initialRegion={validRegion} point={point} matches={sameFrame ? matched.result.candidates : undefined} onPoint={selectPoint} onApply={applySelection}
-      overlay={currentOCR ? <OCROverlay spans={ocrSpans} width={currentOCR.observation.width} height={currentOCR.observation.height} /> : analysis.analysis && <AnalysisOverlay elements={analysis.geometry} image={analysis.analysis.image!} selected={analysis.selected} hovered={analysis.hovered} disabled={busy} onSelect={analysis.setSelected} onHover={analysis.setHovered} />}
+      overlay={currentOCR ? <OCROverlay spans={ocrSpans} selected={selectedOCR} disabled={busy} onSelect={selectOCR} width={currentOCR.observation.width} height={currentOCR.observation.height} /> : undefined}
       emptyHint={ocrEditing ? t('desktopWorkflow.ocr.drawScopeHint') : selectionMode === 'template' && target?.asset_id && !target.template_source ? t('desktopWorkflow.selection.templateSourceMissing') : undefined} />
       : <div className={styles['canvas-scroll']}>{busy && <Spin size="small" />}<div className={styles['screen-empty']}><span><Monitor size={30} strokeWidth={1.2} /></span><strong>{t('desktopWorkflow.screenPreview')}</strong><p>{t('desktopWorkflow.previewHint')}</p></div></div>}
-    {currentOCR && <OCRPreviewPanel observation={currentOCR.observation} spans={ocrSpans} onSelect={step && ocrQuery && !ocrBound ? span => onChange(step.id,existing => setStepOCR(existing,activeSlot,{...ocrQuery,text:span.text,match:'exact'})) : undefined} />}
-    {analysis.analysis && <AnalysisPanel key={analysis.analysis.id} gateway={gateway} active={active} analysis={analysis.analysis} selected={analysis.selected} hovered={analysis.hovered} busy={busy} canPoint={!ocrQuery && analysis.actionable && !!step?.kind.startsWith('pointer.')} canRegion={!ocrQuery && analysis.actionable && selectable}
-      onSelect={analysis.setSelected} onHover={analysis.setHovered} onApply={applyElement} onExport={analysis.download} onError={setError} />}
-    <footer className={styles['screen-footer']}>
-      <span className={styles['readonly-badge']}><LockKeyhole size={12} />{t('desktopWorkflow.readonly')}</span>
-      {target?.asset_id && <ScreenshotTemplatePreview key={target.asset_id} assetID={target.asset_id} gateway={gateway} />}
-      <div className={styles.hint} role="status">{ocrQuery ? t('desktopWorkflow.ocr.previewHint') : matched ? <>{t(`desktopWorkflow.match.${matched.result.state}`)}{matched.result.candidates.map((c, i) => <span key={i}> · {c.x}, {c.y} ({c.score.toFixed(3)})</span>)}{!sameFrame && <div>{t('desktopWorkflow.frameChanged')}</div>}</> : t('desktopWorkflow.readonlyHint')}</div>
-    </footer>
+    {currentOCR && <OCRPreviewPanel observation={currentOCR.observation} spans={ocrSpans} selected={selectedOCR} disabled={busy} bound={ocrBound} onSelect={selectOCR} />}
   </section>
 }

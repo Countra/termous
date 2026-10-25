@@ -37,7 +37,7 @@ it('实际点击独立窗口目录刷新按钮不把点击事件传入命令', a
   try {
     render(<WorkflowCatalog scripts={[]} runs={[]} view="scripts" busy={false} loading={false}
       collapsed={false} queries={{ scripts: '', runs: '' }} runFilter="all"
-      onCreate={vi.fn()} onSelectScript={vi.fn()} onSelectRun={vi.fn()} onViewChange={vi.fn()}
+      onCreate={vi.fn()} onSelectScript={vi.fn()} onSelectRun={vi.fn()}
       onToggle={vi.fn()} onQueriesChange={vi.fn()} onRunFilterChange={vi.fn()} onRefresh={f.connect().actions.refresh} />)
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.refresh' }))
     await waitFor(() => expect(refresh).toHaveBeenCalledExactlyOnceWith())

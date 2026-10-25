@@ -1,5 +1,6 @@
 import type { Definition, OCRSpan, Run, Script, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
+import { analysisFixture } from './analysis-fixture'
 import { createReviewHistory, reviewDefinition } from './workflow-review-fixture'
 import { decodeOCRPreview } from '../../src/features/desktop-workflows/api/ocrResponse'
 
@@ -94,5 +95,5 @@ export function createWorkflowWindowFixture({ history = false } = {}) {
     eventsURL: () => 'ws://fixture.invalid/events',
   }
   const session = { id: 'desktop', profile_name: '运维工作站', protocol: 'vnc', connection_generation: 1, status: 'streaming' } as RemoteDesktopSession
-  return { gateway, sessions: [session] }
+  return { gateway: { ...gateway, ...analysisFixture }, sessions: [session] }
 }

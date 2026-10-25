@@ -5,7 +5,6 @@ import '#shared/styles'
 import '#shared/i18n'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { WorkflowWorkspace } from '#features/desktop-workflows'
-import { AnalysisHistory } from '#entities/screen-analysis'
 import { analysisFixture } from './analysis-fixture'
 import type { Definition, Run, Script, StartInput, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
@@ -21,6 +20,8 @@ const unavailable = async (): Promise<never> => { throw new Error('界面夹具�
 const gateway: WorkflowGateway = {
   analysisFull: unavailable, renderAnalysisImage: unavailable, ocrDefaults: async () => ({ text_confidence: .5, ocr_max_side: 1600 }), previewOCR: unavailable, ocrReport: unavailable,
   validateAnalysisAction: unavailable, submitAnalysis: unavailable, getAnalysis: unavailable, listAnalyses: unavailable, cancelAnalysis: unavailable, clearAnalyses: unavailable, analysisElements: unavailable, analysisElement: unavailable, analysisSpans: unavailable, analysisSpan: unavailable, analysisGeometry: unavailable, analysisDiagnostics: unavailable, exportAnalysis: unavailable, analysisStorage: unavailable, analysisImage: unavailable, deleteAnalysis: unavailable, list: async () => [script], get: async () => ({ script, version: { script_id: script.id, number: 3, definition, created_at: script.created_at } }), listRuns: async () => [], save: async () => script, validate: async () => [], remove: unavailable, versions: async () => [], restore: unavailable, upload: unavailable, asset: unavailable, openPreview: unavailable, closePreview: unavailable, capture: unavailable, match: unavailable, run: unavailable, start: unavailable, control: unavailable, eventsURL: () => 'ws://127.0.0.1:1/workflow-fixture' }
+const analyses = new URLSearchParams(location.search).has('analyses')
+const analysisGateway: WorkflowGateway = { ...gateway, ...analysisFixture }
 const reuse = new URLSearchParams(location.search).has('reuse')
 const sessions: RemoteDesktopSession[] = ['win', 'VM-Debian12'].map((name) => ({
   id: `fixture-${name}`, profile_id: `profile-${name}`, profile_name: name, host_id: `host-${name}`, host_name: name,
@@ -62,9 +63,9 @@ export function Fixture() {
   return <div style={{ height: '100vh', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
     <div><strong>远程桌面</strong></div>
     {reuse && <div><Button onClick={() => setActive(sessions.find((item) => item.id !== active)!.id)}>模拟后台选中会话变化</Button><Button onClick={() => setGeneration((value) => value + 1)}>模拟重连代次变化</Button><span>当前桌面：{active}；已有会话：{sessions.length}；连接代次：{generation}</span><output aria-label="验收请求">{JSON.stringify(lastInput)}</output></div>}
-    <div style={{ minHeight: 0, flex: 1 }}><WorkflowWorkspace gateway={reuse ? reuseGateway : gateway} sessions={reuse ? currentSessions : []} profiles={reuse ? profiles : []} activeSessionId={reuse ? active : undefined} onDirtyChange={() => undefined} onViewDesktop={() => undefined} /></div>
+    <div style={{ minHeight: 0, flex: 1 }}><WorkflowWorkspace gateway={analyses ? analysisGateway : reuse ? reuseGateway : gateway} sessions={reuse ? currentSessions : []} profiles={reuse ? profiles : []} activeSessionId={reuse ? active : undefined} onDirtyChange={() => undefined} onViewDesktop={() => undefined} /></div>
   </div>
 }
-createRoot(document.getElementById('root')!).render(<TermousUiProvider language="zh-CN" theme={location.search.includes('light') ? 'light' : 'dark'}>
-  {new URLSearchParams(location.search).has('analyses') ? <div style={{ height: '100vh', padding: 16 }}><AnalysisHistory gateway={analysisFixture} active /></div> : <Fixture />}
+createRoot(document.getElementById('root')!).render(<TermousUiProvider language={location.search.includes('english') ? 'en-US' : 'zh-CN'} theme={location.search.includes('light') ? 'light' : 'dark'}>
+  <Fixture />
 </TermousUiProvider>)

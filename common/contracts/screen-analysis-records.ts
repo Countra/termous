@@ -68,6 +68,19 @@ export interface AnalysisSpanView extends AnalysisTextPart {
   id: number; element_id: number; text_confidence: number; bbox_xyxy: [number, number, number, number]; center_xy: [number, number]; polygon_xy?: [number, number][]
 }
 export type AnalysisGeometry = Pick<AnalysisElement, 'id' | 'kind' | 'bbox_xyxy' | 'center_xy'>
+  & { element_id?: number }
+export type AnalysisLayer = 'elements' | 'ocr'
+export const analysisPanelLimits = {
+  history: { min: 220, max: 380, default: 252 },
+  results: { min: 300, max: 520, default: 348 },
+} as const
+export interface AnalysisPanelPreferences { historyWidth: number; resultsWidth: number }
+export type AnalysisGeometryQuery = Omit<AnalysisQuery, 'sort' | 'cursor' | 'limit'> & { layer?: AnalysisLayer }
+export interface AnalysisPresentation {
+  open: boolean; id?: string; layer: AnalysisLayer; filter: AnalysisQuery; selected?: number; history: boolean
+  view?: { zoom: number | 'fit'; boxes: boolean }
+  panels?: AnalysisPanelPreferences; resultsVisible?: boolean
+}
 export interface AnalysisIdentity {
   instance_id: string; fingerprint: string; implementation: string; models: string; runtime: { [library: string]: string }
   device: string; precision: string; schema_version: 2
@@ -92,7 +105,7 @@ export interface AnalysisGateway {
   analysisElement(id: string, element: number, offset?: number, signal?: AbortSignal): Promise<AnalysisElementView>
   analysisSpans(id: string, query?: AnalysisQuery, signal?: AbortSignal): Promise<AnalysisPage<AnalysisSpanView>>
   analysisSpan(id: string, span: number, offset?: number, signal?: AbortSignal): Promise<AnalysisSpanView>
-  analysisGeometry(id: string, signal?: AbortSignal): Promise<AnalysisGeometry[]>
+  analysisGeometry(id: string, signal?: AbortSignal, query?: AnalysisGeometryQuery): Promise<AnalysisGeometry[]>
   analysisDiagnostics(id: string, signal?: AbortSignal): Promise<AnalysisDiagnosticView>
   analysisImage(id: string, kind: 'original' | 'annotated', signal?: AbortSignal): Promise<Blob>
   exportAnalysis(id: string, signal?: AbortSignal): Promise<Blob>

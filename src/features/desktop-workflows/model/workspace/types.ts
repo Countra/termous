@@ -1,4 +1,4 @@
-import type { AnalysisGateway } from '#common/contracts'
+import type { AnalysisGateway, AnalysisPresentation, WorkflowEditorPanels } from '#common/contracts'
 import type { Definition, Diagnostic, Run, Script, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { WorkflowTarget } from '../target'
@@ -12,14 +12,17 @@ export type WorkflowNotice = { id: string } & (
 )
 export interface WorkflowReportExpansion { runID: string; allExpanded: boolean; exceptions: string[] }
 export interface WorkflowPresentation {
+  analysis?: AnalysisPresentation
   catalogCollapsed?: boolean
+  chainCollapsed?: boolean
+  editorPanels?: WorkflowEditorPanels
   propertiesVisible: boolean
   foldedSteps?: string[]
   queries: { scripts: string; runs: string }
   runFilter: 'all' | 'active'
   reportExpansion?: WorkflowReportExpansion
 }
-export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' | 'protocol' | 'connection_generation' | 'status'>
+export type WorkflowSession = Pick<RemoteDesktopSession, 'id' | 'profile_name' | 'protocol' | 'connection_generation' | 'status'> & Partial<Pick<RemoteDesktopSession, 'host_name'>>
 export type WorkflowProfile = Pick<RemoteDesktopAccessProfile, 'id' | 'name' | 'protocol'>
 export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closePreview' | 'capture' | 'match' | 'upload' | 'asset' | 'ocrDefaults' | 'previewOCR' | 'ocrReport'> & AnalysisGateway & {
   runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
@@ -37,7 +40,7 @@ export interface WorkflowReport {
 }
 export interface WorkflowExecutionState { launch?: WorkflowLaunch; report: WorkflowReport }
 export interface WorkflowState {
-  draft?: WorkflowDraft; dirty: boolean; view: 'scripts' | 'runs' | 'analyses'; selected?: string; selectedRun?: string
+  draft?: WorkflowDraft; dirty: boolean; view: 'scripts' | 'runs'; selected?: string; selectedRun?: string
   notice?: WorkflowNotice; busy: boolean; versions?: Version[]; chosenTarget?: WorkflowTarget
   presentation: WorkflowPresentation
 }
@@ -48,7 +51,7 @@ export interface WorkflowActions {
   change: (patch: Partial<Pick<WorkflowDraft, 'name' | 'description' | 'tags' | 'definition'>>) => void
   selectStep: (id?: string) => void
   target: (target: WorkflowTarget) => void
-  view: (view: 'scripts' | 'runs' | 'analyses') => void
+  view: (view: 'scripts' | 'runs') => void
   showRun: (id: string) => void
   save: () => Promise<void>
   validate: () => Promise<void>

@@ -10,6 +10,7 @@ export class WorkflowMediaHost {
   private epoch = 0
   private opening = 0
   private observations = new Map<string, { preview: string; controller: AbortController }>()
+  private analysisReads = new Map<string, AbortController>()
   constructor(private readonly gateway: WorkflowMediaGateway, private readonly controller: WorkflowController) {}
   private assetAllowed(id: string) {
     if (this.uploaded.has(id)) return true
@@ -26,6 +27,7 @@ export class WorkflowMediaHost {
   async handle(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) throw new Error('workflow_media_invalid')
     const epoch = this.epoch
+    if (payload.kind === 'analysis-read-cancel') { this.analysisReads.get(payload.id)?.abort(); return }
     if (payload.kind === 'ocr-defaults') return this.gateway.ocrDefaults()
     if (payload.kind === 'ocr-report') {
       if (this.controller.getSnapshot().execution.report.value?.run.id !== payload.id) throw new Error('workflow_report_unavailable')
@@ -45,7 +47,16 @@ export class WorkflowMediaHost {
       const request = payload.request
       if (request.operation === 'action-context' && !this.previews.has(request.preview)) throw new Error('workflow_preview_unavailable')
       if (request.operation === 'submit' && request.input.source.kind === 'preview' && !this.previews.has(request.input.source.id)) throw new Error('workflow_preview_unavailable')
-      return handleAnalysisMedia(this.gateway, request)
+      if (!payload.read_id) return handleAnalysisMedia(this.gateway, request)
+      if (['submit', 'cancel', 'delete', 'clear'].includes(request.operation) || this.analysisReads.size >= 16 || this.analysisReads.has(payload.read_id)) throw new Error('workflow_media_invalid')
+      const controller = new AbortController()
+      this.analysisReads.set(payload.read_id, controller)
+      try {
+        const value = await handleAnalysisMedia(this.gateway, request, controller.signal)
+        controller.signal.throwIfAborted()
+        if (epoch !== this.epoch) throw new Error('detached_disconnected')
+        return value
+      } finally { this.analysisReads.delete(payload.read_id) }
     }
     if (payload.kind === 'open') {
       const session = this.controller.getSnapshot().environment.sessions.find(item => item.id === payload.session)
@@ -98,6 +109,8 @@ export class WorkflowMediaHost {
     return { bytes: await blob.arrayBuffer(), type: blob.type }
   }
   async reset() {
+    for (const value of this.analysisReads.values()) value.abort()
+    this.analysisReads.clear()
     for (const value of this.observations.values()) value.controller.abort()
     this.epoch++; this.uploaded.clear()
     const previews = [...this.previews]; this.previews.clear()

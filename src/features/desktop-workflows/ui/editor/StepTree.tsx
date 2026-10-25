@@ -1,5 +1,5 @@
 import { Button, Dropdown, Tooltip } from 'antd'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, GripVertical, MoreHorizontal, Power, Trash2, Workflow } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Copy, GripVertical, MoreHorizontal, Power, Trash2, Workflow } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Step, StepKind } from '#entities/desktop-workflow'
@@ -14,6 +14,7 @@ interface Props {
   onMove: (id: string, delta: number) => void; onCopy: (id: string) => void
   onRemove: (id: string) => void; onToggle: (id: string, disabled: boolean) => void
   foldedSteps?: string[]; onFoldChange?: (ids: string[]) => void
+  onCollapse?: () => void
 }
 export function StepTree(props: Props) {
   const { t } = useTranslation()
@@ -65,7 +66,7 @@ export function StepTree(props: Props) {
     })}
   </ol>
   return <section className={styles['step-panel']} aria-label={t('desktopWorkflow.steps')}>
-    <header className={styles['panel-header']}><div><Workflow size={15} /><strong>{t('desktopWorkflow.executionChain')}</strong><span>{props.steps.length}</span></div><AddStepMenu onAdd={(kind) => props.onAdd(kind)} /></header>
+    <header className={styles['panel-header']}><div><Workflow size={15} /><strong>{t('desktopWorkflow.executionChain')}</strong><span>{props.steps.length}</span></div><div><AddStepMenu compact={!!props.onCollapse} onAdd={(kind) => props.onAdd(kind)} />{props.onCollapse && <Tooltip title={t('desktopWorkflow.collapseChain')}><Button type="text" size="small" aria-label={t('desktopWorkflow.collapseChain')} aria-expanded icon={<ChevronLeft size={15} />} onClick={props.onCollapse} /></Tooltip>}</div></header>
     <div className={styles.scroll}>{props.steps.length ? list(props.steps, 1) : <div className={styles.empty}><Workflow size={28} strokeWidth={1.3} /><strong>{t('desktopWorkflow.addFirstStep')}</strong><p>{t('desktopWorkflow.chainHint')}</p></div>}</div>
     <Tooltip title={t('desktopWorkflow.chainHint')}><footer className={styles.footer}>{t('desktopWorkflow.chainFooter')}</footer></Tooltip>
   </section>

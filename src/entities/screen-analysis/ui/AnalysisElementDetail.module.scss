@@ -1,0 +1,92 @@
+.detail {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  font-size: 12px;
+}
+
+.identity, .text header, .related header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.identity { flex-wrap: wrap; }
+.identity span, .detail small { color: var(--text-muted); }
+
+.geometry {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--app-bg) 35%, var(--surface));
+}
+
+.geometry > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.geometry dt { color: var(--text-muted); }
+
+.geometry dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.text header { min-height: 26px; }
+.text header strong { flex: 1; }
+
+.detail p {
+  margin: 8px 0 0;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.text > p {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  user-select: text;
+}
+
+.detail :global(.ant-collapse-header) {
+  padding: 0 !important;
+  font-size: 12px;
+}
+
+.detail :global(.ant-collapse-body) { padding: 12px 0 0 !important; }
+
+.related {
+  display: grid;
+  gap: 10px;
+}
+
+.related article {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.related header > span { flex: 1; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actions:empty { display: none; }
+.actions:not(:empty) { margin-top: 8px; }

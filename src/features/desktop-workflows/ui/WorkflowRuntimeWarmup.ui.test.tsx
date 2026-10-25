@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -34,15 +34,11 @@ it('没有桌面连接和脚本草稿时进入自动化即预热，切换编辑�
   const view = render(<WorkflowWorkspace {...props} />, { wrapper })
   try {
     await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(1))
-    const status = screen.getByRole('button', { name: 'settings.aiRuntime.cpu' })
-    expect(status).toBeVisible()
-    const header = within(status.closest('header')!)
-    expect(screen.queryByRole('button', { name: 'desktopWorkflow.analysis.analyze' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.create' }))
-    expect(screen.getByRole('button', { name: 'desktopWorkflow.analysis.analyze' })).toBeDisabled()
-    fireEvent.click(header.getByRole('button', { name: 'desktopWorkflow.executionHistory' }))
-    fireEvent.click(header.getByRole('button', { name: 'desktopWorkflow.backToEditor' }))
-    expect(screen.getAllByRole('button', { name: 'settings.aiRuntime.cpu' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.executionHistory' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'desktopWorkflow.analysisWorkspace.workbench' }))
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.aiRuntime.cpu' })).toBeVisible())
+    expect(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.analyze' })).toBeDisabled()
     expect(runtime.warmup).toHaveBeenCalledTimes(1)
     expect(gateway.openPreview).not.toHaveBeenCalled()
     expect(gateway.capture).not.toHaveBeenCalled()
@@ -53,7 +49,7 @@ it.each([{ active: false }, { guided: true }])('隐藏工作区或向导不触�
   const { props, runtime } = fixture()
   const view = render(<WorkflowWorkspace {...props} {...initial} />, { wrapper })
   try {
-    await screen.findByRole('button', { name: 'settings.aiRuntime.cpu' })
+    await waitFor(() => expect(runtime.serviceStatus).toHaveBeenCalled())
     expect(runtime.warmup).not.toHaveBeenCalled()
     view.rerender(<WorkflowWorkspace {...props} active guided={false} />)
     await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(1))
@@ -67,7 +63,7 @@ it('页面隐藏期间服务重启，重新进入时预热新实例', async () =
     await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(1))
     vi.mocked(runtime.serviceStatus).mockResolvedValue({ state: 'idle', device: 'cuda', instance_id: 'second' })
     view.rerender(<WorkflowWorkspace {...props} active={false} />)
-    await screen.findByRole('button', { name: 'settings.aiRuntime.gpu' })
+    await waitFor(() => expect(runtime.serviceStatus).toHaveBeenCalledTimes(2))
     expect(runtime.warmup).toHaveBeenCalledTimes(1)
     view.rerender(<WorkflowWorkspace {...props} active />)
     await waitFor(() => expect(runtime.warmup).toHaveBeenCalledTimes(2))
@@ -79,6 +75,7 @@ it('工作区头部打开推理设置失败时显示操作错误', async () => {
   const settings = vi.fn().mockRejectedValue(new Error('设置暂不可用'))
   const view = render(<WorkflowWorkspace {...props} onOpenAnalysisSettings={settings} />, { wrapper })
   try {
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
     fireEvent.click(await screen.findByRole('button', { name: 'settings.aiRuntime.cpu' }))
     expect(await screen.findByText('设置暂不可用')).toBeVisible()
     expect(settings).toHaveBeenCalledTimes(1)

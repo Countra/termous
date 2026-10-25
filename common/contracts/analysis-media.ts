@@ -1,4 +1,4 @@
-import type { AnalysisQuery, AnalysisRecordQuery, AnalysisSubmit, AnalysisImageQuery } from './screen-analysis-records.ts'
+import type { AnalysisQuery, AnalysisRecordQuery, AnalysisSubmit, AnalysisImageQuery, AnalysisGeometryQuery } from './screen-analysis-records.ts'
 import { analysisParameterBounds, validAnalysisNumber, type AnalysisNumberParameter } from './screen-analysis.ts'
 
 export type AnalysisMediaRequest =
@@ -6,7 +6,8 @@ export type AnalysisMediaRequest =
   | { operation: 'submit'; input: AnalysisSubmit }
   | { operation: 'list'; query?: AnalysisRecordQuery }
   | { operation: 'storage' | 'clear' }
-  | { operation: 'get' | 'full' | 'cancel' | 'delete' | 'geometry' | 'diagnostics' | 'export'; id: string }
+  | { operation: 'get' | 'full' | 'cancel' | 'delete' | 'diagnostics' | 'export'; id: string }
+  | { operation: 'geometry'; id: string; query?: AnalysisGeometryQuery }
   | { operation: 'elements' | 'spans'; id: string; query?: AnalysisQuery }
   | { operation: 'element' | 'span'; id: string; item: number; offset?: number }
   | { operation: 'render'; id: string; query: AnalysisImageQuery }
@@ -43,7 +44,9 @@ export function isAnalysisMediaRequest(value: unknown): value is AnalysisMediaRe
     }
     case 'list': return fields(value, ['operation', 'query']) && query(value.query, true)
     case 'storage': case 'clear': return fields(value, ['operation'])
-    case 'get': case 'full': case 'cancel': case 'delete': case 'geometry': case 'diagnostics': case 'export': return fields(value, ['operation', 'id']) && id(value.id)
+    case 'get': case 'full': case 'cancel': case 'delete': case 'diagnostics': case 'export': return fields(value, ['operation', 'id']) && id(value.id)
+    case 'geometry': return fields(value, ['operation', 'id', 'query']) && id(value.id) && query(value.query, false, true)
+      && (value.query === undefined || object(value.query) && !('crop' in value.query) && !('max_side' in value.query))
     case 'elements': case 'spans': return fields(value, ['operation', 'id', 'query']) && id(value.id) && query(value.query, false)
     case 'element': case 'span': return fields(value, ['operation', 'id', 'item', 'offset']) && id(value.id)
       && Number.isSafeInteger(value.item) && Number(value.item) >= 0 && Number(value.item) < 1300

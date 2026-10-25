@@ -5,10 +5,11 @@ import { sessionTarget } from '../target'
 import { WorkflowExecution } from './WorkflowExecution'
 import { workflowFailure, type WorkflowActions, type WorkflowEnvironment, type WorkflowState, type WorkflowSurfaceModel } from './types'
 import type { WorkflowMediaGateway } from './types'
+import { readWorkflowLayoutPreferences, saveWorkflowLayoutPreferences } from './workflowLayoutPreferences'
 
 export class WorkflowController {
   private state: WorkflowState = { dirty: false, view: 'scripts', busy: false,
-    presentation: { propertiesVisible: true, queries: { scripts: '', runs: '' }, runFilter: 'all' } }
+    presentation: { propertiesVisible: true, ...readWorkflowLayoutPreferences(), queries: { scripts: '', runs: '' }, runFilter: 'all' } }
   private data: Pick<WorkflowSurfaceModel, 'scripts' | 'runs' | 'loading' | 'dataError'> = { scripts: [], runs: [], loading: true }
   private environment: WorkflowEnvironment = { sessions: [], profiles: [] }
   private listeners = new Set<() => void>()
@@ -144,7 +145,13 @@ export class WorkflowController {
     refreshReport: () => this.execution.refreshReport(true),
     viewDesktop: async id => { try { await this.onViewDesktop(id) } catch (reason) { this.execution.reportError(reason) } },
     dismissNotice: id => { if (this.state.notice?.id === id) this.update({ notice: undefined }) },
-    presentation: patch => this.update({ presentation: { ...this.state.presentation, ...patch } }),
+    presentation: patch => {
+      const previous = this.state.presentation
+      const presentation = { ...previous, ...patch }
+      // 主窗口统一落盘，独立窗口沿用已有命令回传，避免两端分别保存旧快照。
+      saveWorkflowLayoutPreferences(previous, presentation)
+      this.update({ presentation })
+    },
   }
   dispose() { this.serial++; this.execution.dispose() }
 }

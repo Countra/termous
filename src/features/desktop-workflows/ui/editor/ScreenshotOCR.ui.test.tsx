@@ -49,6 +49,66 @@ function draw(element: HTMLElement) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('OCR 可选范围与匹配预览', () => {
+  it.each(['contains', 'regex'] as const)('选择文字保留 %s 和范围，列表与画面双向联动且可反复选择', async match => {
+    const configured: Step = { ...reading, ocr: { ...query, text: '', match, case_sensitive: false, normalize_whitespace: true,
+      region: { x: 100, y: 100, width: 201, height: 101 }, reference_width: 1000, reference_height: 500 } }
+    const view = setup(configured)
+    const response = result()
+    response.observation.spans[1] = { ...response.observation.spans[1], text: '取消', matched: true }
+    response.observation.matched_count = 2
+    vi.mocked(view.api.previewOCR).mockResolvedValue(response)
+    await canvas()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.ocr.test' }))
+    const panel = await screen.findByRole('region', { name: 'desktopWorkflow.ocr.preview' })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' })).toHaveAttribute('src', 'blob:ocr-2'))
+    await canvas()
+    const image = screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' })
+    fireEvent.click(within(panel).getByRole('button', { name: '保存' }))
+    let updated = view.props.onChange.mock.calls[0][1](configured) as Step
+    expect(updated.ocr).toEqual({ ...configured.ocr, text: '保存' })
+    view.rerender(<ScreenshotEditor {...view.props} step={updated} />)
+    expect(view.container.querySelector('[data-ocr-id="2"]')).toHaveAttribute('aria-pressed', 'true')
+    expect(within(panel).getByRole('button', { name: '保存' })).toHaveAttribute('aria-pressed', 'true')
+
+    const other = view.container.querySelector('[data-ocr-id="1"]')!
+    fireEvent.click(other, { ctrlKey: true })
+    expect(view.props.onChange).toHaveBeenCalledTimes(1)
+    fireEvent.click(other)
+    updated = view.props.onChange.mock.calls[1][1](updated) as Step
+    expect(updated.ocr).toEqual({ ...configured.ocr, text: '取消' })
+    view.rerender(<ScreenshotEditor {...view.props} step={updated} />)
+    expect(within(panel).getByRole('button', { name: '取消' })).toHaveAttribute('aria-pressed', 'true')
+    expect(view.container.querySelector('[data-ocr-id="2"]')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' })).toBe(image)
+    expect(view.api.previewOCR).toHaveBeenCalledOnce()
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1)
+
+    // 手动修改正文必须使旧匹配结果失效，不能借选择保留逻辑混入新条件。
+    view.rerender(<ScreenshotEditor {...view.props} step={{ ...updated, ocr: { ...updated.ocr!, text: '手动输入' } }} />)
+    expect(screen.queryByRole('region', { name: 'desktopWorkflow.ocr.preview' })).not.toBeInTheDocument()
+  })
+
+  it('拖动终点填入文字保留起点、锚点、偏移和序号；绑定文字只高亮', async () => {
+    const configured: Step = { ...reading, kind: 'pointer.drag', ocr: undefined,
+      target: { kind: 'point', x: 10, y: 20, reference_width: 1000, reference_height: 500 },
+      end_target: { kind: 'ocr', ocr: { ...query, text: '', match: 'contains', anchor: 'bottom_right', occurrence: 2, offset: { x: 5, y: 10 } } } }
+    const view = setup(configured)
+    view.rerender(<ScreenshotEditor {...view.props} slot="end_target" />)
+    await canvas()
+    fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.ocr.test' }))
+    const panel = await screen.findByRole('region', { name: 'desktopWorkflow.ocr.preview' })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'desktopWorkflow.readonlyScreen' })).toHaveAttribute('src', 'blob:ocr-2'))
+    await canvas()
+    fireEvent.click(within(panel).getByRole('button', { name: '保存' }))
+    const updated = view.props.onChange.mock.calls[0][1](configured) as Step
+    expect(updated.target).toEqual(configured.target)
+    expect(updated.end_target?.ocr).toEqual({ ...configured.end_target!.ocr, text: '保存' })
+    view.rerender(<ScreenshotEditor {...view.props} slot="end_target" step={{ ...updated, bindings: { end_target_ocr_text: 'label' } }} />)
+    fireEvent.click(view.container.querySelector('[data-ocr-id="2"]')!)
+    expect(view.props.onChange).toHaveBeenCalledTimes(1)
+    expect(within(panel).getByRole('button', { name: '保存' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('默认查看全屏，拖动不进入绘制，也不要求范围即可测试', async () => {
     const { api, props } = setup()
     const element = await canvas()

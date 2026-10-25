@@ -65,7 +65,7 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
     controller.reload = () => { void reload() }; controller.onViewDesktop = async id => { await reveal(); await onViewDesktop(id) }
     // 独立窗口只接收选择目标所需的摘要，不传递连接配置、凭据或媒体票据。
     controller.configure({ activeSessionId,
-      sessions: sessions.map(({ id, profile_name, protocol, connection_generation, status }) => ({ id, profile_name, protocol, connection_generation, status })),
+      sessions: sessions.map(({ id, host_name, profile_name, protocol, connection_generation, status }) => ({ id, host_name, profile_name, protocol, connection_generation, status })),
       profiles: profiles.map(({ id, name, protocol }) => ({ id, name, protocol })),
     }, { scripts, runs, loading, dataError: dataError ? workflowFailure(dataError) : undefined })
   }, [controller, sessions, activeSessionId, profiles, onViewDesktop, scripts, runs, loading, dataError, reload, reveal, aiRuntimeGateway, onOpenAnalysisSettings])

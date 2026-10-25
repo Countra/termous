@@ -93,7 +93,15 @@ export class WorkflowRemoteAdapter {
     runtimeStatus: () => this.mediaRequest({ kind: 'runtime-status' }) as ReturnType<NonNullable<WorkflowMediaGateway['runtimeStatus']>>,
     warmupRuntime: async () => { await this.mediaRequest({ kind: 'runtime-warmup' }) },
     openRuntimeSettings: async () => { await this.mediaRequest({ kind: 'runtime-settings' }) },
-    ...analysisRemoteGateway(request => this.mediaRequest({ kind: 'analysis', request })),
+    ...analysisRemoteGateway(async (request, signal) => {
+      if (!signal || ['submit', 'cancel', 'delete', 'clear'].includes(request.operation)) return this.mediaRequest({ kind: 'analysis', request })
+      signal.throwIfAborted()
+      const id = crypto.randomUUID()
+      const cancel = () => { void this.mediaRequest({ kind: 'analysis-read-cancel', id }).catch(this.report) }
+      signal.addEventListener('abort', cancel, { once: true })
+      try { return await this.mediaRequest({ kind: 'analysis', request, read_id: id }) }
+      finally { signal.removeEventListener('abort', cancel) }
+    }),
     openPreview: (session, generation) => this.mediaRequest({ kind: 'open', session, generation }) as Promise<Preview>,
     closePreview: async id => { await this.mediaRequest({ kind: 'close', id }) },
     upload: async blob => this.mediaRequest({ kind: 'upload', type: blob.type, bytes: await blob.arrayBuffer() }) as Promise<Asset>,

@@ -1,10 +1,10 @@
 import type { AnalysisGateway, AnalysisMediaRequest, AnalysisImageMetadata } from '#common/contracts'
 
 type Binary = { bytes: ArrayBuffer; type: string }
-export function analysisRemoteGateway(send: (input: AnalysisMediaRequest) => Promise<unknown>): AnalysisGateway {
+export function analysisRemoteGateway(send: (input: AnalysisMediaRequest, signal?: AbortSignal) => Promise<unknown>): AnalysisGateway {
   const request = async <T,>(input: AnalysisMediaRequest, signal?: AbortSignal): Promise<T> => {
     signal?.throwIfAborted()
-    const value = await send(input)
+    const value = await send(input, signal)
     signal?.throwIfAborted()
     return value as T
   }
@@ -28,7 +28,7 @@ export function analysisRemoteGateway(send: (input: AnalysisMediaRequest) => Pro
     analysisElement: (id, item, offset, signal) => request({ operation: 'element', id, item, offset }, signal),
     analysisSpans: (id, query, signal) => request({ operation: 'spans', id, query }, signal),
     analysisSpan: (id, item, offset, signal) => request({ operation: 'span', id, item, offset }, signal),
-    analysisGeometry: (id, signal) => request({ operation: 'geometry', id }, signal),
+    analysisGeometry: (id, signal, query) => request({ operation: 'geometry', id, ...(query ? { query } : {}) }, signal),
     analysisDiagnostics: (id, signal) => request({ operation: 'diagnostics', id }, signal),
     analysisImage: (id, image, signal) => binary({ operation: 'image', id, image }, signal),
     exportAnalysis: (id, signal) => binary({ operation: 'export', id }, signal),
@@ -36,31 +36,32 @@ export function analysisRemoteGateway(send: (input: AnalysisMediaRequest) => Pro
   }
 }
 
-export async function handleAnalysisMedia(gateway: AnalysisGateway, request: AnalysisMediaRequest) {
+export async function handleAnalysisMedia(gateway: AnalysisGateway, request: AnalysisMediaRequest, signal?: AbortSignal) {
   const binary = async (pending: Promise<Blob>) => {
     const blob = await pending
+    signal?.throwIfAborted()
     if (blob.size > 32 * 1024 * 1024) throw new Error('analysis_result_limit')
     return { bytes: await blob.arrayBuffer(), type: blob.type }
   }
   switch (request.operation) {
-    case 'action-context': return gateway.validateAnalysisAction(request.id, request.preview)
-    case 'full': return gateway.analysisFull(request.id)
-    case 'render': { const value = await gateway.renderAnalysisImage(request.id, request.query); return { ...await binary(Promise.resolve(value.blob)), metadata: value.metadata } }
+    case 'action-context': return gateway.validateAnalysisAction(request.id, request.preview, signal)
+    case 'full': return gateway.analysisFull(request.id, signal)
+    case 'render': { const value = await gateway.renderAnalysisImage(request.id, request.query, signal); return { ...await binary(Promise.resolve(value.blob)), metadata: value.metadata } }
     case 'submit': return gateway.submitAnalysis(request.input)
-    case 'list': return gateway.listAnalyses(request.query)
-    case 'storage': return gateway.analysisStorage()
+    case 'list': return gateway.listAnalyses(request.query, signal)
+    case 'storage': return gateway.analysisStorage(signal)
     case 'clear': return gateway.clearAnalyses()
-    case 'get': return gateway.getAnalysis(request.id)
+    case 'get': return gateway.getAnalysis(request.id, signal)
     case 'cancel': return gateway.cancelAnalysis(request.id)
     case 'delete': return gateway.deleteAnalysis(request.id)
-    case 'elements': return gateway.analysisElements(request.id, request.query)
-    case 'element': return gateway.analysisElement(request.id, request.item, request.offset)
-    case 'spans': return gateway.analysisSpans(request.id, request.query)
-    case 'span': return gateway.analysisSpan(request.id, request.item, request.offset)
-    case 'geometry': return gateway.analysisGeometry(request.id)
-    case 'diagnostics': return gateway.analysisDiagnostics(request.id)
-    case 'image': return binary(gateway.analysisImage(request.id, request.image))
-    case 'export': return binary(gateway.exportAnalysis(request.id))
+    case 'elements': return gateway.analysisElements(request.id, request.query, signal)
+    case 'element': return gateway.analysisElement(request.id, request.item, request.offset, signal)
+    case 'spans': return gateway.analysisSpans(request.id, request.query, signal)
+    case 'span': return gateway.analysisSpan(request.id, request.item, request.offset, signal)
+    case 'geometry': return gateway.analysisGeometry(request.id, signal, request.query)
+    case 'diagnostics': return gateway.analysisDiagnostics(request.id, signal)
+    case 'image': return binary(gateway.analysisImage(request.id, request.image, signal))
+    case 'export': return binary(gateway.exportAnalysis(request.id, signal))
   }
 }
 
