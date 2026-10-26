@@ -7,7 +7,7 @@ import type { RuntimeResourceBinding, RuntimeSSHProfileBinding } from '../contra
 import { builtinTool } from '../contracts/toolSources.ts'
 
 export function runtimeResourceIdentity(binding: RuntimeResourceBinding) {
-  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') return runtimeDesktopIdentity(binding)
+  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' || binding.kind === 'host_desktop') return runtimeDesktopIdentity(binding)
   // 只投影经过 Core 校验的路由身份，不把展示名称或历史内容提升为系统指令。
   return {
     binding_mode: 'exact', host_id: binding.host_id, kind: binding.kind,

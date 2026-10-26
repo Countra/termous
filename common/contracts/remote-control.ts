@@ -2,8 +2,15 @@ import type { JsonValue } from '@bufbuild/protobuf'
 import type { AppLanguage, AppTheme } from './application'
 import type { NotificationTarget } from './notification'
 import type { SettingsSnapshot } from './settings-center'
+import type { HostDesktopTarget } from './desktop-target'
+
+export interface HostDesktopAccess {
+  id: string; device_id: string; target: HostDesktopTarget; title: string
+  controlling: boolean; stopping: boolean
+}
 
 export interface RemoteConnection {
+	capabilities?: string[]
   id: string
   state: string
   scope: { connection_id: string; generation: string; controller_id: string; host_id: string }
@@ -20,6 +27,7 @@ export interface RemoteDevice {
   advertisement: { protocol: string; host_enabled: boolean; platform: string; policy_revision: string }
 }
 export interface RemotePolicy {
+	host_desktop?: { observe: boolean; control: boolean }
   revision: number; enabled: boolean
   agent_enabled?: boolean
   // 首次授权或清空授权后，后端的空切片可能序列化为 null。
@@ -46,12 +54,15 @@ export interface RemoteLocalSelection {
   directory?: boolean
 }
 export interface RemoteLauncher {
+  hostDesktopAccesses?(generation: string): Promise<RemoteResult<HostDesktopAccess[]>>
+  stopHostDesktopAccess?(generation: string, id: string): Promise<RemoteResult<unknown>>
   openAgent(generation: string, target: Extract<NotificationTarget, { kind: 'remote_agent' }>): Promise<RemoteResult<boolean>>
   open(generation: string, deviceId: string, deviceName: string): Promise<RemoteResult<boolean>>
   devices(generation: string): Promise<RemoteResult<RemoteDevice[]>>
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
   configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
+	configureHostDesktop?(generation: string, revision: number, observe: boolean, control: boolean): Promise<RemoteResult<RemotePolicy>>
   configureDesktops?(generation: string, revision: number, profiles: string[], exchangeProfiles?: string[]): Promise<RemoteResult<RemotePolicy>>
   desktopProfiles?(): Promise<RemoteResult<{ id: string; host_id: string; name: string; protocol: string }[]>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>

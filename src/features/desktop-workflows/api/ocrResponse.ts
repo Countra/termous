@@ -1,5 +1,5 @@
 import type { OCRPreview } from '#entities/desktop-workflow'
-import { isWorkflowOCRQuery } from '#common/contracts'
+import { isHostDesktopTarget, isWorkflowOCRQuery } from '#common/contracts'
 import { TermousApiError } from '#shared/api'
 
 export async function decodeOCRPreview(blob: Blob, contentType: string): Promise<OCRPreview> {
@@ -15,7 +15,7 @@ export async function decodeOCRPreview(blob: Blob, contentType: string): Promise
     image = png
   } catch { throw invalid() }
   const meta = result?.capture?.metadata; const observation = result?.observation
-  if (!meta || ![meta.width, meta.height].every(n => Number.isSafeInteger(n) && n > 0 && n <= 16384) || meta.width * meta.height > 16 * 1024 * 1024 || meta.desktop_width !== meta.width || meta.desktop_height !== meta.height || meta.region?.x !== 0 || meta.region.y !== 0 || meta.region.width !== meta.width || meta.region.height !== meta.height || ![meta.connection_generation, meta.display_epoch, meta.frame_sequence].every(n => Number.isSafeInteger(n) && n > 0) || typeof meta.captured_at !== 'string' || !Number.isFinite(Date.parse(meta.captured_at))) throw invalid()
+  if (!meta || ![meta.width, meta.height].every(n => Number.isSafeInteger(n) && n > 0 && n <= 16384) || meta.width * meta.height > 16 * 1024 * 1024 || meta.desktop_width !== meta.width || meta.desktop_height !== meta.height || meta.region?.x !== 0 || meta.region.y !== 0 || meta.region.width !== meta.width || meta.region.height !== meta.height || ![...(isHostDesktopTarget(meta.target) ? [] : [meta.connection_generation]), meta.display_epoch, meta.frame_sequence].every(n => Number.isSafeInteger(n) && n > 0) || typeof meta.captured_at !== 'string' || !Number.isFinite(Date.parse(meta.captured_at))) throw invalid()
   if (!observation || observation.width !== meta.width || observation.height !== meta.height || !Array.isArray(observation.spans) || observation.spans.length > 1000 || observation.recognized_count !== observation.spans.length || !Number.isInteger(observation.matched_count) || observation.matched_count < 0 || observation.matched_count > observation.recognized_count || !Number.isFinite(observation.duration_ms) || observation.duration_ms < 0 || !isWorkflowOCRQuery(observation.parameters)) throw invalid()
   if (typeof observation.truncated !== 'boolean' || !Array.isArray(observation.truncation_reasons) || observation.truncation_reasons.some(reason => !['ocr_candidate_limit', 'ocr_text_limit'].includes(reason)) || observation.truncated !== (observation.truncation_reasons.length > 0) || typeof observation.device !== 'string' || !['cpu', 'cuda', 'mps'].includes(observation.device) || typeof observation.fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(observation.fingerprint) || !Array.isArray(observation.selected_ids)) throw invalid()
   const selected = new Set(observation.selected_ids)

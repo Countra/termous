@@ -45,7 +45,8 @@ import { DesktopFilesPanel, type DesktopFilesTab } from './files/DesktopFilesPan
 import { DesktopAutomationStatus } from './DesktopAutomationStatus.tsx'
 import { RemoteDesktopWorkspaceActions, type RemoteDesktopWorkspaceTool } from './RemoteDesktopWorkspaceActions.tsx'
 import { RemoteDesktopDisplayControls } from './RemoteDesktopDisplayControls.tsx'
-import { DesktopPresentationControls, type PresentationSettings } from '#entities/remote-desktop'
+import { DesktopPresentationControls } from '#entities/desktop-presentation'
+import type { PresentationSettings } from '#entities/remote-desktop'
 
 export interface RemoteDesktopWorkspaceProps extends Omit<RemoteDesktopSessionTabsProps, 'onOpenLauncher' | 'onClose'> {
   onOpenConnectionLauncher?: () => void

@@ -1,5 +1,5 @@
 import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
-import type { AnalysisGateway } from '#common/contracts'
+import type { HostDesktopSource, HostDesktopTarget, AnalysisGateway } from '#common/contracts'
 import type { OCRParameters, OCRPreview, OCRQuery, OCRReportPage, OCRStepSummary, OCRTarget } from './ocr'
 
 export interface Point { x: number; y: number }
@@ -50,6 +50,7 @@ export interface SaveInput { expected_revision: number; name: string; descriptio
 export interface Diagnostic { step_id?: string; field: string; code: string }
 export interface Asset { id: string; run_id?: string; sha256: string; width: number; height: number; size: number; created_at: string }
 export interface Run {
+  target?: HostDesktopTarget
 	 origin?: 'app' | 'mcp'; initiator?: Author
   id: string; script_id: string; version: number; name: string; state: string; phase: string
   session_id?: string; target_name?: string; protocol?: string; step_id?: string
@@ -62,6 +63,7 @@ export interface StepResult {
   error_code?: string; asset_id?: string; evidence_cleared?: boolean; started_at: string; finished_at?: string
 }
 export interface StartInput {
+  target?: HostDesktopTarget
   script_id: string; version: number; request_id: string; session_id?: string; connection_generation?: number
   profile_id?: string; keep_connection?: boolean; takeover: boolean; debug: boolean
   parameters: Record<string, string | number | boolean>
@@ -81,7 +83,8 @@ export interface WorkflowGateway extends AnalysisGateway {
   validate(definition: Definition): Promise<Diagnostic[]>
   upload(file: Blob): Promise<Asset>
   asset(id: string, signal?: AbortSignal): Promise<Blob>
-  openPreview(session: string, generation: number): Promise<Preview>
+  hostSources?(signal?: AbortSignal): Promise<HostDesktopSource[]>
+  openPreview(session: string, generation: number, target?: HostDesktopTarget): Promise<Preview>
   closePreview(id: string): Promise<void>
   capture(id: string, signal?: AbortSignal): Promise<Snapshot>
   match(id: string, target: ImageTarget, signal?: AbortSignal): Promise<Located>

@@ -218,6 +218,7 @@ export function consumeAgentSlashCapture(value: string, owner: string, capture: 
 }
 
 function candidateSearchText(candidate: AgentSlashCandidate) {
+  if (candidate.kind === 'host_desktop') return [candidate.desktop_target.host.title, candidate.desktop_target.host.id, candidate.desktop_target.instance_id].join('\n').toLocaleLowerCase()
   if (candidate.kind === 'desktop_workflow') return [candidate.workflow_id, candidate.workflow_name, `v${candidate.workflow_version}`].join('\n').toLocaleLowerCase()
   const identity = candidate.kind === 'ssh_session' || candidate.kind === 'desktop_session'
     ? candidate.session_id

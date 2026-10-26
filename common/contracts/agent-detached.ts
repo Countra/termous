@@ -1,3 +1,4 @@
+import { isHostDesktopTarget } from './desktop-target.ts'
 export const agentDetachedCommands = [
   "workspace.onLoadOlder",
   "workspace.onLoadMessageText",
@@ -98,7 +99,7 @@ const noArgumentCommands = new Set<AgentDetachedCommandName>([
   'archive.onReloadPreview', 'archive.onLoadOlder', 'archive.onLoadNewer', 'readiness.onRefresh', 'readiness.onPrepare', 'reference.onConfirm', 'reference.onRetry',
   'reference.onDismiss', 'reference.onOpenSettings', 'management.onSearchRetry', 'management.onOpenArchives', 'surface.onRetry', 'surface.onRefreshSetup',
 ])
-const resourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow']
+const resourceKinds = ['host_desktop', 'ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow']
 
 export function isAgentDetachedNoArgumentCommand(name: AgentDetachedCommandName) {
   return noArgumentCommands.has(name)
@@ -107,6 +108,7 @@ export function isAgentDetachedNoArgumentCommand(name: AgentDetachedCommandName)
 function resourceReference(value: unknown) {
   if (!record(value) || !resourceKinds.includes(String(value.kind))) return false
   switch (value.kind) {
+    case 'host_desktop': return isHostDesktopTarget(value.desktop_target) && value.desktop_target.host.kind === 'screen'
     case 'ssh_session': return id(value.session_id)
     case 'ssh_profile': return id(value.ssh_profile_id)
     case 'file_profile': return id(value.file_access_profile_id)

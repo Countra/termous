@@ -1,21 +1,22 @@
 import { Alert, Checkbox, Input, InputNumber, Modal, Segmented, Select, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { Monitor, Play, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { hostDesktopTargetKey } from '#common/contracts'
 import { workflowError } from '../../model/messages'
 import { isTargetAvailable, sessionTarget, type WorkflowTarget } from '../../model/target'
 import type { WorkflowEnvironment, WorkflowLaunch } from '../../model/workspace/types'
 import styles from '../shared/WorkflowForms.module.scss'
 import layout from './RunDialog.module.scss'
 
-export function RunDialogView({ launch, environment: { sessions, profiles }, onTargetChange, onChange, onSubmit, onClose }: {
+export function RunDialogView({ launch, environment: { sessions, profiles, hostSources = [] }, onTargetChange, onChange, onSubmit, onClose }: {
   launch: WorkflowLaunch; environment: WorkflowEnvironment; onTargetChange: (target: WorkflowTarget) => void
   onChange: (patch: Partial<Pick<WorkflowLaunch, 'takeover' | 'keep' | 'parameters'>>) => void; onSubmit: () => Promise<void>; onClose: () => void
 }) {
   const { t } = useTranslation()
   const { target: selection, script, definition, debug, takeover, keep, parameters, busy, error } = launch
   const { mode, id: target } = selection
-  const available = isTargetAvailable(selection, sessions, profiles)
-  const setTarget = (id?: string) => onTargetChange(mode === 'session' ? sessionTarget(sessions, id) : { mode, id })
+  const available = isTargetAvailable(selection, sessions, profiles, hostSources)
+  const setTarget = (id?: string) => onTargetChange(mode === 'host' ? { mode, id, host: hostSources.find(source => hostDesktopTargetKey(source.target) === id)?.target } : mode === 'session' ? sessionTarget(sessions, id) : { mode, id })
   const unconfirmed = !!launch.request && !busy
   const setTakeover = (takeover: boolean) => onChange({ takeover })
   const setKeep = (keep: boolean) => onChange({ keep })
@@ -25,9 +26,10 @@ export function RunDialogView({ launch, environment: { sessions, profiles }, onT
       <div className={layout.identity}><Play size={18} /><strong>{script.name}</strong><span>v{script.revision}</span></div>
       <section className={layout.section}>
       <h4><Monitor size={15} />{t('desktopWorkflow.runTarget')}</h4>
-      <Segmented<'session' | 'profile'> block disabled={busy || unconfirmed} value={mode} options={[{ value: 'session', label: t('desktopWorkflow.existingSession') }, { value: 'profile', label: t('desktopWorkflow.savedProfile') }]} onChange={(value) => onTargetChange({ mode: value })} />
-      <Select aria-label={t('desktopWorkflow.selectTarget')} disabled={busy || unconfirmed} placeholder={t('desktopWorkflow.selectTarget')} value={target} onSelect={setTarget} options={mode === 'session' ? sessions.filter((s) => s.connection_generation > 0 && !['stopping', 'failed'].includes(s.status)).map((s) => ({ value: s.id, label: `${s.profile_name} · ${s.protocol.toUpperCase()} · ${s.id.slice(-8)}` })) : profiles.map((p) => ({ value: p.id, label: `${p.name} · ${p.protocol.toUpperCase()}` }))} />
+      <Segmented<'session' | 'profile' | 'host'> block disabled={busy || unconfirmed} value={mode} options={[{ value: 'host', label: t('hostDesktop.localDesktop') }, { value: 'session', label: t('desktopWorkflow.existingSession') }, { value: 'profile', label: t('desktopWorkflow.savedProfile') }]} onChange={(value) => onTargetChange({ mode: value })} />
+      <Select aria-label={t('desktopWorkflow.selectTarget')} disabled={busy || unconfirmed} placeholder={t('desktopWorkflow.selectTarget')} value={target} onSelect={setTarget} options={mode === 'host' ? hostSources.filter(source => !source.read_only).map(source => ({ value: hostDesktopTargetKey(source.target), label: source.name })) : mode === 'session' ? sessions.filter((s) => s.connection_generation > 0 && !['stopping', 'failed'].includes(s.status)).map((s) => ({ value: s.id, label: `${s.profile_name} · ${s.protocol.toUpperCase()} · ${s.id.slice(-8)}` })) : profiles.map((p) => ({ value: p.id, label: `${p.name} · ${p.protocol.toUpperCase()}` }))} />
       {target && !available && <Alert type="warning" title={t('desktopWorkflow.targetUnavailable')} />}
+      {mode === 'host' && <Alert type="info" title={t('hostDesktop.inputHint')} />}
       {mode === 'profile' && <Alert type="info" title={t('desktopWorkflow.reuseConnection')} description={t('desktopWorkflow.temporaryConnectionHint')} />}
       </section>
       <section className={layout.section}>

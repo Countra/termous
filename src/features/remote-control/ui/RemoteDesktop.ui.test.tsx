@@ -25,7 +25,7 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
     constructor(_gateway: unknown, _id: string, _generation: bigint, events: DesktopSessionEvents) { fixture.events = events }
     start(_target: unknown, _video: unknown, replace: boolean) {
       fixture.start(replace)
-      fixture.events?.state(create(DesktopStateSchema, { width: 1920, height: 1080, capabilities: ['resize'] }))
+      fixture.events?.state(create(DesktopStateSchema, { width: 1920, height: 1080, capabilities: ['resize', 'pointer', 'keyboard', 'text', 'clipboard', 'ctrl_alt_del', 'files'] }))
       fixture.events?.status('viewing')
       return Promise.resolve()
     }
@@ -63,7 +63,7 @@ test('文件准备只提交一次，观看停止后不展示迟到的交换区',
   fixture.openFileExchange.mockReturnValue(new Promise<typeof exchange>(resolve => { finish = resolve }))
   const client = desktopClient()
   const view = render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
-  const files = screen.getByRole('button', { name: 'RDP 文件交换' })
+  const files = await screen.findByRole('button', { name: 'RDP 文件交换' })
   await waitFor(() => expect(files).toBeEnabled())
   fireEvent.click(files); fireEvent.click(files)
   expect(fixture.openFileExchange).toHaveBeenCalledTimes(1)
@@ -87,7 +87,7 @@ test.each([
   const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
   fixture.openFileExchange.mockRejectedValue(new Error(code))
   render(<RemoteDesktop client={desktopClient()} session={session} active />, { wrapper: WithoutMotion })
-  const files = screen.getByRole('button', { name: 'RDP 文件交换' })
+  const files = await screen.findByRole('button', { name: 'RDP 文件交换' })
   await waitFor(() => expect(files).toBeEnabled())
   fireEvent.click(files)
   expect(await screen.findByRole('alert')).toHaveTextContent(message)

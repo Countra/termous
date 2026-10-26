@@ -16,6 +16,7 @@ export function unwrap<T>(value: RemoteResult<T>): T {
 
 export class RemoteClient {
   readonly presentations: DesktopPresentationPreferences
+	readonly hostPresentations: DesktopPresentationPreferences
   readonly hostIcons = new RemoteHostIcons(async value => {
     const response = await this.request({ operation: { case: 'hostIcon', value } })
     if (response.result.case !== 'hostIcon') throw new RemoteError('remote_host_icon_invalid')
@@ -26,6 +27,7 @@ export class RemoteClient {
   private stop?: () => void
   constructor(readonly bridge: RemoteWindowBridge, readonly connection: RemoteConnection, readDefaults?: () => Promise<PresentationDefaultsSnapshot>) {
     this.presentations = new DesktopPresentationPreferences(readDefaults ?? (() => readDesktopDefaults(bridge, connection.id)))
+    this.hostPresentations = new DesktopPresentationPreferences(readDefaults ?? (() => readDesktopDefaults(bridge, connection.id)))
   }
 
   start(closed: () => void) {
@@ -68,5 +70,5 @@ export class RemoteClient {
   async send(input: MessageInitShape<typeof StreamFrameSchema>) {
     unwrap(await this.bridge.send(toBinary(StreamFrameSchema, create(StreamFrameSchema, input)), this.connection.id))
   }
-  dispose() { this.presentations.clear(); this.hostIcons.dispose(); this.stop?.(); this.stop = undefined; this.streams.clear(); this.events.clear() }
+  dispose() { this.presentations.clear(); this.hostPresentations.clear(); this.hostIcons.dispose(); this.stop?.(); this.stop = undefined; this.streams.clear(); this.events.clear() }
 }

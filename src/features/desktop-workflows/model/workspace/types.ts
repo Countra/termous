@@ -1,4 +1,4 @@
-import type { AnalysisGateway, AnalysisPresentation, WorkflowEditorPanels } from '#common/contracts'
+import type { HostDesktopSource, AnalysisGateway, AnalysisPresentation, WorkflowEditorPanels } from '#common/contracts'
 import type { Definition, Diagnostic, Run, Script, StartInput, StepResult, Version, WorkflowGateway } from '#entities/desktop-workflow'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { WorkflowTarget } from '../target'
@@ -44,7 +44,7 @@ export interface WorkflowState {
   notice?: WorkflowNotice; busy: boolean; versions?: Version[]; chosenTarget?: WorkflowTarget
   presentation: WorkflowPresentation
 }
-export interface WorkflowEnvironment { sessions: WorkflowSession[]; profiles: WorkflowProfile[]; activeSessionId?: string }
+export interface WorkflowEnvironment { hostSources?: HostDesktopSource[]; sessions: WorkflowSession[]; profiles: WorkflowProfile[]; activeSessionId?: string }
 export interface WorkflowActions {
   create: (name: string) => void
   load: (id: string) => Promise<void>

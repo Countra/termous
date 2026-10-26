@@ -102,7 +102,7 @@ export function isRuntimeResourceBindings(value: unknown): value is RuntimeResou
       || isRuntimeFileResourceBinding(binding) || isRuntimeDesktopBinding(binding))
     && new Set(value.map((binding: RuntimeResourceBinding) => binding.kind)).size === value.length
     && value.filter((binding: RuntimeResourceBinding) => binding.kind === 'ssh_profile' || binding.kind === 'ssh_session').length <= 1
-    && value.filter((binding: RuntimeResourceBinding) => binding.kind === 'desktop_profile' || binding.kind === 'desktop_session').length <= 1
+    && value.filter((binding: RuntimeResourceBinding) => binding.kind === 'desktop_profile' || binding.kind === 'desktop_session' || binding.kind === 'host_desktop').length <= 1
 }
 
 export function normalizeRuntimeResourceBindings(value: unknown): boolean {
@@ -118,7 +118,7 @@ export function normalizeRuntimeResourceBindings(value: unknown): boolean {
   }
   // 兼容字段只在入口对账，冻结后的 Worker 会话只有一份规范状态。
   const order: Record<RuntimeResourceBinding['kind'], number> = {
-    ssh_session: 0, ssh_profile: 0, file_profile: 1, desktop_session: 2, desktop_profile: 2, desktop_workflow: 3,
+    ssh_session: 0, ssh_profile: 0, file_profile: 1, desktop_session: 2, desktop_profile: 2, host_desktop: 2, desktop_workflow: 3,
   }
   session.resource_bindings = [...bindings].sort((left, right) => order[left.kind] - order[right.kind])
   delete session.resource_binding

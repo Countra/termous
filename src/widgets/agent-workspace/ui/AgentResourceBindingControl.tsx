@@ -14,7 +14,7 @@ const resourceTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` 
 
 export function AgentResourceBindingControl(props: Parameters<typeof ConnectionResourceBindingControl>[0]) {
   const binding = props.context.binding
-  if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') {
+  if (binding.kind === 'host_desktop' || binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow') {
     return <AgentDesktopReferenceControl {...props} binding={binding} />
   }
   return <ConnectionResourceBindingControl {...props} />

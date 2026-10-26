@@ -33,13 +33,13 @@ export class WorkflowExecution {
   start = async () => {
     let launch = this.state.launch
     if (!launch || launch.busy) return
-    if (!launch.request && !isTargetAvailable(launch.target, this.environment.sessions, this.environment.profiles)) return
+    if (!launch.request && !isTargetAvailable(launch.target, this.environment.sessions, this.environment.profiles, this.environment.hostSources)) return
     const serial = this.launchSerial
     const { target, script } = launch
     launch = { ...launch, busy: true, error: undefined, request: launch.request ?? {
       script_id: script.id, version: script.revision, parameters: launch.parameters, takeover: launch.takeover,
       keep_connection: launch.keep, debug: launch.debug, request_id: crypto.randomUUID(),
-      ...(target.mode === 'session' ? { session_id: target.id, connection_generation: target.connectionGeneration } : { profile_id: target.id }),
+      ...(target.mode === 'host' ? { target: target.host } : target.mode === 'session' ? { session_id: target.id, connection_generation: target.connectionGeneration } : { profile_id: target.id }),
     } }
     this.update({ launch })
     try {

@@ -79,6 +79,15 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    ipcMain.handle('remote:host-desktop-accesses', (event, generation: string) => result(async () => {
+      this.main(event, generation)
+      return this.options.core.request(`/remote-control/host-desktop-accesses?generation=${encodeURIComponent(generation)}`)
+    }))
+    ipcMain.handle('remote:stop-host-desktop-access', (event, generation: string, id: string) => result(async () => {
+      this.main(event, generation)
+      if (!validId(id)) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request(`/remote-control/host-desktop-accesses/${encodeURIComponent(id)}/stop`, { generation })
+    }))
     // 只允许远控窗口的主 frame 操作其自身窗口，窗口按钮不依赖远端连接状态。
     ipcMain.handle('remote:window-minimize', event => result(async () => {
       this.own(event).window.minimize()
@@ -108,6 +117,11 @@ export class RemoteControlRuntime {
       if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean') throw new RemoteCoreError('remote_invalid_request')
       return this.options.core.request<RemotePolicy>('/remote-control/agent-policy', { generation, revision, enabled }, 'PUT')
     }))
+	  ipcMain.handle('remote:configure-host-desktop', (event, generation: string, revision: number, observe: boolean, control: boolean) => result(async () => {
+		this.main(event, generation)
+		if (!Number.isSafeInteger(revision) || revision < 0 || typeof observe !== 'boolean' || typeof control !== 'boolean' || control && !observe) throw new RemoteCoreError('remote_invalid_request')
+		return this.options.core.request<RemotePolicy>('/remote-control/host-desktop-policy', { generation, revision, observe, control }, 'PUT')
+	  }))
     ipcMain.handle('remote:agent-upload', (event, data: unknown, mime: unknown, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)
       return this.agentContent.upload(base, entry.bootstrap.generation, data, mime)

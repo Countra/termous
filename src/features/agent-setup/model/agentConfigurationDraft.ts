@@ -11,6 +11,9 @@ export interface AgentConfigurationDraft {
   connectOnBind: boolean
   showTokenUsage: boolean
   approvalBypass: boolean
+  hostRead: boolean
+  hostCapture: boolean
+  hostControl: boolean
   budgetEnabled: boolean
   model_requests: number | null
   total_tokens: number | null
@@ -35,6 +38,9 @@ export function createAgentConfigurationDraft(settings: AgentSettings, policy?: 
     connectOnBind: settings.connect_ssh_profile_on_bind,
     showTokenUsage: settings.show_turn_token_usage,
     approvalBypass: policy?.approval_bypass ?? false,
+    hostRead: policy?.host_desktop?.read ?? false,
+    hostCapture: policy?.host_desktop?.capture ?? false,
+    hostControl: policy?.host_desktop?.control ?? false,
     budgetEnabled: budget.enabled,
     ...budget.limits,
   }

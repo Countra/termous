@@ -8,6 +8,7 @@ import { getTermousBridge } from '#shared/bridge'
 import { unwrap } from '#entities/remote-control'
 import { remoteCopy, remoteErrorText } from '../model/copy'
 import { RemoteAccessDialog } from './RemoteAccessDialog'
+import { HostDesktopAccesses } from './HostDesktopAccesses'
 import styles from './RemoteAccountAccess.module.scss'
 
 interface Props {
@@ -29,7 +30,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [working, setWorking] = useState<'save' | 'agent' | 'directory' | 'desktop'>()
+  const [working, setWorking] = useState<'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop'>()
   const [mustRefresh, setMustRefresh] = useState(false)
   const [updated, setUpdated] = useState(false)
   const [error, setError] = useState<unknown>()
@@ -87,7 +88,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     ++editor.current
     setOpen(false); setLoading(false); setError(undefined)
   }
-  const changePolicy = async (operation: 'save' | 'agent' | 'directory' | 'desktop', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
+  const changePolicy = async (operation: 'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
     if (!api || !trusted || !policy || loading || pending.current || mustRefresh) return
     const scope = lifetime.current
     const request = editor.current
@@ -134,6 +135,8 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     })}
     {connectionError ? <FeedbackMessage type="warning" title={remoteErrorText(copy, connectionError)} onClose={() => setConnectionError(undefined)} /> : null}
     <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
+      hostDesktopAccesses={open && api ? <HostDesktopAccesses api={api} generation={generation} /> : undefined}
+	  onHostDesktop={api?.configureHostDesktop ? (observe, control) => void changePolicy('host-desktop', revision => api.configureHostDesktop!(generation, revision, observe, control)) : undefined}
       desktops={desktops} selectedDesktops={selectedDesktops} onSelectDesktops={value => { setSelectedDesktops(value); setSelectedExchanges(current => current.filter(id => value.includes(id))) }}
       selectedExchanges={selectedExchanges} onSelectExchanges={setSelectedExchanges}
       onDesktops={api?.configureDesktops ? () => void changePolicy('desktop', revision => api.configureDesktops!(generation, revision, selectedDesktops, selectedExchanges)) : undefined}

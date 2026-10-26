@@ -1,3 +1,4 @@
+import { hostDesktopTargetKey, type HostDesktopSource } from '#common/contracts'
 import { Alert, Button, Select, Spin, Tooltip } from 'antd'
 import { ImagePlus, Monitor, RefreshCw, ScanSearch } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -18,9 +19,9 @@ import { OCRPreviewPanel } from './OCRPreviewPanel'
 import { OCROverlay } from './OCROverlay'
 import { OCRScopeControl } from './OCRScopeControl'
 
-interface Props { slot?: ImageSlot; onSlotChange?: (slot: ImageSlot) => void; analysisTransfer?: AnalysisTransfer; onTransferApplied?: () => void; enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
+interface Props { hostSources?: HostDesktopSource[]; slot?: ImageSlot; onSlotChange?: (slot: ImageSlot) => void; analysisTransfer?: AnalysisTransfer; onTransferApplied?: () => void; enabled?: boolean; target: WorkflowTarget; onTargetChange: (target: WorkflowTarget) => void; gateway: WorkflowMediaGateway; sessions: WorkflowSession[]; step?: Step; onChange: (id: string, edit: (step: Step) => Step) => void; onMediaTask?: (task: Promise<unknown>) => void }
 
-export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTransfer, onTransferApplied, target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true }: Props) {
+export function ScreenshotEditor({ hostSources = [], slot: externalSlot, onSlotChange, analysisTransfer, onTransferApplied, target: desktopTarget, onTargetChange, gateway, sessions, step, onChange, onMediaTask, enabled = true }: Props) {
   const { t } = useTranslation()
   const session = desktopTarget.mode === 'session' ? desktopTarget.id : undefined
   const [preview, setPreview] = useState<string>()
@@ -41,6 +42,7 @@ export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTra
   const epoch = useRef(0)
   const selectionVersion = useRef(0)
   const fileInput = useRef<HTMLInputElement>(null)
+  const host = desktopTarget.mode === 'host' && isTargetAvailable(desktopTarget, sessions, [], hostSources) ? desktopTarget.host : undefined
   const generation = isTargetAvailable(desktopTarget, sessions) ? desktopTarget.connectionGeneration : undefined
   const activeSlot: ImageSlot = step?.kind.startsWith('image.') || step?.kind.startsWith('ocr.') || step?.kind === 'if' ? 'image' : step?.kind === 'pointer.drag' ? slot : 'target'
   const target = step && stepImage(step, activeSlot)
@@ -76,9 +78,9 @@ export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTra
     request.current?.abort(); request.current = controller
     working.current = false
     setPreview(undefined); setSnapshot(undefined); setMatched(undefined); setError(undefined)
-    if (!enabled || !session || !generation) { setBusy(false); return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort() } }
+    if (!enabled || (!host && (!session || !generation))) { setBusy(false); return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort() } }
     setBusy(true)
-    void gateway.openPreview(session, generation).then(async (value) => {
+    void (host ? gateway.openPreview('', 0, host) : gateway.openPreview(session!, generation!)).then(async (value) => {
       id = value.id
       if (closed) return
       setPreview(id)
@@ -89,7 +91,7 @@ export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTra
       else close()
     })
     return () => { closed = true; epoch.current = version + 1; request.current?.abort(); controller.abort(); close() }
-  }, [enabled, gateway, session, generation, previewRevision])
+  }, [enabled, gateway, session, generation, host, previewRevision])
 
   useEffect(() => {
     if (!snapshot) { setURL(undefined); return }
@@ -189,7 +191,7 @@ export function ScreenshotEditor({ slot: externalSlot, onSlotChange, analysisTra
   return <section data-tour="automation-preview" data-analysis={!!currentOCR} className={styles['screen-panel']} aria-label={t('desktopWorkflow.screen')}>
     <header className={styles['screen-toolbar']}>
       <Monitor size={16} className={styles['screen-icon']} />
-      <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={session || undefined} options={sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))} onSelect={(value) => onTargetChange(sessionTarget(sessions, value))} onClear={() => onTargetChange({ mode: 'session' })} />
+      <Select aria-label={t('desktopWorkflow.selectSession')} className={styles['session-select']} allowClear placeholder={t('desktopWorkflow.selectSession')} value={host ? hostDesktopTargetKey(host) : session || undefined} options={[...hostSources.map(source => ({ value: hostDesktopTargetKey(source.target), label: `${t('hostDesktop.localDesktop')} · ${source.name}` })), ...sessions.filter((item) => item.connection_generation > 0 && !['failed', 'stopping'].includes(item.status)).map((item) => ({ value: item.id, label: `${item.profile_name} · ${item.protocol.toUpperCase()} · ${item.id.slice(-8)}` }))]} onSelect={(value) => { const source = hostSources.find(source => hostDesktopTargetKey(source.target) === value); onTargetChange(source ? { mode: 'host', id: value, host: source.target } : sessionTarget(sessions, value)) }} onClear={() => onTargetChange({ mode: 'session' })} />
       <Tooltip title={t('desktopWorkflow.refresh')}><Button type="text" aria-label={t('desktopWorkflow.refresh')} icon={<RefreshCw size={15} />} disabled={!preview || busy} onClick={() => { void perform(async (signal) => { const shot = await gateway.capture(preview!, signal); if (!signal.aborted) { setSnapshot(shot); setMatched(undefined) } }) }} /></Tooltip>
       {ocrQuery && <Button size="small" disabled={!preview || busy || ocrBound || ocrEditing || staleOCRScope} onClick={() => {void perform(ocr.test)}}>{t('desktopWorkflow.ocr.test')}</Button>}
     </header>

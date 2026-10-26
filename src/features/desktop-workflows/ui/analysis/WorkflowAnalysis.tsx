@@ -1,3 +1,4 @@
+import { hostDesktopTargetKey } from '#common/contracts'
 import { Alert, App, Button, Dropdown, Modal, Select, Tag, Tooltip } from 'antd'
 import { Download, Info, MoreHorizontal, RotateCw, ScanSearch, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,6 +48,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
   const closing = useRef(false)
   const latest = useRef({ model, state, slot, onApplied }); latest.current = { model, state, slot, onApplied }
   const targetKey = JSON.stringify(model.target)
+  const captureKey = model.target.host ? hostDesktopTargetKey(model.target.host) : `${model.target.id}:${model.target.connectionGeneration}`
   const liveTarget = session.current?.live?.key
   const reportError = useCallback((reason: unknown) => setError(reason instanceof Error ? reason.message : t('analysisCenter.operationFailed')), [t])
   useEffect(() => {
@@ -60,7 +62,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
       void owner.dispose().catch(reason => console.warn('[termous:workflow] 分析预览清理失败', reason))
     }
   }, [gateway])
-  useEffect(() => { if (liveTarget && liveTarget !== `${model.target.id}:${model.target.connectionGeneration}`) void session.current?.release().catch(reportError) }, [liveTarget, targetKey, model.target.id, model.target.connectionGeneration, reportError])
+  useEffect(() => { if (liveTarget && liveTarget !== captureKey) void session.current?.release().catch(reportError) }, [liveTarget, captureKey, reportError])
   const change = useCallback((patch: Partial<AnalysisPresentation>) => {
     const current = latest.current
     // 独立窗口确认可能晚于关闭意图；迟到的布局回报不能重新打开弹层。
@@ -100,8 +102,8 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     change({ id: value.id, layer: value.parameters.detector_enabled ? 'elements' : 'ocr', filter: {}, selected: undefined, history: false })
   }
   const analyze = () => perform(async owner => {
-    if (!isTargetAvailable(model.target, model.environment.sessions) || !model.target.id || !model.target.connectionGeneration) throw new Error(t('desktopWorkflow.targetUnavailable'))
-    await owner.submit({ id: model.target.id, generation: model.target.connectionGeneration }, mode ? analysisModeParameters(mode) : undefined, value => submitted(value, owner))
+    if (!isTargetAvailable(model.target, model.environment.sessions, [], model.environment.hostSources)) throw new Error(t('desktopWorkflow.targetUnavailable'))
+    await owner.submit({ id: model.target.id ?? '', generation: model.target.connectionGeneration ?? 0, target: model.target.host }, mode ? analysisModeParameters(mode) : undefined, value => submitted(value, owner))
   })
   const reanalyze = (parameters: ScreenAnalysisParameters) => perform(async owner => { if (record) submitted(await owner.reanalyze(record.id, parameters), owner) })
   const cancel = () => {
@@ -173,12 +175,12 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
       classNames={{ container: styles.dialog, body: styles.body, header: styles.header }} onCancel={close} mask={{ closable: false }} destroyOnHidden closable={!applying} keyboard={!applying}>
       {state.open && active && <>
         <div className={styles.toolbar}>
-          <Select className={styles.sessions} aria-label={t('desktopWorkflow.selectSession')} placeholder={t('desktopWorkflow.selectSession')} value={model.target.mode === 'session' ? model.target.id : undefined} disabled={busy}
-            options={model.environment.sessions.filter(s => s.connection_generation > 0 && !['failed', 'stopping'].includes(s.status)).map(s => ({ value: s.id, label: [s.host_name, s.profile_name].filter(Boolean).join(' · ') || s.id }))}
-            onChange={id => model.actions.target(sessionTarget(model.environment.sessions, id))} />
+          <Select className={styles.sessions} aria-label={t('desktopWorkflow.selectSession')} placeholder={t('desktopWorkflow.selectSession')} value={model.target.host ? hostDesktopTargetKey(model.target.host) : model.target.mode === 'session' ? model.target.id : undefined} disabled={busy}
+            options={[...(model.environment.hostSources ?? []).map(source => ({ value: hostDesktopTargetKey(source.target), label: `${t('hostDesktop.localDesktop')} · ${source.name}` })), ...model.environment.sessions.filter(s => s.connection_generation > 0 && !['failed', 'stopping'].includes(s.status)).map(s => ({ value: s.id, label: [s.host_name, s.profile_name].filter(Boolean).join(' · ') || s.id }))]}
+            onChange={id => { const source = model.environment.hostSources?.find(source => hostDesktopTargetKey(source.target) === id); model.actions.target(source ? { mode: 'host', id, host: source.target } : sessionTarget(model.environment.sessions, id)) }} />
           <Select className={styles.mode} value={mode} allowClear disabled={busy} placeholder={t('desktopWorkflow.analysisWorkspace.settingsMode')} aria-label={t('settings.screenAnalysis.mode')}
             options={(['combined', 'detector', 'ocr'] as const).map(value => ({ value, label: t(`settings.screenAnalysis.modes.${value}`) }))} onChange={setMode} />
-          <Button type="primary" icon={<ScanSearch size={15} />} loading={busy} disabled={!isTargetAvailable(model.target, model.environment.sessions) || !!record && !analysisTerminal(record.state)} onClick={() => void analyze()}>{t('desktopWorkflow.analysisWorkspace.analyze')}</Button>
+          <Button type="primary" icon={<ScanSearch size={15} />} loading={busy} disabled={!isTargetAvailable(model.target, model.environment.sessions, [], model.environment.hostSources) || !!record && !analysisTerminal(record.state)} onClick={() => void analyze()}>{t('desktopWorkflow.analysisWorkspace.analyze')}</Button>
           <div className={styles.spacer} /><AnalysisRuntimeStatusView gateway={gateway} state={runtime} onError={reportError} />
           <Dropdown trigger={['click']} placement="bottomRight" classNames={{ root: contextActionMenuPopupClassName }} menu={{ rootClassName: contextActionMenuPopupClassName, items: [
             { key: 'parameters', icon: <RotateCw size={14} />, label: t('analysisCenter.reanalyze'), disabled: busy || !record?.sha256 || !analysisTerminal(record.state) },

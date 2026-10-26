@@ -309,3 +309,17 @@ test('片段分组重排携带读到的修订，重传不使用更新后的分�
   await h.run(reorder.name, 'order', { items: [{ id: 'group', sort_order: 3 }] })
   assert.deepEqual(h.calls[h.calls.length - 1]!.args.items, [{ id: 'group', sort_order: 3, expected_updated_at: 'old' }])
 })
+
+
+test('本机截图准备通过精确来源发现附着，不查询或建立协议连接', async () => {
+  const target = { kind: 'host_desktop' as const, instance_id: 'core', host: { id: 'screen', kind: 'screen' as const, title: 'Screen', generation: 1 } }
+  const binding = { kind: 'host_desktop' as const, desktop_target: target, host_name: '' as const, bound_at: desktop.bound_at }
+  const sources = definition('termous.desktops.sources', { kind: string }, ['kind'])
+  const hostAttach = definition(attach.name, { target: { type: 'object' }, client_request_id: string }, ['target', 'client_request_id'], false)
+  const h = harness([sources, hostAttach, get, capture], name => name === sources.name ? { sources: [{ target }] }
+    : name === hostAttach.name ? { attachment: { id: 'host-a', target, state: 'ready' } } : { capture: { screenshot_id: 'shot' } }, [binding])
+  assert.ok(output(await h.run(capture.name, 'host-shot', {})).capture)
+  assert.deepEqual(h.calls.map(value => value.name), [sources.name, hostAttach.name, capture.name])
+  assert.deepEqual(h.calls[1]!.args.target, target)
+  assert.equal(h.calls[1]!.args.session_id, undefined)
+})

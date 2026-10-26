@@ -1,7 +1,7 @@
 import { Alert, Button } from 'antd'
 import { Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { DesktopQualityDefaultsEditor } from '#entities/remote-desktop'
+import { DesktopQualityDefaultsEditor } from '#entities/desktop-presentation'
 import { usePresentationDefaultsEditor } from '../../model/usePresentationDefaultsEditor'
 import { SettingsGroup } from '../controls/SettingsGroup'
 import styles from './PresentationDefaultsSettings.module.scss'

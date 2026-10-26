@@ -5,7 +5,7 @@ import type { AgentMessageResource } from '#entities/agent'
 import { uiStyles } from '#shared/ui'
 import styles from './AgentMessageResources.module.scss'
 
-const resourceIcons = { ssh_session: TerminalSquare, ssh_profile: ServerCog, file_profile: FolderOpen, desktop_session: Monitor, desktop_profile: Monitor, desktop_workflow: Workflow }
+const resourceIcons = { host_desktop: Monitor, ssh_session: TerminalSquare, ssh_profile: ServerCog, file_profile: FolderOpen, desktop_session: Monitor, desktop_profile: Monitor, desktop_workflow: Workflow }
 const maxResourceNameCharacters = 16
 const tooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` }
 

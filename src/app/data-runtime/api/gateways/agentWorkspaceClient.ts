@@ -46,11 +46,21 @@ import type {
 } from '#entities/agent'
 import { getTermousBridge } from '#shared/bridge'
 import { AgentSetupClient } from './agentSetupClient.ts'
+import { isHostDesktopTarget } from '#common/contracts'
 
 const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  async hostDesktopSources(signal?: AbortSignal) {
+    const value = await this.request<unknown>(`${agentPath}/host-desktop-sources`, { signal })
+    if (!Array.isArray(value)) throw new Error('agent_resource_invalid')
+    return value.map((source: unknown) => {
+      const target = source && typeof source === 'object' && 'target' in source ? source.target : undefined
+      if (!isHostDesktopTarget(target) || target.host.kind !== 'screen') throw new Error('agent_resource_invalid')
+      return target
+    })
+  }
   readonly timelineSupported = true
   private readonly runtimeBridge?: AgentRuntimeBridge
 

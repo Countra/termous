@@ -137,7 +137,9 @@ function decodeComponent(value: unknown): AgentReadinessComponent {
 
 export function decodeAgentMcpPolicy(value: unknown): AgentMcpPolicy {
   const source = record(value, 'Agent MCP 策略响应无效')
+  const host = source.host_desktop === undefined ? undefined : record(source.host_desktop, 'Agent 本机权限无效')
   return {
+    ...(host ? { host_desktop: { read: boolean(host.read, 'Agent 本机发现权限无效'), capture: boolean(host.capture, 'Agent 本机画面权限无效'), control: boolean(host.control, 'Agent 本机控制权限无效') } } : {}),
     client_id: string(source.client_id, 'Agent MCP 客户端 ID 缺失', false, 128),
     approval_bypass: boolean(source.approval_bypass, 'Agent MCP 审批策略无效'),
     scope_count: integer(source.scope_count, 'Agent MCP 权限数量无效'),

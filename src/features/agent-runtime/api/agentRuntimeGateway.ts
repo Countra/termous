@@ -62,6 +62,7 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  hostDesktopSources?(signal?: AbortSignal): Promise<import('#common/contracts').HostDesktopTarget[]>
   readonly timelineSupported?: boolean
   readonly runtimeOwnedByHost?: boolean
   subscribeWorkspace?(observer: AgentWorkspaceObserver): AgentWorkspaceSubscription
@@ -140,6 +141,7 @@ export interface AgentWorkspaceGateway {
   steerRuntime(run: Pick<AgentRun, 'id' | 'generation'>, message: string): Promise<AgentRuntimeCommandResult>
   onRuntimeStatus(callback: (status: AgentRuntimeStatus) => void): () => void
   updateMcpPolicy(input: {
+    host_desktop?: { read: boolean; capture: boolean; control: boolean }
     approval_bypass: boolean
     sync_scopes: boolean
     expected_revision: number

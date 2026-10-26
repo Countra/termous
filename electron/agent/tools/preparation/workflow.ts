@@ -1,6 +1,7 @@
 import { isRecord } from '../../contracts/validation.ts'
 import { defaultValue, fail, item, type Arguments, type PreparationContext } from './contracts.ts'
 import { desktopSession, prepareDesktop } from './desktop.ts'
+import { hasHostDesktopTarget, hostDesktopTarget } from './hostDesktop.ts'
 
 export async function prepareWorkflow(ctx: PreparationContext, args: Arguments) {
   if (ctx.name !== 'termous.desktop_workflows.runs.start') {
@@ -22,6 +23,10 @@ export async function prepareWorkflow(ctx: PreparationContext, args: Arguments) 
       snapshot = { version: version.number }
     }
     defaultValue(args, 'version', snapshot.version)
+  }
+  if (hasHostDesktopTarget(ctx, args)) {
+    defaultValue(args, 'target', await hostDesktopTarget(ctx, args))
+    return
   }
   const session = await desktopSession(ctx, args, true)
   // 固定为本次已经核验的会话；Core 在审批后再次验证连接代次。

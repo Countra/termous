@@ -113,7 +113,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
               onCopy={(id) => change({ definition: { ...draft.definition, steps: copyStep(draft.definition.steps, id) } })}
               onRemove={(id) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, () => undefined) } })}
               onToggle={(id, disabled) => change({ definition: { ...draft.definition, steps: editStep(draft.definition.steps, id, (value) => ({ ...value, disabled })) } })} />} >
-            <ScreenshotEditor slot={analysisSlot} onSlotChange={setAnalysisSlot} analysisTransfer={analysisTransfer?.editingID === draft.editingID ? analysisTransfer : undefined} onTransferApplied={() => setAnalysisTransfer(undefined)} key={draft.editingID} enabled={!guided} gateway={gateway} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
+            <ScreenshotEditor slot={analysisSlot} onSlotChange={setAnalysisSlot} analysisTransfer={analysisTransfer?.editingID === draft.editingID ? analysisTransfer : undefined} onTransferApplied={() => setAnalysisTransfer(undefined)} key={draft.editingID} enabled={!guided} gateway={gateway} hostSources={model.environment.hostSources} sessions={sessions} target={target} onTargetChange={actions.target} step={step} onMediaTask={onMediaTask} onChange={(id, edit) => {
               const latest = current.current.state.draft
               if (latest?.editingID === draft.editingID) current.current.actions.change({ definition: { ...latest.definition, schema_version:2, steps: editStep(latest.definition.steps, id, edit) } })
             }} />

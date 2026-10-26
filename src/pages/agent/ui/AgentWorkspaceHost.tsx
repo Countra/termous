@@ -1,3 +1,4 @@
+import { useAgentHostDesktopSources } from '../model/host/useAgentHostDesktopSources.ts'
 import type { AgentDesktopResourceState } from '#entities/agent'
 import {
   isAgentModelRunnable,
@@ -73,10 +74,10 @@ export function AgentWorkspaceHost({
   fileResources = [],
   fileResourcesReady = sshResourcesReady,
   sshProfileResourcesReady = fileResourcesReady,
-  desktopResources = [],
+  desktopResources: providedDesktopResources = [],
   desktopResourcesReady = false,
   workflowResourcesReady = false,
-  slashCandidates = noSlashCandidates,
+  slashCandidates: providedSlashCandidates = noSlashCandidates,
   enabled,
   active,
   launchIntent,
@@ -169,6 +170,9 @@ export function AgentWorkspaceHost({
   notificationRef.current = notification
   tRef.current = t
   const { readiness, setReadiness, providers, models, setupLoading, draftModelId, setDraftModelId, draftReasoningLevel, setDraftReasoningLevel, activeSetupEpochRef, activeSetupReadyEpochRef, activeSetupAbortRef, acceptSetupSnapshot, markActiveSetupReady, hydrateActiveSetup, activeSetupReady, activeSetupFailed } = useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active })
+  const hostSources = useAgentHostDesktopSources(gateway, enabled && active && !remote && readiness?.mcp_policy?.host_desktop?.read === true)
+  const desktopResources = useMemo(() => [...providedDesktopResources, ...hostSources.resources], [providedDesktopResources, hostSources.resources])
+  const slashCandidates = useMemo(() => ({ ...providedSlashCandidates, session: { ...providedSlashCandidates.session, desktop: [...(providedSlashCandidates.session.desktop ?? []), ...hostSources.candidates] } }), [providedSlashCandidates, hostSources.candidates])
 
   const providerById = useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),

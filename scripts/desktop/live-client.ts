@@ -1,6 +1,7 @@
 import { create, fromJson, toJson } from '@bufbuild/protobuf'
 import { ResponseSchema } from '@termous/remote-protocol'
 import { DesktopRequestSchema, type DesktopAttachment } from '@termous/remote-protocol/desktop-protocol'
+import { DesktopPresentationPreferences } from '@termous/remote-protocol/presentation'
 import type { RemoteClient } from '#entities/remote-control'
 
 // 仅供显式启动的本机联调页面使用，不输出凭据、票据或输入正文。
@@ -12,6 +13,9 @@ export const liveAPI = async (path: string, body?: unknown) => {
 
 let attachment: DesktopAttachment | undefined
 export const liveClient = {
+	connection: { capabilities: ['desktop-v1', 'desktop-h264-v1', 'desktop-rfb-v1', 'desktop-presentation-v1', 'host-desktop-v1'] },
+  presentations: new DesktopPresentationPreferences(),
+  hostPresentations: new DesktopPresentationPreferences(),
   desktop: async (input: Parameters<RemoteClient['desktop']>[0]) => {
     const response = fromJson(ResponseSchema, await liveAPI('request', toJson(DesktopRequestSchema, create(DesktopRequestSchema, input))))
     if (response.error) throw new Error(response.error.code)
@@ -25,7 +29,7 @@ export const liveClient = {
 export async function captureLiveDesktop() {
   const a = attachment
   if (!a) throw new Error('live_attachment_unavailable')
-  const request = (input: Parameters<RemoteClient['desktop']>[0]) => liveClient.desktop({ sessionId: a.sessionId, connectionGeneration: a.connectionGeneration, attachmentId: a.id, mediaGeneration: a.mediaGeneration, ...input })
+  const request = (input: Parameters<RemoteClient['desktop']>[0]) => liveClient.desktop({ target: a.target, sessionId: a.sessionId, connectionGeneration: a.connectionGeneration, attachmentId: a.id, mediaGeneration: a.mediaGeneration, ...input })
   const { image } = await request({ action: 'capture', capture: { maxWidth: 1280, maxHeight: 720 } })
   if (!image || image.totalBytes === 0 || image.totalBytes > 32 * 1024 * 1024) throw new Error('live_capture_invalid')
   const pixels = new Uint8Array(image.totalBytes)

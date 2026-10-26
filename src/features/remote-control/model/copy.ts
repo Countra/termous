@@ -1,6 +1,7 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
+	deviceDesktop: 'Device desktop',
   desktopExchange: 'RDP file exchange', desktopExchangeHint: 'Allow transfers through a dedicated exchange folder. Personal mapped folders and local file clipboard are suspended during remote access.',
   desktopExchangeUsage: 'Files are placed in the exchange folder. Copy them to the target disk from the remote desktop.',
   desktopTargetLocation: 'Open in the target Windows desktop', desktopFileSearch: 'Search this folder', desktopSelected: 'selected', desktopEntries: 'items',
@@ -121,6 +122,7 @@ const zh: typeof en = {
   retainedFilesEmpty: '暂无暂存文件', retainedFilesEmptyHint: '桌面文件交换结束后，保留的文件会显示在这里。',
   browseFiles: '查看文件', backToRetainedFiles: '返回暂存列表', expires: '到期时间',
   scrollTabsLeft: '向左滚动会话', scrollTabsRight: '向右滚动会话',
+	deviceDesktop: '设备桌面',
   desktop: '远程桌面', newDesktop: '打开桌面', desktopAccess: '桌面访问', saveDesktops: '保存桌面授权',
   desktopAccessHint: '先保存主机授权，再单独选择桌面配置。已有主机授权不会自动开放桌面访问。',
   desktopCredentialHint: 'VNC 授权包含完整交互，并允许控制端在本次连接中使用已保存的 VNC 密码。RDP 密码始终保留在被控端。',

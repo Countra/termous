@@ -67,11 +67,14 @@ export function useAgentConfiguration(runtime: AgentSetupController, readiness: 
     setSaving(true)
     setFailed(false)
     try {
-      const settingsChanged = !sameAgentConfiguration({ ...confirmed, approvalBypass: draft.approvalBypass }, draft)
-      const policyChanged = Boolean(baseline.mcp_policy && draft.approvalBypass !== confirmed.approvalBypass)
+      const settingsChanged = !sameAgentConfiguration({ ...confirmed, approvalBypass: draft.approvalBypass, hostRead: draft.hostRead, hostCapture: draft.hostCapture, hostControl: draft.hostControl }, draft)
+      const hostChanged = draft.hostRead !== confirmed.hostRead || draft.hostCapture !== confirmed.hostCapture || draft.hostControl !== confirmed.hostControl
+      const policyChanged = Boolean(baseline.mcp_policy && (draft.approvalBypass !== confirmed.approvalBypass || hostChanged))
       const result = await runtime.saveConfiguration(
         settingsChanged ? { ...agentConfigurationSettings(draft), expected_revision: baseline.settings.revision } : undefined,
-        policyChanged ? { approval_bypass: draft.approvalBypass, sync_scopes: false, expected_revision: baseline.mcp_policy!.revision } : undefined,
+        policyChanged ? { approval_bypass: draft.approvalBypass, sync_scopes: false, expected_revision: baseline.mcp_policy!.revision,
+          ...(hostChanged ? { host_desktop: { read: draft.hostRead, capture: draft.hostCapture, control: draft.hostControl } } : {}),
+        } : undefined,
       )
       if (!active.current) return false
       const next = { ...baseline, settings: result.settings, mcp_policy: result.policy }

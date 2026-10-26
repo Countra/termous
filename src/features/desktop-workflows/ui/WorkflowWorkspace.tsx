@@ -9,6 +9,7 @@ import { DetachedStatePublisher, finishDetachedMotion, useDetachedOwner } from '
 import { DetachedWindowButton, DetachedWindowPlaceholder, detachedWindowStyles as styles } from '#shared/ui'
 import { WorkflowController } from '../model/workspace/WorkflowController'
 import { workflowFailure } from '../model/workspace/types'
+import { useWorkflowHostSources } from '../model/useWorkflowHostSources'
 import { useWorkflowData } from '../model/useWorkflowData'
 import { WorkflowSurfaceAdapter } from '../model/window/WorkflowSurfaceAdapter'
 import { useWorkflowComposition } from '../model/window/useWorkflowComposition'
@@ -30,6 +31,7 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
   const root = useRef<HTMLDivElement>(null)
   const placeholder = useRef<HTMLElement>(null)
   const data = useWorkflowData(gateway)
+  const hostSources = useWorkflowHostSources(gateway, active)
   const { reload, scripts, runs, loading, error: dataError } = data
   const controller = useMemo(() => new WorkflowController(gateway), [gateway])
   const model = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
@@ -64,11 +66,11 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
     controller.onRuntimeSettings = async () => { await reveal(); await onOpenAnalysisSettings?.() }
     controller.reload = () => { void reload() }; controller.onViewDesktop = async id => { await reveal(); await onViewDesktop(id) }
     // 独立窗口只接收选择目标所需的摘要，不传递连接配置、凭据或媒体票据。
-    controller.configure({ activeSessionId,
+    controller.configure({ activeSessionId, hostSources,
       sessions: sessions.map(({ id, host_name, profile_name, protocol, connection_generation, status }) => ({ id, host_name, profile_name, protocol, connection_generation, status })),
       profiles: profiles.map(({ id, name, protocol }) => ({ id, name, protocol })),
     }, { scripts, runs, loading, dataError: dataError ? workflowFailure(dataError) : undefined })
-  }, [controller, sessions, activeSessionId, profiles, onViewDesktop, scripts, runs, loading, dataError, reload, reveal, aiRuntimeGateway, onOpenAnalysisSettings])
+  }, [controller, hostSources, sessions, activeSessionId, profiles, onViewDesktop, scripts, runs, loading, dataError, reload, reveal, aiRuntimeGateway, onOpenAnalysisSettings])
   useEffect(() => { controller.execution.selectReport(model.state.selectedRun, model.state.view === 'runs') }, [controller, model.state.selectedRun, model.state.view, data.revision])
   useLayoutEffect(() => {
     if (!background) { publisher.clear(); return }

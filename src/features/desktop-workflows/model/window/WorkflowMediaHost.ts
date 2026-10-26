@@ -1,3 +1,4 @@
+import { hostDesktopTargetKey } from '#common/contracts'
 import { handleAnalysisMedia } from '#entities/screen-analysis'
 import { isWorkflowDetachedMedia, workflowMediaLimit, type WorkflowDetachedMedia } from '#common/contracts'
 import type { ImageTarget } from '#entities/desktop-workflow'
@@ -58,12 +59,16 @@ export class WorkflowMediaHost {
         return value
       } finally { this.analysisReads.delete(payload.read_id) }
     }
-    if (payload.kind === 'open') {
-      const session = this.controller.getSnapshot().environment.sessions.find(item => item.id === payload.session)
-      if (this.previews.size + this.opening >= 4 || !session || session.connection_generation !== payload.generation) throw new Error('desktop_session_generation_changed')
+    if (payload.kind === 'open' || payload.kind === 'open-host') {
+      const environment = this.controller.getSnapshot().environment
+      const session = payload.kind === 'open' ? environment.sessions.find(item => item.id === payload.session) : undefined
+      const allowed = payload.kind === 'open-host'
+        ? environment.hostSources?.some(source => hostDesktopTargetKey(source.target) === hostDesktopTargetKey(payload.target))
+        : !!session && session.connection_generation === payload.generation
+      if (this.previews.size + this.opening >= 4 || !allowed) throw new Error('desktop_session_generation_changed')
       this.opening++
       try {
-        const preview = await this.gateway.openPreview(payload.session, payload.generation)
+        const preview = payload.kind === 'open-host' ? await this.gateway.openPreview('', 0, payload.target) : await this.gateway.openPreview(payload.session, payload.generation)
         if (epoch !== this.epoch) { await this.gateway.closePreview(preview.id); throw new Error('detached_disconnected') }
         this.previews.add(preview.id); return preview
       } finally { this.opening-- }

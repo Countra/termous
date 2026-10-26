@@ -360,8 +360,8 @@ function CandidateOption({
         {resourceIcon(candidate.resource_kind)}
       </span>
       <span className={styles.copy}>
-        <strong>{candidate.kind === 'desktop_workflow' ? candidate.workflow_name : candidate.host_name}</strong>
-        <small>{candidate.kind === 'desktop_workflow' ? `v${candidate.workflow_version}` : candidate.profile_name}{candidate.kind === 'file_session' ? '' : ` · ${status}`}</small>
+        <strong>{candidate.kind === 'host_desktop' ? candidate.desktop_target.host.title : candidate.kind === 'desktop_workflow' ? candidate.workflow_name : candidate.host_name}</strong>
+        <small>{candidate.kind === 'host_desktop' ? t('agent.message.resourceKind.host_desktop') : candidate.kind === 'desktop_workflow' ? `v${candidate.workflow_version}` : candidate.profile_name}{candidate.kind === 'file_session' ? '' : ` · ${status}`}</small>
         {candidate.kind === 'ssh_session' || candidate.kind === 'desktop_session' ? (
           <small>{formatCandidateTime(candidate.started_at, i18n.resolvedLanguage ?? i18n.language)}{` · ${shortID(candidate.session_id)}`}</small>
         ) : candidate.kind === 'file_session' ? (

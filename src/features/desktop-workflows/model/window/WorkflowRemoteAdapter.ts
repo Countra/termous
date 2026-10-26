@@ -102,7 +102,7 @@ export class WorkflowRemoteAdapter {
       try { return await this.mediaRequest({ kind: 'analysis', request, read_id: id }) }
       finally { signal.removeEventListener('abort', cancel) }
     }),
-    openPreview: (session, generation) => this.mediaRequest({ kind: 'open', session, generation }) as Promise<Preview>,
+    openPreview: (session, generation, target) => this.mediaRequest(target ? { kind: 'open-host', target } : { kind: 'open', session, generation }) as Promise<Preview>,
     closePreview: async id => { await this.mediaRequest({ kind: 'close', id }) },
     upload: async blob => this.mediaRequest({ kind: 'upload', type: blob.type, bytes: await blob.arrayBuffer() }) as Promise<Asset>,
     asset: async (id, signal) => {

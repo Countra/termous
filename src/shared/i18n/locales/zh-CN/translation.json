@@ -1,4 +1,15 @@
 {
+  "hostDesktop": {
+    "activeAccesses": "正在访问",
+    "accessFailed": "无法确认访问状态或清理结果，请刷新后重试。",
+    "noAccesses": "当前没有设备访问本机桌面",
+    "stopping": "正在停止",
+    "controlling": "正在控制",
+    "observing": "正在观看",
+    "stopAccess": "停止本次访问",
+    "localDesktop": "本机桌面",
+    "inputHint": "键盘输入影响当前焦点应用，选择显示器不会隔离应用。"
+  },
   "analysisCenter": {
         "id": "分析 ID",
     "image": {
@@ -1213,6 +1224,7 @@
     "message": {
       "resources": "发送时关联的资源",
       "resourceKind": {
+        "host_desktop": "本机桌面",
         "desktop_session": "桌面会话",
         "desktop_profile": "桌面配置",
         "desktop_workflow": "桌面脚本",
@@ -5920,6 +5932,13 @@
     },
     "tabAgent": "AI 助手",
     "agent": {
+      "hostDesktop": {
+        "title": "本机桌面权限",
+        "description": "默认关闭。权限覆盖本机桌面，键盘输入影响当前系统焦点。跳过审批不会自动授予这些权限。",
+        "read": "发现显示器和窗口",
+        "capture": "读取桌面画面",
+        "control": "控制鼠标和键盘"
+      },
       "configuration": {
         "behavior": "运行行为",
         "invalidConcurrency": "请选择 1 至 8 个并发会话。",
@@ -6364,6 +6383,9 @@
         "disabled": "已停用"
       },
       "scope": {
+        "host-desktop_read": "发现本机来源",
+        "host-desktop_capture": "读取本机画面",
+        "host-desktop_control": "控制本机桌面",
         "screen_analyses_read": "读取画面分析",
         "screen_analyses_create": "创建画面分析",
         "screen_analyses_delete": "删除分析记录",
@@ -6414,6 +6436,9 @@
         "snippets_write": "管理代码片段"
       },
       "scopeDescription": {
+        "host-desktop_read": "只列出显示器和窗口，不读取画面。",
+        "host-desktop_capture": "读取本机画面，独立于远程协议桌面权限。",
+        "host-desktop_control": "需要画面权限。输入影响当前系统焦点，显示器选择不隔离应用。",
         "screen_analyses_read": "读取本机分析历史、检测区域、识别文字和结果图。",
         "screen_analyses_create": "分析本人附着的桌面或重算历史原图，不发送输入。",
         "screen_analyses_delete": "按审批策略删除指定终态记录，共享内容按引用回收。",
@@ -6464,6 +6489,7 @@
         "snippets_write": "新增、修改、删除或调整代码片段及分组顺序；默认需逐次批准。"
       },
       "permissionGroup": {
+        "host_desktop": "本机桌面",
         "screen_analyses": "画面分析",
         "desktop_workflows": "桌面脚本",
         "desktops": "远程桌面",
@@ -6480,6 +6506,7 @@
         "snippets": "代码片段"
       },
       "permissionGroupHint": {
+        "host_desktop": "本机桌面",
         "screen_analyses": "区域检测、OCR、结果图与按需查询",
         "desktop_workflows": "脚本管理、图像模板与有界运行",
         "desktops": "RDP / VNC 画面观察与有限期自动化控制",

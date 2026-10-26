@@ -1,4 +1,4 @@
-import type { AgentProgressActivity, AgentProgressData } from '#common/contracts'
+import type { AgentProgressActivity, AgentProgressData, HostDesktopTarget } from '#common/contracts'
 export const agentApiModes = ['responses', 'chat_completions'] as const
 export type AgentApiMode = (typeof agentApiModes)[number]
 
@@ -30,6 +30,7 @@ export interface AgentReadinessComponent {
 }
 
 export interface AgentMcpPolicy {
+  host_desktop?: { read: boolean; capture: boolean; control: boolean }
   client_id: string
   approval_bypass: boolean
   scope_count: number
@@ -233,11 +234,12 @@ export interface AgentSourceContext {
   summary: string
 }
 
-export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow'] as const
+export const agentResourceKinds = ['ssh_session', 'ssh_profile', 'file_profile', 'desktop_session', 'desktop_profile', 'desktop_workflow', 'host_desktop'] as const
 export type AgentResourceKind = (typeof agentResourceKinds)[number]
 export type AgentResourceSlot = 'ssh' | 'file' | 'desktop' | 'workflow'
 
 export type AgentResourceReference =
+  | { kind: 'host_desktop'; desktop_target: HostDesktopTarget }
   | { kind: 'ssh_session'; session_id: string }
   | { kind: 'ssh_profile'; ssh_profile_id: string }
   | { kind: 'file_profile'; file_access_profile_id: string }
@@ -250,6 +252,7 @@ interface AgentResourceBindingBase {
 }
 
 export interface AgentMessageResource {
+  desktop_target?: HostDesktopTarget
   version?: number
   kind: AgentResourceKind
   id: string
@@ -258,6 +261,7 @@ export interface AgentMessageResource {
 }
 
 export type AgentResourceBinding = AgentResourceBindingBase & (
+  | { kind: 'host_desktop'; desktop_target: HostDesktopTarget; host_id?: never; host_name?: never }
   | { kind: 'desktop_session'; session_id: string; connection_generation: number; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
   | { kind: 'desktop_profile'; desktop_profile_id: string; desktop_profile_name: string; host_id: string; host_name: string; protocol: 'rdp' | 'vnc' }
   | { kind: 'desktop_workflow'; workflow_id: string; workflow_name: string; workflow_version: number; host_id?: never; host_name?: never }
@@ -289,10 +293,11 @@ export interface AgentFileResourceState {
   status: 'ready' | 'unavailable'
 }
 
-export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' }>
+export type AgentDesktopResourceBinding = Extract<AgentResourceBinding, { kind: 'desktop_session' | 'desktop_profile' | 'desktop_workflow' | 'host_desktop' }>
 export type AgentDesktopResourceState = Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_session' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
   | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_profile' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
   | Omit<Extract<AgentDesktopResourceBinding, { kind: 'desktop_workflow' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
+  | Omit<Extract<AgentDesktopResourceBinding, { kind: 'host_desktop' }>, 'bound_at'> & { status: 'ready' | 'unavailable' }
 export type AgentResourceState = AgentSSHResourceState | AgentSSHProfileResourceState | AgentFileResourceState | AgentDesktopResourceState
 
 export interface AgentSSHResourceState {

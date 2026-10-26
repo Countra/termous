@@ -1,4 +1,4 @@
-import type { AnalysisRecord, AnalysisSubmit } from '#common/contracts'
+import { hostDesktopTargetKey, type HostDesktopTarget, type AnalysisRecord, type AnalysisSubmit } from '#common/contracts'
 import type { WorkflowMediaGateway } from '../workspace/types'
 
 // 预览和提交归属于工作台会话；关闭查看器只卸载读模型，不终止已接受的任务。
@@ -11,19 +11,19 @@ export class AnalysisSession {
   private lease?: ReturnType<typeof setTimeout>
   live?: { id: string; preview: string; key: string }
   constructor(private readonly gateway: WorkflowMediaGateway) {}
-  submit(session: { id: string; generation: number }, parameters: AnalysisSubmit['parameters'], onSubmitted: (record: AnalysisRecord) => void) {
+  submit(session: { id: string; generation: number; target?: HostDesktopTarget }, parameters: AnalysisSubmit['parameters'], onSubmitted: (record: AnalysisRecord) => void) {
     if (this.submitting) return this.submitting
     const task = this.submitCapture(session, parameters, onSubmitted)
     this.submitting = task
     void task.then(() => { this.submitting = undefined }, () => { this.submitting = undefined })
     return task
   }
-  private async submitCapture(session: { id: string; generation: number }, parameters: AnalysisSubmit['parameters'], onSubmitted: (record: AnalysisRecord) => void) {
-    const key = `${session.id}:${session.generation}`
+  private async submitCapture(session: { id: string; generation: number; target?: HostDesktopTarget }, parameters: AnalysisSubmit['parameters'], onSubmitted: (record: AnalysisRecord) => void) {
+    const key = session.target ? hostDesktopTargetKey(session.target) : `${session.id}:${session.generation}`
     if (this.disposed) throw new Error('workflow_preview_unavailable')
     if (this.preview && (this.preview.key !== key || this.preview.expires <= Date.now())) await this.releasePreview()
     if (!this.preview) {
-      const value = await this.gateway.openPreview(session.id, session.generation)
+      const value = await this.gateway.openPreview(session.id, session.generation, session.target)
       if (this.disposed) { await this.gateway.closePreview(value.id); throw new Error('workflow_preview_unavailable') }
       this.preview = { id: value.id, key, expires: Date.now() + 14 * 60_000 }
       this.lease = setTimeout(() => { void this.release().catch(reason => console.warn('[termous:workflow] 到期分析预览清理失败', reason)) }, 14 * 60_000)

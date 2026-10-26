@@ -5,8 +5,10 @@ import type { RemotePolicy } from '#common/contracts'
 import { modalSurfaceStyles, termousPopconfirmProps, WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { type RemoteCopy, remoteErrorText } from '../model/copy'
 import styles from './RemoteAccessDialog.module.scss'
+import { HostDesktopSharing } from './HostDesktopSharing'
 
 interface Props {
+  hostDesktopAccesses?: ReactNode
   open: boolean
   copy: RemoteCopy
   policy?: RemotePolicy
@@ -18,9 +20,10 @@ interface Props {
   onSelectExchanges?(value: string[]): void
   onSelectDesktops?(value: string[]): void
   onDesktops?(): void
+	onHostDesktop?(observe: boolean, control: boolean): void
   enabled: boolean
   loading: boolean
-  working?: 'save' | 'agent' | 'directory' | 'desktop'
+  working?: 'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop'
   error?: unknown
   mustRefresh: boolean
   updated: boolean
@@ -33,7 +36,7 @@ interface Props {
   onDirectory(write: boolean, id?: string): void
 }
 
-export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], selectedExchanges = [], onSelectExchanges, onSelectDesktops, onDesktops, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
+export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], selectedExchanges = [], onSelectExchanges, onSelectDesktops, onDesktops, onHostDesktop, hostDesktopAccesses, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
   const [query, setQuery] = useState('')
   useEffect(() => { if (!open) setQuery('') }, [open])
   const inactive = loading || !!working || !policy || mustRefresh
@@ -132,6 +135,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
         <div className={styles['remote-control']}><Monitor size={20} aria-hidden="true" /><div><h3>{copy.hostSettings}</h3><p>{copy.accessSwitchHint}</p></div><Switch checked={enabled} disabled={inactive} onChange={onEnabled} aria-label={copy.hostSettings} /></div>
         <Tabs className={styles.tabs} defaultActiveKey="hosts" animated={false} items={[
           { key: 'hosts', label: label(<Server size={15} aria-hidden="true" />, copy.hostConnections, selected.length), children: hostPanel },
+          ...(onHostDesktop ? [{ key: 'host-desktop', label: label(<Monitor size={15} />, copy.deviceDesktop), children: <><HostDesktopSharing policy={policy} disabled={inactive} working={working === 'host-desktop'} change={onHostDesktop} />{hostDesktopAccesses}</> }] : []),
           { key: 'folders', label: label(<Folder size={15} aria-hidden="true" />, copy.allowedFolders, directories.length), children: directoryPanel },
           ...(onDesktops ? [{ key: 'desktops', label: label(<Monitor size={15} />, copy.desktopAccess, selectedDesktops.length), children: desktopPanel }] : []),
           { key: 'agent', label: label(<Bot size={15} aria-hidden="true" />, copy.agent), children: agentPanel },

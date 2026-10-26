@@ -10,6 +10,11 @@ export const managedToolRules = [
 ].join('\n')
 
 export function managedResourceRules(binding: RuntimeResourceBinding): string[] {
+  if (binding.kind === 'host_desktop') return [
+    '当前资源是 Core 校验的精确本机显示器。运行时复验实例、来源与代次，准备附着及独立权限审批；失效后要求重新选择，不自动换主屏。',
+    '键盘影响系统当前焦点，选择显示器不隔离应用。先观察定位再输入；本机不支持剪贴板、文件、改分辨率和特殊系统按键。',
+    '工作流使用同一精确本机目标，查询原 run_id 至终态；结果不确定时不重放。',
+  ]
   if (binding.kind === 'desktop_session' || binding.kind === 'desktop_profile') return [
     '当前资源是 Core 校验的精确桌面目标。运行时准备和复验连接、附着及授权；Session 绑定失效不能替换，Profile 只复用或连接同一配置。',
     '复杂页面先分析、筛选并查看目标；确认画面未改变后，把 center_xy 直接作为桌面坐标 x/y，coordinate_space=desktop，并保留当前截图引用。过期截图必须重新观察定位，不以新截图沿用旧坐标。重复或动态文字使用工作流实时 OCR。',

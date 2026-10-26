@@ -3,7 +3,7 @@ import type { DesktopSnapshotMetadata } from '#entities/remote-desktop'
 import { TermousApiError } from '#shared/api'
 import { ScreenAnalysisClient } from '#entities/screen-analysis'
 import type { OCRParameters, OCRPreview, OCRQuery, OCRReportPage } from '#entities/desktop-workflow'
-import type { SettingsSnapshot } from '#common/contracts'
+import type { HostDesktopSource, HostDesktopTarget, SettingsSnapshot } from '#common/contracts'
 import { isWorkflowOCRQuery } from '#common/contracts'
 import { decodeOCRPreview } from './ocrResponse'
 
@@ -40,7 +40,8 @@ export class WorkflowClient extends ScreenAnalysisClient implements WorkflowGate
   validate(definition: Definition) { return this.request<Diagnostic[]>(`${scripts}/validate`, { method: 'POST', body: definition }) }
   upload(file: Blob) { const body = new FormData(); body.append('file', file, 'template.png'); return this.request<Asset>(assets, { method: 'POST', body }) }
   asset(id: string, signal?: AbortSignal) { return this.requestBlob(`${assets}/${key(id)}`, { signal }) }
-  openPreview(session: string, generation: number) { return this.request<Preview>(previews, { method: 'POST', body: { session_id: session, connection_generation: generation }, timeoutMs: 15_000 }) }
+  hostSources(signal?: AbortSignal) { return this.request<HostDesktopSource[]>('/api/v1/desktops/sources?kind=screen', { signal }) }
+  openPreview(session: string, generation: number, target?: HostDesktopTarget) { return this.request<Preview>(previews, { method: 'POST', body: target ? { target } : { session_id: session, connection_generation: generation }, timeoutMs: 15_000 }) }
   closePreview(id: string) { return this.request<void>(`${previews}/${key(id)}`, { method: 'DELETE' }) }
   async capture(id: string, signal?: AbortSignal): Promise<Snapshot> {
     let metadata: DesktopSnapshotMetadata | undefined

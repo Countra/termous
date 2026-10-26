@@ -1,4 +1,15 @@
 {
+  "hostDesktop": {
+    "activeAccesses": "Active access",
+    "accessFailed": "Could not confirm access or cleanup. Refresh and retry.",
+    "noAccesses": "No devices are accessing this desktop",
+    "stopping": "Stopping",
+    "controlling": "Controlling",
+    "observing": "Viewing",
+    "stopAccess": "Stop access",
+    "localDesktop": "Local desktop",
+    "inputHint": "Keyboard input affects the focused app. Selecting a display does not isolate apps."
+  },
   "analysisCenter": {
         "id": "Analysis ID",
     "image": {
@@ -1213,6 +1224,7 @@
     "message": {
       "resources": "Resources linked when sent",
       "resourceKind": {
+        "host_desktop": "Local desktop",
         "desktop_session": "Desktop session",
         "desktop_profile": "Desktop profile",
         "desktop_workflow": "Desktop workflow",
@@ -5946,6 +5958,13 @@
     },
     "tabAgent": "AI assistant",
     "agent": {
+      "hostDesktop": {
+        "title": "Local desktop permissions",
+        "description": "Off by default. These permissions cover this device. Keyboard input follows system focus. Skipping approvals does not grant them.",
+        "read": "Discover displays and windows",
+        "capture": "Read desktop images",
+        "control": "Control mouse and keyboard"
+      },
       "configuration": {
         "behavior": "Runtime behavior",
         "invalidConcurrency": "Choose between 1 and 8 concurrent sessions.",
@@ -6390,6 +6409,9 @@
         "disabled": "Disabled"
       },
       "scope": {
+        "host-desktop_read": "Discover local sources",
+        "host-desktop_capture": "Read local desktop",
+        "host-desktop_control": "Control local desktop",
         "screen_analyses_read": "Read screen analyses",
         "screen_analyses_create": "Create screen analyses",
         "screen_analyses_delete": "Delete analysis records",
@@ -6440,6 +6462,9 @@
         "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
+        "host-desktop_read": "List displays and windows without reading pixels.",
+        "host-desktop_capture": "Read this device’s desktop independently of protocol desktop permissions.",
+        "host-desktop_control": "Requires capture permission. Input follows system focus; display selection does not isolate apps.",
         "screen_analyses_read": "Read local analysis history, detected regions, recognized text and result images.",
         "screen_analyses_create": "Analyze your attached desktop or reanalyze saved images; no input is sent.",
         "screen_analyses_delete": "Delete terminal records according to approval policy; shared content is retained while referenced.",
@@ -6490,6 +6515,7 @@
         "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
+        "host_desktop": "Local desktop",
         "screen_analyses": "Screen analyses",
         "desktop_workflows": "Desktop scripts",
         "desktops": "Remote desktops",
@@ -6506,6 +6532,7 @@
         "snippets": "Code snippets"
       },
       "permissionGroupHint": {
+        "host_desktop": "Local desktop",
         "screen_analyses": "Region detection, OCR, result images and targeted queries",
         "desktop_workflows": "Script management, image templates and bounded runs",
         "desktops": "RDP / VNC observation and bounded automation control",

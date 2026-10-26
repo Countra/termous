@@ -3,7 +3,7 @@ import { Button, ConfigProvider, Descriptions, Input, Popconfirm, Spin, Tooltip 
 import { ArrowDown, ArrowUp, Bot, Circle, CircleAlert, Folder, LayoutDashboard, Monitor, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, Terminal, Unplug, X } from 'lucide-react'
 import type { RemoteAgentQuote, RemoteBootstrap, RemoteConnection, RemoteWindowBridge, RemoteLocalTask } from '#common/contracts'
 import { RemoteClient, RemoteError, unwrap, retryRemoteRead, isTransientRemoteReadError, type Inventory, type Session } from '#entities/remote-control'
-import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, RemoteRetainedFiles, remoteCopy, remoteErrorText } from '#features/remote-control'
+import { RemoteFeedback, RemoteFeedbackStack, RemoteTransfers, RemoteRetainedFiles, RemoteHostDesktop, remoteCopy, remoteErrorText } from '#features/remote-control'
 import { formatBytes } from '#shared/format'
 import { customSelectStyles, FilterPopover, uiStyles } from '#shared/ui'
 import styles from './RemoteWorkbench.module.scss'
@@ -28,6 +28,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   }, [])
   const [quote, setQuote] = useState<RemoteAgentQuote>()
   const [agentSelected, setAgentSelected] = useState(false)
+	const [desktopSelected, setDesktopSelected] = useState(false)
   const [agentOpened, setAgentOpened] = useState(false)
   const [overview, setOverview] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(max-width: 760px)').matches)
@@ -125,6 +126,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   }
 
   const open = (session: Session) => {
+	setDesktopSelected(false)
     if (!tabs.some(tab => tab.id === session.id)) {
       if (tabs.length >= 12) { setError({ code: 'remote_capacity_exceeded' }); return }
       setTabs(previous => [...previous, session])
@@ -134,7 +136,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     setSelected(session.id)
     if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true)
   }
-  const openAgent = () => { setAgentOpened(true); setAgentSelected(true); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
+  const openAgent = () => { setDesktopSelected(false); setAgentOpened(true); setAgentSelected(true); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
   const create = async (profileId: string, kind: 'ssh' | 'files' | 'desktop') => {
     if (!client || liveClient.current !== client || busy || closed || connecting) return
     setBusy(true); setError(undefined)
@@ -167,7 +169,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   const ready = !closed && !connecting && connection?.state === 'connected'
   const readMessage = remoteErrorText(copy, readError)
   const statusClass = ready ? styles.online : closed ? styles.offline : styles.recovering
-  const showOverview = () => { setOverview(true); setAgentSelected(false); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
+  const showOverview = () => { setDesktopSelected(false); setOverview(true); setAgentSelected(false); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
   const details = <Descriptions size="small" column={1} items={[
     { key: 'path', label: copy.connectionPath, children: path },
     { key: 'rtt', label: copy.latency, children: ready && stats?.path ? `${Math.round(stats.rtt_ms)} ms` : '—' },
@@ -197,6 +199,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
     <div ref={content} className={styles.body} data-resources-visible={!sidebarCollapsed}>
       <aside id="remote-resources" className={resourceStyles.sidebar} hidden={sidebarCollapsed} aria-label={copy.resources}>
         <nav className={resourceStyles.navigation}>
+		  {connection?.capabilities?.includes('host-desktop-v1') ? <button className={`${resourceStyles['nav-entry']} ${desktopSelected ? resourceStyles.active : ''}`} aria-current={desktopSelected ? 'page' : undefined} disabled={!ready} onClick={() => { setDesktopSelected(true); setAgentSelected(false); setOverview(false); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }}><Monitor size={17} />{bootstrap.language.startsWith('zh') ? '设备桌面' : 'Device desktop'}</button> : null}
           <button className={`${resourceStyles['nav-entry']} ${overview && !agentSelected ? resourceStyles.active : ''}`} aria-current={overview && !agentSelected ? 'page' : undefined} onClick={showOverview}><LayoutDashboard size={17} />{copy.overview}</button>
           {renderAgent ? <button className={`${resourceStyles['nav-entry']} ${agentSelected ? resourceStyles.active : ''}`} aria-current={agentSelected ? 'page' : undefined} disabled={!ready} onClick={openAgent}><Bot size={17} />{copy.agent}</button> : null}
         </nav>
@@ -230,7 +233,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
         </div> : !client || connecting && !inventory ? <div className={styles.loading}><Spin size="large" /><span>{copy.connecting}</span></div> : !inventory && readError ? <div className={styles.empty}>
           <span className={styles['empty-icon']} data-failed><CircleAlert size={28} /></span><h1>{copy.resourcesFailed}</h1><p role="alert">{readMessage}</p>
           <Button type="primary" icon={<RefreshCw size={15} />} loading={refreshing} onClick={() => void refresh()}>{copy.refresh}</Button>
-        </div> : !overview && tabs.length ?
+        </div> : desktopSelected ? <RemoteHostDesktop key={connection?.id} client={client} active={ready} /> : !overview && tabs.length ?
           <RemoteSessionPanels onQuote={inventory?.agentEnabled && renderAgent ? (session, text) => { setQuote({ key: Date.now(), text, sessionId: session.id, capturedAt: new Date().toISOString() }); openAgent() } : undefined}
             key={connection?.id} connected={ready} client={client} tabs={tabs} selected={selected} inventory={inventory} localTasks={localTasks} copy={copy} theme={bootstrap.theme} name={name}
             select={setSelected} close={id => { const remaining = tabs.filter(tab => tab.id !== id); setTabs(remaining); if (id === selected) setSelected(remaining[remaining.length - 1]?.id ?? ''); if (!remaining.length) setOverview(true) }} changed={() => void refresh()} /> :

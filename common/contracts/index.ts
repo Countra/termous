@@ -1,4 +1,5 @@
 export { defaultExecutionBudget, isExecutionBudget, maxAgentMessageRequestUsage, type ExecutionBudget, type ExecutionLimits } from './agent-execution.ts'
+export { isHostDesktopTarget, hostDesktopTargetKey, type HostDesktopTarget, type HostDesktopSource } from './desktop-target.ts'
 export { isAgentProgressData, type AgentProgressData, type AgentProgressActivity } from './agent-progress.ts'
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
 export type { RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
@@ -160,3 +161,5 @@ export type { DesktopFileBridge, SystemFileClipboardContext, SystemFileClipboard
 export type { FileClipboardImport, FileClipboardImportRequest, FileSystemClipboardBridge, FileSystemClipboardRequest, FileSystemClipboardState } from "./file-system-clipboard"
 export { agentToolImageReference, isAgentToolImageReference, isAgentDisplayImageMIMEType } from './agent-images.ts'
 export { isImageResourceReference, isTextResourceReference, type ContentResourceReference, type ImageResourceReference, type TextResourceReference } from './content-resources.ts'
+
+export type { HostDesktopAccess } from './remote-control'

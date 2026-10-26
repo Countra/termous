@@ -1,7 +1,9 @@
 import { isRecord } from '../../contracts/validation.ts'
 import { defaultValue, delay, fail, item, rows, unique, type Arguments, type PreparationContext } from './contracts.ts'
+import { hasHostDesktopTarget, hostDesktopTarget } from './hostDesktop.ts'
 
 export async function desktopSession(ctx: PreparationContext, args: Arguments, connect: boolean): Promise<Arguments> {
+  if (hasHostDesktopTarget(ctx, args)) fail('AGENT_RESOURCE_BINDING_MISMATCH', 'A host desktop has no protocol connection. Use its exact target to attach.', 'user_action')
   const bindings = ctx.bindings.filter((v) => v.kind === 'desktop_session' || v.kind === 'desktop_profile')
   if (bindings.length > 1 && args.session_id === undefined && args.profile_id === undefined) fail('AGENT_TARGET_SELECTION_REQUIRED', 'Select one desktop target.')
   const binding = bindings[0]
@@ -47,8 +49,11 @@ export async function desktopAttachment(ctx: PreparationContext, args: Arguments
     return attachment
   }
   if (ctx.name === 'termous.desktops.detach' || ctx.name === 'termous.desktops.control.release') fail('AGENT_TARGET_SELECTION_REQUIRED', 'Choose the original attachment to release; no new attachment will be created.')
-  const session = await desktopSession(ctx, args, true)
-  let attachment = item((await ctx.invoke('termous.desktops.attach', { session_id: session.id, connection_generation: session.connection_generation }, 'desktop_attach')).attachment, 'attachment')
+  const target = hasHostDesktopTarget(ctx, args) ? { target: await hostDesktopTarget(ctx, args) } : await (async () => {
+    const session = await desktopSession(ctx, args, true)
+    return { session_id: session.id, connection_generation: session.connection_generation }
+  })()
+  let attachment = item((await ctx.invoke('termous.desktops.attach', target, 'desktop_attach')).attachment, 'attachment')
   if (attachment.state !== 'ready') attachment = item((await ctx.invoke('termous.desktops.get', { attachment_id: attachment.id, wait_ms: 10000 }, 'attachment_get')).attachment, 'attachment')
   if (attachment.state !== 'ready') fail('AGENT_DESKTOP_NOT_READY', 'Desktop observation is still preparing.', 'wait')
   ctx.remember('desktop:attachment', { id: attachment.id })
@@ -86,6 +91,7 @@ async function controlGrant(ctx: PreparationContext, attachment: Arguments): Pro
 
 export async function prepareDesktop(ctx: PreparationContext, args: Arguments) {
   if (ctx.name === 'termous.desktops.connect') {
+    if (hasHostDesktopTarget(ctx, args)) fail('AGENT_RESOURCE_BINDING_MISMATCH', 'Host desktop access does not create a protocol connection.', 'user_action')
     if (args.profile_id === undefined && args.host_id === undefined) {
       const bindings = ctx.bindings.filter((v) => v.kind === 'desktop_profile')
       if (bindings.length === 1) args.profile_id = bindings[0].desktop_profile_id
@@ -93,6 +99,10 @@ export async function prepareDesktop(ctx: PreparationContext, args: Arguments) {
     return
   }
   if (ctx.name === 'termous.desktops.attach' || ctx.name === 'termous.desktops.close') {
+    if (ctx.name.endsWith('.attach') && hasHostDesktopTarget(ctx, args)) {
+      defaultValue(args, 'target', await hostDesktopTarget(ctx, args))
+      return
+    }
     const session = await desktopSession(ctx, args, ctx.name.endsWith('.attach'))
     defaultValue(args, 'session_id', session.id)
     defaultValue(args, 'connection_generation', session.connection_generation)
@@ -103,7 +113,10 @@ export async function prepareDesktop(ctx: PreparationContext, args: Arguments) {
       const binding = ctx.bindings.find((v) => v.kind === 'desktop_session')
       if (binding?.kind === 'desktop_session') args.session_id = binding.session_id
       else args.attachment_id = ctx.read('desktop:attachment')?.id
-      if (args.session_id === undefined && args.attachment_id === undefined) args.session_id = (await desktopSession(ctx, args, false)).id
+      if (args.session_id === undefined && args.attachment_id === undefined) {
+        if (hasHostDesktopTarget(ctx, args)) fail('AGENT_OBSERVATION_REQUIRED', 'Capture or attach the selected host desktop before querying its attachment.', 'reread')
+        args.session_id = (await desktopSession(ctx, args, false)).id
+      }
     }
     return
   }

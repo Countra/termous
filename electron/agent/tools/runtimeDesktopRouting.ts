@@ -4,6 +4,7 @@ import { isRecord } from '../contracts/validation.ts'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import type { RuntimeDesktopBinding, RuntimeWorkflowBinding } from '../contracts/runtimeDesktopBinding.ts'
 import { builtinTool } from '../contracts/toolSources.ts'
+import { bindRuntimeHostDesktopTools } from './runtimeHostDesktopRouting.ts'
 
 interface DesktopSessionRoute {
   generation?: number
@@ -22,6 +23,8 @@ interface DesktopAttachmentRoute {
 
 // 运行内的附着身份只从本轮 MCP 成功响应建立，不接受历史消息中的 ID 充当授权链。
 export function bindRuntimeDesktopTools(mcp: AgentMCPConnection, bindings: RuntimeResourceBinding[]): AgentTool[] {
+  const host = bindings.find(value => value.kind === 'host_desktop')
+  if (host) mcp = { ...mcp, tools: bindRuntimeHostDesktopTools(mcp, host) }
   const desktop = bindings.find((v): v is RuntimeDesktopBinding => v.kind === 'desktop_session' || v.kind === 'desktop_profile')
   const workflow = bindings.find((v): v is RuntimeWorkflowBinding => v.kind === 'desktop_workflow')
   if (!desktop && !workflow) return mcp.tools

@@ -80,7 +80,7 @@ function runtimeVerifiedResourcePrompt(binding: RuntimeResourceBinding, managedT
     '[TERMOUS_VERIFIED_RESOURCE]',
     JSON.stringify(resource),
     '[/TERMOUS_VERIFIED_RESOURCE]',
-    ...(managedTools ? managedResourceRules(binding) : binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' ? runtimeDesktopRules(binding) : binding.kind === 'ssh_session'
+    ...(managedTools ? managedResourceRules(binding) : binding.kind === 'desktop_session' || binding.kind === 'desktop_profile' || binding.kind === 'desktop_workflow' || binding.kind === 'host_desktop' ? runtimeDesktopRules(binding) : binding.kind === 'ssh_session'
       ? verifiedResourceSystemRules
       : binding.kind === 'ssh_profile'
         ? verifiedSSHProfileSystemRules

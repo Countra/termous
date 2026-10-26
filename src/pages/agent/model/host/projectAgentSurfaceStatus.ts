@@ -109,7 +109,7 @@ export function projectAgentSurfaceStatus({ resourceContexts, recovery, profileC
       resource_kinds: {
         ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
         file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
-        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady && !remote, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
+        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
       },
     },
     profile: {
@@ -117,7 +117,7 @@ export function projectAgentSurfaceStatus({ resourceContexts, recovery, profileC
       resource_kinds: {
         ssh: slashCommandAvailability(sshSlashEnabled, sshSlashDisabledReason),
         file: slashCommandAvailability(resourceSlashEnabled, resourceSlashDisabledReason),
-        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady && !remote, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
+        desktop: slashCommandAvailability(resourceSlashEnabled && desktopResourcesReady, desktopResourcesReady ? resourceSlashDisabledReason : 'workspace_unavailable'),
       },
     },
     compact: slashCommandAvailability(compactSlashEnabled,

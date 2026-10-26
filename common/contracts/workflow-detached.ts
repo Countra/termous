@@ -1,3 +1,4 @@
+import { isHostDesktopTarget, type HostDesktopTarget } from './desktop-target.ts'
 import { isAnalysisMediaRequest, type AnalysisMediaRequest } from './analysis-media.ts'
 import { isWorkflowOCRQuery, type WorkflowOCRQuery } from './workflow-ocr.ts'
 import { isWorkflowEditorPanels } from './workflow-layout.ts'
@@ -33,6 +34,7 @@ export type WorkflowDetachedMedia =
   | { kind: 'runtime-settings' }
   | { kind: 'analysis'; request: AnalysisMediaRequest; read_id?: string }
   | { kind: 'analysis-read-cancel'; id: string }
+  | { kind: 'open-host'; target: HostDesktopTarget }
   | { kind: 'open'; session: string; generation: number }
   | { kind: 'close' | 'capture' | 'asset'; id: string }
   | { kind: 'match'; id: string; target: Record<string, unknown> }
@@ -83,7 +85,8 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
     case 'change': return record(arg) && fields(arg, ['name', 'description', 'tags', 'definition'])
       && (arg.name === undefined || typeof arg.name === 'string') && (arg.description === undefined || typeof arg.description === 'string')
       && (arg.tags === undefined || strings(arg.tags)) && (arg.definition === undefined || definition(arg.definition))
-    case 'target': return record(arg) && ['session', 'profile'].includes(String(arg.mode)) && (arg.id === undefined || id(arg.id))
+    case 'target': return record(arg) && ['session', 'profile', 'host'].includes(String(arg.mode)) && (arg.id === undefined || id(arg.id))
+      && (arg.mode === 'host' ? arg.host === undefined || isHostDesktopTarget(arg.host) : arg.host === undefined)
       && (arg.connectionGeneration === undefined || Number.isSafeInteger(arg.connectionGeneration) && Number(arg.connectionGeneration) > 0)
     case 'changeRun': return record(arg) && fields(arg, ['takeover', 'keep', 'parameters'])
       && (arg.takeover === undefined || typeof arg.takeover === 'boolean') && (arg.keep === undefined || typeof arg.keep === 'boolean')
@@ -126,6 +129,7 @@ export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetach
   if (value.kind === 'analysis') return fields(value, ['kind', 'request', 'read_id']) && isAnalysisMediaRequest(value.request) && (value.read_id === undefined || id(value.read_id))
   if (value.kind === 'upload') return value.bytes instanceof ArrayBuffer && value.bytes.byteLength > 0
     && value.bytes.byteLength <= 8 * 1024 * 1024 && ['image/png', 'image/jpeg'].includes(String(value.type))
+  if (value.kind === 'open-host') return fields(value, ['kind', 'target']) && isHostDesktopTarget(value.target)
   if (value.kind === 'open') return id(value.session) && Number.isSafeInteger(value.generation) && Number(value.generation) > 0
   if (['close', 'capture', 'asset'].includes(String(value.kind))) return id(value.id)
   return value.kind === 'match' && id(value.id) && record(value.target) && safeJSON(value.target, { size: 0 })
