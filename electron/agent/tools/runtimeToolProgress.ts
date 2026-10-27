@@ -55,7 +55,7 @@ export class RuntimeToolProgress {
   drain() { const pending = this.pending; this.pending = []; return pending }
 
   observe(name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean,
-    navigation = runtimeToolNavigation(name, result, this.bindings, isError)): string | undefined {
+    navigation = runtimeToolNavigation(name, result, this.bindings, isError, undefined, args)): string | undefined {
     const mcp = isMCPToolDetails(result.details) ? result.details : undefined
     const data = progressData(result)
     const failure = progressFailure(data, name)
@@ -194,6 +194,18 @@ export class RuntimeToolProgress {
   }
 
   summary() { return this.state.summary(this.diagnosticNotices(), [...this.recoveries.values()]) }
+  resolveDesktopObservation(attachmentID: string) {
+    const resource = progressResource({ attachment_id: attachmentID })
+    for (const name of ['termous.desktops.get', 'termous.desktops.capture']) {
+      // 新观察只解决观察前置条件，不能清除同一旧附着上的人工处理或派发不确定诊断。
+      const recovery = this.recoveries.get(`${name}:${resource}`)
+      if (recovery ? recovery.observation_only !== true : !this.state.historicalObservation(name, resource)) continue
+      this.state.resolveRecovery(name, resource)
+      this.recoveries.delete(`${name}:${resource}`)
+      this.prerequisites.delete(`${name}:${resource}`)
+      this.advance(resource, name, '已为同一精确目标取得新的观察附着；旧附着查询诊断已解决，控制授权仍独立核验。')
+    }
+  }
   snapshot() { return this.state.snapshot(this.diagnosticNotices(), [...this.recoveries.values()]) }
   restore(value: unknown) { return this.state.restore(value) }
 
@@ -214,7 +226,7 @@ export class RuntimeToolProgress {
     if (navigation?.prerequisite) remember(this.prerequisites, key, { tool: name, resource, query: navigation.prerequisite }, 12)
     else this.prerequisites.delete(key)
     if (navigation?.recovery) remember(this.recoveries, `${name}:${resource}`, { tool: name, resource,
-      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty }, 12)
+      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty, observation_only: navigation.observationOnly }, 12)
     else if (!unresolved && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
   }
 
@@ -232,9 +244,9 @@ export class RuntimeToolProgress {
       const failed = message.isError || code !== undefined
       const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, parameters, failed, code, 'historical', message.timestamp) === true
       const navigation = runtimeToolNavigation(name, { ...result, details: { kind: 'mcp', originalToolName: name,
-        readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed)
+        readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed, undefined, parameters)
       if (navigation?.recovery) this.state.historicalRecovery({ tool: name, resource, guidance: navigation.guidance,
-        next_tools: navigation.names.filter(this.available), empty: navigation.empty })
+        next_tools: navigation.names.filter(this.available), empty: navigation.empty, observation_only: navigation.observationOnly })
       if (!failed) this.confirmRecovery(name, resource, data, true, message.timestamp, grantChanged)
       args.delete(message.toolCallId)
     }

@@ -5,7 +5,7 @@ import { progressFact, progressResource } from './runtimeToolEvidence.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
 
 export type ProgressNotice = Omit<AgentProgressData, 'assistant_message_id' | 'after_part_sequence'> & { origin?: 'current' | 'historical' }
-export interface ExecutionRecovery { tool: string; resource: string; guidance: string; next_tools: string[]; empty?: boolean; origin?: 'current' | 'historical' }
+export interface ExecutionRecovery { tool: string; resource: string; guidance: string; next_tools: string[]; empty?: boolean; observation_only?: boolean; origin?: 'current' | 'historical' }
 type Fact = ReturnType<typeof progressFact> & { origin: 'current' | 'historical'; observed_at?: number }
 export interface ProgressSnapshot { version: 2; facts: Fact[]; notices: [string, ProgressNotice][]; recoveries: ExecutionRecovery[] }
 
@@ -58,11 +58,14 @@ export class RuntimeExecutionState {
     for (const [id, [scope, notice]] of this.historicalNotices) if (notice.tool_name === name && scope === resource) this.historicalNotices.delete(id)
     this.historicalRecoveries.delete(`${name}:${resource}`)
     // 成功回执可能按附着保存；同一请求键下的旧错误不能继续占据摘要。
-    const key = `${name}:${resource}`
-    if (this.facts.get(key)?.outcome.startsWith('error:')) this.facts.delete(key)
+    for (const [key, fact] of this.facts) {
+      if (fact.tool === name && fact.resource === resource && fact.outcome.startsWith('error:')) this.facts.delete(key)
+    }
   }
 
   historicalEmpty(name: string, resource: string) { return this.historicalRecoveries.get(`${name}:${resource}`)?.empty === true }
+
+  historicalObservation(name: string, resource: string) { return this.historicalRecoveries.get(`${name}:${resource}`)?.observation_only === true }
 
   confirmedRecoveries(name: string, data: Record<string, unknown>, timestamp = this.now(), grantChanged = false) {
     const attachment = confirmedDesktopAttachment(name, data)
@@ -151,7 +154,7 @@ export class RuntimeExecutionState {
     }
     if (Array.isArray(value.recoveries)) for (const entry of value.recoveries.slice(-12)) {
       if (!isRecord(entry) || !shortString(entry.tool, 128) || !shortString(entry.resource, 256) || !shortString(entry.guidance, 1600) || !Array.isArray(entry.next_tools)) continue
-      this.historicalRecovery({ tool: entry.tool, resource: entry.resource, guidance: entry.guidance, empty: entry.empty === true,
+      this.historicalRecovery({ tool: entry.tool, resource: entry.resource, guidance: entry.guidance, empty: entry.empty === true, observation_only: entry.observation_only === true,
         next_tools: entry.next_tools.filter((name): name is string => shortString(name, 128) && this.available(name)).slice(0, 8) })
     }
     return true

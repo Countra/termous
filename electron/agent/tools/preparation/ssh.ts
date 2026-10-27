@@ -34,7 +34,9 @@ export async function prepareSSH(ctx: PreparationContext, args: Arguments) {
         const session = item((await ctx.invoke('termous.sessions.get', { session_id: id }, `ssh_get_${index}`)).session, 'session')
         if (session.id !== id || binding && (session.ssh_profile_id !== binding.ssh_profile_id || session.host_id !== binding.host_id)) fail('AGENT_RESOURCE_BINDING_MISMATCH', 'The SSH receipt does not match the bound target.')
         if (session.status === 'connected' && session.phase === 'ready') break
-        if (session.status !== 'connecting' || Date.now() >= deadline) fail('AGENT_SSH_NOT_READY', 'The selected SSH session is not ready; resolve its current state.', 'user_action', { session_id: id, state: session.status })
+        if (session.status !== 'connecting' || Date.now() >= deadline) fail('AGENT_SSH_NOT_READY', 'The selected SSH session is not ready; inspect termous.sessions.get for this original session and resolve its state.', {
+          kind: session.status === 'connecting' ? 'wait' : 'user_action', tool: 'termous.sessions.get', arguments: { session_id: id },
+        }, { session_id: id, state: session.status })
         await delay(ctx.signal)
       }
     }

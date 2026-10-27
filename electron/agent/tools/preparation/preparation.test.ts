@@ -320,6 +320,6 @@ test('本机截图准备通过精确来源发现附着，不查询或建立协�
     : name === hostAttach.name ? { attachment: { id: 'host-a', target, state: 'ready' } } : { capture: { screenshot_id: 'shot' } }, [binding])
   assert.ok(output(await h.run(capture.name, 'host-shot', {})).capture)
   assert.deepEqual(h.calls.map(value => value.name), [sources.name, hostAttach.name, capture.name])
-  assert.deepEqual(h.calls[1]!.args.target, target)
+  assert.deepEqual(h.calls[1]!.args.target, { ...target, host: { ...target.host, title: '' } })
   assert.equal(h.calls[1]!.args.session_id, undefined)
 })

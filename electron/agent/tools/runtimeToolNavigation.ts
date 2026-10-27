@@ -9,16 +9,11 @@ import type { CapabilityTarget } from '../contracts/toolCapabilities.ts'
 import { progressData } from './runtimeToolEvidence.ts'
 import { runtimeFailureKind } from './runtimeToolRecovery.ts'
 import { desktopAttachment, desktopGrantCurrent } from './runtimeDesktopObservation.ts'
-import { executionRecovery } from './runtimeExecutionRecovery.ts'
-
-export interface ToolNavigation {
-  names: string[]
-  guidance: string
-  skill?: string
-  recovery?: boolean
-  empty?: boolean
-  prerequisite?: { tool: string; arguments: Record<string, unknown> }
-}
+import { executionRecovery } from './recovery/execution.ts'
+import { desktopObservationNavigation } from './recovery/desktop.ts'
+import { revisionConflictNavigation } from './recovery/revisions.ts'
+import type { ToolNavigation } from './recovery/contracts.ts'
+export type { ToolNavigation } from './recovery/contracts.ts'
 
 function runtimePrerequisiteTools(data: Record<string, unknown>) {
   // 调用方已核验本地准备阶段；所需入口仍必须属于已登记的只读阶段。
@@ -30,7 +25,7 @@ function runtimePrerequisiteTools(data: Record<string, unknown>) {
 // 导航解释声明式生命周期，只加载候选声明；执行和授权仍由模型选择及 Core 校验。
 export function runtimeToolNavigation(name: string, result: AgentToolResult<unknown>,
   bindings: RuntimeResourceBinding[] = [], isError = false,
-  preparationCode?: 'AGENT_TOOL_ARGUMENTS_INVALID' | 'AGENT_TOOL_UNAVAILABLE'): ToolNavigation | undefined {
+  preparationCode?: 'AGENT_TOOL_ARGUMENTS_INVALID' | 'AGENT_TOOL_UNAVAILABLE', args?: unknown): ToolNavigation | undefined {
   const response = isMCPToolDetails(result.details) ? result.details.result : undefined
   let data = response ? isRecord(response.structuredContent) ? response.structuredContent : {} : isError ? progressData(result) : {}
   const attachment = name.startsWith('termous.desktops.') ? desktopAttachment(data) : undefined
@@ -40,10 +35,23 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     data = isRecord(data.control) ? { ...data, control: { ...data.control, attachment: observed } } : { ...data, attachment: observed }
   }
   const failed = runtimeToolOutcome(name, data, isError || response?.isError === true) === 'failed'
-  const structured = executionRecovery(data)
-  if (structured && structured.kind !== 'none') {
+  const structured = response ? executionRecovery(data) : undefined
+  if (structured?.dispatch === 'unknown' && !['query_operation', 'user_action', 'approval', 'none', 'wait'].includes(structured.kind)) {
+    return { names: [], recovery: true, guidance: `${structured.guidance} Dispatch is uncertain. Query the original operation or ask the user; do not replay the action or create a replacement.` }
+  }
+  if (structured?.dispatch === 'not_started' && structured.kind === 'reread'
+    && structured.tool === 'termous.desktops.attach' && !structured.arguments) {
+    // 原目标不明时，attach 的精确名称还不足以形成调用，须同时提供获准的目标发现入口。
+    const discovery = desktopObservationNavigation(name, data, bindings)
+    if (discovery) return discovery
+  }
+  if (structured && (structured.tool || !['reread', 'correct_parameters'].includes(structured.kind))) {
     const tool = structured.tool && runtimeCapabilityStep(structured.tool) ? structured.tool : undefined
-    return { names: tool ? [tool] : [], recovery: true, guidance: structured.guidance,
+    const observationOnly = ['termous.desktops.get', 'termous.desktops.capture'].includes(name)
+      && structured.dispatch === 'not_started' && structured.kind === 'reread'
+      && ['termous.desktops.capture', 'termous.desktops.attach'].includes(tool ?? '')
+      && isRecord(data.error) && ['desktop_generation_stale', 'AGENT_OBSERVATION_REQUIRED', 'AGENT_RESOURCE_BINDING_MISMATCH'].includes(String(data.error.code))
+    return { names: tool ? [tool] : [], recovery: true, observationOnly, guidance: structured.guidance + (tool ? ` Next tool: ${tool}.` : ''),
       ...(tool && structured.arguments ? { prerequisite: { tool, arguments: structured.arguments } } : {}),
     }
   }
@@ -51,6 +59,11 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   if (safety.cleanupUncertain && !safety.inputUncertain) return {
     names: [], guidance: desktopCleanupGuidance, recovery: true,
   }
+  const desktopRecovery = response ? desktopObservationNavigation(name, data, bindings) : undefined
+  if (desktopRecovery) return desktopRecovery
+  const revisionRecovery = response && failed && (!structured || structured.dispatch === 'not_started')
+    ? revisionConflictNavigation(name, isRecord(data.error) ? data.error.code : undefined, args) : undefined
+  if (revisionRecovery) return { ...revisionRecovery, guidance: [isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : '', revisionRecovery.guidance].filter(Boolean).join(' ') }
   const capability = runtimeCapability(name)
   const step = runtimeCapabilityStep(name)
   const local = preparationCode === 'AGENT_TOOL_ARGUMENTS_INVALID' && !response && failed && data.code === 'AGENT_RESOURCE_BINDING_MISMATCH' && data.dispatched === false
@@ -58,7 +71,7 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   const kind = code ? runtimeFailureKind(code) : undefined
   const fallback = (): ToolNavigation => {
     const recovery = recoveryNavigation(name, code ?? 'tool_failed')
-    return { ...recovery, guidance: `${name}（${runtimeToolOperations(name).join(', ')}）失败。${recovery.guidance}`, recovery: true }
+    return { ...recovery, guidance: `${name}（${runtimeToolOperations(name).join(', ')}）失败。${structured?.guidance ?? recovery.guidance}`, recovery: true }
   }
   if (!capability || !step) return failed ? fallback() : undefined
   if (!response && !failed) return undefined

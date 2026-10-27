@@ -3,12 +3,15 @@ import type { RuntimeResourceBinding } from '../../contracts/resourceBindings.ts
 import { isMCPToolDetails } from '../../contracts/mcpTools.ts'
 import { isRecord } from '../../contracts/validation.ts'
 import type { PreparedCall } from '../../contracts/toolPreparation.ts'
+import type { ToolRecovery, ToolRecoveryKind } from '../../contracts/toolRecovery.ts'
+import type { DesktopObservationState } from '../../contracts/desktopObservation.ts'
 export type { PreparedCall } from '../../contracts/toolPreparation.ts'
 
 export type Arguments = Record<string, unknown>
 export interface PreparationContext {
   name: string
   bindings: RuntimeResourceBinding[]
+  desktop?: DesktopObservationState
   signal?: AbortSignal
   has(field: string): boolean
   invoke(name: string, args: Arguments, step: string): Promise<Arguments>
@@ -23,9 +26,9 @@ export class PreparationStopped extends Error {
   constructor(result: AgentToolResult<unknown>) { super('AGENT_TOOL_PREPARATION_STOPPED'); this.result = result }
 }
 
-export function fail(code: string, message: string, kind = 'correct_parameters', extra: Arguments = {}): never {
+export function fail(code: string, message: string, recovery: ToolRecoveryKind | ToolRecovery = 'correct_parameters', extra: Arguments = {}): never {
   const body = { error: { code, message, retryable: false, execution: {
-    phase: 'preparation', dispatch: 'not_started', recovery: { kind }, ...extra,
+    ...extra, phase: 'preparation', dispatch: 'not_started', recovery: typeof recovery === 'string' ? { kind: recovery } : recovery,
   } } }
   const content = [{ type: 'text' as const, text: JSON.stringify(body) }]
   throw new PreparationStopped({ content, details: { kind: 'mcp', originalToolName: '', result: { isError: true, content, structuredContent: body } } })

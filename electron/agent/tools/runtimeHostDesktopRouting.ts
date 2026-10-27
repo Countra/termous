@@ -1,3 +1,4 @@
+import { ResourceRoutingError } from '../contracts/toolRecovery.ts'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { hostDesktopTargetKey, isHostDesktopTarget } from '#common/contracts'
 import { isMCPToolDetails, type AgentMCPConnection } from '../contracts/mcpTools.ts'
@@ -17,10 +18,10 @@ export function bindRuntimeHostDesktopTools(mcp: AgentMCPConnection, binding: Ru
   let revision = 0
   let retiredRevision = 0
   const reject = (discovery = false): never => {
-    throw new Error(JSON.stringify({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
+    throw new ResourceRoutingError({ code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
       message: '本轮本机来源或附着尚未核验，未派发。使用精确实例、来源与代次重新观察；失效时要求重新选择，不能更换显示器或重放不确定输入。',
       ...(discovery ? { required_tool: 'termous.desktops.sources', required_arguments: { kind: target.host.kind } } : {}),
-    }))
+    })
   }
   const remember = (id: string, receipt: AttachmentReceipt) => {
     if (receipt.revision <= retiredRevision || (attachments.get(id)?.revision ?? 0) > receipt.revision) return

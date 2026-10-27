@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Arguments } from './contracts.ts'
 import { isRecord } from '../../contracts/validation.ts'
+import { observationTarget } from '../../contracts/desktopObservation.ts'
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical)
@@ -17,6 +18,8 @@ const saved = new Set(['client_request_id', 'attachment_id', 'grant_id', 'sessio
 saved.add('expected_updated_at')
 export function preparedValues(args: Arguments) {
   const values = Object.fromEntries(Object.entries(args).filter(([key, value]) => saved.has(key) && value !== undefined && value !== null))
+  const target = observationTarget(args.target)
+  if (target?.kind === 'host_desktop') values.target = target
   if (Array.isArray(args.items) && args.items.every((v) => isRecord(v) && typeof v.id === 'string' && typeof v.expected_updated_at === 'string')) values.items = args.items.map((v) => ({ id: v.id, expected_updated_at: v.expected_updated_at }))
   return values
 }

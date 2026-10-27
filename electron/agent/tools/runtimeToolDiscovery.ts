@@ -1,5 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
+import { Compile } from 'typebox/compile'
 import type { ToolNavigation } from './runtimeToolNavigation.ts'
 import type { DiscoveryInput } from './runtimeToolSearch.ts'
 import { runtimeCapability, runtimeCapabilityStep, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
@@ -80,15 +81,32 @@ export class RuntimeToolDiscovery {
     return { ...tool, description: tool.description + boundary + preparation + guidance + action }
   }
 
+  resolveNavigation(navigation: ToolNavigation): ToolNavigation {
+    const query = navigation.prerequisite
+    if (!query) return navigation
+    const entry = this.registry.entries.find(candidate => candidate.trusted && candidate.original === query.tool)
+    if (!entry || this.blocked(entry)) return { ...navigation, prerequisite: undefined,
+      guidance: `${navigation.guidance} The suggested tool is unavailable under current permissions; do not substitute another action.` }
+    if (!Compile(entry.tool.parameters).Check(query.arguments)) return { ...navigation, prerequisite: undefined,
+      guidance: `${navigation.guidance} Inspect this tool's current schema and supply the missing business parameters; no complete call arguments are available.` }
+    return { ...navigation, guidance: `${navigation.guidance} When its declaration is available, call ${query.tool} (callable name ${entry.tool.name}) with ${JSON.stringify(query.arguments)}.` }
+  }
+
   navigate(navigation: ToolNavigation, concise = false) {
+    const query = navigation.prerequisite
+    const entry = query && this.registry.entries.find(candidate => candidate.trusted && candidate.original === query.tool && !this.blocked(candidate))
+    const action = entry && Compile(entry.tool.parameters).Check(query!.arguments) ? { tool: entry.tool.name, arguments: query!.arguments } : undefined
     const next = this.loadNames(navigation.names)
     const admitted = new Set(next.map((item) => item.original_name))
     const unavailable = navigation.names.filter((name) => !admitted.has(name)).map((name) => ({ name,
+      status: this.available(name) ? 'deferred' : 'unavailable',
       reason: this.unavailable?.(name) ?? (this.available(name) ? '本轮声明容量不足，下轮按需发现' : '不在当前授权工具目录中'),
+      ...(this.available(name) ? { discovery: { tool: 'discover_tools', arguments: { names: [name] } } } : {}),
     }))
     if (concise && !next.length && !unavailable.length) return ''
     return JSON.stringify({ tool_navigation: { ...(concise ? {} : { guidance: navigation.guidance, skill: navigation.skill }), available_next_turn: next,
       ...(unavailable.length ? { unavailable } : {}),
+      ...(query && action && admitted.has(query.tool) ? { next_action: action } : {}),
     } })
   }
 

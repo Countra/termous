@@ -18,11 +18,15 @@ import { unconfirmedDispatch } from './dispatch.ts'
 import { builtinDescription } from './description.ts'
 import { validateArguments } from './validation.ts'
 import { builtinTool } from '../../contracts/toolSources.ts'
+import { ResourceRoutingError } from '../../contracts/toolRecovery.ts'
+import type { DesktopObservationState } from '../../contracts/desktopObservation.ts'
+import { projectManagedRecovery } from '../recovery/preparation.ts'
 
 export interface ManagedToolOptions {
   runID: string
   generation: number
   bindings?: RuntimeResourceBinding[]
+  desktop?: DesktopObservationState
   blocked?(name: string, args: Arguments): string | undefined
   persist(call: PreparedCall): Promise<void>
   progress?(callID: string, name: string, phase: 'preparing' | 'waiting' | 'executing'): void
@@ -50,13 +54,15 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
         }
         const lookup = async (id: string, step: string) => id === callID && prepared.has(step) ? prepared.get(step) : options.lookup(id, step, signal)
         const context: PreparationContext = {
-          name, signal, bindings: options.bindings ?? [], has: (field) => field in toolProperties(tool),
+          name, signal, bindings: options.bindings ?? [], desktop: options.desktop, has: (field) => field in toolProperties(tool),
           read: (key) => snapshots.read(key), remember: (key, value) => snapshots.remember(key, value), forget: (key) => snapshots.forget(key), lookup,
           invoke: async (next, args, step) => {
             progress(next === 'termous.desktops.control.acquire' ? 'waiting' : 'preparing')
             const result = await invoke(next, args, step)
+            signal?.throwIfAborted()
             const output = body(result)
-            observe({ ...context, name: next }, args, output)
+            // 中间查询尚未通过业务复验，不能提前替换默认目标；成功附着才确认新的观察身份。
+            observe({ ...context, name: next, desktop: next === 'termous.desktops.attach' ? context.desktop : undefined }, args, output)
             return output
           },
         }
@@ -79,8 +85,12 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
             }
           }
           let validated: unknown
-          try { validated = next.prepareArguments ? next.prepareArguments(args) : args } catch {
-            fail('AGENT_RESOURCE_BINDING_MISMATCH', 'The prepared target no longer satisfies this execution binding. Read the current target and correct the selection.', 'reread')
+          try { validated = next.prepareArguments ? next.prepareArguments(args) : args } catch (error) {
+            if (!(error instanceof ResourceRoutingError) || error.failure.dispatched) throw error
+            const failure = error.failure
+            fail(failure.code, failure.message, failure.required_tool
+              ? { kind: 'reread', tool: failure.required_tool, arguments: failure.required_arguments }
+              : 'correct_parameters', failure)
           }
           validateArguments(Compile(next.parameters), validated, `Prepared parameters do not satisfy ${target}; inspect the indicated business fields.`)
           if (mutating && !prepared.has(step)) {
@@ -118,7 +128,7 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
                 if (original.operation_result && ['accepted', 'failed', 'uncertain'].includes(String(original.operation_result.state))) {
                   const output = { operation: original.operation_result }
                   const content = [{ type: 'text' as const, text: JSON.stringify(output) }]
-                  return projectRecovery({ content, details: { kind: 'mcp', originalToolName: name, result: { content, structuredContent: output } } }, String(args.tool_call_id))
+                  return projectManagedRecovery({ content, details: { kind: 'mcp', originalToolName: name, result: { content, structuredContent: output } } }, context, String(args.tool_call_id))
                 }
                 if (original.generation !== options.generation) fail('AGENT_OPERATION_OUTCOME_UNAVAILABLE', 'The previous execution ended without a confirmed receipt. Its input authority cannot be restored. Observe the desktop without replaying the action.', 'user_action')
                 args.attachment_id = original.values.attachment_id
@@ -131,33 +141,23 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
           }
           progress('executing')
           const result = await invoke(name, args, 'dispatch', digest)
+          signal?.throwIfAborted()
           if (isMCPToolDetails(result.details) && !result.details.result.isError && isRecord(result.details.result.structuredContent) && !result.details.result.structuredContent.error) observe(context, args, result.details.result.structuredContent)
-          return projectRecovery(result, String(input.tool_call_id ?? callID))
+          const projected = projectManagedRecovery(result, context, String(input.tool_call_id ?? callID))
+          return options.desktop && ['desktop', 'analysis', 'workflow'].includes(adapter.adapter) ? options.desktop.project(projected) : projected
         } catch (error) {
           if (!(error instanceof PreparationStopped)) throw error
-          const result = error.result
-          return isMCPToolDetails(result.details) ? { ...result, details: { ...result.details, originalToolName: name } } : result
+          const result = projectManagedRecovery(error.result, context, callID)
+          const projected = isMCPToolDetails(result.details) ? { ...result, details: { ...result.details, originalToolName: name } } : result
+          return options.desktop && !signal?.aborted && ['desktop', 'analysis', 'workflow'].includes(adapter.adapter) ? options.desktop.project(projected) : projected
         } finally { prepared.clear() }
       },
     } satisfies AgentTool
   })
 }
 
-function projectRecovery(result: AgentToolResult<unknown>, callID: string): AgentToolResult<unknown> {
-  if (!isMCPToolDetails(result.details)) return result
-  const output = result.details.result.structuredContent
-  if (!isRecord(output)) return result
-  const key = isRecord(output.operation) ? 'operation' : 'error'
-  const value = output[key]
-  if (!isRecord(value) || !isRecord(value.execution) || !isRecord(value.execution.recovery) || value.execution.recovery.tool !== 'termous.desktops.operations.get') return result
-  const projected = { ...output, [key]: { ...value, execution: { ...value.execution,
-    recovery: { ...value.execution.recovery, arguments: { tool_call_id: callID } },
-  } } }
-  const content = [{ type: 'text' as const, text: JSON.stringify(projected) }]
-  return { ...result, content, details: { ...result.details, result: { ...result.details.result, content, structuredContent: projected } } }
-}
-
 function observe(ctx: PreparationContext, args: Arguments, output: Arguments) {
+  ctx.desktop?.observe(ctx.name, args, output)
   observeDesktop(ctx, args, output)
   observeWorkflow(ctx, output)
   observeRevisions(ctx, args, output)

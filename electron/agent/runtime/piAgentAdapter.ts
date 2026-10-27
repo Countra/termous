@@ -47,6 +47,7 @@ import type { PreparedCall } from '../contracts/toolPreparation.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from '../contracts/runtimeCheckpoint.ts'
 import type { RuntimeSteerResult } from '../contracts/runtimeEvents.ts'
 import { runtimeContextFingerprint, runtimeProviderUsage } from '../provider/runtimeProviderUsage.ts'
+import { restoreDesktopObservation } from '../context/desktop/history.ts'
 
 export interface PiAgentController {
   continue(): Promise<PiRunOutcome>
@@ -104,9 +105,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let aborted = false
   const executionFailure = () => aborted ? undefined : inputSafety.failure() ?? budget.failure()
   const imageWorkingSet = new RuntimeImageWorkingSet(images)
+  const desktopContext = restoreDesktopObservation(options.bootstrap)
   const resourceTools = bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings)
   const managedTools = options.lookupPreparedCall ? prepareBuiltinTools({ ...options.mcp, tools: resourceTools }, {
     runID: options.bootstrap.run.id, generation: options.bootstrap.run.generation, bindings: options.bootstrap.session.resource_bindings,
+    desktop: desktopContext,
     lookup: options.lookupPreparedCall,
     progress: (tool_call_id, _tool_name, phase) => bridge.toolProgress(tool_call_id, phase),
     blocked: (name, args) => inputSafety.blockedTool(name, args),
@@ -135,6 +138,10 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
     (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory)
   let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? []) : discovery.active()
+  if (options.lookupPreparedCall && desktopContext.selected()) {
+    discovery.loadNames(['termous.desktops.capture'])
+    tools = discovery.publish()
+  }
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
   let toolDeclarations = tools.map(toToolDeclaration)
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
@@ -166,7 +173,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     projectMessages: (messages, commit) => projectContext(messages, commit),
     supplementalMessages: (messages, commit) => supplementContext(messages, commit),
     retainToolCall: pendingPreviewCall,
-    captureDetails: () => ({ execution_progress: toolProgress.snapshot() }),
+    captureDetails: () => ({ execution_progress: toolProgress.snapshot(), desktop_context: desktopContext.snapshot() }),
   })
   const projectImages = (messages: AgentMessage[], commit: boolean) => {
     const projected = imageWorkingSet.project(standardMessages(messages), commit)
@@ -197,7 +204,9 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const supplementContext = (messages: AgentMessage[], commit: boolean): AgentMessage[] => {
     const knowledge = skillContext.content(messages)
     const summary = toolProgress.summary()
-    const content = [...knowledge, ...(summary ? [{ type: 'text' as const, text: summary }] : [])]
+    const desktopSummary = options.lookupPreparedCall ? desktopContext.summary(!discovery.available('termous.desktops.capture') ? 'unavailable'
+      : tools.some(tool => options.mcp.originalName(tool.name) === 'termous.desktops.capture') ? 'available' : 'deferred') : ''
+    const content = [...knowledge, ...[summary, desktopSummary].filter(Boolean).map(text => ({ type: 'text' as const, text }))]
     const key = progressDigest(content)
     if (commit && supplementalFingerprint !== key) {
       supplementalFingerprint = key
@@ -232,6 +241,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     observedCalls.add(id)
     discovery.complete(name)
     const original = options.mcp.originalName(name) ?? name
+    for (const replaced of desktopContext.takeReplacedAttachments()) toolProgress.resolveDesktopObservation(replaced)
     const entry = discovery.registry.entries.find((candidate) => candidate.tool.name === name)
     if (entry && !trustedTool(entry.tool)) {
       budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
@@ -243,7 +253,8 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     // pi 在参数准备失败时跳过 before/afterToolCall；用实际阶段区分本地失败，不解析错误文案。
     const preparationCode = isError && !validatedCalls.has(id) && !isMCPToolDetails(result.details)
       ? tools.some((tool) => tool.name === name) ? 'AGENT_TOOL_ARGUMENTS_INVALID' : 'AGENT_TOOL_UNAVAILABLE' : undefined
-    const navigation = runtimeToolNavigation(original, result, options.bootstrap.session.resource_bindings, isError, preparationCode)
+    const suggested = runtimeToolNavigation(original, result, options.bootstrap.session.resource_bindings, isError, preparationCode, args)
+    const navigation = suggested ? discovery.resolveNavigation(suggested) : undefined
     const guidance = toolProgress.observe(original, args, result, isError, navigation)
     const navigationText = navigation ? discovery.navigate(navigation, Boolean(options.lookupPreparedCall && !isError && !navigation.recovery && runtimeToolOutcome(original, progressData(result), false) === 'settled')) : undefined
     for (const progress of toolProgress.drain()) {

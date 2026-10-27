@@ -1,3 +1,4 @@
+import { ResourceRoutingError } from '../contracts/toolRecovery.ts'
 import { runtimeDesktopIdentity } from '../contracts/runtimeDesktopBinding.ts'
 import { bindRuntimeDesktopTools } from './runtimeDesktopRouting.ts'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
@@ -70,12 +71,12 @@ function bindRuntimeSSHSessionTools(
         ? Array.isArray(selected) && selected.length === 1 && selected[0] === sessionID
         : selected === sessionID
       if (!matches) {
-        throw new Error(JSON.stringify({
+        throw new ResourceRoutingError({
           code: 'AGENT_RESOURCE_BINDING_MISMATCH', dispatched: false,
           message: '调用参数与本轮 SSH 绑定不一致，此次调用尚未发送到 MCP。请按当前绑定修正参数；这不是当前连接失效，不需要用户再次绑定。不得重放历史已执行或结果未知的操作。',
           resource,
           expected_arguments: { [selector.field]: selector.field === 'session_ids' ? [sessionID] : sessionID },
-        }))
+        })
       }
     }
     const parameters = {
@@ -355,13 +356,13 @@ function throwProfileResultMismatch(
   binding: RuntimeSSHProfileBinding,
   expectedResult: Record<string, unknown>,
 ): never {
-  throw new Error(JSON.stringify({
+  throw new ResourceRoutingError({
     code: 'AGENT_RESOURCE_BINDING_RESULT_MISMATCH',
     dispatched: true,
     message: 'MCP 返回的 SSH 会话身份与本轮 Profile 绑定不一致。不得使用该会话或自动重试；请刷新后重新发起请求。',
     resource: runtimeResourceIdentity(binding),
     expected_result: expectedResult,
-  }))
+  })
 }
 
 function throwProfileRoutingError(
@@ -369,13 +370,13 @@ function throwProfileRoutingError(
   message: string,
   expectedArguments: Record<string, unknown>,
 ): never {
-  throw new Error(JSON.stringify({
+  throw new ResourceRoutingError({
     code: 'AGENT_RESOURCE_BINDING_MISMATCH',
     dispatched: false,
     message,
     resource,
     expected_arguments: expectedArguments,
-  }))
+  })
 }
 
 function validSessionIdentifier(value: unknown): value is string {

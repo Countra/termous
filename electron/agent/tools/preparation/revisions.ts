@@ -1,6 +1,7 @@
 import { isRecord } from '../../contracts/validation.ts'
 import { argumentDigest } from './identity.ts'
 import { defaultValue, fail, type Arguments, type PreparationContext } from './contracts.ts'
+import { previewRecovery, revisionRecovery } from '../recovery/revisions.ts'
 
 function planKey(name: string, args: Arguments) {
   const selector = Object.fromEntries(Object.entries(args).filter(([key]) => !['client_request_id', 'expected_plan_hash', 'offset', 'limit'].includes(key)))
@@ -20,7 +21,7 @@ export function prepareRevisions(ctx: PreparationContext, args: Arguments) {
     args.items = args.items.map((item) => {
       if (!isRecord(item) || typeof item.id !== 'string') fail('AGENT_PARAMETER_INVALID', 'Each group needs its explicit id and sort_order.')
       const revision = item.expected_updated_at ?? ctx.read(`group:${item.id}`)?.expected_updated_at ?? groups?.[item.id]
-      if (revision === undefined) fail('AGENT_READ_REQUIRED', 'Read the complete group list before changing its order.', 'reread')
+      if (revision === undefined) fail('AGENT_READ_REQUIRED', 'Read the complete group list with termous.snippets.groups.list before changing its order.', { kind: 'reread', tool: 'termous.snippets.groups.list', arguments: {} })
       return { ...item, expected_updated_at: revision }
     })
   }
@@ -29,18 +30,20 @@ export function prepareRevisions(ctx: PreparationContext, args: Arguments) {
   for (const field of ['expected_revision', 'expected_updated_at']) {
     if (!ctx.has(field) || args[field] !== undefined) continue
     const value = snapshot?.[field] ?? (field === 'expected_updated_at' && ctx.name.startsWith('termous.snippets.groups.') ? groups?.[String(args.group_id)] : undefined)
-    if (value === undefined) fail('AGENT_READ_REQUIRED', 'Read this resource before editing it. A missing revision cannot be replaced with a new latest version.', 'reread')
+    if (value === undefined) fail('AGENT_READ_REQUIRED', 'Read this resource before editing it. A missing revision cannot be replaced with a new latest version.', revisionRecovery(ctx.name, args))
     args[field] = value
   }
   if (ctx.has('expected_plan_hash') && args.expected_plan_hash === undefined) {
     const snapshot = ctx.read(planKey(ctx.name, args))
-    if (!snapshot) fail('AGENT_PREVIEW_REQUIRED', 'Preview these exact operation parameters before executing the plan.', 'reread')
+    if (!snapshot) fail('AGENT_PREVIEW_REQUIRED', 'Preview these exact operation parameters before executing the plan.', previewRecovery(ctx.name, args))
     args.expected_plan_hash = snapshot.plan_hash
   }
   if (ctx.name === 'termous.files.save_text') {
     const snapshot = ctx.read(textKey(args))
     for (const field of ['base_sha256', 'base_size', 'base_modified_at', 'line_ending', 'has_bom']) defaultValue(args, field, snapshot?.[field])
-    if (args.base_sha256 === undefined) fail('AGENT_READ_REQUIRED', 'Read the original file before saving changes.', 'reread')
+    if (args.base_sha256 === undefined) fail('AGENT_READ_REQUIRED', 'Use termous.files.read_text to read the original file before saving changes.', {
+      kind: 'reread', tool: 'termous.files.read_text', arguments: { file_session_id: args.file_session_id, path: args.path },
+    })
   }
 }
 

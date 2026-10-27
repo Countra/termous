@@ -8,7 +8,9 @@ async function fileSession(ctx: PreparationContext, id: unknown, step: string, r
     session = item((await ctx.invoke('termous.files.sessions.get', { file_session_id: id }, step)).session, 'session')
   }
   if (session.id !== id || session.owned_by_client !== true || requireReady && session.status !== 'connected' || !Number.isSafeInteger(session.connection_generation) || Number(session.connection_generation) <= 0) {
-    fail('AGENT_FILE_SESSION_NOT_READY', 'A connected file session owned by this caller is required.', 'user_action')
+    fail('AGENT_FILE_SESSION_NOT_READY', 'A connected file session owned by this caller is required. Inspect the original session with termous.files.sessions.get; do not replace it automatically.', {
+      kind: 'user_action', tool: 'termous.files.sessions.get', arguments: { file_session_id: id },
+    })
   }
   return session
 }
