@@ -1,0 +1,77 @@
+.accent {
+  --accent: #ff8300;
+  --control-action-text: #261600;
+
+  :global(html[data-theme='light']) & {
+    --accent: #b85300;
+    --control-action-text: #fff;
+  }
+}
+
+.mark {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.emblem {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.bar {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--border-strong));
+  border-radius: 12px;
+  background: rgb(from var(--surface) r g b / 100%);
+  padding: 4px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 20%), inset 0 1px 0 color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text-primary);
+}
+
+.reclaim, .reclaim:global(.ant-btn) {
+  display: inline-flex;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  padding: 0 12px;
+  color: var(--control-action-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:not(:disabled):hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 86%, var(--text-primary));
+    color: var(--control-action-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--text-primary);
+    cursor: wait;
+  }
+}

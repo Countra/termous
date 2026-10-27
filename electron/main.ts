@@ -7,6 +7,8 @@ import { DesktopSettingsRuntime, registerSettingsIPC } from './settings/runtime'
 import { RemoteControlRuntime } from './remoteControl/runtime'
 import { DetachedWindows } from './detached-windows/manager'
 import { DesktopAutomationRuntime } from './desktopAutomation/runtime'
+import { DesktopIndicatorRuntime } from './desktopIndicator/runtime'
+import { reportDesktopReclaimFailure } from './desktopIndicator/feedback'
 import { registerDesktopFilesIPC } from './desktopFilesIPC'
 import { RemoteCore } from './remoteControl/core'
 import { notificationSettingsAdapter, updateSettingsAdapter, loginItemSettingsAdapter } from './settings/adapters'
@@ -1809,6 +1811,18 @@ async function initializeApplication() {
     devURL: VITE_DEV_SERVER_URL,
     warn: code => reportElectronProcessEvent(code, {}),
   })
+  const desktopIndicator = new DesktopIndicatorRuntime({
+    config: () => coreProcess.initialize(),
+    exitCommitted: () => exitCoordinator.isExitCommitted(),
+    appearance: () => ({ theme: appTheme, language: appLanguage }),
+    preload: path.join(__dirname, 'desktop-indicator-preload.cjs'),
+    renderer: path.join(RENDERER_DIST, 'index.html'),
+    devURL: VITE_DEV_SERVER_URL,
+    warn: code => reportElectronProcessEvent(code, {}),
+    reclaimFailed: () => reportDesktopReclaimFailure(appLanguage, APP_ICON, code => reportElectronProcessEvent(code, {})),
+  })
+  desktopIndicator.start()
+  app.once('will-quit', () => desktopIndicator.close())
   void desktopAutomation.start()
   app.once('before-quit', () => desktopAutomation.close())
   registerFileSystemClipboardIPC({

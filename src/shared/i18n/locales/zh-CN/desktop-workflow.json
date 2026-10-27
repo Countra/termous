@@ -196,7 +196,7 @@
   "externalUpdateHint": "当前草稿已保留。加载新版本前会确认未保存的修改。",
   "loadLatest": "加载新版本",
   "initiator": "发起者：{{name}}",
-  "approval": {"version":"固定版本","connectionEnd":"结束后连接","close_owned":"关闭本次独占连接","keep_connection":"保留连接","existing_connection":"保留已有连接","run":"执行桌面流程","takeover":"接管并执行流程","runHint":"批准后执行以上固定版本，不逐步确认。运行可访问目标已有共享资源；调用方结束时取消。"},
+  "approval": {"version":"固定版本","connectionEnd":"结束后连接","bindingEnd":"结束后处理","binding_only":"释放本次桌面绑定","hostRunHint":"批准后在本机桌面执行以上固定版本，不逐步确认；调用方结束时取消。键盘输入影响当前系统焦点，选择显示器不会隔离应用。你可以随时收回控制。","close_owned":"关闭本次独占连接","keep_connection":"保留连接","existing_connection":"保留已有连接","run":"执行桌面流程","takeover":"接管并执行流程","runHint":"批准后执行以上固定版本，不逐步确认。运行可访问目标已有共享资源；调用方结束时取消。"},
   "workflow": "桌面自动化",
   "backToDesktop": "返回远程桌面",
   "library": "流程库",

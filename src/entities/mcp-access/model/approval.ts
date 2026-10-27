@@ -23,7 +23,7 @@ export interface McpApprovalOperation {
   domain?: string
   resource_id?: string
   resource_name?: string
-  resource_kind?: 'images' | 'volumes' | 'networks' | 'rdp' | 'vnc'
+  resource_kind?: 'images' | 'volumes' | 'networks' | 'rdp' | 'vnc' | 'host_desktop'
   target_resource_id?: string
   target_resource_name?: string
   image_tag?: string

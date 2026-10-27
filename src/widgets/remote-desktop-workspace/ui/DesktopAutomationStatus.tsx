@@ -1,20 +1,24 @@
 import { Button, Popover } from 'antd'
-import { Bot, ChevronUp, Eye, MousePointer2, Undo2, Workflow } from 'lucide-react'
+import { ChevronUp, Eye, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import { useRemoteDesktopRuntime } from '#features/remote-desktop'
+import { useDesktopControls } from '#features/desktop-control'
+import { DesktopControlMark, desktopControlLabel, desktopControlStyles } from '#entities/desktop-control'
 import styles from './DesktopAutomationStatus.module.scss'
 
-export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSession }) {
+export function DesktopAutomationStatus({ session, onReclaimFailed }: { session: RemoteDesktopSession; onReclaimFailed?: () => void }) {
   const { t } = useTranslation()
   const { automation } = useRemoteDesktopRuntime()
+  const snapshot = useDesktopControls(automation)
+  const presentation = snapshot?.controls.find(c => c.target.kind === 'protocol_session' && c.target.protocol.session_id === session.id && c.target.protocol.connection_generation === session.connection_generation)
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState<'show' | 'reclaim' | null>(null)
   const [failed, setFailed] = useState(false)
   const pending = useRef(false)
   const lifetime = useRef(0)
-  const control = session.automation
+  const control = presentation?.active ? session.automation : undefined
   const controlId = control?.id
 
   useEffect(() => {
@@ -28,20 +32,16 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
       lifetime.current = epoch + 1
       window.clearInterval(timer)
     }
-  }, [session.id, session.connection_generation, controlId, session.automation_host_id])
+  }, [session.id, session.connection_generation, controlId, session.automation_host_id, presentation?.reference])
 
-  if (!control && !session.automation_host_id) return null
+  if (!presentation && !failed) return null
   const deadline = control ? Math.min(Date.parse(control.expires_at), Date.parse(control.idle_expires_at)) : NaN
   const seconds = Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - now) / 1000)) : null
   const expired = seconds === 0
   const time = seconds === null ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-  const source = control?.source
-  const Icon = source === 'agent' ? Bot : source === 'workflow' ? Workflow : MousePointer2
-  const label = t(!control ? 'remoteDesktop.automation.observing'
-    : expired ? 'remoteDesktop.automation.expired'
-      : source === 'agent' ? 'remoteDesktop.automation.aiControlling'
-        : source === 'workflow' ? 'remoteDesktop.automation.workflowControlling' : 'remoteDesktop.automation.active')
-  const client = source === 'agent' ? t('settings.mcp.builtinAgentName') : control?.client_name
+  const source = presentation?.source ?? ''
+  const label = t(expired ? 'remoteDesktop.automation.expired' : desktopControlLabel(source, Boolean(presentation?.active)))
+  const client = source === 'agent' ? t('settings.mcp.builtinAgentName') : presentation?.name
   const expiryLabel = t(seconds === null ? 'remoteDesktop.automation.expiryUnknown'
     : expired ? 'remoteDesktop.automation.expired' : 'remoteDesktop.automation.releasesIn', { time })
 
@@ -55,10 +55,12 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
       if (kind === 'show') {
         if (session.automation_host_id) await automation.show(session.id, session.connection_generation, session.automation_host_id)
       } else {
-        await automation.reclaim(session.id, session.connection_generation)
+        if (!snapshot || !presentation) return
+        await automation.reclaim({ instance_id: snapshot.instance_id, target: presentation.target, reference: presentation.reference })
       }
     } catch {
       if (epoch === lifetime.current) setFailed(true)
+      else if (kind === 'reclaim') onReclaimFailed?.()
     } finally {
       // 控制权或连接代次变化后，旧操作不能覆盖新状态。
       if (epoch === lifetime.current) {
@@ -68,10 +70,10 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
     }
   }
   return (
-    <div className={styles.status} data-controlling={Boolean(control && !expired)} data-expired={expired}>
+    <div className={`${desktopControlStyles.accent} ${styles.status}`} data-controlling={Boolean(control && !expired)} data-expired={expired}>
       <div className={styles.corner} onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
         {failed && <div className={styles.feedback} role="alert">{t('remoteDesktop.automation.actionFailed')}</div>}
-        <div className={styles.bar}>
+        {presentation && <div className={`${desktopControlStyles.bar} ${styles.bar}`}>
           <Popover
             trigger={['hover', 'click']}
             placement="topRight"
@@ -84,7 +86,7 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
             )}
           >
             <Button type="text" className={styles.summary} aria-label={t('remoteDesktop.automation.controlDetails')}>
-              <Icon size={15} aria-hidden="true" /><span>{label}</span><ChevronUp size={12} aria-hidden="true" />
+              <DesktopControlMark source={source} size={18} /><span>{label}</span><ChevronUp size={13} aria-hidden="true" />
             </Button>
           </Popover>
           {control && <span className={styles.countdown} title={expiryLabel}>{time}</span>}
@@ -102,6 +104,7 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
               </Button>
             )}
             <Button
+              className={desktopControlStyles.reclaim}
               size="small"
               loading={busy === 'reclaim'}
               disabled={!automation || Boolean(busy)}
@@ -111,7 +114,7 @@ export function DesktopAutomationStatus({ session }: { session: RemoteDesktopSes
               {t('remoteDesktop.automation.reclaim')}
             </Button>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

@@ -236,7 +236,7 @@ export function RemoteDesktopWorkspace({
       {activeSession ? (
         <>
           <main className={styles.viewer}>
-            <DesktopAutomationStatus key={activeSession.id} session={activeSession} />
+            <DesktopAutomationStatus key={activeSession.id} session={activeSession} onReclaimFailed={() => notification.error({ title: t('remoteDesktop.automation.actionFailed'), className: termousNotificationClassName })} />
             <RemoteDesktopViewport sessionId={activeSession.id} />
             {!activeSession.automation_host_id && <ViewerOverlay session={activeSession} viewerState={viewerState} />}
           </main>

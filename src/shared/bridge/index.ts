@@ -3,6 +3,7 @@ import type {
   TermousUpdateWindowBridge,
   RemoteWindowBridge,
   DesktopAutomationBridge,
+  DesktopIndicatorBridge,
   DetachedWindowBridge,
 } from '#common/contracts'
 
@@ -12,6 +13,7 @@ type BridgeWindow = Window & {
   termousUpdate?: TermousUpdateWindowBridge
   termousRemote?: RemoteWindowBridge
   termousDesktopAutomation?: DesktopAutomationBridge
+  termousDesktopIndicator?: DesktopIndicatorBridge
 }
 
 export function isAppDebugMode(): boolean {
@@ -28,6 +30,10 @@ export function getDetachedWindowBridge(): DetachedWindowBridge | null {
 
 export function getDesktopAutomationBridge(): DesktopAutomationBridge | null {
   return typeof window === 'undefined' ? null : (window as BridgeWindow).termousDesktopAutomation ?? null
+}
+
+export function getDesktopIndicatorBridge(): DesktopIndicatorBridge | null {
+  return typeof window === 'undefined' ? null : (window as BridgeWindow).termousDesktopIndicator ?? null
 }
 
 export function getRemoteWindowBridge(): RemoteWindowBridge | null {

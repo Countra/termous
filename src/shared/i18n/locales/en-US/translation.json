@@ -1,5 +1,10 @@
 {
   "hostDesktop": {
+    "approvalTitle": "Local desktop control",
+    "targetType": "Target type",
+    "sourceID": "Source ID",
+    "controlApproval": "Allow mouse and keyboard input on this computer",
+    "controlHint": "Keyboard input affects the currently focused application. Selecting a display does not isolate applications. You can reclaim control at any time.",
     "activeAccesses": "Active access",
     "accessFailed": "Could not confirm access or cleanup. Refresh and retry.",
     "noAccesses": "No devices are accessing this desktop",
@@ -1772,6 +1777,7 @@
       "retainedCount": "Retained sessions, {{count}}"
     },
     "automation": {
+      "badge": { "agent": "AI control", "mcp": "MCP control", "workflow": "Workflow", "remote": "Remote control", "local": "Desktop control" },
       "pointerStandby": "In control",
       "hostHint": "Hosted view · Closing this window hides it; automation continues",
       "hostFailed": "Executor ended. Attach again and request control.",
@@ -1781,6 +1787,9 @@
       "trustOnce": "Trust this time",
       "actionFailed": "Action failed. Check desktop status before retrying.",
       "observing": "Desktop view hosted",
+      "remoteControlling": "Remote device in control",
+      "mcpControlling": "MCP in control",
+      "localControlling": "Local application in control",
       "aiControlling": "AI is operating",
       "workflowControlling": "Workflow running",
       "releasesIn": "Control releases in {{time}}",

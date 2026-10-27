@@ -196,7 +196,7 @@
   "externalUpdateHint": "Your draft is preserved. Unsaved changes are confirmed before loading.",
   "loadLatest": "Load latest",
   "initiator": "Started by: {{name}}",
-  "approval": {"version":"Pinned version","connectionEnd":"Connection after run","close_owned":"Close this exclusively owned connection","keep_connection":"Keep connection","existing_connection":"Keep existing connection","run":"Run desktop flow","takeover":"Take over and run","runHint":"Approval applies to this version without confirming each step. The run can access existing shared resources and is cancelled when its caller ends."},
+  "approval": {"version":"Pinned version","connectionEnd":"Connection after run","bindingEnd":"After run","binding_only":"Release this desktop binding","hostRunHint":"Approval runs this version on the local desktop without confirming each step; the run is cancelled when its caller ends. Keyboard input affects the currently focused application. Selecting a display does not isolate applications. You can reclaim control at any time.","close_owned":"Close this exclusively owned connection","keep_connection":"Keep connection","existing_connection":"Keep existing connection","run":"Run desktop flow","takeover":"Take over and run","runHint":"Approval applies to this version without confirming each step. The run can access existing shared resources and is cancelled when its caller ends."},
   "workflow": "Desktop automation",
   "backToDesktop": "Back to desktop",
   "library": "Flow library",

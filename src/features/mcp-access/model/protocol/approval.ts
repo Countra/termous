@@ -187,7 +187,7 @@ function decodeMcpApprovalOperation(
   const resourceKind = operation.resource_kind === undefined
     ? undefined
     : requireString(operation.resource_kind, 'MCP 审批资源类型无效')
-  if (resourceKind && !(['desktop', 'desktop_workflow'].includes(kind) ? ['rdp', 'vnc'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
+  if (resourceKind && !(['desktop', 'desktop_workflow'].includes(kind) ? ['rdp', 'vnc', 'host_desktop'] : ['images', 'volumes', 'networks']).includes(resourceKind)) {
     throw new McpAccessProtocolError('MCP 审批资源类型无效')
   }
   if (kind === 'desktop') {
@@ -209,7 +209,9 @@ function decodeMcpApprovalOperation(
     if (action === 'run') {
       requireString(operation.run_id, 'MCP 脚本审批运行缺失')
       requireString(operation.resource_id, 'MCP 脚本审批连接缺失')
-      if (!resourceKind || operation.timeout_seconds !== 1800 || !['observe_to_control', 'takeover'].includes(String(operation.mode)) || !['keep_connection', 'close_owned', 'existing_connection'].includes(String(operation.lifecycle))) {
+      // 本机只管理观察绑定，不借用 RDP/VNC 的连接关闭策略。
+      const lifecycles = resourceKind === 'host_desktop' ? ['binding_only'] : ['keep_connection', 'close_owned', 'existing_connection']
+      if (!resourceKind || operation.timeout_seconds !== 1800 || !['observe_to_control', 'takeover'].includes(String(operation.mode)) || !lifecycles.includes(String(operation.lifecycle))) {
         throw new McpAccessProtocolError('MCP 脚本运行授权范围无效')
       }
     }

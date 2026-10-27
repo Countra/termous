@@ -163,3 +163,4 @@ export { agentToolImageReference, isAgentToolImageReference, isAgentDisplayImage
 export { isImageResourceReference, isTextResourceReference, type ContentResourceReference, type ImageResourceReference, type TextResourceReference } from './content-resources.ts'
 
 export type { HostDesktopAccess } from './remote-control'
+export * from './desktop-controls.ts'

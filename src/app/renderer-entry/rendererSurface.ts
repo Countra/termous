@@ -1,8 +1,8 @@
-export type RendererSurface = 'main' | 'update' | 'remote' | 'desktop-automation' | 'detached'
+export type RendererSurface = 'main' | 'update' | 'remote' | 'desktop-automation' | 'desktop-indicator' | 'detached'
 
 export function resolveRendererSurface(search: string): RendererSurface {
   const value = new URLSearchParams(search).get('surface')
-  return value === 'remote' || value === 'update' || value === 'desktop-automation' || value === 'detached' ? value : 'main'
+  return value === 'remote' || value === 'update' || value === 'desktop-automation' || value === 'desktop-indicator' || value === 'detached' ? value : 'main'
 }
 
 export function loadRendererSurface<T>(

@@ -1,0 +1,71 @@
+.badge {
+  display: inline-flex;
+  max-width: calc(100% - 8px);
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 75%, var(--border-strong));
+  border-radius: 8px;
+  background: rgb(from var(--surface) r g b / 100%);
+  margin: 4px;
+  padding: 0 8px;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 22%);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.bar {
+  width: calc(100% - 16px);
+  max-width: 376px;
+  height: 64px;
+  gap: 10px;
+  margin: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.description {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+
+  strong, span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 20px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+  }
+}
+
+.spinner { animation: reclaim-spin 1s linear infinite; }
+
+@keyframes reclaim-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+}

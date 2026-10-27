@@ -1,5 +1,10 @@
 {
   "hostDesktop": {
+    "approvalTitle": "本机桌面控制",
+    "targetType": "目标类型",
+    "sourceID": "来源标识",
+    "controlApproval": "允许在本机桌面执行鼠标和键盘操作",
+    "controlHint": "键盘输入影响当前系统焦点；选择显示器不会隔离应用。你可以随时收回控制。",
     "activeAccesses": "正在访问",
     "accessFailed": "无法确认访问状态或清理结果，请刷新后重试。",
     "noAccesses": "当前没有设备访问本机桌面",
@@ -1770,6 +1775,7 @@
       "retainedCount": "保留会话，{{count}} 个"
     },
     "automation": {
+      "badge": { "agent": "AI 托管", "mcp": "MCP 托管", "workflow": "流程执行", "remote": "远程控制", "local": "桌面托管" },
       "pointerStandby": "已接管",
       "hostHint": "托管画面 · 关闭此窗口仅隐藏，自动化继续运行",
       "hostFailed": "执行端已结束，请重新附着后再申请控制",
@@ -1779,6 +1785,9 @@
       "trustOnce": "仅本次信任",
       "actionFailed": "操作未完成，请检查桌面状态后重试",
       "observing": "桌面画面托管中",
+      "remoteControlling": "远程设备正在操作",
+      "mcpControlling": "MCP 正在操作",
+      "localControlling": "本机程序正在操作",
       "aiControlling": "AI 正在操作",
       "workflowControlling": "流程正在执行",
       "releasesIn": "{{time}} 后释放控制",

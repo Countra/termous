@@ -13,6 +13,7 @@ test('仅显式选择的 surface 加载独立界面', () => {
   assert.equal(resolveRendererSurface('?surface=remote'), 'remote')
   assert.equal(resolveRendererSurface('?surface=desktop'), 'main')
   assert.equal(resolveRendererSurface('?surface=desktop-automation'), 'desktop-automation')
+  assert.equal(resolveRendererSurface('?surface=desktop-indicator'), 'desktop-indicator')
   assert.equal(resolveRendererSurface('?surface=main'), 'main')
   assert.equal(resolveRendererSurface('?surface=UPDATE'), 'main')
   assert.equal(resolveRendererSurface(''), 'main')
@@ -31,6 +32,7 @@ test('surface 分流只调用目标模块加载器', async () => {
     },
     remote: async () => { calls.push('remote'); return 'remote' },
     'desktop-automation': async () => 'desktop-automation',
+    'desktop-indicator': async () => 'desktop-indicator',
     detached: async () => 'detached',
   })
 

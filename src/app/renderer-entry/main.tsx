@@ -37,6 +37,7 @@ void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.lo
   update: () => import('#app/update-surface'),
   remote: () => import('#app/remote-surface'),
   'desktop-automation': () => import('#app/desktop-automation-surface'),
+  'desktop-indicator': () => import('#app/desktop-indicator-surface'),
   detached: () => import('#app/detached-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(

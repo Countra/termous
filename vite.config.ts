@@ -74,7 +74,7 @@ export default defineConfig(({ command }) => {
           },
         },
       },
-      ...['detached-preload', 'remote-preload'].map<ElectronOptions>((entry) => ({
+      ...['detached-preload', 'remote-preload', 'desktop-indicator-preload'].map<ElectronOptions>((entry) => ({
         onstart: context => development.run(context),
         vite: {
           build: {
