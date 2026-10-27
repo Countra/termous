@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { WebSocketServer, WebSocket } from 'ws'
 import { DesktopIndicatorRuntime } from '../../electron/desktopIndicator/runtime.ts'
+import { AppExitCoordinator } from '../../electron/appExitCoordinator.ts'
 import type { DesktopControlSnapshot } from '../../common/contracts/desktop-controls.ts'
 
 async function main() {
@@ -47,14 +48,15 @@ const until = async (check: () => boolean | Promise<boolean>) => {
 }
 let runtime: DesktopIndicatorRuntime | undefined
 let exitCommitted = false
+const createRuntime = () => new DesktopIndicatorRuntime({ config: async () => ({ apiBaseUrl: url, apiToken: 'fixture-token', version: 'test' }),
+  exitCommitted: () => exitCommitted,
+  appearance: () => ({ language: 'zh-CN', theme: 'dark' }), preload: path.join(root, 'dist-electron/desktop-indicator-preload.cjs'),
+  renderer: path.join(root, 'dist/index.html'),
+  warn: code => console.log(code), reclaimFailed: () => { throw new Error('不应触发收回失败') },
+})
 try {
   await app.whenReady()
-  runtime = new DesktopIndicatorRuntime({ config: async () => ({ apiBaseUrl: url, apiToken: 'fixture-token', version: 'test' }),
-    exitCommitted: () => exitCommitted,
-    appearance: () => ({ language: 'zh-CN', theme: 'dark' }), preload: path.join(root, 'dist-electron/desktop-indicator-preload.cjs'),
-    renderer: path.join(root, 'dist/index.html'),
-    warn: code => console.log(code), reclaimFailed: () => { throw new Error('不应触发收回失败') },
-  })
+  runtime = createRuntime()
   runtime.start()
   await until(() => BrowserWindow.getAllWindows().filter(w => w.isVisible()).length === 2)
   const bar = BrowserWindow.getAllWindows().find(w => w.isFocusable())!
@@ -71,6 +73,11 @@ try {
   await bar.webContents.executeJavaScript("document.querySelector('button').click()")
   await until(() => BrowserWindow.getAllWindows().every(w => !w.isVisible()))
   assert.equal(reclaims, 1)
+  // 隐藏期间没有定位定时器，也必须通过 closed 事件处理外部强制销毁。
+  const hidden = BrowserWindow.getAllWindows()
+  hidden[0].destroy()
+  assert.equal(hidden.every(window => window.isDestroyed()), true)
+  publish()
   current = { ...snapshot, controls: [{ ...snapshot.controls[0], reference: 'b'.repeat(64) }] }
   publish()
   await until(() => BrowserWindow.getAllWindows().filter(w => w.isVisible()).length === 2)
@@ -79,10 +86,15 @@ try {
   assert.equal(reclaims, 1)
   await until(() => BrowserWindow.getAllWindows().filter(w => w.isVisible()).length === 2)
   const old = BrowserWindow.getAllWindows()[0]
-  old.webContents.forcefullyCrashRenderer()
+  const oldRenderer = old.webContents
+  oldRenderer.forcefullyCrashRenderer()
   await until(() => old.isDestroyed())
   await until(() => BrowserWindow.getAllWindows().filter(w => w.isVisible()).length === 2)
   assert.equal(reclaims, 1)
+  const recovered = BrowserWindow.getAllWindows()
+  // 模拟旧渲染进程的迟到通知，不能把已经恢复的新窗口再次销毁。
+  oldRenderer.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  assert.equal(recovered.every(window => !window.isDestroyed()), true)
   await until(() => BrowserWindow.getAllWindows().find(w => w.isFocusable())!.webContents.executeJavaScript("Boolean(document.querySelector('button'))"))
   // 第一次退出被取消，浮层继续展示；确认退出后必须能到达 will-quit。
   const visible = BrowserWindow.getAllWindows()
@@ -96,7 +108,39 @@ try {
   await until(() => reachedWillQuit)
   assert.equal(BrowserWindow.getAllWindows().length, 0)
   assert.equal(reclaims, 1)
-  console.log('桌面浮层原生验收通过：沙箱、置顶、不抢焦点、收回、重授权、断线、崩溃恢复和退出协调；未注入真实输入。')
+  runtime.close()
+  exitCommitted = false
+  runtime = createRuntime()
+  runtime.start()
+  await until(() => BrowserWindow.getAllWindows().filter(w => w.isVisible()).length === 2)
+  let closeError: unknown
+  let coordinatedQuit = false
+  app.once('will-quit', event => {
+    event.preventDefault()
+    coordinatedQuit = true
+    try { runtime!.close() } catch (error) { closeError = error }
+  })
+  // 与主入口一致：协调器先强制销毁窗口，will-quit 再释放浮层连接。
+  const coordinator = new AppExitCoordinator({
+    shutdownCore: async () => true,
+    prepareForExit: () => { exitCommitted = true },
+    closeAllWindows: () => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.destroy() },
+    quitApplication: () => app.quit(),
+    reportError: (_event, error) => { closeError = error },
+  })
+  await coordinator.requestApplicationExit('main_window')
+  await until(() => coordinatedQuit)
+  assert.equal(closeError, undefined)
+  assert.equal(BrowserWindow.getAllWindows().length, 0)
+  assert.equal(reclaims, 1)
+  runtime.close()
+  runtime.start()
+  publish()
+  await new Promise(resolve => setTimeout(resolve, 2200))
+  assert.equal(BrowserWindow.getAllWindows().length, 0)
+  assert.equal(ws.clients.size, 0)
+  assert.equal(reclaims, 1)
+  console.log('桌面浮层原生验收通过：沙箱、置顶、不抢焦点、收回、重授权、断线、崩溃恢复、取消退出及协调器强制销毁；未注入真实输入。')
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, platform: process.platform, reclaims }))
 } catch (error) { console.error(error); process.exitCode = 1 }
 finally {

@@ -36,3 +36,26 @@ test('浮层收到无效快照时立即隐藏，即使服务端不响应关闭�
     target: { kind: 'protocol_session', protocol: { session_id: 'session', connection_generation: 1 } },
   }), /desktop_indicator_disconnected/)
 })
+
+test('关闭后迟到的配置结果不再发布状态或发起重连，重复关闭无副作用', async () => {
+  for (const rejected of [false, true]) {
+    let finish!: () => void
+    const warnings: string[] = []
+    const snapshots: unknown[] = []
+    const connection = new DesktopIndicatorConnection({
+      config: () => new Promise((resolve, reject) => {
+        finish = () => rejected ? reject(new Error('配置加载已终止'))
+          : resolve({ apiBaseUrl: 'http://127.0.0.1:1', apiToken: 'test-token', version: 'test' })
+      }),
+      snapshot: value => snapshots.push(value), warn: code => warnings.push(code),
+    })
+    const starting = connection.start()
+    connection.close()
+    connection.close()
+    finish()
+    await starting
+    await connection.start()
+    assert.deepEqual(snapshots, [null])
+    assert.deepEqual(warnings, [])
+  }
+})

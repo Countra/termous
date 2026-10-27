@@ -61,6 +61,7 @@ export class DesktopIndicatorConnection {
       })
       ws.on('close', disconnect)
     } catch {
+      if (this.stopped) return
       this.options.warn('desktop_indicator_start_failed')
       this.options.snapshot(null)
       this.scheduleRetry()
@@ -79,11 +80,13 @@ export class DesktopIndicatorConnection {
     if (!response.ok) throw new Error('desktop_reclaim_failed')
   }
   close() {
+    if (this.stopped) return
     this.stopped = true
     clearTimeout(this.retry)
     clearTimeout(this.watchdog)
-    this.socket?.terminate()
+    const socket = this.socket
     this.socket = undefined
+    socket?.terminate()
     this.options.snapshot(null)
   }
 }

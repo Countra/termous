@@ -19,13 +19,15 @@ export class DesktopIndicatorRuntime {
   private windows?: DesktopIndicatorWindows
   private connection?: DesktopIndicatorConnection
   private uninstall?: () => void
+  private closed = false
   constructor(private readonly options: Options) {}
   start() {
-    if (this.connection || !indicatorSupported()) return
+    if (this.closed || this.connection || !indicatorSupported()) return
     const state = (role: DesktopIndicatorState['role']): DesktopIndicatorState => ({ role, revision: this.revision, ...this.options.appearance(),
       instance_id: this.snapshot?.instance_id ?? '', control: this.snapshot?.controls.find(c => c.target.kind === 'host_desktop' && c.active) ?? null })
     this.windows = new DesktopIndicatorWindows({ ...this.options, state })
     this.connection = new DesktopIndicatorConnection({ config: this.options.config, warn: this.options.warn, snapshot: value => {
+      if (this.closed) return
       this.snapshot = value
       this.revision++
       this.windows?.update(Boolean(state('bar').control))
@@ -34,5 +36,13 @@ export class DesktopIndicatorRuntime {
       reclaim: request => this.connection!.reclaim(request), failed: this.options.reclaimFailed })
     void this.connection.start()
   }
-  close() { this.connection?.close(); this.windows?.close(); this.uninstall?.() }
+  close() {
+    if (this.closed) return
+    // 先阻止回调与 IPC，再释放连接；连接关闭的空快照不能更新已销毁窗口。
+    this.closed = true
+    this.uninstall?.()
+    this.connection?.close()
+    this.windows?.close()
+    this.snapshot = null
+  }
 }

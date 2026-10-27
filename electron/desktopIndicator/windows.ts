@@ -26,11 +26,12 @@ export class DesktopIndicatorWindows {
   }
   update(active: boolean) {
     if (this.closed) return
+    if (this.options.exitCommitted()) { this.close(); return }
     this.active = active
     if (!active) {
       clearInterval(this.timer)
       this.timer = undefined
-      for (const e of this.entries) e.window.hide()
+      for (const e of this.entries) if (!e.window.isDestroyed()) e.window.hide()
       return
     }
     try {
@@ -64,7 +65,9 @@ export class DesktopIndicatorWindows {
         event.preventDefault()
         this.failed()
       })
-      window.webContents.on('render-process-gone', () => this.failed())
+      // destroy() 不触发 close；强制销毁也必须清除窗口引用，退出时不得重建。
+      window.once('closed', () => { if (this.entries.includes(entry)) this.failed() })
+      window.webContents.on('render-process-gone', () => { if (this.entries.includes(entry)) this.failed() })
       window.once('ready-to-show', () => { if (this.entries.includes(entry)) { entry.ready = true; this.update(this.active) } })
       void window.loadURL(entry.url).catch(() => { if (this.entries.includes(entry)) this.failed() })
     }
@@ -76,10 +79,13 @@ export class DesktopIndicatorWindows {
     return entry.role
   }
   private publish() {
-    for (const e of this.entries) if (e.ready) e.window.webContents.send('desktop-indicator:state', this.options.state(e.role))
+    for (const e of this.entries) if (e.ready && !e.window.isDestroyed() && !e.window.webContents.isDestroyed()) {
+      e.window.webContents.send('desktop-indicator:state', this.options.state(e.role))
+    }
   }
   private position = () => {
     if (!this.active || this.closed || !this.entries.length) return
+    if (this.options.exitCommitted()) { this.close(); return }
     try {
       const point = screen.getCursorScreenPoint()
       const bounds = indicatorBounds(point, screen.getDisplayNearestPoint(point).workArea)
@@ -87,6 +93,7 @@ export class DesktopIndicatorWindows {
       const appearance = `${state.theme}:${state.language}`
       if (appearance !== this.appearance) { this.appearance = appearance; this.publish() }
       for (const e of this.entries) {
+        if (e.window.isDestroyed()) continue
         if (!sameBounds(e.window.getBounds(), bounds[e.role])) e.window.setBounds(bounds[e.role], false)
         if (e.ready && !e.window.isVisible()) e.window.showInactive()
       }
@@ -94,6 +101,7 @@ export class DesktopIndicatorWindows {
   }
   private failed() {
     if (this.closed) return
+    if (this.options.exitCommitted()) { this.close(); return }
     this.options.warn('desktop_indicator_window_failed')
     this.dispose()
     if (!this.retry) this.retry = setTimeout(() => { this.retry = undefined; this.update(this.active) }, 2000)
@@ -106,6 +114,7 @@ export class DesktopIndicatorWindows {
     for (const e of entries) if (!e.window.isDestroyed()) e.window.destroy()
   }
   close() {
+    if (this.closed) return
     this.closed = true
     clearTimeout(this.retry)
     screen.removeListener('display-added', this.position)
