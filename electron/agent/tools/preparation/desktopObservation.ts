@@ -6,7 +6,7 @@ import { desktopSession } from './desktopSession.ts'
 import { attachmentMatches, desktopSelection } from './desktopSelection.ts'
 import { observationRecovery } from '../recovery/preparation.ts'
 
-const observationTools = new Set(['termous.desktops.capture', 'termous.desktop_workflows.captures.create', 'termous.screen_analyses.create'])
+const observationTools = new Set(['termous.desktops.capture', 'termous.desktops.pointer.position', 'termous.desktop_workflows.captures.create', 'termous.screen_analyses.create'])
 
 function staleAttachment(error: unknown) {
   if (!(error instanceof PreparationStopped) || !isMCPToolDetails(error.result.details)) return false

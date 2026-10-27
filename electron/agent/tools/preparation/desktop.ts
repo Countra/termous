@@ -5,6 +5,7 @@ import { desktopAttachment } from './desktopObservation.ts'
 import { attachmentMatches, desktopSelection } from './desktopSelection.ts'
 import { controlGrant } from './desktopControl.ts'
 import { observationRecovery } from '../recovery/preparation.ts'
+import { checkDesktopPointer } from './desktopPointer.ts'
 export { desktopSession } from './desktopSession.ts'
 export { desktopAttachment, observeDesktop } from './desktopObservation.ts'
 
@@ -47,6 +48,7 @@ export async function prepareDesktop(ctx: PreparationContext, args: Arguments) {
   if (!ctx.has('attachment_id')) return
   const attachment = await desktopAttachment(ctx, args)
   defaultValue(args, 'attachment_id', attachment.id)
+  checkDesktopPointer(ctx, args, attachment)
   if (ctx.has('grant_id')) {
     const grant = ctx.name.endsWith('.release') ? item(attachment.grant, 'grant') : await controlGrant(ctx, attachment)
     defaultValue(args, 'grant_id', grant.id)
