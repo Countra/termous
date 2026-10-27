@@ -2,6 +2,7 @@ import { createModelServiceFixture } from './modelServiceFixture'
 import { PreviewMcpProvider } from './PreviewMcpProvider'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { presentationDefaults } from '@termous/remote-protocol/presentation'
 import '#shared/styles'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { SettingsDialog } from '#pages/settings'
@@ -50,6 +51,7 @@ const agentGateway: AgentSetupGateway = {
 }
 
 const snapshots = new Map<SettingsModuleId, SettingsSnapshot>([
+  ['desktop_presentation', { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults() }, state: { status: 'saved' } }],
   ['notifications', { id: 'notifications', schema_version: 1, revision: 1, value: { enabled: true, agent: true, file: true, approval: true, cloud: true }, state: { status: 'applied', supported: true } }],
   ['desktop_clipboard', { id: 'desktop_clipboard', schema_version: 1, revision: 1, value: { enabled: true }, state: { status: 'applied' } }],
   ['login_item', { id: 'login_item', schema_version: 1, revision: 1, value: { enabled: false }, state: { status: 'applied', available: true } }],

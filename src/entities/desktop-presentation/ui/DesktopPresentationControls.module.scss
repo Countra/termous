@@ -47,8 +47,7 @@
   width: 100%;
 }
 
-.parameters,
-.effects {
+.parameters {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -60,16 +59,14 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.parameters .field,
-.effects .field {
+.parameters .field {
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 8px;
   padding: 0;
 }
 
-.parameters .field > .control,
-.effects .field > .control {
+.parameters .field > .control {
   width: 100%;
   grid-column: 1;
   grid-row: 2;
@@ -89,22 +86,9 @@
   grid-row: 1 / span 2;
 }
 
-.connection-settings {
-  border-top: 1px solid var(--border);
-  padding: 18px;
-}
-
-.section-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin-bottom: 14px;
-}
-
-.section-heading h4 {
+.defaults-heading {
   margin: 0;
+  padding: 16px 18px 8px;
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 550;
@@ -115,16 +99,6 @@
   color: var(--danger);
   font-size: 12px;
   line-height: 1.5;
-}
-
-.connection-hint {
-  @include settings.hint;
-
-  margin: 14px 0 0;
-}
-
-.connection-settings .parameters {
-  padding: 16px 0 0;
 }
 
 .details {
@@ -286,14 +260,12 @@
   }
 
   .parameters,
-  .parameters[data-kind='video'],
-  .effects {
+  .parameters[data-kind='video'] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .connection-settings,
+  .defaults-heading,
   .parameters,
-  .effects,
   .section-hint {
     padding-inline: 14px;
   }

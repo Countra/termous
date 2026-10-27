@@ -10,7 +10,10 @@ import styles from './DesktopPresentationControls.module.scss'
 
 function qualityStatus(state: PresentationState | undefined, text: (cn: string, en: string) => string) {
   switch (state?.status) {
-    case 'failed': return text('设置未生效，请重试。', 'Settings could not be applied. Please retry.')
+    case 'failed':
+      if (state.error === 'desktop_video_decode_timeout') return text('新画面确认超时，已请求恢复原画质。', 'The new picture was not confirmed in time. Restoring the previous quality.')
+      if (['desktop_video_configuration_failed', 'rdp_video_reconfigure_failed'].includes(state.error ?? '')) return text('画质切换失败，已请求恢复原画质。', 'Quality switching failed. Restoring the previous quality.')
+      return text('设置未生效，请重试。', 'Settings could not be applied. Please retry.')
     case 'uncertain': return text('尚未确认是否生效。', 'Settings are not yet confirmed.')
     case 'preference_sent': return text('设置已发送，以远端支持为准。', 'Settings sent; application depends on remote support.')
     case 'pending': case 'confirming': return text('正在应用设置…', 'Applying settings…')
@@ -54,10 +57,13 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
         <div className={styles.panel}>
           {caps && !caps.available && <p className={styles.notice}>{caps.reason === 'desktop_video_reconfigure_unsupported' ? text('远端版本不支持调整，请更新远端 Termous。', 'Update Termous on the remote device to adjust these settings.') : text('暂时无法调整，请等待连接就绪。', 'Settings are unavailable until the connection is ready.')}</p>}
           {settings && caps ? <><DesktopQualityFields settings={settings} capabilities={caps} disabled={disabled} onChange={onChange} />{caps.available && <p className={styles.status} data-status={state?.status} role="status">{status}</p>}</> : <p className={styles.notice}>{text('当前连接不支持画质调整。', 'Quality adjustment is unavailable for this connection.')}</p>}
-          {state?.warning && <p className={styles.notice} role="alert">{text('默认设置加载失败，暂用推荐设置。', 'Could not load defaults. Using recommended settings.')}</p>}
+          {state?.warning && <p className={styles.notice} role="alert">{state.warning === 'desktop_video_receiver_limited' ? text('本次观看已按接收端能力降低上限，原画质偏好仍保留。', 'This receiver requires lower limits. Your quality preference is preserved.') : text('默认设置加载失败，暂用推荐设置。', 'Could not load defaults. Using recommended settings.')}</p>}
           {Boolean(state?.encodedWidth || state?.observed) && <DesktopQualityDetails title={text('连接信息', 'Connection details')}>
             <dl className={styles.statistics}>
               {Boolean(state?.encodedWidth) && <><dt>{text('发送尺寸', 'Sent size')}</dt><dd>{state?.encodedWidth} × {state?.encodedHeight}</dd></>}
+              {state?.applied && <><dt>{text('编码端已应用', 'Applied by encoder')}</dt><dd>{state.applied.framerate} fps · {(state.applied.bitrate / 1_000_000).toFixed(2)} Mbps</dd></>}
+              {Boolean(caps?.sourceWidth) && <><dt>{text('来源尺寸', 'Source size')}</dt><dd>{caps?.sourceWidth} × {caps?.sourceHeight}</dd></>}
+              {Boolean(caps?.sourceRefreshRate) && <><dt>{text('来源刷新率', 'Source refresh rate')}</dt><dd>{caps?.sourceRefreshRate?.toFixed(2)} Hz</dd></>}
               {Boolean(state?.observed?.width) && <><dt>{text('接收尺寸', 'Received size')}</dt><dd>{state?.observed?.width} × {state?.observed?.height}</dd></>}
               {state?.observed?.bitrate !== undefined && <><dt>{text('实际接收速率', 'Receive rate')}</dt><dd>{(state.observed.bitrate / 1_000_000).toFixed(2)} Mbps</dd></>}
               {state?.observed?.framerate !== undefined && <><dt>{text('实际帧率', 'Frame rate')}</dt><dd>{state.observed.framerate} {text('帧／秒', 'fps')}</dd></>}

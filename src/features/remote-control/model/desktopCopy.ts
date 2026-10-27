@@ -1,10 +1,16 @@
 const en = {
+	videoConfirmationFailed: 'The desktop picture could not be confirmed. Rejoin to try again.',
+	videoConfigurationFailed: 'Desktop video settings could not be applied or restored. Rejoin to try again.',
+	 hdrUnavailable: 'The host system cannot capture this HDR source.',
   busy: 'Desktop operations are busy. Try again shortly.',
   recovering: 'Recovering desktop connection',
   iceInvalid: 'Desktop network configuration is invalid. Check the STUN/TURN settings.', iceUnavailable: 'Could not obtain desktop network configuration. Check the control connection and try again.', negotiationFailed: 'Desktop connection negotiation failed. Rejoin or update both devices.', networkFailed: 'The desktop channel could not connect. Check the network, firewall and relay settings.', targetFailed: 'The target desktop is not ready. Check its connection status on the host.', viewerFailed: 'The desktop viewer could not start. Update the controlling device and try again.', stale: 'This desktop attachment has expired. Rejoin to establish a new connection.',
   resize: 'Target resolution', receiveClipboard: 'Receive clipboard', local: 'Controlled locally', desktop: 'Remote desktop', watching: 'Viewing', control: 'You have control', other: 'Controlled on another device', connecting: 'Connecting desktop', failed: 'Desktop disconnected', join: 'Join desktop', replace: 'Replace remote viewer', replaceHint: 'This ends the current remote view. The target session stays open.', take: 'Take control', release: 'Release control', fit: 'Fit window', actual: 'Actual size', fullscreen: 'Full screen', keyboard: 'Keyboard', clipboard: 'Clipboard', send: 'Send', cancel: 'Cancel', retry: 'Rejoin', vncJoin: 'Switch to this device', vncHint: 'VNC supports one active viewer. Joining reconnects the target and pauses the local view. Closing this view returns it to the original window if it is still open.', challenge: 'Verify server identity', fingerprint: 'SHA-256 fingerprint', once: 'Trust once', reject: 'Reject connection', credentials: 'Connection credentials', password: 'Password', username: 'Username', text: 'Text input', clipboardHint: 'Clipboard transfer is manual. Content is not synchronized automatically.', target: 'Target desktop', video: 'Desktop connection', policy: 'Desktop access', policyHint: 'Select desktop configurations from authorized hosts. Changes to the destination or credentials require renewed local authorization.', secretHint: 'VNC access permits full interaction and temporary delivery of its saved password to the authorized device. RDP passwords stay on this computer.', save: 'Save desktop access', saved: 'Desktop access saved', none: 'No desktop configurations on authorized hosts', uncertain: 'Input result is uncertain. The connection was closed to release pressed keys; the input will not be replayed.', unavailable: 'Desktop access is unavailable. Check authorization and update both devices.', conflict: 'Another remote viewer is active.', paused: 'Desktop viewing paused', controlConflict: 'Control is in use. Use Take control to take over.',
 }
 const zh: typeof en = {
+	videoConfirmationFailed: '桌面画面未能确认，请重新加入。',
+	videoConfigurationFailed: '无法应用或恢复画质设置，请重新加入。',
+	 hdrUnavailable: '当前系统环境不支持此来源的 HDR 采集。',
   busy: '桌面操作暂忙，请稍后重试。',
   recovering: '正在恢复桌面连接',
   iceInvalid: '桌面网络配置无效，请检查 STUN/TURN 设置。', iceUnavailable: '无法获取桌面网络配置，请检查远控连接后重试。', negotiationFailed: '桌面连接协商失败，请重新加入或更新双方客户端。', networkFailed: '桌面通道未能连通，请检查网络、防火墙和中继配置。', targetFailed: '目标桌面尚未就绪，请在被控端检查连接状态。', viewerFailed: '桌面显示组件启动失败，请更新控制端后重试。', stale: '当前桌面附着已失效，请重新加入。',
@@ -13,6 +19,9 @@ const zh: typeof en = {
 export function desktopCopy(chinese: boolean) { return chinese ? zh : en }
 
 export function desktopErrorText(code: string, copy: typeof en): string {
+  if (code === 'desktop_video_decode_timeout') return copy.videoConfirmationFailed
+  if (['desktop_video_configuration_failed', 'rdp_video_reconfigure_failed'].includes(code)) return copy.videoConfigurationFailed
+  if (code === 'desktop_capture_hdr_unavailable') return copy.hdrUnavailable
   if (code === 'desktop_busy') return copy.busy
   if (code.includes('uncertain')) return copy.uncertain
   if (code === 'desktop_control_locked') return copy.controlConflict
