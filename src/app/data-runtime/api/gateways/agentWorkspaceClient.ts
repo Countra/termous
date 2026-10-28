@@ -53,6 +53,9 @@ const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  // 浏览器没有 Electron IPC；Core 停止接口负责通过控制通道通知实际 Worker。
+  get runtimeOwnedByHost() { return !this.runtimeBridge }
+
   async desktopTasks(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal) {
     const value = await this.request<unknown>(`${agentPath}/runs/${encodeURIComponent(runId)}/desktop-tasks/query`, {
       method: 'POST', body: { generation, after_cursor: cursor, wait_ms: waitMS }, signal,

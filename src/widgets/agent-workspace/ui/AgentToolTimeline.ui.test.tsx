@@ -28,10 +28,26 @@ it('后台等待直接请求取消，失败时明确保留未确认状态并可�
   const tool: AgentWorkspaceToolPart = { id: 'batch', kind: 'tool', name: 'termous.desktops.execute', status: 'running', cancelDesktop: cancel,
     desktop_batch: { id: 'desktop_execution_batch', state: 'running', phase: 'waiting', accepted_actions: 1, capture_state: 'pending',
       steps: [{ index: 0, kind: 'keyboard.text', state: 'accepted', wait_after_ms: 30000 }] } }
-  render(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={tool} /></I18nextProvider>)
+  const { rerender } = render(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={tool} /></I18nextProvider>)
   fireEvent.click(screen.getByText(tool.name))
   fireEvent.click(screen.getByRole('button', { name: '取消' }))
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('取消请求未确认'))
   expect(cancel).toHaveBeenCalledTimes(1)
   expect(screen.getByRole('button', { name: '取消' })).toBeEnabled()
+  rerender(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={{ ...tool, status: 'failed', cancelDesktop: undefined,
+    desktop_batch: { ...tool.desktop_batch!, state: 'cancelled' } }} /></I18nextProvider>)
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.queryByRole('button', { name: '取消' })).toBeNull()
+})
+
+it('取消请求返回后仍显示真实执行状态，允许重试且不永久锁定按钮', async () => {
+  await i18n.changeLanguage('zh-CN')
+  const cancel = vi.fn().mockResolvedValue(undefined)
+  const tool: AgentWorkspaceToolPart = { id: 'pending', kind: 'tool', name: 'termous.desktops.execute', status: 'running', cancelDesktop: cancel }
+  render(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={tool} /></I18nextProvider>)
+  fireEvent.click(screen.getByText(tool.name))
+  fireEvent.click(screen.getByRole('button', { name: '取消' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '取消' })).toBeEnabled())
+  expect(screen.getByText('执行中')).toBeVisible()
+  expect(cancel).toHaveBeenCalledTimes(1)
 })

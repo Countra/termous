@@ -1,4 +1,5 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import { readDesktopBatch } from '#common/desktop-batch'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import { desktopCleanupGuidance, runtimeDesktopSafetyOutcome } from '../execution/runtimeInputSafety.ts'
@@ -34,8 +35,21 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     const observed = { ...attachment, grant: undefined }
     data = isRecord(data.control) ? { ...data, control: { ...data.control, attachment: observed } } : { ...data, attachment: observed }
   }
-  const failed = runtimeToolOutcome(name, data, isError || response?.isError === true) === 'failed'
+  const outcome = runtimeToolOutcome(name, data, isError || response?.isError === true)
+  const failed = outcome === 'failed'
+  const safety = runtimeDesktopSafetyOutcome(name, result, failed)
+  if (safety.cleanupUncertain && !safety.inputUncertain) return {
+    names: [], guidance: desktopCleanupGuidance, recovery: true,
+  }
   const structured = response ? executionRecovery(data) : undefined
+  const capability = runtimeCapability(name)
+  const batch = capability?.id === 'desktop_batch' ? readDesktopBatch(data) : undefined
+  // 成功的 none 仅表示无需恢复；未知派发、失败与清理异常仍按原恢复合同处理。
+  const settledSuccess = outcome === 'settled' && structured?.kind === 'none' && structured.dispatch === 'dispatched'
+    && !safety.inputUncertain && !safety.cleanupUncertain
+  const batchObservation = batch && !batch.report_error && !isRecord(data.error) && !safety.inputUncertain && !safety.cleanupUncertain
+    && (batch.state === 'running' && !failed && structured?.kind === 'wait'
+      || ['stopped', 'cancelled'].includes(batch.state) && structured?.kind === 'reread' && structured.dispatch !== 'unknown')
   if (structured?.dispatch === 'unknown' && !['query_operation', 'user_action', 'approval', 'none', 'wait'].includes(structured.kind)) {
     return { names: [], recovery: true, guidance: `${structured.guidance} Dispatch is uncertain. Query the original operation or ask the user; do not replay the action or create a replacement.` }
   }
@@ -45,26 +59,23 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
     const discovery = desktopObservationNavigation(name, data, bindings)
     if (discovery) return discovery
   }
-  if (structured && (structured.tool || !['reread', 'correct_parameters'].includes(structured.kind))) {
+  if (structured && !settledSuccess && !batchObservation && (structured.tool || !['reread', 'correct_parameters'].includes(structured.kind))) {
     const tool = structured.tool && runtimeCapabilityStep(structured.tool) ? structured.tool : undefined
     const observationOnly = ['termous.desktops.get', 'termous.desktops.capture'].includes(name)
       && structured.dispatch === 'not_started' && structured.kind === 'reread'
       && ['termous.desktops.capture', 'termous.desktops.attach'].includes(tool ?? '')
       && isRecord(data.error) && ['desktop_generation_stale', 'AGENT_OBSERVATION_REQUIRED', 'AGENT_RESOURCE_BINDING_MISMATCH'].includes(String(data.error.code))
-    return { names: tool ? [tool] : [], recovery: true, observationOnly, guidance: structured.guidance + (tool ? ` Next tool: ${tool}.` : ''),
+    return { names: tool ? [tool] : [], recovery: true, observationOnly, guidance: structured.guidance
+      + (structured.dispatch === 'unknown' && structured.kind === 'none' ? ' Dispatch is uncertain; preserve the original operation identity and do not replay input.' : '')
+      + (tool ? ` Next tool: ${tool}.` : ''),
       ...(tool && structured.arguments ? { prerequisite: { tool, arguments: structured.arguments } } : {}),
     }
-  }
-  const safety = runtimeDesktopSafetyOutcome(name, result, failed)
-  if (safety.cleanupUncertain && !safety.inputUncertain) return {
-    names: [], guidance: desktopCleanupGuidance, recovery: true,
   }
   const desktopRecovery = response ? desktopObservationNavigation(name, data, bindings) : undefined
   if (desktopRecovery) return desktopRecovery
   const revisionRecovery = response && failed && (!structured || structured.dispatch === 'not_started')
     ? revisionConflictNavigation(name, isRecord(data.error) ? data.error.code : undefined, args) : undefined
   if (revisionRecovery) return { ...revisionRecovery, guidance: [isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : '', revisionRecovery.guidance].filter(Boolean).join(' ') }
-  const capability = runtimeCapability(name)
   const step = runtimeCapabilityStep(name)
   const local = preparationCode === 'AGENT_TOOL_ARGUMENTS_INVALID' && !response && failed && data.code === 'AGENT_RESOURCE_BINDING_MISMATCH' && data.dispatched === false
   const code = local ? typeof data.cause_code === 'string' ? data.cause_code : 'AGENT_RESOURCE_BINDING_MISMATCH' : preparationCode ?? runtimeToolFailureCode(name, data, failed)
@@ -78,13 +89,13 @@ export function runtimeToolNavigation(name: string, result: AgentToolResult<unkn
   if (kind === 'blocked' || kind === 'uncertain') return fallback()
   const target: CapabilityTarget = bindings.some((binding) => binding.kind === capability.bindings?.session) ? 'session'
     : bindings.some((binding) => binding.kind === capability.bindings?.profile) ? 'profile' : 'unbound'
-  const outcome = runtimeToolOutcome(name, data, failed)
   if (outcome === 'waiting') return { names: capabilityTools(capability, step.recovery ?? capability.recovery), guidance: '当前任务正在等待审批、外部条件或已暂停；保持原任务身份，按实际状态等待，不重新提交或自动恢复。', skill: capability.skill }
   for (const rule of capability.cases ?? []) {
     if (!capabilityTools(capability, rule.tools).includes(name)) continue
     const value = rule.path ? capabilityValue(data, rule.path) : undefined
     // 状态型失败仍可采用契约中明确匹配该失败态的规则，不能落入 ready 等成功导航。
-    const failureState = rule.path && capability.evidence?.states?.includes(rule.path) && rule.values?.includes(String(value)) && isFailedToolState(value)
+    const failureState = rule.path && capability.evidence?.states?.includes(rule.path) && rule.values?.includes(String(value))
+      && (isFailedToolState(value) || batchObservation && ['stopped', 'cancelled'].includes(String(value)))
     if (rule.errors ? !kind || !rule.errors.includes(kind) : failed && !failureState) continue
     if (rule.codes && (!code || !rule.codes.includes(code))) continue
     if (rule.targets && !rule.targets.includes(target)) continue

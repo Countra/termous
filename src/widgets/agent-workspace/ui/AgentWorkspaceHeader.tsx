@@ -90,7 +90,7 @@ export function AgentWorkspaceHeader({
                 danger
                 aria-label={t('agent.composer.stop')}
                 icon={<Square size={11} fill="currentColor" />}
-                disabled={stopDisabled || activeRunElsewhere.status === 'stopping'}
+                disabled={stopDisabled}
                 onClick={onStop}
               />
             </Tooltip>

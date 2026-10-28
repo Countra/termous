@@ -217,6 +217,17 @@ describe('AgentWorkspace', () => {
     expect(props.onStop).toHaveBeenCalledTimes(1)
   })
 
+  it('停止状态仍允许重试，只在停止请求在途时禁用按钮', () => {
+    const props = fixtureProps({ sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'stopping' }], stop_busy: false })
+    const view = renderWorkspace(props)
+    const stop = screen.getByRole('button', { name: 'agent.composer.stop' })
+    expect(stop).toBeEnabled()
+    fireEvent.click(stop)
+    expect(props.onStop).toHaveBeenCalledTimes(1)
+    view.rerender(<AntdApp><AgentWorkspace {...props} stop_busy /></AntdApp>)
+    expect(stop).toBeDisabled()
+  })
+
   it('排队或普通请求在途时仍可独立停止活动 Run', async () => {
     const user = userEvent.setup()
     const props = fixtureProps({

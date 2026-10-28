@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import type { AgentMessage } from '#entities/agent'
 import { projectAgentMessages } from './agentWorkspaceProjection.ts'
+import { createAgentMessageProjector } from './agentMessageProjectionCache.ts'
 
 it('批次结构读取完整结果，失败回执和分页孤立结果仍保留步骤与图片', () => {
   const receipt = { run: { id: 'desktop_execution_test', state: 'stopped', accepted_actions: 1,
@@ -39,11 +40,18 @@ it('后台运行回执和完成观察合并到原工具身份，分页缺少调�
     expect(projected).toHaveLength(1)
     expect(projected[0]).toMatchObject({ tool_call_id: 'call', status: 'completed', desktop_batch: { state: 'completed' }, images: [{ part_id: 'observation', content_index: 1 }] })
   }
+  const project = createAgentMessageProjector()
+  const original = project([message], undefined, [])
+  const observation = { ...message, id: 'next', sequence: 3, parts: [{ ...task, message_id: 'next' }] }
+  const completed = project([message, observation], undefined, [])
+  expect(completed[0].parts[0]).toMatchObject({ status: 'completed', images: [{ part_id: 'observation' }] })
+  expect(project([message, observation], undefined, [])[0]).toBe(completed[0])
+  expect(project([message, { ...observation, session_id: 'other' }], undefined, [])[0]).toEqual(original[0])
 })
 
-it.each(['wait_desktop_execution', 'termous.desktops.executions.get'])('显式 %s 的终态更新原执行记录，保持图片和调用来源', (toolName) => {
+it.each(['wait_desktop_execution', 'termous.desktops.executions.get'].flatMap(name => ['running', 'completed'].map(state => [name, state])))('显式 %s 的终态更新原执行记录（原状态 %s），保持图片和调用来源', (toolName, state) => {
   const base = { message_id: 'message', revision: 1, created_at: '', updated_at: '' }
-  const run = { id: 'desktop_execution_explicit', revision: 3, state: 'running', accepted_actions: 1,
+  const run = { id: 'desktop_execution_explicit', revision: 3, state, accepted_actions: 1,
     steps: [{ index: 0, kind: 'keyboard.text', state: 'accepted', wait_after_ms: 30000 }] }
   const result = { ...base, id: 'result', sequence: 2, kind: 'tool_result' as const,
     tool_result: { tool_call_id: 'execute', tool_name: 'termous.desktops.execute', content: [{ type: 'text', text: JSON.stringify({ run, capture_state: 'pending' }) }], is_error: false } }
@@ -56,12 +64,20 @@ it.each(['wait_desktop_execution', 'termous.desktops.executions.get'])('显式 %
   const message: AgentMessage = { id: 'message', session_id: 'session', role: 'assistant', status: 'completed', sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [call, result], attachments: [] }
   for (const parts of [[call, result], [result]]) {
     const same = projectAgentMessages([{ ...message, parts: [...parts, terminal] }], undefined, [])[0].parts
-    const split = projectAgentMessages([{ ...message, parts }, { ...message, id: 'next', sequence: 3, parts: [{ ...terminal, message_id: 'next' }] }], undefined, [])[0].parts
-    for (const projected of [same, split]) {
+    const original = { ...message, parts }
+    const messages = [original, { ...message, id: 'next', sequence: 3, parts: [{ ...terminal, message_id: 'next' }] }]
+    const project = createAgentMessageProjector()
+    project([original], undefined, [])
+    const split = projectAgentMessages(messages, undefined, [])[0].parts
+    const cached = project(messages, undefined, [])
+    for (const projected of [same, split, cached[0].parts]) {
       expect(projected[0]).toMatchObject({ tool_call_id: 'execute', name: 'termous.desktops.execute', status: 'completed',
         desktop_batch: { state: 'completed' }, images: [{ part_id: 'wait-result' }] })
     }
+    expect(project(messages, undefined, [])[0]).toBe(cached[0])
+    expect(project([original], undefined, [])[0].parts[0]).toMatchObject({ status: state, images: [] })
     const isolated = projectAgentMessages([{ ...message, parts }, { ...message, session_id: 'other', parts: [terminal] }], undefined, [])[0].parts
-    expect(isolated[0]).toMatchObject({ status: 'running' })
+    expect(isolated[0]).toMatchObject({ status: state })
+    expect(isolated[0]).toMatchObject({ images: [] })
   }
 })

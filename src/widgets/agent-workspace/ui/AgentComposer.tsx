@@ -523,7 +523,7 @@ export const AgentComposer = memo(function AgentComposer({
             />
             {active && !editing ? (
               <Tooltip title={t('agent.composer.stop')}>
-                <Button className={styles['composer-stop']} danger aria-label={t('agent.composer.stop')} icon={<Square size={12} fill="currentColor" />} disabled={stopDisabled || runStatus === 'stopping'} onClick={onStop} />
+                <Button className={styles['composer-stop']} danger aria-label={t('agent.composer.stop')} icon={<Square size={12} fill="currentColor" />} disabled={stopDisabled} onClick={onStop} />
               </Tooltip>
             ) : null}
             <Tooltip title={t(editing ? 'app.save' : queueMode ? 'agent.composer.queue' : 'agent.composer.send')}>

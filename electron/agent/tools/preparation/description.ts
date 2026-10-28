@@ -1,9 +1,10 @@
 import type { BuiltinToolAdapter } from '../../contracts/toolCapabilities.ts'
+import { desktopBatchDescription } from './desktopBatch/description.ts'
 
 export function builtinDescription(name: string, original: string, adapter: BuiltinToolAdapter): string {
   const purpose = original.split(/。|\n/u)[0]
   let usage = 'Specify business choices; request identity is supplied by the runtime.'
-  if (name === 'termous.desktops.execute') usage = 'Provide 1–5 actions; all pointer actions share the top-level screenshot_id. interval_ms defaults to 500 ms; each wait_after_ms overrides it rather than adding to it. Both accept integers from 0 to 90000 ms; 0 means no extra delay. Actions and waits share a 90-second budget without a separate per-action deadline. Use wait_after_ms for slow application responses; the final action also waits before capture. Waiting does not prove readiness. End the batch when a new observation or target location is needed. The runtime reuses attachment and control authority. After up to 5 seconds, an unfinished execution returns running with its original ID. Do independent work or use wait_desktop_execution. Its completion observation arrives automatically; inspect it before deciding another input on this desktop. Never replay input after failure.'
+  if (name === 'termous.desktops.execute') usage = desktopBatchDescription
   else if (adapter.adapter === 'desktop_execution') usage = 'Provide either execution_id or tool_call_id from the original execute call, never both. Query or cancel that batch only; this does not reattach, acquire control, or submit input.'
   else if (name === 'termous.screen_analyses.create') usage = 'Analyze the current verified desktop directly: {"parameters":{"detector_enabled":true,"ocr_enabled":true}}. Omit source for automatic observation preparation; no separate attach or capture is needed. Keep analysis_id and read that task. For historical reanalysis, specify source explicitly.'
   else if (name === 'termous.desktop_workflows.runs.start') usage = 'Run the chosen script: {"script_id":"actual-script-id","parameters":{}}. The runtime pins the version and target; Core handles approval and safe control handoff. Do not manually release control first. Read the returned run_id for completion.'

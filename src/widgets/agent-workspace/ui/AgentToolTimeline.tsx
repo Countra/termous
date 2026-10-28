@@ -36,9 +36,9 @@ export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadT
         {tool.summary ? <p>{tool.summary}</p> : null}
         {tool.cancelDesktop ? <button type="button" disabled={cancelling} onClick={() => {
           setCancelling(true); setCancelError(false)
-          void tool.cancelDesktop!().catch(() => { setCancelError(true); setCancelling(false) })
+          void tool.cancelDesktop!().catch(() => { setCancelError(true) }).finally(() => { setCancelling(false) })
         }}>{t('app.cancel')}</button> : null}
-        {cancelError ? <p role="alert">{t('agent.tool.batch.cancelFailed')}</p> : null}
+        {cancelError && tool.status === 'running' ? <p role="alert">{t('agent.tool.batch.cancelFailed')}</p> : null}
         {expanded && tool.desktop_batch ? <DesktopBatchResult receipt={tool.desktop_batch} /> : null}
         {expanded && tool.images?.length ? <div className={styles.images} aria-label={t('agent.images.toolResults')}>
           {tool.images.map((image, index) => (

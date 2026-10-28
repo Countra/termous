@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
+import type { ObservationTarget } from '../contracts/desktopObservation.ts'
 import type { ToolCapability } from '../contracts/toolCapabilities.ts'
 import { unclassifiedToolSource, toolIdentity, trustedTool, type ToolSource } from '../contracts/toolSources.ts'
-import { capabilityToolName, runtimeCapability, runtimeCapabilityStep, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
+import { runtimeCapability, runtimeCapabilityStep, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
 import type { RuntimeSkillDirectory } from './runtimeSkillDirectory.ts'
+import { initialTools } from './discovery/initialTools.ts'
 
 export interface RuntimeToolEntry {
   tool: AgentTool
@@ -47,19 +49,8 @@ export class RuntimeToolRegistry {
       description: [...new Set(this.entries.filter((entry) => entry.group === group).map((entry) => entry.capability?.discovery.summary ?? entry.source.id))].join('; ') }))
   }
 
-  initial(bindings: readonly RuntimeResourceBinding[], available: (name: string) => boolean): string[] {
-    const queues = [...new Set(bindings.map((binding) => binding.kind))].sort().map((kind) => this.entries
-      .filter((entry) => entry.trusted && available(entry.original) && entry.capability?.discovery.preload?.some((rule) => rule.bindings.includes(kind) && capabilityToolName(entry.capability!, rule.tool) === entry.original))
-      .sort((a, b) => this.priority(a, kind) - this.priority(b, kind) || a.original.localeCompare(b.original)))
-    const names = new Set<string>()
-    while (queues.some((queue) => queue.length) && names.size < 8) {
-      for (const queue of queues) {
-        const entry = queue.shift()
-        if (entry) names.add(entry.original)
-        if (names.size === 8) break
-      }
-    }
-    return [...names]
+  initial(bindings: readonly RuntimeResourceBinding[], available: (name: string) => boolean, target?: ObservationTarget): string[] {
+    return initialTools(this.entries, bindings, available, target)
   }
 
   describe(entry: RuntimeToolEntry) {
@@ -67,7 +58,4 @@ export class RuntimeToolRegistry {
       ...(entry.capability ? { stage: runtimeCapabilityStep(entry.original)?.role, operations: runtimeToolOperations(entry.original), skill: entry.capability.skill } : {}) }
   }
 
-  private priority(entry: RuntimeToolEntry, kind: string) {
-    return entry.capability?.discovery.preload?.find((rule) => rule.bindings.includes(kind) && capabilityToolName(entry.capability!, rule.tool) === entry.original)?.priority ?? 100
-  }
 }

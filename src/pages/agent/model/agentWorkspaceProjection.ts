@@ -16,7 +16,7 @@ import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/co
 import { projectAgentToolImages } from './agentToolImages.ts'
 import { readDesktopBatchContent } from '#common/desktop-batch'
 import { AgentToolDetailCache } from './agentToolDetailCache.ts'
-import { completedDesktopBatchResult, desktopTaskResultPart, indexDesktopBatchResults } from './agentDesktopTaskProjection.ts'
+import { completedDesktopBatchResult, desktopTaskResultPart, indexDesktopBatchResults, type DesktopBatchResults } from './agentDesktopTaskProjection.ts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
@@ -105,8 +105,8 @@ export function projectAgentMessages(
   run: AgentRun | undefined,
   events: AgentRunEvent[],
   toolDetails = new AgentToolDetailCache(),
+  desktopResults: ReadonlyMap<string, DesktopBatchResults> = indexDesktopBatchResults(messages),
 ): AgentWorkspaceMessage[] {
-  const desktopResults = indexDesktopBatchResults(messages)
   const finalizedParts = new Set(events.flatMap((event) => (
     event.kind === 'message_part'
       ? [messagePartKey(event.payload.message_part.message_id, event.payload.message_part.id)]
@@ -304,7 +304,7 @@ function projectMessageParts(
   events: AgentRunEvent[],
   sessionID: string,
   toolDetails: AgentToolDetailCache,
-  desktopResults: ReadonlyMap<string, Extract<AgentMessagePart, { kind: 'tool_result' }>> | undefined,
+  desktopResults: DesktopBatchResults | undefined,
 ): AgentWorkspaceMessage['parts'] {
   const projectedParts = parts.map(part => part.kind === 'task_result' ? desktopTaskResultPart(part) : part)
   const results = new Map(projectedParts
@@ -355,7 +355,7 @@ function projectToolPart(
   events: AgentRunEvent[],
   sessionID: string,
   toolDetails: AgentToolDetailCache,
-  desktopResults: ReadonlyMap<string, Extract<AgentMessagePart, { kind: 'tool_result' }>> | undefined,
+  desktopResults: DesktopBatchResults | undefined,
 ): AgentWorkspaceToolPart {
   if (result) result = completedDesktopBatchResult(result, desktopResults)
   const toolEvents = events.filter((event) => (

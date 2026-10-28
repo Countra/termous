@@ -148,11 +148,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const discovery = new RuntimeToolDiscovery([...boundTools, ...waits], options.mcp.originalName, [skillTool, identifyTool(historyTool, localToolSource)],
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
     (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory)
-  let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? []) : discovery.active()
-  if (options.lookupPreparedCall && desktopContext.selected()) {
-    discovery.loadNames(['termous.desktops.capture'])
-    tools = discovery.publish()
-  }
+  let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? [], desktopContext.selected()) : discovery.active()
   const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
   let toolDeclarations = tools.map(toToolDeclaration)
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)

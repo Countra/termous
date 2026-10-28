@@ -786,6 +786,22 @@ test('停止期间 Core 已先进入终态时仍收口已发出的 Worker 取消
   assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
 })
 
+test('Core 托管运行时的停止不调用 IPC，stopping 状态可以重试', async () => {
+  const gateway = Object.assign(new FakeGateway(), { runtimeOwnedByHost: true })
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  await controller.startRun(session.id, '执行任务')
+
+  assert.equal((await controller.stopActiveRun())?.status, 'stopping')
+  assert.equal((await controller.stopActiveRun())?.status, 'stopping')
+
+  assert.deepEqual(gateway.stopped, [])
+  assert.deepEqual(gateway.stopRequests, [
+    { id: 'agr-run', expectedRevision: 1, expectedGeneration: 1 },
+    { id: 'agr-run', expectedRevision: 2, expectedGeneration: 1 },
+  ])
+})
+
 test('停止请求先建立 Core 取消屏障再向 Worker 发送取消', async () => {
   const gateway = new FakeGateway()
   const pending = deferred<AgentRun>()

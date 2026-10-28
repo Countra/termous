@@ -10,6 +10,7 @@ import { runtimeDiscoveryPage } from './runtimeDiscoveryPage.ts'
 import { runtimeCapabilityIndex } from './runtimeCapabilityIndex.ts'
 import type { RuntimeSkillDirectory } from './runtimeSkillDirectory.ts'
 import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
+import type { ObservationTarget } from '../contracts/desktopObservation.ts'
 
 // 目录覆盖本轮全部来源；只在完整工具轮结束后发布新的活动声明。
 export class RuntimeToolDiscovery {
@@ -118,7 +119,7 @@ export class RuntimeToolDiscovery {
   }
   catalog() { return this.registry.groups() }
   index() { return runtimeCapabilityIndex(this.registry, (name) => this.available(name)) }
-  preload(bindings: readonly RuntimeResourceBinding[]) { this.loadNames(this.registry.initial(bindings, (name) => this.available(name))); return this.publish() }
+  preload(bindings: readonly RuntimeResourceBinding[], target?: ObservationTarget) { this.loadNames(this.registry.initial(bindings, (name) => this.available(name), target)); return this.publish() }
   available(name: string) { return this.registry.entries.some((entry) => entry.trusted && entry.original === name && !this.blocked(entry)) }
   loadNames(names: string[]) {
     return names.flatMap((name) => {

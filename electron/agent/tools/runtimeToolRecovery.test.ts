@@ -98,7 +98,7 @@ test('空列表与旧 Core 空对象提供连接候选，普通空结果和显�
     assert.deepEqual(runtimeToolNavigation(name, result(data, name), [session])!.names, [])
   }
   assert.ok(!runtimeToolNavigation(get, result({}), [profile])!.names.includes(connect))
-  assert.deepEqual(skillEntryTools('skill://termous-remote-desktop/SKILL.md'), ['termous.desktops.list', connect, get, 'termous.desktops.attach', 'termous.desktops.capture'])
+  assert.deepEqual(skillEntryTools('skill://termous-remote-desktop/SKILL.md'), ['termous.desktops.list', connect, get, 'termous.desktops.attach', 'termous.desktops.capture', 'termous.desktops.execute', 'wait_desktop_execution'])
 })
 
 test('首次诊断允许条件变化后重试，权限与不确定保护优先于候选', () => {

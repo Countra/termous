@@ -2,12 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Tool } from '@modelcontextprotocol/client'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
-import { runtimeBootstrap, runtimeUserMessage } from '../test-support/runtimeBootstrapTestFixture.ts'
+import { runtimeBootstrap, runtimePart, runtimeUserMessage } from '../test-support/runtimeBootstrapTestFixture.ts'
 import { runtimeToolResponse as response } from '../test-support/runtimeToolResponseFixture.ts'
 import { testAgentSkillBundle } from '../test-support/skillBundleTestFixture.ts'
 import { RuntimeEventWriter } from '../runtime/runtimeEventWriter.ts'
 import { createPiAgent } from '../runtime/piAgentAdapter.ts'
 import { mapMCPTools } from './mcpClientAdapter.ts'
+import { DesktopObservationContext } from '../context/desktop/state.ts'
+import { encodeMCPToolName } from '../contracts/toolNameCodec.ts'
 
 const prefix = 'termous.desktops.'
 const string = { type: 'string' }
@@ -17,8 +19,9 @@ function definition(suffix: string, properties: Record<string, unknown>, require
 }
 
 for (const api of ['responses', 'chat_completions'] as const) {
+  for (const origin of ['binding', 'history', 'checkpoint'] as const) {
   for (const [inputAllowed, startWithKeys] of [[true, true], [true, false], [false, false]]) {
-    test(`${api} 简化工具截图后实际请求携带鼠标声明，跨 SDK 分段可执行；有输入权限=${inputAllowed}，先按键=${startWithKeys}`, async () => {
+    test(`${api}/${origin} 实际请求并列提供链式与单动作，跨 SDK 分段保留；有输入权限=${inputAllowed}，先按键=${startWithKeys}`, async () => {
       const bootstrap = runtimeBootstrap()
       bootstrap.messages = [runtimeUserMessage([], { text: '观察受控测试窗口并点击目标按钮。' })]
       bootstrap.model.snapshot.api_mode = api
@@ -26,11 +29,22 @@ for (const api of ['responses', 'chat_completions'] as const) {
       bootstrap.model.snapshot.context_window_tokens = 128000
       bootstrap.session.resource_bindings = [{ kind: 'desktop_session', session_id: 'desktop', connection_generation: 1,
         desktop_profile_id: 'profile', desktop_profile_name: 'Fixture', host_id: 'host', host_name: 'Fixture', protocol: 'rdp', bound_at: '2026-10-24T00:00:00Z' }]
+      if (origin !== 'binding') {
+        bootstrap.session.resource_bindings = []
+        const context = new DesktopObservationContext(bootstrap.session.id, bootstrap.core_instance_id)
+        context.observe(prefix + 'capture', {}, { capture: { target: { kind: 'protocol_session', session_id: 'desktop', connection_generation: 1 } } })
+        if (origin === 'checkpoint') bootstrap.context.checkpoint = { boundary_message_sequence: 0, summary: 'Observed the selected desktop.', estimated_tokens: 10, details: { desktop_context: context.snapshot() } }
+        else bootstrap.messages.unshift({ id: 'historical', role: 'assistant', status: 'completed', sequence: 0, created_at: '2026-10-24T00:00:00Z', attachments: [],
+          parts: [runtimePart('tool_result', 1, { tool_result: { tool_call_id: 'previous-capture', tool_name: prefix + 'capture',
+            content: context.project({ content: [], details: undefined }).content, is_error: false } })] })
+      }
       const definitions = [
         definition('get', { session_id: string, attachment_id: string, wait_ms: { type: 'integer' } }),
         definition('attach', { session_id: string, connection_generation: { type: 'integer' }, client_request_id: string }, ['session_id', 'connection_generation', 'client_request_id'], false),
         definition('capture', { attachment_id: string }, ['attachment_id']),
         ...(inputAllowed ? [
+          definition('execute', { attachment_id: string, grant_id: string, client_request_id: string, screenshot_id: string, actions: { type: 'array', minItems: 1, maxItems: 5, items: { type: 'object' } } }, ['attachment_id', 'grant_id', 'client_request_id', 'actions'], false),
+          definition('keyboard.text', { attachment_id: string, grant_id: string, client_request_id: string, text: string }, ['attachment_id', 'grant_id', 'client_request_id', 'text'], false),
           definition('control.acquire', { attachment_id: string, client_request_id: string }, ['attachment_id', 'client_request_id'], false),
           definition('keyboard.shortcut', { attachment_id: string, grant_id: string, client_request_id: string, codes: { type: 'array', items: string } }, ['attachment_id', 'grant_id', 'client_request_id', 'codes'], false),
           definition('pointer.click', { attachment_id: string, grant_id: string, client_request_id: string, screenshot_id: string, coordinate_space: { type: 'string', enum: ['image', 'desktop'] }, x: { type: 'integer' }, y: { type: 'integer' } },
@@ -72,11 +86,16 @@ for (const api of ['responses', 'chat_completions'] as const) {
             const body = JSON.parse(String(init?.body)) as { tools: Array<{ name?: string; description?: string; parameters?: { required: string[] }; function?: { name: string; description: string; parameters: { required: string[] } } }> }
             const tools = body.tools.map((tool) => tool.function ?? tool)
             requests++
+            for (const suffix of ['execute', 'pointer.click', 'keyboard.text', 'keyboard.shortcut']) {
+              if (inputAllowed) assert.ok(tools.some(tool => tool.name === encoded(suffix)), `${suffix} missing on request ${requests}`)
+              else assert.ok(tools.every(tool => tool.name !== encodeMCPToolName(prefix + suffix)))
+            }
             if (requests === 1) {
+              assert.equal(calls.length, 0, '加载声明不建立连接、申请控制或输入')
               assert.ok(tools.some((tool) => tool.name === encoded('capture')))
               if (inputAllowed) assert.ok(tools.some((tool) => tool.name === encoded('pointer.click')))
               else assert.ok(tools.every((tool) => !tool.name?.includes('_dpointer_')))
-              return response(api, 'discover_tools', { names: [prefix + (startWithKeys ? 'keyboard.shortcut' : 'capture')] }, 'discover')
+              return response(api, encoded('capture'), {}, 'observe')
             }
             if (startWithKeys && requests <= 4) return response(api, encoded('keyboard.shortcut'), { codes: ['KeyY'] }, String(requests))
             if (inputAllowed && requests >= 3) {
@@ -108,12 +127,13 @@ for (const api of ['responses', 'chat_completions'] as const) {
         assert.equal(clicks.length, inputAllowed ? 1 : 0)
         if (inputAllowed) {
           assert.equal(clicks[0]!.args.x, 420)
-          assert.equal(clicks[0]!.args.screenshot_id, startWithKeys ? 'shot-8' : 'shot-11')
+          assert.equal(clicks[0]!.args.screenshot_id, startWithKeys ? 'shot-9' : 'shot-12')
           assert.equal(clicks[0]!.args.grant_id, 'grant')
           assert.equal(calls.filter((call) => call.name === prefix + 'control.acquire').length, 1)
           assert.equal(calls[calls.length - 1]!.name, prefix + 'capture')
         }
       } finally { agent.close(); await writer.close() }
     })
+  }
   }
 }
