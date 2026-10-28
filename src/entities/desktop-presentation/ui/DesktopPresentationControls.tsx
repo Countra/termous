@@ -61,7 +61,8 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
           {Boolean(state?.encodedWidth || state?.observed) && <DesktopQualityDetails title={text('连接信息', 'Connection details')}>
             <dl className={styles.statistics}>
               {Boolean(state?.encodedWidth) && <><dt>{text('发送尺寸', 'Sent size')}</dt><dd>{state?.encodedWidth} × {state?.encodedHeight}</dd></>}
-              {state?.applied && <><dt>{text('编码端已应用', 'Applied by encoder')}</dt><dd>{state.applied.framerate} fps · {(state.applied.bitrate / 1_000_000).toFixed(2)} Mbps</dd></>}
+              {caps?.kind === 'video' && <><dt>{text('协商帧率上限', 'Negotiated frame rate limit')}</dt><dd>{caps.maxFramerate ?? 30} fps</dd></>}
+              {state?.applied && <><dt>{text('当前编码预算', 'Current encoder budget')}</dt><dd>{state.applied.framerate} fps · {(state.applied.bitrate / 1_000_000).toFixed(2)} Mbps</dd></>}
               {Boolean(caps?.sourceWidth) && <><dt>{text('来源尺寸', 'Source size')}</dt><dd>{caps?.sourceWidth} × {caps?.sourceHeight}</dd></>}
               {Boolean(caps?.sourceRefreshRate) && <><dt>{text('来源刷新率', 'Source refresh rate')}</dt><dd>{caps?.sourceRefreshRate?.toFixed(2)} Hz</dd></>}
               {Boolean(state?.observed?.width) && <><dt>{text('接收尺寸', 'Received size')}</dt><dd>{state?.observed?.width} × {state?.observed?.height}</dd></>}

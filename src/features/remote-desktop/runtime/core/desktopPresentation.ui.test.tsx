@@ -1,10 +1,10 @@
 import type RFB from '@novnc/novnc'
 import { afterEach, expect, test, vi } from 'vitest'
-import { PresentationController, presentationPreset, type PresentationState, type PresentationSettings } from '@termous/remote-protocol/presentation'
+import { PresentationController, presentationPreset, videoDefaultCapabilities, type PresentationState, type PresentationSettings } from '@termous/remote-protocol/presentation'
 import { resizeVnc, VncPresentation } from '@termous/remote-protocol/vnc'
 
 afterEach(() => vi.useRealTimers())
-const initial = (): PresentationState => ({ capabilities: { kind: 'video', available: true, dynamicSize: true, maxHeight: 1080, maxBitrate: 8_000_000, maxFramerate: 30 }, requested: presentationPreset('video', 'clear'), revision: 0n, configRevision: 1n, status: 'confirmed' })
+const initial = (): PresentationState => ({ capabilities: videoDefaultCapabilities, requested: presentationPreset('video', 'clear'), revision: 0n, configRevision: 1n, status: 'confirmed' })
 
 test('快速设置只合并最新意图，同一通道只有一个在途请求', async () => {
   vi.useFakeTimers()

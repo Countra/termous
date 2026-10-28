@@ -134,7 +134,7 @@ test('保存回执不打断未完成的输入，下拉修改随后使用最新�
   await user.click(screen.getByText('均衡'))
   await waitFor(() => expect(update).toHaveBeenCalledTimes(3))
   expect(update.mock.calls[1][1]).toMatchObject({ expected_revision: 2, patch: { pixels: { updateRateLimit: 25 } } })
-  expect(update.mock.calls[2][1]).toMatchObject({ expected_revision: 3, patch: { pixels: { updateRateLimit: 20 }, video: { bitrate: 8_000_000 } } })
+  expect(update.mock.calls[2][1]).toMatchObject({ expected_revision: 3, patch: { pixels: { updateRateLimit: 20 }, video: { bitrate: 24_000_000 } } })
   await waitFor(() => expect(store.snapshot('desktop_presentation')?.revision).toBe(4))
 })
 

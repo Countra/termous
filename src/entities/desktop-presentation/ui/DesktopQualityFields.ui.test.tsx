@@ -64,5 +64,5 @@ test('自动保留 60fps 请求上限，实际最高分辨率档位可以只支�
   expect(screen.getByRole('spinbutton', { name: '帧率上限' })).toHaveAttribute('aria-valuemax', '60')
   fireEvent.change(screen.getByRole('spinbutton', { name: '帧率上限' }), { target: { value: '60' } })
   expect(changed).toHaveBeenLastCalledWith({ kind: 'video', size: 'auto', bitrate: 8_000_000, framerate: 60 })
-  expect(screen.getByText('自动采用来源可提供的清晰度，最高 1440p。')).toBeVisible()
+  expect(screen.getByText('自动平衡清晰度与流畅度，最高 1440p。')).toBeVisible()
 })

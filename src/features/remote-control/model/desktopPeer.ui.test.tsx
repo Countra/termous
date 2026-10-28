@@ -97,17 +97,19 @@ test('迟到统计不能确认新配置，缓存尺寸不能冒充新增解码�
     // 跨配置区间内的解码增量也可能来自旧画面，先建立新配置的统计基线。
     stats.mockResolvedValueOnce(sample(3000, 20))
     await vi.advanceTimersByTimeAsync(2000)
+    expect(channel.send).not.toHaveBeenCalled()
+    stats.mockResolvedValueOnce(sample(4000, 20))
+    await vi.advanceTimersByTimeAsync(2000)
     const idle = fromBinary(DesktopPacketSchema, channel.send.mock.lastCall![0]).observation!
     expect(idle.configRevision).toBe(2n)
     expect(idle.decodedWidth).toBe(0)
-    stats.mockResolvedValueOnce(sample(4000, 20))
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(fromBinary(DesktopPacketSchema, channel.send.mock.lastCall![0]).observation!.decodedWidth).toBe(0)
+    expect(idle.framerate).toBe(0)
     stats.mockResolvedValueOnce(sample(5000, 21))
     await vi.advanceTimersByTimeAsync(2000)
     const fresh = fromBinary(DesktopPacketSchema, channel.send.mock.lastCall![0]).observation!
     expect(fresh.configRevision).toBe(2n)
     expect(fresh.decodedWidth).toBe(1920)
+    expect(fresh.receivedBitrate).toBe(800_000)
   } finally { peer.close() }
 })
 
