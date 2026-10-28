@@ -21,6 +21,9 @@ import { builtinTool } from '../../contracts/toolSources.ts'
 import { ResourceRoutingError } from '../../contracts/toolRecovery.ts'
 import type { DesktopObservationState } from '../../contracts/desktopObservation.ts'
 import { projectManagedRecovery } from '../recovery/preparation.ts'
+import { prepareDesktopExecution } from './desktopBatch/query.ts'
+import { observeDesktopBatch } from './desktopBatch/receipt.ts'
+import { reconcileDesktopBatch } from './desktopBatch/reconcile.ts'
 
 export interface ManagedToolOptions {
   runID: string
@@ -75,7 +78,7 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
           let args = { ...input }
           const properties = toolProperties(next)
           const mutating = mcp.readOnly?.(target) !== true
-          if ('client_request_id' in properties && target !== 'termous.desktops.operations.get') args.client_request_id = requestIdentity(options.runID, options.generation, callID, step)
+          if ('client_request_id' in properties && !['termous.desktops.operations.get', 'termous.desktops.executions.get', 'termous.desktops.executions.cancel'].includes(target)) args.client_request_id = requestIdentity(options.runID, options.generation, callID, step)
           if (mutating) {
             const previous = await lookup(callID, step)
             if (previous) {
@@ -101,6 +104,10 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
           }
           try { return await next.execute(callID, validated, signal, update) } catch (error) {
             if (!mutating) throw error
+            if (target === 'termous.desktops.execute') {
+              const receipt = await reconcileDesktopBatch(raw.get('termous.desktops.executions.get'), callID, String(args.client_request_id), signal, update)
+              if (receipt) return receipt
+            }
             return unconfirmedDispatch(target, callID, args)
           }
         }
@@ -113,9 +120,12 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
           if (previous) {
             if (previous.generation !== options.generation || previous.tool_name !== name || previous.arguments_sha256 !== digest) fail('AGENT_REQUEST_CONFLICT', 'This action was already prepared in another execution or with different arguments. Query its original result.', 'query_operation')
             restorePreparedValues(args, previous.values)
+            // 恢复记录已保存原批次标识；前端别名不能再次透传给 Core。
+            if (adapter.adapter === 'desktop_execution') delete args.tool_call_id
           } else {
             switch (adapter.adapter) {
               case 'desktop': await prepareDesktop(context, args); break
+              case 'desktop_execution': await prepareDesktopExecution(context, args); break
               case 'workflow': await prepareWorkflow(context, args); break
               case 'ssh': await prepareSSH(context, args); break
               case 'files': await prepareFiles(context, args); break
@@ -140,8 +150,12 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
             prepareRevisions(context, args)
           }
           progress('executing')
-          const result = await invoke(name, args, 'dispatch', digest)
+          const result = previous && name === 'termous.desktops.execute'
+            ? await reconcileDesktopBatch(raw.get('termous.desktops.executions.get'), callID, previous.request_id, signal, update) ?? unconfirmedDispatch(name, callID, args)
+            : await invoke(name, args, 'dispatch', digest)
           signal?.throwIfAborted()
+          if (isMCPToolDetails(result.details) && isRecord(result.details.result.structuredContent)
+            && (name === 'termous.desktops.execute' || adapter.adapter === 'desktop_execution')) observeDesktopBatch(context, result.details.result.structuredContent)
           if (isMCPToolDetails(result.details) && !result.details.result.isError && isRecord(result.details.result.structuredContent) && !result.details.result.structuredContent.error) observe(context, args, result.details.result.structuredContent)
           const projected = projectManagedRecovery(result, context, String(input.tool_call_id ?? callID))
           return options.desktop && ['desktop', 'analysis', 'workflow'].includes(adapter.adapter) ? options.desktop.project(projected) : projected

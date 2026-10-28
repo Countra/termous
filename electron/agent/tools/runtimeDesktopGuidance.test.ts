@@ -89,7 +89,7 @@ test('能力组入口优先，自动加载候选不改变实际能力偏好', as
   const discovery = new RuntimeToolDiscovery(mapped.tools, (name) => mapped.originalNames.get(name) ?? null, [])
   const found = await discovery.tool.execute('find', { group: 'desktop_input' })
   const data = JSON.parse(found.content[0]!.type === 'text' ? found.content[0].text : '{}') as { tools: { original_name: string }[] }
-  assert.deepEqual(data.tools.slice(0, 4).map((tool) => tool.original_name), [acquire, inputs[0], inputs[2], inputs[3]])
+  assert.deepEqual(data.tools.slice(0, 5).map((tool) => tool.original_name), [acquire, 'termous.desktops.execute', inputs[0], inputs[2], inputs[3]])
   discovery.loadNames(['termous.desktop_workflows.captures.create'])
   const subsequent = await discovery.tool.execute('find-next', { operation: 'text', query: '目标应用内容' })
   assert.match(JSON.stringify(subsequent.content), /keyboard/)

@@ -32,6 +32,7 @@ import type {
   AgentApprovalPolicyState,
 } from '#features/agent-approval-policy'
 import type { AgentSlashCapture } from './agentSlashCommands.ts'
+import type { DesktopBatchReceipt } from '#common/desktop-batch'
 
 export interface AgentWorkspaceSlashCommandAvailability {
   enabled: boolean
@@ -149,6 +150,7 @@ export interface AgentWorkspaceToolPart {
   summary?: string
   detail?: string
   images?: AgentWorkspaceImage[]
+  desktop_batch?: DesktopBatchReceipt
 }
 
 export interface AgentWorkspaceImage extends AgentToolImageSource {

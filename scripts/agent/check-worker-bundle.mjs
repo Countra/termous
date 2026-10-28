@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { buildOutputPaths } from '../build/output-paths.mjs'
 
-// 加入参数准备、来源隔离和目录后闭包实测约 1.52 MiB；沿用 64 KiB 档位，依赖白名单仍独立检查。
-export const maximumAgentWorkerBundleBytes = 1600 * 1024
+// 加入桌面批次回执、恢复与三个工具声明后闭包实测约 1.57 MiB；预算递增一档 64 KiB，依赖白名单仍独立检查。
+export const maximumAgentWorkerBundleBytes = 1664 * 1024
 
 const requiredProviderAdapters = Object.freeze([
   'openai-completions.js',

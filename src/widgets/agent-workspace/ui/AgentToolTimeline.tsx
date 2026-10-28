@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { memo, useState } from 'react'
 import type { AgentImageLoader, AgentWorkspaceToolPart } from '../model/types.ts'
 import { AgentImage } from './AgentImage.tsx'
+import { DesktopBatchResult } from './tool-results/desktop-batch/DesktopBatchResult.tsx'
 import styles from './AgentToolTimeline.module.scss'
 
 export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorkspaceToolPart; onLoadToolImage?: AgentImageLoader }) {
@@ -31,6 +32,7 @@ export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadT
           ) : null}
         </summary>
         {tool.summary ? <p>{tool.summary}</p> : null}
+        {expanded && tool.desktop_batch ? <DesktopBatchResult receipt={tool.desktop_batch} /> : null}
         {expanded && tool.images?.length ? <div className={styles.images} aria-label={t('agent.images.toolResults')}>
           {tool.images.map((image, index) => (
             <AgentImage key={image.id} image={image} onLoad={onLoadToolImage} title={t('agent.images.result', { index: index + 1 })} />

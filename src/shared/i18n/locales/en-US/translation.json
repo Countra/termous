@@ -1313,6 +1313,19 @@
       "completed": "Reasoning"
     },
     "tool": {
+      "batch": {
+        "reason": "Stop reason:",
+        "title": "Desktop action receipt",
+        "accepted": "{{count}} / {{total}} actions accepted",
+        "meaning": "Accepted means input was sent. Check the screenshot to confirm the application result.",
+        "stoppedAt": "Execution stopped at step {{index}}",
+        "cleanup": "Input cleanup is unconfirmed. Inspect the desktop before continuing.",
+        "report": "The receipt could not be saved. Query the original execution; do not replay it.",
+        "run": {"running": "Running", "completed": "Input completed", "stopped": "Stopped", "cancelled": "Cancelled", "uncertain": "Input outcome uncertain"},
+        "step": {"pending": "Pending", "dispatching": "Dispatching", "accepted": "Accepted", "failed": "Failed", "uncertain": "Uncertain", "skipped": "Not executed"},
+        "capture": {"pending": "Waiting for the final screenshot", "unavailable": "The original screenshot is unavailable. Observe the desktop again if needed."},
+        "kind": {"pointer": {"move": "Move pointer", "click": "Click", "click_current": "Click current position", "scroll": "Scroll", "drag": "Drag"}, "keyboard": {"key": "Press key", "shortcut": "Shortcut", "text": "Type text"}}
+      },
       "phase": { "preparing": "Preparing", "waiting": "Waiting", "executing": "Executing" },
       "controlApproval": "Requesting desktop control",
       "inputNotDispatched": "Awaiting authorization; input not sent",

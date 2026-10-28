@@ -16,6 +16,7 @@ export function requestIdentity(runID: string, generation: number, callID: strin
 // 只保存路由和并发校验字段，命令、路径、正文及图片不进入准备记录。
 const saved = new Set(['client_request_id', 'attachment_id', 'grant_id', 'session_id', 'session_ids', 'profile_id', 'ssh_profile_id', 'file_access_profile_id', 'file_session_id', 'source_file_session_id', 'target_file_session_id', 'connection_generation', 'expected_connection_generation', 'source_connection_generation', 'target_connection_generation', 'script_id', 'version', 'expected_revision', 'expected_plan_hash', 'base_sha256', 'base_size', 'base_modified_at', 'line_ending', 'has_bom', 'source'])
 saved.add('expected_updated_at')
+saved.add('execution_id')
 export function preparedValues(args: Arguments) {
   const values = Object.fromEntries(Object.entries(args).filter(([key, value]) => saved.has(key) && value !== undefined && value !== null))
   const target = observationTarget(args.target)

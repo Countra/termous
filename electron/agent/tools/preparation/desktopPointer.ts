@@ -2,6 +2,10 @@ import { isRecord } from '../../contracts/validation.ts'
 import { fail, type Arguments, type PreparationContext } from './contracts.ts'
 
 export function checkDesktopPointer(ctx: PreparationContext, args: Arguments, attachment: Arguments) {
+  if (ctx.name === 'termous.desktops.execute' && Array.isArray(args.actions)) {
+    for (const action of args.actions) if (isRecord(action) && typeof action.kind === 'string') checkDesktopPointer({ ...ctx, name: `termous.desktops.${action.kind}` }, action, attachment)
+    return
+  }
   let capability: string | undefined
   if (ctx.name === 'termous.desktops.pointer.position') capability = 'pointer_position'
   else if (ctx.name === 'termous.desktops.pointer.click_current') capability = 'pointer_click_current'

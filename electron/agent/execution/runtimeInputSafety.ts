@@ -2,10 +2,11 @@ import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import { isMCPToolDetails } from '../contracts/mcpTools.ts'
 import { isRecord } from '../contracts/validation.ts'
 import { runtimeApprovalFailure, runtimeToolResultData } from '../contracts/runtimeToolResult.ts'
+import { desktopBatchTools, readDesktopBatch } from '#common/desktop-batch'
 
 export interface RuntimeStopReason { code: string; message: string }
 
-const desktopInput = /^termous\.desktops\.(?:pointer\.(?:move|click|scroll|drag)|keyboard\.(?:key|shortcut|text)|clipboard\.set_text|resize)$/u
+const desktopInput = /^termous\.desktops\.(?:execute|pointer\.(?:move|click|click_current|scroll|drag)|keyboard\.(?:key|shortcut|text)|clipboard\.set_text|resize)$/u
 const workflowResult = /^(?:termous\.desktop_workflows\.runs\.(?:start|get|control)|wait_workflow_run)$/u
 const cleanupTools = new Set(['termous.desktops.control.release', 'termous.desktops.detach', 'termous.desktops.control.acquire', 'termous.desktops.close'])
 export const desktopCleanupGuidance = '控制清理尚未确认。本轮停止新的桌面接管、输入及脚本运行；可以只读查询状态、截图、查看报告或取消所属运行，然后说明已完成的步骤和清理问题。不要重复释放、重放步骤或声称已安全释放。'
@@ -28,6 +29,7 @@ export function runtimeDesktopSafetyOutcome(name: string, result: AgentToolResul
   const report = isRecord(outcome.data.report) ? outcome.data.report : undefined
   const run = report && isRecord(report.run) ? report.run : isRecord(outcome.data.run) ? outcome.data.run : undefined
   const isWorkflow = workflowResult.test(name)
+  const batch = desktopBatchTools.has(name) ? readDesktopBatch(outcome.data) : undefined
   const hasCleanupError = isWorkflow && typeof run?.cleanup_error === 'string' && run.cleanup_error !== ''
   // 兼容旧 Core：释放和取得租约都可能把清理失败映射成 input_uncertain，但没有派发新输入。
   const cleanupUncertain = ((name.startsWith('termous.desktops.') || isWorkflow) && outcome.error &&
@@ -38,7 +40,7 @@ export function runtimeDesktopSafetyOutcome(name: string, result: AgentToolResul
   const cleanupOnly = hasCleanupError && !run?.error_code && !uncertainStep
   const workflowUncertain = isWorkflow && (run?.error_code === 'desktop_input_uncertain' || uncertainStep ||
     run?.state === 'uncertain' && !cleanupOnly)
-  return { inputUncertain: Boolean(inputUncertain || workflowUncertain), cleanupUncertain: Boolean(cleanupUncertain) }
+  return { inputUncertain: Boolean(inputUncertain || workflowUncertain || batch?.state === 'uncertain' || batch?.steps.some(step => step.state === 'uncertain')), cleanupUncertain: Boolean(cleanupUncertain || batch?.cleanup_error) }
 }
 
 // 输入不确定属于执行保护，与可选预算开关独立；清理未确认只阻止新副作用，允许只读核查与回复。
@@ -57,7 +59,7 @@ export class RuntimeInputSafety {
 
   blockedTool(name: string, args: unknown): string | undefined {
     if (!this.cleanupPending) return undefined
-    const desktopMutation = name.startsWith('termous.desktops.') && !/^termous\.desktops\.(?:list|get|capture|operations\.get|profiles\.(?:list|get))$/u.test(name)
+    const desktopMutation = name.startsWith('termous.desktops.') && !/^termous\.desktops\.(?:list|get|capture|operations\.get|executions\.(?:get|cancel)|profiles\.(?:list|get))$/u.test(name)
     const workflowMutation = name === 'termous.desktop_workflows.runs.start' || name === 'termous.desktop_workflows.runs.control' && (!isRecord(args) || args.action !== 'cancel')
     return desktopMutation || workflowMutation ? desktopCleanupGuidance : undefined
   }

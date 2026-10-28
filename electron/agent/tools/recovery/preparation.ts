@@ -14,7 +14,7 @@ export function projectManagedRecovery(result: AgentToolResult<unknown>, ctx: Pr
   if (!isMCPToolDetails(result.details)) return result
   const output = result.details.result.structuredContent
   if (!isRecord(output)) return result
-  const key = isRecord(output.operation) ? 'operation' : 'error'
+  const key = isRecord(output.operation) ? 'operation' : isRecord(output.run) && ctx.name.startsWith('termous.desktops.') ? 'run' : 'error'
   const value = output[key]
   if (!isRecord(value)) return result
   const execution = isRecord(value.execution) ? value.execution : undefined
@@ -22,6 +22,7 @@ export function projectManagedRecovery(result: AgentToolResult<unknown>, ctx: Pr
   let projectedRecovery = recovery
   let message = value.message
   if (recovery?.tool === 'termous.desktops.operations.get') projectedRecovery = { ...recovery, arguments: { tool_call_id: callID } }
+  if (recovery?.tool === 'termous.desktops.executions.get' && ctx.name === 'termous.desktops.execute') projectedRecovery = { ...recovery, arguments: { tool_call_id: callID } }
   const recoverable = (!execution || execution.dispatch === 'not_started')
     && (!recovery || ['reread', 'correct_parameters'].includes(String(recovery.kind)))
   const genericAttachment = !recovery?.tool || recovery.tool === 'termous.desktops.attach' && recovery.arguments === undefined
@@ -38,6 +39,6 @@ export function projectManagedRecovery(result: AgentToolResult<unknown>, ctx: Pr
   const projected = { ...output, [key]: { ...value, ...(message !== undefined ? { message } : {}), execution: {
     ...(execution ?? { phase: 'observation', dispatch: 'not_started' }), recovery: projectedRecovery,
   } } }
-  const content = [{ type: 'text' as const, text: JSON.stringify(projected) }]
+  const content = [{ type: 'text' as const, text: JSON.stringify(projected) }, ...result.content.filter(block => block.type !== 'text')]
   return { ...result, content, details: { ...result.details, result: { ...result.details.result, content, structuredContent: projected } } }
 }

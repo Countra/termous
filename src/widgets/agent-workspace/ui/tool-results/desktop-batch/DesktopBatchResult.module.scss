@@ -1,0 +1,35 @@
+.receipt {
+  margin: 6px 0 8px 25px;
+  border-left: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 4px 12px;
+  overflow-wrap: anywhere;
+
+  p { margin: 4px 0; }
+
+  code {
+    font-family: var(--terminal-font-family);
+    font-size: 11px;
+  }
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  color: var(--text-primary);
+}
+
+.steps {
+  margin: 8px 0;
+  padding-left: 22px;
+
+  li { padding: 2px 0; }
+  span + span, code { margin-left: 12px; }
+  li[data-state='accepted'] { color: var(--success); }
+  li[data-state='failed'], li[data-state='uncertain'] { color: var(--danger); }
+  li[data-state='skipped'] { color: var(--text-muted); }
+}

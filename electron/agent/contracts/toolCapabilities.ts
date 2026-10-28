@@ -56,6 +56,6 @@ export interface CapabilityCatalog {
 }
 
 export interface BuiltinToolAdapter {
-  adapter: 'identity' | 'desktop' | 'workflow' | 'analysis' | 'ssh' | 'files' | 'revision' | 'operation'
+  adapter: 'identity' | 'desktop' | 'desktop_execution' | 'workflow' | 'analysis' | 'ssh' | 'files' | 'revision' | 'operation'
   managed: string[]
 }

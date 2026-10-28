@@ -71,7 +71,7 @@ export async function desktopAttachment(ctx: PreparationContext, args: Arguments
 
 export function observeDesktop(ctx: PreparationContext, args: Arguments, output: Arguments) {
   if (!ctx.name.startsWith('termous.desktops.')) return
-  if (isRecord(output.capture) && typeof output.capture.screenshot_id === 'string') ctx.remember(`capture:${output.capture.screenshot_id}`, { attachment_id: args.attachment_id })
+  if (isRecord(output.capture) && typeof output.capture.screenshot_id === 'string' && typeof args.attachment_id === 'string') ctx.remember(`capture:${output.capture.screenshot_id}`, { attachment_id: args.attachment_id })
   if (isRecord(output.attachment) && typeof output.attachment.id === 'string'
     && (ctx.name === 'termous.desktops.attach' ? attachmentMatches(ctx, args, output.attachment) : output.attachment.id === args.attachment_id)) {
     const previous = ctx.read('desktop:attachment')

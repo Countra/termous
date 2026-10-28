@@ -2,6 +2,8 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { CallToolResult } from '@modelcontextprotocol/client'
 
 const visualDesktopTools = new Set([
+  'termous.desktops.execute',
+  'termous.desktops.executions.get',
   'termous.desktops.capture',
   'termous.desktop_workflows.captures.create',
   'termous.desktop_workflows.captures.view',

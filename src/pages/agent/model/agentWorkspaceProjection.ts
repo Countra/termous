@@ -14,6 +14,7 @@ import type {
 import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal, mergeAgentRetryActivity } from '#entities/agent'
 import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/contracts'
 import { projectAgentToolImages } from './agentToolImages.ts'
+import { readDesktopBatchContent } from '#common/desktop-batch'
 import { AgentToolDetailCache } from './agentToolDetailCache.ts'
 import type {
   AgentWorkspaceMessage,
@@ -317,6 +318,7 @@ function projectMessageParts(
       return [{ id: part.id, kind: 'tool', name: canonicalizeMcpFileToolName(part.tool_result.tool_name),
         status: part.tool_result.is_error ? 'failed' : 'completed',
         images: projectAgentToolImages(sessionID, part),
+        desktop_batch: readDesktopBatchContent(part.tool_result.tool_name, part.tool_result.content),
         detail: toolDetails.detail(undefined, part),
       }]
     }
@@ -365,7 +367,7 @@ function projectToolPart(
     status,
     phase: (status === 'running' || status === 'waiting_approval') && phaseEvent?.kind === 'tool_progress' ? phaseEvent.payload.tool.phase : undefined,
     duration_ms: duration,
-    ...(result ? { images: projectAgentToolImages(sessionID, result) } : {}),
+    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: readDesktopBatchContent(result.tool_result.tool_name, result.tool_result.content) } : {}),
     detail: toolDetails.detail(call, result),
   }
 }

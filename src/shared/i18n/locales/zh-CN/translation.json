@@ -1312,6 +1312,19 @@
       "completed": "思考过程"
     },
     "tool": {
+      "batch": {
+        "title": "桌面动作链回执",
+        "accepted": "已接受 {{count}} / {{total}} 步",
+        "meaning": "已接受表示输入已发送，请结合截图确认应用结果。",
+        "reason": "停止原因：",
+        "stoppedAt": "从第 {{index}} 步停止继续执行",
+        "cleanup": "输入清理未确认，请先核查桌面状态。",
+        "report": "回执保存遇到错误，请查询原批次，勿重复执行。",
+        "run": {"running": "执行中", "completed": "输入已完成", "stopped": "已停止", "cancelled": "已取消", "uncertain": "输入结果不确定"},
+        "step": {"pending": "等待执行", "dispatching": "正在派发", "accepted": "已接受", "failed": "失败", "uncertain": "结果不确定", "skipped": "未执行"},
+        "capture": {"pending": "等待执行结束后截图", "unavailable": "本批次原截图不可用，可重新观察桌面。"},
+        "kind": {"pointer": {"move": "移动鼠标", "click": "点击", "click_current": "点击当前位置", "scroll": "滚动", "drag": "拖动"}, "keyboard": {"key": "按键", "shortcut": "组合键", "text": "输入文本"}}
+      },
       "phase": { "preparing": "准备中", "waiting": "等待中", "executing": "执行中" },
       "controlApproval": "申请桌面控制权限",
       "inputNotDispatched": "等待授权，尚未发送输入",

@@ -10,6 +10,12 @@ export function builtinSchema(tool: AgentTool, adapter: BuiltinToolAdapter): Age
   const managed = new Set(adapter.managed)
   const raw: unknown = tool.parameters
   const required = isRecord(raw) && Array.isArray(raw.required) ? raw.required : []
+  if (adapter.adapter === 'desktop_execution') {
+    return { ...tool.parameters, properties: {
+      execution_id: { type: 'string', minLength: 1, maxLength: 128 },
+      tool_call_id: { type: 'string', minLength: 1, maxLength: 256, description: 'The original execute tool call ID. Query or cancel that batch only; this does not restore input authority.' },
+    }, required: [], oneOf: [{ required: ['execution_id'] }, { required: ['tool_call_id'] }] }
+  }
   for (const field of managed) if (hidden.has(field)) delete properties[field]
   if (managed.has('items[].expected_updated_at') && isRecord(properties.items) && isRecord(properties.items.items)) {
     const item = properties.items.items
