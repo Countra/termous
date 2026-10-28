@@ -62,6 +62,8 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  desktopTasks?(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal): Promise<import('#common/desktop-batch').DesktopTaskSnapshot>
+  cancelDesktopTask?(runId: string, generation: number, clientRequestID: string, signal?: AbortSignal): Promise<void>
   hostDesktopSources?(signal?: AbortSignal): Promise<import('#common/contracts').HostDesktopTarget[]>
   readonly timelineSupported?: boolean
   readonly runtimeOwnedByHost?: boolean

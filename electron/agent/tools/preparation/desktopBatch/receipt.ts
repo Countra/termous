@@ -4,7 +4,7 @@ import { isMCPToolDetails } from '../../../contracts/mcpTools.ts'
 import { isRecord } from '../../../contracts/validation.ts'
 import type { Arguments, PreparationContext } from '../contracts.ts'
 
-export function observeDesktopBatch(ctx: PreparationContext, output: Arguments) {
+export function observeDesktopBatch(ctx: Pick<PreparationContext, 'read' | 'remember'>, output: Arguments) {
   if (!readDesktopBatch(output) || !isRecord(output.run) || !isRecord(output.capture)) return
   const { attachment_id: attachment } = output.run
   const { screenshot_id: screenshot, expires_at: expires } = output.capture

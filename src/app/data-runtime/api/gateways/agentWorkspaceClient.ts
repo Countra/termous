@@ -47,11 +47,24 @@ import type {
 import { getTermousBridge } from '#shared/bridge'
 import { AgentSetupClient } from './agentSetupClient.ts'
 import { isHostDesktopTarget } from '#common/contracts'
+import { isDesktopTaskSnapshot } from '#common/desktop-batch'
 
 const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  async desktopTasks(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal) {
+    const value = await this.request<unknown>(`${agentPath}/runs/${encodeURIComponent(runId)}/desktop-tasks/query`, {
+      method: 'POST', body: { generation, after_cursor: cursor, wait_ms: waitMS }, signal,
+    })
+    if (!isDesktopTaskSnapshot(value, generation)) throw new Error('agent_desktop_task_invalid')
+    return value
+  }
+  async cancelDesktopTask(runId: string, generation: number, clientRequestID: string, signal?: AbortSignal) {
+    await this.request(`${agentPath}/runs/${encodeURIComponent(runId)}/desktop-tasks/cancel`, {
+      method: 'POST', body: { generation, client_request_id: clientRequestID }, signal,
+    })
+  }
   async hostDesktopSources(signal?: AbortSignal) {
     const value = await this.request<unknown>(`${agentPath}/host-desktop-sources`, { signal })
     if (!Array.isArray(value)) throw new Error('agent_resource_invalid')

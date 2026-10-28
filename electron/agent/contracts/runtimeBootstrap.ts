@@ -20,7 +20,7 @@ export type AgentRunStatus =
 export interface RuntimeMessagePart {
   id: string
   message_id: string
-  kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result'
+  kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result' | 'task_result'
   sequence: number
   content: Record<string, unknown>
 }
@@ -169,7 +169,8 @@ function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
     && (value.kind === 'text'
       || value.kind === 'reasoning'
       || value.kind === 'tool_call'
-      || value.kind === 'tool_result')
+      || value.kind === 'tool_result'
+      || value.kind === 'task_result')
     && Number.isSafeInteger(value.sequence)
     && Number(value.sequence) > 0
     && isRecord(value.content)

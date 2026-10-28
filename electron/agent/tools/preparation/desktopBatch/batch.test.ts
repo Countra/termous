@@ -6,11 +6,13 @@ import { prepareBuiltinTools } from '../index.ts'
 import type { PreparedCall } from '../../../contracts/toolPreparation.ts'
 import { isMCPToolDetails } from '../../../contracts/mcpTools.ts'
 import { runtimeDesktopSafetyOutcome, RuntimeInputSafety } from '../../../execution/runtimeInputSafety.ts'
+import { DesktopTaskCoordinator } from '../../../runtime/desktopTasks/coordinator.ts'
+import { desktopWaitTool } from '../../../runtime/desktopTasks/waitTool.ts'
 
 const string = { type: 'string' }
 const tool = (name: string, properties: Record<string, unknown>, required: string[], readOnly = false): Tool => ({ name: `termous.desktops.${name}`, description: name,
   inputSchema: { type: 'object', properties: properties as Tool['inputSchema']['properties'], required, additionalProperties: false }, annotations: { readOnlyHint: readOnly } })
-const execute = tool('execute', { attachment_id: string, grant_id: string, client_request_id: string, screenshot_id: string, actions: { type: 'array', items: { type: 'object' } } }, ['attachment_id', 'grant_id', 'client_request_id', 'actions'])
+const execute = tool('execute', { wait_ms: { type: 'integer', minimum: 0, maximum: 5000 }, attachment_id: string, grant_id: string, client_request_id: string, screenshot_id: string, actions: { type: 'array', items: { type: 'object' } } }, ['attachment_id', 'grant_id', 'client_request_id', 'actions'])
 const definitions = [execute,
   tool('get', { attachment_id: string, wait_ms: { type: 'integer' } }, [], true),
   tool('executions.get', { execution_id: string, client_request_id: string }, [], true),
@@ -36,11 +38,27 @@ function harness(respond: (name: string, args: Record<string, unknown>) => CallT
     return respond(definition.name, args)
   })
   const originalName = (name: string) => mapped.originalNames.get(name) ?? null
+  let observeBatch: ((output: Record<string, unknown>) => void) | undefined
   const tools = prepareBuiltinTools({ ...mapped, originalName, close: async () => {}, readOnly: name => definitions.find(tool => tool.name === name)?.annotations?.readOnlyHint === true }, {
+    registerBatchObserver: observe => { observeBatch = observe },
     runID: 'run', generation: 2, persist: async value => { records.set(`${value.tool_call_id}:${value.step}`, value) }, lookup: async (id, step) => records.get(`${id}:${step}`),
   })
-  return { calls, records, run: (name: string, id: string, args: Record<string, unknown>) => tools.find(tool => originalName(tool.name) === `termous.desktops.${name}`)!.execute(id, args) }
+  return { calls, records, observeBatch: (output: Record<string, unknown>) => observeBatch?.(output), run: (name: string, id: string, args: Record<string, unknown>) => tools.find(tool => originalName(tool.name) === `termous.desktops.${name}`)!.execute(id, args) }
 }
+
+test('显式本地等待登记原终态截图，下一次坐标输入无需重新截图', async () => {
+  const h = harness(() => response({}))
+  await h.run('execute', 'batch', { attachment_id: 'attachment', actions: [{ kind: 'keyboard.key', code: 'Enter' }] })
+  const result = receipt()
+  const terminal = { tool_call_id: 'batch', execution_id: result.run.id, revision: 4, result: { ...result, run: { ...result.run, revision: 4 } } }
+  const tasks = new DesktopTaskCoordinator(async () => ({ cursor: 'a'.repeat(64), tasks: [{ tool_call_id: 'batch', client_request_id: 'original', generation: 2, execution_id: terminal.execution_id, receipt: terminal }] }), () => {}, () => {})
+  try {
+    const waited = await desktopWaitTool(tasks, h.observeBatch).execute('wait', { execution_id: terminal.execution_id })
+    assert.ok(isMCPToolDetails(waited.details))
+    await h.run('pointer.click', 'click-after-wait', { screenshot_id: 'after', x: 3, y: 4 })
+    assert.equal(h.calls[h.calls.length - 1].name, 'termous.desktops.pointer.click')
+  } finally { tasks.close() }
+})
 
 test('链式派发丢失响应只核查原请求一次，保留失败图片且不重放', async () => {
   const h = harness((name, args) => {

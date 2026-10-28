@@ -11,6 +11,8 @@ import { clearRuntimeCompactionUsage } from './compaction/runtimeCompactionPolic
 import { projectRuntimeToolHistory, runtimeToolName } from './runtimeToolHistory.ts'
 import { isRuntimeToolArguments } from '../contracts/runtimeToolArguments.ts'
 import { hydrateRuntimeUserContent } from './runtimeUserContent.ts'
+import { isDesktopTaskReceipt } from '../contracts/desktopTasks.ts'
+import { desktopTaskMessage } from '../contracts/desktopTaskResult.ts'
 
 export function hydrateRuntimeMessages(
   bootstrap: RuntimeBootstrap,
@@ -101,6 +103,14 @@ function hydrateAssistantParts(
   for (const part of parts) {
     if (part.kind !== 'tool_result') lastAssistantPartID = part.id
     switch (part.kind) {
+      case 'task_result': {
+        flushAssistant()
+        const receipt = part.content.task_result
+        if (!isDesktopTaskReceipt(receipt)) throw new Error('AGENT_DESKTOP_TASK_RESPONSE_INVALID')
+        if (receipt.image && !model.input.includes('image')) throw new Error('AGENT_RUNTIME_MODEL_IMAGE_UNSUPPORTED')
+        target.push(desktopTaskMessage(receipt, timestamp))
+        break
+      }
       case 'text':
         assistantContent.push({ type: 'text', text: requiredNestedText(part, 'text') })
         break

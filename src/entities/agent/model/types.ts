@@ -201,7 +201,7 @@ export type AgentMessageRole = (typeof agentMessageRoles)[number]
 export const agentMessageStatuses = ['pending', 'streaming', 'completed', 'failed', 'interrupted'] as const
 export type AgentMessageStatus = (typeof agentMessageStatuses)[number]
 
-export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result'] as const
+export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result', 'task_result'] as const
 export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 
 export const agentAttachmentStates = ['ready', 'reserved', 'bound'] as const
@@ -464,6 +464,7 @@ export type AgentMessagePart = {
   | { kind: 'reasoning'; text: string; response_failure?: AgentResponseFailure }
   | { kind: 'tool_call'; tool_call: AgentToolCallPart; response_failure?: AgentResponseFailure }
   | { kind: 'tool_result'; tool_result: AgentToolResultPart; response_failure?: never }
+  | { kind: 'task_result'; task_result: import('#common/desktop-batch').DesktopTaskReceipt; response_failure?: never }
 )
 
 export interface AgentRequestUsage {

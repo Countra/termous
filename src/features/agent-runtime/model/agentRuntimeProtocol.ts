@@ -1,3 +1,4 @@
+import { isDesktopTaskReceipt } from '#common/desktop-batch'
 import { isAgentProgressData, isHostDesktopTarget } from '#common/contracts'
 import { isAgentDisplayImageMIMEType, isAgentToolImageReference, isAgentTerminalReferenceOrigin, maxAgentMessageRequestUsage } from '#common/contracts'
 import {
@@ -271,7 +272,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     updated_at: timestamp(source.updated_at, 'Agent 消息片段更新时间无效'),
   }
   const content = record(source.content, 'Agent 消息片段内容无效')
-  if (kind === 'tool_result' && content.response_failure !== undefined) {
+  if ((kind === 'tool_result' || kind === 'task_result') && content.response_failure !== undefined) {
     throw new AgentRuntimeProtocolError('Agent 工具结果不得携带回答失败标记')
   }
   const failure = content.response_failure === undefined ? undefined
@@ -280,7 +281,7 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     attempt_id: identifier(failure.attempt_id, 'Agent 回答失败 Attempt ID 无效'),
     error_message: utf8(failure.error_message, 'Agent 回答失败错误原文无效', 4 * 1024, true),
   } } : {}
-  const branches = ['text', 'reasoning', 'tool_call', 'tool_result'].filter((key) => content[key] !== undefined)
+  const branches = ['text', 'reasoning', 'tool_call', 'tool_result', 'task_result'].filter((key) => content[key] !== undefined)
   if (branches.length !== 1 || branches[0] !== kind) {
     throw new AgentRuntimeProtocolError('Agent 消息片段判别分支无效')
   }
@@ -304,6 +305,10 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     }
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
+  if (kind === 'task_result') {
+    if (!isDesktopTaskReceipt(body)) throw new AgentRuntimeProtocolError('Agent 桌面任务回执无效')
+    return { ...base, kind, task_result: body }
+  }
   if (kind === 'tool_call') {
     return { ...base, ...responseFailure, kind, tool_call: {
       tool_call_id: identifier(body.tool_call_id, 'Agent Tool Call ID 无效', 256),

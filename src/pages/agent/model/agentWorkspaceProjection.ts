@@ -16,6 +16,7 @@ import { canonicalizeMcpFileToolName, type AgentRuntimeStatus } from '#common/co
 import { projectAgentToolImages } from './agentToolImages.ts'
 import { readDesktopBatchContent } from '#common/desktop-batch'
 import { AgentToolDetailCache } from './agentToolDetailCache.ts'
+import { completedDesktopBatchResult, desktopTaskResultPart, indexDesktopBatchResults } from './agentDesktopTaskProjection.ts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
@@ -105,6 +106,7 @@ export function projectAgentMessages(
   events: AgentRunEvent[],
   toolDetails = new AgentToolDetailCache(),
 ): AgentWorkspaceMessage[] {
+  const desktopResults = indexDesktopBatchResults(messages)
   const finalizedParts = new Set(events.flatMap((event) => (
     event.kind === 'message_part'
       ? [messagePartKey(event.payload.message_part.message_id, event.payload.message_part.id)]
@@ -136,7 +138,7 @@ export function projectAgentMessages(
       part.kind === 'text' && part.resources !== undefined
     )) : undefined
     const parts = interleaveActivities(
-      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents, message.session_id, toolDetails),
+      projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents, message.session_id, toolDetails, desktopResults.get(message.session_id)),
       message,
       messageEvents,
     )
@@ -302,8 +304,10 @@ function projectMessageParts(
   events: AgentRunEvent[],
   sessionID: string,
   toolDetails: AgentToolDetailCache,
+  desktopResults: ReadonlyMap<string, Extract<AgentMessagePart, { kind: 'tool_result' }>> | undefined,
 ): AgentWorkspaceMessage['parts'] {
-  const results = new Map(parts
+  const projectedParts = parts.map(part => part.kind === 'task_result' ? desktopTaskResultPart(part) : part)
+  const results = new Map(projectedParts
     .filter((part): part is Extract<AgentMessagePart, { kind: 'tool_result' }> => part.kind === 'tool_result')
     .map((part) => [part.tool_result.tool_call_id, part]))
   const calls = new Set(parts.flatMap(part => part.kind === 'tool_call' ? [part.tool_call.tool_call_id] : []))
@@ -311,15 +315,18 @@ function projectMessageParts(
   for (const part of parts) {
     if (part.response_failure) failedAttemptEnds.set(part.response_failure.attempt_id, part.id)
   }
-  return parts.flatMap((part): AgentWorkspaceMessagePart[] => {
+  return projectedParts.flatMap((part): AgentWorkspaceMessagePart[] => {
     if (part.kind === 'tool_result') {
       if (calls.has(part.tool_result.tool_call_id)) return []
+      if (results.get(part.tool_result.tool_call_id) !== part) return []
+      const result = completedDesktopBatchResult(part, desktopResults)
+      const batch = readDesktopBatchContent(result.tool_result.tool_name, result.tool_result.content)
       // 时间线可能从工具结果开始；缺少上一页调用参数不应隐藏已完成结果或图片。
-      return [{ id: part.id, kind: 'tool', name: canonicalizeMcpFileToolName(part.tool_result.tool_name),
-        status: part.tool_result.is_error ? 'failed' : 'completed',
-        images: projectAgentToolImages(sessionID, part),
-        desktop_batch: readDesktopBatchContent(part.tool_result.tool_name, part.tool_result.content),
-        detail: toolDetails.detail(undefined, part),
+      return [{ id: part.id, kind: 'tool', tool_call_id: part.tool_result.tool_call_id, name: canonicalizeMcpFileToolName(part.tool_result.tool_name),
+        status: batch?.state === 'running' ? 'running' : result.tool_result.is_error ? 'failed' : 'completed',
+        images: projectAgentToolImages(sessionID, result),
+        desktop_batch: batch,
+        detail: toolDetails.detail(undefined, result),
       }]
     }
     const failure = part.response_failure
@@ -330,7 +337,7 @@ function projectMessageParts(
         kind: 'reasoning' as const,
         text: part.text,
         streaming: streaming && !failure && !finalizedParts.has(messagePartKey(part.message_id, part.id)),
-      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events, sessionID, toolDetails)
+      } : projectToolPart(part, failure ? undefined : results.get(part.tool_call.tool_call_id), run, events, sessionID, toolDetails, desktopResults)
     return failure?.error_message && failedAttemptEnds.get(failure.attempt_id) === part.id
       ? [projected, { id: `response-failure:${failure.attempt_id}`, kind: 'response_failure', failure, after_part_sequence: part.sequence }]
       : [projected]
@@ -348,26 +355,30 @@ function projectToolPart(
   events: AgentRunEvent[],
   sessionID: string,
   toolDetails: AgentToolDetailCache,
+  desktopResults: ReadonlyMap<string, Extract<AgentMessagePart, { kind: 'tool_result' }>> | undefined,
 ): AgentWorkspaceToolPart {
+  if (result) result = completedDesktopBatchResult(result, desktopResults)
   const toolEvents = events.filter((event) => (
     !call.response_failure && 'tool' in event.payload && event.payload.tool.tool_call_id === call.tool_call.tool_call_id
   ))
   const terminalEvent = [...toolEvents].reverse().find((event) => event.kind === 'tool_completed' || event.kind === 'tool_failed')
   const duration = terminalEvent && 'tool' in terminalEvent.payload ? terminalEvent.payload.tool.duration_ms : undefined
   const phaseEvent = [...toolEvents].reverse().find((event) => event.kind === 'tool_progress')
+  const batch = result && readDesktopBatchContent(result.tool_result.tool_name, result.tool_result.content)
   const status = call.response_failure ? 'failed' : result
-    ? result.tool_result.is_error ? 'failed' : 'completed'
+    ? batch?.state === 'running' ? 'running' : result.tool_result.is_error ? 'failed' : 'completed'
     : run?.status === 'waiting_approval' ? 'waiting_approval'
       : run && ['queued', 'starting', 'running'].includes(run.status) ? 'running'
         : run?.status === 'failed' ? 'failed' : 'interrupted'
   return {
     id: call.id,
+    tool_call_id: call.tool_call.tool_call_id,
     kind: 'tool',
     name: canonicalizeMcpFileToolName(call.tool_call.tool_name),
     status,
     phase: (status === 'running' || status === 'waiting_approval') && phaseEvent?.kind === 'tool_progress' ? phaseEvent.payload.tool.phase : undefined,
     duration_ms: duration,
-    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: readDesktopBatchContent(result.tool_result.tool_name, result.tool_result.content) } : {}),
+    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch } : {}),
     detail: toolDetails.detail(call, result),
   }
 }

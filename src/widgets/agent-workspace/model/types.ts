@@ -141,6 +141,8 @@ export interface AgentWorkspaceReasoningPart {
 }
 
 export interface AgentWorkspaceToolPart {
+  tool_call_id?: string
+  cancelDesktop?: () => Promise<void>
   phase?: 'preparing' | 'waiting' | 'executing'
   id: string
   kind: 'tool'

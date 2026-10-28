@@ -9,8 +9,10 @@ import styles from './AgentToolTimeline.module.scss'
 export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadToolImage }: { tool: AgentWorkspaceToolPart; onLoadToolImage?: AgentImageLoader }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState(false)
   const preparingControl = (tool.status === 'running' || tool.status === 'waiting_approval')
-    && tool.phase === 'waiting' && tool.name.startsWith('termous.desktops.')
+    && tool.phase === 'waiting' && !tool.desktop_batch && tool.name.startsWith('termous.desktops.')
   const StatusIcon = tool.status === 'completed'
     ? Check
     : tool.status === 'failed' || tool.status === 'interrupted'
@@ -32,6 +34,11 @@ export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadT
           ) : null}
         </summary>
         {tool.summary ? <p>{tool.summary}</p> : null}
+        {tool.cancelDesktop ? <button type="button" disabled={cancelling} onClick={() => {
+          setCancelling(true); setCancelError(false)
+          void tool.cancelDesktop!().catch(() => { setCancelError(true); setCancelling(false) })
+        }}>{t('app.cancel')}</button> : null}
+        {cancelError ? <p role="alert">{t('agent.tool.batch.cancelFailed')}</p> : null}
         {expanded && tool.desktop_batch ? <DesktopBatchResult receipt={tool.desktop_batch} /> : null}
         {expanded && tool.images?.length ? <div className={styles.images} aria-label={t('agent.images.toolResults')}>
           {tool.images.map((image, index) => (

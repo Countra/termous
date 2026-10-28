@@ -8,6 +8,7 @@ import type { RuntimeContextImages } from './runtimeContextImages.ts'
 import type { RuntimeContextImageReference } from '../contracts/runtimeCheckpoint.ts'
 import { isRecord } from '../contracts/validation.ts'
 import { releaseRuntimeImage, runtimeImageHistory, runtimeMessageDetails } from './runtimeImageLifetime.ts'
+import { desktopTaskMessageSource } from '../contracts/desktopTaskResult.ts'
 
 // 只固定最新的未确认模板；确认其他预览、重新截图都不能误取消它。
 export function pendingPreviewCall(messages: AgentMessage[], now = Date.now()) {
@@ -50,13 +51,12 @@ export class RuntimeImageWorkingSet {
     const keep = new Set(groups.slice(-2))
     const pending = pendingPreviewCall(messages)
     for (const message of messages) {
-      if (message.role !== 'toolResult') continue
-      message.details = runtimeMessageDetails(message.details)
-      if (!isDesktopImageMessage(message) || keep.has(message) || message.toolCallId === pending) continue
+      if (message.role === 'toolResult') message.details = runtimeMessageDetails(message.details)
+      if (!isDesktopImageMessage(message) || !Array.isArray(message.content) || keep.has(message) || message.role === 'toolResult' && message.toolCallId === pending) continue
       for (const part of message.content) {
         if (!isRuntimeImage(part)) continue
         const { ref, size } = this.imageMetadata(part)
-        releaseRuntimeImage(part, runtimeImageHistory(ref, size, message))
+        releaseRuntimeImage(part, runtimeImageHistory(ref, size, imageSource(message)))
       }
     }
   }
@@ -66,9 +66,9 @@ export class RuntimeImageWorkingSet {
     const pendingCall = pendingPreviewCall(messages)
     let pendingPreview = -1
     messages.forEach((message, index) => {
-      if (!isDesktopImageMessage(message) || message.role !== 'toolResult') return
+      if (!isDesktopImageMessage(message)) return
       groups.push(index)
-      if (message.toolCallId === pendingCall) pendingPreview = index
+      if (message.role === 'toolResult' && message.toolCallId === pendingCall) pendingPreview = index
     })
     const keep = new Set([...groups.slice(-2), ...(pendingPreview >= 0 ? [pendingPreview] : [])])
     const desktop = new Set(groups)
@@ -78,7 +78,7 @@ export class RuntimeImageWorkingSet {
     const projected = messages.slice()
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]!
-      if (!desktop.has(index) || message.role !== 'toolResult') continue
+      if (!desktop.has(index) || message.role !== 'toolResult' && message.role !== 'user' || !Array.isArray(message.content)) continue
       let count = 0
       projected[index] = { ...message, content: message.content.map((part) => {
         if (!isRuntimeImage(part)) return part
@@ -86,10 +86,10 @@ export class RuntimeImageWorkingSet {
         const show = keep.has(index) && count++ < 2 && !hashes.has(ref.sha256)
         if (show) {
           hashes.add(ref.sha256)
-          visible.push(`${message.toolCallId}:${ref.sha256}`)
+          visible.push(`${message.role === 'toolResult' ? message.toolCallId : desktopTaskMessageSource(message)?.execution_id}:${ref.sha256}`)
           return part
         }
-        return runtimeImageHistory(ref, size, message)
+        return runtimeImageHistory(ref, size, imageSource(message))
       }) }
     }
     const fingerprint = visible.length ? createHash('sha256').update(visible.join('\n')).digest('hex') : ''
@@ -111,8 +111,13 @@ export class RuntimeImageWorkingSet {
 }
 
 function isDesktopImageMessage(message: AgentMessage) {
+  if (desktopTaskMessageSource(message) && Array.isArray(message.content)) return message.content.some(isRuntimeImage)
   if (message.role !== 'toolResult') return false
   const name = decodeMCPToolName(message.toolName) ?? message.toolName
-  return (name.startsWith('termous.desktops.') || name.startsWith('termous.desktop_workflows.') || name.startsWith('termous.screen_analyses.') || name === 'read_history_image')
+  return (name.startsWith('termous.desktops.') || name.startsWith('termous.desktop_workflows.') || name.startsWith('termous.screen_analyses.') || name === 'read_history_image' || name === 'wait_desktop_execution')
     && message.content.some(isRuntimeImage)
+}
+
+function imageSource(message: AgentMessage) {
+  return { timestamp: message.timestamp, toolName: message.role === 'toolResult' ? message.toolName : 'termous.desktops.execute' }
 }

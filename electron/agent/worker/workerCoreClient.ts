@@ -1,4 +1,5 @@
 import { WorkerCoreError, type WorkerCoreClientPort } from '../contracts/workerCore.ts'
+import { isDesktopTaskSnapshot } from '../contracts/desktopTasks.ts'
 import { createHash } from 'node:crypto'
 import { isImageResourceReference, isTextResourceReference, type ImageResourceReference, type TextResourceReference } from '#common/contracts'
 import { isRuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
@@ -21,6 +22,13 @@ export interface WorkerCoreClientOptions {
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
+  async readDesktopTasks(start: AgentWorkerStartMessage, runtimeBearer: string, cursor: string, waitMS: number, signal?: AbortSignal) {
+    const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-desktop-tasks`, {
+      method: 'POST', body: JSON.stringify({ generation: start.generation, after_cursor: cursor, wait_ms: waitMS }),
+    }, runtimeBearer, signal)
+    if (!isDesktopTaskSnapshot(result, start.generation)) throw new WorkerCoreError('AGENT_DESKTOP_TASK_RESPONSE_INVALID')
+    return result
+  }
   async readToolPreparation(start: AgentWorkerStartMessage, runtimeBearer: string, toolCallID: string, step: string, signal?: AbortSignal) {
     const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-tool-preparations`, {
       method: 'POST', body: JSON.stringify({ generation: start.generation, tool_call_id: toolCallID, step }),

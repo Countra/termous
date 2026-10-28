@@ -73,6 +73,7 @@ export interface RuntimeCompactionOptions<TSource> {
   // 请求补充项参与容量评估，但不参与历史切分、摘要正文或检查点持久化。
   supplementalMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   retainToolCall?(messages: AgentMessage[]): string | undefined
+  retainMessage?(message: AgentMessage): boolean
   captureDetails?(): Record<string, unknown>
   captureSource(signal?: AbortSignal): Promise<TSource>
   commit(candidate: RuntimeCompactionCommit<TSource>, signal?: AbortSignal): Promise<void>
@@ -149,12 +150,12 @@ export function createRuntimeCompactionController<TSource>(
   }
 
   const prepareContext = (raw: AgentMessage[], projected: AgentMessage[]) => {
-    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => projectHistory(messages, false), options.retainToolCall)
+    let prepared = prepareRuntimeCompaction(raw, checkpoint, budget.settings, (messages) => projectHistory(messages, false), options.retainToolCall, options.retainMessage)
     if (!hasRuntimeCompactionPrefix(prepared)) {
       const calibratedSettings = runtimeCompactionCalibratedSettings(projected, options.model, budget)
       if (calibratedSettings) {
         // 仅补救用量已过门禁但字符估算尚无切点的情况，仍保持完整工具调用边界。
-        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => projectHistory(messages, false), options.retainToolCall)
+        prepared = prepareRuntimeCompaction(raw, checkpoint, calibratedSettings, (messages) => projectHistory(messages, false), options.retainToolCall, options.retainMessage)
       }
     }
     return prepared

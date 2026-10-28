@@ -17,6 +17,7 @@ import { isSkillResourceToolDetails } from '../tools/skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
 import { runtimeProviderFailure, sanitizeRuntimeProviderError } from '../provider/runtimeProviderFailure.ts'
 import type { RuntimeEventKind } from '../contracts/runtimeEvents.ts'
+import type { DesktopTaskReceipt } from '../contracts/desktopTasks.ts'
 
 const maximumDeltaBytes = 240 * 1024
 
@@ -44,6 +45,11 @@ interface StreamPartRef {
 }
 
 export class PiEventBridge {
+  desktopTaskResult(receipt: DesktopTaskReceipt) {
+    const id = this.newPartID()
+    this.pushMessagePart(id, 'task_result', { task_result: receipt })
+    return id
+  }
   private readonly writer: RuntimeEventSink
   private readonly assistantMessageID: string
   private readonly originalToolName: (encodedName: string) => string | null
@@ -304,7 +310,7 @@ export class PiEventBridge {
 
   private pushMessagePart(
     id: string,
-    kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result',
+    kind: 'text' | 'reasoning' | 'tool_call' | 'tool_result' | 'task_result',
     content: Record<string, unknown>,
   ) {
     this.writer.push('message_part', {

@@ -1313,6 +1313,15 @@
     },
     "tool": {
       "batch": {
+        "cancelFailed": "取消请求未确认，请查询原执行状态，不能视为已经停止。",
+        "phase": {
+          "validating": "正在预检动作链",
+          "executing": "正在发送桌面输入",
+          "waiting": "正在等待桌面操作",
+          "capturing": "正在采集最终画面",
+          "finalizing": "正在保存回执并释放控制",
+          "finished": "桌面操作已结束"
+        },
         "title": "桌面动作链回执",
         "accepted": "已接受 {{count}} / {{total}} 步",
         "meaning": "已接受表示输入已发送，请结合截图确认应用结果。",

@@ -1314,6 +1314,15 @@
     },
     "tool": {
       "batch": {
+        "cancelFailed": "Cancellation was not confirmed. Check the original execution; do not assume input has stopped.",
+        "phase": {
+          "validating": "Validating the action chain",
+          "executing": "Sending desktop input",
+          "waiting": "Waiting after desktop input",
+          "capturing": "Capturing the final desktop image",
+          "finalizing": "Saving the receipt and releasing control",
+          "finished": "Desktop execution finished"
+        },
         "reason": "Stop reason:",
         "title": "Desktop action receipt",
         "accepted": "{{count}} / {{total}} actions accepted",

@@ -84,7 +84,7 @@ test('手动刷新失败保留最后确认的用量和明细，仍显示读取�
   const progress = await screen.findByRole('progressbar')
   let fail!: (reason: Error) => void
   f.analysisStorage.mockImplementationOnce(() => new Promise<AnalysisStorageUsage>((_resolve, reject) => { fail = reject }))
-  await userEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.refresh' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'desktopWorkflow.refresh' }))
   await waitFor(() => expect(f.analysisStorage).toHaveBeenCalledTimes(2))
   expect(screen.getByRole('progressbar')).toBe(progress)
   await act(async () => fail(new Error('fixture unavailable')))

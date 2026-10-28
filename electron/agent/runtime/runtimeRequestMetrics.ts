@@ -11,7 +11,7 @@ import { runtimeImageDimensions } from '../context/runtimeImageDimensions.ts'
 import { isResourceImage, isRuntimeImage } from '../contracts/runtimeResourceImages.ts'
 import { runtimeProviderFailure, sanitizeRuntimeProviderError } from '../provider/runtimeProviderFailure.ts'
 
-export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBudget, events: Pick<RuntimeEventWriter, 'push'>, supported: boolean, purpose: 'response' | 'compaction', secrets: readonly string[] = [], diagnostics?: () => { context_fingerprint: string; execution_summary_tokens: number }): StreamFn {
+export function measuredRuntimeStream(base: StreamFn, budget: RuntimeExecutionBudget, events: Pick<RuntimeEventWriter, 'push'>, supported: boolean, purpose: 'response' | 'compaction', secrets: readonly string[] = [], diagnostics?: () => { context_fingerprint: string; execution_summary_tokens: number; desktop_task_receipts?: Array<{ execution_id: string; revision: number }> }): StreamFn {
   return (model, context, options) => {
     const tools = getCurrentTools(context.messages)
     const schemaBytes = Buffer.byteLength(JSON.stringify(tools))

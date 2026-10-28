@@ -85,14 +85,26 @@ for (const mode of ['single', 'batch']) {
 }
 
 // 实际跨过原生租约的三十秒期限，确认等待期间续租且后续输入没有提前超时。
-const longWait = await call('execute', { actions: [
+const longWaitStart = Date.now()
+const initialWait = await call('execute', { wait_ms: 5000, actions: [
   { kind: 'keyboard.shortcut', codes: ['ControlLeft', 'KeyA'], wait_after_ms: 35000 },
   { kind: 'keyboard.text', text: 'Termous RDP long wait verified' },
 ] })
+assert.equal(initialWait.result.run.state, 'running')
+assert.ok(initialWait.elapsed_ms >= 4500 && initialWait.elapsed_ms < 10000)
+const independentStart = Date.now()
+assert.ok((await readFile(new URL('../../../backend/docs/desktop-batch-acceptance.md', import.meta.url), 'utf8')).length > 0)
+const independentReadMS = Date.now() - independentStart
+const asyncBlocked = await call('keyboard.text', { text: 'MUST_NOT_INTERLEAVE' }, { expected_error: true })
+assert.equal(asyncBlocked.tool_error, true)
+let longWait = initialWait
+while (longWait.result.run.state === 'running') longWait = await call('executions.get', {
+  execution_id: longWait.result.run.id, after_revision: longWait.result.run.revision, wait_ms: 10000,
+}, { expected_error: true })
 assert.equal(longWait.result.run.state, 'completed')
 assert.equal(longWait.result.run.accepted_actions, 2)
 assert.deepEqual(longWait.result.run.steps.map(step => step.wait_after_ms), [35000, 500])
-assert.ok(longWait.elapsed_ms >= 35500)
+assert.ok(Date.now() - longWaitStart >= 35500)
 await delay(750)
 const longWaitEvidence = await call('capture')
 
@@ -126,10 +138,11 @@ const dedupEvidence = await call('capture')
 async function interrupt(revoke) {
   await select()
   const request = `${prefix}-${revoke ? 'revoke' : 'cancel'}`
-  const pending = await enqueue('execute', { client_request_id: request, actions: [
+  const initial = await call('execute', { client_request_id: request, wait_ms: 5000, actions: [
     { kind: 'keyboard.text', text: `Termous RDP ${revoke ? 'revoked' : 'cancelled'} safely`, wait_after_ms: 90000 },
     { kind: 'keyboard.text', text: 'MUST_NOT_APPEAR' },
-  ] }, { background: true, expected_error: true })
+  ] }, { expected_error: true })
+  assert.equal(initial.result.run.state, 'running')
   let ready = false
   for (const deadline = Date.now() + 1500; Date.now() < deadline;) {
     const current = await call('executions.get', { client_request_id: request }, { expected_error: true })
@@ -141,7 +154,10 @@ async function interrupt(revoke) {
   assert.equal(blocked.tool_error, true)
   if (revoke) await call('control.release')
   else await call('executions.cancel', { client_request_id: request }, { expected_error: true })
-  const receipt = await result(pending)
+  let receipt = initial
+  while (receipt.result.run.state === 'running') receipt = await call('executions.get', {
+    execution_id: receipt.result.run.id, after_revision: receipt.result.run.revision, wait_ms: 10000,
+  }, { expected_error: true })
   assert.equal(receipt.result.run.state, 'cancelled')
   assert.equal(receipt.result.run.accepted_actions, 1)
   assert.equal(receipt.result.run.steps[1].state, 'skipped')
@@ -156,7 +172,7 @@ const cancellation = await interrupt(false)
 const revocation = await interrupt(true)
 await call('control.acquire')
 const report = { prefix, target: 'win-4090', assertions_passed: true, visual_verification: 'pending', samples, preflight,
-  long_wait: { receipt: longWait, evidence: longWaitEvidence },
+  long_wait: { initial: initialWait, receipt: longWait, evidence: longWaitEvidence, independent_read_ms: independentReadMS },
   deduplication: { once, duplicate, history, conflict, evidence: dedupEvidence }, cancellation, revocation }
 await writeFile(path.join(output, 'rdp-result.json'), JSON.stringify(report, null, 2), 'utf8')
 console.log(JSON.stringify({ report: path.join(output, 'rdp-result.json'), assertions_passed: true, visual_verification: 'pending' }))

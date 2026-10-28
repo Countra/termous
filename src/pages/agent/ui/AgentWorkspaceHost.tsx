@@ -1,4 +1,5 @@
 import { useAgentHostDesktopSources } from '../model/host/useAgentHostDesktopSources.ts'
+import { useAgentDesktopTasks } from '../model/host/useAgentDesktopTasks.ts'
 import type { AgentDesktopResourceState } from '#entities/agent'
 import {
   isAgentModelRunnable,
@@ -293,10 +294,11 @@ export function AgentWorkspaceHost({
   const selectedMessageEntities = selected ? state.messages[selected.id] : undefined
   const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
   const projectMessages = useMemo(() => createAgentMessageProjector(), [])
-  const workspaceMessages = useMemo(
+  const projectedMessages = useMemo(
     () => active ? projectMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []) : [],
     [active, projectMessages, selectedMessageEntities, selectedRun, selectedRunEvents],
   )
+  const workspaceMessages = useAgentDesktopTasks(gateway, selectedRun, projectedMessages, active && enabled)
   const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
   const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
   const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined

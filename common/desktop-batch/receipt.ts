@@ -1,6 +1,7 @@
-export const desktopBatchTools = new Set(['termous.desktops.execute', 'termous.desktops.executions.get', 'termous.desktops.executions.cancel'])
+export const desktopBatchTools = new Set(['termous.desktops.execute', 'termous.desktops.executions.get', 'termous.desktops.executions.cancel', 'wait_desktop_execution'])
 const runStates = ['running', 'completed', 'stopped', 'cancelled', 'uncertain'] as const
 const stepStates = ['pending', 'dispatching', 'accepted', 'failed', 'uncertain', 'skipped'] as const
+const phases = ['validating', 'executing', 'waiting', 'capturing', 'finalizing', 'finished'] as const
 const kinds = new Set(['pointer.move', 'pointer.click', 'pointer.click_current', 'pointer.scroll', 'pointer.drag', 'keyboard.key', 'keyboard.shortcut', 'keyboard.text'])
 
 export interface DesktopBatchStep {
@@ -13,6 +14,7 @@ export interface DesktopBatchStep {
 export interface DesktopBatchReceipt {
   id: string
   state: typeof runStates[number]
+  phase?: typeof phases[number]
   accepted_actions: number
   steps: DesktopBatchStep[]
   capture_state: 'pending' | 'ready' | 'unavailable'
@@ -42,6 +44,7 @@ export function readDesktopBatch(value: unknown): DesktopBatchReceipt | undefine
   }
   if (run.accepted_actions !== steps.filter(step => step.state === 'accepted').length) return undefined
   return { id: run.id, state: run.state as DesktopBatchReceipt['state'], accepted_actions: run.accepted_actions as number,
+    phase: phases.some(phase => phase === run.phase) ? run.phase as DesktopBatchReceipt['phase'] : undefined,
     steps, capture_state: value.capture_state as DesktopBatchReceipt['capture_state'], capture_error: code(value.capture_error),
     cleanup_error: code(run.cleanup_error), report_error: code(run.report_error), error_code: code(run.error_code) }
 }

@@ -26,6 +26,7 @@ interface RuntimeContextGateOptions {
   projectMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   supplementalMessages?(messages: AgentMessage[], commit: boolean): AgentMessage[]
   retainToolCall?(messages: AgentMessage[]): string | undefined
+  retainMessage?(message: AgentMessage): boolean
   captureDetails?(): Record<string, unknown>
 }
 
@@ -64,6 +65,7 @@ export function createRuntimeContextGate(options: RuntimeContextGateOptions) {
     projectMessages: options.projectMessages,
     supplementalMessages: options.supplementalMessages,
     retainToolCall: options.retainToolCall,
+    retainMessage: options.retainMessage,
     captureDetails: options.captureDetails,
     now,
     captureSource: async () => {

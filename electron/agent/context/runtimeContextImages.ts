@@ -7,6 +7,7 @@ import { isRecord } from '../contracts/validation.ts'
 import { runtimeMessageDetails } from './runtimeImageLifetime.ts'
 import { isImageResourceReference } from '#common/contracts'
 import { isResourceImage, isRuntimeImage } from '../contracts/runtimeResourceImages.ts'
+import { isDesktopTaskReceipt, type DesktopTaskReceipt } from '../contracts/desktopTasks.ts'
 
 export class RuntimeContextImages {
   private readonly sources = new Map<string, RuntimeContextImageReference>()
@@ -24,6 +25,7 @@ export class RuntimeContextImages {
         })
       }
       for (const part of message.parts) {
+        if (part.kind === 'task_result' && isDesktopTaskReceipt(part.content.task_result)) this.registerTaskResult(part.id, part.content.task_result)
         if (part.kind !== 'tool_result') continue
         const tool = part.content.tool_result
         if (isRecord(tool) && Array.isArray(tool.content)) this.registerToolContent(part.id, tool.content)
@@ -33,6 +35,11 @@ export class RuntimeContextImages {
 
   registerToolResult(partID: string, message: ToolResultMessage) {
     this.registerToolContent(partID, message.content)
+  }
+
+  registerTaskResult(partID: string, receipt: DesktopTaskReceipt) {
+    if (receipt.image) this.register({ type: 'image_ref', message_part_id: partID, content_index: 1,
+      mime_type: receipt.image.mime_type, sha256: receipt.image.sha256 })
   }
 
   reference(mimeType: string, data: string): RuntimeContextImageReference {

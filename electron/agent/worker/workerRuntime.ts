@@ -164,6 +164,7 @@ export class AgentWorkerRuntime {
         return this.core.readResourceText(start, bootstrap.runtime_bearer, reference, signal)
       }, this.startupAbort.signal)
       this.agent = this.createAgent({
+        readDesktopTasks: this.core.readDesktopTasks ? (cursor, waitMS, signal) => this.core.readDesktopTasks!(start, bootstrap.runtime_bearer, cursor, waitMS, signal) : undefined,
         reserveImageBytes: (bytes, signal) => this.imageBudget.acquire(bytes, signal),
         audit: this.audit,
         bootstrap,

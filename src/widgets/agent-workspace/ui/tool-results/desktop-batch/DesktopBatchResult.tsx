@@ -10,6 +10,7 @@ export function DesktopBatchResult({ receipt }: { receipt: DesktopBatchReceipt }
       <strong>{t(`agent.tool.batch.run.${receipt.state}`)}</strong>
       <span>{t('agent.tool.batch.accepted', { count: receipt.accepted_actions, total: receipt.steps.length })}</span>
     </p>
+    {receipt.state === 'running' && receipt.phase ? <p>{t(`agent.tool.batch.phase.${receipt.phase}`)}</p> : null}
     <p>{t('agent.tool.batch.meaning')}</p>
     {stopped ? <p>{t('agent.tool.batch.stoppedAt', { index: stopped.index + 1 })}</p> : null}
     {receipt.error_code && receipt.state !== 'cancelled' ? <p role="alert">{t('agent.tool.batch.reason')} <code>{receipt.error_code}</code></p> : null}

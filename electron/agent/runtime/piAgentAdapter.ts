@@ -48,6 +48,10 @@ import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from '../contrac
 import type { RuntimeSteerResult } from '../contracts/runtimeEvents.ts'
 import { runtimeContextFingerprint, runtimeProviderUsage } from '../provider/runtimeProviderUsage.ts'
 import { restoreDesktopObservation } from '../context/desktop/history.ts'
+import type { ReadDesktopTasks } from '../contracts/desktopTasks.ts'
+import { DesktopTaskCoordinator } from './desktopTasks/coordinator.ts'
+import { desktopTaskMessage, desktopTaskToolResult } from '../contracts/desktopTaskResult.ts'
+import { desktopWaitTool } from './desktopTasks/waitTool.ts'
 
 export interface PiAgentController {
   continue(): Promise<PiRunOutcome>
@@ -59,6 +63,7 @@ export interface PiAgentController {
 }
 
 export interface CreatePiAgentOptions {
+  readDesktopTasks?: ReadDesktopTasks
   lookupPreparedCall?(toolCallID: string, step: string, signal?: AbortSignal): Promise<PreparedCall | undefined>
   reserveImageBytes?(bytes: number, signal?: AbortSignal): Promise<() => void>
   audit?: { capture(event: AgentEvent): void }
@@ -101,18 +106,24 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let supplementalFingerprint = progressDigest([])
   let supplementalTokens = 0
   let requestSupplementalTokens = 0
+  let requestDesktopReceipts: Array<{ execution_id: string; revision: number }> = []
   const requestSupplements = new WeakMap<AgentMessage, number>()
   let aborted = false
   const executionFailure = () => aborted ? undefined : inputSafety.failure() ?? budget.failure()
   const imageWorkingSet = new RuntimeImageWorkingSet(images)
   const desktopContext = restoreDesktopObservation(options.bootstrap)
+  let observeBatch: ((output: Record<string, unknown>) => void) | undefined
+  const desktopTasks = options.readDesktopTasks ? new DesktopTaskCoordinator(options.readDesktopTasks, receipt => {
+    inputSafety.observe('termous.desktops.executions.get', desktopTaskToolResult(receipt), receipt.result.run.state !== 'completed')
+  }, error => { options.onFailure?.(error); agent.abort() }) : undefined
   const resourceTools = bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings)
   const managedTools = options.lookupPreparedCall ? prepareBuiltinTools({ ...options.mcp, tools: resourceTools }, {
     runID: options.bootstrap.run.id, generation: options.bootstrap.run.generation, bindings: options.bootstrap.session.resource_bindings,
     desktop: desktopContext,
+    registerBatchObserver: observe => { observeBatch = observe },
     lookup: options.lookupPreparedCall,
     progress: (tool_call_id, _tool_name, phase) => bridge.toolProgress(tool_call_id, phase),
-    blocked: (name, args) => inputSafety.blockedTool(name, args),
+    blocked: (name, args) => inputSafety.blockedTool(name, args) ?? desktopTasks?.blocked(name, args, desktopContext.current()),
     persist: async (call) => {
       options.events.push('tool_prepared', { tool: { tool_call_id: call.tool_call_id, tool_name: call.tool_name, preparation: call } })
       await options.events.flush()
@@ -133,7 +144,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     await options.events.flush()
     return options.readHistoryImage(reference, signal)
   })
-  const waits = [...createWorkflowWaitTool(boundTools, originalBuiltin), ...createAnalysisWaitTool(boundTools, originalBuiltin)].map((tool) => identifyTool(tool, localToolSource))
+  const waits = [...createWorkflowWaitTool(boundTools, originalBuiltin), ...createAnalysisWaitTool(boundTools, originalBuiltin), ...(desktopTasks ? [desktopWaitTool(desktopTasks, output => observeBatch?.(output))] : [])].map((tool) => identifyTool(tool, localToolSource))
   const discovery = new RuntimeToolDiscovery([...boundTools, ...waits], options.mcp.originalName, [skillTool, identifyTool(historyTool, localToolSource)],
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
     (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory)
@@ -148,7 +159,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let contextFingerprint = fingerprint()
   const baseStream = runtimeResourceStream(createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch), options.readResourceImage, options.reserveImageBytes)
   const secrets = options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : []
-  const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: toolProgress.summary(), timestamp: 0 }) }) : undefined
+  const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: toolProgress.summary(), timestamp: 0 }), ...(requestDesktopReceipts.length ? { desktop_task_receipts: requestDesktopReceipts } : {}) }) : undefined
   const streamFn = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'response', secrets, diagnostics)
   const summaryStream = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'compaction', secrets)
   const bridge = new PiEventBridge({
@@ -173,6 +184,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     projectMessages: (messages, commit) => projectContext(messages, commit),
     supplementalMessages: (messages, commit) => supplementContext(messages, commit),
     retainToolCall: pendingPreviewCall,
+    retainMessage: message => desktopTasks?.retainMessage(message) ?? false,
     captureDetails: () => ({ execution_progress: toolProgress.snapshot(), desktop_context: desktopContext.snapshot() }),
   })
   const projectImages = (messages: AgentMessage[], commit: boolean) => {
@@ -249,6 +261,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     }
     if (isMCPToolDetails(result.details) && !['failed', 'waiting'].includes(runtimeToolOutcome(original, progressData(result), isError || result.details.result.isError === true))) discovery.used(original)
     inputSafety.observe(original, result, isError)
+    desktopTasks?.observe(original, result)
     budget.evaluate({ type: 'tool_result', name: original, args, result, isError })
     // pi 在参数准备失败时跳过 before/afterToolCall；用实际阶段区分本地失败，不解析错误文案。
     const preparationCode = isError && !validatedCalls.has(id) && !isMCPToolDetails(result.details)
@@ -277,6 +290,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let segmentTurns = 0
   let rotateSegment = false
   let checkpointBoundary = compaction.checkpoint()?.timestamp
+  const desktopObservations: AgentMessage[] = []
   const prepareTools = (messages: AgentMessage[]) => {
     const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
     if (next.map((tool) => tool.name).join() !== tools.map((tool) => tool.name).join()) {
@@ -299,7 +313,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     transformContext: (messages, signal) => compaction.transformContext(standardMessages(messages), signal),
     prepareNextTurnWithContext: ({ context }) => {
       prepareTools(context.messages)
-      return { context: { ...context, tools } }
+      return { context: { ...context, tools }, messages: desktopObservations.splice(0) }
     },
     finishTurn: async ({ toolResults, context }, signal) => {
       if (signal?.aborted) { aborted = true; return { action: 'end' } }
@@ -314,6 +328,24 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         imageWorkingSet.releasePersisted(context.messages)
       }
       const failure = executionFailure()
+      if (desktopTasks) {
+        await desktopTasks.reconcile()
+        while (!toolResults.length && desktopTasks.pending() && !desktopTasks.ready().length && !agent.hasQueuedMessages()) {
+          await desktopTasks.waitForChange(signal)
+          if (signal?.aborted) return { action: 'end' }
+        }
+        for (const receipt of desktopTasks.ready()) {
+          const partID = bridge.desktopTaskResult(receipt)
+          await options.events.flush()
+          images.registerTaskResult(partID, receipt)
+          observeBatch?.(receipt.result)
+          desktopTasks.recorded(receipt)
+          desktopObservations.push(desktopTaskMessage(receipt))
+        }
+        const nextFailure = executionFailure()
+        if (nextFailure) { bridge.stopLocally(nextFailure); return { action: 'end' } }
+        if (desktopObservations.length) return { action: 'continue' }
+      }
       if (failure) { bridge.stopLocally(failure); return { action: 'end' } }
       if (toolResults.length && !compaction.failure()) {
         segmentTurns += 1
@@ -327,6 +359,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       return undefined
     },
     streamFn: (requestModel, context, streamOptions) => {
+      requestDesktopReceipts = desktopTasks?.beforeRequest(context.messages) ?? []
       compaction.beforeProviderRequest()
       requestSupplementalTokens = supplementalTokens
       // HTTP 失败可能没有 start，必须先隔离上一工具轮已完成的消息片段。
@@ -423,13 +456,14 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       if (executionFailure() && bridge.outcome() !== 'cancelled') bridge.stopLocally(executionFailure()!)
       return aborted ? 'cancelled' : bridge.outcome()
     },
-    abort: () => { aborted = true; agent.abort() },
+    abort: () => { aborted = true; desktopTasks?.close(); agent.abort() },
     waitForIdle: () => agent.waitForIdle(),
     steer: (message, source) => {
       toolProgress.reset()
       const user: AgentMessage = { role: 'user', content: message, timestamp: (options.now ?? Date.now)() }
       steerSources.set(user, { message_id: source.message_id, part_id: source.part_id })
       agent.steer(user)
+      desktopTasks?.wake()
     },
     hasQueuedMessages: () => agent.hasQueuedMessages(),
     close: () => {
@@ -437,6 +471,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         return
       }
       closed = true
+      desktopTasks?.close()
       unsubscribe()
       agent.clearAllQueues()
     },

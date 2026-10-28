@@ -30,6 +30,7 @@ export interface ManagedToolOptions {
   generation: number
   bindings?: RuntimeResourceBinding[]
   desktop?: DesktopObservationState
+  registerBatchObserver?(observe: (output: Arguments) => void): void
   blocked?(name: string, args: Arguments): string | undefined
   persist(call: PreparedCall): Promise<void>
   progress?(callID: string, name: string, phase: 'preparing' | 'waiting' | 'executing'): void
@@ -39,6 +40,7 @@ export interface ManagedToolOptions {
 export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToolOptions): AgentTool[] {
   const raw = new Map(mcp.tools.filter(builtinTool).map((tool) => [mcp.originalName(tool.name) ?? tool.name, tool]))
   const snapshots = new PreparationSnapshots()
+  options.registerBatchObserver?.(output => observeDesktopBatch({ read: key => snapshots.read(key), remember: (key, value) => snapshots.remember(key, value) }, output))
   const adapters = catalog.builtin.tools as Record<string, BuiltinToolAdapter>
   return mcp.tools.map((tool) => {
     if (!builtinTool(tool)) return tool
@@ -76,6 +78,7 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
           const blocked = options.blocked?.(target, input)
           if (blocked) fail('AGENT_PREPARATION_BLOCKED', blocked, 'user_action')
           let args = { ...input }
+          if (target === 'termous.desktops.execute') args.wait_ms = 5000
           const properties = toolProperties(next)
           const mutating = mcp.readOnly?.(target) !== true
           if ('client_request_id' in properties && !['termous.desktops.operations.get', 'termous.desktops.executions.get', 'termous.desktops.executions.cancel'].includes(target)) args.client_request_id = requestIdentity(options.runID, options.generation, callID, step)
