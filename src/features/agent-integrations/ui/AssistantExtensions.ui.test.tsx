@@ -6,6 +6,7 @@ import { AssistantExtensions } from './AssistantExtensions'
 import { IntegrationSourcePicker } from './IntegrationSourcePicker'
 import { MCPSourceEditor } from './MCPSourceEditor'
 import { IntegrationImport } from './IntegrationImport'
+import { MCPDependencyPanel } from './MCPDependencyPanel'
 import type { ReactNode } from 'react'
 
 const translate=(key:string)=>key
@@ -15,6 +16,7 @@ const source:AgentIntegrationSource={id:'ext_fixture',revision:1,name:'Fixture M
 function wrapper({children}:{children:ReactNode}) {return <ConfigProvider theme={{token:{motion:false}}}><App>{children}</App></ConfigProvider>}
 function gateway(overrides:Partial<AgentIntegrationsGateway>={}):AgentIntegrationsGateway {
   return {sources:vi.fn(async()=>[source]),saveMCP:vi.fn(async()=>source),previewMCP:vi.fn(async()=>[]),enabled:vi.fn(async()=>source),remove:vi.fn(async()=>{}),
+    dependency:vi.fn(async()=>null),previewDependency:vi.fn(),confirmDependency:vi.fn(),cancelDependency:vi.fn(),dependencyOutput:vi.fn(),
     previewSkill:vi.fn(),publishSkill:vi.fn(),skillFile:vi.fn(),skillDependencies:vi.fn(async()=>[]),tools:vi.fn(async()=>[]),permissions:vi.fn(async()=>[]),setPermission:vi.fn(async()=>{}),policies:vi.fn(async()=>[]),setPolicy:vi.fn(async()=>{}),...overrides}
 }
 
@@ -65,4 +67,24 @@ it('导入先预览，确认之前不保存来源',async()=>{
   const confirm=await screen.findByRole('button',{name:'extensions.import'})
   fireEvent.click(confirm);fireEvent.click(confirm)
   await waitFor(()=>expect(api.saveMCP).toHaveBeenCalledOnce())
+})
+
+it('依赖准备需要先预览再确认，重复确认只发送一次', async () => {
+  const item = { id: `prep_${'a'.repeat(32)}`, source_id: source.id, revision: 1, state: 'preview' as const,
+    package: { name: '@playwright/mcp', version: '0.0.83', entry: 'cli.js', arguments: ['--headless'], integrity: 'sha512-fixture' },
+    runtime: { node: 'C:\\node\\node.exe', npm: 'C:\\node\\npm-cli.js', identity: 'fixture' } }
+  let complete!: (value: AgentIntegrationSource) => void
+  const api = gateway({ previewDependency: vi.fn(async () => item), confirmDependency: vi.fn(() => new Promise<AgentIntegrationSource>(resolve => { complete = resolve })) })
+  const changed = vi.fn()
+  render(<MCPDependencyPanel source={source} gateway={api} onChanged={changed} />, { wrapper })
+  fireEvent.click(screen.getByRole('button', { name: /mcpPreparation.title/u }))
+  fireEvent.click(await screen.findByRole('button', { name: 'mcpPreparation.prepare' }))
+  expect(await screen.findByText('@playwright/mcp@0.0.83')).toBeInTheDocument()
+  expect(api.confirmDependency).not.toHaveBeenCalled()
+  const confirm = screen.getByRole('button', { name: 'mcpPreparation.confirm' })
+  fireEvent.click(confirm); fireEvent.click(confirm)
+  expect(api.confirmDependency).toHaveBeenCalledOnce()
+  expect(vi.mocked(api.confirmDependency).mock.calls[0]?.slice(0, 3)).toEqual([source.id, source.revision, item.id])
+  await act(async () => complete({ ...source, revision: 2 }))
+  expect(changed).toHaveBeenCalledWith(expect.objectContaining({ revision: 2 }))
 })

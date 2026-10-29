@@ -34,6 +34,7 @@ function supervise(input) {
 let tools = []
 const receipts = new Map()
 let authorizations = 0
+let prepared = false
 // HTTP 仅模拟 Core 合同；进程所有权使用实际 Go Supervisor，MCP 使用官方 Go SDK。
 const server = createServer(async (request, response) => {
   try {
@@ -43,7 +44,9 @@ const server = createServer(async (request, response) => {
     const operation = request.url.split('/').pop()
     let result = {}
     if (operation === 'process') await supervise(input)
-    else if (operation === 'config') result = { source, secret: {} }
+    else if (operation === 'config') result = prepared
+      ? { source: { ...source, mcp: { ...source.mcp, command: 'npx-must-not-run', dependency_id: 'fixture-prepared' } }, secret: {}, launch: { command: fixture.fixture, args: ['--stdio'] } }
+      : { source, secret: {} }
     else if (operation === 'sources') result = [source]
     else if (operation === 'catalog') tools = input.tools
     else if (operation === 'tools') result = input.name ? tools.find(tool => tool.name === input.name) : tools
@@ -60,6 +63,7 @@ const server = createServer(async (request, response) => {
 
 function alive(pid) { try { process.kill(pid, 0); return true } catch { return false } }
 async function exercise(modulePath, crash) {
+  prepared = crash
   const child = utilityProcess.fork(modulePath, [], { cwd: output, stdio: 'ignore' })
   const exited = once(child, 'exit')
   const pending = new Map()
@@ -115,7 +119,7 @@ try {
   await exercise(path.join(output, 'source/dist-electron/agent-integrations.js'), false)
   await exercise(path.join(output, 'fixture.asar/dist-electron/agent-integrations.js'), true)
   assert.equal(authorizations, 2)
-  console.log('Electron 扩展验收通过：开发/ASAR 入口、官方 MCP stdio、回执恢复不重派、正常退出与宿主崩溃回收。')
+  console.log('Electron 扩展验收通过：开发/ASAR 入口、原始及受管 MCP 启动、官方 MCP stdio、回执恢复不重派、正常退出与宿主崩溃回收。')
 } catch (error) { console.error(error); process.exitCode = 1 }
 finally {
   server.closeAllConnections(); server.close()

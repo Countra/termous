@@ -65,3 +65,4 @@ export { SessionTargetDropdown } from './session-target-menu/SessionTargetDropdo
 export { DetachedWindowButton, DetachedWindowPlaceholder } from './DetachedWindowChrome.tsx'
 export { default as detachedWindowStyles } from './DetachedWindow.module.scss'
 export { useImageViewport } from './image-preview/useImageViewport'
+export { FileTextReview } from './file-review/FileTextReview'

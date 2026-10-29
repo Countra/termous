@@ -26,6 +26,7 @@ export interface IntegrationConnection {
 }
 
 export interface IntegrationConnectionOptions {
+  verifyLaunch?(config: IntegrationHostConfig, signal: AbortSignal): Promise<void>
   ensureSupervised(): Promise<void>
   superviseGroup?(pid: number, release: boolean): Promise<void>
   fetch?: typeof fetch
@@ -199,9 +200,14 @@ export class IntegrationConnections {
     if (!settings) throw new Error('INTEGRATION_CONFIG_INVALID')
     let transport: McpTransport
     if (settings.transport === 'stdio') {
+      if (settings.dependency_id && !config.launch) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
+      if (settings.dependency_id) {
+        if (!this.options.verifyLaunch) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
+        await this.options.verifyLaunch(config, signal)
+      }
       await this.options.ensureSupervised()
       signal.throwIfAborted()
-      transport = new SupervisedStdioTransport({ command: settings.command!, args: settings.args, cwd: settings.cwd,
+      transport = new SupervisedStdioTransport({ command: config.launch?.command ?? settings.command!, args: config.launch?.args ?? settings.args, cwd: settings.cwd,
         inheritEnv: false, env: integrationEnvironment(this.options.environment ?? process.env, config.secret.environment),
         stderr: 'pipe', maxStderrBytes: 32 * 1024, maxMessageBytes: integrationMessageLimit }, this.options.superviseGroup)
     } else {

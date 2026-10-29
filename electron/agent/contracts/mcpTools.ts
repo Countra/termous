@@ -26,6 +26,7 @@ export interface MCPToolDetails {
 }
 
 export interface AgentMCPConnection {
+  pendingWork?(): string | undefined
   refreshTools?(signal?:AbortSignal):Promise<{removed:string[];tools:AgentTool[]} | undefined>
   loadTool?(name: string, signal?: AbortSignal): Promise<AgentTool['parameters'] | undefined>
   tools: AgentTool[]

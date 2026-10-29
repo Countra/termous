@@ -103,6 +103,6 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
       ]} />
     {editor && <MCPSourceEditor gateway={gateway} source={editor==='new' ? undefined : editor} onClose={() => setEditor(undefined)} onSaved={completed} />}
     {importing && <IntegrationImport kind={kind} gateway={gateway} source={importing==='new' ? undefined : importing} onClose={() => setImporting(undefined)} onImported={completed} />}
-    {details && <IntegrationDetails source={details} gateway={gateway} onClose={() => setDetails(undefined)} />}
+    {details && <IntegrationDetails source={details} gateway={gateway} onClose={() => {setDetails(undefined);void reload()}} onChanged={source => {setDetails(source);void reload()}} />}
   </section>
 }

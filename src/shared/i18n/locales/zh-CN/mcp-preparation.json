@@ -1,0 +1,17 @@
+{
+  "title": "依赖准备",
+  "notReady": "依赖尚未就绪。请在来源详情中完成依赖准备，再测试连接。",
+  "package": "固定版本",
+  "entry": "启动入口",
+  "arguments": "服务参数",
+  "confirmHint": "下载到应用管理目录，不执行安装脚本。确认后停用当前来源，准备完成后需测试连接并重新启用。",
+  "confirm": "确认并准备",
+  "prepare": "准备依赖",
+  "prepareAgain": "重新准备",
+  "logs": "查看日志",
+  "moreLogs": "读取后续日志",
+  "noLogs": "暂无输出",
+  "tail": "末尾输出，字节偏移 {{offset}}",
+  "truncated": "输出已截断，末尾片段与前文之间可能有省略。",
+  "states": { "preview": "待确认", "preparing": "准备中", "verifying": "校验中", "ready": "已就绪", "failed": "准备失败", "cancelled": "已取消", "uncertain": "需检查" }
+}

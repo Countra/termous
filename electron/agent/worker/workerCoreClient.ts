@@ -22,6 +22,12 @@ export interface WorkerCoreClientOptions {
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
+  async callLocalTool(start: AgentWorkerStartMessage, runtimeBearer: string, input: import('../contracts/localTools.ts').LocalToolCall, signal?: AbortSignal) {
+    // 审批由用户决定时长，不能复用普通读取的 15 秒超时；取消仍传递到实际 HTTP 请求。
+    return this.request(start.core_base_url, '/api/v1/agent/runtime/local/call', {
+      method: 'POST', body: JSON.stringify(input),
+    }, runtimeBearer, signal, 0, true)
+  }
   async readDesktopTasks(start: AgentWorkerStartMessage, runtimeBearer: string, cursor: string, waitMS: number, signal?: AbortSignal) {
     const result = await this.request(start.core_base_url, `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-desktop-tasks`, {
       method: 'POST', body: JSON.stringify({ generation: start.generation, after_cursor: cursor, wait_ms: waitMS }),
@@ -237,6 +243,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     bearer?: string,
     signal?: AbortSignal,
     timeoutMs = this.requestTimeoutMs,
+    returnToolError = false,
   ) {
     const baseURL = validateCoreBaseURL(coreBaseURL)
     const controller = new AbortController()
@@ -246,8 +253,8 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     } else {
       signal?.addEventListener('abort', forwardAbort, { once: true })
     }
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    timer.unref?.()
+    const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : undefined
+    timer?.unref?.()
     try {
       const response = await this.fetchImplementation(new URL(pathname, baseURL), {
         ...init,
@@ -261,6 +268,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
         },
       })
       if (!response.ok) {
+        if (returnToolError) return await response.json() as unknown
         throw new WorkerCoreError(await responseErrorCode(response), response.status)
       }
       return await response.json() as unknown

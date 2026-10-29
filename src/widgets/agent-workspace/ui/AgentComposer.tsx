@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { agentResourceBindingKey } from '#entities/agent'
 import { IntegrationSourcePicker } from '#features/agent-integrations'
+import { LocalDirectoryPicker } from '#features/agent-local-tools'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
@@ -33,6 +34,7 @@ import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
   onReadIntegrations, onChangeIntegration,
+  onReadLocalDirectory, onChangeLocalDirectory,
   presentation,
   onLoadLocalAttachment,
   value,
@@ -106,6 +108,8 @@ export const AgentComposer = memo(function AgentComposer({
   onContextCompressionPendingChange,
 }: {
   onReadIntegrations?: AgentWorkspaceProps['onReadIntegrations']
+  onReadLocalDirectory?: AgentWorkspaceProps['onReadLocalDirectory']
+  onChangeLocalDirectory?: AgentWorkspaceProps['onChangeLocalDirectory']
   onChangeIntegration?: AgentWorkspaceProps['onChangeIntegration']
   value: string
   focusKey?: number
@@ -479,6 +483,7 @@ export const AgentComposer = memo(function AgentComposer({
         <div className={styles['composer-actions']}>
           <div className={styles['composer-secondary-actions']}>
             <IntegrationSourcePicker sessionKey={sessionKey} read={onReadIntegrations} change={onChangeIntegration} disabled={disabled} />
+            <LocalDirectoryPicker sessionKey={sessionKey} read={onReadLocalDirectory} change={onChangeLocalDirectory} disabled={disabled} running={active} />
             <>
                 <input
                   ref={fileInputRef}

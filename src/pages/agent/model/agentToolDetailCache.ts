@@ -1,4 +1,5 @@
 import type { AgentMessagePart } from '#entities/agent'
+import { readLocalFileResult, type AgentLocalFileResult } from '#entities/agent'
 
 const sensitiveKey = /(?:api[_-]?key|authorization|bearer|credential|pass(?:word|phrase)?|private[_-]?key|secret|token)/i
 const maximumToolDetailLength = 4_000
@@ -8,6 +9,13 @@ type Result = Extract<AgentMessagePart, { kind: 'tool_result' }>
 // 正文不可变时只脱敏和序列化一次；缓存键随分页片段回收，不持有整个会话或事件数组。
 export class AgentToolDetailCache {
   private readonly values = new WeakMap<Call | Result, { result?: Result; detail: string }>()
+  private readonly files = new WeakMap<Result, AgentLocalFileResult | undefined>()
+
+  localFile(result: Result | undefined) {
+    if (!result) return undefined
+    if (!this.files.has(result)) this.files.set(result, readLocalFileResult(result.tool_result))
+    return this.files.get(result)
+  }
 
   detail(call: Call | undefined, result: Result | undefined) {
     const key = call ?? result

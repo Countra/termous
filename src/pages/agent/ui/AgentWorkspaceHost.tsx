@@ -1,5 +1,6 @@
 import { useAgentHostDesktopSources } from '../model/host/useAgentHostDesktopSources.ts'
 import { useAgentIntegrationActions } from '../model/host/useAgentIntegrationActions.ts'
+import { useAgentLocalDirectory } from '../model/host/useAgentLocalDirectory.ts'
 import { useAgentDesktopTasks } from '../model/host/useAgentDesktopTasks.ts'
 import type { AgentDesktopResourceState } from '#entities/agent'
 import {
@@ -281,6 +282,7 @@ export function AgentWorkspaceHost({
   )
   const { createDraftSession, ensureDraftSession, ensureAttachmentSession } = useAgentDraftOwnership({ controller, newSessionModelId, modelById, providerById, tRef, draftGroupId, newSessionReasoningLevel, setDraftGroupId, draftSessionCoordinator })
   const integrationActions = useAgentIntegrationActions(integrationsGateway,selected?.id,ensureAttachmentSession)
+  const localDirectoryActions = useAgentLocalDirectory(gateway, selected?.id, ensureAttachmentSession)
 
   const { loadAttachmentContent, loadToolImage, draftAttachments, queuedTurnEditAttachments } = useAgentAttachmentWorkspace({ notificationRef, tRef, gateway, ensureAttachmentSession, controller, committedQueuedTurnEditSessionIdsRef, getQueuedEditOwner, state, previousQueuedTurnEditSessionIdsRef })
 
@@ -409,6 +411,7 @@ export function AgentWorkspaceHost({
 
   const workspace: AgentSurfaceModel['workspace'] = {
     ...integrationActions,
+    ...localDirectoryActions,
     composerFocusKey: composerFocusKey,
     composerActive: active,
     sessions: workspaceSessions,

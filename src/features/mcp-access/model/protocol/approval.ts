@@ -7,6 +7,7 @@ import type {
   McpApprovalSnapshot,
   McpApprovalState,
 } from '#entities/mcp-access'
+import { decodeLocalApproval } from './localApproval.ts'
 import {
   McpAccessProtocolError,
   optionalArray,
@@ -35,6 +36,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_update',
 ])
 const approvalKinds = new Set<McpApprovalKind>([
+  'local_tool',
   'external_tool',
   'desktop_workflow',
   'screen_analysis',
@@ -162,6 +164,7 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   }
   if (normalizedKind === 'desktop') return { ...common, kind: 'desktop', command: '', operation: operation! }
   if (normalizedKind === 'external_tool') return { ...common, kind: 'external_tool', command: '', operation: operation! }
+  if (normalizedKind === 'local_tool') return { ...common, kind: 'local_tool', command: '', operation: operation! }
   if (normalizedKind === 'desktop_workflow') return { ...common, kind: 'desktop_workflow', command: '', operation: operation! }
   if (normalizedKind === 'screen_analysis') return { ...common, kind: 'screen_analysis', command: '', operation: operation! }
   if (normalizedKind === 'snippet') {
@@ -186,6 +189,10 @@ function decodeMcpApprovalOperation(
 ): McpApprovalOperation {
   const operation = requireRecord(value, 'MCP 审批操作无效')
   const action = requireString(operation.action, 'MCP 审批操作类型缺失')
+  if (kind === 'local_tool') {
+    if (action !== 'local_tool') throw new McpAccessProtocolError('本地操作审批动作无效')
+    return { action, local: decodeLocalApproval(operation.local), remote_paths: [], local_paths: [], rename_mappings: [] }
+  }
   if (kind === 'external_tool') {
     const external = requireRecord(operation.external, '外部工具审批来源缺失')
     if (action !== 'external_tool') throw new McpAccessProtocolError('外部工具审批动作无效')
@@ -356,6 +363,7 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
   external_tool: '外部工具审批操作缺失',
+  local_tool: '本地工具审批操作缺失',
   screen_analysis: 'MCP 分析记录审批操作缺失',
   desktop_workflow: 'MCP 桌面脚本审批操作缺失',
   desktop: 'MCP 桌面控制审批操作缺失',

@@ -17,6 +17,10 @@ export class IntegrationHostRuntime {
     const core = new IntegrationCoreClient(config)
     await core.supervise(process.pid)
     this.manager = new IntegrationManager(core, { ensureSupervised: async () => undefined,
+      verifyLaunch: async (config, signal) => {
+        const verified = await core.verifiedConfig(config.source.id, config.source.revision, signal)
+        if (!verified.launch || JSON.stringify(verified.launch) !== JSON.stringify(config.launch)) throw new Error('INTEGRATION_CONFIG_CHANGED')
+      },
       superviseGroup: (pid, release) => core.superviseGroup(pid, release), report:code=>this.send({type:'diagnostic',code}) })
     this.send({ type: 'ready' })
   }

@@ -1,4 +1,5 @@
 import { isRecord, validGeneration } from './validation.ts'
+import { isLocalToolContext, type LocalToolContext } from './localTools.ts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { isRuntimeModelSnapshot, validReasoningLevel, type RuntimeModelSnapshot, type RuntimeReasoningLevel } from './modelSnapshot.ts'
 import { isRuntimeResourceBindings, type RuntimeResourceBinding } from './resourceBindings.ts'
@@ -37,6 +38,7 @@ export interface RuntimeMessageView {
 }
 
 export interface RuntimeBootstrap {
+  local_tools?: LocalToolContext
   core_instance_id: string
   run: {
     id: string
@@ -79,6 +81,7 @@ export interface RuntimeContextBootstrap {
 
 export function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): value is RuntimeBootstrap {
   if (!isRecord(value)
+    || value.local_tools !== undefined && !isLocalToolContext(value.local_tools)
     || typeof value.core_instance_id !== 'string'
     || value.core_instance_id.length === 0
     || value.core_instance_id.length > 256

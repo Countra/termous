@@ -9,8 +9,10 @@ import { DesktopApprovalRenderer } from './DesktopApprovalRenderer'
 import { WorkflowApprovalRenderer } from './WorkflowApprovalRenderer'
 import { AnalysisApprovalRenderer } from './AnalysisApprovalRenderer'
 import { ExternalApprovalRenderer } from './ExternalApprovalRenderer'
+import { LocalApprovalRenderer } from './LocalApprovalRenderer'
 
 export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
+  if (approval.kind === 'local_tool') return <LocalApprovalRenderer operation={approval.operation} />
   if (approval.kind==='external_tool') return <ExternalApprovalRenderer operation={approval.operation}/>
   return (
     <>

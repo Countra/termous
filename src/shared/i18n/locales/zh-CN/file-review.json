@@ -1,0 +1,15 @@
+{
+  "title": "文件内容审阅",
+  "diff": "差异",
+  "before": "修改前",
+  "after": "修改后",
+  "content": "文件内容",
+  "context": "显示全部上下文",
+  "wrap": "自动折行",
+  "counts": "新增 {{added}} 行，删除 {{removed}} 行",
+  "omitted": "展开 {{count}} 行未修改内容",
+  "empty": "空文件",
+  "unchanged": "文件内容未变化",
+  "noNewline": "文件末尾无换行",
+  "coarse": "变更较多，按完整区块对照展示。可切换查看修改前后全文。"
+}

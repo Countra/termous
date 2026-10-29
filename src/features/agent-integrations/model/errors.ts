@@ -1,4 +1,5 @@
 const connectionErrors: Record<string, string> = {
+  INTEGRATION_DEPENDENCY_NOT_READY: 'mcpPreparation.notReady',
   INTEGRATION_CONNECT_TIMEOUT: 'extensions.connectTimeout',
   INTEGRATION_INITIALIZATION_EXITED: 'extensions.initializationExited',
   INTEGRATION_PROCESS_START_FAILED: 'extensions.processStartFailed',

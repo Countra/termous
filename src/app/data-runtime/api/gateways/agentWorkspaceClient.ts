@@ -45,6 +45,7 @@ import type {
   AgentSessionUpdateInput,
 } from '#entities/agent'
 import { getTermousBridge } from '#shared/bridge'
+import { decodeAgentLocalDirectory } from '#entities/agent'
 import { AgentSetupClient } from './agentSetupClient.ts'
 import { isHostDesktopTarget } from '#common/contracts'
 import { isDesktopTaskSnapshot } from '#common/desktop-batch'
@@ -53,6 +54,14 @@ const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  localDirectory(sessionId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/local-directory`, { signal }).then(decodeAgentLocalDirectory)
+  }
+  setLocalDirectory(sessionId: string, path: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/local-directory`, {
+      method: 'PUT', body: { path, expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentLocalDirectory)
+  }
   // 浏览器没有 Electron IPC；Core 停止接口负责通过控制通道通知实际 Worker。
   get runtimeOwnedByHost() { return !this.runtimeBridge }
 

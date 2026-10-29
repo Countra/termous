@@ -2,6 +2,7 @@ import type { AgentIntegrationSource, IntegrationCallReceipt, IntegrationToolSum
 import type { ImageResourceReference } from '#common/contracts'
 
 export interface IntegrationHostConfig {
+  launch?: import('#common/agent-integrations').MCPDependencyLaunch
   source: AgentIntegrationSource
   secret: { environment?: Record<string, string>; headers?: Record<string, string>; oauth?: unknown }
 }

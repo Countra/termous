@@ -28,6 +28,7 @@ import { attachIntegrationTools } from './integrationTools.ts'
 import type { IntegrationDirectory } from '../contracts/integrationIPC.ts'
 import { integrationSkills } from './integrationSkills.ts'
 import { readIntegrationDirectory } from './integrationDirectory.ts'
+import { attachLocalTools } from './localTools.ts'
 
 const maximumSteerBytes = 1 << 20
 const maximumPendingSteers = 32
@@ -169,6 +170,11 @@ export class AgentWorkerRuntime {
         const directory: IntegrationDirectory = initial
         this.mcp = attachIntegrationTools(this.mcp, directory, this.integrations)
         lazySkills = integrationSkills(directory, this.integrations)
+      }
+      if (bootstrap.local_tools) {
+        if (!this.core.callLocalTool) throw new Error('LOCAL_TOOLS_PROTOCOL_UNAVAILABLE')
+        this.mcp = attachLocalTools(this.mcp, bootstrap.local_tools,
+          (input, signal) => this.core.callLocalTool!(start, bootstrap.runtime_bearer, input, signal))
       }
       if (this.abortRequested) {
         settled = await this.persistTerminalStatus('cancelled')

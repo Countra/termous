@@ -293,6 +293,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let rotateSegment = false
   let checkpointBoundary = compaction.checkpoint()?.timestamp
   const desktopObservations: AgentMessage[] = []
+  let pendingLocalReminder: string | undefined
   const prepareTools = async (messages: AgentMessage[], signal?:AbortSignal) => {
     const change=await options.mcp.refreshTools?.(signal)
     if (change) {
@@ -337,6 +338,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         callArguments.delete(result.toolCallId)
       }
       if (toolResults.length) {
+        pendingLocalReminder = undefined
         await options.events.flush()
         imageWorkingSet.releasePersisted(context.messages)
       }
@@ -360,6 +362,17 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         if (desktopObservations.length) return { action: 'continue' }
       }
       if (failure) { bridge.stopLocally(failure); return { action: 'end' } }
+      const pendingLocal = !toolResults.length && !compaction.failure() && bridge.outcome() === 'completed' && options.mcp.pendingWork?.()
+      if (pendingLocal) {
+        // 模型必须实际查询任务；重复结束回答不能无限触发同一提示和模型请求。
+        if (pendingLocalReminder === pendingLocal) {
+          bridge.stopLocally({ code: 'AGENT_RUNTIME_LOCAL_COMMAND_PENDING', message: '本地命令尚未确认完成，助手未继续查询原任务。本轮已停止，仍在运行的命令将按生命周期取消；请先查询原任务结果，勿直接重新执行。' })
+          return { action: 'end' }
+        }
+        pendingLocalReminder = pendingLocal
+        desktopObservations.push({ role: 'user', content: pendingLocal, timestamp: (options.now ?? Date.now)() })
+        return { action: 'continue' }
+      }
       if (toolResults.length && !compaction.failure()) {
         segmentTurns += 1
         const boundary = compaction.checkpoint()?.timestamp

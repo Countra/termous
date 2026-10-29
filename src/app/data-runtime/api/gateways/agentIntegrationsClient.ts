@@ -1,8 +1,25 @@
 import { TermousApiTransport } from '#shared/api'
+import { decodeDependency } from '#entities/agent-integrations'
+import type { MCPDependencyOutput } from '#common/agent-integrations'
 import { decodeIntegrationSource, decodeIntegrationSources, decodeSkillPreview, type AgentIntegrationsGateway, type AgentIntegrationSource, type MCPIntegrationInput, type IntegrationPolicy, type IntegrationToolSummary } from '#entities/agent-integrations'
 
 const base = '/api/v1/agent/integrations'
 export class AgentIntegrationsClient extends TermousApiTransport implements AgentIntegrationsGateway {
+  dependency(source: string, revision: number, signal?: AbortSignal) {
+    return this.request(`${base}/${encodeURIComponent(source)}/dependency?revision=${revision}`, { signal }).then(value => value === null ? null : decodeDependency(value))
+  }
+  previewDependency(source: string, revision: number, signal?: AbortSignal) {
+    return this.request(`${base}/${encodeURIComponent(source)}/dependency/preview`, { method: 'POST', body: { revision }, signal, timeoutMs: 30_000 }).then(decodeDependency)
+  }
+  confirmDependency(source: string, revision: number, token: string, signal?: AbortSignal) {
+    return this.request(`${base}/${encodeURIComponent(source)}/dependency/confirm`, { method: 'POST', body: { revision, token }, signal }).then(decodeIntegrationSource)
+  }
+  async cancelDependency(source: string, revision: number, signal?: AbortSignal) {
+    await this.request(`${base}/${encodeURIComponent(source)}/dependency/cancel`, { method: 'POST', body: { revision }, signal })
+  }
+  dependencyOutput(source: string, revision: number, stdout: number, stderr: number, signal?: AbortSignal) {
+    return this.request<MCPDependencyOutput>(`${base}/${encodeURIComponent(source)}/dependency/output?${new URLSearchParams({ revision: String(revision), stdout: String(stdout), stderr: String(stderr) })}`, { signal })
+  }
   skillDependencies(source: string, version: string, signal?: AbortSignal) {
     return this.request<string[]>(`${base}/${encodeURIComponent(source)}/skill-dependencies?${new URLSearchParams({version})}`, {signal})
   }

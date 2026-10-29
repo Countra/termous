@@ -172,6 +172,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
         />
         <AgentComposer
           onReadIntegrations={props.onReadIntegrations} onChangeIntegration={props.onChangeIntegration}
+          onReadLocalDirectory={props.onReadLocalDirectory} onChangeLocalDirectory={props.onChangeLocalDirectory}
           onLoadLocalAttachment={props.onLoadLocalAttachment}
           presentation={props.presentation}
           focusKey={props.composerFocusKey}

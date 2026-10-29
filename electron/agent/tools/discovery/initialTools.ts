@@ -9,6 +9,7 @@ interface InitialToolEntry { original: string; trusted: boolean; capability?: To
 export function initialTools(entries: readonly InitialToolEntry[], bindings: readonly RuntimeResourceBinding[],
   available: (name: string) => boolean, target?: ObservationTarget): string[] {
   const kinds = new Set<string>(bindings.map(binding => binding.kind))
+  if (entries.some(entry => entry.trusted && entry.original.startsWith('termous.local.'))) kinds.add('local')
   if (target) kinds.add(target.kind === 'host_desktop' ? 'host_desktop' : 'desktop_session')
   const priority = (entry: InitialToolEntry, kind: string) => entry.capability?.discovery.preload?.find(rule =>
     rule.bindings.includes(kind) && capabilityToolName(entry.capability!, rule.tool) === entry.original)?.priority

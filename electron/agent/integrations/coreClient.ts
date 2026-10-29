@@ -15,6 +15,7 @@ export class IntegrationCoreClient implements IntegrationCorePort {
   }
 
   config(source: string, revision: number, signal?: AbortSignal) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision }, undefined, signal) }
+  verifiedConfig(source: string, revision: number, signal?: AbortSignal) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision, verify_launch: true }, undefined, signal, 30_000) }
   receipt(context: IntegrationRunContext, toolCallID: string, input?: {kind?: 'tool' | 'resource'; source_id: string; revision: number; tool: string; arguments: Record<string, unknown>}, signal?: AbortSignal) {
     return this.request<IntegrationCallReceipt | null>('receipt', {tool_call_id:toolCallID,...input}, context.bearer, signal)
   }

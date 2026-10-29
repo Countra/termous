@@ -1,0 +1,17 @@
+{
+  "title": "Dependencies",
+  "notReady": "Dependencies are not ready. Complete preparation in the source details, then test the connection.",
+  "package": "Pinned version",
+  "entry": "Entry point",
+  "arguments": "Server arguments",
+  "confirmHint": "Download into an app-managed directory without install scripts. This disables the source. Test the connection and enable it again when preparation completes.",
+  "confirm": "Confirm and prepare",
+  "prepare": "Prepare dependencies",
+  "prepareAgain": "Prepare again",
+  "logs": "View logs",
+  "moreLogs": "Read more logs",
+  "noLogs": "No output yet",
+  "tail": "Final output at byte offset {{offset}}",
+  "truncated": "Output was truncated. The final fragment may follow omitted content.",
+  "states": { "preview": "Awaiting confirmation", "preparing": "Preparing", "verifying": "Verifying", "ready": "Ready", "failed": "Failed", "cancelled": "Cancelled", "uncertain": "Needs review" }
+}

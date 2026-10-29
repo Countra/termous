@@ -32,9 +32,10 @@ export function registerIntegrationIPC(options: {
       if (source.revision !== request.revision || source.kind !== 'mcp') throw new Error('INTEGRATION_CONFIG_CHANGED')
       if (operation === 'login' && source.mcp?.auth !== 'oauth') throw new Error('INTEGRATION_CONFIG_CHANGED')
       if (operation !== 'login' && source.mcp?.transport === 'stdio') {
+        const launch = source.mcp.dependency_id ? await options.host.dependencyLaunch(source.id, source.revision, abort.signal) : undefined
         const en = options.english()
         const answer = await dialog.showMessageBox({ type: 'question', title: en ? 'Start MCP server' : '启动 MCP 服务',
-          message: source.name, detail: `${source.mcp.command}\n${JSON.stringify(source.mcp.args ?? [])}\n${source.mcp.cwd ?? ''}`,
+          message: source.name, detail: `${launch?.command ?? source.mcp.command}\n${JSON.stringify(launch?.args ?? source.mcp.args ?? [])}\n${source.mcp.cwd ?? ''}`,
           buttons: en ? ['Cancel', 'Start'] : ['取消', '启动'], defaultId: 0, cancelId: 0, noLink: true })
         if (answer.response !== 1) throw new Error('INTEGRATION_START_CANCELLED')
       }

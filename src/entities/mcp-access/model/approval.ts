@@ -8,7 +8,7 @@ export type McpApprovalState =
   | 'dispatch_conflict'
 
 export type McpApprovalDecision = 'approve' | 'reject'
-export type McpApprovalKind = 'command' | 'files' | 'remoteops' | 'forwarding' | 'snippet' | 'desktop' | 'desktop_workflow' | 'screen_analysis' | 'external_tool'
+export type McpApprovalKind = 'command' | 'files' | 'remoteops' | 'forwarding' | 'snippet' | 'desktop' | 'desktop_workflow' | 'screen_analysis' | 'external_tool' | 'local_tool'
 
 export interface McpApprovalRenameMapping {
   source_name: string
@@ -16,6 +16,8 @@ export interface McpApprovalRenameMapping {
 }
 
 export interface McpApprovalOperation {
+  local?: { session_id: string; tool: string; directory: string; shell?: string; executable?: string; command?: string;
+    path?: string; create: boolean; before: string; after: string; before_bytes: number; after_bytes: number; remember_allowed: boolean }
   external?: { source_id: string; source_name: string; tool: string; arguments: string }
   script_id?: string
   script_version?: number
@@ -125,6 +127,7 @@ export interface McpSnippetApproval extends McpApprovalBase {
 }
 
 export type McpApproval =
+  | (McpApprovalBase & { kind: 'local_tool'; command: string; operation: McpApprovalOperation })
   | (McpApprovalBase & { kind: 'external_tool'; command: string; operation: McpApprovalOperation })
   | (McpApprovalBase & { kind: 'screen_analysis'; command: string; operation: McpApprovalOperation })
   | (McpApprovalBase & { kind: 'desktop_workflow'; command: string; operation: McpApprovalOperation })

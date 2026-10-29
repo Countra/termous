@@ -326,6 +326,7 @@ function projectMessageParts(
         status: batch?.state === 'running' ? 'running' : result.tool_result.is_error ? 'failed' : 'completed',
         images: projectAgentToolImages(sessionID, result),
         desktop_batch: batch,
+        local_file: toolDetails.localFile(result),
         detail: toolDetails.detail(undefined, result),
       }]
     }
@@ -378,7 +379,7 @@ function projectToolPart(
     status,
     phase: (status === 'running' || status === 'waiting_approval') && phaseEvent?.kind === 'tool_progress' ? phaseEvent.payload.tool.phase : undefined,
     duration_ms: duration,
-    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch } : {}),
+    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch, local_file: toolDetails.localFile(result) } : {}),
     detail: toolDetails.detail(call, result),
   }
 }

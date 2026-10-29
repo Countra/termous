@@ -1,20 +1,13 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
-import catalogData from './capabilities.generated.json' with { type: 'json' }
-import type { CapabilityCatalog } from './toolCapabilities.ts'
+import approvalPaths from './approvalPaths.generated.ts'
 import { isMCPToolDetails } from './mcpTools.ts'
 import { isRecord } from './validation.ts'
-import { localToolNames } from './toolNames.ts'
 
 const defaultApprovalPaths = ['approval', 'report.approval']
-const approvalPaths = new Map((catalogData as CapabilityCatalog).capabilities.flatMap((capability) =>
-  capability.steps.flatMap((step) => step.tools.map((tool) => [
-    tool.startsWith('termous.') || localToolNames.has(tool) ? tool : capability.prefix + tool,
-    capability.evidence?.approvals ?? defaultApprovalPaths,
-  ] as const))))
 
 // 合同层只解释声明的字段路径，供执行保护与工具导航共同使用，不参与候选加载或调用决策。
 export function runtimeToolApprovals(name: string, data: Record<string, unknown>) {
-  return (approvalPaths.get(name) ?? defaultApprovalPaths).map((path) =>
+  return (approvalPaths[name] ?? defaultApprovalPaths).map((path) =>
     path.split('.').reduce<unknown>((value, key) => isRecord(value) ? value[key] : undefined, data)).filter(isRecord)
 }
 

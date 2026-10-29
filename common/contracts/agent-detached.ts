@@ -1,5 +1,7 @@
 import { isHostDesktopTarget } from './desktop-target.ts'
 export const agentDetachedCommands = [
+  'workspace.onReadLocalDirectory',
+  'workspace.onChangeLocalDirectory',
   'workspace.onReadIntegrations',
   'workspace.onChangeIntegration',
   "workspace.onLoadOlder",
@@ -93,6 +95,7 @@ const singleIdCommands = new Set<AgentDetachedCommandName>([
   'management.onDeleteGroup',
 ])
 const noArgumentCommands = new Set<AgentDetachedCommandName>([
+  'workspace.onReadLocalDirectory',
   'workspace.onReadIntegrations',
   'workspace.onLoadOlder', 'workspace.onLoadNewer', 'workspace.onLoadLatest',
   'workspace.onReturnToActiveRun', 'workspace.onResetResponseOptions', 'workspace.onOpenSettings', 'workspace.onStop',
@@ -132,6 +135,7 @@ export function isAgentDetachedCommand(value: unknown): value is AgentDetachedCo
   if (args.length > 3) return false
   const [a, b, c] = args
   switch (value.name) {
+    case 'workspace.onChangeLocalDirectory': return args.length === 2 && typeof a === 'string' && a.length > 0 && a.length <= 32768 && Number.isSafeInteger(b) && Number(b) > 0
     case 'workspace.onChangeIntegration': return args.length === 1 && record(a) && id(a.source_id) && bool(a.disabled) && (a.skill_version === undefined || a.skill_version === '' || typeof a.skill_version === 'string' && /^[a-f0-9]{64}$/u.test(a.skill_version))
     case 'workspace.onDraftChange': case 'workspace.onQueuedTurnEditChange':
     case 'archive.onQueryChange': case 'management.onSearchQueryChange': case 'management.onCreateGroup': return args.length === 1 && text(a)

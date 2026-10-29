@@ -20,6 +20,27 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
+  it('本地文件配对及独立结果均使用有界卡片，外部同名工具保留普通结果', () => {
+    const result = { id: 'result', message_id: 'message', sequence: 2, revision: 1, created_at: '', updated_at: '',
+      kind: 'tool_result' as const, tool_result: { tool_call_id: 'call', tool_name: 'termous.local.files.read', is_error: false,
+        content: [{ type: 'text', text: JSON.stringify({ path: 'C:/test.txt', text: 'x'.repeat(8000), size_bytes: 8000,
+          offset: 0, next_offset: 8000, truncated: false }) }] } }
+    const message: AgentMessage = { id: 'message', session_id: 'session', role: 'assistant', status: 'completed',
+      sequence: 2, revision: 1, created_at: '', updated_at: '', parts: [result], attachments: [] }
+    const call = { ...result, id: 'call-part', sequence: 1, kind: 'tool_call' as const,
+      tool_call: { tool_call_id: 'call', tool_name: result.tool_result.tool_name, arguments: { path: 'C:/test.txt' } } }
+    for (const parts of [[result], [call, result]]) {
+      const projected = projectAgentMessages([{ ...message, parts }], undefined, [])[0]!.parts
+      expect(projected).toHaveLength(1)
+      expect(projected[0]).toMatchObject({ local_file: { action: 'read', text: 'x'.repeat(4000), previewLimited: true } })
+    }
+    for (const tool_result of [{ ...result.tool_result, tool_name: 'external::termous.local.files.read' },
+      { ...result.tool_result, is_error: true }]) {
+      expect(projectAgentMessages([{ ...message, parts: [{ ...result, tool_result }] }], undefined, [])[0]!.parts[0])
+        .not.toHaveProperty('local_file', expect.anything())
+    }
+  })
+
   it('准备阶段跟随当前调用，审批与终态优先于迟到的阶段', () => {
     const run = activeRun()
     const call = { id: 'call-part', message_id: run.assistant_message_id, sequence: 1, revision: 1, created_at: '', updated_at: '',

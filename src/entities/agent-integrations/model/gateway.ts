@@ -6,6 +6,11 @@ export interface IntegrationSelection {
   policies: IntegrationPolicy[]
 }
 export interface AgentIntegrationsGateway {
+  dependency(source: string, revision: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependency | null>
+  previewDependency(source: string, revision: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependency>
+  confirmDependency(source: string, revision: number, token: string, signal?: AbortSignal): Promise<AgentIntegrationSource>
+  cancelDependency(source: string, revision: number, signal?: AbortSignal): Promise<void>
+  dependencyOutput(source: string, revision: number, stdout: number, stderr: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependencyOutput>
   skillDependencies(source: string, version: string, signal?: AbortSignal): Promise<string[]>
   permissions(source: string, revision: number, signal?: AbortSignal): Promise<Array<{tool:string;trusted:boolean}>>
   setPermission(source: string, revision: number, tool: string, trusted: boolean, signal?: AbortSignal): Promise<void>

@@ -1,4 +1,5 @@
 export interface MCPIntegrationConfig {
+	dependency_id?: string
   transport: 'stdio' | 'http'
   command?: string
   args?: string[]
@@ -7,6 +8,29 @@ export interface MCPIntegrationConfig {
   auth?: 'none' | 'headers' | 'oauth' | ''
   environment_keys?: string[]
   header_keys?: string[]
+}
+
+export interface MCPDependencyLaunch { command: string; args: string[] }
+export interface MCPDependency {
+  id: string
+  source_id: string
+  revision: number
+  state: 'preview' | 'preparing' | 'verifying' | 'ready' | 'failed' | 'cancelled' | 'uncertain'
+  package: { name: string; version: string; integrity: string; entry: string; arguments: string[] }
+  runtime: { node: string; npm: string; identity: string }
+  task_id?: string
+  error?: string
+  launch?: MCPDependencyLaunch
+}
+export interface MCPDependencyOutput {
+  stdout: MCPDependencyOutputStream
+  stderr: MCPDependencyOutputStream
+}
+export interface MCPDependencyOutputStream {
+  text: string
+  next_offset: number
+  truncated: boolean
+  tail?: { offset: number; text: string }
 }
 
 export interface ImportedSkillFile {

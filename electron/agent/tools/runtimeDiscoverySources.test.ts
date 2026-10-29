@@ -121,18 +121,38 @@ test('空条件分页浏览覆盖全部已注册的内置工具，包括非入�
   assert.deepEqual([...found].sort(), [...names].sort())
 })
 
-test('绑定入口轮流分配且只加载声明，无绑定或控制不可用时不预加载输入', () => {
+test('绑定入口与本地入口共享配额，无远程绑定或控制不可用时不预加载远程输入', () => {
   const names = runtimeCapabilities.flatMap((capability) => capabilityTools(capability, capability.steps.flatMap((step) => step.tools)))
   const mapped = mapping(names)
   const discovery = new RuntimeToolDiscovery(mapped.tools, reader(mapped), [], (name) => name === 'termous.desktops.pointer.click' ? 'revoked' : undefined)
   const bindings: RuntimeResourceBinding[] = [desktop, { kind: 'ssh_session', session_id: 's', ssh_profile_id: 'p', host_id: 'h', host_name: 'test', platform: 'linux', bound_at: '2026-10-24T00:00:00Z' },
     { kind: 'file_profile', file_access_profile_id: 'f', file_access_profile_name: 'test', ssh_profile_id: 'p', host_id: 'h', host_name: 'test', engine: 'sftp', bound_at: '2026-10-24T00:00:00Z' }]
-  assert.deepEqual(discovery.registry.initial([], () => true), [])
+  assert.deepEqual(discovery.registry.initial([], () => true), ['termous.local.files.read', 'termous.local.commands.execute'])
+  const remoteOnly = mapping(names.filter(name => !name.startsWith('termous.local.')))
+  assert.deepEqual(new RuntimeToolDiscovery(remoteOnly.tools, reader(remoteOnly), []).registry.initial([], () => true), [])
   const selected = discovery.registry.initial(bindings, (name) => discovery.available(name))
   assert.ok(selected.length <= 8)
   for (const name of ['termous.desktops.capture', 'termous.commands.dispatch', 'termous.files.list']) assert.ok(selected.includes(name))
   assert.ok(!selected.includes('termous.desktops.pointer.click'))
   assert.ok(discovery.preload(bindings).length <= 32)
+})
+
+test('本地与 SSH 操作按明确目标发现，新增本地词汇不遮蔽远程文件编辑', async () => {
+  const names = ['termous.local.files.edit', 'termous.local.commands.execute', 'termous.files.save_text', 'termous.commands.dispatch']
+  const mapped = mapping(names)
+  for (const [query, expected] of [
+    ['编辑本地文件', 'termous.local.files.edit'],
+    ['执行本地命令', 'termous.local.commands.execute'],
+    ['执行 SSH 命令', 'termous.commands.dispatch'],
+  ]) {
+    const discovery = new RuntimeToolDiscovery(mapped.tools, reader(mapped), [])
+    const result = await search(discovery, { query })
+    assert.deepEqual(result.tools.map((tool: { original_name: string }) => tool.original_name), [expected], query)
+  }
+  const remote = mapping(names.filter(name => !name.startsWith('termous.local.')))
+  const discovery = new RuntimeToolDiscovery(remote.tools, reader(remote), [])
+  const result = await search(discovery, { group: 'files', query: '编辑文件' })
+  assert.deepEqual(result.tools.map((tool: { original_name: string }) => tool.original_name), ['termous.files.save_text'])
 })
 
 test('大目录索引不超过 12 KiB，折叠项仍能逐页发现', async () => {

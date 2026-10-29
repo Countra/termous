@@ -4,8 +4,12 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { buildOutputPaths } from '../build/output-paths.mjs'
 
-// 加入桌面批次回执、恢复与三个工具声明后闭包实测约 1.57 MiB；预算递增一档 64 KiB，依赖白名单仍独立检查。
-export const maximumAgentWorkerBundleBytes = 1664 * 1024
+// 体积仅提示复查，不以固定字节数限制功能；依赖与产物完整性检查仍会阻断构建。
+// 参考值按 Worker 职责分别维护，调整依据见 docs/worker-bundle-budget.md。
+export const workerBundleSizeReferences = Object.freeze({
+  agent: 2 * 1024 * 1024,
+  terminalCompletion: 768 * 1024,
+})
 
 const requiredProviderAdapters = Object.freeze([
   'openai-completions.js',
@@ -44,13 +48,23 @@ const allowedRuntimePackages = new Set([
   'zod',
 ])
 
-export async function checkAgentWorkerBundle(filePath) {
+export async function checkAgentWorkerBundle(filePath, {
+  referenceBytes = workerBundleSizeReferences.agent,
+  onWarning = console.warn,
+} = {}) {
+  if (!Number.isSafeInteger(referenceBytes) || referenceBytes <= 0) throw new Error('Worker 体积参考值必须为正整数字节数')
   const { content, size } = await readWorkerBundleGraph(filePath)
   assertRequiredProviderAdapters(content)
   assertAllowedPiAPIModules(content)
   assertForbiddenProviderSourcesAbsent(content)
   assertAllowedRuntimePackages(content)
 
+  if (size > referenceBytes) {
+    onWarning(`Worker 体积提示：${path.basename(filePath)} 的完整依赖闭包为 ${size} bytes，`
+      + `超过参考值 ${referenceBytes} bytes（+${((size / referenceBytes - 1) * 100).toFixed(1)}%）。`
+      + '依赖检查已通过，构建继续。请复查增长来源与启动性能；必要时按 docs/worker-bundle-budget.md 手动调整参考值，'
+      + '不要为满足体积数字删减功能或牺牲可维护性。')
+  }
   return size
 }
 
@@ -70,9 +84,6 @@ async function readWorkerBundleGraph(filePath) {
     const info = await lstat(current)
     if (!info.isFile() || info.isSymbolicLink() || info.size <= 0) throw new Error('Agent Worker 产物必须是非空普通文件')
     size += info.size
-    if (size > maximumAgentWorkerBundleBytes) {
-      throw new Error(`Agent Worker 产物 ${size} bytes 超过 ${maximumAgentWorkerBundleBytes} bytes 上限`)
-    }
     const text = await readFile(current, 'utf8')
     contents.push(text.replaceAll('\\', '/'))
     const source = ts.createSourceFile(current, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
@@ -137,7 +148,9 @@ async function main() {
   const bundlePath = path.join(directory, 'agent-worker.js')
   const size = await checkAgentWorkerBundle(bundlePath)
   console.log(`Agent Worker 产物检查通过: ${size} bytes`)
-  const completionSize = await checkAgentWorkerBundle(path.join(directory, 'terminal-completion-worker.js'))
+  const completionSize = await checkAgentWorkerBundle(path.join(directory, 'terminal-completion-worker.js'), {
+    referenceBytes: workerBundleSizeReferences.terminalCompletion,
+  })
   console.log(`Terminal Completion Worker 产物检查通过: ${completionSize} bytes`)
 }
 

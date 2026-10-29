@@ -21,12 +21,14 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
   const approvalId = approval?.id ?? ''
   const [rememberFor, setRememberFor] = useState('')
   const approvalClient = clients.find((client) => client.id === approval?.client_id)
-  const approvalClientName = approval?.kind === 'external_tool' ? approval.operation.external?.source_name : approvalClient?.source === 'builtin_agent'
+  const localApproval = approval?.kind === 'local_tool'
+  const canRemember = approval?.kind === 'external_tool' || localApproval && approval.operation.local?.remember_allowed === true
+  const approvalClientName = localApproval ? t('localTools.title') : approval?.kind === 'external_tool' ? approval.operation.external?.source_name : approvalClient?.source === 'builtin_agent'
     ? t('settings.mcp.builtinAgentName')
     : approvalClient
       ? approval?.client_name || approval?.client_id || t('settings.mcp.unknownClient')
       : approval?.client_id || t('settings.mcp.unknownClient')
-  const approvalClientMissing = Boolean(approval && approval.kind !== 'external_tool' && !approvalClient)
+  const approvalClientMissing = Boolean(approval && !localApproval && approval.kind !== 'external_tool' && !approvalClient)
   const mutationBusy = Boolean(mutationKey)
   const approvalBusy = approval ? mutationKey === `approval:${approval.id}` : false
   const [now, setNow] = useState(() => Date.now())
@@ -71,7 +73,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
 
   const decide = (decision: 'approve' | 'reject') => {
     if (!approval || expired) return
-    void decideApproval(approval.id, decision, decision==='approve' && approval.kind==='external_tool' && rememberFor===approval.id).catch(() => notification.error({
+    void decideApproval(approval.id, decision, decision==='approve' && canRemember && rememberFor===approval.id).catch(() => notification.error({
       title: t('settings.mcp.operationFailed'),
       duration: 4,
       className: termousNotificationClassName,
@@ -82,7 +84,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
     <Modal
       open={Boolean(approval)}
       centered
-      width={620}
+      width={localApproval && approval.operation.local?.tool !== 'termous.local.commands.execute' ? 880 : 620}
       zIndex={3900}
       title={(
         <header className={styles.header}>
@@ -91,7 +93,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
           </span>
           <div>
             <h2>{t('settings.mcp.approval.title')}</h2>
-            <p>{t(approvalClient?.source === 'builtin_agent' ? 'settings.mcp.approval.descriptionAgent' : 'settings.mcp.approval.description')}</p>
+            <p>{t(localApproval ? 'localTools.approvalDescription' : approvalClient?.source === 'builtin_agent' ? 'settings.mcp.approval.descriptionAgent' : 'settings.mcp.approval.description')}</p>
           </div>
         </header>
       )}
@@ -113,9 +115,9 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
               <strong>{approvalClientName}</strong>
             </div>
 
-            <McpApprovalDetails approval={approval} />
-            {approval.kind==='external_tool' && <Checkbox checked={rememberFor===approval.id} disabled={mutationBusy || expired}
-              onChange={event => setRememberFor(event.target.checked ? approval.id : '')}>{t('extensions.rememberSession')}</Checkbox>}
+            <McpApprovalDetails key={approval.id} approval={approval} />
+            {canRemember && <Checkbox checked={rememberFor===approval.id} disabled={mutationBusy || expired}
+              onChange={event => setRememberFor(event.target.checked ? approval.id : '')}>{t(localApproval ? 'localTools.rememberCommand' : 'extensions.rememberSession')}</Checkbox>}
           </div>
 
           <footer className={styles.footer}>

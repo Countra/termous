@@ -5,8 +5,9 @@ import { modalSurfaceStyles } from '#shared/ui'
 import type { AgentIntegrationSource, AgentIntegrationsGateway, IntegrationToolSummary } from '#entities/agent-integrations'
 import styles from './AssistantExtensions.module.scss'
 import { SkillFilePreview } from './SkillFilePreview'
+import { MCPDependencyPanel } from './MCPDependencyPanel'
 
-export function IntegrationDetails({source,gateway,onClose}: {source:AgentIntegrationSource;gateway:AgentIntegrationsGateway;onClose():void}) {
+export function IntegrationDetails({source,gateway,onClose,onChanged}: {source:AgentIntegrationSource;gateway:AgentIntegrationsGateway;onClose():void;onChanged(source:AgentIntegrationSource):void}) {
   const { t } = useTranslation()
   const [tools,setTools] = useState<IntegrationToolSummary[]>([])
   const [path,setPath] = useState('SKILL.md')
@@ -48,6 +49,8 @@ export function IntegrationDetails({source,gateway,onClose}: {source:AgentIntegr
   return <Modal open centered width={820} rootClassName={modalSurfaceStyles.root} title={source.name} onCancel={onClose} footer={null} destroyOnHidden>
     <div className={styles.details}>
       {source.kind === 'mcp' ? <>
+        {source.mcp?.transport === 'stdio' && (source.mcp.dependency_id || /(?:^|[/\\])npx(?:\.cmd|\.exe)?$/iu.test(source.mcp.command ?? '')) &&
+          <MCPDependencyPanel key={`${source.id}:${source.revision}`} source={source} gateway={gateway} onChanged={onChanged} />}
         <Input.Search value={search} onChange={event => setSearch(event.target.value)} placeholder={t('extensions.searchTools')} allowClear />
         <Table rowKey="name" size="small" loading={busy} dataSource={tools.filter(tool => `${tool.name} ${tool.description ?? ''}`.toLowerCase().includes(search.toLowerCase()))}
           pagination={{pageSize:12,showSizeChanger:false}} locale={{emptyText:<Empty description={t('extensions.noTools')} />}}

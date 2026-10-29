@@ -24,7 +24,8 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('antd', () => ({
+vi.mock('antd', async (importOriginal) => ({
+  ...await importOriginal<typeof import('antd')>(),
   App: { useApp: () => ({ notification: { error: vi.fn() } }) },
   Modal: ({ children, open, title }: { children?: ReactNode; open?: boolean; title?: ReactNode }) => open ? <div role="dialog">{title}{children}</div> : null,
   Button: ({ children, disabled, onClick }: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) => (
@@ -85,6 +86,26 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('文件审批先展示真实差异，查看不派发，切换审批重置视图后仅批准当前操作', () => {
+    const file = { session_id: 'session-1', tool: 'termous.local.files.edit', directory: 'C:/workspace',
+      path: 'C:/workspace/test.txt', create: false, before: 'original\n', after: 'changed\n',
+      before_bytes: 9, after_bytes: 8, remember_allowed: false }
+    testState.approvals = [{ ...approvalFixture('2026-08-13T00:02:00Z'), kind: 'local_tool',
+      operation: { action: 'local_tool', remote_paths: [], local_paths: [], rename_mappings: [], local: file } }]
+    const view = render(<McpApprovalCoordinator />)
+    expect(screen.getByText('original')).toBeInTheDocument()
+    expect(screen.getByText('changed')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('fileReview.before'))
+    expect(screen.queryByText('changed')).not.toBeInTheDocument()
+    expect(testState.decideApproval).not.toHaveBeenCalled()
+    expect(screen.queryByText('localTools.rememberCommand')).not.toBeInTheDocument()
+    testState.approvals = [{ ...testState.approvals[0]!, id: 'new-file-approval' }]
+    view.rerender(<McpApprovalCoordinator />)
+    expect(screen.getByText('changed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
+    expect(testState.decideApproval).toHaveBeenCalledExactlyOnceWith('new-file-approval', 'approve', false)
+  })
+
   it('两分钟审批隐藏并恢复十秒后仍可决定，不因界面卸载取消', () => {
     testState.approvals = [approvalFixture('2026-08-13T00:02:00Z')]
     const view = render(<McpApprovalCoordinator />)
@@ -95,7 +116,7 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.getByText('settings.mcp.approval.expiresIn:01:50')).toBeInTheDocument()
     expect(testState.decideApproval).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
-    expect(testState.decideApproval).toHaveBeenCalledWith(testState.approvals[0]!.id, 'approve')
+    expect(testState.decideApproval).toHaveBeenCalledWith(testState.approvals[0]!.id, 'approve', false)
   })
 
   it('系统通知选择指定审批，审批消失后恢复既有队列顺序', () => {
@@ -104,11 +125,11 @@ describe('McpApprovalCoordinator', () => {
     testState.approvals = [first, second]
     const view = render(<McpApprovalCoordinator preferredApprovalId="second" />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
-    expect(testState.decideApproval).toHaveBeenLastCalledWith('second', 'approve')
+    expect(testState.decideApproval).toHaveBeenLastCalledWith('second', 'approve', false)
     testState.approvals = [first]
     view.rerender(<McpApprovalCoordinator preferredApprovalId="second" />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' }))
-    expect(testState.decideApproval).toHaveBeenLastCalledWith(first.id, 'approve')
+    expect(testState.decideApproval).toHaveBeenLastCalledWith(first.id, 'approve', false)
   })
 
   it('系统消息先于审批订阅到达时对账一次，不自动决定审批', () => {
@@ -220,7 +241,7 @@ describe('McpApprovalCoordinator', () => {
     expect(paths).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: `settings.mcp.approval.${decision === 'approve' ? 'allowOnce' : 'reject'}` }))
-    expect(testState.decideApproval).toHaveBeenCalledExactlyOnceWith('approval-1', decision)
+    expect(testState.decideApproval).toHaveBeenCalledExactlyOnceWith('approval-1', decision, false)
   })
 
   it('非递归删除明确显示仅删除所选项目', () => {

@@ -5,6 +5,22 @@ import { i18n } from '#shared/i18n'
 import type { AgentWorkspaceToolPart } from '../model/types.ts'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 
+it('读取卡片按需挂载，原始详情独立展开，收起时释放正文视图', async () => {
+  await i18n.changeLanguage('zh-CN')
+  const tool: AgentWorkspaceToolPart = { id: 'file', kind: 'tool', name: 'termous.local.files.read', status: 'completed',
+    detail: 'raw-receipt', local_file: { action: 'read', path: 'C:/test.txt', size: 11, offset: 0, nextOffset: 11, text: 'hello\nworld' } }
+  render(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={tool} /></I18nextProvider>)
+  expect(screen.queryByRole('region', { name: '文件内容审阅' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('读取文件 · test.txt'))
+  expect(await screen.findByRole('region', { name: '文件内容审阅' })).toBeVisible()
+  expect(screen.getByText('hello')).toBeVisible()
+  expect(screen.queryByText('raw-receipt')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '原始详情' }))
+  expect(screen.getByText('raw-receipt')).toBeVisible()
+  fireEvent.click(screen.getByText('读取文件 · test.txt'))
+  await waitFor(() => expect(screen.queryByRole('region', { name: '文件内容审阅' })).not.toBeInTheDocument())
+})
+
 it('内部申请控制时说明尚未发送输入，授权后再展示实际点击', async () => {
   await i18n.changeLanguage('zh-CN')
   const tool: AgentWorkspaceToolPart = { id: 'click', kind: 'tool', name: 'termous.desktops.pointer.click', status: 'running', phase: 'waiting' }

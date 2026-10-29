@@ -1,0 +1,15 @@
+{
+  "title": "File content review",
+  "diff": "Diff",
+  "before": "Before",
+  "after": "After",
+  "content": "File content",
+  "context": "Show all context",
+  "wrap": "Wrap lines",
+  "counts": "{{added}} lines added, {{removed}} lines removed",
+  "omitted": "Expand {{count}} unchanged lines",
+  "empty": "Empty file",
+  "unchanged": "File content is unchanged",
+  "noNewline": "No newline at end of file",
+  "coarse": "Extensive changes are shown as complete blocks. Switch to Before or After to inspect the full text."
+}

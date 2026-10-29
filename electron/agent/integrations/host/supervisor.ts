@@ -66,6 +66,16 @@ export class IntegrationHostSupervisor implements IntegrationRuntimePort {
     return source
   }
   async invalidate(source: string) { if (this.host) await this.rpc({ operation: 'invalidate', source }) }
+  async dependencyLaunch(source: string, revision: number, signal: AbortSignal) {
+    const config = await this.options.configuration()
+    const response = await fetch(new URL(`/api/v1/agent/integrations/${encodeURIComponent(source)}/dependency/launch?revision=${revision}`, config.baseURL), {
+      headers: { 'X-Termous-Token': config.token }, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), redirect: 'error', cache: 'no-store',
+    })
+    if (!response.ok) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
+    const launch: unknown = await readCoreJSON(response)
+    if (!isRecord(launch) || typeof launch.command !== 'string' || !Array.isArray(launch.args) || !launch.args.every(value => typeof value === 'string')) throw new Error('INTEGRATION_CONFIG_INVALID')
+    return launch as unknown as import('#common/agent-integrations').MCPDependencyLaunch
+  }
   release(run: string) { this.host?.child.postMessage({ type: 'release', run }) }
 
   async close() {

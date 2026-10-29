@@ -141,6 +141,7 @@ export interface AgentWorkspaceReasoningPart {
 }
 
 export interface AgentWorkspaceToolPart {
+  local_file?: import('#entities/agent').AgentLocalFileResult
   tool_call_id?: string
   cancelDesktop?: () => Promise<void>
   phase?: 'preparing' | 'waiting' | 'executing'
@@ -281,6 +282,8 @@ export interface AgentWorkspaceSessionManagement {
 
 export interface AgentWorkspaceProps {
   onReadIntegrations?: () => Promise<import('#entities/agent-integrations').IntegrationSelection>
+  onReadLocalDirectory?: () => Promise<import('#entities/agent').AgentLocalDirectory>
+  onChangeLocalDirectory?: (path: string, revision: number) => Promise<import('#entities/agent').AgentLocalDirectory>
   onChangeIntegration?: (policy: import('#entities/agent-integrations').IntegrationPolicy) => Promise<void>
   onLoadMessageText?: (id: string) => Promise<string>
   onLoadOlder?: () => Promise<void>
