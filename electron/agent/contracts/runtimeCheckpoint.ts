@@ -127,7 +127,9 @@ function assistantContent(value: unknown) {
     (value.type === 'text' && typeof value.text === 'string')
     || (value.type === 'thinking' && typeof value.thinking === 'string')
     || (value.type === 'toolCall' && typeof value.id === 'string'
-      && typeof value.name === 'string' && isRuntimeToolArguments(value.arguments))
+      && typeof value.name === 'string' && isRuntimeToolArguments(value.arguments)
+      && (value.argumentsError === undefined || (typeof value.argumentsError === 'string'
+        && value.argumentsError.length > 0 && Buffer.byteLength(value.argumentsError, 'utf8') <= 8192)))
   )
 }
 

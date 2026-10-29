@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { App as AntdApp, Button, Modal } from 'antd'
+import { App as AntdApp, Button, Checkbox, Modal } from 'antd'
 import { ServerCog, ShieldCheck, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { modalSurfaceStyles, termousNotificationClassName } from '#shared/ui'
@@ -19,13 +19,14 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
   const { clients, approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
   const approval = blocked ? null : approvals.find((item) => item.id === preferredApprovalId) ?? approvals[0] ?? null
   const approvalId = approval?.id ?? ''
+  const [rememberFor, setRememberFor] = useState('')
   const approvalClient = clients.find((client) => client.id === approval?.client_id)
-  const approvalClientName = approvalClient?.source === 'builtin_agent'
+  const approvalClientName = approval?.kind === 'external_tool' ? approval.operation.external?.source_name : approvalClient?.source === 'builtin_agent'
     ? t('settings.mcp.builtinAgentName')
     : approvalClient
       ? approval?.client_name || approval?.client_id || t('settings.mcp.unknownClient')
       : approval?.client_id || t('settings.mcp.unknownClient')
-  const approvalClientMissing = Boolean(approval && !approvalClient)
+  const approvalClientMissing = Boolean(approval && approval.kind !== 'external_tool' && !approvalClient)
   const mutationBusy = Boolean(mutationKey)
   const approvalBusy = approval ? mutationKey === `approval:${approval.id}` : false
   const [now, setNow] = useState(() => Date.now())
@@ -70,7 +71,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
 
   const decide = (decision: 'approve' | 'reject') => {
     if (!approval || expired) return
-    void decideApproval(approval.id, decision).catch(() => notification.error({
+    void decideApproval(approval.id, decision, decision==='approve' && approval.kind==='external_tool' && rememberFor===approval.id).catch(() => notification.error({
       title: t('settings.mcp.operationFailed'),
       duration: 4,
       className: termousNotificationClassName,
@@ -113,6 +114,8 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
             </div>
 
             <McpApprovalDetails approval={approval} />
+            {approval.kind==='external_tool' && <Checkbox checked={rememberFor===approval.id} disabled={mutationBusy || expired}
+              onChange={event => setRememberFor(event.target.checked ? approval.id : '')}>{t('extensions.rememberSession')}</Checkbox>}
           </div>
 
           <footer className={styles.footer}>

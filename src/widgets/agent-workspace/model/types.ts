@@ -280,6 +280,8 @@ export interface AgentWorkspaceSessionManagement {
 }
 
 export interface AgentWorkspaceProps {
+  onReadIntegrations?: () => Promise<import('#entities/agent-integrations').IntegrationSelection>
+  onChangeIntegration?: (policy: import('#entities/agent-integrations').IntegrationPolicy) => Promise<void>
   onLoadMessageText?: (id: string) => Promise<string>
   onLoadOlder?: () => Promise<void>
   onLoadNewer?: () => Promise<void>

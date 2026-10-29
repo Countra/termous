@@ -6334,7 +6334,7 @@
         "modelCapabilityConflict": "该模型仍被启用了推理的默认设置或会话使用。请先关闭这些位置的推理等级，再停用模型推理能力。"
       }
     },
-    "tabMcp": "MCP",
+    "tabMcp": "MCP 服务",
     "mcp": {
       "skills": {
         "hint": "内置 AI 助手已包含这些 Skills。外部客户端安装后，仍需配置 MCP 连接和权限。",

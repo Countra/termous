@@ -16,6 +16,8 @@ import type { AgentWorkerProcess } from '../contracts/workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { WorkerStartupDeadline } from './workerStartupDeadline.ts'
 import { imageMaterializationBudget } from './imageMaterializationBudget.ts'
+import type { IntegrationRuntimePort } from '../contracts/integrationIPC.ts'
+import { IntegrationRunRelay } from './integrationRelay.ts'
 
 export interface AgentRunWorkerLogger {
   info(event: string, details?: Record<string, unknown>): void
@@ -23,6 +25,7 @@ export interface AgentRunWorkerLogger {
 }
 
 export interface AgentRunWorkerOptions {
+  integrations?: IntegrationRuntimePort
   process: AgentWorkerProcess
   request: AgentRuntimeRunRef
   executionID: string
@@ -56,6 +59,7 @@ interface PendingSteerAck {
 }
 
 export class AgentRunWorker {
+  private readonly integrations?: IntegrationRunRelay
   readonly executionID: string
   readonly sessionID: string
   readonly runID: string
@@ -102,6 +106,8 @@ export class AgentRunWorker {
     this.process = options.process
     this.runID = options.request.run_id
     this.generation = options.request.generation
+    if (options.integrations) this.integrations = new IntegrationRunRelay(options.integrations,
+      { run_id: this.runID, generation: this.generation, session_id: this.sessionID }, message => this.process.postMessage(message))
     this.coreInstanceID = options.coreInstanceID
     this.coreBaseURL = options.coreBaseURL
     this.supervisorInstanceID = options.supervisorInstanceID
@@ -145,6 +151,7 @@ export class AgentRunWorker {
   observe() {
     this.startupDeadline.observe()
     this.disposers.push(this.process.onMessage((message) => {
+      if (this.integrations?.handle(message)) return
       if (isAgentWorkerOutboundMessage(message) && message.run_id === this.runID
         && message.generation === this.generation && message.type === 'started') {
         this.startupDeadline.complete()
@@ -160,6 +167,7 @@ export class AgentRunWorker {
       void this.enqueue(() => this.handleMessage(message))
     }))
     this.disposers.push(this.process.onExit((code) => {
+      this.integrations?.close()
       if (!this.exited) {
         this.exited = true
         this.startupDeadline.complete()
@@ -207,6 +215,7 @@ export class AgentRunWorker {
   }
 
   requestStop() {
+    this.integrations?.close()
     this.stopping = true
     this.startupDeadline.complete()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
@@ -306,6 +315,7 @@ export class AgentRunWorker {
         run_id: this.runID,
         generation: this.generation,
         skills: this.skills,
+        ...(this.integrations ? { integrations_version: 1 } : {}),
       })
     } catch (error) {
       await this.failLaunch(stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_LAUNCH_FAILED'))

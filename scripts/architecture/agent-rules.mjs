@@ -11,6 +11,7 @@ const dependencies = new Map(Object.entries({
   runtime: ['contracts', 'provider', 'context', 'execution', 'tools'],
   worker: ['contracts', 'runtime', 'tools'],
   host: ['contracts', 'skills'],
+  integrations: ['contracts'],
 }))
 
 function agentModule(relativePath) {
@@ -24,6 +25,7 @@ function externalEntryAllowed(source, target, module) {
   if (source === 'electron/preload.ts') return target === 'electron/agent/contracts/ipcChannels.ts'
   if (module === 'contracts') return true
   if (target === 'electron/agent/host/index.ts') return source === 'electron/main.ts'
+  if (target === 'electron/agent/integrations/index.ts') return source === 'electron/main.ts'
   if (target === 'electron/agent/skills/index.ts') return source === 'electron/main.ts' || source.startsWith('electron/skills/')
   return target === 'electron/agent/provider/index.ts' && source.startsWith('electron/terminalCompletion/')
 }
@@ -69,7 +71,7 @@ export function collectAgentViolations(graph) {
     if (module === 'contracts' && imported.kind !== 'type' && imported.specifier !== 'node:crypto') {
       violations.push({ rule: 'agent-contract-runtime-import', ...base })
     }
-    if (module !== 'host' && imported.kind !== 'type'
+    if (module !== 'host' && !source.startsWith('electron/agent/integrations/host/') && imported.kind !== 'type'
       && (imported.specifier === 'electron' || imported.specifier.startsWith('electron/'))) {
       violations.push({ rule: 'agent-electron-runtime-import', ...base })
     }

@@ -48,7 +48,8 @@ import type {
   DataPortabilityProgress,
 } from '#common/contracts'
 import { termousReleasePageUrl } from '#common/release-page'
-import { AgentCoreRuntimeClient, registerAgentRuntimeIPC, AgentSupervisor, UtilityWorkerFactory } from './agent/host/index'
+import { AgentCoreRuntimeClient, registerAgentRuntimeIPC, AgentSupervisor, UtilityWorkerFactory, shutdownAgentServices } from './agent/host/index'
+import { IntegrationHostSupervisor, registerIntegrationIPC } from './agent/integrations/index'
 import { AgentSkillBundleSource } from './agent/skills/index'
 import { SkillInstaller } from './skills/installer'
 import { registerSkillInstallIPC } from './skills/ipc'
@@ -175,7 +176,16 @@ const skillsSource = new AgentSkillBundleSource({
 const skillInstaller = new SkillInstaller(skillsSource, skillsDirectory)
 // Worker 入口可位于 ASAR，操作系统工作目录必须是归档之外的真实目录。
 const workerWorkingDirectory = desktopChannel === 'production' ? process.resourcesPath : process.env.APP_ROOT
+const integrationHost: IntegrationHostSupervisor = new IntegrationHostSupervisor({
+  modulePath: path.join(MAIN_DIST, 'agent-integrations.js'), cwd: workerWorkingDirectory,
+  configuration: async () => {
+    const config = await coreProcess.initialize()
+    return { baseURL: config.apiBaseUrl, token: config.apiToken ?? '', supervisor: agentSupervisor.completionLease().supervisor_instance_id }
+  },
+  report: code => reportElectronProcessEvent('agent-integrations-host', { error_code: code }),
+})
 const agentSupervisor = new AgentSupervisor({
+  integrations: integrationHost,
   core: new AgentCoreRuntimeClient({
     getConfig: () => coreProcess.initialize(),
   }),
@@ -922,7 +932,7 @@ async function performAgentRuntimeAndCoreShutdown(reason: CoreShutdownReason) {
   await skillInstaller.suspend()
   let agentRuntimeStopped = await terminalCompletionRuntime.stop()
   try {
-    await agentSupervisor.shutdown()
+    await shutdownAgentServices(agentSupervisor, integrationHost)
   } catch (error) {
     agentRuntimeStopped = false
     reportElectronProcessEvent('agent-runtime-shutdown-failed', {
@@ -971,12 +981,12 @@ async function restartCoreAfterRestore() {
     throw new Error('TERMINAL_AI_WORKER_TERMINATION_TIMEOUT')
   }
   try {
-    await agentSupervisor.shutdown()
+    await shutdownAgentServices(agentSupervisor, integrationHost)
   } catch (error) {
     reportElectronProcessEvent('agent-runtime-restore-shutdown-failed', {
       error_name: error instanceof Error ? error.name : 'UnknownError',
     })
-    terminalCompletionRuntime.resume()
+    await recoverAgentRuntimeAfterFailedShutdown()
     throw error
   }
   try {
@@ -1261,6 +1271,8 @@ function registerAgentRuntimeControls() {
     },
   })
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
+  registerIntegrationIPC({ ipcMain, host: integrationHost, isTrustedSender: isTrustedMainIPCEvent,
+    source: id => integrationHost.source(id), english: () => appLanguage === 'en-US' })
   registerAgentRuntimeIPC({
     ipcMain,
     isTrustedSender: isTrustedMainIPCEvent,

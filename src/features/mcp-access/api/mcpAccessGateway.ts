@@ -30,6 +30,7 @@ export interface McpApprovalGateway {
     decision: McpApprovalDecision,
     expectedRevision: number,
     signal?: AbortSignal,
+    rememberSession?: boolean,
   ): Promise<McpApprovalDecisionResult>
   approvalEventsUrl(): string
 }

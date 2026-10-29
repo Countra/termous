@@ -80,6 +80,13 @@ export interface TermousBridge {
     steerQueuedTurn: (request: AgentQueuedTurnSteerRequest) => Promise<AgentRuntimeCommandResult>
     onStatus: (callback: (status: AgentRuntimeStatus) => void) => () => void
   }
+  agentIntegrations?: {
+    status(): Promise<import('./agent-integrations.ts').IntegrationConnectionStatus[]>
+    reconnect(request: {source: string; revision: number; request_id: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string}>
+    login(request: {source: string; revision: number; request_id: string}): Promise<{revision: number}>
+    test(request: {source: string; revision: number; request_id: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string}>
+    cancel(requestID: string): Promise<void>
+  }
   terminalAICompletion?: {
     generate: (request: TerminalAICompletionRequest) => Promise<TerminalAICompletionResult>
     cancel: (request: TerminalAICompletionCancel) => Promise<void>

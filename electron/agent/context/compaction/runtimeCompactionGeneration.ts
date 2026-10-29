@@ -3,7 +3,8 @@ import type { Api, Model } from '@earendil-works/pi-ai'
 import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/contracts'
 import { isResourceImage, isRuntimeImage } from '../../contracts/runtimeResourceImages.ts'
 import type { RuntimeCompactionPreparation } from './runtimeCompactionTypes.ts'
-import { RuntimeCompactionError, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
+import { RuntimeCompactionError, runtimeCompactionSummaryInstructions, type createRuntimeCompactionRequest } from './runtimeCompactionSummary.ts'
+import { estimateRuntimeMessageTokens } from '../runtimeContextTokens.ts'
 
 const summaryFormat = [
   '只生成用于继续任务的摘要，不继续执行原任务。',
@@ -24,13 +25,12 @@ export async function generateRuntimeCompaction(
   signal?: AbortSignal,
 ): Promise<string> {
   const summarize = async (messages: AgentMessage[], turn: boolean, previousSummary?: string) => {
-    const maxTokens = Math.min(Math.floor(preparation.settings.reserveTokens * (turn ? 0.5 : 0.8)), model.maxTokens)
-    if (maxTokens < 1) throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
     const text = [
       '<conversation>', serializeRuntimeConversation(messages), '</conversation>',
       ...(previousSummary ? ['<previous-summary>', previousSummary, '</previous-summary>'] : []),
       turn ? turnFormat : summaryFormat,
     ].join('\n\n')
+    const maxTokens = runtimeSummaryOutputBudget(model, text)
     const result = await request(model, {
       messages: [{ role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() }],
     }, {
@@ -48,6 +48,15 @@ export async function generateRuntimeCompaction(
     : ''
   const turn = await summarize(preparation.turnPrefixMessages, true)
   return history ? `${history}\n\n---\n\n${turn}` : turn
+}
+
+export function runtimeSummaryOutputBudget(model: Pick<Model<Api>, 'maxTokens' | 'contextWindow'>, text: string): number {
+  // 触发压缩的预留量不限制摘要推理输出；输入估算另留余量，避免摘要请求本身超窗。
+  const input = estimateRuntimeMessageTokens({ role: 'user', content: `${runtimeCompactionSummaryInstructions}\n\n${text}`, timestamp: 0 })
+  const available = Math.floor(model.contextWindow - input * 1.1 - 1024)
+  const budget = Math.min(Math.floor(model.maxTokens), available)
+  if (!Number.isSafeInteger(budget) || budget < 1) throw new RuntimeCompactionError('AGENT_RUNTIME_CONTEXT_COMPRESSION_UNAVAILABLE')
+  return budget
 }
 
 export function serializeRuntimeConversation(messages: AgentMessage[]): string {

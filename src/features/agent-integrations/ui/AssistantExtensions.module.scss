@@ -1,0 +1,133 @@
+.root {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hint,
+.muted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.source {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 8px 0;
+  color: var(--text-primary);
+  text-align: start;
+  cursor: pointer;
+  transition: color 160ms ease;
+
+  &:hover { color: var(--accent); }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.details,
+.importer,
+.import-item,
+.tool {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.import-list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  > li {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+}
+
+.tool {
+  gap: 5px;
+  overflow-wrap: anywhere;
+
+  span {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+}
+
+.document {
+  overflow: auto;
+  min-height: 240px;
+  max-height: 55vh;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  padding: 16px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.picker { width: min(340px, 80vw); }
+
+.picker-items {
+  overflow: auto;
+  max-height: 340px;
+}
+
+.picker-item {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 4px;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source { transition: none; }
+}
+
+.skill-image {
+  display: block;
+  max-width: 100%;
+  max-height: 50vh;
+  margin: auto;
+  object-fit: contain;
+}
+
+.skill-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

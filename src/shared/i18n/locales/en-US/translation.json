@@ -6360,7 +6360,7 @@
         "modelCapabilityConflict": "This model is still used by a default or session with reasoning enabled. Turn reasoning off there before disabling the model capability."
       }
     },
-    "tabMcp": "MCP",
+    "tabMcp": "MCP service",
     "mcp": {
       "skills": {
         "hint": "The built-in assistant already includes these skills. External clients still need an MCP connection and permissions.",

@@ -79,12 +79,13 @@ export class McpAccessClient extends TermousApiTransport {
     decision: McpApprovalDecision,
     expectedRevision: number,
     signal?: AbortSignal,
+    rememberSession?: boolean,
   ) {
     return this.request<unknown>(
       `${mcpPath}/approvals/${encodeURIComponent(approvalId)}/decisions`,
       {
         method: 'POST',
-        body: { decision, expected_revision: expectedRevision },
+        body: { decision, expected_revision: expectedRevision, ...(rememberSession ? {remember_session: true} : {}) },
         signal,
       },
     ).then(decodeMcpApprovalDecisionResult)

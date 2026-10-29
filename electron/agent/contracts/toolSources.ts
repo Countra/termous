@@ -45,5 +45,14 @@ export function builtinName(mcp: AgentMCPConnection, name: string): string | nul
 
 export function isolateToolNames(mcp: AgentMCPConnection): AgentMCPConnection {
   const names = new Map(mcp.tools.map((tool) => [tool.name, scopedToolName(tool, `unclassified::${tool.name}`)]))
-  return { ...mcp, originalName: (name) => names.get(name) ?? null }
+  return { ...mcp, originalName: (name) => names.get(name) ?? null,
+    ...(mcp.refreshTools ? {refreshTools:async (signal?:AbortSignal)=>{
+      const change=await mcp.refreshTools!(signal)
+      if (change) {
+        for (const name of change.removed) names.delete(name)
+        for (const tool of change.tools) names.set(tool.name,scopedToolName(tool,`unclassified::${tool.name}`))
+      }
+      return change
+    }} : {}),
+  }
 }

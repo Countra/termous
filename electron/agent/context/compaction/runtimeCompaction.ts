@@ -85,7 +85,7 @@ export interface RuntimeCompactionOptions<TSource> {
 }
 
 export interface RuntimeCompactionController {
-  updateTools(tools: Tool[], messages: AgentMessage[]): void
+  updateTools(tools: Tool[], messages: AgentMessage[],systemPrompt?:string): void
   invalidateUsage(messages: AgentMessage[]): void
   transformContext(messages: AgentMessage[], signal?: AbortSignal): Promise<AgentMessage[]>
   observeContext(messages: AgentMessage[], providerUsage?: RuntimeProviderUsage): Promise<void>
@@ -249,7 +249,8 @@ export function createRuntimeCompactionController<TSource>(
       return projected
     },
     invalidateUsage,
-    updateTools: (tools, messages) => {
+    updateTools: (tools, messages,systemPrompt) => {
+      if (systemPrompt!==undefined) options.systemPrompt=systemPrompt
       budget = runtimeCompactionBudget(options.model, options.thresholdPercent ?? 80, options.systemPrompt, tools)
       hasCompactionCapacity = budget.availableTokens > 0 && budget.settings.reserveTokens > 0 && budget.settings.keepRecentTokens > 0
       invalidateUsage(messages)

@@ -1,4 +1,5 @@
 import { useAgentHostDesktopSources } from '../model/host/useAgentHostDesktopSources.ts'
+import { useAgentIntegrationActions } from '../model/host/useAgentIntegrationActions.ts'
 import { useAgentDesktopTasks } from '../model/host/useAgentDesktopTasks.ts'
 import type { AgentDesktopResourceState } from '#entities/agent'
 import {
@@ -63,6 +64,7 @@ const noSlashCandidates: AgentSlashCandidateCatalog = {
 }
 
 export function AgentWorkspaceHost({
+  integrationsGateway,
   backgroundActive = false,
   feedback,
   renderSurface,
@@ -88,6 +90,7 @@ export function AgentWorkspaceHost({
   onOpenSettings,
   remote = false,
 }: {
+  integrationsGateway?: import('#entities/agent-integrations').AgentIntegrationsGateway
   backgroundActive?: boolean
   feedback: import('../model/surface/agentFeedback.ts').AgentFeedback
   renderSurface: (model: AgentSurfaceModel) => import('react').ReactNode
@@ -277,6 +280,7 @@ export function AgentWorkspaceHost({
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
   const { createDraftSession, ensureDraftSession, ensureAttachmentSession } = useAgentDraftOwnership({ controller, newSessionModelId, modelById, providerById, tRef, draftGroupId, newSessionReasoningLevel, setDraftGroupId, draftSessionCoordinator })
+  const integrationActions = useAgentIntegrationActions(integrationsGateway,selected?.id,ensureAttachmentSession)
 
   const { loadAttachmentContent, loadToolImage, draftAttachments, queuedTurnEditAttachments } = useAgentAttachmentWorkspace({ notificationRef, tRef, gateway, ensureAttachmentSession, controller, committedQueuedTurnEditSessionIdsRef, getQueuedEditOwner, state, previousQueuedTurnEditSessionIdsRef })
 
@@ -404,6 +408,7 @@ export function AgentWorkspaceHost({
   const resourceActions = createAgentResourceActions({ selected, controller, readiness, connectSSHProfileBinding, performResourceMutation, recovery })
 
   const workspace: AgentSurfaceModel['workspace'] = {
+    ...integrationActions,
     composerFocusKey: composerFocusKey,
     composerActive: active,
     sessions: workspaceSessions,

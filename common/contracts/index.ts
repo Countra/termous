@@ -164,3 +164,5 @@ export { isImageResourceReference, isTextResourceReference, type ContentResource
 
 export type { HostDesktopAccess } from './remote-control'
 export * from './desktop-controls.ts'
+
+export type * from './agent-integrations.ts'

@@ -191,6 +191,13 @@ const bridge = {
       return () => ipcRenderer.removeListener(agentRuntimeIPCChannels.status, listener)
     },
   },
+  agentIntegrations: {
+    status: () => ipcRenderer.invoke('agent-integrations:status'),
+    reconnect: request => ipcRenderer.invoke('agent-integrations:reconnect', request),
+    login: request => ipcRenderer.invoke('agent-integrations:login', request),
+    test: request => ipcRenderer.invoke('agent-integrations:test', request),
+    cancel: requestID => ipcRenderer.invoke('agent-integrations:cancel', requestID),
+  },
   terminalAICompletion: {
     generate: (request: TerminalAICompletionRequest) => ipcRenderer.invoke(terminalCompletionIPCChannels.generate, request) as Promise<TerminalAICompletionResult>,
     cancel: (request: TerminalAICompletionCancel) => ipcRenderer.invoke(terminalCompletionIPCChannels.cancel, request) as Promise<void>,

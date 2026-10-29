@@ -41,6 +41,7 @@ type PreparedAgentSteer =
   | { pending: Promise<AgentRunWorkerSteerResult> }
 
 export interface AgentSupervisorOptions {
+  integrations?: import('../contracts/integrationIPC.ts').IntegrationRuntimePort
   core: AgentCoreRuntimePort
   workerFactory: AgentWorkerFactory
   skills: AgentSkillBundleSourcePort
@@ -56,6 +57,7 @@ export interface AgentSupervisorOptions {
 }
 
 export class AgentSupervisor {
+  private readonly integrations?: import('../contracts/integrationIPC.ts').IntegrationRuntimePort
   private readonly core: AgentCoreRuntimePort
   private readonly workerFactory: AgentWorkerFactory
   private readonly skills: AgentSkillBundleSourcePort
@@ -88,6 +90,7 @@ export class AgentSupervisor {
   private readonly controlChannel: AgentControlChannel
 
   constructor(options: AgentSupervisorOptions) {
+    this.integrations = options.integrations
     this.core = options.core
     this.controlChannel = new AgentControlChannel(this.core, async (command) => {
       if (!this.leaseEnabled) return this.rejected('AGENT_RUNTIME_UNAVAILABLE')
@@ -274,6 +277,7 @@ export class AgentSupervisor {
       if (!this.leaseEnabled) throw new Error('AGENT_RUNTIME_UNAVAILABLE')
       let workerTail: Promise<void> = Promise.resolve()
       const worker = new AgentRunWorker({
+        integrations: this.integrations,
         process: this.workerFactory.create(), request,
         executionID: request.execution_id, sessionID: request.session_id,
         coreInstanceID: lease.core_instance_id, coreBaseURL, skills,

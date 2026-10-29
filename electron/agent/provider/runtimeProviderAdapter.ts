@@ -4,6 +4,7 @@ import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/a
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import type { RuntimeModelSnapshot } from '../contracts/modelSnapshot.ts'
 import { runtimeToolImageContext } from './runtimeToolImageContext.ts'
+import { runtimeClientIdentity } from './runtimeClientIdentity.ts'
 
 const unauthenticatedAPIKeySentinel = 'termous-local-no-auth'
 const providerRequestTimeoutMs = 10 * 60_000
@@ -156,6 +157,7 @@ export function createRuntimeStreamOptions(
 ) {
   return {
     ...options,
+    identity: runtimeClientIdentity,
     apiKey: apiKey || unauthenticatedAPIKeySentinel,
     fetch: providerFetch,
     maxRetries: 0,

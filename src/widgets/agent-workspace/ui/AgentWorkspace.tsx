@@ -171,6 +171,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onLoadToolImage={onLoadToolImage}
         />
         <AgentComposer
+          onReadIntegrations={props.onReadIntegrations} onChangeIntegration={props.onChangeIntegration}
           onLoadLocalAttachment={props.onLoadLocalAttachment}
           presentation={props.presentation}
           focusKey={props.composerFocusKey}

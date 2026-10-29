@@ -1554,6 +1554,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           notificationSessionId={notificationSessionId}
                           onNotificationSessionHandled={() => setNotificationSessionId(undefined)}
                           gateway={gateways.agentWorkspace}
+                          integrationsGateway={gateways.agentIntegrations}
                           setupGateway={gateways.agentSetup}
                           sshResources={agentSSHResources}
                           sshProfileResourcesReady={agentFileResourcesReady}
@@ -1762,6 +1763,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       terminalFonts={data.terminalFonts} appVersion={appVersion}
                       dataPortabilityGateway={gateways.dataPortability} mountSettingsGateway={gateways.settings}
                       auditSettingsGateway={gateways.settings} agentSetupGateway={gateways.agentSetup}
+                      integrationsGateway={gateways.agentIntegrations}
                       defaultModelStatusGateway={gateways.terminal} updatePreferencesRuntime={updatePreferencesRuntime}
                       actionBusy={actionBusy}
                       onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}

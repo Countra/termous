@@ -3,6 +3,7 @@ import { Button, Input, Tooltip, type GetRef } from 'antd'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { agentResourceBindingKey } from '#entities/agent'
+import { IntegrationSourcePicker } from '#features/agent-integrations'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
@@ -31,6 +32,7 @@ import { AgentProfileConnectionStatus } from './AgentProfileConnectionStatus.tsx
 import styles from './AgentComposer.module.scss'
 
 export const AgentComposer = memo(function AgentComposer({
+  onReadIntegrations, onChangeIntegration,
   presentation,
   onLoadLocalAttachment,
   value,
@@ -103,6 +105,8 @@ export const AgentComposer = memo(function AgentComposer({
   onDismissProfileConnection,
   onContextCompressionPendingChange,
 }: {
+  onReadIntegrations?: AgentWorkspaceProps['onReadIntegrations']
+  onChangeIntegration?: AgentWorkspaceProps['onChangeIntegration']
   value: string
   focusKey?: number
   paneActive?: boolean
@@ -474,6 +478,7 @@ export const AgentComposer = memo(function AgentComposer({
         />
         <div className={styles['composer-actions']}>
           <div className={styles['composer-secondary-actions']}>
+            <IntegrationSourcePicker sessionKey={sessionKey} read={onReadIntegrations} change={onChangeIntegration} disabled={disabled} />
             <>
                 <input
                   ref={fileInputRef}

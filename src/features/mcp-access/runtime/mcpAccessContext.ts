@@ -24,7 +24,7 @@ export interface McpAccessRuntimeValue {
   patchClient(clientId: string, patch: McpClientPatch): Promise<void>
   deleteClient(clientId: string): Promise<void>
   issueToken(clientId: string): Promise<McpClientToken>
-  decideApproval(approvalId: string, decision: McpApprovalDecision): Promise<void>
+  decideApproval(approvalId: string, decision: McpApprovalDecision, rememberSession?: boolean): Promise<void>
 }
 
 export const McpAccessRuntimeContext = createContext<McpAccessRuntimeValue | null>(null)

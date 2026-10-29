@@ -23,11 +23,17 @@ import { materializeRuntimeTextResources } from './runtimeTextResources.ts'
 import { type RuntimeBootstrap } from '../contracts/runtimeBootstrap.ts'
 import { type WorkerCoreClientPort } from '../contracts/workerCore.ts'
 import { ImageMaterializationLease } from './imageMaterializationLease.ts'
+import { WorkerIntegrationProxy } from './integrationProxy.ts'
+import { attachIntegrationTools } from './integrationTools.ts'
+import type { IntegrationDirectory } from '../contracts/integrationIPC.ts'
+import { integrationSkills } from './integrationSkills.ts'
+import { readIntegrationDirectory } from './integrationDirectory.ts'
 
 const maximumSteerBytes = 1 << 20
 const maximumPendingSteers = 32
 
 export interface AgentWorkerRuntimeOptions {
+  sendIntegration?: (message: unknown) => void
   send: (message: AgentWorkerOutboundMessage) => void
   finish: () => void
   core?: WorkerCoreClientPort
@@ -41,6 +47,8 @@ interface PendingSteer {
 }
 
 export class AgentWorkerRuntime {
+  private readonly sendIntegration?: (message: unknown) => void
+  private integrations?: WorkerIntegrationProxy
   private readonly imageBudget: ImageMaterializationLease
   private readonly send: (message: AgentWorkerOutboundMessage) => void
   private readonly finish: () => void
@@ -63,6 +71,7 @@ export class AgentWorkerRuntime {
   private finished = false
 
   constructor(options: AgentWorkerRuntimeOptions) {
+    this.sendIntegration = options.sendIntegration
     this.send = options.send
     this.imageBudget = new ImageMaterializationLease((id, bytes, action) => {
       if (!this.startMessage) throw new Error('AGENT_RUNTIME_RUN_NOT_ACTIVE')
@@ -75,6 +84,7 @@ export class AgentWorkerRuntime {
   }
 
   handleMessage(value: unknown) {
+    if (this.integrations?.handle(value)) return
     const message = parseInboundMessage(value)
     if (!message || this.finished) {
       return
@@ -126,6 +136,7 @@ export class AgentWorkerRuntime {
   }
 
   private async execute(start: AgentWorkerStartMessage) {
+    let lazySkills: CreatePiAgentOptions['lazySkills']
     let settled: 'completed' | 'cancelled' | 'failed' | null = null
     let fatal: 'bootstrap_failed' | 'runtime_failed' | null = null
     try {
@@ -150,6 +161,15 @@ export class AgentWorkerRuntime {
         protocolVersion: bootstrap.mcp.protocol_version,
         signal: this.startupAbort.signal,
       })
+      if (start.integrations_version === 1) {
+        if (!this.sendIntegration) throw new Error('INTEGRATION_PROTOCOL_UNAVAILABLE')
+        this.integrations = new WorkerIntegrationProxy({ run_id: start.run_id, generation: start.generation, bearer: bootstrap.runtime_bearer }, this.sendIntegration)
+        const initial = await readIntegrationDirectory(this.integrations, this.startupAbort.signal)
+        if ('unchanged' in initial) throw new Error('INTEGRATION_DIRECTORY_INVALID')
+        const directory: IntegrationDirectory = initial
+        this.mcp = attachIntegrationTools(this.mcp, directory, this.integrations)
+        lazySkills = integrationSkills(directory, this.integrations)
+      }
       if (this.abortRequested) {
         settled = await this.persistTerminalStatus('cancelled')
         return
@@ -175,6 +195,7 @@ export class AgentWorkerRuntime {
           return this.core.readToolPreparation(start, bootstrap.runtime_bearer, toolCallID, step, signal)
         },
         skills: start.skills,
+        lazySkills,
         readResourceImage: (reference, signal) => {
           if (!this.core.readResourceImage) throw new Error('AGENT_RUNTIME_IMAGE_UNAVAILABLE')
           return this.core.readResourceImage(start, bootstrap.runtime_bearer, reference, signal)
@@ -342,6 +363,8 @@ export class AgentWorkerRuntime {
   }
 
   private async closeResources() {
+    this.integrations?.close()
+    this.integrations = undefined
     this.rejectPendingSteers('AGENT_RUNTIME_STEER_CLOSED')
     this.agent?.abort()
     await this.agent?.waitForIdle().catch(() => undefined)

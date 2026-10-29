@@ -35,6 +35,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_update',
 ])
 const approvalKinds = new Set<McpApprovalKind>([
+  'external_tool',
   'desktop_workflow',
   'screen_analysis',
   'desktop',
@@ -160,6 +161,7 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     }
   }
   if (normalizedKind === 'desktop') return { ...common, kind: 'desktop', command: '', operation: operation! }
+  if (normalizedKind === 'external_tool') return { ...common, kind: 'external_tool', command: '', operation: operation! }
   if (normalizedKind === 'desktop_workflow') return { ...common, kind: 'desktop_workflow', command: '', operation: operation! }
   if (normalizedKind === 'screen_analysis') return { ...common, kind: 'screen_analysis', command: '', operation: operation! }
   if (normalizedKind === 'snippet') {
@@ -184,6 +186,12 @@ function decodeMcpApprovalOperation(
 ): McpApprovalOperation {
   const operation = requireRecord(value, 'MCP 审批操作无效')
   const action = requireString(operation.action, 'MCP 审批操作类型缺失')
+  if (kind === 'external_tool') {
+    const external = requireRecord(operation.external, '外部工具审批来源缺失')
+    if (action !== 'external_tool') throw new McpAccessProtocolError('外部工具审批动作无效')
+    return { action, external: {source_id:requireString(external.source_id,'外部来源 ID 缺失'),source_name:requireString(external.source_name,'外部来源名称缺失'),
+      tool:requireString(external.tool,'外部工具名称缺失'),arguments:requireString(external.arguments,'外部工具参数缺失')},remote_paths:[],local_paths:[],rename_mappings:[] }
+  }
   const resourceKind = operation.resource_kind === undefined
     ? undefined
     : requireString(operation.resource_kind, 'MCP 审批资源类型无效')
@@ -347,6 +355,7 @@ function validateDeleteApproval(operation: Pick<McpApprovalOperation,
 }
 
 const approvalOperationMissingMessage: Record<Exclude<McpApprovalKind, 'command'>, string> = {
+  external_tool: '外部工具审批操作缺失',
   screen_analysis: 'MCP 分析记录审批操作缺失',
   desktop_workflow: 'MCP 桌面脚本审批操作缺失',
   desktop: 'MCP 桌面控制审批操作缺失',

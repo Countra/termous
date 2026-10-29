@@ -1,0 +1,107 @@
+export interface MCPIntegrationConfig {
+  transport: 'stdio' | 'http'
+  command?: string
+  args?: string[]
+  cwd?: string
+  url?: string
+  auth?: 'none' | 'headers' | 'oauth' | ''
+  environment_keys?: string[]
+  header_keys?: string[]
+}
+
+export interface ImportedSkillFile {
+  path: string
+  mime_type: string
+  object: { sha256: string; size_bytes: number }
+}
+
+export interface ImportedSkillManifest {
+  version: string
+  name: string
+  description: string
+  allow_implicit: boolean
+  metadata?: Record<string, unknown>
+  files: ImportedSkillFile[]
+}
+
+export interface AgentIntegrationSource {
+  auth_state?: 'required' | 'authorized' | ''
+  skill_selected?: boolean
+  id: string
+  kind: 'mcp' | 'skill'
+  name: string
+  enabled: boolean
+  revision: number
+  mcp?: MCPIntegrationConfig
+  skill?: ImportedSkillManifest
+  secret_configured: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface IntegrationSkillRead {
+  image_ref?: import('./content-resources.ts').ImageResourceReference
+  resource?: IntegrationContentReference
+  path: string
+  mime_type: string
+  sha256: string
+  size_bytes: number
+  offset: number
+  next_offset: number
+  done: boolean
+  text?: string
+  data?: string
+  files?: ImportedSkillFile[]
+  missing_dependencies?: string[]
+}
+
+export interface MCPIntegrationInput {
+  name: string
+  mcp: MCPIntegrationConfig
+  secret?: { environment?: Record<string, string>; headers?: Record<string, string> }
+  expected_revision: number
+}
+
+export interface SkillImportPreview {
+  token: string
+  manifest: ImportedSkillManifest
+  warnings: string[]
+}
+
+export interface IntegrationToolSummary {
+  source_id: string
+  source_revision: number
+  name: string
+  title?: string
+  description?: string
+  contract_hash: string
+  unavailable_reason?: string
+}
+
+export interface IntegrationCallReceipt {
+  generation?: number
+  result?: IntegrationToolResult
+  id: string
+  state: 'prepared' | 'dispatched' | 'completed' | 'uncertain' | 'denied' | 'not_dispatched'
+  may_dispatch: boolean
+}
+
+export interface IntegrationContentReference {
+  id: string
+  mime_type: string
+  object: { sha256: string; size_bytes: number }
+}
+export interface IntegrationToolResult {
+  content: Array<{ type: 'text'; text: string; resource_image?: import('./content-resources.ts').ImageResourceReference }>
+  isError?: boolean
+  operation?: string
+  connection_generation?: string
+}
+
+export interface IntegrationConnectionStatus {
+  source: string
+  revision: number
+  state: 'connected' | 'disconnected' | 'closing'
+  active: number
+  queued: number
+}

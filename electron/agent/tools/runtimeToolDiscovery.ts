@@ -20,13 +20,19 @@ export class RuntimeToolDiscovery {
   private readonly unavailable?: (name: string) => string | undefined
   private readonly onLoad?: (name: string) => void
   readonly tool: AgentTool
+  private readonly placeholders = new Map<string, AgentTool['parameters']>()
+  private readonly loadTool?: (name: string, signal?: AbortSignal) => Promise<AgentTool['parameters'] | undefined>
+  private readonly loadErrors = new Map<string, string>()
 
   constructor(tools: AgentTool[], originalName: (name: string) => string | null, permanent: AgentTool[], unavailable?: (name: string) => string | undefined,
-    onLoad?: (name: string) => void, skills?: RuntimeSkillDirectory) {
+    onLoad?: (name: string) => void, skills?: RuntimeSkillDirectory,
+    loadTool?: (name: string, signal?: AbortSignal) => Promise<AgentTool['parameters'] | undefined>) {
+    this.loadTool = loadTool
     this.unavailable = unavailable
     this.onLoad = onLoad
     this.registry = new RuntimeToolRegistry([...tools, ...permanent], originalName, skills)
     for (const entry of this.registry.entries) entry.tool = this.withDescription(entry)
+    if (loadTool) for (const entry of this.registry.entries) if (!entry.trusted) this.placeholders.set(entry.tool.name, entry.tool.parameters)
     this.tool = {
       name: 'discover_tools', label: '发现工具', executionMode: 'sequential',
       description: 'Find exact tools or skills. Use names for known names, operation + query for a business action, or group/source to browse. kind defaults to tools; skills returns reading references only. At most 8 results per page; follow next_cursor with identical filters. Returned tools become callable next turn. Discovery never executes or authorizes actions.',
@@ -40,14 +46,24 @@ export class RuntimeToolDiscovery {
         cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
         names: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 8 })),
       }, { additionalProperties: false }),
-      execute: async (_id, input) => this.discover(input as DiscoveryInput),
+      execute: async (_id, input, signal) => this.discover(input as DiscoveryInput, signal),
     }
     this.activeTools = new RuntimeActiveTools(this.registry.entries, [this.tool, ...permanent])
   }
 
-  private discover(args: DiscoveryInput) {
+  private async discover(args: DiscoveryInput, signal?: AbortSignal) {
     const result = runtimeDiscoveryPage(this.registry, args, this.preferredCapabilities, (entry) => Boolean(this.blocked(entry)))
     const found = result.page.flatMap((hit) => hit.tool ? [hit.tool] : [])
+    for (const entry of found) if (!entry.trusted && this.loadTool) {
+      try {
+        const parameters = await this.loadTool(entry.tool.name, signal)
+        if (parameters) entry.tool = { ...entry.tool, parameters }
+        this.loadErrors.delete(entry.tool.name)
+      } catch (error) {
+        signal?.throwIfAborted()
+        this.loadErrors.set(entry.tool.name, error instanceof Error && /^INTEGRATION_[A-Z_]+$/u.test(error.message) ? error.message : 'INTEGRATION_TOOL_UNAVAILABLE')
+      }
+    }
     const blocked = found.filter((entry) => this.blocked(entry))
     const eligible = found.filter((entry) => !this.blocked(entry))
     const admitted = eligible.filter((entry) => this.schedule(entry))
@@ -111,7 +127,7 @@ export class RuntimeToolDiscovery {
     } })
   }
 
-  private blocked(entry: RuntimeToolEntry) { return entry.trusted ? this.unavailable?.(entry.original) : undefined }
+  private blocked(entry: RuntimeToolEntry) { return entry.trusted ? this.unavailable?.(entry.original) : this.loadErrors.get(entry.tool.name) }
   private schedule(entry: RuntimeToolEntry) {
     if (this.blocked(entry) || !this.activeTools.schedule(entry)) return false
     if (entry.trusted) this.onLoad?.(entry.original)
@@ -139,6 +155,15 @@ export class RuntimeToolDiscovery {
     const role = runtimeCapabilityStep(name)?.role
     if (capability && role && ['submit', 'mutate', 'input', 'preview'].includes(role)) this.preferredCapabilities = new Set([capability.id])
   }
-  publish() { this.activeTools.publish(); return this.active() }
+  publish() {
+    this.activeTools.publish()
+    const active = this.active()
+    const names = new Set(active.map(tool => tool.name))
+    for (const entry of this.registry.entries) {
+      const placeholder = this.placeholders.get(entry.tool.name)
+      if (placeholder && !names.has(entry.tool.name)) entry.tool = { ...entry.tool, parameters: placeholder }
+    }
+    return active
+  }
   active() { return this.activeTools.active().filter((tool) => !this.registry.entries.some((entry) => entry.tool.name === tool.name && this.blocked(entry))) }
 }

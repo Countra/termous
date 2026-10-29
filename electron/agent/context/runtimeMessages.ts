@@ -135,6 +135,7 @@ function hydrateAssistantParts(
           id: toolCallID,
           name: toolName,
           arguments: requiredToolArguments(tool.arguments),
+          ...(tool.arguments_error !== undefined ? { argumentsError: requiredString(tool.arguments_error) } : {}),
         })
         break
       }

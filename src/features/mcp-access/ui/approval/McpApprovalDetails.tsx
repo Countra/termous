@@ -8,8 +8,10 @@ import { FilesApprovalRenderer } from './FilesApprovalRenderer'
 import { DesktopApprovalRenderer } from './DesktopApprovalRenderer'
 import { WorkflowApprovalRenderer } from './WorkflowApprovalRenderer'
 import { AnalysisApprovalRenderer } from './AnalysisApprovalRenderer'
+import { ExternalApprovalRenderer } from './ExternalApprovalRenderer'
 
 export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
+  if (approval.kind==='external_tool') return <ExternalApprovalRenderer operation={approval.operation}/>
   return (
     <>
       {approval.kind === 'screen_analysis' ? <AnalysisApprovalRenderer operation={approval.operation} /> : approval.kind === 'desktop_workflow' ? <WorkflowApprovalRenderer operation={approval.operation} /> : approval.kind === 'desktop' ? <DesktopApprovalRenderer operation={approval.operation} /> : approval.kind === 'files' ? (

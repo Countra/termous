@@ -4,6 +4,7 @@ import { createHistoryImageTool } from '../tools/historyImageTool.ts'
 import { createProviderModel, createRestrictedProviderFetch, createRuntimeStreamFunction, type RuntimeModel } from '../provider/runtimeProviderAdapter.ts'
 import {
   Agent,
+  type AgentTool,
   type AgentEvent,
   type AgentMessage,
   type AgentToolResult,
@@ -42,7 +43,7 @@ import { createRuntimeRetryStreamFunction } from '../provider/runtimeProviderRet
 import { bindRuntimeResourceTools } from '../tools/runtimeResourceRouting.ts'
 import { prepareBuiltinTools } from '../tools/preparation/index.ts'
 import { builtinName, identifyTool, isolateToolNames, localToolSource, termousToolSource, trustedTool } from '../contracts/toolSources.ts'
-import { RuntimeSkillDirectory, type SkillSourceSnapshot } from '../tools/runtimeSkillDirectory.ts'
+import { RuntimeSkillDirectory, type SkillSourceSnapshot, type LazySkillSource } from '../tools/runtimeSkillDirectory.ts'
 import type { PreparedCall } from '../contracts/toolPreparation.ts'
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from '../contracts/runtimeCheckpoint.ts'
 import type { RuntimeSteerResult } from '../contracts/runtimeEvents.ts'
@@ -52,6 +53,7 @@ import type { ReadDesktopTasks } from '../contracts/desktopTasks.ts'
 import { DesktopTaskCoordinator } from './desktopTasks/coordinator.ts'
 import { desktopTaskMessage, desktopTaskToolResult } from '../contracts/desktopTaskResult.ts'
 import { desktopWaitTool } from './desktopTasks/waitTool.ts'
+import { runtimeClientIdentity } from '../provider/runtimeClientIdentity.ts'
 
 export interface PiAgentController {
   continue(): Promise<PiRunOutcome>
@@ -72,6 +74,7 @@ export interface CreatePiAgentOptions {
   events: RuntimeEventWriter
   skills: AgentSkillBundleSnapshot
   skillSources?: SkillSourceSnapshot[]
+  lazySkills?: LazySkillSource[]
   fetch?: typeof globalThis.fetch
   now?: () => number
   newPartID?: () => string
@@ -102,7 +105,8 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const inputSafety = new RuntimeInputSafety()
   const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name), options.bootstrap.session.resource_bindings)
   const skillContext = new RuntimeSkillContext(options.skills)
-  const skillDirectory = new RuntimeSkillDirectory([{ source: termousToolSource, snapshot: options.skills }, ...options.skillSources ?? []])
+  const skillDirectory = new RuntimeSkillDirectory([{ source: termousToolSource, snapshot: options.skills }, ...options.skillSources ?? []], options.lazySkills)
+  skillDirectory.restore(options.bootstrap.context.checkpoint?.details?.external_skills)
   let supplementalFingerprint = progressDigest([])
   let supplementalTokens = 0
   let requestSupplementalTokens = 0
@@ -145,11 +149,13 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     return options.readHistoryImage(reference, signal)
   })
   const waits = [...createWorkflowWaitTool(boundTools, originalBuiltin), ...createAnalysisWaitTool(boundTools, originalBuiltin), ...(desktopTasks ? [desktopWaitTool(desktopTasks, output => observeBatch?.(output))] : [])].map((tool) => identifyTool(tool, localToolSource))
-  const discovery = new RuntimeToolDiscovery([...boundTools, ...waits], options.mcp.originalName, [skillTool, identifyTool(historyTool, localToolSource)],
+  const permanent=[skillTool,identifyTool(historyTool,localToolSource)]
+  const createDiscovery=(entries:AgentTool[])=>new RuntimeToolDiscovery(entries, options.mcp.originalName, permanent,
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
-    (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory)
+    (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory, options.mcp.loadTool)
+  let discovery = createDiscovery([...boundTools,...waits])
   let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? [], desktopContext.selected()) : discovery.active()
-  const systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
+  let systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
   let toolDeclarations = tools.map(toToolDeclaration)
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
   let contextFingerprint = fingerprint()
@@ -181,7 +187,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     supplementalMessages: (messages, commit) => supplementContext(messages, commit),
     retainToolCall: pendingPreviewCall,
     retainMessage: message => desktopTasks?.retainMessage(message) ?? false,
-    captureDetails: () => ({ execution_progress: toolProgress.snapshot(), desktop_context: desktopContext.snapshot() }),
+    captureDetails: () => ({ execution_progress: toolProgress.snapshot(), desktop_context: desktopContext.snapshot(), external_skills: skillDirectory.snapshot() }),
   })
   const projectImages = (messages: AgentMessage[], commit: boolean) => {
     const projected = imageWorkingSet.project(standardMessages(messages), commit)
@@ -214,7 +220,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     const summary = toolProgress.summary()
     const desktopSummary = options.lookupPreparedCall ? desktopContext.summary(!discovery.available('termous.desktops.capture') ? 'unavailable'
       : tools.some(tool => options.mcp.originalName(tool.name) === 'termous.desktops.capture') ? 'available' : 'deferred') : ''
-    const content = [...knowledge, ...[summary, desktopSummary].filter(Boolean).map(text => ({ type: 'text' as const, text }))]
+    const content = [...knowledge, ...[summary, desktopSummary, skillDirectory.recoveryHint()].filter(Boolean).map(text => ({ type: 'text' as const, text }))]
     const key = progressDigest(content)
     if (commit && supplementalFingerprint !== key) {
       supplementalFingerprint = key
@@ -287,16 +293,26 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let rotateSegment = false
   let checkpointBoundary = compaction.checkpoint()?.timestamp
   const desktopObservations: AgentMessage[] = []
-  const prepareTools = (messages: AgentMessage[]) => {
+  const prepareTools = async (messages: AgentMessage[], signal?:AbortSignal) => {
+    const change=await options.mcp.refreshTools?.(signal)
+    if (change) {
+      const removed=new Set([...change.removed,...permanent.map(tool=>tool.name)])
+      const activeNames=discovery.active().filter(trustedTool).map(tool=>options.mcp.originalName(tool.name) ?? tool.name)
+      const retained=discovery.registry.entries.filter(entry=>!removed.has(entry.tool.name)).map(entry=>entry.tool)
+      discovery=createDiscovery([...retained,...change.tools])
+      discovery.loadNames(activeNames)
+      systemPrompt=createRuntimeSystemPrompt(options.bootstrap,options.skills,Boolean(options.lookupPreparedCall),discovery.index())
+    }
     const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
-    if (next.map((tool) => tool.name).join() !== tools.map((tool) => tool.name).join()) {
+    if (next.length !== tools.length || next.some((tool,index) => tool !== tools[index])) {
       tools = next
       toolDeclarations = tools.map(toToolDeclaration)
       contextFingerprint = fingerprint()
-      compaction.updateTools(tools, messages)
+      compaction.updateTools(tools, messages, systemPrompt)
     }
   }
   const agent = new Agent({
+    identity: runtimeClientIdentity,
     initialState: {
       systemPrompt,
       model,
@@ -307,10 +323,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     // 系统提示和工具只来自本轮可信配置；压缩与 Core 快照仍只处理业务历史。
     convertToLlm: (messages) => normalizeContext({ systemPrompt, tools: toolDeclarations, messages: standardMessages(messages) }).messages,
     transformContext: (messages, signal) => compaction.transformContext(standardMessages(messages), signal),
-    prepareNextTurnWithContext: ({ context }) => {
-      prepareTools(context.messages)
-      return { context: { ...context, tools }, messages: desktopObservations.splice(0) }
+    prepareRequest: async ({ context },signal) => {
+      await prepareTools(context.messages,signal)
+      return { context: { ...context, tools,systemPrompt } }
     },
+    prepareNextTurnWithContext: () => ({ messages: desktopObservations.splice(0) }),
     finishTurn: async ({ toolResults, context }, signal) => {
       if (signal?.aborted) { aborted = true; return { action: 'end' } }
       for (const result of toolResults) {
@@ -439,9 +456,6 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         await agent.continue()
         await agent.waitForIdle()
         if (rotateSegment && !aborted && !executionFailure()) {
-          // 新循环首轮不调用 prepareNextTurn，必须同步实际执行工具，避免声明可用却执行失败。
-          prepareTools(agent.state.messages)
-          agent.state.tools = tools
           // 保留当前系统与工具基线，切换仅释放 SDK 循环，不产生新的业务 Run。
           agent.state.messages = normalizeContext({ systemPrompt, tools: toolDeclarations,
             messages: standardMessages(compaction.rebase(standardMessages(agent.state.messages))) }).messages

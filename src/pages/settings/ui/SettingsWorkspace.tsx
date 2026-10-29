@@ -23,6 +23,8 @@ import type {
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
+import { AssistantExtensions } from '#features/agent-integrations'
+import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
@@ -46,6 +48,7 @@ import styles from './SettingsWorkspace.module.scss'
 import { settingsPages, type SettingsPageTabKey } from '../model/registry'
 
 export interface SettingsWorkspaceProps {
+  integrationsGateway?: AgentIntegrationsGateway
   analysisGateway?: AnalysisGateway
   aiRuntimeGateway?: AIRuntimeGateway
   settingsGateway?: SettingsGateway
@@ -82,6 +85,7 @@ export interface SettingsWorkspaceProps {
 }
 
 export function SettingsWorkspace({
+  integrationsGateway,
   aiRuntimeGateway, analysisGateway,
   settingsGateway,
   initialTab = 'general',
@@ -148,6 +152,7 @@ export function SettingsWorkspace({
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   const panels: Record<SettingsPageTabKey, ReactNode> = {
+    extensions: <div className={styles['tab-scroll']}><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} /></div>,
     general: (
       <div className={styles['tab-scroll']}>
         <div className={styles['settings-stack']}>

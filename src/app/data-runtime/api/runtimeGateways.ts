@@ -22,6 +22,8 @@ import { getTermousBridge } from '#shared/bridge'
 import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 import { AliasClient } from './gateways/aliasClient'
 import { AgentSetupClient } from './gateways/agentSetupClient'
+import { AgentIntegrationsClient } from './gateways/agentIntegrationsClient'
+import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import { AgentWorkspaceClient } from './gateways/agentWorkspaceClient'
 import { CommandDispatchClient } from './gateways/commandDispatchClient'
 import { CredentialClient } from './gateways/credentialsClient'
@@ -53,6 +55,7 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 >
 
 export interface RuntimeGateways {
+  readonly agentIntegrations: AgentIntegrationsGateway
   readonly aiRuntime: AIRuntimeGateway
   readonly invalidateFileRenamePresets: () => void
   readonly cloud: CloudGateway
@@ -123,6 +126,7 @@ export function createRuntimeGatewaysFromConfig(
 
   return {
     aiRuntime: new AIRuntimeClient(config),
+    agentIntegrations: new AgentIntegrationsClient(config),
     desktopWorkflow: new WorkflowClient(config),
     cloud: new CloudClient(config),
     invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),

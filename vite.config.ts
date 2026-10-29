@@ -14,6 +14,7 @@ const electronMainEntry = process.env.TERMOUS_BUILD_UPDATE_SIMULATION === '1'
   : {
       main: 'electron/main.ts',
       'agent-worker': 'electron/agent/worker/worker.ts',
+      'agent-integrations': 'electron/agent/integrations/host/entry.ts',
       'terminal-completion-worker': 'electron/terminalCompletion/worker.ts',
     }
 

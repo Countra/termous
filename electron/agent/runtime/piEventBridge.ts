@@ -245,6 +245,7 @@ export class PiEventBridge {
           tool_call_id: content.id,
           tool_name: this.requireOriginalToolName(content.name),
           arguments: content.arguments,
+          ...(content.argumentsError ? { arguments_error: content.argumentsError.slice(0, 2048) } : {}),
         },
         ...metadata,
       })
