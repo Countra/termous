@@ -11,6 +11,8 @@ import type { RuntimeResourceBinding } from '../contracts/resourceBindings.ts'
 import { RuntimeExecutionState, type ProgressNotice, type ExecutionRecovery as Recovery } from './runtimeExecutionState.ts'
 import { desktopControlUnconfirmed } from './runtimeDesktopObservation.ts'
 import { isRecord } from '../contracts/validation.ts'
+import { localFileEvidence, projectLocalToolResult } from './runtimeLocalToolResult.ts'
+import type { ToolDeclarationState } from '../contracts/toolCapabilities.ts'
 
 interface Observation { fingerprint: string; count: number; name: string; resource: string; epoch: number }
 // 进展提示与可关闭预算独立；只有已完成资源的生命周期约束会阻止再次派发。
@@ -61,11 +63,15 @@ export class RuntimeToolProgress {
     const failure = progressFailure(data, name)
     const error = isError || mcp?.result.isError === true || failure !== undefined
     const code = failure?.code ?? (error && typeof data.code === 'string' ? data.code.slice(0, 128) : undefined)
-    const resource = progressResource(args, data)
+    const resource = progressResource(args, data, name)
+    const previousRecovery = this.recoveries.get(`${name}:${resource}`)
+    if (name.startsWith('termous.local.files.') && localFileEvidence(data) && previousRecovery && previousRecovery.failure_code !== code) {
+      this.advance(resource, name, '当前回执已改变失败原因；按最新事实处理，不继续沿用旧诊断。', true)
+    }
     const previousFailure = this.previousFailure
     this.previousFailure = error ? { name, resource } : undefined
     const unresolved = error || ['pending', 'waiting'].includes(runtimeToolOutcome(name, data)) || desktopControlUnconfirmed(name, data, this.now())
-    this.observeRecovery(name, resource, navigation, unresolved)
+    this.observeRecovery(name, resource, navigation, unresolved, code)
     const terminal = !error && mcp && completedToolResource(name, args, data)
     if (!error) for (const dependency of runtimeToolDependencies(name)) this.cleanupSuspended.delete(dependency)
     if (terminal) {
@@ -193,7 +199,7 @@ export class RuntimeToolProgress {
     return [...this.notices].map(([id, notice]) => [this.noticeResources.get(id) ?? 'unresolved', notice])
   }
 
-  summary() { return this.state.summary(this.diagnosticNotices(), [...this.recoveries.values()]) }
+  summary(declaration?: (name: string) => ToolDeclarationState) { return this.state.summary(this.diagnosticNotices(), [...this.recoveries.values()], declaration) }
   resolveDesktopObservation(attachmentID: string) {
     const resource = progressResource({ attachment_id: attachmentID })
     for (const name of ['termous.desktops.get', 'termous.desktops.capture']) {
@@ -221,12 +227,12 @@ export class RuntimeToolProgress {
     }
   }
 
-  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, unresolved: boolean) {
+  private observeRecovery(name: string, resource: string, navigation: ToolNavigation | undefined, unresolved: boolean, code?: string) {
     const key = `${name}:${resource}`
     if (navigation?.prerequisite) remember(this.prerequisites, key, { tool: name, resource, query: navigation.prerequisite }, 12)
     else this.prerequisites.delete(key)
     if (navigation?.recovery) remember(this.recoveries, `${name}:${resource}`, { tool: name, resource,
-      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.filter(this.available).slice(0, 8), empty: navigation.empty, observation_only: navigation.observationOnly }, 12)
+      guidance: navigation.guidance.slice(0, 1600), next_tools: navigation.names.slice(0, 8), empty: navigation.empty, observation_only: navigation.observationOnly, failure_code: code }, 12)
     else if (!unresolved && !progressMetaTools.has(name)) this.recoveries.delete(`${name}:${resource}`)
   }
 
@@ -237,16 +243,17 @@ export class RuntimeToolProgress {
       if (message.role !== 'toolResult') continue
       const name = decodeMCPToolName(message.toolName) ?? message.toolName
       const result = { content: message.content, details: undefined }
-      const data = progressData(result)
+      const raw = progressData(result)
+      const data = name.startsWith('termous.local.') ? projectLocalToolResult(raw) : raw
       const parameters = args.get(message.toolCallId)
-      const resource = progressResource(parameters, data)
+      const resource = progressResource(parameters, data, name)
       const code = progressFailure(data, name)?.code
       const failed = message.isError || code !== undefined
       const grantChanged = !progressMetaTools.has(name) && this.state.observe(name, resource, data, parameters, failed, code, 'historical', message.timestamp) === true
       const navigation = runtimeToolNavigation(name, { ...result, details: { kind: 'mcp', originalToolName: name,
         readOnly: readOnly(name), result: { content: message.content, structuredContent: data, isError: failed } } }, this.bindings, failed, undefined, parameters)
       if (navigation?.recovery) this.state.historicalRecovery({ tool: name, resource, guidance: navigation.guidance,
-        next_tools: navigation.names.filter(this.available), empty: navigation.empty, observation_only: navigation.observationOnly })
+        next_tools: navigation.names.filter(this.available), empty: navigation.empty, observation_only: navigation.observationOnly, failure_code: code })
       if (!failed) this.confirmRecovery(name, resource, data, true, message.timestamp, grantChanged)
       args.delete(message.toolCallId)
     }

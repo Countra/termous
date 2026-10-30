@@ -40,6 +40,15 @@ export class RuntimeActiveTools {
   }
   complete(name: string) { this.inFlight.delete(name) }
 
+  // 目录刷新时先保留待发布入口，再按最近使用顺序恢复驻留声明，避免恢复建议丢在请求边界。
+  requested() { return [...new Set([...this.pending, ...[...this.selected].sort((a, b) => b[1] - a[1]).map(([name]) => name)])] }
+
+  // 重建目录按优先级接纳声明，再逆序恢复使用顺序，避免最新纠错入口变成最先被淘汰的项。
+  restorePending() {
+    for (const name of [...this.pending].reverse()) this.selected.set(name, ++this.clock)
+    this.pending.clear()
+  }
+
   publish() {
     const protectedParents = new Set(this.protectedParents())
     for (const name of this.pending) this.selected.set(name, ++this.clock)

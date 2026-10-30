@@ -3,6 +3,8 @@ import type { CapabilityFailure } from '../contracts/toolCapabilities.ts'
 // 只分类已结构化的错误码；错误正文及远端页面不能指定恢复操作。
 export function runtimeFailureKind(errorCode?: string): CapabilityFailure {
   const code = errorCode?.toLowerCase() ?? ''
+  if (code === 'local_path_is_directory') return 'invalid'
+  if (code === 'local_link_not_allowed' || code === 'local_private_path') return 'blocked'
   if (/forbidden|unauthorized|permission|denied|host_key|credential|approval_(?:rejected|expired|cancelled)/u.test(code)) return 'blocked'
   if (/uncertain|ambiguous|deadline|timeout/u.test(code)) return 'uncertain'
   if (/status_unavailable|not_ready|no_new_frame|in_progress|busy|session_limit/u.test(code)) return 'pending'

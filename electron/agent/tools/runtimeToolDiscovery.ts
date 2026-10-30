@@ -2,7 +2,8 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 import { Compile } from 'typebox/compile'
 import type { ToolNavigation } from './runtimeToolNavigation.ts'
-import type { DiscoveryInput } from './runtimeToolSearch.ts'
+import { createToolSearch, toolUsageAlias, type DiscoveryInput } from './runtimeToolSearch.ts'
+import type { ToolDeclarationState } from '../contracts/toolCapabilities.ts'
 import { runtimeCapability, runtimeCapabilityStep, runtimeToolOperations, skillEntryTools } from './runtimeCapabilityCatalog.ts'
 import { RuntimeToolRegistry, type RuntimeToolEntry } from './runtimeToolRegistry.ts'
 import { RuntimeActiveTools } from './runtimeActiveTools.ts'
@@ -71,9 +72,17 @@ export class RuntimeToolDiscovery {
     const notFound = args.names?.filter((name) => !this.registry.entries.some((entry) => (!args.source || args.source === entry.source.id) && (entry.original === name || entry.tool.name === name))
       && !this.registry.skills?.catalog.some((skill) => (!args.source || args.source === skill.source.id) && (skill.name === name || skill.entry_uri === name))) ?? []
     const skills = result.page.flatMap((hit) => hit.skill ? [{ name: hit.skill.name, source: hit.skill.source.id, description: hit.skill.description, uri: hit.skill.entry_uri }] : [])
+    const purposeSearch = args.kind !== 'skills' && args.operation && args.query && !args.names?.length ? createToolSearch({ ...args, operation: undefined }) : undefined
+    const alternatives = purposeSearch ? this.registry.entries.filter(entry => entry.trusted && !this.blocked(entry)
+      && (!args.source || args.source === entry.source.id) && toolUsageAlias(entry.original, args.query!)
+      && !runtimeToolOperations(entry.original).includes(args.operation!) && purposeSearch(entry) > 0).slice(0, 3)
+      .map(entry => ({ source: entry.source.id, original_name: entry.original,
+        discovery: { tool: 'discover_tools', arguments: { source: entry.source.id, query: args.query, operation: runtimeToolOperations(entry.original)[0] } },
+      })) : []
     return { content: [{ type: 'text' as const, text: JSON.stringify({
       tools: admitted.map((entry) => ({ ...this.registry.describe(entry), match: args.names?.length ? 'exact_name' : args.query ? 'query' : 'browse' })),
       skills, total_matches: result.total, ...(result.next_cursor ? { next_cursor: result.next_cursor } : {}),
+      ...(alternatives.length ? { related_actions: alternatives, operation_guidance: 'These tools support the requested purpose but have a different operation. They were not loaded by this explicit operation filter; execution and approval policies remain unchanged.' } : {}),
       ...(result.ambiguous.length ? { ambiguous: result.ambiguous, guidance: 'Choose an exact returned name or source; no ambiguous tool was loaded.' } : {}),
       ...(notFound.length ? { not_found: notFound, unavailable_guidance: 'These names are absent from the selected authorized catalog. Browse or search actual capabilities instead of guessing names.' } : {}),
       ...(blocked.length ? { unavailable: blocked.map((entry) => ({ name: entry.original, source: entry.source.id, reason: this.blocked(entry) })) } : {}),
@@ -134,6 +143,22 @@ export class RuntimeToolDiscovery {
     return true
   }
   catalog() { return this.registry.groups() }
+  declaration(name: string, published: readonly AgentTool[] = this.active()): ToolDeclarationState {
+    const entry = this.registry.entries.find(candidate => candidate.trusted && candidate.original === name)
+    return { original_name: name, ...(entry ? { name: entry.tool.name, source: entry.source.id } : {}),
+      status: !entry || this.blocked(entry) ? 'unavailable' : published.some(tool => tool.name === entry.tool.name) ? 'declared' : 'discoverable' }
+  }
+  retainedNames() {
+    return this.activeTools.requested().flatMap(name => {
+      const entry = this.registry.entries.find(candidate => candidate.tool.name === name && candidate.trusted)
+      return entry ? [entry.original] : []
+    })
+  }
+  restoreNames(names: string[]) {
+    const admitted = this.loadNames(names)
+    this.activeTools.restorePending()
+    return admitted
+  }
   index() { return runtimeCapabilityIndex(this.registry, (name) => this.available(name)) }
   preload(bindings: readonly RuntimeResourceBinding[], target?: ObservationTarget) { this.loadNames(this.registry.initial(bindings, (name) => this.available(name), target)); return this.publish() }
   available(name: string) { return this.registry.entries.some((entry) => entry.trusted && entry.original === name && !this.blocked(entry)) }

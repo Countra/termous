@@ -4,6 +4,7 @@ import { isRecord } from '../contracts/validation.ts'
 import { runtimeCapability, runtimeCapabilityStep } from './runtimeCapabilityCatalog.ts'
 import { runtimeToolFailureCode, runtimeToolOutcome } from './runtimeToolOutcome.ts'
 import { isResourceImage } from '../contracts/runtimeResourceImages.ts'
+import { localFileEvidence } from './runtimeLocalToolResult.ts'
 
 export { runtimeToolResultData as progressData } from '../contracts/runtimeToolResult.ts'
 
@@ -15,7 +16,9 @@ export function progressDigest(value: unknown): string {
     : item) ?? 'null').digest('hex')
 }
 
-export function progressResource(args: unknown, data?: Record<string, unknown>): string {
+export function progressResource(args: unknown, data?: Record<string, unknown>, name?: string): string {
+  const local = name?.startsWith('termous.local.files.') && data ? localFileEvidence(data) : undefined
+  if (local) return `local_file:${progressDigest(local.path)}`
   const analysis = isRecord(data?.data) ? data.data.analysis : undefined
   if (isRecord(analysis) && typeof analysis.id === 'string') return `analysis_id:${analysis.id.slice(0, 160)}`
   const attachment = data?.attachment
@@ -81,6 +84,17 @@ export function progressFingerprint(name: string, data: Record<string, unknown>,
 
 export function progressFact(name: string, resource: string, data: Record<string, unknown>, error: boolean, code?: string) {
   const values: Record<string, string | number | boolean> = {}
+  if (name.startsWith('termous.local.files.')) {
+    const local = localFileEvidence(data)
+    if (local) values.local_path = String(local.path)
+    else if (typeof data.local_path === 'string' && data.local_path.length <= 32768) values.local_path = data.local_path
+    const directory = local?.working_directory ?? data.local_working_directory
+    const revision = local?.directory_revision ?? data.local_directory_revision
+    if (typeof directory === 'string' && directory.length <= 32768 && typeof revision === 'number' && Number.isSafeInteger(revision)) {
+      values.local_working_directory = directory
+      values.local_directory_revision = revision
+    }
+  }
   const fields = ['id', 'session_id', 'file_session_id', 'task_id', 'operation_id', 'operation_state', 'transfer_id', 'forward_id', 'connection_generation', 'execution_generation', 'state', 'status', 'phase', 'revision', 'number', 'exit_code', 'error_code', 'cleanup_error', 'executed', 'next_offset', 'eof', 'partial', 'uncertain', 'snapshot_id', 'preview_id', 'asset_id', 'script_id', 'version', 'completed', 'closed', 'attachment_id', 'grant_id', 'grant_status', 'grant_expires_at', 'grant_idle_expires_at', 'control_status', 'control_reason', 'desktop_available']
   const capture = isRecord(data.capture) ? data.capture : isRecord(data.snapshot) ? data.snapshot : {}
   const detail = isRecord(data.detail) ? data.detail : {}

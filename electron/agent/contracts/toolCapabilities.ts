@@ -2,6 +2,13 @@ export type CapabilityRole = 'list' | 'inspect' | 'observe' | 'preview' | 'submi
 export type CapabilityFailure = 'blocked' | 'uncertain' | 'stale' | 'pending' | 'missing' | 'invalid' | 'unavailable' | 'unknown'
 export type CapabilityTarget = 'session' | 'profile' | 'unbound'
 
+export interface ToolDeclarationState {
+  original_name: string
+  name?: string
+  source?: string
+  status: 'declared' | 'discoverable' | 'unavailable'
+}
+
 export interface CapabilityCase {
   tools: string[]
   path?: string
@@ -30,7 +37,7 @@ export interface CapabilityStep {
 }
 
 export interface ToolCapability {
-  discovery: { summary: string; entry: string[]; preload?: Array<{ tool: string; bindings: string[]; priority: number }> }
+  discovery: { summary: string; entry: string[]; aliases?: Record<string, string[]>; preload?: Array<{ tool: string; bindings: string[]; priority: number }> }
   id: string
   group: string
   prefix: string

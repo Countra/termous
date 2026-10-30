@@ -31,6 +31,8 @@ An empty request browses the catalog. Responses return exact names, original nam
 
 Cursor validation binds the directory fingerprint, normalized filters, result limit, and execution gate state. Changed conditions return `AGENT_DISCOVERY_CURSOR_STALE`; the caller restarts without the cursor. Search uses exact-name priority, built-in bilingual action/resource vocabulary, and generic name/title/description/parameter-name retrieval for all tools. When built-in vocabulary does not match, declared fields remain searchable; explicit action and source filters still apply. Empty-query browsing includes every authorized tool, with entry priority affecting order only. No vector service or model routing request is involved.
 
+Optional `discovery.aliases` maps a capability's tool names to bounded purpose phrases. All terms in a phrase must match the same query segment. An alias can supplement inferred-action recall, such as finding local command execution for a local directory listing, but cannot override an explicit `operation` or source filter. An incompatible explicit operation can return `related_actions` with a corrected discovery request; those suggestions do not load or execute tools. Skills-only searches do not return these tool suggestions.
+
 ## Skills and bounded residency
 
 Built-in Skill URIs remain unchanged. External snapshots use `skill://sources/<source>/<skill>/<path>`; relative references stay in that source. The original snapshot digest is checked without rewriting its content. External documents do not become system rules or automatically activate built-in tools. The built-in catalog continues to exclude the external-client-only local application launcher Skill, while historical URI reads remain compatible.
@@ -38,6 +40,10 @@ Built-in Skill URIs remain unchanged. External snapshots use `skill://sources/<s
 Active declarations and cleanup dependencies together are limited to 32. Dependency groups use LRU eviction; an executing dependency protects its parent group. Idle groups can be evicted and rediscovered. This only controls declaration residency: resource cleanup, authorization, cancellation, and uncertain-input protection remain domain responsibilities.
 
 The run retains one registry and search representation, not a history of search results. First requests, context compaction, and ten-turn SDK continuations use the same active declarations and executors.
+
+Directory refresh preserves pending navigation declarations as well as active parents, admitting pending entries before older idle entries within the same capacity and retaining their eviction priority. `prepareRequest` publishes the tools before the execution summary is projected. Current recovery suggestions report exact model names and `declared`, `discoverable`, or `unavailable` against that published set. Historical suggestions are labeled as historical and do not claim current declaration availability or restore old approvals.
+
+Local results share one bounded projection for live calls and history: structured errors, Core-resolved paths, call/task states, output cursors and content digests. File text, command output and search matches are not copied into recovery details. A changed output digest is new evidence even if the task status is unchanged. An unrelated command does not resolve a file diagnosis; directory advice is conditional on whether the requested listing is still needed, and existing command receipts take precedence over resubmission.
 
 ## Validation performed on 2026-10-24
 

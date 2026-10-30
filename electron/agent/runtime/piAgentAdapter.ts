@@ -157,11 +157,12 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let tools = options.lookupPreparedCall ? discovery.preload(options.bootstrap.session.resource_bindings ?? [], desktopContext.selected()) : discovery.active()
   let systemPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index())
   let toolDeclarations = tools.map(toToolDeclaration)
+  const executionSummary = () => toolProgress.summary(name => discovery.declaration(name, tools))
   const fingerprint = () => runtimeContextFingerprint(model, systemPrompt + imageWorkingSet.key() + supplementalFingerprint, tools.map(({ name, description, parameters }) => ({ name, description, parameters })), options.bootstrap.run.provider_id, options.bootstrap.run.model_id)
   let contextFingerprint = fingerprint()
   const baseStream = runtimeResourceStream(createRuntimeStreamFunction(options.bootstrap.model.api_key, providerFetch), options.readResourceImage, options.reserveImageBytes)
   const secrets = options.bootstrap.model.api_key ? [options.bootstrap.model.api_key] : []
-  const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: toolProgress.summary(), timestamp: 0 }), ...(requestDesktopReceipts.length ? { desktop_task_receipts: requestDesktopReceipts } : {}) }) : undefined
+  const diagnostics = options.bootstrap.context.progress_supported ? () => ({ context_fingerprint: contextFingerprint, execution_summary_tokens: estimateRuntimeMessageTokens({ role: 'user', content: executionSummary(), timestamp: 0 }), ...(requestDesktopReceipts.length ? { desktop_task_receipts: requestDesktopReceipts } : {}) }) : undefined
   const streamFn = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'response', secrets, diagnostics)
   const summaryStream = measuredRuntimeStream(baseStream, budget, options.events, options.bootstrap.context.request_usage_supported === true, 'compaction', secrets)
   const bridge = new PiEventBridge({
@@ -217,7 +218,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   }
   const supplementContext = (messages: AgentMessage[], commit: boolean): AgentMessage[] => {
     const knowledge = skillContext.content(messages)
-    const summary = toolProgress.summary()
+    const summary = executionSummary()
     const desktopSummary = options.lookupPreparedCall ? desktopContext.summary(!discovery.available('termous.desktops.capture') ? 'unavailable'
       : tools.some(tool => options.mcp.originalName(tool.name) === 'termous.desktops.capture') ? 'available' : 'deferred') : ''
     const content = [...knowledge, ...[summary, desktopSummary, skillDirectory.recoveryHint()].filter(Boolean).map(text => ({ type: 'text' as const, text }))]
@@ -298,10 +299,10 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     const change=await options.mcp.refreshTools?.(signal)
     if (change) {
       const removed=new Set([...change.removed,...permanent.map(tool=>tool.name)])
-      const activeNames=discovery.active().filter(trustedTool).map(tool=>options.mcp.originalName(tool.name) ?? tool.name)
+      const activeNames=discovery.retainedNames()
       const retained=discovery.registry.entries.filter(entry=>!removed.has(entry.tool.name)).map(entry=>entry.tool)
       discovery=createDiscovery([...retained,...change.tools])
-      discovery.loadNames(activeNames)
+      discovery.restoreNames(activeNames)
       systemPrompt=createRuntimeSystemPrompt(options.bootstrap,options.skills,Boolean(options.lookupPreparedCall),discovery.index())
     }
     const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))

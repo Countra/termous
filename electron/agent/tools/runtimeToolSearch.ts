@@ -1,4 +1,4 @@
-import { runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
+import { capabilityToolName, runtimeCapabilities, runtimeCapability, runtimeCapabilityStep, runtimeOperations, runtimeToolOperations } from './runtimeCapabilityCatalog.ts'
 import { localToolNames } from '../contracts/toolNames.ts'
 
 interface SearchEntry { original: string; group: string; keywords: string; trusted?: boolean; searchText?: string; tool: { name: string; description: string } }
@@ -28,6 +28,13 @@ function resourceTerms(keywords: string, query: string) {
   return keywords.toLowerCase().split(' ').filter((word) => word.length > 1 && (/[\u4e00-\u9fff]/u.test(word) ? query.includes(word) : query.split(/[^a-z0-9_]+/u).includes(word)))
 }
 
+export function toolUsageAlias(name: string, query: string) {
+  const capability = runtimeCapability(name)
+  const aliases = Object.entries(capability?.discovery.aliases ?? {}).find(([tool]) => capabilityToolName(capability!, tool) === name)?.[1]
+  const normalized = query.trim().toLowerCase()
+  return aliases?.some(phrase => phrase.toLowerCase().split(/\s+/u).every(term => resourceTerms(term, normalized).length > 0)) ?? false
+}
+
 export function createToolSearch(args: DiscoveryInput, preferredCapabilities: ReadonlySet<string> = new Set()) {
   const query = (args.query ?? '').trim().toLowerCase()
   // 显式动作是精确过滤条件；自然语言仅做有界召回，资源与动作由同一契约索引。
@@ -42,7 +49,7 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
     const best = Math.max(0, ...scores.values())
     const groupBest = Math.max(0, ...resources.filter(({ capability }) => capability.group === args.group).map(({ terms }) => terms.length))
     // group 是导航提示；明确资源目标更强时纠正错组，授权范围始终由真实目录限定。
-    return { operation, scores, best, group: args.group && groupBest >= best ? args.group : undefined }
+    return { operation, segment, scores, best, group: args.group && groupBest >= best ? args.group : undefined }
   })
   return (entry: SearchEntry) => {
     if (args.names?.length) return args.names.includes(entry.original) || args.names.includes(entry.tool.name) ? 10000 : 0
@@ -58,8 +65,10 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
     const role = runtimeCapabilityStep(original)?.role
     const lexicalScore = genericSearchScore(query, entry.searchText ?? `${entry.original} ${entry.tool.description}`)
     const score = query.split(/[\s,，。/]+/u).filter(Boolean).reduce((sum, token) => sum + (original.split('.').includes(token) ? 20 : entry.tool.description.toLowerCase().includes(token) ? 3 : 0), 0)
-    return Math.max(0, ...candidates.map(({ operation, scores, best, group }) => {
-      if (group && group !== entry.group || operation && !operations.includes(operation)) return 0
+    return Math.max(0, ...candidates.map(({ operation, segment, scores, best, group }) => {
+      const usage = toolUsageAlias(entry.original, segment)
+      // 用途别名只补充自然语言召回，不能放宽显式动作或来源过滤。
+      if (group && group !== entry.group || operation && !operations.includes(operation) && (args.operation || !usage)) return 0
       const resource = capability ? scores.get(capability.id) ?? 0 : 0
       if (best > 0 && (!capability || !scores.has(capability.id))) return 0
       // 未命中业务词汇时仍检索真实声明；连续性只补足已识别的动作，不为任意无关查询兜底。
@@ -70,7 +79,7 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
       const continuity = capability && preferredCapabilities.has(capability.id) ? 30 : 0
       const phase = /状态|进度|终态|\bstatus\b/u.test(query) && role === 'poll' ? 20 : 0
       // 浏览时所有通过过滤的工具都进入分页，入口优先级只影响排序。
-      return (query ? 0 : 1) + (group ? 100 : 0) + resource * 30 + (operation ? 200 : 0) + score + (best === 0 ? lexicalScore : 0) + browse + entryPriority + continuity + phase
+      return (query ? 0 : 1) + (group ? 100 : 0) + resource * 30 + (operation ? 200 : 0) + (usage ? 60 : 0) + score + (best === 0 ? lexicalScore : 0) + browse + entryPriority + continuity + phase
     }))
   }
 }

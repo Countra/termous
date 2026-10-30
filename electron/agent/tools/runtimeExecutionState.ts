@@ -3,9 +3,10 @@ import { isRecord } from '../contracts/validation.ts'
 import { confirmedDesktopAttachment, desktopAttachment, desktopControlUnconfirmed, desktopGrantCurrent, desktopObservation, projectDesktopEvidence } from './runtimeDesktopObservation.ts'
 import { progressFact, progressResource } from './runtimeToolEvidence.ts'
 import { runtimeToolOutcome } from './runtimeToolOutcome.ts'
+import type { ToolDeclarationState } from '../contracts/toolCapabilities.ts'
 
 export type ProgressNotice = Omit<AgentProgressData, 'assistant_message_id' | 'after_part_sequence'> & { origin?: 'current' | 'historical' }
-export interface ExecutionRecovery { tool: string; resource: string; guidance: string; next_tools: string[]; empty?: boolean; observation_only?: boolean; origin?: 'current' | 'historical' }
+export interface ExecutionRecovery { tool: string; resource: string; guidance: string; next_tools: string[]; empty?: boolean; observation_only?: boolean; failure_code?: string; origin?: 'current' | 'historical' }
 type Fact = ReturnType<typeof progressFact> & { origin: 'current' | 'historical'; observed_at?: number }
 export interface ProgressSnapshot { version: 2; facts: Fact[]; notices: [string, ProgressNotice][]; recoveries: ExecutionRecovery[] }
 
@@ -32,6 +33,8 @@ export class RuntimeExecutionState {
     if (desktop && previous?.origin === 'current' && previous.values.grant_id && desktop.grant_id && !desktop.grant_expires_at
       && previous.values.grant_id !== desktop.grant_id) return
     if (origin === 'historical' && previous?.origin === 'current') return
+    // 同一路径的新回执已经经过当前调用链；旧诊断不再作为当前建议，但不推导其他权限已恢复。
+    if (name.startsWith('termous.local.files.') && resource.startsWith('local_file:')) this.resolveRecovery(name, resource)
     if (desktop?.attachment_id && previous?.origin === origin && !desktop.grant_expires_at && !desktopAttachment(data)) {
       fact.values = { ...previous.values, ...fact.values }
     }
@@ -92,7 +95,7 @@ export class RuntimeExecutionState {
     return [...this.facts.values()].map((fact) => ({ ...fact, values: projectDesktopEvidence(fact.values, fact.origin === 'historical', this.now()) }))
   }
 
-  summary(notices: [string, ProgressNotice][], recoveries: ExecutionRecovery[]) {
+  summary(notices: [string, ProgressNotice][], recoveries: ExecutionRecovery[], declaration?: (name: string) => ToolDeclarationState) {
     const facts = this.projectedFacts().reverse()
     const detected = notices.filter(([, notice]) => notice.status === 'detected')
     const pending = recoveries.filter((entry) => !detected.some(([resource, notice]) => notice.tool_name === entry.tool && resource === entry.resource && notice.guidance.includes(entry.guidance))).reverse()
@@ -108,10 +111,13 @@ export class RuntimeExecutionState {
       ...[...this.historicalRecoveries.values()].reverse(), ...facts.filter((fact) => fact.origin === 'historical'),
     ]
     if (!entries.length) return ''
-    const lines = ['[TERMOUS_EXECUTION_STATE]', 'current 是本轮实际回执；historical 仅供参考，旧附着、授权和截图需重新核验。not_held 表示最近查询未返回授权；needs_verification 表示尚待核验，均不代表应立即重新申请。先处理原错误或审批状态。已登记任务保留原标识查询，不重新执行。']
+    const lines = ['[TERMOUS_EXECUTION_STATE]', 'current 是本轮实际回执；historical 仅供参考，旧失败不能覆盖新回执，旧附着、授权和截图需重新核验。not_held 表示最近查询未返回授权；needs_verification 表示尚待核验，均不代表应立即重新申请。先处理原错误或审批状态。已登记任务保留原标识查询，不重新执行。declared 表示本次已声明，discoverable 需先发现，unavailable 不可用；历史建议不表示当前声明。']
     for (const entry of entries) {
       // 完整反馈仍在原回执中；摘要给当前事实与未解决诊断各留空间。
-      const line = JSON.stringify('next_tools' in entry ? { ...entry, guidance: entry.guidance.slice(0, 500), next_tools: entry.next_tools.filter(this.available).slice(0, 3) } : entry)
+      const line = JSON.stringify('next_tools' in entry ? { ...entry, guidance: entry.guidance.slice(0, 500),
+        next_tools: entry.origin === 'historical' || declaration ? undefined : entry.next_tools.filter(this.available).slice(0, 3),
+        ...(entry.origin !== 'historical' && declaration ? { tool_availability: entry.next_tools.slice(0, 3).map(declaration) } : {}),
+      } : entry)
       if (lines.join('\n').length + line.length <= 2000) lines.push(line)
     }
     lines.push('[/TERMOUS_EXECUTION_STATE]')
@@ -155,6 +161,7 @@ export class RuntimeExecutionState {
     if (Array.isArray(value.recoveries)) for (const entry of value.recoveries.slice(-12)) {
       if (!isRecord(entry) || !shortString(entry.tool, 128) || !shortString(entry.resource, 256) || !shortString(entry.guidance, 1600) || !Array.isArray(entry.next_tools)) continue
       this.historicalRecovery({ tool: entry.tool, resource: entry.resource, guidance: entry.guidance, empty: entry.empty === true, observation_only: entry.observation_only === true,
+        ...(shortString(entry.failure_code, 128) ? { failure_code: entry.failure_code } : {}),
         next_tools: entry.next_tools.filter((name): name is string => shortString(name, 128) && this.available(name)).slice(0, 8) })
     }
     return true
