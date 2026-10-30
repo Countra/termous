@@ -10,7 +10,7 @@ export async function integrationResources(core: IntegrationCorePort, connection
   if (!connection.client.serverCapabilities?.resources) throw new Error('INTEGRATION_RESOURCES_UNSUPPORTED')
   const method = input.kind === 'templates' ? 'resources/templates/list' : 'resources/list'
   return connections.execute(connection, 0, signal, async () => {
-    const result = await connection.client.request<Record<string, unknown>>(method, input.cursor ? {cursor:input.cursor} : {}, {signal})
+    const result = await connection.client.request<Record<string, unknown>>(method, input.cursor ? {cursor:input.cursor} : {}, {signal, timeoutMs: 15_000})
     if (Buffer.byteLength(JSON.stringify(result)) > 192 * 1024) throw new Error('INTEGRATION_RESOURCE_DIRECTORY_TOO_LARGE')
     const field = input.kind === 'templates' ? 'resourceTemplates' : 'resources'
     if (!Array.isArray(result[field]) || result[field].length > 1024) throw new Error('INTEGRATION_RESOURCE_DIRECTORY_INVALID')
@@ -35,7 +35,7 @@ export async function readIntegrationResource(core: IntegrationCorePort, connect
     if (connection.retired) throw new Error('INTEGRATION_CONFIG_CHANGED')
     // URI 只交给所属 MCP 来源，绝不由宿主当作网络地址读取。
     mark()
-    const result = await connection.client.request<ReadResourceResult>('resources/read',{uri:input.uri},{signal})
+    const result = await connection.client.request<ReadResourceResult>('resources/read',{uri:input.uri},{signal, timeoutMs: 15_000})
     return {content:result.contents.map(resource => ({type:'resource' as const,resource}))}
   }),signal)
 }

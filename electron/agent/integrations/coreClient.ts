@@ -2,6 +2,7 @@ import type { AgentIntegrationSource, IntegrationCallReceipt, IntegrationToolSum
 import type { ImageResourceReference } from '#common/contracts'
 import type { IntegrationCorePort, IntegrationHostConfig, IntegrationRunContext, IntegrationToolDefinition } from '../contracts/integrations.ts'
 import { validateCoreBaseURL } from '../contracts/supervisorCore.ts'
+import { IntegrationFailure } from './diagnostics.ts'
 
 export interface IntegrationCoreConfig { baseURL: string; token: string; supervisor: string }
 
@@ -14,14 +15,20 @@ export class IntegrationCoreClient implements IntegrationCorePort {
     validateCoreBaseURL(configuration.baseURL)
   }
 
-  config(source: string, revision: number, signal?: AbortSignal) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision }, undefined, signal) }
-  verifiedConfig(source: string, revision: number, signal?: AbortSignal) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision, verify_launch: true }, undefined, signal, 30_000) }
+  config(source: string, revision: number, signal?: AbortSignal, candidate?: string) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision, candidate_id: candidate }, undefined, signal) }
+  preparationSources(session: string, signal?: AbortSignal) { return this.request<import('../contracts/integrations.ts').IntegrationPreparationSource[]>('prepare', { session_id: session }, undefined, signal) }
+  activate(source: string, revision: number, candidate: string, tools: IntegrationToolDefinition[], signal?: AbortSignal) { return this.request<AgentIntegrationSource>('activate', { source_id: source, revision, candidate_id: candidate, tools }, undefined, signal) }
+  verifiedConfig(source: string, revision: number, signal?: AbortSignal, candidate?: string) { return this.request<IntegrationHostConfig>('config', { source_id: source, revision, candidate_id: candidate, verify_launch: true }, undefined, signal, 0) }
   receipt(context: IntegrationRunContext, toolCallID: string, input?: {kind?: 'tool' | 'resource'; source_id: string; revision: number; tool: string; arguments: Record<string, unknown>}, signal?: AbortSignal) {
     return this.request<IntegrationCallReceipt | null>('receipt', {tool_call_id:toolCallID,...input}, context.bearer, signal)
   }
   beginOAuth(source: string, revision: number, signal?: AbortSignal) { return this.request<IntegrationHostConfig>('oauth', { source_id: source, revision, begin: true }, undefined, signal) }
   async saveOAuth(source: string, revision: number, state: unknown, signal?: AbortSignal) { await this.request('oauth', { source_id: source, revision, state }, undefined, signal) }
   async supervise(pid: number, release = false) { await this.request('process', { pid, release }) }
+  async installationLease(config: IntegrationHostConfig, owner: string, release: boolean) {
+    await this.request('installation-lease', { source: config.source.id, revision: config.source.revision,
+      id: config.candidate_id ?? config.source.mcp?.dependency_id, host: process.pid, owner, release })
+  }
   async superviseGroup(pid: number, release: boolean) { await this.request('process', { pid, parent_pid: process.pid, release }) }
   skill(context: IntegrationRunContext, source: string, version: string, path: string, offset: number, toolCallID: string, signal?: AbortSignal) {
     return this.request<import('#common/agent-integrations').IntegrationSkillRead>('skill', {source_id: source, version, path, offset,tool_call_id:toolCallID}, context.bearer, signal)
@@ -60,8 +67,8 @@ export class IntegrationCoreClient implements IntegrationCorePort {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      const value = await readCoreJSON(response) as { error?: { code?: string } }
-      throw new Error(value.error?.code ?? 'INTEGRATION_CORE_UNAVAILABLE')
+      const value = await readCoreJSON(response) as { error?: { code?: string; message?: string } }
+      throw new IntegrationFailure({ code: value.error?.code ?? 'INTEGRATION_CORE_UNAVAILABLE', phase: operation, message: (value.error?.message ?? 'Core request failed').slice(0, 1024) })
     }
     return await readCoreJSON(response) as T
   }

@@ -5616,7 +5616,7 @@
       "general": "Appearance, window behavior and system notifications.",
       "shortcuts": "Customize shortcuts for common actions.",
       "terminal": "Terminal appearance and command completion.",
-      "connection": "SSH keepalive and background forward recovery.",
+      "connection": "Local command and MCP proxy, SSH keepalive, and background forward recovery.",
       "remote-desktop": "Default viewing quality, RDP desktop effects and connection settings.",
       "mount": "Mount cache location and disk usage.",
       "agent": "Default model, runtime behavior and task limits.",

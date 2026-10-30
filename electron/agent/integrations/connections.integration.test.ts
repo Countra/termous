@@ -16,7 +16,7 @@ test('stdio 启动失败和初始化前退出返回明确错误，失败项不�
     await assert.rejects(pool.acquire({source:{...source,mcp:{transport:'stdio',command:`${process.execPath}.missing`}},secret:{}},'missing','run'), missingCommand)
     await assert.rejects(pool.acquire({source:{...source,mcp:{transport:'stdio',command:process.execPath,cwd:`${process.execPath}.missing`}},secret:{}},'invalid-cwd','run'), /INTEGRATION_PROCESS_START_FAILED/u)
     await assert.rejects(pool.acquire({source:{...source,mcp:{transport:'stdio',command:process.execPath,args:['-e','process.exit(1)']}},secret:{}},'exited','run'), /INTEGRATION_INITIALIZATION_EXITED/u)
-    assert.equal(pool.status().length, 0)
+    assert.equal(pool.status().filter(value => value.state === 'failed').length, 3)
   } finally { await pool.close() }
 })
 
@@ -81,6 +81,37 @@ test('官方 MCP SDK：stdio 在监督完成之后启动，关闭释放子进程
   assert.equal(groups.size,0)
 })
 
+test('候选失败保留当前连接，候选目录只在激活后进入业务使用', { skip: !executable }, async () => {
+  const server = spawn(executable!, [], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  const exited = once(server, 'exit')
+  const lines = createInterface({ input: server.stdout })
+  const [url] = await once(lines, 'line', { signal: AbortSignal.timeout(10_000) })
+  const config: IntegrationHostConfig = { source: { id: 'upgrade', kind: 'mcp', name: 'upgrade', enabled: true, revision: 1,
+    mcp: { transport: 'http', url: String(url) }, secret_configured: false, created_at: '', updated_at: '' }, secret: {} }
+  const pool = new IntegrationConnections({ ensureSupervised: async () => {}, installationLease: async () => {},
+    verifyLaunch: async value => { if (value.candidate_id === 'broken') throw new Error('INTEGRATION_CONFIG_CHANGED') } })
+  try {
+    const current = await pool.acquire(config, 'session', 'run')
+    await assert.rejects(pool.acquire({ ...config, candidate_id: 'broken' }, 'session', 'upgrade'))
+    assert.equal(current.retired, undefined)
+    assert.equal(pool.availability('upgrade', 1, 'session', 'run'), undefined)
+    const candidate = await pool.acquire({ ...config, candidate_id: 'candidate' }, 'session', 'upgrade')
+    assert.equal(pool.availability('upgrade', 1, 'session', 'upgrade'), 'INTEGRATION_PREPARING')
+    assert.equal(await pool.acquire(config, 'session', 'run'), current)
+    assert.equal(candidate.retired, undefined)
+    candidate.directoryRevision++
+    let publications = 0
+    await pool.refresh('upgrade', () => true, async () => { publications++ })
+    assert.equal(publications, 0, '候选目录不得覆盖已发布目录')
+    assert.match(JSON.stringify(await pool.call(current, current.directory.find(tool => tool.name === 'echo')!, { text: 'still-current' })), /still-current/u)
+    const published = { ...config, source: { ...config.source, revision: 2 } }
+    await pool.promote(candidate, published, 'session')
+    assert.equal(current.retired, true)
+    assert.equal(pool.availability('upgrade', 2, 'session', 'run'), undefined)
+    assert.equal(await pool.acquire(published, 'session', 'run'), candidate)
+  } finally { await pool.close(); lines.close(); server.kill(); await exited }
+})
+
 test('官方 MCP SDK：并发容量有界、共享连接取消独立、4/8 会话复用及闲置淘汰',{skip:!executable},async()=>{
   const server=spawn(executable!,[],{stdio:['ignore','pipe','pipe'],windowsHide:true})
   const exited=once(server,'exit')
@@ -97,7 +128,7 @@ test('官方 MCP SDK：并发容量有界、共享连接取消独立、4/8 会�
     await shared
     const values=await Promise.allSettled(Array.from({length:20},(_,i)=>pool.acquire(config,`session-${i}`,`owner-${i}`)))
     assert.equal(values.filter(value=>value.status==='fulfilled').length,15)
-    assert.equal(pool.status().length,16)
+    assert.equal(pool.status().filter(value => value.state === 'connected').length,16)
     for (const value of values) if (value.status==='rejected') assert.match(String(value.reason),/CONNECTION_CAPACITY/u)
     for (const count of [4,8]) {
       for (let round=0;round<10;round++) await Promise.all(Array.from({length:count},async(_,i)=>{
@@ -111,7 +142,30 @@ test('官方 MCP SDK：并发容量有界、共享连接取消独立、4/8 会�
     }
     pool.release('owner-shared')
     await pool.acquire(config,'replacement','replacement-owner')
-    assert.equal(pool.status().length,16)
+    assert.equal(pool.status().filter(value => value.state === 'connected').length,16)
     assert.ok(pool.status().every(value=>value.active===0 && value.queued===0))
   } finally {await pool.close();lines.close();server.kill();await exited}
+})
+
+test('关闭失败保留连接占用，后续收尾可以确认退出', { skip: !executable }, async () => {
+  const pool = new IntegrationConnections({ ensureSupervised: async () => {}, superviseGroup: async () => {} })
+  const config: IntegrationHostConfig = { source: { id: 'cleanup', kind: 'mcp', name: 'cleanup', enabled: true, revision: 1,
+    mcp: { transport: 'stdio', command: executable, args: ['--stdio'] }, secret_configured: false, created_at: '', updated_at: '' }, secret: {} }
+  try {
+    const connection = await pool.acquire(config, 'session', 'owner')
+    const close = connection.close
+    let attempts = 0
+    connection.close = async () => {
+      attempts++
+      if (attempts === 1) throw new Error('INTEGRATION_PROCESS_UNCONFIRMED')
+      await close()
+    }
+    await assert.rejects(pool.invalidate('cleanup'), /INTEGRATION_PROCESS_UNCONFIRMED/u)
+    assert.equal(pool.status()[0].state, 'closing')
+    await assert.rejects(pool.acquire(config, 'session', 'another-owner'), /INTEGRATION_RECONNECT_PENDING/u)
+    await pool.invalidate('cleanup')
+    assert.equal(attempts, 2)
+    assert.equal(pool.status()[0].state, 'disconnected')
+    assert.equal(pool.availability('cleanup', 1, 'session', 'owner'), 'INTEGRATION_SESSION_LOST')
+  } finally { await pool.close() }
 })

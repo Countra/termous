@@ -1272,7 +1272,7 @@ function registerAgentRuntimeControls() {
   })
   registerTerminalCompletionIPC({ ipcMain, runtime: terminalCompletionRuntime, isTrustedSender: isTrustedMainIPCEvent })
   registerIntegrationIPC({ ipcMain, host: integrationHost, isTrustedSender: isTrustedMainIPCEvent,
-    source: id => integrationHost.source(id), english: () => appLanguage === 'en-US' })
+    source: id => integrationHost.source(id) })
   registerAgentRuntimeIPC({
     ipcMain,
     isTrustedSender: isTrustedMainIPCEvent,

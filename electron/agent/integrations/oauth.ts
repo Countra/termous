@@ -1,6 +1,7 @@
 import type { AuthProvider } from '@earendil-works/pi-mcp'
 import { adaptOAuthProvider, authorizeMcp, McpOAuthProvider, OAuthCallbackServer, type McpOAuthState } from '@earendil-works/pi-mcp/oauth'
 import type { IntegrationCorePort, IntegrationHostConfig } from '../contracts/integrations.ts'
+import { integrationNetwork } from './network.ts'
 import { oauthFetch, validateOAuthURL } from './oauthBoundary.ts'
 
 interface OAuthEntry { auth: AuthProvider; abort: AbortController }
@@ -9,11 +10,12 @@ export class IntegrationOAuth {
   private readonly entries = new Map<string, OAuthEntry>()
   private readonly core: Pick<IntegrationCorePort,'beginOAuth' | 'saveOAuth'>
   private readonly fetchImplementation?: typeof fetch
+  private readonly report?: (code: string) => void
 
-  constructor(core: Pick<IntegrationCorePort,'beginOAuth' | 'saveOAuth'>, fetchImplementation?: typeof fetch) { this.core = core; this.fetchImplementation = fetchImplementation }
+  constructor(core: Pick<IntegrationCorePort,'beginOAuth' | 'saveOAuth'>, fetchImplementation?: typeof fetch, report?: (code: string) => void) { this.core = core; this.fetchImplementation = fetchImplementation; this.report = report }
 
   provider(config: IntegrationHostConfig): AuthProvider {
-    const key = `${config.source.id}:${config.source.revision}`
+    const key = `${config.source.id}:${config.source.revision}:${JSON.stringify(config.configuration?.network)}`
     const existing = this.entries.get(key)
     if (existing) return existing.auth
     this.invalidate(config.source.id)
@@ -71,7 +73,11 @@ export class IntegrationOAuth {
   private create(config: IntegrationHostConfig, redirectUrl: string, signal: AbortSignal, redirect: (url: URL) => Promise<void>) {
     const serverUrl = validateOAuthURL(config.source.mcp!.url!).href
     let state = config.secret.oauth as McpOAuthState | undefined
-    const fetch = oauthFetch(() => state, signal, this.fetchImplementation)
+    const network = integrationNetwork(config.configuration?.network, this.fetchImplementation)
+    const close = () => { void network.close().catch(() => { this.report?.('INTEGRATION_OAUTH_NETWORK_CLOSE_FAILED') }) }
+    signal.addEventListener('abort', close, { once: true })
+    if (signal.aborted) close()
+    const fetch = oauthFetch(() => state, signal, network.fetch)
     const provider = new McpOAuthProvider({ serverUrl, redirectUrl, clientMetadata: { client_name: 'Termous', application_type: 'native' },
       store: {
         load: () => state,

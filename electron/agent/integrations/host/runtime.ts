@@ -4,6 +4,7 @@ import { IntegrationScheduler } from '../scheduling.ts'
 import { isRecord } from '../../contracts/validation.ts'
 import { integrationErrorCode, isIntegrationOperation } from '../../contracts/integrationIPC.ts'
 import type { IntegrationRunContext } from '../../contracts/integrations.ts'
+import { integrationDiagnostic } from '../diagnostics.ts'
 
 export class IntegrationHostRuntime {
   private manager?: IntegrationManager
@@ -17,9 +18,10 @@ export class IntegrationHostRuntime {
     const core = new IntegrationCoreClient(config)
     await core.supervise(process.pid)
     this.manager = new IntegrationManager(core, { ensureSupervised: async () => undefined,
+      installationLease: (config, owner, release) => core.installationLease(config, owner, release),
       verifyLaunch: async (config, signal) => {
-        const verified = await core.verifiedConfig(config.source.id, config.source.revision, signal)
-        if (!verified.launch || JSON.stringify(verified.launch) !== JSON.stringify(config.launch)) throw new Error('INTEGRATION_CONFIG_CHANGED')
+        const verified = await core.verifiedConfig(config.source.id, config.source.revision, signal, config.candidate_id)
+        if (JSON.stringify(verified.launch) !== JSON.stringify(config.launch)) throw new Error('INTEGRATION_CONFIG_CHANGED')
       },
       superviseGroup: (pid, release) => core.superviseGroup(pid, release), report:code=>this.send({type:'diagnostic',code}) })
     this.send({ type: 'ready' })
@@ -40,7 +42,8 @@ export class IntegrationHostRuntime {
       const manager = this.manager!
       if (value.operation === 'status') return manager.status()
       if (value.operation === 'reconnect' && typeof value.source === 'string' && Number.isSafeInteger(value.revision)) return manager.reconnect(value.source, Number(value.revision), abort.signal)
-      if (value.operation === 'test' && typeof value.source === 'string' && Number.isSafeInteger(value.revision)) return manager.test(value.source, Number(value.revision), abort.signal)
+      if (value.operation === 'test' && typeof value.source === 'string' && Number.isSafeInteger(value.revision)) return manager.test(value.source, Number(value.revision), abort.signal, typeof value.candidate_id === 'string' ? value.candidate_id : undefined)
+      if (value.operation === 'prepare' && typeof value.session === 'string' && typeof value.owner === 'string') return manager.prepare(value.session, value.owner)
       if (value.operation === 'login' && typeof value.source === 'string' && Number.isSafeInteger(value.revision)) {
         return manager.login(value.source, Number(value.revision), async url => {
           abort.signal.throwIfAborted()
@@ -59,7 +62,7 @@ export class IntegrationHostRuntime {
       if (op.action === 'skill') return manager.skill(context, op.source, op.version, op.path, op.offset, op.tool_call_id, abort.signal)
       if (op.action === 'definition') return manager.definition(context, op.source, op.revision, op.name, abort.signal)
       return manager.call(context, op.source, op.revision, op.name, op.tool_call_id, op.arguments, abort.signal)
-    }).then(result => this.send({ type: 'result', id, value: result }), error => this.send({ type: 'result', id, error: integrationErrorCode(error) }))
+    }).then(result => this.send({ type: 'result', id, value: result }), error => this.send({ type: 'result', id, error: integrationErrorCode(error), diagnostic: integrationDiagnostic(error) }))
       .finally(() => this.pending.delete(id))
   }
 

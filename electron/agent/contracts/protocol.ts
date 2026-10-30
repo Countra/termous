@@ -4,7 +4,7 @@ import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 import { isAgentSkillBundleSnapshot } from './skillBundle.ts'
 
 export interface AgentWorkerStartMessage {
-  integrations_version?: 1
+  integrations_version?: 2
   type: 'start'
   protocol_version: typeof agentRuntimeProtocolVersion
   core_base_url: string
@@ -108,7 +108,7 @@ export function isAgentWorkerOutboundMessage(value: unknown): value is AgentWork
 export function validAgentWorkerStartMessage(value: unknown): value is AgentWorkerStartMessage {
   return isRecord(value)
     && value.type === 'start'
-    && (value.integrations_version === undefined || value.integrations_version === 1)
+    && (value.integrations_version === undefined || value.integrations_version === 2)
     && value.protocol_version === agentRuntimeProtocolVersion
     && validRunID(value.run_id)
     && validGeneration(value.generation)

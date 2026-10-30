@@ -1,4 +1,5 @@
 export interface MCPIntegrationConfig {
+  mode?: 'managed_npm' | 'external'
 	dependency_id?: string
   transport: 'stdio' | 'http'
   command?: string
@@ -12,10 +13,15 @@ export interface MCPIntegrationConfig {
 
 export interface MCPDependencyLaunch { command: string; args: string[] }
 export interface MCPDependency {
+  activation_requested?: boolean
+  cancel_requested?: boolean
+  operation?: 'install' | 'repair'
+  root?: string
+  diagnostic?: import('./local-integrations.ts').IntegrationDiagnostic
   id: string
   source_id: string
   revision: number
-  state: 'preview' | 'preparing' | 'verifying' | 'ready' | 'failed' | 'cancelled' | 'uncertain'
+  state: 'resolving' | 'preview' | 'preparing' | 'verifying' | 'ready' | 'failed' | 'cancelled' | 'uncertain'
   package: { name: string; version: string; integrity: string; entry: string; arguments: string[] }
   runtime: { node: string; npm: string; identity: string }
   task_id?: string
@@ -49,6 +55,7 @@ export interface ImportedSkillManifest {
 }
 
 export interface AgentIntegrationSource {
+  startup_confirmed?: boolean
   auth_state?: 'required' | 'authorized' | ''
   skill_selected?: boolean
   id: string
@@ -123,9 +130,14 @@ export interface IntegrationToolResult {
 }
 
 export interface IntegrationConnectionStatus {
+  status_revision?: number
+  started_at?: string
+  updated_at?: string
   source: string
   revision: number
-  state: 'connected' | 'disconnected' | 'closing'
+  state: 'queued' | 'starting' | 'handshaking' | 'listing' | 'connected' | 'disconnected' | 'failed' | 'closing' | 'auth_required'
+  session_id?: string
+  diagnostic?: import('./local-integrations.ts').IntegrationDiagnostic
   active: number
   queued: number
 }

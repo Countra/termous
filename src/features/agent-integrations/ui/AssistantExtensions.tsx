@@ -9,6 +9,8 @@ import { IntegrationImport } from './IntegrationImport'
 import { IntegrationDetails } from './IntegrationDetails'
 import styles from './AssistantExtensions.module.scss'
 import type { IntegrationConnectionStatus } from '#common/agent-integrations'
+import { MCPProvisionDialog } from './MCPProvisionDialog'
+import { invokeIntegration } from '../model/nativeOperation'
 import { integrationFailure } from '../model/errors'
 
 export function AssistantExtensions({gateway,active = true}: {gateway?:AgentIntegrationsGateway;active?:boolean}) {
@@ -22,6 +24,7 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
   const [error,setError] = useState('')
   const [editor,setEditor] = useState<AgentIntegrationSource | 'new'>()
   const [importing,setImporting] = useState<AgentIntegrationSource | 'new'>()
+  const [provision,setProvision] = useState<AgentIntegrationSource[]>([])
   const [details,setDetails] = useState<AgentIntegrationSource>()
   const controller = useRef<AbortController | null>(null)
   const loadController = useRef<AbortController | null>(null)
@@ -43,6 +46,18 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
     void reload()
     return () => {loadController.current?.abort();controller.current?.abort();controller.current=null}
   },[reload])
+  useEffect(() => {
+    if (!active || !native) return
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const update = async () => {
+      try { const status = await native.status(); if (!disposed) setConnections(status) }
+      catch (cause) { if (!disposed) setError(integrationFailure(cause, t)) }
+      finally { if (!disposed) timer = setTimeout(() => { void update() }, 2000) }
+    }
+    timer = setTimeout(() => { void update() }, 2000)
+    return () => { disposed = true; clearTimeout(timer) }
+  }, [active, native, t])
   const perform = async (id:string, operation:(signal:AbortSignal)=>Promise<unknown>) => {
     if (controller.current) return
     const abort = new AbortController();controller.current=abort
@@ -59,14 +74,10 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
   }
   const nativeOperation = async (source:AgentIntegrationSource,operation:'test' | 'login' | 'reconnect',signal:AbortSignal) => {
     if (!native) throw new Error(t('extensions.desktopRequired'))
-    const requestID=crypto.randomUUID()
-    const cancel=() => {void native.cancel(requestID).catch(() => {setError(t('extensions.cancelFailed'))})}
-    signal.addEventListener('abort',cancel,{once:true})
-    try { signal.throwIfAborted();return await native[operation]({source:source.id,revision:source.revision,request_id:requestID}) }
-    finally {signal.removeEventListener('abort',cancel)}
+    return invokeIntegration(native,source,operation,signal)
   }
   const test = async (source:AgentIntegrationSource,signal:AbortSignal) => nativeOperation(source,'test',signal) as Promise<{tools:unknown[]}>
-  const completed = () => {setEditor(undefined);setImporting(undefined);void reload()}
+  const completed = (saved?: AgentIntegrationSource | AgentIntegrationSource[]) => {setEditor(undefined);setImporting(undefined); if (saved) setProvision(Array.isArray(saved) ? saved : [saved]); void reload()}
   if (!gateway) return <Empty description={t('extensions.unavailable')} />
   return <section className={styles.root}>
     <div className={styles.toolbar}>
@@ -86,21 +97,23 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
           <span>{source.kind==='mcp' ? source.mcp?.transport==='http' ? 'HTTP' : 'stdio' : 'Skill'}</span></button>},
         {title:t('extensions.status'),width:88,render:(_,source:AgentIntegrationSource)=>{
           const status=connections.filter(value=>value.source===source.id && value.revision===source.revision)
-          return source.kind==='mcp' ? <Tag>{t(source.auth_state==='required' ? 'extensions.loginRequired' : status.some(value=>value.state==='connected') ? 'extensions.online' : status.length ? 'extensions.offline' : 'extensions.idle')}</Tag> : null
+          const current = status.find(value => value.state === 'connected') ?? status.sort((a,b) => (b.status_revision ?? 0) - (a.status_revision ?? 0))[0]
+          return source.kind==='mcp' ? <Tooltip title={current?.diagnostic?.message}><Tag>{t(source.auth_state==='required' ? 'extensions.loginRequired' : current ? `mcpPreparation.connectionStates.${current.state}` : 'extensions.idle')}</Tag></Tooltip> : null
         }},
         {title:t('extensions.enabled'),width:64,render:(_,source:AgentIntegrationSource)=><Switch size="small" checked={source.enabled} loading={busy===source.id} disabled={Boolean(busy)}
-          aria-label={`${t('extensions.enabled')} ${source.name}`} onChange={enabled => void perform(source.id,async signal => {if (enabled && source.kind==='mcp') await test(source,signal);await gateway.enabled(source,enabled,signal)})} />},
+          aria-label={`${t('extensions.enabled')} ${source.name}`} onChange={enabled => { if (enabled && source.kind==='mcp') { setProvision([source]); return }; void perform(source.id, signal => gateway.enabled(source,enabled,signal)) }} />},
         {title:t('extensions.actions'),width:208,render:(_,source:AgentIntegrationSource)=><Space size={4} wrap>
           {source.mcp?.auth==='oauth' && <Button size="small" disabled={Boolean(busy)} onClick={() => void perform(source.id,signal => nativeOperation(source,'login',signal))}>{t(source.auth_state==='authorized' ? 'extensions.relogin' : 'extensions.login')}</Button>}
           {source.kind==='mcp' && source.enabled && <Popconfirm title={t('extensions.reconnectConfirm')} onConfirm={()=>perform(source.id,signal=>nativeOperation(source,'reconnect',signal))}>
             <Button size="small" disabled={Boolean(busy)}>{t('extensions.reconnect')}</Button></Popconfirm>}
-          {source.kind==='mcp' ? <Button size="small" disabled={Boolean(busy)} onClick={() => void perform(source.id,async signal => {const result=await test(source,signal);void message.success(t('extensions.connected',{count:result.tools.length}))})}>{t('extensions.test')}</Button>
+          {source.kind==='mcp' ? <Button size="small" disabled={Boolean(busy)} onClick={() => { if (!source.startup_confirmed || source.mcp?.mode === 'managed_npm' && !source.mcp.dependency_id) { setProvision([source]); return }; void perform(source.id,async signal => {const result=await test(source,signal);void message.success(t('extensions.connected',{count:result.tools.length}))}) }}>{t('extensions.test')}</Button>
             : <Button size="small" disabled={Boolean(busy)} onClick={() => setImporting(source)}>{t('extensions.update')}</Button>}
           {source.kind==='mcp' && <Button size="small" aria-label={t('extensions.edit')} icon={<Settings2 size={14}/>} disabled={Boolean(busy)} onClick={() => setEditor(source)} />}
           <Popconfirm title={t('extensions.deleteConfirm',{name:source.name})} onConfirm={() => perform(source.id,signal => gateway.remove(source,signal))}>
             <Button size="small" danger aria-label={t('extensions.delete')} icon={<Trash2 size={14}/>} disabled={Boolean(busy)} /></Popconfirm>
         </Space>},
       ]} />
+    {provision.length > 0 && <MCPProvisionDialog sources={provision} gateway={gateway} onClose={() => {setProvision([]);void reload()}} onChanged={() => void reload()} />}
     {editor && <MCPSourceEditor gateway={gateway} source={editor==='new' ? undefined : editor} onClose={() => setEditor(undefined)} onSaved={completed} />}
     {importing && <IntegrationImport kind={kind} gateway={gateway} source={importing==='new' ? undefined : importing} onClose={() => setImporting(undefined)} onImported={completed} />}
     {details && <IntegrationDetails source={details} gateway={gateway} onClose={() => {setDetails(undefined);void reload()}} onChanged={source => {setDetails(source);void reload()}} />}

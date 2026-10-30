@@ -5,11 +5,17 @@ import { decodeIntegrationSource, decodeIntegrationSources, decodeSkillPreview, 
 
 const base = '/api/v1/agent/integrations'
 export class AgentIntegrationsClient extends TermousApiTransport implements AgentIntegrationsGateway {
+  confirmLaunch(source: string, revision: number, signal?: AbortSignal) {
+    return this.request(`${base}/${encodeURIComponent(source)}/confirm-launch`, { method: 'POST', body: { revision }, signal }).then(decodeIntegrationSource)
+  }
   dependency(source: string, revision: number, signal?: AbortSignal) {
     return this.request(`${base}/${encodeURIComponent(source)}/dependency?revision=${revision}`, { signal }).then(value => value === null ? null : decodeDependency(value))
   }
   previewDependency(source: string, revision: number, signal?: AbortSignal) {
-    return this.request(`${base}/${encodeURIComponent(source)}/dependency/preview`, { method: 'POST', body: { revision }, signal, timeoutMs: 30_000 }).then(decodeDependency)
+    return this.request(`${base}/${encodeURIComponent(source)}/dependency/preview`, { method: 'POST', body: { revision, request_id: crypto.randomUUID() }, signal }).then(decodeDependency)
+  }
+  repairDependency(source: string, revision: number, signal?: AbortSignal) {
+    return this.request(`${base}/${encodeURIComponent(source)}/dependency/repair`, { method: 'POST', body: { revision, request_id: crypto.randomUUID() }, signal }).then(decodeDependency)
   }
   confirmDependency(source: string, revision: number, token: string, signal?: AbortSignal) {
     return this.request(`${base}/${encodeURIComponent(source)}/dependency/confirm`, { method: 'POST', body: { revision, token }, signal }).then(decodeIntegrationSource)

@@ -2,10 +2,13 @@ import type { AgentIntegrationSource, MCPIntegrationInput, SkillImportPreview, I
 
 export interface IntegrationPolicy { source_id: string; disabled: boolean; skill_version?: string }
 export interface IntegrationSelection {
-  sources: Array<{id: string; name: string; kind: 'mcp' | 'skill'; enabled: boolean; version?: string; description?: string; allow_implicit?: boolean}>
+  sources: Array<{id: string; name: string; kind: 'mcp' | 'skill'; enabled: boolean; version?: string; description?: string; allow_implicit?: boolean;
+    connection?: import('#common/agent-integrations').IntegrationConnectionStatus['state']}>
   policies: IntegrationPolicy[]
 }
 export interface AgentIntegrationsGateway {
+  confirmLaunch(source: string, revision: number, signal?: AbortSignal): Promise<AgentIntegrationSource>
+  repairDependency(source: string, revision: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependency>
   dependency(source: string, revision: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependency | null>
   previewDependency(source: string, revision: number, signal?: AbortSignal): Promise<import('#common/agent-integrations').MCPDependency>
   confirmDependency(source: string, revision: number, token: string, signal?: AbortSignal): Promise<AgentIntegrationSource>

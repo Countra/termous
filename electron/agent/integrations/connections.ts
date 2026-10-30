@@ -1,48 +1,27 @@
-import { createHash } from 'node:crypto'
-import { McpClient, StreamableHttpTransport, type Tool, type McpTransport, type CallToolResult, type AuthProvider } from '@earendil-works/pi-mcp'
+import { readDirectory } from './directory.ts'
+import { openIntegrationConnection } from './connectionFactory.ts'
+import { type CallToolResult } from '@earendil-works/pi-mcp'
 import { Compile } from 'typebox/compile'
 import type { TSchema } from 'typebox'
 import type { IntegrationHostConfig, IntegrationToolDefinition } from '../contracts/integrations.ts'
 import { IntegrationScheduler } from './scheduling.ts'
-import { IntegrationHTTPBoundary, integrationMessageLimit } from './httpBoundary.ts'
-import { integrationEnvironment } from './environment.ts'
-import { validateIntegrationSchema } from './schema.ts'
-import { SupervisedStdioTransport } from './stdioTransport.ts'
+import { IntegrationFailure, integrationDiagnostic } from './diagnostics.ts'
 import { integrationConnectionError } from './connectionErrors.ts'
 
-export interface IntegrationConnection {
-  key: string
-  generation: string
-  client: McpClient
-  directory: IntegrationToolDefinition[]
-  serial: IntegrationScheduler
-  lastUsed: number
-  owners: Set<string>
-  config: IntegrationHostConfig
-  directoryRevision: number
-  publishedRevision: number
-  retired?:boolean
-  close(): Promise<void>
-}
-
-export interface IntegrationConnectionOptions {
-  verifyLaunch?(config: IntegrationHostConfig, signal: AbortSignal): Promise<void>
-  ensureSupervised(): Promise<void>
-  superviseGroup?(pid: number, release: boolean): Promise<void>
-  fetch?: typeof fetch
-  environment?: Record<string, string | undefined>
-  authProvider?(config: IntegrationHostConfig): AuthProvider
-  report?(code:string):void
-}
+export type { IntegrationConnection, IntegrationConnectionOptions } from './connectionTypes.ts'
+import type { IntegrationConnection, IntegrationConnectionOptions } from './connectionTypes.ts'
 
 export class IntegrationConnections {
   private readonly pool = new Map<string, Promise<IntegrationConnection>>()
   private readonly ready = new Map<string, IntegrationConnection>()
   private readonly waiting = new Map<string, Set<symbol>>()
+  private readonly progress = new Map<string, import('#common/agent-integrations').IntegrationConnectionStatus>()
   private readonly opening = new Map<string, AbortController>()
+  private readonly closing = new Map<IntegrationConnection, Promise<void>>()
   private readonly starts = new IntegrationScheduler(2, 32, 1024 * 1024)
   private readonly requests = new IntegrationScheduler(8)
   private readonly shutdown = new AbortController()
+  private revision = 0
   private readonly idleTimer: ReturnType<typeof setInterval>
 
   private readonly options: IntegrationConnectionOptions
@@ -53,29 +32,54 @@ export class IntegrationConnections {
   }
 
   async acquire(config: IntegrationHostConfig, session: string, owner: string, signal?: AbortSignal): Promise<IntegrationConnection> {
-    const key = JSON.stringify([config.source.id, config.source.revision, session])
+    const key = JSON.stringify([config.source.id, config.source.revision, session, config.candidate_id ?? '', config.configuration?.network ?? null])
+    for (const old of this.ready.values()) {
+      // 候选握手不能提前关闭当前版本，普通调用也不能打断候选验证。
+      if (!config.candidate_id && !old.config.candidate_id && old.key !== key && old.config.source.id === config.source.id && JSON.parse(old.key)[2] === session) this.retire(old)
+    }
     this.shutdown.signal.throwIfAborted()
     signal?.throwIfAborted()
     if (this.ready.get(key)?.retired) throw new Error('INTEGRATION_RECONNECT_PENDING')
     if (this.ready.has(key) && this.ready.get(key)!.client.connectionState !== 'connected') throw new Error('INTEGRATION_SESSION_LOST')
     let pending = this.pool.get(key)
     if (!pending) {
-      let evicted: Promise<void> | undefined
       if (this.pool.size >= 16) {
-        const idle = [...this.ready.values()].filter(value => !value.owners.size && value.serial.usage().active === 0 && value.serial.usage().queued === 0).sort((a, b) => a.lastUsed - b.lastUsed)[0]
+        const idle = [...this.ready.values()].filter(value => !value.retired && !value.owners.size && value.serial.usage().active === 0 && value.serial.usage().queued === 0).sort((a, b) => a.lastUsed - b.lastUsed)[0]
         if (!idle) throw new Error('INTEGRATION_CONNECTION_CAPACITY')
-        // 同步移出旧项并预留新名额，不能在 await 关闭期间被其他调用突破容量。
-        evicted = this.remove(idle)
+        // 真实关闭后才释放名额，并重新核验并发等待期间的容量。
+        await this.remove(idle)
+        return this.acquire(config, session, owner, signal)
       }
       const opening = new AbortController()
       this.opening.set(key, opening)
-      const combined = AbortSignal.any([opening.signal, this.shutdown.signal, AbortSignal.timeout(30_000)])
-      pending = Promise.resolve(evicted).then(()=>this.starts.run(0, combined, () => this.connect(key, config, combined)))
-        .catch(error => { throw integrationConnectionError(error, combined, config.source.mcp?.transport === 'stdio') })
+      const combined = AbortSignal.any([opening.signal, this.shutdown.signal])
+      if (this.progress.size >= 32) {
+        const old = [...this.progress.keys()].find(id => !this.pool.has(id))
+        if (old) this.progress.delete(old)
+      }
+      const now = new Date().toISOString()
+      this.progress.set(key, { source: config.source.id, revision: config.source.revision, session_id: session, state: 'queued', active: 0, queued: 1, status_revision: ++this.revision, started_at: now, updated_at: now })
+      pending = Promise.resolve().then(() => this.starts.run(0, combined, async () => {
+        const timeout = (config.configuration?.settings.startup_timeout_seconds ?? 120) * 1000
+        const signal = AbortSignal.any([combined, AbortSignal.timeout(timeout)])
+        const started = Date.now()
+        this.phase(key, 'starting')
+        try { return await this.connect(key, config, signal) }
+        catch (error) {
+          const diagnostic = { ...integrationDiagnostic(integrationConnectionError(error, signal, config.source.mcp?.transport === 'stdio')), phase: this.progress.get(key)?.state ?? 'starting', elapsed_ms: Date.now() - started, timeout_ms: timeout }
+          const progress = this.progress.get(key)
+          if (progress) this.progress.set(key, { ...progress, state: diagnostic.code === 'INTEGRATION_AUTH_REQUIRED' ? 'auth_required' : 'failed', queued: 0, diagnostic, status_revision: ++this.revision, updated_at: new Date().toISOString() })
+          throw new IntegrationFailure(diagnostic)
+        }
+      }))
       this.pool.set(key, pending)
-      void pending.then(value => { this.opening.delete(key); this.ready.set(key, value) }, () => {
+      void pending.then(value => { this.opening.delete(key); this.ready.set(key, value); this.phase(key, 'connected') }, error => {
         this.opening.delete(key)
         if (this.pool.get(key) === pending) this.pool.delete(key)
+        if (this.progress.get(key)?.state === 'queued') {
+          this.phase(key, 'failed')
+          this.progress.get(key)!.diagnostic = integrationDiagnostic(error, 'queued')
+        }
       })
     }
     const waiter = Symbol()
@@ -100,16 +104,70 @@ export class IntegrationConnections {
     }
   }
 
-  release(owner: string) {
+  release(owner: string, source?: string) {
     for (const connection of this.ready.values()) {
+      if (source && connection.config.source.id !== source) continue
       if (connection.owners.delete(owner)) connection.lastUsed = Date.now()
     }
   }
 
+  async promote(connection: IntegrationConnection, config: IntegrationHostConfig, session: string) {
+    if (connection.retired || this.ready.get(connection.key) !== connection) throw new Error('INTEGRATION_CONFIG_CHANGED')
+    const key = JSON.stringify([config.source.id, config.source.revision, session, '', config.configuration?.network ?? null])
+    if (connection.key === key) return
+    const existing = this.pool.get(key)
+    if (existing) {
+      const published = await existing
+      for (const owner of connection.owners) published.owners.add(owner)
+      this.retire(connection)
+      return
+    }
+    const progress = this.progress.get(connection.key)
+    this.ready.delete(connection.key); this.pool.delete(connection.key); this.progress.delete(connection.key)
+    connection.key = key; connection.config = config
+    connection.directory = connection.directory.map(tool => ({ ...tool, source_revision: config.source.revision }))
+    this.ready.set(key, connection); this.pool.set(key, Promise.resolve(connection))
+    if (progress) this.progress.set(key, { ...progress, revision: config.source.revision, status_revision: ++this.revision, updated_at: new Date().toISOString() })
+    // 发布成功后再接管当前版本的所有者；在途业务调用按原连接收尾。
+    for (const old of this.ready.values()) {
+      if (old === connection || old.config.candidate_id || old.config.source.id !== config.source.id || JSON.parse(old.key)[2] !== session) continue
+      for (const owner of old.owners) connection.owners.add(owner)
+      this.retire(old)
+    }
+  }
+
+  private phase(key: string, state: import('#common/agent-integrations').IntegrationConnectionStatus['state']) {
+    const current = this.progress.get(key)
+    if (current) this.progress.set(key, { ...current, state, queued: 0,
+      ...(state === 'connected' || state === 'disconnected' ? { diagnostic: undefined } : {}),
+      status_revision: ++this.revision, updated_at: new Date().toISOString() })
+  }
+
   status(): import('#common/agent-integrations').IntegrationConnectionStatus[] {
-    return [...this.ready.values()].map(value => ({source:value.config.source.id,revision:value.config.source.revision,
-      state:value.retired ? 'closing' : value.client.connectionState === 'connected' ? 'connected' : 'disconnected',
-      active:value.serial.usage().active,queued:value.serial.usage().queued}))
+    return [...this.progress].map(([key, progress]) => {
+      const value = this.ready.get(key)
+      if (!value) return { ...progress }
+      const state = value.retired ? 'closing' : value.client.connectionState === 'connected' ? 'connected' : 'disconnected'
+      if (state !== progress.state) this.phase(key, state)
+      return { ...this.progress.get(key)!, state, active: value.serial.usage().active, queued: value.serial.usage().queued }
+    })
+  }
+
+  availability(source: string, revision: number, session: string, owner: string): string | undefined {
+    const connection = [...this.ready.values()].find(value => !value.config.candidate_id && value.config.source.id === source && value.config.source.revision === revision && JSON.parse(value.key)[2] === session && value.owners.has(owner) && !value.retired)
+    if (connection?.client.connectionState === 'connected') return undefined
+    const status = this.status().find(value => value.source === source && value.revision === revision && value.session_id === session)
+    return status?.diagnostic?.code ?? (status?.state === 'auth_required' ? 'INTEGRATION_AUTH_REQUIRED'
+      : status?.state === 'disconnected' ? 'INTEGRATION_SESSION_LOST'
+      : status?.state === 'closing' ? 'INTEGRATION_RECONNECT_PENDING' : 'INTEGRATION_PREPARING')
+  }
+
+  private retire(value: IntegrationConnection) {
+    if (value.retired) return
+    value.retired = true
+    this.phase(value.key, 'closing')
+    value.serial.close()
+    void value.serial.whenIdle().then(() => this.remove(value)).catch(() => this.options.report?.('INTEGRATION_RETIRED_CLOSE_FAILED'))
   }
 
   async execute<T>(connection: IntegrationConnection, bytes: number, signal: AbortSignal | undefined, operation: () => Promise<T>): Promise<T> {
@@ -140,6 +198,7 @@ export class IntegrationConnections {
   async refresh(owner:string,allowed:(config:IntegrationHostConfig)=>boolean,save:(config:IntegrationHostConfig,tools:IntegrationToolDefinition[])=>Promise<void>,signal?:AbortSignal) {
     const unavailable = new Map<string, string>()
     for (const connection of this.ready.values()) {
+      if (connection.config.candidate_id) continue
       if (!allowed(connection.config)) { connection.owners.delete(owner);continue }
       if (!connection.owners.has(owner)) continue
       if (connection.retired || connection.client.connectionState !== 'connected') {
@@ -164,7 +223,7 @@ export class IntegrationConnections {
   async invalidate(source: string) {
     for (const [key, controller] of this.opening) if (JSON.parse(key)[0] === source) controller.abort()
     const immediate:Promise<void>[]=[]
-    for (const value of this.ready.values()) if (JSON.parse(value.key)[0]===source && !value.retired) {
+    for (const value of this.ready.values()) if (JSON.parse(value.key)[0]===source) {
       value.retired=true
       value.serial.close()
       if (!value.serial.usage().active) immediate.push(this.remove(value))
@@ -188,81 +247,28 @@ export class IntegrationConnections {
     for (const value of this.ready.values()) if (!value.owners.size && value.serial.usage().active === 0 && value.serial.usage().queued === 0 && Date.now() - value.lastUsed >= 10 * 60_000) await this.remove(value)
   }
 
-  private async remove(value: IntegrationConnection) {
-    if (this.ready.get(value.key)!==value) return
-    this.pool.delete(value.key)
-    this.ready.delete(value.key)
-    await value.close()
+  private remove(value: IntegrationConnection): Promise<void> {
+    const previous = this.closing.get(value)
+    if (previous) return previous
+    if (this.ready.get(value.key)!==value) return Promise.resolve()
+    value.retired = true
+    value.serial.close()
+    this.phase(value.key, 'closing')
+    const closing = Promise.resolve().then(() => value.close()).then(() => {
+      this.pool.delete(value.key)
+      this.ready.delete(value.key)
+      this.phase(value.key, 'disconnected')
+    }).catch(error => {
+      // 关闭未确认时保留占用及收尾入口，不能遗失进程与安装租约。
+      const progress = this.progress.get(value.key)
+      if (progress) this.progress.set(value.key, { ...progress, diagnostic: integrationDiagnostic(error, 'closing'), status_revision: ++this.revision, updated_at: new Date().toISOString() })
+      throw error
+    }).finally(() => this.closing.delete(value))
+    this.closing.set(value, closing)
+    return closing
   }
 
-  private async connect(key: string, config: IntegrationHostConfig, signal: AbortSignal): Promise<IntegrationConnection> {
-    const settings = config.source.mcp
-    if (!settings) throw new Error('INTEGRATION_CONFIG_INVALID')
-    let transport: McpTransport
-    if (settings.transport === 'stdio') {
-      if (settings.dependency_id && !config.launch) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
-      if (settings.dependency_id) {
-        if (!this.options.verifyLaunch) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
-        await this.options.verifyLaunch(config, signal)
-      }
-      await this.options.ensureSupervised()
-      signal.throwIfAborted()
-      transport = new SupervisedStdioTransport({ command: config.launch?.command ?? settings.command!, args: config.launch?.args ?? settings.args, cwd: settings.cwd,
-        inheritEnv: false, env: integrationEnvironment(this.options.environment ?? process.env, config.secret.environment),
-        stderr: 'pipe', maxStderrBytes: 32 * 1024, maxMessageBytes: integrationMessageLimit }, this.options.superviseGroup)
-    } else {
-      const boundary = new IntegrationHTTPBoundary(settings.url!, this.options.fetch)
-      const authProvider = settings.auth === 'oauth' ? this.options.authProvider?.(config) : undefined
-      if (settings.auth === 'oauth' && !authProvider) throw new Error('INTEGRATION_AUTH_REQUIRED')
-      transport = boundary.wrap(new StreamableHttpTransport({ url: settings.url!, headers: config.secret.headers, fetch: boundary.fetch,
-        authProvider, maxMessageBytes: integrationMessageLimit, reconnect: { maxRetries: 0 } }))
-    }
-    const client = new McpClient({ name: 'termous-integrations', version: '1.0.0', capabilities: {}, requestTimeoutMs: 15_000 })
-    const abort = () => { void client.close().catch(() => { /* 初始化失败由下方关闭路径收口。 */ }) }
-    signal.addEventListener('abort', abort, { once: true })
-    try {
-      signal.throwIfAborted()
-      await client.connect(transport)
-      signal.throwIfAborted()
-      const directory = await readDirectory(client, config, signal)
-      const serial = new IntegrationScheduler(1, 32, 1024 * 1024)
-      const connection:IntegrationConnection = { key, generation: crypto.randomUUID(), client, directory, serial, config,
-        directoryRevision:0,publishedRevision:0,lastUsed:Date.now(),owners:new Set(),close:async()=>{unsubscribe();serial.close();await client.close()} }
-      // 通知只使当前声明失效；实际读取与发布放在下一次模型请求边界，避免通知风暴累积任务。
-      const unsubscribe=client.onNotification('notifications/tools/list_changed',()=>{connection.directoryRevision=Math.min(connection.directoryRevision+1,Number.MAX_SAFE_INTEGER)})
-      return connection
-    } catch (error) { await client.close(); throw error }
-    finally { signal.removeEventListener('abort', abort) }
+  private connect(key: string, config: IntegrationHostConfig, signal: AbortSignal) {
+    return openIntegrationConnection(key, config, signal, this.options, state => this.phase(key, state))
   }
-}
-
-async function readDirectory(client: McpClient, config: IntegrationHostConfig, signal: AbortSignal): Promise<IntegrationToolDefinition[]> {
-  if (!client.serverCapabilities?.tools) return []
-  const result: IntegrationToolDefinition[] = []
-  const cursors = new Set<string>()
-  const names = new Set<string>()
-  let cursor: string | undefined
-  let bytes = 0
-  do {
-    const page = await client.request<{ tools: Tool[]; nextCursor?: string }>('tools/list', cursor ? { cursor } : {}, { signal })
-    if (!Array.isArray(page.tools)) throw new Error('INTEGRATION_DIRECTORY_INVALID')
-    for (const tool of page.tools) {
-      const raw = JSON.stringify(tool)
-      bytes += Buffer.byteLength(raw)
-      if (result.length >= 1024 || bytes > 4 * 1024 * 1024) throw new Error('INTEGRATION_DIRECTORY_TOO_LARGE')
-      if (!tool.name || tool.name.length > 256 || names.has(tool.name)) throw new Error('INTEGRATION_TOOL_NAME_INVALID')
-      names.add(tool.name)
-      let unavailable: string | undefined
-      try {
-        validateIntegrationSchema(tool.inputSchema)
-      } catch { unavailable = 'INTEGRATION_TOOL_SCHEMA_UNSUPPORTED' }
-      result.push({ source_id: config.source.id, source_revision: config.source.revision, name: tool.name,
-        title: tool.title?.slice(0, 512), description: tool.description?.slice(0, 8192), input_schema: tool.inputSchema,
-        contract_hash: createHash('sha256').update(raw).digest('hex'), ...(unavailable ? { unavailable_reason: unavailable } : {}) })
-    }
-    cursor = page.nextCursor
-    if (cursor && cursors.has(cursor)) throw new Error('INTEGRATION_DIRECTORY_CURSOR_INVALID')
-    if (cursor) cursors.add(cursor)
-  } while (cursor)
-  return result
 }

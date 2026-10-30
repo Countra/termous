@@ -192,6 +192,8 @@ const bridge = {
     },
   },
   agentIntegrations: {
+    prepare: session => ipcRenderer.invoke('agent-integrations:prepare', session),
+    releasePreparation: session => ipcRenderer.invoke('agent-integrations:release-preparation', session),
     status: () => ipcRenderer.invoke('agent-integrations:status'),
     reconnect: request => ipcRenderer.invoke('agent-integrations:reconnect', request),
     login: request => ipcRenderer.invoke('agent-integrations:login', request),

@@ -8,6 +8,7 @@ import {
 import { loadAgentModelCatalog } from '#features/agent-setup'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { notifyError } from './agentHostHelpers.ts'
+import { useIntegrationPreparation } from './useIntegrationPreparation.ts'
 
 interface Context {
   setupGateway: Pick<import('#features/agent-setup').AgentSetupGateway, "readiness" | "modelProviders" | "models"> & Partial<Pick<import('#features/agent-setup').AgentSetupGateway, "setup">>
@@ -20,6 +21,8 @@ interface Context {
 }
 
 export function useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active }: Context) {
+  const preparationError = useCallback(() => notifyError(notificationRef.current, tRef.current), [notificationRef, tRef])
+  useIntegrationPreparation(controller, enabled && active && !remote, preparationError)
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
 
   const [providers, setProviders] = useState<AgentModelProvider[]>([])

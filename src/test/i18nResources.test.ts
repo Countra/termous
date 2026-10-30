@@ -360,7 +360,10 @@ function readTranslations(locale: string) {
   const path = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'translation.json')
   const workflow = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'desktop-workflow.json')
   const analysis = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'analysis-workspace.json')
-  return { ...JSON.parse(readFileSync(path, 'utf8')), desktopWorkflow: {
+  const readModule = (name: string) => JSON.parse(readFileSync(join(sourceRoot, 'shared', 'i18n', 'locales', locale, `${name}.json`), 'utf8'))
+  return { ...JSON.parse(readFileSync(path, 'utf8')),
+    extensions: readModule('extensions'), localTools: readModule('local-tools'),
+    mcpPreparation: readModule('mcp-preparation'), fileReview: readModule('file-review'), desktopWorkflow: {
     ...JSON.parse(readFileSync(workflow, 'utf8')), analysisWorkspace: JSON.parse(readFileSync(analysis, 'utf8')),
   } } as TranslationTree
 }

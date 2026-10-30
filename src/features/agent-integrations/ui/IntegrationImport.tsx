@@ -8,7 +8,7 @@ import styles from './AssistantExtensions.module.scss'
 import { groupSkillFiles } from '../model/skillImportFiles'
 
 export function IntegrationImport({ kind, gateway, source, onClose, onImported }: {
-  kind: 'mcp' | 'skill'; gateway: AgentIntegrationsGateway; source?: AgentIntegrationSource; onClose(): void; onImported(): void
+  kind: 'mcp' | 'skill'; gateway: AgentIntegrationsGateway; source?: AgentIntegrationSource; onClose(): void; onImported(sources?: AgentIntegrationSource[]): void
 }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -18,6 +18,7 @@ export function IntegrationImport({ kind, gateway, source, onClose, onImported }
   const directory = useRef<HTMLInputElement>(null)
   const zip = useRef<HTMLInputElement>(null)
   const controller=useRef<AbortController | null>(null)
+  const saved = useRef<AgentIntegrationSource[]>([])
   useEffect(()=>()=>controller.current?.abort(),[])
   const preview = async (files?: FileList | null) => {
     if (controller.current) return
@@ -53,12 +54,13 @@ export function IntegrationImport({ kind, gateway, source, onClose, onImported }
     const abort=new AbortController();controller.current=abort
     setBusy(true); setError('')
     let failed = false
+    const savedSources: AgentIntegrationSource[] = [...saved.current]
     for (let index = 0; index < items.length; index++) {
       const item = items[index]
       if (abort.signal.aborted) return
       if (!item.selected || item.saved) continue
       try {
-        if (item.mcp) await gateway.saveMCP(item.mcp,undefined,abort.signal)
+        if (item.mcp) savedSources.push(await gateway.saveMCP(item.mcp,undefined,abort.signal))
         else if (item.skill) await gateway.publishSkill(item.skill.token, source,abort.signal)
         if (!abort.signal.aborted) setItems(current => current.map((value, i) => i === index ? {...value, saved:true,error:undefined} : value))
       } catch (error) {
@@ -69,7 +71,8 @@ export function IntegrationImport({ kind, gateway, source, onClose, onImported }
     if (controller.current === abort) controller.current = null
     if (abort.signal.aborted) return
     setBusy(false)
-    if (!failed) onImported()
+    saved.current = savedSources
+    if (!failed) onImported(savedSources)
   }
   return <Modal open centered width={640} rootClassName={modalSurfaceStyles.root} title={t(kind === 'mcp' ? 'extensions.importMCP' : 'extensions.importSkills')}
     onCancel={onClose} closable={!busy} mask={{closable:!busy}} destroyOnHidden footer={<Space>
@@ -77,7 +80,7 @@ export function IntegrationImport({ kind, gateway, source, onClose, onImported }
       <Button type="primary" loading={busy} disabled={!items.some(item => item.selected && !item.saved && (item.mcp || item.skill))} onClick={() => void publish()}>{t('extensions.import')}</Button>
     </Space>}>
     <div className={styles.importer}>
-      {kind === 'mcp' ? <><Input.TextArea value={text} onChange={event => { setText(event.target.value); setItems([]) }} rows={7} placeholder={'{"mcpServers": {}}'} disabled={busy} spellCheck={false} />
+      {kind === 'mcp' ? <><Input.TextArea value={text} onChange={event => { setText(event.target.value); setItems([]); saved.current = [] }} rows={7} placeholder={'{"mcpServers": {}}'} disabled={busy} spellCheck={false} />
         <Button loading={busy} disabled={!text.trim()} onClick={() => void preview()}>{t('extensions.preview')}</Button></> : <>
         <input hidden ref={directory} type="file" multiple {...{webkitdirectory: ''}} onChange={event => void preview(event.target.files)} />
         <input hidden ref={zip} type="file" multiple={!source} accept=".zip" onChange={event => void preview(event.target.files)} />

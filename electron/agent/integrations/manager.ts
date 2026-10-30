@@ -6,16 +6,45 @@ import { IntegrationOAuth } from './oauth.ts'
 import { executeIntegrationCall, receiptResult } from './receipts.ts'
 import { integrationResources, readIntegrationResource } from './resources.ts'
 import { createHash } from 'node:crypto'
+import { IntegrationPreparation } from './preparation.ts'
+import { integrationDiagnostic } from './diagnostics.ts'
 import type { IntegrationDirectory } from '../contracts/integrationIPC.ts'
 
 export class IntegrationManager {
+  private readonly preparation: IntegrationPreparation
+  private readonly preparedRuns = new Set<string>()
   private readonly connections: IntegrationConnections
   private readonly core: IntegrationCorePort
   private readonly oauth: IntegrationOAuth
   constructor(core: IntegrationCorePort, options: IntegrationConnectionOptions) {
     this.core = core
-    this.oauth = new IntegrationOAuth(core, options.fetch)
+    this.oauth = new IntegrationOAuth(core, options.fetch, options.report)
     this.connections = new IntegrationConnections({ ...options, authProvider: config => this.oauth.provider(config) })
+    this.preparation = new IntegrationPreparation({
+      sources: (session, signal) => core.preparationSources(session, signal),
+      open: async ({ source, candidate_id }, session, owner, signal) => {
+        // 升级验证期间继续提供当前版本；旧安装损坏也不能阻止候选修复。
+        if (candidate_id && source.enabled && source.startup_confirmed) {
+          try {
+            const current = await core.config(source.id, source.revision, signal)
+            const connection = await this.connections.acquire(current, session, owner, signal)
+            await core.saveTools(source.id, source.revision, connection.directory, signal)
+          } catch (error) {
+            signal.throwIfAborted()
+            options.report?.(integrationDiagnostic(error).code)
+          }
+        }
+        const config = await core.config(source.id, source.revision, signal, candidate_id)
+        const connection = await this.connections.acquire(config, session, owner, signal)
+        if (candidate_id) {
+          const activated = await core.activate(source.id, source.revision, candidate_id, connection.directory, signal)
+          const published = await core.config(activated.id, activated.revision, signal)
+          await this.connections.promote(connection, published, session)
+        } else await core.saveTools(source.id, source.revision, connection.directory, signal)
+      },
+      release: (owner, source) => this.connections.release(owner, source),
+      failed: error => options.report?.(integrationDiagnostic(error).code),
+    })
   }
 
   async login(source: string, revision: number, open: (url: string) => Promise<void>, signal?: AbortSignal) {
@@ -24,6 +53,10 @@ export class IntegrationManager {
   }
 
   async directory(context: IntegrationRunContext, signal?: AbortSignal, knownFingerprint?:string) {
+    if (!this.preparedRuns.has(context.run_id)) {
+      this.preparedRuns.add(context.run_id)
+      await this.preparation.wait(context.session_id, context.run_id, signal)
+    } else await this.preparation.refresh(context.session_id, context.run_id)
     const sources = await this.core.sources(context, signal)
     const unavailable = await this.connections.refresh(context.run_id,config=>sources.some(source=>source.id===config.source.id && source.revision===config.source.revision),
       (config,tools)=>this.core.saveTools(config.source.id,config.source.revision,tools,signal),signal)
@@ -33,7 +66,7 @@ export class IntegrationManager {
       const entry = {id:source.id,name:source.name,kind:source.kind,revision:source.revision,
         ...(source.skill ? {skill:source.skill,skill_selected:source.skill_selected} : {})}
       let tools: IntegrationDirectory['tools'] = []
-      let reason = unavailable.get(source.id)
+      let reason = unavailable.get(source.id) ?? (source.kind === 'mcp' ? this.connections.availability(source.id, source.revision, context.session_id, context.run_id) : undefined)
       if (source.kind === 'mcp' && !reason) {
         try { tools = await this.core.tools(source.id, source.revision, signal) }
         catch { signal?.throwIfAborted(); reason = 'INTEGRATION_DIRECTORY_UNAVAILABLE' }
@@ -73,14 +106,18 @@ export class IntegrationManager {
     return readIntegrationResource(this.core,this.connections,context,input,signal)
   }
 
-  async test(source: string, revision: number, signal?: AbortSignal) {
-    const config = await this.core.config(source, revision, signal)
-    const owner = `test:${source}`
+  async test(source: string, revision: number, signal?: AbortSignal, candidate?: string) {
+    const config = await this.core.config(source, revision, signal, candidate)
+    const owner = `test:${source}:${candidate ?? ''}`
     try {
       const connection = await this.connections.acquire(config, owner, owner, signal)
-      await this.core.saveTools(source, revision, connection.directory, signal)
+      let activated: import('#common/agent-integrations').AgentIntegrationSource | undefined
+      if (candidate) {
+        if (!this.core.activate) throw new Error('INTEGRATION_ACTIVATION_UNAVAILABLE')
+        activated = await this.core.activate(source, revision, candidate, connection.directory, signal)
+      } else await this.core.saveTools(source, revision, connection.directory, signal)
       return { tools: connection.directory.map(tool=>({source_id:tool.source_id,source_revision:tool.source_revision,name:tool.name,title:tool.title,
-        description:tool.description,contract_hash:tool.contract_hash,unavailable_reason:tool.unavailable_reason})), generation: connection.generation }
+        description:tool.description,contract_hash:tool.contract_hash,unavailable_reason:tool.unavailable_reason})), generation: connection.generation, source: activated }
     } finally { this.connections.release(owner) }
   }
 
@@ -104,9 +141,10 @@ export class IntegrationManager {
       () => this.core.verifyDispatch(context,receipt.id,signal),mark),signal)
   }
 
-  release(run: string) { this.connections.release(run) }
-  invalidate(source: string) { this.oauth.invalidate(source); return this.connections.invalidate(source) }
-  close() { this.oauth.close(); return this.connections.close() }
+  async prepare(session: string, owner: string) { await this.preparation.refresh(session, owner); return this.status() }
+  release(run: string) { this.preparedRuns.delete(run); this.preparation.release(run) }
+  invalidate(source: string) { this.preparation.invalidate(source); this.oauth.invalidate(source); return this.connections.invalidate(source) }
+  close() { this.preparation.close(); this.oauth.close(); return this.connections.close() }
 
   private async allowed(context: IntegrationRunContext, source: string, revision: number, signal?: AbortSignal) {
     if (!(await this.core.sources(context, signal)).some(item => item.id === source && item.revision === revision)) throw new Error('INTEGRATION_SOURCE_UNAVAILABLE')

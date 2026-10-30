@@ -1,6 +1,7 @@
-import { dialog, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import { type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import { isRecord } from '../../contracts/validation.ts'
 import type { IntegrationHostSupervisor } from './supervisor.ts'
+import { integrationDiagnostic } from '../diagnostics.ts'
 import type { AgentIntegrationSource } from '#common/agent-integrations'
 
 export function registerIntegrationIPC(options: {
@@ -8,7 +9,6 @@ export function registerIntegrationIPC(options: {
   host: IntegrationHostSupervisor
   isTrustedSender(event: IpcMainInvokeEvent): boolean
   source(id: string): Promise<AgentIntegrationSource>
-  english(): boolean
 }) {
   const pending = new Map<string, AbortController>()
   options.ipcMain.handle('agent-integrations:cancel', (event, id: unknown) => {
@@ -31,22 +31,37 @@ export function registerIntegrationIPC(options: {
       const source = await options.source(request.source)
       if (source.revision !== request.revision || source.kind !== 'mcp') throw new Error('INTEGRATION_CONFIG_CHANGED')
       if (operation === 'login' && source.mcp?.auth !== 'oauth') throw new Error('INTEGRATION_CONFIG_CHANGED')
-      if (operation !== 'login' && source.mcp?.transport === 'stdio') {
-        const launch = source.mcp.dependency_id ? await options.host.dependencyLaunch(source.id, source.revision, abort.signal) : undefined
-        const en = options.english()
-        const answer = await dialog.showMessageBox({ type: 'question', title: en ? 'Start MCP server' : '启动 MCP 服务',
-          message: source.name, detail: `${launch?.command ?? source.mcp.command}\n${JSON.stringify(launch?.args ?? source.mcp.args ?? [])}\n${source.mcp.cwd ?? ''}`,
-          buttons: en ? ['Cancel', 'Start'] : ['取消', '启动'], defaultId: 0, cancelId: 0, noLink: true })
-        if (answer.response !== 1) throw new Error('INTEGRATION_START_CANCELLED')
-      }
       abort.signal.throwIfAborted()
-      return await options.host[operation](source.id, source.revision, abort.signal)
-    } finally { pending.delete(key); event.sender.removeListener('destroyed', destroyed) }
+      return operation === 'test' ? await options.host.test(source.id, source.revision, abort.signal, typeof request.candidate_id === 'string' ? request.candidate_id : undefined) : await options.host[operation](source.id, source.revision, abort.signal)
+    } catch (error) { return { failure: integrationDiagnostic(error) } } finally { pending.delete(key); event.sender.removeListener('destroyed', destroyed) }
   }
+  const owners = new Map<number, Set<string>>()
+  options.ipcMain.handle('agent-integrations:prepare', async (event, session: unknown) => {
+    if (!options.isTrustedSender(event) || typeof session !== 'string' || session.length > 128 || !session) throw new Error('INTEGRATION_IPC_NOT_ALLOWED')
+    let current = owners.get(event.sender.id)
+    if (!current) {
+      current = new Set(); owners.set(event.sender.id, current)
+      event.sender.once('destroyed', () => { for (const owner of owners.get(event.sender.id) ?? []) options.host.release(owner); owners.delete(event.sender.id) })
+    }
+    const owner = `prepare:${event.sender.id}:${session}`
+    if (!current.has(owner) && current.size >= 16) throw new Error('INTEGRATION_PREPARATION_CAPACITY')
+    current.add(owner)
+    try { return await options.host.prepare(session, owner) }
+    finally { if (!owners.get(event.sender.id)?.has(owner)) options.host.release(owner) }
+  })
+  options.ipcMain.handle('agent-integrations:release-preparation', (event, session: unknown) => {
+    if (!options.isTrustedSender(event) || typeof session !== 'string' || session.length > 128) return
+    const owner = `prepare:${event.sender.id}:${session}`
+    if (owners.get(event.sender.id)?.delete(owner)) options.host.release(owner)
+  })
   options.ipcMain.handle('agent-integrations:test', execute('test'))
   options.ipcMain.handle('agent-integrations:login', execute('login'))
   options.ipcMain.handle('agent-integrations:reconnect', execute('reconnect'))
   return () => {
+    for (const current of owners.values()) for (const owner of current) options.host.release(owner)
+    owners.clear()
+    options.ipcMain.removeHandler('agent-integrations:prepare')
+    options.ipcMain.removeHandler('agent-integrations:release-preparation')
     for (const controller of pending.values()) controller.abort()
     options.ipcMain.removeHandler('agent-integrations:test')
     options.ipcMain.removeHandler('agent-integrations:login')

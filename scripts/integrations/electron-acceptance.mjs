@@ -35,6 +35,9 @@ let tools = []
 const receipts = new Map()
 let authorizations = 0
 let prepared = false
+let confirmed = true
+let launchVerifications = 0
+const leases = new Set()
 // HTTP 仅模拟 Core 合同；进程所有权使用实际 Go Supervisor，MCP 使用官方 Go SDK。
 const server = createServer(async (request, response) => {
   try {
@@ -44,10 +47,16 @@ const server = createServer(async (request, response) => {
     const operation = request.url.split('/').pop()
     let result = {}
     if (operation === 'process') await supervise(input)
-    else if (operation === 'config') result = prepared
-      ? { source: { ...source, mcp: { ...source.mcp, command: 'npx-must-not-run', dependency_id: 'fixture-prepared' } }, secret: {}, launch: { command: fixture.fixture, args: ['--stdio'] } }
-      : { source, secret: {} }
+    else if (operation === 'config') {
+      if (!confirmed) { response.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { code: 'INTEGRATION_LAUNCH_CONFIRMATION_REQUIRED', message: 'Fixture confirmation required' } })); return }
+      if (input.verify_launch) launchVerifications++
+      result = prepared
+        ? { source: { ...source, mcp: { ...source.mcp, command: 'npx-must-not-run', dependency_id: 'fixture-prepared' } }, secret: {}, launch: { command: fixture.fixture, args: ['--stdio', '--startup-delay=32000'] } }
+        : { source, secret: {} }
+    }
     else if (operation === 'sources') result = [source]
+    else if (operation === 'prepare') result = [{ source, configuration_key: 'fixture' }]
+    else if (operation === 'installation-lease') { if (input.release) leases.delete(input.owner); else leases.add(input.owner) }
     else if (operation === 'catalog') tools = input.tools
     else if (operation === 'tools') result = input.name ? tools.find(tool => tool.name === input.name) : tools
     else if (operation === 'receipt') result = receipts.get(input.tool_call_id) ?? null
@@ -93,8 +102,27 @@ async function exercise(modulePath, crash) {
     pid = child.pid
     child.postMessage({ type: 'initialize', config })
     await Promise.race([initialized, delay(10_000).then(() => { throw new Error('扩展宿主未就绪') })])
-    const tested = await rpc({ operation: 'test', source: source.id, revision: 1 })
-    assert.ok(tested.tools.some(tool => tool.name === 'echo'))
+    confirmed = false
+    await assert.rejects(rpc({ operation: 'test', source: source.id, revision: 1 }), /LAUNCH_CONFIRMATION_REQUIRED/u)
+    confirmed = true
+    const verificationStart = launchVerifications
+    const authorizationsStart = authorizations
+    const began = Date.now()
+    await Promise.all([rpc({ operation: 'prepare', session: context.session_id, owner: 'page' }), rpc({ operation: 'prepare', session: context.session_id, owner: 'page-2' })])
+    assert.ok(Date.now() - began < 5000, '准备请求不应等待完整初始化')
+    const initial = await rpc({ context, operation: { action: 'directory' } })
+    if (crash) { assert.equal(initial.tools.length, 0); assert.ok(Date.now() - began < 15_000) }
+    let status
+    for (let i = 0; i < 90; i++) {
+      status = await rpc({ operation: 'status' })
+      if (status.some(value => value.session_id === context.session_id && value.state === 'connected')) break
+      await delay(500)
+    }
+    assert.equal(status.filter(value => value.session_id === context.session_id && value.state === 'connected').length, 1)
+    const directory = await rpc({ context, operation: { action: 'directory' } })
+    assert.ok(directory.tools.some(tool => tool.name === 'echo'))
+    assert.equal(launchVerifications - verificationStart, 1, '多窗口预热与 Run 必须复用同一进程')
+    assert.equal(authorizations, authorizationsStart, '预热不得调用业务工具')
     const operation = { action: 'call', source: source.id, revision: 1, name: 'echo', tool_call_id: context.run_id, arguments: { text: 'electron' } }
     const result = await rpc({ context, operation })
     const content = JSON.parse(result.content[0].text)
@@ -119,7 +147,7 @@ try {
   await exercise(path.join(output, 'source/dist-electron/agent-integrations.js'), false)
   await exercise(path.join(output, 'fixture.asar/dist-electron/agent-integrations.js'), true)
   assert.equal(authorizations, 2)
-  console.log('Electron 扩展验收通过：开发/ASAR 入口、原始及受管 MCP 启动、官方 MCP stdio、回执恢复不重派、正常退出与宿主崩溃回收。')
+  console.log('Electron 扩展验收通过：开发/ASAR、启动确认、32 秒慢初始化、10 秒首次等待、多窗口及 Run 复用、原始及受管 stdio、回执不重派、正常退出与宿主崩溃回收。')
 } catch (error) { console.error(error); process.exitCode = 1 }
 finally {
   server.closeAllConnections(); server.close()

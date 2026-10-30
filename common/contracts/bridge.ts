@@ -81,10 +81,12 @@ export interface TermousBridge {
     onStatus: (callback: (status: AgentRuntimeStatus) => void) => () => void
   }
   agentIntegrations?: {
+    prepare(session: string): Promise<unknown>
+    releasePreparation(session: string): Promise<void>
     status(): Promise<import('./agent-integrations.ts').IntegrationConnectionStatus[]>
-    reconnect(request: {source: string; revision: number; request_id: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string}>
-    login(request: {source: string; revision: number; request_id: string}): Promise<{revision: number}>
-    test(request: {source: string; revision: number; request_id: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string}>
+    reconnect(request: {source: string; revision: number; request_id: string; candidate_id?: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string; source?: import('./agent-integrations.ts').AgentIntegrationSource} | {failure: import('./local-integrations.ts').IntegrationDiagnostic}>
+    login(request: {source: string; revision: number; request_id: string; candidate_id?: string}): Promise<{revision: number} | {failure: import('./local-integrations.ts').IntegrationDiagnostic}>
+    test(request: {source: string; revision: number; request_id: string; candidate_id?: string}): Promise<{tools: import('./agent-integrations.ts').IntegrationToolSummary[]; generation: string; source?: import('./agent-integrations.ts').AgentIntegrationSource} | {failure: import('./local-integrations.ts').IntegrationDiagnostic}>
     cancel(requestID: string): Promise<void>
   }
   terminalAICompletion?: {

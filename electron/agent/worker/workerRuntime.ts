@@ -162,7 +162,7 @@ export class AgentWorkerRuntime {
         protocolVersion: bootstrap.mcp.protocol_version,
         signal: this.startupAbort.signal,
       })
-      if (start.integrations_version === 1) {
+      if (start.integrations_version === 2) {
         if (!this.sendIntegration) throw new Error('INTEGRATION_PROTOCOL_UNAVAILABLE')
         this.integrations = new WorkerIntegrationProxy({ run_id: start.run_id, generation: start.generation, bearer: bootstrap.runtime_bearer }, this.sendIntegration)
         const initial = await readIntegrationDirectory(this.integrations, this.startupAbort.signal)

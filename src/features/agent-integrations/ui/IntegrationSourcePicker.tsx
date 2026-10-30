@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Empty, Popover, Space, Spin, Switch, Tabs, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Empty, Popover, Space, Spin, Switch, Tabs, Tag, Tooltip } from 'antd'
 import { Blocks } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { IntegrationPolicy, IntegrationSelection } from '#entities/agent-integrations'
@@ -16,21 +16,29 @@ export function IntegrationSourcePicker({sessionKey,read,change,disabled}: {
   const [error,setError]=useState('')
   const epoch = useRef(0)
   const mutation = useRef(false)
+  const mutationRevision = useRef(0)
   useEffect(() => {
     const readEpoch = ++epoch.current
     mutation.current = false
     setData(undefined);setBusy(false)
     if (!open || !read) return
     let active=true
+    let timer: ReturnType<typeof setTimeout> | undefined
     setBusy(true);setError('')
-    void read().then(value => {if (active) setData(value)},error => {if (active) setError(error instanceof Error ? error.message : t('extensions.failed'))})
-      .finally(() => {if (active) setBusy(false)})
-    return () => {active=false;epoch.current=readEpoch+1}
+    const refresh = async () => {
+      const revision = mutationRevision.current
+      try { const value = await read(); if (active && !mutation.current && revision === mutationRevision.current) setData(value) }
+      catch (error) { if (active) setError(error instanceof Error ? error.message : t('extensions.failed')) }
+      finally { if (active) { if (!mutation.current) setBusy(false); timer = setTimeout(() => void refresh(), 2000) } }
+    }
+    void refresh()
+    return () => {active=false;clearTimeout(timer);epoch.current=readEpoch+1}
   },[open,sessionKey,read,t])
   const update=async (policy:IntegrationPolicy) => {
     if (!change || busy || mutation.current) return
     const currentEpoch = epoch.current
     mutation.current = true
+    mutationRevision.current++
     setBusy(true);setError('')
     try {await change(policy);if (epoch.current === currentEpoch) setData(current => current && {...current,policies:[...current.policies.filter(value => value.source_id!==policy.source_id),policy]})}
     catch(error) {if (epoch.current === currentEpoch) setError(error instanceof Error ? error.message : t('extensions.failed'))}
@@ -47,6 +55,7 @@ export function IntegrationSourcePicker({sessionKey,read,change,disabled}: {
           {source.kind==='skill' && <Checkbox disabled={!source.enabled || policy.disabled || busy} checked={Boolean(source.version && policy.skill_version===source.version)}
             onChange={event => void update({...policy,skill_version:event.target.checked ? source.version : ''})}>{t('extensions.selectSkill')}</Checkbox>}
           {!source.enabled && <span className={styles.muted}>{t('extensions.enableInSettings')}</span>}
+          {source.kind === 'mcp' && source.connection && <Tag>{t(`mcpPreparation.connectionStates.${source.connection}`)}</Tag>}
         </div>
       })}
       {data && !data.sources.some(source=>source.kind===kind) && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('extensions.empty')}/>}

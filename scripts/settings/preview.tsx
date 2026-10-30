@@ -51,6 +51,8 @@ const agentGateway: AgentSetupGateway = {
 }
 
 const snapshots = new Map<SettingsModuleId, SettingsSnapshot>([
+  ['local_network', { id: 'local_network', schema_version: 1, revision: 1, value: { enabled: false, url: '', bypass: ['localhost', '127.0.0.1', '::1'] }, state: { status: 'saved' } }],
+  ['mcp_integrations', { id: 'mcp_integrations', schema_version: 1, revision: 1, value: { install_root: '', install_timeout_seconds: 1800, startup_timeout_seconds: 120 }, state: { status: 'saved' } }],
   ['desktop_presentation', { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults() }, state: { status: 'saved' } }],
   ['notifications', { id: 'notifications', schema_version: 1, revision: 1, value: { enabled: true, agent: true, file: true, approval: true, cloud: true }, state: { status: 'applied', supported: true } }],
   ['desktop_clipboard', { id: 'desktop_clipboard', schema_version: 1, revision: 1, value: { enabled: true }, state: { status: 'applied' } }],
@@ -121,7 +123,7 @@ export function Preview() {
         onOpenProductTour={() => undefined} onToggleSidebar={() => setCollapsed(value => !value)}>
         <WorkspaceEmptyState icon={<SquareTerminal size={24} />} title="工作站" description="连接主机，开始终端会话" />
       </AppShell>
-        <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
+        <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('connection') ? 'connection' : new URLSearchParams(location.search).has('extensions') ? 'extensions' : new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
           terminalSettings={terminal} sshSmoothScrollEnabled={false} completionSettings={completion}
           connectionSettings={connection} shortcutSettings={defaultShortcutSettings} windowSettings={windowSettings}
           terminalFonts={[]} appVersion="0.0.0-preview" dataPortabilityGateway={dataGateway}

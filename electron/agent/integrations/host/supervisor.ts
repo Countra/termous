@@ -4,6 +4,7 @@ import type { IntegrationRuntimePort, IntegrationOperation } from '../../contrac
 import type { IntegrationRunContext } from '../../contracts/integrations.ts'
 import { isRecord } from '../../contracts/validation.ts'
 import { IntegrationCoreClient, readCoreJSON, type IntegrationCoreConfig } from '../coreClient.ts'
+import { IntegrationFailure, readIntegrationDiagnostic } from '../diagnostics.ts'
 import { integrationEnvironment } from '../environment.ts'
 import { validateOAuthURL } from '../oauthBoundary.ts'
 
@@ -50,7 +51,14 @@ export class IntegrationHostSupervisor implements IntegrationRuntimePort {
     }
     return this.rpc({ context, operation }, signal)
   }
-  test(source: string, revision: number, signal?: AbortSignal) { return this.rpc({ operation: 'test', source, revision }, signal) }
+  test(source: string, revision: number, signal?: AbortSignal, candidate?: string) { return this.rpc({ operation: 'test', source, revision, candidate_id: candidate }, signal) }
+  async prepare(session: string, owner: string) {
+    if (!this.host) {
+      const core = new IntegrationCoreClient(await this.options.configuration())
+      if (!(await core.preparationSources(session)).length) return []
+    }
+    return this.rpc({ operation: 'prepare', session, owner })
+  }
   reconnect(source: string, revision: number, signal?: AbortSignal) { return this.rpc({ operation: 'reconnect', source, revision }, signal) }
   status() { return this.host ? this.rpc({operation:'status'}) : Promise.resolve([]) }
   login(source: string, revision: number, signal?: AbortSignal) { return this.rpc({ operation: 'login', source, revision }, signal) }
@@ -66,16 +74,6 @@ export class IntegrationHostSupervisor implements IntegrationRuntimePort {
     return source
   }
   async invalidate(source: string) { if (this.host) await this.rpc({ operation: 'invalidate', source }) }
-  async dependencyLaunch(source: string, revision: number, signal: AbortSignal) {
-    const config = await this.options.configuration()
-    const response = await fetch(new URL(`/api/v1/agent/integrations/${encodeURIComponent(source)}/dependency/launch?revision=${revision}`, config.baseURL), {
-      headers: { 'X-Termous-Token': config.token }, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), redirect: 'error', cache: 'no-store',
-    })
-    if (!response.ok) throw new Error('INTEGRATION_DEPENDENCY_NOT_READY')
-    const launch: unknown = await readCoreJSON(response)
-    if (!isRecord(launch) || typeof launch.command !== 'string' || !Array.isArray(launch.args) || !launch.args.every(value => typeof value === 'string')) throw new Error('INTEGRATION_CONFIG_INVALID')
-    return launch as unknown as import('#common/agent-integrations').MCPDependencyLaunch
-  }
   release(run: string) { this.host?.child.postMessage({ type: 'release', run }) }
 
   async close() {
@@ -87,10 +85,15 @@ export class IntegrationHostSupervisor implements IntegrationRuntimePort {
       host.child.postMessage({ type: 'close' })
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
-        await Promise.race([host.exit, new Promise<void>(resolve => { timer = setTimeout(() => { host.child.kill(); resolve() }, 5000) })])
+        await Promise.race([host.exit, new Promise<void>(resolve => { timer = setTimeout(() => { host.child.kill(); resolve() }, 10_000) })])
+      } finally { clearTimeout(timer) }
+      // 发送 kill 不等于退出确认；剩余预算必须等到实际 exit 后才能释放宿主身份。
+      try {
+        await Promise.race([host.exit, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('INTEGRATION_PROCESS_UNCONFIRMED')), 5000) })])
       } finally { clearTimeout(timer) }
       if (host.pid) await host.core.supervise(host.pid, true)
-    } finally { this.host = undefined; this.closing = false }
+      if (this.host === host) this.host = undefined
+    } finally { this.closing = false }
   }
 
   private async rpc(payload: Record<string, unknown>, signal?: AbortSignal) {
@@ -159,7 +162,8 @@ export class IntegrationHostSupervisor implements IntegrationRuntimePort {
       }
       if (message.type === 'result' && typeof message.id === 'string') {
         if (Buffer.byteLength(JSON.stringify(message)) > 8 * 1024 * 1024) { this.settle(message.id, undefined, new Error('INTEGRATION_RESPONSE_TOO_LARGE')); return }
-        this.settle(message.id, message.value, typeof message.error === 'string' ? new Error(message.error) : undefined)
+        const diagnostic = readIntegrationDiagnostic(message.diagnostic)
+        this.settle(message.id, message.value, diagnostic ? new IntegrationFailure(diagnostic) : typeof message.error === 'string' ? new Error(message.error) : undefined)
       }
     })
     child.once('exit', () => {
