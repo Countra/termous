@@ -9,7 +9,7 @@ import { agentRuntimeProtocolVersion, defaultExecutionBudget } from '#common/con
 import { externalToolName, externalToolSource, identifyTool } from '../contracts/toolSources.ts'
 import type { RuntimeEventInput } from '../contracts/runtimeEvents.ts'
 
-for (const mode of ['invalid-json','dynamic-tools'] as const) test(`Pi 1.4 真实请求合同：${mode}`, async()=>{
+for (const mode of ['invalid-json','dynamic-tools','refresh-schema'] as const) test(`Pi 1.4 真实请求合同：${mode}`, async()=>{
   const bootstrap=runtimeBootstrap()
   bootstrap.model.snapshot.context_window_tokens=128000
   bootstrap.model.snapshot.execution_budget={...defaultExecutionBudget,enabled:false}
@@ -21,12 +21,12 @@ for (const mode of ['invalid-json','dynamic-tools'] as const) test(`Pi 1.4 真�
       appendSteer:async()=>{throw new Error('不应追加指令')},commitCheckpoint:async()=>{throw new Error('不应压缩')}}})
   const source=externalToolSource('fixture')
   let calls=0,requests=0,changed=false,refreshes=0
-  const makeTool=(original:string)=>identifyTool({name:externalToolName(source,original),label:original,description:'Return an isolated fixture counter.',parameters:Type.Object({value:Type.Number()}),
+  const makeTool=(original:string,revised=false)=>identifyTool({name:externalToolName(source,original),label:original,description:'Return an isolated fixture counter.',parameters:revised ? Type.Object({revised_value:Type.Number()}) : Type.Object({value:Type.Number()}),
     execute:async()=>{calls++;return {content:[{type:'text' as const,text:`counter=${calls}`}],details:{}}}},source,original)
-  const first=makeTool('counter'),second=makeTool('next_counter')
+  const first=makeTool('counter'),second=makeTool(mode==='refresh-schema' ? 'counter' : 'next_counter',mode==='refresh-schema')
   const agent=createPiAgent({bootstrap,events:writer,skills,commitCheckpoint:async()=>{throw new Error('不应压缩')},
     mcp:{tools:[first],originalName:name=>name===first.name ? 'fixture::counter' : name===second.name ? 'fixture::next_counter' : null,close:async()=>{},
-      refreshTools:async()=>{refreshes++;if(mode==='dynamic-tools' && calls===5 && !changed){changed=true;return {removed:[first.name],tools:[second]}}}},
+      refreshTools:async()=>{refreshes++;if(mode!=='invalid-json' && calls===5 && !changed){changed=true;return {removed:[first.name],tools:[second]}}}},
     fetch:async(_input,init)=>{
       assert.ok(++requests<30)
       const headers=new Headers(init?.headers)
@@ -36,11 +36,17 @@ for (const mode of ['invalid-json','dynamic-tools'] as const) test(`Pi 1.4 真�
       const names=body.tools.map((tool:{function:{name:string}})=>tool.function.name)
       assert.ok(names.length<=32)
       if (mode==='invalid-json' && requests===3) return complete('参数无效，已停止')
-      if (mode==='dynamic-tools' && calls===12) return complete('完成')
+      if (mode!=='invalid-json' && calls===12) return complete('完成')
       const current=changed ? second : first
-      if(changed) assert.ok(!names.includes(first.name),'旧工具在目录移除后仍被声明')
+      if(changed && mode==='dynamic-tools') assert.ok(!names.includes(first.name),'旧工具在目录移除后仍被声明')
+      if(changed && mode==='refresh-schema') {
+        assert.ok(names.includes(second.name),'目录刷新丢失当前外部工具声明')
+        const declaration=body.tools.find((tool:{function:{name:string}})=>tool.function.name===second.name).function
+        assert.ok(declaration.parameters.properties.revised_value)
+        assert.equal(declaration.parameters.properties.value,undefined)
+      }
       if(!names.includes(current.name)) return toolCall('discover_tools',JSON.stringify({query:'counter',names:[current.name]}),requests)
-      return toolCall(current.name,mode==='invalid-json' ? '{"value":1 garbage}' : JSON.stringify({value:calls}),requests)
+      return toolCall(current.name,mode==='invalid-json' ? '{"value":1 garbage}' : JSON.stringify(changed && mode==='refresh-schema' ? {revised_value:calls} : {value:calls}),requests)
     }})
   try {
     assert.equal(await agent.continue(),'completed')
@@ -48,7 +54,7 @@ for (const mode of ['invalid-json','dynamic-tools'] as const) test(`Pi 1.4 真�
     assert.equal(calls,mode==='invalid-json' ? 0 : 12)
     assert.equal(refreshes,requests)
     if(mode==='invalid-json') assert.match(JSON.stringify(events),/arguments_error/u)
-    else {assert.equal(changed,true);assert.match(JSON.stringify(events),/fixture::next_counter/u)}
+    else {assert.equal(changed,true);assert.match(JSON.stringify(events),mode==='refresh-schema' ? /fixture::counter/u : /fixture::next_counter/u)}
   } finally {agent.close();await writer.close()}
 })
 

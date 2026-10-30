@@ -23,7 +23,7 @@ function createIntegrationToolBundle(directory: IntegrationDirectory, proxy: Wor
         result: { isError: result.isError === true, content: [] }, operation: result.operation,
         connection_generation: result.connection_generation } satisfies MCPToolDetails & { operation?: string; connection_generation?: string } }
     },
-  } satisfies AgentTool, source, summary.name))
+  } satisfies AgentTool, source, summary.name, directory.fingerprint))
 
   return {summaries,tools:[...tools,...integrationResourceTools(directory,proxy)]}
 }

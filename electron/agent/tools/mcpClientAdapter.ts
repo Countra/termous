@@ -13,6 +13,8 @@ import { agentToolImageReference, isAgentDisplayImageMIMEType } from '#common/co
 import { isImageResourceReference } from '#common/contracts'
 import { resourceImage, isRuntimeImage, isResourceImage } from '../contracts/runtimeResourceImages.ts'
 import { identifyTool, externalToolName, termousToolSource, type ToolSource } from '../contracts/toolSources.ts'
+import { withToolDescription } from '../contracts/toolDescriptions.ts'
+import { isRecord } from '../contracts/validation.ts'
 
 export const agentMCPProtocolVersion = '2025-11-25'
 
@@ -136,7 +138,7 @@ export function mapMCPTools(
       throw new Error('AGENT_MCP_TOOL_SCHEMA_INVALID')
     }
     originalNames.set(encodedName, source === termousToolSource ? definition.name : `${source.id}::${definition.name}`)
-    return identifyTool({
+    const tool = identifyTool({
       name: encodedName,
       label: definition.title || definition.name,
       description: definition.description || definition.title || definition.name,
@@ -160,6 +162,13 @@ export function mapMCPTools(
         } satisfies AgentToolResult<MCPToolDetails>
       },
     }, source, definition.name)
+    // 只接受同源 Core 的说明分段元数据；外部 MCP 不能声明受管或可信指引身份。
+    const metadata = definition._meta?.['termous/capability']
+    if (source === termousToolSource && isRecord(metadata) && metadata.version === 1) {
+      return withToolDescription(tool, typeof metadata.base_description === 'string' ? metadata.base_description : tool.description,
+        typeof metadata.base_description === 'string' ? 'raw' : 'core')
+    }
+    return tool
   })
   return { tools, originalNames }
 }

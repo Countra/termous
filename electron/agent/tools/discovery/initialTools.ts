@@ -2,6 +2,7 @@ import type { ObservationTarget } from '../../contracts/desktopObservation.ts'
 import type { RuntimeResourceBinding } from '../../contracts/resourceBindings.ts'
 import { capabilityToolName } from '../runtimeCapabilityCatalog.ts'
 import type { ToolCapability } from '../../contracts/toolCapabilities.ts'
+import { mergeEntryQueues } from './entries.ts'
 
 interface InitialToolEntry { original: string; trusted: boolean; capability?: ToolCapability }
 
@@ -13,16 +14,10 @@ export function initialTools(entries: readonly InitialToolEntry[], bindings: rea
   if (target) kinds.add(target.kind === 'host_desktop' ? 'host_desktop' : 'desktop_session')
   const priority = (entry: InitialToolEntry, kind: string) => entry.capability?.discovery.preload?.find(rule =>
     rule.bindings.includes(kind) && capabilityToolName(entry.capability!, rule.tool) === entry.original)?.priority
-  const queues = [...kinds].sort().map(kind => entries
+  const queue = (kind: string) => entries
     .filter(entry => entry.trusted && available(entry.original) && priority(entry, kind) !== undefined)
-    .sort((a, b) => priority(a, kind)! - priority(b, kind)! || a.original.localeCompare(b.original)))
-  const names = new Set<string>()
-  while (queues.some(queue => queue.length) && names.size < 8) {
-    for (const queue of queues) {
-      const entry = queue.shift()
-      if (entry) names.add(entry.original)
-      if (names.size === 8) break
-    }
-  }
-  return [...names]
+    .sort((a, b) => priority(a, kind)! - priority(b, kind)! || a.original.localeCompare(b.original)).map(entry => entry.original)
+  const names = mergeEntryQueues([...kinds].sort().map(queue), 8)
+  // 默认入口仅补剩余名额；是否提供由合同声明，不针对任务文本或某类工具增加分支。
+  return [...new Set([...names, ...queue('default')])].slice(0, 8)
 }

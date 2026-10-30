@@ -300,14 +300,15 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     if (change) {
       const removed=new Set([...change.removed,...permanent.map(tool=>tool.name)])
       const activeNames=discovery.retainedNames()
-      const retained=discovery.registry.entries.filter(entry=>!removed.has(entry.tool.name)).map(entry=>entry.tool)
+      const retained=discovery.catalogTools().filter(tool=>!removed.has(tool.name))
       discovery=createDiscovery([...retained,...change.tools])
-      discovery.restoreNames(activeNames)
-      systemPrompt=createRuntimeSystemPrompt(options.bootstrap,options.skills,Boolean(options.lookupPreparedCall),discovery.index())
+      await discovery.restoreNames(activeNames,signal)
     }
     const next = discovery.publish().filter((tool) => !toolProgress.hidden(options.mcp.originalName(tool.name) ?? tool.name))
-    if (next.length !== tools.length || next.some((tool,index) => tool !== tools[index])) {
+    const nextPrompt = createRuntimeSystemPrompt(options.bootstrap, options.skills, Boolean(options.lookupPreparedCall), discovery.index(next))
+    if (nextPrompt !== systemPrompt || next.length !== tools.length || next.some((tool,index) => tool !== tools[index])) {
       tools = next
+      systemPrompt = nextPrompt
       toolDeclarations = tools.map(toToolDeclaration)
       contextFingerprint = fingerprint()
       compaction.updateTools(tools, messages, systemPrompt)

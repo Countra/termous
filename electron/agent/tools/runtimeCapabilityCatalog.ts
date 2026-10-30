@@ -3,6 +3,7 @@ import type { CapabilityCatalog, CapabilityStep, ToolCapability } from '../contr
 import { isRecord } from '../contracts/validation.ts'
 import { localToolNames } from '../contracts/toolNames.ts'
 import { recoveryGuidance, runtimeFailureKind } from './runtimeToolRecovery.ts'
+import { capabilityEntries, mergeEntryQueues } from './discovery/entries.ts'
 
 // 源契约位于 termous-skills/contracts；构建检查生成副本，运行时不读取文档正则或外部路径。
 const catalog = catalogData as CapabilityCatalog
@@ -31,8 +32,9 @@ export function skillEntryTools(uri: string): string[] {
   if (catalog.skillEntries[uri]) return catalog.skillEntries[uri]
   const exact = runtimeCapabilities.filter((capability) => capability.skill === uri)
   const owner = uri.slice(0, uri.indexOf('/', 'skill://'.length) + 1)
-  const capabilities = exact.length ? exact : runtimeCapabilities.filter((capability) => capability.skill.startsWith(owner))
-  return [...new Set(capabilities.flatMap((capability) => capabilityTools(capability, exact.length || uri.endsWith('/SKILL.md') ? capability.entry : capability.recovery)))]
+  const capabilities = exact.length && !uri.endsWith('/SKILL.md') ? exact : runtimeCapabilities.filter((capability) => capability.skill.startsWith(owner))
+  return mergeEntryQueues(capabilities.map(capability => exact.length || uri.endsWith('/SKILL.md')
+    ? capabilityEntries(capability, capabilityToolName) : capabilityTools(capability, capability.recovery)))
 }
 
 export function capabilityValue(data: unknown, path: string): unknown {

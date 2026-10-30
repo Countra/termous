@@ -11,7 +11,7 @@ export interface AgentSkillCatalogEntry {
 }
 
 export function builtinAgentSkillAvailable(skill: AgentSkillCatalogEntry) {
-  // 内置助手没有本机脚本执行器，不能推荐仅供外部客户端启动应用的说明。
+  // 该说明用于外部客户端启动 Termous；内置助手不加载自身应用的外部启动器入口。
   return skill.name !== 'termous-desktop'
 }
 

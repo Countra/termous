@@ -24,6 +24,7 @@ import { projectManagedRecovery } from '../recovery/preparation.ts'
 import { prepareDesktopExecution } from './desktopBatch/query.ts'
 import { observeDesktopBatch } from './desktopBatch/receipt.ts'
 import { reconcileDesktopBatch } from './desktopBatch/reconcile.ts'
+import { toolDescription, withToolDescription } from '../../contracts/toolDescriptions.ts'
 
 export interface ManagedToolOptions {
   runID: string
@@ -49,8 +50,9 @@ export function prepareBuiltinTools(mcp: AgentMCPConnection, options: ManagedToo
     if (!adapter) throw new Error(`AGENT_TOOL_ADAPTER_UNDECLARED: ${name}`)
     const schema = builtinSchema(tool, adapter)
     const modelValidator = Compile(schema)
-    return { ...tool, parameters: schema, prepareArguments: undefined,
-      description: builtinDescription(name, tool.description, adapter),
+    const description = builtinDescription(name, toolDescription(tool).base, adapter)
+    return { ...withToolDescription({ ...tool }, description, 'managed'), parameters: schema, prepareArguments: undefined,
+      description,
       execute: async (callID, input, signal, update) => {
         const prepared = new Map<string, PreparedCall>()
         let phase = ''

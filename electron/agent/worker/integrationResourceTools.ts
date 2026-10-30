@@ -54,7 +54,7 @@ export function integrationResourceTools(directory: IntegrationDirectory, proxy:
       return jsonResult(result)
     },
   }]
-  return tools.map(tool => identifyTool(tool,localToolSource))
+  return tools.map(tool => identifyTool(tool,localToolSource,tool.name,directory.fingerprint))
 }
 
 function jsonResult(value:unknown) {

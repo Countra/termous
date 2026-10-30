@@ -7,15 +7,17 @@ import { RuntimeSkillContext, skillResourceMarker } from './runtimeSkillContext.
 import { createAgentSkillBundleSnapshot } from '../contracts/skillBundle.ts'
 import { identifyTool, termousToolSource } from '../contracts/toolSources.ts'
 
-test('workflow 根说明不依赖正文工具名，截图语义搜索只加载创建入口', async () => {
+test('workflow 根说明复用能力入口，截图语义搜索优先创建且显式动作保持精确', async () => {
   const names = ['schema', 'list', 'get', 'captures.create', 'captures.release', 'templates.preview', 'delete'].map((name) => `termous.desktop_workflows.${name}`)
   const tools = names.map((name) => identifyTool({ name, label: name, description: 'workflow 快照截图', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource))
   const discovery = new RuntimeToolDiscovery(tools, (name) => name, [])
-  assert.deepEqual(discovery.loadReferencedTools('只有流程说明，不写工具名称', 'skill://termous-desktop-workflows/SKILL.md').map((tool) => tool.original_name), names.slice(0, 4))
+  assert.deepEqual(discovery.loadReferencedTools('只有流程说明，不写工具名称', 'skill://termous-desktop-workflows/SKILL.md').map((tool) => tool.original_name), [names[0], names[3], names[5], names[1], names[2]])
   for (const query of ['workflow 截图', '创建快照']) {
     const result = await discovery.tool.execute('call', { query })
     const data = JSON.parse(result.content.find((part) => part.type === 'text')!.text)
-    assert.deepEqual(data.tools.map((tool: { original_name: string }) => tool.original_name), ['termous.desktop_workflows.captures.create'])
+    assert.equal(data.tools[0].original_name, 'termous.desktop_workflows.captures.create')
+    const exact = await discovery.tool.execute('exact', { query, operation: 'capture' })
+    assert.deepEqual(JSON.parse(exact.content.find(part => part.type === 'text')!.text).tools.map((tool: { original_name: string }) => tool.original_name), ['termous.desktop_workflows.captures.create'])
   }
   const restricted = new RuntimeToolDiscovery(tools.filter((tool) => !tool.name.endsWith('captures.create')), (name) => name, [])
   assert.deepEqual(restricted.loadNames(['termous.desktop_workflows.captures.create']), [])

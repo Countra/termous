@@ -3,7 +3,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core'
 import type { AgentMCPConnection } from './mcpTools.ts'
 
 export interface ToolSource { readonly id: string; readonly kind: 'termous' | 'local' | 'mcp' | 'skill' }
-export interface ToolIdentity { readonly source: ToolSource; readonly originalName: string }
+export interface ToolIdentity { readonly source: ToolSource; readonly originalName: string; readonly directoryVersion?: string }
 export const termousToolSource: ToolSource = Object.freeze({ id: 'termous', kind: 'termous' })
 export const localToolSource: ToolSource = Object.freeze({ id: 'local', kind: 'local' })
 export const unclassifiedToolSource: ToolSource = Object.freeze({ id: 'unclassified', kind: 'mcp' })
@@ -15,9 +15,10 @@ export function externalToolSource(id: string, kind: 'mcp' | 'skill' = 'mcp'): T
   return Object.freeze({ id, kind })
 }
 
-export function identifyTool(tool: AgentTool, source: ToolSource, originalName = tool.name): AgentTool {
+export function identifyTool(tool: AgentTool, source: ToolSource, originalName = tool.name, directoryVersion?: string): AgentTool {
   // 身份由本地适配器赋予；Symbol 不可能来自 MCP JSON，工具包装时可随展开保留。
-  return Object.assign(tool, { [identityKey]: Object.freeze({ source, originalName }) })
+  // 目录版本仅用于发现快照失效，不改变来源名称、历史归属或审批权限。
+  return Object.assign(tool, { [identityKey]: Object.freeze({ source, originalName, ...(directoryVersion === undefined ? {} : { directoryVersion }) }) })
 }
 
 export function toolIdentity(tool: AgentTool): ToolIdentity | undefined { return (tool as IdentifiedTool)[identityKey] }

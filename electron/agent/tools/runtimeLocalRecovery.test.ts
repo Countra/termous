@@ -159,7 +159,7 @@ test('命令调用不能推断目录目标已完成，审批拒绝仍保留实�
 test('淘汰后恢复入口跨目录刷新保留，摘要与最终声明一致且不超过 32 项', async () => {
   const mcp = connection()
   const fillers: AgentTool[] = Array.from({ length: 40 }, (_, index) => identifyTool({ name: `fixture_${index}`, label: 'fixture',
-    description: 'fixture', parameters: Type.Object({}), execute: async () => ({ content: [] }) }, termousToolSource, `termous.fixture.${index}`))
+    description: 'fixture', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource, `termous.fixture.${index}`))
   const entries = [...mcp.tools, ...fillers]
   let discovery = new RuntimeToolDiscovery(entries, mcp.originalName, [])
   discovery.preload([])
@@ -172,7 +172,7 @@ test('淘汰后恢复入口跨目录刷新保留，摘要与最终声明一致�
   discovery.navigate(runtimeToolNavigation(read, result, [], true)!)
   const retained = discovery.retainedNames()
   discovery = new RuntimeToolDiscovery(entries, mcp.originalName, [])
-  discovery.restoreNames(retained)
+  await discovery.restoreNames(retained)
   const published = discovery.publish()
   assert(published.length <= 32)
   assert.equal(discovery.declaration(execute, published).status, 'declared')

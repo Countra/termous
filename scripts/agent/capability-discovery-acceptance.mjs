@@ -9,10 +9,12 @@ export function summarizeDiscovery(cases) {
     const sum = (measure) => samples.reduce((total, item) => total + measure(item), 0)
     const count = (predicate) => samples.filter(predicate).length
     return { variant, samples: samples.length,
-      strict_single_action_successes: count((item) => item.success),
-      first_business_tool_correct: count((item) => item.calls[0]?.name === item.expected_tool),
-      eventual_correct_selection: count((item) => item.calls.some((call) => call.name === item.expected_tool)),
-      unexpected_business_calls: sum((item) => item.calls.filter((call) => call.name !== item.expected_tool).length),
+      strict_single_action_successes: count((item) => item.evaluation !== 'open_goal' && item.success),
+      open_goal_successes: count((item) => item.evaluation === 'open_goal' && item.success),
+      first_business_tool_correct: count((item) => item.calls[0]?.input === true),
+      eventual_correct_selection: count((item) => item.calls.some((call) => call.input === true)),
+      unexpected_business_calls: sum((item) => item.calls.filter((call) => call.input !== true).length),
+      fixed_delay_ms: sum((item) => item.calls.reduce((total, call) => total + (call.fixed_delay_ms ?? 0), 0)),
       repeated_business_calls: sum((item) => item.nonprogress_calls ?? 0),
       discovery_calls: sum((item) => item.discoveries.length),
       requests: sum((item) => item.requests.length), total_tokens: sum((item) => item.total_tokens ?? 0),
@@ -51,7 +53,7 @@ export async function runDiscoveryMatrix({ bootstrap, skills, start, variants, r
       while (!stopping && position < tasks.length) {
         try { heartbeat.check() } catch (error) { stop(); throw error }
         const { scenario, index, variant, create = createPiAgent } = tasks[position++]
-        const result = { variant, scenario: scenario.id, index, expected_tool: scenario.expected, requests: [], usage_records: [], calls: [], discoveries: [], tool_failures: [], errors: [] }
+        const result = { variant, scenario: scenario.id, index, evaluation: scenario.evaluation, expected_tool: scenario.expected, accepted_tools: scenario.accepted, requests: [], usage_records: [], calls: [], discoveries: [], tool_failures: [], errors: [] }
         report.cases.push(result)
         const begun = Date.now()
         const fixture = discoveryFixture(scenario.id, (call) => result.calls.push({ ...call, request: result.requests.length }))
@@ -96,7 +98,7 @@ export async function runDiscoveryMatrix({ bootstrap, skills, start, variants, r
         result.timed_out = timedOut
         result.duration_ms = Date.now() - begun
         result.total_tokens = result.usage_records.reduce((sum, entry) => sum + entry.usage.total_tokens, 0)
-        result.nonprogress_calls = result.calls.filter((call, i) => result.calls.slice(0, i).some((old) => old.name === call.name)).length
+        result.nonprogress_calls = result.calls.filter((call, i) => !call.input && result.calls.slice(0, i).some((old) => old.name === call.name && JSON.stringify(old.arguments) === JSON.stringify(call.arguments))).length
         writing = writing.then(save).catch((error) => { stop(); throw error })
         await writing
         console.log(JSON.stringify({ variant, scenario: scenario.id, index, success: result.success, requests: result.requests.length, ms: result.duration_ms, tokens: result.total_tokens }))

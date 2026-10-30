@@ -37,6 +37,7 @@ export interface CapabilityStep {
 }
 
 export interface ToolCapability {
+  selection?: { use_when: string; alternatives?: Array<{ capability: string; when: string }> }
   discovery: { summary: string; entry: string[]; aliases?: Record<string, string[]>; preload?: Array<{ tool: string; bindings: string[]; priority: number }> }
   id: string
   group: string

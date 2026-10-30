@@ -172,7 +172,7 @@ test('工作流查询编辑不加载释放入口，创建资源只保留对应�
   await discovery.tool.execute('find', { names: ['termous.desktop_workflows.runs.get', 'termous.desktop_workflows.update'] })
   assert.deepEqual(discovery.publish().map((tool) => mapped.originalNames.get(tool.name) ?? tool.name), ['discover_tools', 'termous.desktop_workflows.runs.get', 'termous.desktop_workflows.update'])
   for (const query of ['创建新快照', 'create snapshot', '获取快照']) {
-    const result = await discovery.tool.execute('capture', { group: 'workflow_templates', query })
+    const result = await discovery.tool.execute('capture', { group: 'workflow_templates', query, operation: 'capture' })
     const text = result.content[0]!
     if (text.type === 'text') assert.deepEqual(JSON.parse(text.text).tools.map((tool: { original_name: string }) => tool.original_name), ['termous.desktop_workflows.captures.create'])
   }

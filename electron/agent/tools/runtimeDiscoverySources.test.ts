@@ -127,9 +127,9 @@ test('绑定入口与本地入口共享配额，无远程绑定或控制不可�
   const discovery = new RuntimeToolDiscovery(mapped.tools, reader(mapped), [], (name) => name === 'termous.desktops.pointer.click' ? 'revoked' : undefined)
   const bindings: RuntimeResourceBinding[] = [desktop, { kind: 'ssh_session', session_id: 's', ssh_profile_id: 'p', host_id: 'h', host_name: 'test', platform: 'linux', bound_at: '2026-10-24T00:00:00Z' },
     { kind: 'file_profile', file_access_profile_id: 'f', file_access_profile_name: 'test', ssh_profile_id: 'p', host_id: 'h', host_name: 'test', engine: 'sftp', bound_at: '2026-10-24T00:00:00Z' }]
-  assert.deepEqual(discovery.registry.initial([], () => true), ['termous.local.files.read', 'termous.local.commands.execute'])
+  assert.deepEqual(discovery.registry.initial([], () => true), ['termous.local.files.read', 'termous.local.commands.execute', 'termous.desktops.sources'])
   const remoteOnly = mapping(names.filter(name => !name.startsWith('termous.local.')))
-  assert.deepEqual(new RuntimeToolDiscovery(remoteOnly.tools, reader(remoteOnly), []).registry.initial([], () => true), [])
+  assert.deepEqual(new RuntimeToolDiscovery(remoteOnly.tools, reader(remoteOnly), []).registry.initial([], () => true), ['termous.desktops.sources'])
   const selected = discovery.registry.initial(bindings, (name) => discovery.available(name))
   assert.ok(selected.length <= 8)
   for (const name of ['termous.desktops.capture', 'termous.commands.dispatch', 'termous.files.list']) assert.ok(selected.includes(name))

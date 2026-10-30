@@ -2,11 +2,15 @@
 
 ## Ownership and data flow
 
-The authoritative built-in catalog is `termous-skills/contracts/agent-capabilities.json`. Each capability declares its short English purpose, discovery entries, and optional binding-specific preload priorities. The generator validates these declarations and synchronizes Backend and Worker copies. Adding a registered tool and its domain metadata does not require editing the system prompt.
+The authoritative built-in sources are in `termous-skills/contracts/agent-capabilities/`, organized by domain and a manifest. `agent-capabilities.json` and Backend/Worker copies are generated. Each capability declares its purpose, `discovery.entry`, optional preload hints, and optional `selection.use_when` / `selection.alternatives`. Selection explains task fit and tradeoffs; it does not add an execution rule. Adding a registered tool and its domain metadata does not require editing the system prompt or dispatcher.
 
 The MCP adapter assigns a source identity before tools enter parameter preparation. One per-run registry supplies the global index, search, preload selection, and declaration residency. Selection alternates between binding types, up to eight business tools. Preloading does not connect, capture, acquire control, or execute anything.
 
-The global index is bounded to 12 KiB of UTF-8. It includes all registered discovery entries, rather than arbitrarily dropping the third entry of each capability. Entries are alternatives for different business actions, not a prerequisite sequence. When the directory exceeds the budget, the index folds remaining rows into source summaries and retains the complete paginated browse route.
+Preload and directory restoration only admit declarations; they do not trigger explicit-discovery callbacks or activate full Skill documents. On refresh, previously requested external tools are resolved by their unique model names and their current schemas are loaded again. Removed or unavailable tools are not restored. Lightweight catalog placeholders survive refresh and eviction without accumulating old schemas; no execution authorization is recovered by restoring a declaration. Adapter-owned directory versions participate in discovery fingerprints so schema-only or permission changes invalidate old cursors even when lightweight descriptions are identical.
+
+The global index is bounded to 12 KiB of UTF-8. It prioritizes a compact source/group overview and deduplicated guidance for actually published capabilities, followed by available alternatives and remaining discovery entries. Published capability guidance replaces its static catalog summary. Overflow folds into source summaries and a complete paginated browse route; no execution capability is removed by this text budget. Alternatives are one-hop suggestions, with exact model names and declared/discoverable states computed from the authorized directory.
+
+Every Pi `prepareRequest` refreshes the directory, publishes pending declarations, then generates the system prompt and context fingerprint from that same tool set. Compaction receives the same prompt and declarations. Description provenance is process-local metadata: managed parameter descriptions, raw Core descriptions, and legacy enhanced Core descriptions are distinguished without inspecting description text. External `_meta` cannot assign this provenance or internal source identity.
 
 ## Source boundaries
 
@@ -14,7 +18,7 @@ Source identity is held in a process-local Symbol assigned by a connection adapt
 
 Only trusted Termous tools receive automatic parameter preparation, resource binding, built-in recovery/navigation, or resource-reference image transport. An external tool named `termous.desktops.capture` cannot activate internal mouse declarations by returning fabricated screenshot or navigation data. Unknown built-in adapters fail explicitly.
 
-This change supplies the internal source contract and simulated external tools/Skills. It does not add real external connections, authentication, installation, or management UI. The Core MCP endpoint restriction, Worker wire protocol, and external Termous MCP contracts remain unchanged.
+The capability layer consumes existing internal and external connections and Skill sources. It does not own authentication, installation, management UI, or execution permissions. The Core MCP endpoint restriction and each source's existing approval and execution contracts still apply.
 
 ## Discovery contract
 
@@ -34,6 +38,8 @@ Cursor validation binds the directory fingerprint, normalized filters, result li
 Optional `discovery.aliases` maps a capability's tool names to bounded purpose phrases. All terms in a phrase must match the same query segment. An alias can supplement inferred-action recall, such as finding local command execution for a local directory listing, but cannot override an explicit `operation` or source filter. An incompatible explicit operation can return `related_actions` with a corrected discovery request; those suggestions do not load or execute tools. Skills-only searches do not return these tool suggestions.
 
 ## Skills and bounded residency
+
+Natural-language action inference affects relevance, not eligibility; explicit operations still filter tools with action contracts. History only breaks relevance ties. Equally relevant candidates rotate between capabilities/sources while preserving stable cursor order. Root Skills derive entries from their owning capabilities' `discovery.entry`; only specialized references retain explicit entry overrides. Preload selects startup declarations and never establishes a task-execution priority.
 
 Built-in Skill URIs remain unchanged. External snapshots use `skill://sources/<source>/<skill>/<path>`; relative references stay in that source. The original snapshot digest is checked without rewriting its content. External documents do not become system rules or automatically activate built-in tools. The built-in catalog continues to exclude the external-client-only local application launcher Skill, while historical URI reads remain compatible.
 

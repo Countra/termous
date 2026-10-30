@@ -45,6 +45,25 @@ export function runtimeDiscoveryPage(registry: RuntimeToolRegistry, args: Discov
     }
   }
   hits.sort((a, b) => Number(Boolean(a.tool && blocked(a.tool))) - Number(Boolean(b.tool && blocked(b.tool))) || b.score - a.score || a.id.localeCompare(b.id))
+  // 仅在可用状态和相关性相同时轮换能力，避免同一能力占满整页；游标仍绑定完整稳定排序。
+  for (let start = 0; start < hits.length;) {
+    let end = start + 1
+    const unavailable = Boolean(hits[start].tool && blocked(hits[start].tool!))
+    while (end < hits.length && hits[end].score === hits[start].score && Boolean(hits[end].tool && blocked(hits[end].tool!)) === unavailable) end++
+    const queues = new Map<string, Hit[]>()
+    for (const hit of hits.slice(start, end)) {
+      const group = hit.tool ? `${hit.tool.source.id}/${hit.tool.capability?.id ?? hit.tool.group}` : `skill:${hit.skill!.source.id}`
+      const queue = queues.get(group) ?? []
+      queue.push(hit)
+      queues.set(group, queue)
+    }
+    const ordered: Hit[] = []
+    for (let index = 0; ordered.length < end - start; index++) {
+      for (const queue of queues.values()) if (queue[index]) ordered.push(queue[index])
+    }
+    hits.splice(start, end - start, ...ordered)
+    start = end
+  }
   if (offset > hits.length) throw new Error('AGENT_DISCOVERY_CURSOR_STALE')
   const page = hits.slice(offset, offset + limit)
   const next = offset + page.length

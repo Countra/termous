@@ -52,10 +52,12 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
     return { operation, segment, scores, best, group: args.group && groupBest >= best ? args.group : undefined }
   })
   return (entry: SearchEntry) => {
+    const capability = runtimeCapability(entry.original)
+    // 精确名称不能隐式撤销显式动作条件；没有动作合同的外部工具仍使用描述检索。
+    if (entry.trusted !== false && capability && args.operation && !runtimeToolOperations(entry.original).includes(args.operation)) return 0
     if (args.names?.length) return args.names.includes(entry.original) || args.names.includes(entry.tool.name) ? 10000 : 0
     const original = entry.original.toLowerCase()
     if (query === original || query === entry.tool.name.toLowerCase()) return 10000
-    const capability = runtimeCapability(entry.original)
     if (entry.trusted === false || !capability) {
       if (args.group && args.group !== entry.group) return 0
       const terms = [query, args.operation ?? ''].filter(Boolean).join(' ')
@@ -68,18 +70,22 @@ export function createToolSearch(args: DiscoveryInput, preferredCapabilities: Re
     return Math.max(0, ...candidates.map(({ operation, segment, scores, best, group }) => {
       const usage = toolUsageAlias(entry.original, segment)
       // 用途别名只补充自然语言召回，不能放宽显式动作或来源过滤。
-      if (group && group !== entry.group || operation && !operations.includes(operation) && (args.operation || !usage)) return 0
+      if (group && group !== entry.group && !usage || args.operation && !operations.includes(args.operation)) return 0
       const resource = capability ? scores.get(capability.id) ?? 0 : 0
-      if (best > 0 && (!capability || !scores.has(capability.id))) return 0
+      if (best > 0 && !scores.has(capability.id) && !usage) return 0
+      // 推断动作不是硬过滤，但不同动作仍需用途或实际描述命中，不能只因同属一个能力就召回。
+      if (operation && !operations.includes(operation) && !usage && !lexicalScore) return 0
       // 未命中业务词汇时仍检索真实声明；连续性只补足已识别的动作，不为任意无关查询兜底。
-      if (query && best === 0 && !group && !lexicalScore && !(operation && preferredCapabilities.has(capability.id))) return 0
-      const browse = !query && role && ['list', 'inspect', 'observe'].includes(role) ? 20 : 0
-      const entryIndex = capability?.entry.findIndex((name) => (name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name) === entry.original) ?? -1
-      const entryPriority = !query && entryIndex >= 0 ? 100 - entryIndex : 0
-      const continuity = capability && preferredCapabilities.has(capability.id) ? 30 : 0
+      const actionOnly = vocabulary.some(value => value.operation === operation && value.word === segment.trim())
       const phase = /状态|进度|终态|\bstatus\b/u.test(query) && role === 'poll' ? 20 : 0
+      if (query && best === 0 && !group && !lexicalScore && !usage && !phase && !(actionOnly && operations.includes(operation!))) return 0
+      const browse = !query && role && ['list', 'inspect', 'observe'].includes(role) ? 20 : 0
+      const entryIndex = capability.discovery.entry.findIndex((name) => (name.startsWith('termous.') || localToolNames.has(name) ? name : capability.prefix + name) === entry.original)
+      const entryPriority = !query && entryIndex >= 0 ? 100 - entryIndex : 0
+      // 历史只用于同等相关性下的排序，不单独召回工具，也不压过当前用途。
+      const continuity = query && preferredCapabilities.has(capability.id) ? 0.1 : 0
       // 浏览时所有通过过滤的工具都进入分页，入口优先级只影响排序。
-      return (query ? 0 : 1) + (group ? 100 : 0) + resource * 30 + (operation ? 200 : 0) + (usage ? 60 : 0) + score + (best === 0 ? lexicalScore : 0) + browse + entryPriority + continuity + phase
+      return (query ? 0 : 1) + (group === entry.group ? 100 : 0) + resource * 30 + (operation && operations.includes(operation) ? 200 : 0) + (usage ? 60 : 0) + score + (best === 0 ? lexicalScore : 0) + browse + entryPriority + continuity + phase
     }))
   }
 }

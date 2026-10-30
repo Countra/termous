@@ -18,7 +18,7 @@ function fields(value: unknown, names: readonly string[]) {
 function digest(value: unknown) { return createHash('sha256').update(JSON.stringify(value)).digest('hex') }
 
 function outputEvidence(value: Record<string, unknown>) {
-  const result = fields(value, ['offset', 'next_offset', 'total_bytes', 'truncated', 'invalid_utf8'])
+  const result: Record<string, unknown> = fields(value, ['offset', 'next_offset', 'total_bytes', 'truncated', 'invalid_utf8'])
   if (typeof value.text === 'string') result.text_sha256 = digest(value.text)
   if (isRecord(value.tail) && typeof value.tail.text === 'string') {
     result.tail = { ...fields(value.tail, ['offset']), text_sha256: digest(value.tail.text) }
@@ -46,7 +46,7 @@ export function projectLocalToolResult(result: unknown): Record<string, unknown>
   const value = isRecord(result.value) ? result.value : result
   // calls.get 的命令回执多包一层 receipt；只取既有事实，不把正文解释成回执。
   const receipt = isRecord(value.receipt) ? value.receipt : value
-  const data = { ...fields(result, ['state', 'call_id']), ...fields(value, ['path', 'task_id', 'sha256', 'size_bytes', 'offset', 'next_offset', 'truncated', 'text_sha256', 'image_sha256', 'limited', 'scanned', 'skipped']) }
+  const data: Record<string, unknown> = { ...fields(result, ['state', 'call_id']), ...fields(value, ['path', 'task_id', 'sha256', 'size_bytes', 'offset', 'next_offset', 'truncated', 'text_sha256', 'image_sha256', 'limited', 'scanned', 'skipped']) }
   if (isRecord(result.error)) {
     const error = fields(result.error, ['code', 'message'])
     const details = fields(result.error.details, ['path', 'expected_type', 'actual_type'])

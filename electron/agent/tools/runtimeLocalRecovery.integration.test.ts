@@ -50,7 +50,7 @@ for (const api of ['responses', 'chat_completions'] as const) for (const preload
       core_base_url: 'http://127.0.0.1:8122', ticket: 't'.repeat(48), run_id: bootstrap.run.id, generation: 1, skills },
       runtimeBearer: bootstrap.runtime_bearer, initialSequence: 0, onFailure: error => { throw error },
       core: { bootstrap: async () => bootstrap, appendAuditEvents: async () => {},
-        appendEvents: async (_start, _bearer, batch) => batch.at(-1)!.sequence,
+        appendEvents: async (_start, _bearer, batch) => batch[batch.length - 1]!.sequence,
         appendSteer: async () => { throw new Error('不应追加指令') }, commitCheckpoint: async () => { throw new Error('不应触发压缩') } },
     })
     const requests: Array<{ names: string[]; text: string }> = []
@@ -76,7 +76,7 @@ for (const api of ['responses', 'chat_completions'] as const) for (const preload
       assert.match(afterError.text, /"name":"m_termous_dlocal_dcommands_dexecute","source":"local","status":"declared"/u)
       assert.match(afterError.text, /older token error does not explain/u)
       assert.equal((afterError.text.match(/\[TERMOUS_EXECUTION_STATE\]/gu) ?? []).length, 1)
-      assert(requests.at(-1)!.names.includes(encodeMCPToolName(execute)))
+      assert(requests[requests.length - 1]!.names.includes(encodeMCPToolName(execute)))
       assert(requests.every(request => request.names.length <= 32))
     } finally { agent.close(); await writer.close() }
   })

@@ -1,9 +1,13 @@
 import { runtimeCapabilities, capabilityToolName, runtimeCapabilityStep, runtimeToolOperations } from '../../electron/agent/tools/runtimeCapabilityCatalog.ts'
 import { mapMCPTools } from '../../electron/agent/tools/mcpClientAdapter.ts'
 import { runtimeUserMessage } from '../../electron/agent/test-support/runtimeBootstrapTestFixture.ts'
+import { openGoalCases, openGoalSchema, createOpenGoal } from './capability-open-goals.mjs'
+import { identifyTool, localToolSource } from '../../electron/agent/contracts/toolSources.ts'
 
 // 此夹具只测真实模型的业务工具选择，不模拟真实协议执行或统计为桌面操作成功。
 export const discoveryCases = [
+  ['local_read', '读取本机已有普通文本文件的正文，使用本地文件读取能力。', 'termous.local.files.read'],
+  ['local_directory', '使用本机命令查看本地目录中的文件，不连接远程服务器、不打开文件管理器窗口。', 'termous.local.commands.execute'],
   ['desktop_capture', '观察当前远程桌面，取得即时屏幕截图。', 'termous.desktops.capture'],
   ['desktop_click', '已经看清当前截图中的按钮，需要使用鼠标单击它。不要按键盘，也不要创建工作流。', 'termous.desktops.pointer.click'],
   ['desktop_type', '在已经聚焦的远程桌面输入框输入文字，不要只修改剪贴板。', 'termous.desktops.keyboard.text'],
@@ -24,28 +28,36 @@ export const discoveryCases = [
   ['file_download', '把远程文件下载到本地，不上传文件。', 'termous.files.transfers.download'],
   ['snippet_read', '已经有命令片段 ID，读取片段正文，不执行其中命令。', 'termous.snippets.get'],
   ['crontab_read', '读取当前 SSH 用户的 Crontab 配置和修订，不启动工作流。', 'termous.remoteops.crontab.get'],
-].map(([id, prompt, expected]) => ({ id: `catalog_${id}`, prompt, expected }))
+].map(([id, prompt, expected]) => ({ id: `catalog_${id}`, prompt, expected, evaluation: 'exact_action' })).concat(openGoalCases)
 
 export function discoveryFixture(scenario, onCall) {
   const task = discoveryCases.find((item) => item.id === scenario)
   if (!task) throw new Error('未知目录验收场景')
   const calls = []
+  const goal = task.evaluation === 'open_goal' ? createOpenGoal(task) : undefined
   const definitions = runtimeCapabilities.flatMap((capability) => capability.steps.flatMap((step) => step.tools
     .map((name) => capabilityToolName(capability, name)).filter((name) => name.startsWith('termous.'))
     .map((name) => ({ name, description: `${capability.purpose} Actions: ${runtimeToolOperations(name).join(', ')}. Stage: ${runtimeCapabilityStep(name)?.role}.`,
-      inputSchema: { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true } }))))
-  const mapped = mapMCPTools(definitions, async (definition) => {
+      inputSchema: goal && task.accepted.includes(name) ? openGoalSchema(name) : { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true } }))))
+  const mapped = mapMCPTools(definitions, async (definition, args) => {
     calls.push(definition.name)
-    const success = definition.name === task.expected
-    onCall({ name: definition.name, input: success, ...(success ? {} : { error: 'FIXTURE_WRONG_BUSINESS_TOOL' }) })
-    const data = { fixture_goal_completed: success, message: success ? '合成业务工具选择已完成，请结束本次验收。' : '此工具的业务效果不符合目标，请选择准确动作。' }
+    const outcome = goal?.apply(definition.name, args)
+    const success = outcome?.valid ?? definition.name === task.expected
+    const completed = outcome?.completed ?? success
+    onCall({ name: definition.name, arguments: args, input: success, fixed_delay_ms: outcome?.fixed_delay_ms ?? 0, ...(success ? {} : { error: 'FIXTURE_WRONG_BUSINESS_TOOL' }) })
+    const data = { fixture_goal_completed: completed, message: !success ? '此工具或参数的业务效果不符合目标，请重新评估。' : completed ? '合成目标已完成，请结束本次验收。' : '当前动作已完成，目标尚未全部完成。' }
     return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: !success }
   })
+  // 夹具也保留真实的来源边界；本地能力不能伪装成对外 Termous MCP 工具。
+  for (const tool of mapped.tools) {
+    const original = mapped.originalNames.get(tool.name)
+    if (original.startsWith('termous.local.')) identifyTool(tool, localToolSource, original)
+  }
   return { mcp: { tools: mapped.tools, originalName: (name) => mapped.originalNames.get(name) ?? null, close: async () => {} },
-    success: () => calls.length === 1 && calls[0] === task.expected }
+    success: () => goal ? goal.success() : calls.length === 1 && calls[0] === task.expected }
 }
 
 export function discoveryMessages(scenario) {
   const task = discoveryCases.find((item) => item.id === scenario)
-  return [runtimeUserMessage([], { text: `本地合成工具选择验收：${task.prompt}\n工具执行都是本地替身，不会连接或操作真实资源。请发现并实际调用正确业务工具一次，参数以当前声明为准；收到 fixture_goal_completed=true 后结束。不要额外查询或清理。` })]
+  return [runtimeUserMessage([], { text: `本地合成工具选择验收：${task.prompt}\n工具执行都是本地替身，不会连接或操作真实资源。${task.evaluation === 'open_goal' ? '按目标选择工具及步骤' : '请发现并实际调用正确业务工具一次'}，参数以当前声明为准；收到 fixture_goal_completed=true 后结束。不要额外查询或清理。` })]
 }
