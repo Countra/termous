@@ -12,7 +12,7 @@ import { RuntimeEventWriter } from '../runtimeEventWriter.ts'
 import type { RuntimeEventInput } from '../../contracts/runtimeEvents.ts'
 import type { DesktopTaskReceipt } from '../../contracts/desktopTasks.ts'
 
-for (const api of ['chat_completions', 'responses'] as const) test(`${api} 后台期间独立工作、空闲挂起及完成观察只接续一次`, async () => {
+for (const api of ['chat_completions', 'responses'] as const) for (const pause of [false, true]) test(`${api} 后台期间独立工作、${pause ? '定时等待' : '空闲挂起'}及完成观察只接续一次`, async () => {
   const bootstrap = runtimeBootstrap()
   bootstrap.model.snapshot.api_mode = api
   bootstrap.model.snapshot.supports_images = true
@@ -63,7 +63,9 @@ for (const api of ['chat_completions', 'responses'] as const) test(`${api} 后�
       if (requests === 4) {
         assert.match(String(init?.body), /Termous desktop task observation/)
         assert.match(String(init?.body), /data:image\/png;base64,aW1hZ2U=/)
+        if (pause) assert.match(String(init?.body), /task_update/)
       }
+      if (pause && requests === 3) return runtimeToolResponse(api, 'wait', { duration_seconds: 60 }, 'pause')
       return runtimeToolResponse(api, requests === 1 ? mapped.tools[0]!.name : requests === 2 ? mapped.tools[1]!.name : undefined, {}, String(requests))
     }, ['termous.desktops.execute', 'termous.hosts.list']),
   })

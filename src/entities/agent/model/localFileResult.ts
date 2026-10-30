@@ -1,4 +1,5 @@
 import type { AgentToolResultPart } from './types.ts'
+import { decodeFileReview, type FileReview } from '#shared/file-review'
 
 export interface AgentLocalFileResult {
   action: 'read' | 'write' | 'edit'
@@ -10,6 +11,12 @@ export interface AgentLocalFileResult {
   nextOffset?: number
   partial?: boolean
   previewLimited?: boolean
+  startLine?: number
+  endLine?: number
+  consistency?: 'snapshot' | 'live'
+  changed?: boolean
+  changeCount?: number
+  review?: FileReview
 }
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -32,7 +39,11 @@ export function readLocalFileResult(result: AgentToolResultPart): AgentLocalFile
   if (!record(data) || typeof data.path !== 'string' || data.path.length > 32768 || !integer(data.size_bytes)) return undefined
   if (action !== 'read') {
     if (typeof data.created !== 'boolean') return undefined
-    return { action, path: data.path, size: data.size_bytes, created: data.created }
+    let review: FileReview | undefined
+    if (data.review !== undefined) { try { review = decodeFileReview(data.review) } catch { return undefined } }
+    return { action, path: data.path, size: data.size_bytes, created: data.created, review,
+      changed: typeof data.changed === 'boolean' ? data.changed : undefined,
+      changeCount: integer(data.change_count) ? data.change_count : undefined }
   }
   if (!integer(data.offset) || !integer(data.next_offset) || data.next_offset < data.offset || data.next_offset > data.size_bytes || typeof data.truncated !== 'boolean'
     || data.text !== undefined && typeof data.text !== 'string') return undefined
@@ -42,5 +53,7 @@ export function readLocalFileResult(result: AgentToolResultPart): AgentLocalFile
   let preview = text.slice(0, 4000)
   if (/[\uD800-\uDBFF]$/u.test(preview)) preview = preview.slice(0, -1)
   return { action, path: data.path, size: data.size_bytes, text: preview, offset: data.offset, nextOffset: data.next_offset,
+    startLine: integer(data.start_line) ? data.start_line : undefined, endLine: integer(data.end_line) ? data.end_line : undefined,
+    consistency: data.consistency === 'snapshot' || data.consistency === 'live' ? data.consistency : undefined,
     partial: data.truncated || data.offset > 0, previewLimited: preview.length < text.length }
 }

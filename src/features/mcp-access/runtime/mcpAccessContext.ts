@@ -12,6 +12,7 @@ import type {
 export type McpAccessRuntimePhase = 'idle' | 'loading' | 'ready' | 'reconciling' | 'degraded'
 
 export interface McpAccessRuntimeValue {
+  readFileReview: import('../api/mcpAccessGateway').McpApprovalGateway['readFileReview']
   phase: McpAccessRuntimePhase
   status: McpStatus | null
   clients: McpClient[]

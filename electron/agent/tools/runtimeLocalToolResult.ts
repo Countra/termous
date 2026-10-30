@@ -46,7 +46,7 @@ export function projectLocalToolResult(result: unknown): Record<string, unknown>
   const value = isRecord(result.value) ? result.value : result
   // calls.get 的命令回执多包一层 receipt；只取既有事实，不把正文解释成回执。
   const receipt = isRecord(value.receipt) ? value.receipt : value
-  const data: Record<string, unknown> = { ...fields(result, ['state', 'call_id']), ...fields(value, ['path', 'task_id', 'sha256', 'size_bytes', 'offset', 'next_offset', 'truncated', 'text_sha256', 'image_sha256', 'limited', 'scanned', 'skipped']) }
+  const data: Record<string, unknown> = { ...fields(result, ['state', 'call_id']), ...fields(value, ['path', 'task_id', 'sha256', 'size_bytes', 'offset', 'next_offset', 'truncated', 'text_sha256', 'image_sha256', 'limited', 'scanned', 'skipped', 'version', 'consistency', 'start_line', 'end_line', 'partial_line', 'truncated_by', 'changed', 'change_count']) }
   if (isRecord(result.error)) {
     const error = fields(result.error, ['code', 'message'])
     const details = fields(result.error.details, ['path', 'expected_type', 'actual_type'])

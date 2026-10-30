@@ -141,6 +141,7 @@ export interface AgentWorkspaceReasoningPart {
 }
 
 export interface AgentWorkspaceToolPart {
+  runtime_wait?: import('#entities/agent').AgentRuntimeWait
   local_file?: import('#entities/agent').AgentLocalFileResult
   tool_call_id?: string
   cancelDesktop?: () => Promise<void>
@@ -345,6 +346,7 @@ export interface AgentWorkspaceProps {
   onRemoveAttachment: (clientId: string) => Promise<void>
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
+  onLoadFileReview?: import('#shared/file-review').FileHistoryLoader
   onLoadToolImage?: AgentImageLoader
   onSend: (message: string, attachmentIds: string[]) => Promise<void>
   onQueueTurn: (message: string, attachmentIds: string[]) => Promise<void>

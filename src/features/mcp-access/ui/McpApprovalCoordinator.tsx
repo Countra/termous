@@ -16,7 +16,7 @@ interface McpApprovalCoordinatorProps {
 export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }: McpApprovalCoordinatorProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { clients, approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
+  const { clients, approvals, mutationKey, decideApproval, reload, readFileReview } = useMcpAccessRuntime()
   const approval = blocked ? null : approvals.find((item) => item.id === preferredApprovalId) ?? approvals[0] ?? null
   const approvalId = approval?.id ?? ''
   const [rememberFor, setRememberFor] = useState('')
@@ -115,7 +115,7 @@ export function McpApprovalCoordinator({ blocked = false, preferredApprovalId }:
               <strong>{approvalClientName}</strong>
             </div>
 
-            <McpApprovalDetails key={approval.id} approval={approval} />
+            <McpApprovalDetails key={approval.id} approval={approval} readFileReview={readFileReview} />
             {canRemember && <Checkbox checked={rememberFor===approval.id} disabled={mutationBusy || expired}
               onChange={event => setRememberFor(event.target.checked ? approval.id : '')}>{t(localApproval ? 'localTools.rememberCommand' : 'extensions.rememberSession')}</Checkbox>}
           </div>

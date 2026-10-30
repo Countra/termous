@@ -26,6 +26,7 @@ vi.mock('../runtime/mcpAccessContext', async () => {
   return {
     ...actual,
     useMcpAccessRuntime: (): McpAccessRuntimeValue => ({
+      readFileReview: vi.fn(async () => { throw new Error('unused') }),
       phase: 'ready',
       status: {
         instance_id: 'instance-1',

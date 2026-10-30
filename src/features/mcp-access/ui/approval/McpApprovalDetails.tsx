@@ -11,8 +11,8 @@ import { AnalysisApprovalRenderer } from './AnalysisApprovalRenderer'
 import { ExternalApprovalRenderer } from './ExternalApprovalRenderer'
 import { LocalApprovalRenderer } from './LocalApprovalRenderer'
 
-export function McpApprovalDetails({ approval }: { approval: McpApproval }) {
-  if (approval.kind === 'local_tool') return <LocalApprovalRenderer operation={approval.operation} />
+export function McpApprovalDetails({ approval, readFileReview }: { approval: McpApproval; readFileReview?: import('../../api/mcpAccessGateway').McpApprovalGateway['readFileReview'] }) {
+  if (approval.kind === 'local_tool') return <LocalApprovalRenderer approvalId={approval.id} operation={approval.operation} readFileReview={readFileReview} />
   if (approval.kind==='external_tool') return <ExternalApprovalRenderer operation={approval.operation}/>
   return (
     <>

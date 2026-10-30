@@ -14,6 +14,7 @@ import {
   decodeMcpStatus,
 } from '#features/mcp-access'
 import { TermousApiTransport } from '#shared/api'
+import { decodeFileReviewPage, type FileReviewQuery } from '#shared/file-review'
 
 import { SettingsClient } from './settingsClient'
 
@@ -72,6 +73,13 @@ export class McpAccessClient extends TermousApiTransport {
   approvals(signal?: AbortSignal) {
     return this.request<unknown>(`${mcpPath}/approvals`, { signal })
       .then(decodeMcpApprovalSnapshot)
+  }
+
+  readFileReview(approvalId: string, query: FileReviewQuery, signal?: AbortSignal) {
+    const params = new URLSearchParams({ digest: query.digest, mode: query.mode })
+    if (query.cursor) params.set('cursor', query.cursor)
+    if (query.context) params.set('context', query.context)
+    return this.request<unknown>(`${mcpPath}/approvals/${encodeURIComponent(approvalId)}/file-review?${params}`, { signal }).then(decodeFileReviewPage)
   }
 
   decideApproval(

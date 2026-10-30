@@ -34,6 +34,7 @@ export interface AgentArchiveManagerProps {
   onRestore: (session: AgentSession) => Promise<boolean | void>
   onDelete: (session: AgentSession) => Promise<boolean | void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
+  onLoadFileReview?: import('#shared/file-review').FileHistoryLoader
   onLoadToolImage?: AgentImageLoader
 }
 
@@ -59,7 +60,7 @@ export function AgentArchiveManager(props: AgentArchiveManagerProps) {
 function ArchiveContents({
   sessions, groups, query, listLoading, listError, selectedSession, messages,
   previewLoading, previewError, pendingIds, showTurnTokenUsage, onQueryChange, onSelect,
-  onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent, onLoadToolImage,
+  onReload, onReloadPreview, onRestore, onDelete, onLoadAttachmentContent, onLoadToolImage, onLoadFileReview,
   onLoadOlder, onLoadNewer,
   onLoadMessageText,
 }: AgentArchiveManagerProps) {
@@ -167,7 +168,7 @@ function ArchiveContents({
                     showTurnTokenUsage={showTurnTokenUsage}
                     onPreviewAttachment={setPreviewAttachment}
                     onLoadAttachmentContent={onLoadAttachmentContent}
-                    onLoadToolImage={onLoadToolImage}
+                    onLoadToolImage={onLoadToolImage} onLoadFileReview={onLoadFileReview}
                   />
                 )}
               </div>

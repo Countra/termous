@@ -252,7 +252,9 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     })
   ), [api, runMutation])
 
+  const readFileReview = useCallback<McpAccessGateway['readFileReview']>((id, query, signal) => api.readFileReview(id, query, signal), [api])
   const value = useMemo(() => ({
+    readFileReview,
     phase,
     status,
     clients,
@@ -267,6 +269,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     issueToken,
     decideApproval,
   }), [
+    readFileReview,
     approvals,
     clients,
     createClient,

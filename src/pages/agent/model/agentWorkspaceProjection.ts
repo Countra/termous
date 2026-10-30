@@ -1,4 +1,4 @@
-import { mergeAgentProgress } from '#entities/agent'
+import { mergeAgentProgress, readRuntimeWait } from '#entities/agent'
 import type {
   AgentMessage,
   AgentCompactionActivity,
@@ -327,6 +327,7 @@ function projectMessageParts(
         images: projectAgentToolImages(sessionID, result),
         desktop_batch: batch,
         local_file: toolDetails.localFile(result),
+        runtime_wait: readRuntimeWait(undefined, result.tool_result),
         detail: toolDetails.detail(undefined, result),
       }]
     }
@@ -379,6 +380,13 @@ function projectToolPart(
     status,
     phase: (status === 'running' || status === 'waiting_approval') && phaseEvent?.kind === 'tool_progress' ? phaseEvent.payload.tool.phase : undefined,
     duration_ms: duration,
+    runtime_wait: (() => {
+      const value = readRuntimeWait(call.tool_call, result?.tool_result)
+      if (!value) return undefined
+      const started = toolEvents.find(event => event.kind === 'tool_progress' && event.payload.tool.phase === 'waiting')
+        ?? toolEvents.find(event => event.kind === 'tool_started')
+      return { ...value, startedAt: started?.created_at }
+    })(),
     ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch, local_file: toolDetails.localFile(result) } : {}),
     detail: toolDetails.detail(call, result),
   }

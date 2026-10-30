@@ -265,6 +265,12 @@ export function AgentWorkspaceHost({
   }, [activeSetupEpochRef, activeSetupReadyEpochRef, gateway, perform, readiness?.mcp_policy, setReadiness, setupGateway, remote])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
+  const reviewSessionId = selected?.id
+  const archiveReviewSessionId = archives.selectedSession?.id
+  const loadFileReview = useMemo<NonNullable<AgentSurfaceModel['workspace']>['onLoadFileReview']>(() => gateway.fileReview && reviewSessionId
+    ? (id, digest, cursor) => gateway.fileReview!(reviewSessionId, id, digest, cursor) : undefined, [gateway, reviewSessionId])
+  const loadArchiveFileReview = useMemo<NonNullable<AgentSurfaceModel['archive']>['onLoadFileReview']>(() => gateway.fileReview && archiveReviewSessionId
+    ? (id, digest, cursor) => gateway.fileReview!(archiveReviewSessionId, id, digest, cursor) : undefined, [gateway, archiveReviewSessionId])
   const newSessionModelId = draftModelId
     ?? readiness?.settings.default_model_id
     ?? firstRunnableModelId
@@ -518,6 +524,7 @@ export function AgentWorkspaceHost({
       return loadAgentMessageText(gateway, message)
     } : undefined,
     onLoadToolImage: loadToolImage,
+    onLoadFileReview: loadFileReview,
     onLoadOlder: gateway.timelineSupported && selected && controller.canLoadOlder(selected.id) ? async () => {
       try { await controller.loadHistory(selected.id) } catch (error) { notifyError(notificationRef.current, tRef.current, error, 'generic', remote) }
     } : undefined,
@@ -596,6 +603,7 @@ export function AgentWorkspaceHost({
     onLoadNewer: archives.loadNewer,
     onLoadAttachmentContent: loadAttachmentContent,
     onLoadToolImage: loadToolImage,
+    onLoadFileReview: loadArchiveFileReview,
     onRestore: async (session) => {
       const selection = controller.getSnapshot()
       try {

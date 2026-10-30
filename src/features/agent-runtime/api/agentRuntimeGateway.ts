@@ -62,6 +62,7 @@ export interface AgentCreateRunInput {
 }
 
 export interface AgentWorkspaceGateway {
+  fileReview?(sessionId: string, reviewId: string, digest: string, cursor?: string, signal?: AbortSignal): Promise<import('#shared/file-review').FileReviewPage>
   localDirectory?(sessionId: string, signal?: AbortSignal): Promise<import('#entities/agent').AgentLocalDirectory>
   setLocalDirectory?(sessionId: string, path: string, expectedRevision: number, signal?: AbortSignal): Promise<import('#entities/agent').AgentLocalDirectory>
   desktopTasks?(runId: string, generation: number, cursor: string, waitMS: number, signal?: AbortSignal): Promise<import('#common/desktop-batch').DesktopTaskSnapshot>

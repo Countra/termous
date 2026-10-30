@@ -5,6 +5,17 @@ import { i18n } from '#shared/i18n'
 import type { AgentWorkspaceToolPart } from '../model/types.ts'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 
+it('通用等待显示请求时长、实际耗时和提前唤醒原因', async () => {
+  await i18n.changeLanguage('zh-CN')
+  const tool: AgentWorkspaceToolPart = { id: 'wait', kind: 'tool', name: 'wait', status: 'completed',
+    runtime_wait: { seconds: 20, elapsedMs: 1200, wakeReason: 'steer', reason: '等待页面状态稳定' } }
+  render(<I18nextProvider i18n={i18n}><AgentToolTimeline tool={tool} /></I18nextProvider>)
+  expect(screen.getByText('等待 20 秒')).toBeVisible()
+  expect(screen.getByText('收到新指令，提前结束（1.2 秒）')).toBeVisible()
+  fireEvent.click(screen.getByText('等待 20 秒'))
+  expect(await screen.findByText('等待页面状态稳定')).toBeVisible()
+})
+
 it('读取卡片按需挂载，原始详情独立展开，收起时释放正文视图', async () => {
   await i18n.changeLanguage('zh-CN')
   const tool: AgentWorkspaceToolPart = { id: 'file', kind: 'tool', name: 'termous.local.files.read', status: 'completed',

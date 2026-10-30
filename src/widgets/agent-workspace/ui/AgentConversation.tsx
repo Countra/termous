@@ -40,6 +40,7 @@ interface AgentConversationProps {
   showTurnTokenUsage?: boolean
   onPreviewAttachment?: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
+  onLoadFileReview?: import('#shared/file-review').FileHistoryLoader
   onLoadToolImage?: AgentImageLoader
 }
 
@@ -64,6 +65,7 @@ function AgentConversationSession({
   showTurnTokenUsage = true,
   onPreviewAttachment = ignoreAttachmentPreview,
   onLoadAttachmentContent,
+  onLoadFileReview,
   onLoadToolImage,
 }: AgentConversationProps) {
   const { t } = useTranslation()
@@ -110,7 +112,7 @@ function AgentConversationSession({
             showTurnTokenUsage={showTurnTokenUsage}
             onPreviewAttachment={onPreviewAttachment}
             onLoadAttachmentContent={onLoadAttachmentContent}
-            onLoadToolImage={onLoadToolImage}
+            onLoadToolImage={onLoadToolImage} onLoadFileReview={onLoadFileReview}
           /></AgentVirtualViewport>
         )}
         {onLoadNewer && <Button type="text" loading={historyLoading} onClick={() => { void loadHistory(onLoadNewer) }}>{t('agent.conversation.loadNewer')}</Button>}
@@ -141,6 +143,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
   showTurnTokenUsage,
   onPreviewAttachment,
   onLoadAttachmentContent,
+  onLoadFileReview,
   onLoadToolImage,
 }: {
   onLoadMessageText?: (id: string) => Promise<string>
@@ -149,6 +152,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
   showTurnTokenUsage: boolean
   onPreviewAttachment: (attachment: AgentAttachment) => void
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal, variant?: 'thumbnail') => Promise<Blob>
+  onLoadFileReview?: import('#shared/file-review').FileHistoryLoader
   onLoadToolImage?: AgentImageLoader
 }) {
   const { t } = useTranslation()
@@ -196,7 +200,7 @@ const AgentMessageStack = memo(function AgentMessageStack({
             ) : null}
             {message.parts.map((part) => <AgentVirtualPart key={part.id} id={part.id}>{(() => {
               if (part.kind === 'text') return <AgentMarkdown key={part.id} images={message.role === 'assistant' ? images : undefined} onLoadToolImage={onLoadToolImage}>{part.text}</AgentMarkdown>
-              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} onLoadToolImage={onLoadToolImage} />
+              if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} onLoadToolImage={onLoadToolImage} onLoadFileReview={onLoadFileReview} />
               if (part.kind === 'progress') return <AgentProgressActivity key={part.id} activity={part.activity} />
               if (part.kind === 'compaction') return <AgentCompactionActivity key={part.id} activity={part.activity} />
               if (part.kind === 'response_failure') return <AgentResponseFailure key={part.id} failure={part.failure} />

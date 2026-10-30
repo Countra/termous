@@ -66,3 +66,4 @@ export { DetachedWindowButton, DetachedWindowPlaceholder } from './DetachedWindo
 export { default as detachedWindowStyles } from './DetachedWindow.module.scss'
 export { useImageViewport } from './image-preview/useImageViewport'
 export { FileTextReview } from './file-review/FileTextReview'
+export { PagedFileReview } from './file-review/PagedFileReview'

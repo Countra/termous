@@ -54,6 +54,7 @@ import { DesktopTaskCoordinator } from './desktopTasks/coordinator.ts'
 import { desktopTaskMessage, desktopTaskToolResult } from '../contracts/desktopTaskResult.ts'
 import { desktopWaitTool } from './desktopTasks/waitTool.ts'
 import { runtimeClientIdentity } from '../provider/runtimeClientIdentity.ts'
+import { RuntimeWait } from './runtimeWait.ts'
 
 export interface PiAgentController {
   continue(): Promise<PiRunOutcome>
@@ -103,6 +104,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const images = new RuntimeContextImages(options.bootstrap)
   const budget = new RuntimeExecutionBudget(options.bootstrap.model.snapshot.execution_budget)
   const inputSafety = new RuntimeInputSafety()
+  const runtimeWait = new RuntimeWait()
   const toolProgress = new RuntimeToolProgress(options.now, (name) => discovery.available(name), options.bootstrap.session.resource_bindings)
   const skillContext = new RuntimeSkillContext(options.skills)
   const skillDirectory = new RuntimeSkillDirectory([{ source: termousToolSource, snapshot: options.skills }, ...options.skillSources ?? []], options.lazySkills)
@@ -119,6 +121,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   let observeBatch: ((output: Record<string, unknown>) => void) | undefined
   const desktopTasks = options.readDesktopTasks ? new DesktopTaskCoordinator(options.readDesktopTasks, receipt => {
     inputSafety.observe('termous.desktops.executions.get', desktopTaskToolResult(receipt), receipt.result.run.state !== 'completed')
+    runtimeWait.wake('task_update')
   }, error => { options.onFailure?.(error); agent.abort() }) : undefined
   const resourceTools = bindRuntimeResourceTools(options.mcp, options.bootstrap.session.resource_bindings)
   const managedTools = options.lookupPreparedCall ? prepareBuiltinTools({ ...options.mcp, tools: resourceTools }, {
@@ -149,7 +152,9 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     return options.readHistoryImage(reference, signal)
   })
   const waits = [...createWorkflowWaitTool(boundTools, originalBuiltin), ...createAnalysisWaitTool(boundTools, originalBuiltin), ...(desktopTasks ? [desktopWaitTool(desktopTasks, output => observeBatch?.(output))] : [])].map((tool) => identifyTool(tool, localToolSource))
-  const permanent=[skillTool,identifyTool(historyTool,localToolSource)]
+  const waitTool = runtimeWait.tool(() => agent.hasQueuedMessages() ? 'steer' : desktopTasks?.ready().length ? 'task_update' : undefined,
+    id => bridge.toolProgress(id, 'waiting'))
+  const permanent=[skillTool,identifyTool(historyTool,localToolSource),identifyTool(waitTool,localToolSource)]
   const createDiscovery=(entries:AgentTool[])=>new RuntimeToolDiscovery(entries, options.mcp.originalName, permanent,
     (name) => inputSafety.blockedTool(name, name === 'termous.desktop_workflows.runs.control' ? { action: 'cancel' } : undefined),
     (name) => { toolProgress.rediscover(name); skillContext.activateTool(name) }, skillDirectory, options.mcp.loadTool)
@@ -481,13 +486,14 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       if (executionFailure() && bridge.outcome() !== 'cancelled') bridge.stopLocally(executionFailure()!)
       return aborted ? 'cancelled' : bridge.outcome()
     },
-    abort: () => { aborted = true; desktopTasks?.close(); agent.abort() },
+    abort: () => { aborted = true; runtimeWait.close(); desktopTasks?.close(); agent.abort() },
     waitForIdle: () => agent.waitForIdle(),
     steer: (message, source) => {
       toolProgress.reset()
       const user: AgentMessage = { role: 'user', content: message, timestamp: (options.now ?? Date.now)() }
       steerSources.set(user, { message_id: source.message_id, part_id: source.part_id })
       agent.steer(user)
+      runtimeWait.wake('steer')
       desktopTasks?.wake()
     },
     hasQueuedMessages: () => agent.hasQueuedMessages(),
@@ -496,6 +502,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
         return
       }
       closed = true
+      runtimeWait.close()
       desktopTasks?.close()
       unsubscribe()
       agent.clearAllQueues()

@@ -80,10 +80,10 @@
 
 .line {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: var(--file-review-line-number-width, 46px) minmax(0, 1fr);
   min-height: 23px;
 }
-.lines[data-diff='true'] .line { grid-template-columns: 40px 40px 22px minmax(0, 1fr); }
+.lines[data-diff='true'] .line { grid-template-columns: var(--file-review-line-number-width, 40px) var(--file-review-line-number-width, 40px) 22px minmax(0, 1fr); }
 
 .line code {
   padding: 2px 14px 2px 6px;
@@ -169,11 +169,18 @@
 
 .pagination {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   min-height: 38px;
   padding: 5px 10px;
   background: var(--surface);
   border-top: 1px solid var(--border);
+}
+
+.page-number {
+  padding-inline: 8px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) { .omitted { transition: none; } }

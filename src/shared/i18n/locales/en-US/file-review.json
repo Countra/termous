@@ -11,5 +11,15 @@
   "empty": "Empty file",
   "unchanged": "File content is unchanged",
   "noNewline": "No newline at end of file",
-  "coarse": "Extensive changes are shown as complete blocks. Switch to Before or After to inspect the full text."
+  "coarse": "Extensive changes are shown as complete blocks. Switch to Before or After to inspect the full text.",
+  "changes": "{{count}} changes",
+  "fixedVersion": "Fixed version · paged content",
+  "loadFailed": "Could not load this review version. Retry or prepare the change again.",
+  "historyContext": "History retains changes and nearby context only",
+  "expandContext": "Expand unchanged context",
+  "partialLine": "This line continues in another fragment on this or the next page",
+  "firstPage": "First",
+  "previousPage": "Previous",
+  "nextPage": "Next",
+  "page": "Page {{page}}"
 }

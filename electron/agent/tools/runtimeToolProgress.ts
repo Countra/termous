@@ -58,6 +58,8 @@ export class RuntimeToolProgress {
 
   observe(name: string, args: unknown, result: AgentToolResult<unknown>, isError: boolean,
     navigation = runtimeToolNavigation(name, result, this.bindings, isError, undefined, args)): string | undefined {
+    // 定时暂停没有业务进展，不用经过的时间消除旧错误或生成重复观察诊断。
+    if (name === 'wait') return undefined
     const mcp = isMCPToolDetails(result.details) ? result.details : undefined
     const data = progressData(result)
     const failure = progressFailure(data, name)

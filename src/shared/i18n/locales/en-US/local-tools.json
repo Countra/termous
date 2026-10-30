@@ -22,5 +22,19 @@
   "before": "Before",
   "after": "After",
   "approvalDescription": "Review the operation that will run on this computer.",
-  "rememberCommand": "Remember this command, shell and directory for this conversation"
+  "rememberCommand": "Remember this command, shell and directory for this conversation",
+  "waitTitle": "Wait {{seconds}} seconds",
+  "waitRemaining": "About {{seconds}} seconds remaining",
+  "waitFinishing": "Finishing wait",
+  "waitResult": {
+    "elapsed": "Waited {{seconds}} seconds",
+    "steer": "Woken by a new instruction ({{seconds}} seconds)",
+    "task_update": "Woken by a task receipt ({{seconds}} seconds)"
+  },
+  "lineRange": "Lines {{start}}–{{end}}",
+  "consistency": {
+    "snapshot": "Version snapshot",
+    "live": "Live excerpt"
+  },
+  "reviewChanges": "Review changes"
 }

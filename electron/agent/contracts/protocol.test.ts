@@ -12,8 +12,8 @@ const steerAck = {
   accepted: true,
 }
 
-test('Agent Worker 使用包含内置本地工具合同的协议 v19', () => {
-  assert.equal(agentRuntimeProtocolVersion, '19')
+test('Agent Worker 使用包含文件视图和运行时等待的协议 v20', () => {
+  assert.equal(agentRuntimeProtocolVersion, '20')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

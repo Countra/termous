@@ -49,11 +49,17 @@ import { decodeAgentLocalDirectory } from '#entities/agent'
 import { AgentSetupClient } from './agentSetupClient.ts'
 import { isHostDesktopTarget } from '#common/contracts'
 import { isDesktopTaskSnapshot } from '#common/desktop-batch'
+import { decodeFileReviewPage } from '#shared/file-review'
 
 const agentPath = '/api/v1/agent'
 type AgentRuntimeBridge = NonNullable<TermousBridge['agentRuntime']>
 
 export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorkspaceGateway {
+  fileReview(sessionId: string, reviewId: string, digest: string, cursor?: string, signal?: AbortSignal) {
+    const params = new URLSearchParams({ digest })
+    if (cursor) params.set('cursor', cursor)
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/file-reviews/${encodeURIComponent(reviewId)}?${params}`, { signal }).then(decodeFileReviewPage)
+  }
   localDirectory(sessionId: string, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/local-directory`, { signal }).then(decodeAgentLocalDirectory)
   }

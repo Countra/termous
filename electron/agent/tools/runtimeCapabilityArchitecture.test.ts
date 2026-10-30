@@ -24,7 +24,7 @@ test('MCP 与内部本地工具分别具有唯一职责，内部工具不加入�
     assert.equal(runtimeCapability(name)?.skill, 'skill://termous-local-tools/SKILL.md')
   }
   assert.equal(new Set(names).size, names.length)
-  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), ...runtimeNames, 'wait_workflow_run', 'wait_screen_analysis', 'wait_desktop_execution'].sort())
+  assert.deepEqual([...names].sort(), [...contract.tools.map((tool) => tool.name), ...runtimeNames, 'wait', 'wait_workflow_run', 'wait_screen_analysis', 'wait_desktop_execution'].sort())
   for (const tool of contract.tools) {
     const capability = runtimeCapability(tool.name)!
     assert.ok(capability.skill.startsWith(`skill://${tool.skill}/`), tool.name)

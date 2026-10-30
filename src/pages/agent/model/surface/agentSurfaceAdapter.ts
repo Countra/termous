@@ -14,7 +14,7 @@ export class AgentSurfaceAdapter {
     if (packet.operation === 'command' && isAgentDetachedCommand(packet.payload)) {
       // 输入另有序号保护，纯正文读取可安全重读；不将复制的长正文保留整代连接。
       return !['workspace.onDraftChange', 'workspace.onQueuedTurnEditChange',
-        'workspace.onLoadMessageText', 'archive.onLoadMessageText'].includes(packet.payload.name)
+        'workspace.onLoadMessageText', 'archive.onLoadMessageText', 'workspace.onLoadFileReview', 'archive.onLoadFileReview'].includes(packet.payload.name)
     }
     return true
   }

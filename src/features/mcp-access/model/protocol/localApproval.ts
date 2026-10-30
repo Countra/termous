@@ -1,4 +1,5 @@
 import type { McpApprovalOperation } from '#entities/mcp-access'
+import { decodeFileReview } from '#shared/file-review'
 import { McpAccessProtocolError, optionalBoolean, optionalNonNegativeInteger, optionalString, requireRecord, requireString } from './base.ts'
 
 export function decodeLocalApproval(value: unknown): NonNullable<McpApprovalOperation['local']> {
@@ -10,7 +11,9 @@ export function decodeLocalApproval(value: unknown): NonNullable<McpApprovalOper
   const after = optionalString(local.after) ?? ''
   const beforeBytes = optionalNonNegativeInteger(local.before_bytes, '原文件大小无效') ?? 0
   const afterBytes = optionalNonNegativeInteger(local.after_bytes, '新文件大小无效') ?? 0
-  if (!command && (beforeBytes > 64 * 1024 || afterBytes > 64 * 1024
+  const review = local.review === undefined ? undefined : decodeFileReview(local.review)
+  if (review && (command || beforeBytes > 64 * 1024 * 1024 || afterBytes > 64 * 1024 * 1024 || before || after)) throw new McpAccessProtocolError('文件审阅描述无效')
+  if (!command && !review && (beforeBytes > 64 * 1024 || afterBytes > 64 * 1024
     || new TextEncoder().encode(before).length !== beforeBytes || new TextEncoder().encode(after).length !== afterBytes)) throw new McpAccessProtocolError('文件变更内容不完整')
   return { session_id: requireString(local.session_id, '本地操作会话缺失'), tool,
     directory: requireString(local.directory, '工作目录缺失'),
@@ -19,7 +22,7 @@ export function decodeLocalApproval(value: unknown): NonNullable<McpApprovalOper
     command: command ? requireString(local.command, '命令缺失') : undefined,
     path: command ? undefined : requireString(local.path, '文件路径缺失'),
     create: optionalBoolean(local.create, '创建标识无效') ?? false,
-    before, after, before_bytes: beforeBytes, after_bytes: afterBytes,
+    before, after, before_bytes: beforeBytes, after_bytes: afterBytes, review,
     remember_allowed: command && (optionalBoolean(local.remember_allowed, '记住授权标识无效') ?? false),
   }
 }

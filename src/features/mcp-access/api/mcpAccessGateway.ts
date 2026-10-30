@@ -24,6 +24,7 @@ export interface McpClientGateway {
 }
 
 export interface McpApprovalGateway {
+  readFileReview(approvalId: string, query: import('#shared/file-review').FileReviewQuery, signal?: AbortSignal): Promise<import('#shared/file-review').FileReviewPage>
   approvals(signal?: AbortSignal): Promise<McpApprovalSnapshot>
   decideApproval(
     approvalId: string,

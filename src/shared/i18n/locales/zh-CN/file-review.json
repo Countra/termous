@@ -11,5 +11,15 @@
   "empty": "空文件",
   "unchanged": "文件内容未变化",
   "noNewline": "文件末尾无换行",
-  "coarse": "变更较多，按完整区块对照展示。可切换查看修改前后全文。"
+  "coarse": "变更较多，按完整区块对照展示。可切换查看修改前后全文。",
+  "changes": "{{count}} 处修改",
+  "fixedVersion": "固定版本 · 按页读取",
+  "loadFailed": "无法读取此版本的审阅内容，请重试或重新发起修改。",
+  "historyContext": "历史仅保留变更及附近上下文",
+  "expandContext": "展开未修改上下文",
+  "partialLine": "此行分段展示，后续片段在本页或下一页",
+  "firstPage": "首页",
+  "previousPage": "上一页",
+  "nextPage": "下一页",
+  "page": "第 {{page}} 页"
 }

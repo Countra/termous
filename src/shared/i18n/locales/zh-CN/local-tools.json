@@ -22,5 +22,19 @@
   "before": "修改前",
   "after": "修改后",
   "approvalDescription": "请确认将在本机执行的操作。",
-  "rememberCommand": "本会话记住此命令、Shell 和目录"
+  "rememberCommand": "本会话记住此命令、Shell 和目录",
+  "waitTitle": "等待 {{seconds}} 秒",
+  "waitRemaining": "剩余约 {{seconds}} 秒",
+  "waitFinishing": "正在结束等待",
+  "waitResult": {
+    "elapsed": "已等待 {{seconds}} 秒",
+    "steer": "收到新指令，提前结束（{{seconds}} 秒）",
+    "task_update": "收到任务回执，提前结束（{{seconds}} 秒）"
+  },
+  "lineRange": "第 {{start}}～{{end}} 行",
+  "consistency": {
+    "snapshot": "版本快照",
+    "live": "实时片段"
+  },
+  "reviewChanges": "查看变更"
 }
