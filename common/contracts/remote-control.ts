@@ -70,6 +70,7 @@ export interface RemoteLauncher {
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
 }
 export interface RemoteWindowBridge {
+  desktopReceiverPolicy?: 'native' | 'prefer_level_51'
   desktopQualityDefaults?(connectionId: string): Promise<RemoteResult<SettingsSnapshot>>
   debugMode?: boolean
   desktopICE?(connectionId: string): Promise<RemoteResult<RTCIceServer[]>>

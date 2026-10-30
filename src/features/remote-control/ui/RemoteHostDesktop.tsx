@@ -1,3 +1,4 @@
+import type { RemoteDesktopMediaChanged } from '#entities/remote-desktop'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Select, Spin, Tag } from 'antd'
 import { Monitor, RefreshCw, Square, X } from 'lucide-react'
@@ -8,7 +9,7 @@ import { FeedbackMessage } from '#shared/ui'
 import { RemoteDesktop } from './RemoteDesktop'
 import styles from './RemoteHostDesktop.module.scss'
 
-export function RemoteHostDesktop({ client, active }: { client: RemoteClient; active: boolean }) {
+export function RemoteHostDesktop({ client, active, onMediaDetails }: { onMediaDetails?: RemoteDesktopMediaChanged; client: RemoteClient; active: boolean }) {
   const { i18n } = useTranslation()
   const zh = i18n.language?.startsWith('zh') ?? false
   const [kind, setKind] = useState<'screen' | 'window'>('screen')
@@ -42,7 +43,7 @@ export function RemoteHostDesktop({ client, active }: { client: RemoteClient; ac
     <p className={styles.hint}>{kind === 'window' ? (zh ? '窗口仅供观看，无法控制。' : 'Windows can be viewed but not controlled.') : (zh ? '控制会影响设备当前桌面；键盘输入发送到当前焦点应用。' : 'Control affects the device desktop. Keyboard input goes to the focused app.')}</p>
     {error ? <FeedbackMessage type="warning" title={error} onClose={() => setError('')} /> : null}
     <div className={styles.content}>
-      {target ? <RemoteDesktop key={`${target.instanceId}:${target.sourceId}:${target.sourceGeneration}`} client={client} target={target} active={active} /> : <div className={styles.empty}>{loading ? <Spin /> : <Square size={28} />}<span>{zh ? '选择显示器或窗口开始观看' : 'Select a display or window to view'}</span>{kind === 'window' ? <Tag>{zh ? '只读' : 'View only'}</Tag> : null}</div>}
+      {target ? <RemoteDesktop key={`${target.instanceId}:${target.sourceId}:${target.sourceGeneration}`} client={client} onMediaDetails={onMediaDetails} target={target} active={active} /> : <div className={styles.empty}>{loading ? <Spin /> : <Square size={28} />}<span>{zh ? '选择显示器或窗口开始观看' : 'Select a display or window to view'}</span>{kind === 'window' ? <Tag>{zh ? '只读' : 'View only'}</Tag> : null}</div>}
     </div>
   </section>
 }

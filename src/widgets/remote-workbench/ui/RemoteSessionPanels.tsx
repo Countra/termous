@@ -1,3 +1,4 @@
+import type { RemoteDesktopMediaChanged } from '#entities/remote-desktop'
 import { useState } from 'react'
 import { Button, Spin, Tooltip } from 'antd'
 import { Columns2, Folder, Monitor, Terminal } from 'lucide-react'
@@ -8,6 +9,7 @@ import { SessionTabButton, SessionTabStrip } from '#shared/ui'
 import styles from './RemoteWorkbench.module.scss'
 
 interface Props {
+  onMediaDetails?: RemoteDesktopMediaChanged
   connected?: boolean
   onQuote?: (session: Session, text: string) => void
   client: RemoteClient; tabs: Session[]; selected: string; inventory?: Inventory
@@ -16,7 +18,7 @@ interface Props {
   select(id: string): void; close(id: string): void; changed(): void
 }
 
-export function RemoteSessionPanels({ connected = true, client, tabs, selected, inventory, localTasks, copy, theme, name, select, close, changed, onQuote }: Props) {
+export function RemoteSessionPanels({ onMediaDetails, connected = true, client, tabs, selected, inventory, localTasks, copy, theme, name, select, close, changed, onQuote }: Props) {
   const [split, setSplit] = useState(false)
   const primary = tabs.find(item => item.id === selected)
   const secondary = tabs.find(item => item.kind !== primary?.kind)
@@ -45,7 +47,7 @@ export function RemoteSessionPanels({ connected = true, client, tabs, selected, 
     </div>
     <div className={`${styles.panes} ${paired ? styles.paired : ''}`}>
       {tabs.map(session => <section key={session.id} id={`remote-session-${session.id}`} role="tabpanel" aria-labelledby={`remote-session-tab-${session.id}`} className={styles.pane} hidden={session.id !== selected && (!paired || session.id !== secondary.id)}>
-        {session.kind === 'desktop' ? connected ? <RemoteDesktop client={client} session={session} localTasks={localTasks} changed={changed} active={session.id === selected || !!paired && session.id === secondary.id} /> : <div className={styles.loading}><Spin /><span>{copy.recovering}</span></div> : session.hostKeyChallengeId ? <div className={styles.challenge}><RemoteHostKey key={session.hostKeyChallengeId} client={client} session={session} copy={copy} changed={changed} /></div>
+        {session.kind === 'desktop' ? connected ? <RemoteDesktop onMediaDetails={onMediaDetails} client={client} session={session} localTasks={localTasks} changed={changed} active={session.id === selected || !!paired && session.id === secondary.id} /> : <div className={styles.loading}><Spin /><span>{copy.recovering}</span></div> : session.hostKeyChallengeId ? <div className={styles.challenge}><RemoteHostKey key={session.hostKeyChallengeId} client={client} session={session} copy={copy} changed={changed} /></div>
           : session.state !== 'connected' ? <div className={styles.loading}>{session.state === 'connecting' ? <Spin /> : <RemoteFeedback tone="info" message={copy.disconnected} />}</div>
             : session.kind === 'ssh' ? <RemoteTerminal onQuote={onQuote ? text => onQuote(session, text) : undefined} client={client} session={session} copy={copy} theme={theme} />
               : <RemoteFiles client={client} session={session} copy={copy} roots={inventory?.roots ?? []} operations={inventory?.operations ?? []} transfers={inventory?.transfers} localTasks={localTasks} changed={changed} />}

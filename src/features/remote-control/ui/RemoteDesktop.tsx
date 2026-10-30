@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Modal, Popconfirm, Select, Spin, Tag, Tooltip } from 'antd'
 import { Clipboard, Keyboard, Maximize, Monitor, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { RemoteDesktopSession, type DesktopSessionEvents, type DesktopState, type DesktopTarget } from '@termous/remote-protocol/desktop'
+import { RemoteDesktopSession, type DesktopSessionEvents, type DesktopState, type DesktopTarget, type DesktopMediaSnapshot, type H264ReceiverState } from '@termous/remote-protocol/desktop'
 import { DesktopPresentationControls } from '#entities/desktop-presentation'
+import type { RemoteDesktopMediaChanged } from '#entities/remote-desktop'
 import type { PresentationState } from '#entities/remote-desktop'
 import type { PresentationPreference } from '@termous/remote-protocol/presentation'
 import type { RemoteLocalTask } from '#common/contracts'
@@ -19,9 +20,9 @@ import { RemoteDesktopFiles } from './RemoteDesktopFiles'
 type Challenge = Parameters<DesktopSessionEvents['challenge']>[0]
 type Reply = Awaited<ReturnType<DesktopSessionEvents['challenge']>>
 
-type DesktopProps = { client: RemoteClient; active: boolean; localTasks?: RemoteLocalTask[]; changed?: () => void } & ({ session: Session; target?: never } | { session?: never; target: DesktopTarget })
+type DesktopProps = { onMediaDetails?: RemoteDesktopMediaChanged; client: RemoteClient; active: boolean; localTasks?: RemoteLocalTask[]; changed?: () => void } & ({ session: Session; target?: never } | { session?: never; target: DesktopTarget })
 
-export function RemoteDesktop({ client, session, target: hostTarget, active, localTasks = [], changed = () => {} }: DesktopProps) {
+export function RemoteDesktop({ onMediaDetails, client, session, target: hostTarget, active, localTasks = [], changed = () => {} }: DesktopProps) {
   const id = session?.id ?? '', generation = session?.generation ?? 0n, engine = session?.engine ?? 'host'
   const preferenceID = hostTarget ? `${hostTarget.instanceId}:${hostTarget.sourceId}` : id
   const preferenceGeneration = hostTarget?.sourceGeneration ?? generation
@@ -33,8 +34,14 @@ export function RemoteDesktop({ client, session, target: hostTarget, active, loc
   const preference = entry.preference
   const [presentation, setPresentation] = useState<PresentationState>()
   const [resolutionStatus, setResolutionStatus] = useState('idle')
+  const [sample, setSample] = useState<DesktopMediaSnapshot>()
+  const [receiver, setReceiver] = useState<H264ReceiverState>()
+  const mediaCallback = useRef(onMediaDetails)
+  mediaCallback.current = onMediaDetails
+  const mediaKey = hostTarget ? 'host' : id
   const runtime = useRef<RemoteDesktopSession>(undefined)
   const closing = useRef(Promise.resolve())
+  const nativeNext = useRef(false)
   const replaceNext = useRef(false)
   const pending = useRef(false)
   const reply = useRef<((value: Reply) => void) | undefined>(undefined)
@@ -50,23 +57,30 @@ export function RemoteDesktop({ client, session, target: hostTarget, active, loc
   const [text, setText] = useState(''), [remoteClipboard, setRemoteClipboard] = useState(''), [path, setPath] = useState('—')
   const targetReady = hostTarget ? true : generation > 0n && !['failed', 'stopping'].includes(session!.state)
   const running = joined && targetReady && (engine === 'vnc' || active)
+  useEffect(() => () => mediaCallback.current?.(mediaKey), [mediaKey])
+  useEffect(() => {
+    mediaCallback.current?.(mediaKey, running && active ? { connectionId: client.connection.id, title: session?.name || hostTarget?.sourceId || id, transport: engine === 'vnc' ? 'rfb' : 'h264', phase, presentation, receiver, sample: phase === 'viewing' ? sample : undefined } : undefined)
+  }, [mediaKey, client, session?.name, hostTarget?.sourceId, id, engine, phase, presentation, receiver, sample, running, active])
   useEffect(() => {
     if (!running || !canvas.current || !video.current) { setPhase('idle'); setChallenge(undefined); return }
     let alive = true
-    const view = new RemoteDesktopSession({ capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
+    const view = new RemoteDesktopSession({ receiverPolicy: nativeNext.current ? 'native' : client.bridge?.desktopReceiverPolicy, capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
       resolution: value => { if (alive) setResolutionStatus(value.status) },
       presentation: value => { if (alive) setPresentation(value) },
       state: value => { if (alive) setState(value) },
       status: (phase, reason) => { if (alive) { setPhase(phase); setError(reason ?? ''); if (phase === 'closed') { reply.current?.({ accept: false }); reply.current = undefined; setChallenge(undefined); setPassword(''); setUsername('') }; if (!hostTarget && reason === 'desktop_display_changed') setAttempt(value => value + 1) } },
       clipboard: value => { if (alive) setRemoteClipboard(value) },
+      media: value => { if (alive) setSample(value) },
+      receiver: value => { if (alive) setReceiver(value) },
       network: value => { if (alive) setPath(value) },
       cursor: value => { if (alive) setCursor(previous => updateCursor(previous, value)) },
       challenge: challenge => new Promise(resolve => { if (!alive) { resolve({ accept: false }); return }; reply.current?.({ accept: false }); const timer = setTimeout(() => { reply.current = undefined; setChallenge(undefined); resolve({ accept: false }) }, 90_000); reply.current = value => { clearTimeout(timer); resolve(value) }; setPassword(''); setUsername(''); setChallenge(challenge) }),
     }, preference, hostTarget)
+    nativeNext.current = false
     runtime.current = view
     pending.current = false
     setWorking(false); setPhase('connecting'); setChallenge(undefined); setPassword(''); setUsername('')
-    setResolutionStatus('idle'); setPresentation(undefined); setState(undefined); setCursor(undefined); setError(''); setPath('—')
+    setResolutionStatus('idle'); setSample(undefined); setReceiver(undefined); setPresentation(undefined); setState(undefined); setCursor(undefined); setError(''); setPath('—')
     const unbind = bindDesktopInput(video.current, view, () => { view.close(); setPhase('closed'); setError('desktop_input_uncertain') })
     const target = canvas.current, player = video.current
     // 接替仅对本次明确操作生效；等待旧附着撤销，避免重连与自身争抢席位。
@@ -87,6 +101,15 @@ export function RemoteDesktop({ client, session, target: hostTarget, active, loc
     try { await action() } catch (error) { if (runtime.current === view) setError(error instanceof Error ? error.message : 'desktop_operation_failed') } finally { if (runtime.current === view) { pending.current = false; setWorking(false) } }
   }
   const answer = (accept: boolean) => { const respond = reply.current; reply.current = undefined; setChallenge(undefined); respond?.({ accept, password, username }); setPassword(''); setUsername('') }
+  const reconnectNative = async () => {
+    const current = runtime.current
+    await current?.close()
+    // 等待清理期间目标或运行代次可能已经改变，旧操作不能重启新的观看会话。
+    if (runtime.current !== current) return
+    if (!current?.cleanupConfirmed) throw new Error('desktop_cleanup_uncertain')
+    nativeNext.current = true
+    setAttempt(value => value + 1)
+  }
   const owned = running && phase === 'viewing' && runtime.current?.owned === true
   const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : copy.connecting
   const errorText = desktopErrorText(error, copy)
@@ -114,7 +137,7 @@ export function RemoteDesktop({ client, session, target: hostTarget, active, loc
         {running && phase !== 'closed' ? <Spin /> : <Monitor size={28} />}
         <strong>{!joined ? copy.vncJoin : status}</strong>
         {!joined ? <><p>{copy.vncHint}</p><Button type="primary" onClick={() => setJoined(true)}>{copy.vncJoin}</Button></> : null}
-        {phase === 'closed' ? <><p>{errorText}<br /><code>{errorCode}</code></p><Button icon={<RotateCcw size={14} />} onClick={() => setAttempt(value => value + 1)}>{copy.retry}</Button>{error === 'desktop_control_locked' ? <Popconfirm {...termousPopconfirmProps} title={copy.replace} description={copy.replaceHint} onConfirm={() => { replaceNext.current = true; setAttempt(value => value + 1) }}><Button>{copy.replace}</Button></Popconfirm> : null}</> : null}
+        {phase === 'closed' ? <><p>{errorText}<br /><code>{errorCode}</code></p><Button icon={<RotateCcw size={14} />} disabled={working} onClick={() => setAttempt(value => value + 1)}>{copy.retry}</Button>{error === 'desktop_h264_unsupported' ? <Button loading={working} onClick={() => void act(reconnectNative)}>{i18n.language.startsWith('zh') ? '以兼容模式重新连接' : 'Reconnect with native capabilities'}</Button> : null}{error === 'desktop_control_locked' ? <Popconfirm {...termousPopconfirmProps} title={copy.replace} description={copy.replaceHint} onConfirm={() => { replaceNext.current = true; setAttempt(value => value + 1) }}><Button>{copy.replace}</Button></Popconfirm> : null}</> : null}
       </div> : null}
     </div>
     <footer className={styles.footer}><span>{copy.target} {state?.width ? `${state.width} × ${state.height}` : '—'}</span><span>{presentation?.observed?.width ? `${presentation.observed.width} × ${presentation.observed.height} · ` : ''}{presentation?.observed?.bitrate === undefined ? '' : `${(presentation.observed.bitrate / 1_000_000).toFixed(2)} Mbps · `}{path}</span></footer>

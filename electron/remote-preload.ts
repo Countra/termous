@@ -3,6 +3,7 @@ import type { RemoteBootstrap, RemoteWindowBridge } from '#common/contracts'
 import { appDebugModeArgument } from '#common/contracts'
 
 const bridge: RemoteWindowBridge = {
+  desktopReceiverPolicy: 'prefer_level_51',
   debugMode: process.argv.includes(appDebugModeArgument),
   desktopQualityDefaults: id => ipcRenderer.invoke('remote:desktop-quality-defaults', id),
   desktopICE: id => ipcRenderer.invoke('remote:desktop-ice', id),

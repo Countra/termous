@@ -61,6 +61,28 @@ test('观察者短暂断线继续使用原附着，恢复不申请控制', async
   } finally { await runtime.close() }
 })
 
+test('媒体统计失效和关闭清除观测值，保留已经确认的配置', async () => {
+  const { runtime } = await startRecoveryFixture(false)
+  const configured = {
+    revision: 3n, configRevision: 2n, status: 'confirmed',
+    capabilities: { kind: 'video' as const, available: true },
+    requested: { kind: 'video' as const, size: 'auto' as const, framerate: 60, bitrate: 100_000_000 },
+  }
+  try {
+    runtime.presentation.update(configured)
+    fixture.events?.observation?.({ width: 1920, height: 1080, framerate: 60, bitrate: 10_000_000 })
+    expect(runtime.presentation.snapshot?.observed?.framerate).toBe(60)
+    fixture.events?.media?.(undefined)
+    expect(runtime.presentation.snapshot).toMatchObject(configured)
+    expect(runtime.presentation.snapshot?.observed).toBeUndefined()
+    fixture.events?.observation?.({ framerate: 30 })
+    await runtime.close()
+    expect(runtime.presentation.snapshot?.observed).toBeUndefined()
+    fixture.events?.observation?.({ framerate: 60 })
+    expect(runtime.presentation.snapshot?.observed).toBeUndefined()
+  } finally { await runtime.close() }
+})
+
 test('控制者恢复前释放按下状态，在途旧快照不能恢复控制或重放输入', async () => {
   const { runtime, request, status, release } = await startRecoveryFixture(true)
   try {

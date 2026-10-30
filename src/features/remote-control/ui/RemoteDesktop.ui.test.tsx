@@ -11,18 +11,19 @@ import { RemoteError, type RemoteClient } from '#entities/remote-control'
 import { RemoteDesktop } from './RemoteDesktop'
 
 function WithoutMotion({ children }: PropsWithChildren) { return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> }
-function desktopClient(request = vi.fn()) { return { request, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
+function desktopClient(request = vi.fn()) { return { request, connection: { id: 'parent' }, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
-beforeEach(() => { fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as { receiverPolicy?: string }[], cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
+beforeEach(() => { fixture.gateways = []; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 vi.mock('@termous/remote-protocol/desktop', () => ({
   RemoteDesktopSession: class {
     // 模拟尚未过期的旧租约，验证界面不依赖远端清理消息才能禁用操作。
     owned = true
     controlGeneration = 1n
+    get cleanupConfirmed() { return fixture.cleanupConfirmed }
     dimensions = { width: 1920, height: 1080 }
-    constructor(_gateway: unknown, _id: string, _generation: bigint, events: DesktopSessionEvents) { fixture.events = events }
+    constructor(gateway: { receiverPolicy?: string }, _id: string, _generation: bigint, events: DesktopSessionEvents) { fixture.events = events; fixture.gateways.push(gateway) }
     start(_target: unknown, _video: unknown, replace: boolean) {
       fixture.start(replace)
       fixture.events?.state(create(DesktopStateSchema, { width: 1920, height: 1080, capabilities: ['resize', 'pointer', 'keyboard', 'text', 'clipboard', 'ctrl_alt_del', 'files'] }))
@@ -35,6 +36,51 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
     openFileExchange = fixture.openFileExchange
   },
 }))
+
+test('兼容重连等待清理时切换代次，迟到结果不重启新会话', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const client = desktopClient()
+  const view = render(<RemoteDesktop client={client} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  act(() => fixture.events?.status('closed', 'desktop_h264_unsupported'))
+  let finish!: () => void
+  fixture.close.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
+  fireEvent.click(screen.getByRole('button', { name: '以兼容模式重新连接' }))
+  view.rerender(<RemoteDesktop client={client} session={{ ...session, generation: 2n }} active />)
+  await act(async () => finish())
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(2))
+  expect(fixture.gateways).toHaveLength(2)
+  expect(fixture.gateways[1].receiverPolicy).toBeUndefined()
+})
+
+test('兼容重连必须确认旧附着清理，暂停观看清除媒体展示', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const client = desktopClient(), changed = vi.fn()
+  const view = render(<RemoteDesktop client={client} session={session} active onMediaDetails={changed} />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  act(() => fixture.events?.status('closed', 'desktop_h264_unsupported'))
+  fixture.cleanupConfirmed = false
+  fireEvent.click(screen.getByRole('button', { name: '以兼容模式重新连接' }))
+  expect(await screen.findByText('desktop_cleanup_uncertain')).toBeInTheDocument()
+  expect(fixture.start).toHaveBeenCalledTimes(1)
+  view.rerender(<RemoteDesktop client={client} session={session} active={false} onMediaDetails={changed} />)
+  expect(changed).toHaveBeenLastCalledWith('desktop', undefined)
+})
+
+test('隐藏 VNC 页签清除媒体详情但保留既有观看会话', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'vnc', generation: 1n, state: 'streaming' })
+  const client = desktopClient(), changed = vi.fn()
+  const view = render(<RemoteDesktop client={client} session={session} active onMediaDetails={changed} />, { wrapper: WithoutMotion })
+  fireEvent.click(screen.getByRole('button', { name: '切换至此设备' }))
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  expect(changed).toHaveBeenLastCalledWith('desktop', expect.objectContaining({ transport: 'rfb' }))
+  view.rerender(<RemoteDesktop client={client} session={session} active={false} onMediaDetails={changed} />)
+  expect(changed).toHaveBeenLastCalledWith('desktop', undefined)
+  expect(fixture.close).not.toHaveBeenCalled()
+  view.rerender(<RemoteDesktop client={client} session={session} active onMediaDetails={changed} />)
+  expect(changed).toHaveBeenLastCalledWith('desktop', expect.objectContaining({ transport: 'rfb' }))
+  expect(fixture.start).toHaveBeenCalledTimes(1)
+})
 
 test('文件授权失败只在文件面板提示，重试成功不重建桌面连接', async () => {
   const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })

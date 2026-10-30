@@ -1,3 +1,5 @@
+import type { RemoteDesktopMediaDetails } from '#entities/remote-desktop'
+import { RemoteMediaDetails } from './RemoteMediaDetails'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, ConfigProvider, Descriptions, Input, Popconfirm, Spin, Tooltip } from 'antd'
 import { ArrowDown, ArrowUp, Bot, Circle, CircleAlert, Folder, LayoutDashboard, Monitor, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, Terminal, Unplug, X } from 'lucide-react'
@@ -26,6 +28,13 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
       else document.body.dataset.termousRemoteSurface = previous
     }
   }, [])
+  const [mediaDetails, setMediaDetails] = useState<Record<string, RemoteDesktopMediaDetails>>({})
+  const mediaChanged = useCallback((key: string, details?: RemoteDesktopMediaDetails) => setMediaDetails(previous => {
+    if (previous[key] === details) return previous
+    const next = { ...previous }
+    if (details) next[key] = details; else delete next[key]
+    return next
+  }), [])
   const [quote, setQuote] = useState<RemoteAgentQuote>()
   const [agentSelected, setAgentSelected] = useState(false)
 	const [desktopSelected, setDesktopSelected] = useState(false)
@@ -170,6 +179,11 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
   const readMessage = remoteErrorText(copy, readError)
   const statusClass = ready ? styles.online : closed ? styles.offline : styles.recovering
   const showOverview = () => { setDesktopSelected(false); setOverview(true); setAgentSelected(false); if (window.matchMedia('(max-width: 760px)').matches) setSidebarCollapsed(true) }
+  // 分屏可能选中终端，旁边的唯一可见桌面仍应出现在连接详情中。
+  const visibleMedia = Object.entries(mediaDetails).filter(([key, value]) => key !== 'host' && value.connectionId === connection?.id)
+  const currentMedia = ready && !agentSelected && (desktopSelected || !overview)
+    ? desktopSelected ? mediaDetails.host : mediaDetails[selected] ?? (visibleMedia.length === 1 ? visibleMedia[0][1] : undefined)
+    : undefined
   const details = <Descriptions size="small" column={1} items={[
     { key: 'path', label: copy.connectionPath, children: path },
     { key: 'rtt', label: copy.latency, children: ready && stats?.path ? `${Math.round(stats.rtt_ms)} ms` : '—' },
@@ -187,7 +201,7 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
       <div className={styles.identity}><span className={styles['device-icon']}><Monitor size={19} /></span><div><strong title={bootstrap.deviceName}>{bootstrap.deviceName}</strong><small>{copy.title}</small></div></div>
       <div className={styles['header-actions']}>
         {client && ready ? <RemoteRetainedFiles client={client} copy={copy} localTasks={localTasks} changed={() => void refresh()} getContainer={() => content.current ?? document.body} /> : null}
-        <FilterPopover title={copy.details} content={<div className={styles.details}>{details}</div>}>
+        <FilterPopover title={copy.details} content={<div className={styles.details}><strong>{bootstrap.language.startsWith('zh') ? '控制连接' : 'Control connection'}</strong>{details}{currentMedia?.connectionId === connection?.id && currentMedia ? <RemoteMediaDetails value={currentMedia} zh={bootstrap.language.startsWith('zh')} /> : null}</div>}>
           <button className={styles['connection-status']} aria-label={copy.details}><span className={`${styles.dot} ${statusClass}`} /><span role="status">{path}</span>{ready && stats?.path ? <span className={styles.latency}>{Math.round(stats.rtt_ms)} ms</span> : null}</button>
         </FilterPopover>
         <span className={styles.divider} />
@@ -233,8 +247,8 @@ export function RemoteWorkbench({ bridge, bootstrap, renderAgent }: { bridge: Re
         </div> : !client || connecting && !inventory ? <div className={styles.loading}><Spin size="large" /><span>{copy.connecting}</span></div> : !inventory && readError ? <div className={styles.empty}>
           <span className={styles['empty-icon']} data-failed><CircleAlert size={28} /></span><h1>{copy.resourcesFailed}</h1><p role="alert">{readMessage}</p>
           <Button type="primary" icon={<RefreshCw size={15} />} loading={refreshing} onClick={() => void refresh()}>{copy.refresh}</Button>
-        </div> : desktopSelected ? <RemoteHostDesktop key={connection?.id} client={client} active={ready} /> : !overview && tabs.length ?
-          <RemoteSessionPanels onQuote={inventory?.agentEnabled && renderAgent ? (session, text) => { setQuote({ key: Date.now(), text, sessionId: session.id, capturedAt: new Date().toISOString() }); openAgent() } : undefined}
+        </div> : desktopSelected ? <RemoteHostDesktop onMediaDetails={mediaChanged} key={connection?.id} client={client} active={ready} /> : !overview && tabs.length ?
+          <RemoteSessionPanels onMediaDetails={mediaChanged} onQuote={inventory?.agentEnabled && renderAgent ? (session, text) => { setQuote({ key: Date.now(), text, sessionId: session.id, capturedAt: new Date().toISOString() }); openAgent() } : undefined}
             key={connection?.id} connected={ready} client={client} tabs={tabs} selected={selected} inventory={inventory} localTasks={localTasks} copy={copy} theme={bootstrap.theme} name={name}
             select={setSelected} close={id => { const remaining = tabs.filter(tab => tab.id !== id); setTabs(remaining); if (id === selected) setSelected(remaining[remaining.length - 1]?.id ?? ''); if (!remaining.length) setOverview(true) }} changed={() => void refresh()} /> :
           <RemoteOverview inventory={inventory} copy={copy} deviceName={bootstrap.deviceName} filter={filter} disabled={busy || !ready} name={name} open={open}
