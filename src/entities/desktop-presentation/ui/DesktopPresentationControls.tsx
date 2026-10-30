@@ -58,8 +58,11 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
           {caps && !caps.available && <p className={styles.notice}>{caps.reason === 'desktop_video_reconfigure_unsupported' ? text('远端版本不支持调整，请更新远端 Termous。', 'Update Termous on the remote device to adjust these settings.') : text('暂时无法调整，请等待连接就绪。', 'Settings are unavailable until the connection is ready.')}</p>}
           {settings && caps ? <><DesktopQualityFields settings={settings} capabilities={caps} disabled={disabled} onChange={onChange} />{caps.available && <p className={styles.status} data-status={state?.status} role="status">{status}</p>}</> : <p className={styles.notice}>{text('当前连接不支持画质调整。', 'Quality adjustment is unavailable for this connection.')}</p>}
           {state?.warning && <p className={styles.notice} role="alert">{state.warning === 'desktop_video_receiver_limited' ? text('本次观看已按接收端能力降低上限，原画质偏好仍保留。', 'This receiver requires lower limits. Your quality preference is preserved.') : text('默认设置加载失败，暂用推荐设置。', 'Could not load defaults. Using recommended settings.')}</p>}
-          {Boolean(state?.encodedWidth || state?.observed) && <DesktopQualityDetails title={text('连接信息', 'Connection details')}>
+          {Boolean(state?.encodedWidth || state?.observed || state?.transport) && <DesktopQualityDetails title={text('连接信息', 'Connection details')}>
             <dl className={styles.statistics}>
+              {settings?.kind === 'video' && <><dt>{text('用户码率上限', 'Requested bitrate limit')}</dt><dd>{settings.bitrate / 1_000_000} Mbps</dd></>}
+              {caps?.kind === 'video' && <><dt>{text('协商码率上限', 'Negotiated bitrate limit')}</dt><dd>{(caps.maxBitrate ?? 8_000_000) / 1_000_000} Mbps</dd></>}
+              {state?.transport && <><dt>{text('媒体路径', 'Media path')}</dt><dd>{state.transport.path === 'direct' ? text('P2P 直连', 'P2P direct') : state.transport.path === 'relay' ? text('中继', 'Relay') : text('待确认', 'Unconfirmed')}</dd><dt>{text('路径码率上限', 'Path bitrate limit')}</dt><dd>{state.transport.bitrateLimit / 1_000_000} Mbps</dd></>}
               {Boolean(state?.encodedWidth) && <><dt>{text('发送尺寸', 'Sent size')}</dt><dd>{state?.encodedWidth} × {state?.encodedHeight}</dd></>}
               {caps?.kind === 'video' && <><dt>{text('协商帧率上限', 'Negotiated frame rate limit')}</dt><dd>{caps.maxFramerate ?? 30} fps</dd></>}
               {state?.applied && <><dt>{text('当前编码预算', 'Current encoder budget')}</dt><dd>{state.applied.framerate} fps · {(state.applied.bitrate / 1_000_000).toFixed(2)} Mbps</dd></>}

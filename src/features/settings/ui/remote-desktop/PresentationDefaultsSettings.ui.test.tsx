@@ -8,8 +8,8 @@ import { PresentationDefaultsSettings } from './PresentationDefaultsSettings'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 
-function fixture() {
-  let saved: SettingsSnapshot = { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults() }, state: { status: 'saved' } }
+function fixture(defaults = presentationDefaults()) {
+  let saved: SettingsSnapshot = { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...defaults }, state: { status: 'saved' } }
   const save = (input: SettingsUpdate) => { saved = { ...saved, revision: saved.revision + 1, value: input.patch }; return saved }
   const update = vi.fn<SettingsTransport['update']>().mockImplementation(async (_id, input) => save(input))
   const store = new SettingsModuleStore({ read: async () => saved, update })
@@ -117,8 +117,10 @@ test.each(['', '0', '31'])('非法数值不自动提交，允许修正：%s', as
   expect(input).not.toHaveAttribute('aria-invalid', 'true')
 })
 
-test('保存回执不打断未完成的输入，下拉修改随后使用最新版本保存', async () => {
-  const user = userEvent.setup(), { update, save, store } = fixture()
+test.each([24_000_000, 100_000_000])('保存回执不打断输入，跨组保存保留已有视频码率 %i', async bitrate => {
+  const defaults = presentationDefaults()
+  defaults.video.bitrate = bitrate
+  const user = userEvent.setup(), { update, save, store } = fixture(defaults)
   let finish!: () => void
   update.mockImplementationOnce(async (_id, input) => new Promise(resolve => { finish = () => resolve(save(input)) }))
   const input = await pixelInput()
@@ -134,7 +136,7 @@ test('保存回执不打断未完成的输入，下拉修改随后使用最新�
   await user.click(screen.getByText('均衡'))
   await waitFor(() => expect(update).toHaveBeenCalledTimes(3))
   expect(update.mock.calls[1][1]).toMatchObject({ expected_revision: 2, patch: { pixels: { updateRateLimit: 25 } } })
-  expect(update.mock.calls[2][1]).toMatchObject({ expected_revision: 3, patch: { pixels: { updateRateLimit: 20 }, video: { bitrate: 24_000_000 } } })
+  expect(update.mock.calls[2][1]).toMatchObject({ expected_revision: 3, patch: { pixels: { updateRateLimit: 20 }, video: { bitrate } } })
   await waitFor(() => expect(store.snapshot('desktop_presentation')?.revision).toBe(4))
 })
 
