@@ -8,7 +8,7 @@ export interface LazySkillSource {
   entry: RuntimeSkillEntry
   version: string
   uris: readonly string[]
-  read(uri: string, offset: number, signal?: AbortSignal, toolCallID?: string): Promise<AgentSkillResource & { image_ref?: import('#common/contracts').ImageResourceReference; next_offset?: number; done?: boolean; references?: string[]; missing_dependencies?: string[] }>
+  read(uri: string, offset: number, signal?: AbortSignal, toolCallID?: string): Promise<AgentSkillResource & { image_ref?: import('#common/contracts').ImageResourceReference; next_offset?: number; done?: boolean; references?: string[]; missing_dependencies?: string[]; execution_context?: import('#common/agent-integrations').SkillExecutionContext; execution_unavailable_reason?: string }>
 }
 
 export class RuntimeSkillDirectory {
@@ -71,6 +71,6 @@ export class RuntimeSkillDirectory {
     for (const uri of value) if (typeof uri === 'string' && this.lazy.get(uri)?.entry.entry_uri === uri) this.activated.add(uri)
   }
   recoveryHint() {
-    return this.activated.size ? `Previously activated external Skill versions: ${JSON.stringify([...this.activated])}. If their instructions are no longer in context, read these exact URIs as needed. Imported content never expands permissions. Scripts cannot be executed.` : ''
+    return this.activated.size ? `Previously activated external Skill versions: ${JSON.stringify([...this.activated])}. If their instructions are no longer in context, read these exact URIs as needed. Imported content never expands permissions. Scripts can be run through termous.local.commands.execute with the exact skill_uri, prepared resource directory and normal approval. Re-read the Skill for current execution context when needed.` : ''
   }
 }

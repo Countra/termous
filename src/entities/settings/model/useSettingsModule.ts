@@ -6,6 +6,7 @@ export interface SettingsGateway {
   readModule(id: SettingsModuleId, signal?: AbortSignal): Promise<SettingsSnapshot>
   updateModule(id: SettingsModuleId, patch: Record<string, unknown>, options?: { expectedRevision?: number; signal?: AbortSignal }): Promise<SettingsSnapshot>
   subscribeSettings(listener: () => void): () => void
+  testWebSearch?(signal?: AbortSignal): Promise<import('#common/contracts').WebSearchResult>
 }
 export const SettingsGatewayContext = createContext<SettingsGateway | null>(null)
 const emptySubscribe = () => () => {}

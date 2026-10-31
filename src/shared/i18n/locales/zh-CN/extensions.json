@@ -29,7 +29,7 @@
   "preview": "预览",
   "chooseDirectory": "选择目录",
   "chooseZIP": "选择 ZIP",
-  "scriptsReadOnly": "脚本仅保存和查看，不会执行。",
+  "scriptExecution": "导入仅保存资源，不执行脚本或安装依赖；脚本可通过本地命令工具审批后运行。",
   "fileCount": "{{count}} 个文件",
   "failed": "操作失败，请重试。",
   "connectTimeout": "MCP 启动或握手超时。若使用 npx，请检查网络和依赖是否就绪后重试。",

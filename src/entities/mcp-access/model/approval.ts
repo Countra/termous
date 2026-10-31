@@ -18,7 +18,7 @@ export interface McpApprovalRenameMapping {
 export interface McpApprovalOperation {
   local?: { session_id: string; tool: string; directory: string; shell?: string; executable?: string; command?: string;
     path?: string; create: boolean; before: string; after: string; before_bytes: number; after_bytes: number; remember_allowed: boolean;
-    review?: import('#shared/file-review').FileReview }
+    review?: import('#shared/file-review').FileReview; skill?: import('#common/contracts').SkillExecutionContext }
   external?: { source_id: string; source_name: string; tool: string; arguments: string }
   script_id?: string
   script_version?: number

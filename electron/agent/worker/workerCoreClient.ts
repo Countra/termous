@@ -1,3 +1,4 @@
+import { isWebSearchContext } from '../contracts/webSearch.ts'
 import { WorkerCoreError, type WorkerCoreClientPort } from '../contracts/workerCore.ts'
 import { isDesktopTaskSnapshot } from '../contracts/desktopTasks.ts'
 import { createHash } from 'node:crypto'
@@ -22,6 +23,14 @@ export interface WorkerCoreClientOptions {
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
+  async readWebSearchContext(start: AgentWorkerStartMessage, bearer: string, signal?: AbortSignal) {
+    const value = await this.request(start.core_base_url, '/api/v1/agent/runtime/web/context', { method: 'POST' }, bearer, signal)
+    if (!isWebSearchContext(value)) throw new WorkerCoreError('AGENT_SEARCH_CONTEXT_INVALID')
+    return value
+  }
+  async searchWeb(start: AgentWorkerStartMessage, bearer: string, input: import('#common/contracts').WebSearchRequest, signal?: AbortSignal) {
+    return this.request(start.core_base_url, '/api/v1/agent/runtime/web/search', { method: 'POST', body: JSON.stringify(input) }, bearer, signal, 35_000, true)
+  }
   async callLocalTool(start: AgentWorkerStartMessage, runtimeBearer: string, input: import('../contracts/localTools.ts').LocalToolCall, signal?: AbortSignal) {
     // 审批由用户决定时长，不能复用普通读取的 15 秒超时；取消仍传递到实际 HTTP 请求。
     return this.request(start.core_base_url, '/api/v1/agent/runtime/local/call', {

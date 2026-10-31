@@ -50,6 +50,9 @@ vi.mock('#features/agent-setup', () => ({
 }))
 
 vi.mock('#features/settings', () => ({
+	LocalNetworkSettings: () => <div data-testid="local-network-settings" />,
+	MCPInstallationSettings: () => <div data-testid="mcp-installation-settings" />,
+	WebSearchSettings: () => <div data-testid="web-search-settings" />,
   AuditSettings: function AuditSettings({ gateway, disabled }: { gateway: unknown; disabled: boolean }) {
     const [draft, setDraft] = useState('')
     return <div data-testid="audit-settings" ref={() => { childState.auditSettingsGateway = gateway }}>
@@ -385,12 +388,12 @@ describe('设置弹层装配合同', () => {
     expect(screen.getByRole('textbox', { name: 'agent-draft' })).toHaveValue('保留草稿')
   })
 
-  it('提供十三个页签并保持通用设置默认页签和命令委托', async () => {
+  it('提供十四个页签并保持通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsDialog()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(13)
+    expect(tabs).toHaveLength(14)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabShortcuts',
@@ -402,6 +405,7 @@ describe('设置弹层装配合同', () => {
       'settings.tabModels',
       'settings.screenAnalysis.title',
       'settings.tabMcp',
+      'extensions.title',
       'settings.tabAudit',
       'settings.tabData',
       'settings.tabUpdates',

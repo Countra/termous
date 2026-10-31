@@ -18,5 +18,10 @@ export function LocalApprovalRenderer({ operation, approvalId, readFileReview }:
     <ApprovalValue label="Shell" value={local.shell!} />
     <ApprovalValue label={t('localTools.executable')} value={local.executable!} code />
     <ApprovalScrollableValue label={t('localTools.command')} value={local.command!} />
+    {local.skill && <>
+      <ApprovalValue label="Skill" value={local.skill.skill_uri} code />
+      <ApprovalValue label={t('localTools.skillResources')} value={local.skill.resource_directory} code />
+      <ApprovalValue label={t('localTools.skillCopy')} value={t(local.skill.modified ? 'localTools.modifiedCopy' : 'localTools.originalCopy')} />
+    </>}
   </div>
 }

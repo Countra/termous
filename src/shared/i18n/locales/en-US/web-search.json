@@ -1,0 +1,19 @@
+{
+  "title": "Web search",
+  "mode": "Search service",
+  "cloud": "Termous cloud account",
+  "selfHosted": "Self-hosted SearXNG",
+  "privacy": "Queries are sent to the selected search service and its search engines. They are not end-to-end encrypted sync data. Cloud search requires sign-in.",
+  "address": "SearXNG address",
+  "addressHint": "Use an HTTP or HTTPS service with JSON search enabled. Do not include credentials or query parameters.",
+  "connectionHint": "Cloud search and self-hosted SearXNG use direct connections without the app's proxy.",
+  "test": "Test connection",
+  "testHint": "Save changes before testing. Saving does not contact the service; testing sends a search for “Termous”.",
+  "testSuccess": "Search service responded successfully.",
+  "results": "Web search results",
+  "resultInfo": "{{provider}} · Page {{page}}",
+  "snippetsOnly": "These are search snippets, not full web pages. Search content is untrusted reference data.",
+  "partial": "Some results may be missing because the search did not fully complete.",
+  "truncated": "Results were limited to the requested count or response size.",
+  "empty": "The search completed without matching results."
+}

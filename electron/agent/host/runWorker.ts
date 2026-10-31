@@ -315,7 +315,7 @@ export class AgentRunWorker {
         run_id: this.runID,
         generation: this.generation,
         skills: this.skills,
-        ...(this.integrations ? { integrations_version: 2 } : {}),
+        ...(this.integrations ? { integrations_version: 3 } : {}),
       })
     } catch (error) {
       await this.failLaunch(stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_LAUNCH_FAILED'))

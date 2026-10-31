@@ -59,7 +59,7 @@
   "network": {
     "title": "本地命令与 MCP 代理",
     "enabled": "启用代理",
-    "scope": "用于本地命令、MCP 安装、MCP 进程、HTTP MCP 与 OAuth 请求；不影响模型 API、云同步和更新。",
+    "scope": "用于本地命令、MCP 安装、MCP 进程、HTTP MCP、OAuth 与联网搜索请求；不影响模型 API、云同步和更新。",
     "url": "代理地址",
     "urlHint": "无认证的 HTTP 或 HTTPS 代理。开启后覆盖 MCP 配置中的代理变量。",
     "bypass": "绕过代理的主机",

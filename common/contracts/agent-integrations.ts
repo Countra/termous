@@ -70,7 +70,22 @@ export interface AgentIntegrationSource {
   updated_at: string
 }
 
+export interface SkillExecutionContext {
+  skill_uri: string
+  source_id: string
+  version: string
+  source_epoch: number
+  policy_epoch: number
+  resource_directory: string
+  working_directory?: string
+  dependency_directory: string
+  digest: string
+  modified: boolean
+}
+
 export interface IntegrationSkillRead {
+  execution_context?: SkillExecutionContext
+  execution_unavailable_reason?: string
   image_ref?: import('./content-resources.ts').ImageResourceReference
   resource?: IntegrationContentReference
   path: string

@@ -42,3 +42,5 @@ export {
   UpdateSettings,
   type UpdatePreferencesRuntime,
 } from './ui/update/UpdateSettings.tsx'
+
+export { WebSearchSettings } from './ui/connection/WebSearchSettings.tsx'

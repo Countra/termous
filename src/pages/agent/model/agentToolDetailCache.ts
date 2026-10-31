@@ -1,5 +1,7 @@
 import type { AgentMessagePart } from '#entities/agent'
 import { readLocalFileResult, type AgentLocalFileResult } from '#entities/agent'
+import { readWebSearchResult } from '#entities/agent'
+import type { WebSearchResult } from '#common/contracts'
 
 const sensitiveKey = /(?:api[_-]?key|authorization|bearer|credential|pass(?:word|phrase)?|private[_-]?key|secret|token)/i
 const maximumToolDetailLength = 4_000
@@ -10,6 +12,13 @@ type Result = Extract<AgentMessagePart, { kind: 'tool_result' }>
 export class AgentToolDetailCache {
   private readonly values = new WeakMap<Call | Result, { result?: Result; detail: string }>()
   private readonly files = new WeakMap<Result, AgentLocalFileResult | undefined>()
+  private readonly searches = new WeakMap<Result, WebSearchResult | undefined>()
+
+  webSearch(result: Result | undefined) {
+    if (!result) return undefined
+    if (!this.searches.has(result)) this.searches.set(result, readWebSearchResult(result.tool_result))
+    return this.searches.get(result)
+  }
 
   localFile(result: Result | undefined) {
     if (!result) return undefined

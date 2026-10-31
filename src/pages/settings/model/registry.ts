@@ -25,7 +25,7 @@ export const settingsPages = [
   { id: 'models', title: 'settings.tabModels', tour: 'settings-models-tab', icon: CloudCog, modules: ['agent'], group: 'intelligence', mode: 'manual' },
   { id: 'screen-analysis', title: 'settings.screenAnalysis.title', icon: ScanSearch, modules: ['screen_analysis', 'screen_analysis_storage'], group: 'intelligence', mode: 'automatic' },
   { id: 'mcp', title: 'settings.tabMcp', icon: McpIcon, modules: ['mcp'], tour: 'settings-mcp-tab', group: 'intelligence', mode: 'resources' },
-  { id: 'extensions', title: 'extensions.title', icon: McpIcon, modules: ['mcp_integrations'], group: 'intelligence', mode: 'resources' },
+  { id: 'extensions', title: 'extensions.title', icon: McpIcon, modules: ['mcp_integrations', 'web_search'], group: 'intelligence', mode: 'resources' },
   { id: 'audit', title: 'settings.tabAudit', icon: ClipboardList, modules: ['audit'], group: 'maintenance', mode: 'manual' },
   { id: 'data', title: 'settings.tabData', icon: DatabaseBackup, modules: [], tour: 'settings-data-tab', group: 'maintenance', mode: 'resources' },
   { id: 'updates', title: 'settings.tabUpdates', icon: RefreshCw, modules: ['updates'], group: 'maintenance', mode: 'automatic' },

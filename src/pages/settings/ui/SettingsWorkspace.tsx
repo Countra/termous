@@ -28,7 +28,7 @@ import type { AgentIntegrationsGateway } from '#entities/agent-integrations'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
-  LocalNetworkSettings, MCPInstallationSettings,
+  LocalNetworkSettings, MCPInstallationSettings, WebSearchSettings,
   RemoteDesktopSettings,
   ScreenAnalysisSettings,
   GeneralSettings,
@@ -153,7 +153,7 @@ export function SettingsWorkspace({
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   const panels: Record<SettingsPageTabKey, ReactNode> = {
-    extensions: <div className={styles['tab-scroll']}><MCPInstallationSettings /><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} /></div>,
+    extensions: <div className={styles['tab-scroll']}><MCPInstallationSettings /><WebSearchSettings /><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} /></div>,
     general: (
       <div className={styles['tab-scroll']}>
         <div className={styles['settings-stack']}>

@@ -67,7 +67,7 @@ export function createRuntimeSystemPrompt(
   if (bootstrap.local_tools) {
     const { directory, environment, unavailable_reason } = bootstrap.local_tools
     const localContext = { directory, environment, unavailable_reason }
-    sections.push(`本地文件和命令使用 termous.local 工具，与 SSH 远程命令独立；可见应用操作按目标发现桌面能力。本轮已验证本地环境：${JSON.stringify(localContext)}。相对路径基于本轮目录，工作目录不是操作系统沙箱。导入 Skill 的脚本仅可读取，不得通过命令、复制或其他工具绕过执行限制。命令返回进行中时查询或等待原任务；结束本轮会取消仍在运行的本地命令。`)
+    sections.push(`本地文件和命令使用 termous.local 工具，与 SSH 远程命令独立；可见应用操作按目标发现桌面能力。本轮已验证本地环境：${JSON.stringify(localContext)}。相对路径基于本轮目录，工作目录不是操作系统沙箱。外部 Skill 读取返回的执行上下文可用于 termous.local.commands.execute；传入固定 skill_uri，通过正常命令审批执行工作副本。读取或启用 Skill 不构成执行或安装依赖的授权。命令返回进行中时查询或等待原任务；结束本轮会取消仍在运行的本地命令。`)
   }
   if (managedTools) sections.push(managedToolRules)
   const policy = bootstrap.model.snapshot.execution_budget ?? defaultExecutionBudget

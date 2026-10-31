@@ -29,7 +29,7 @@
   "preview": "Preview",
   "chooseDirectory": "Choose directory",
   "chooseZIP": "Choose ZIP",
-  "scriptsReadOnly": "Scripts are stored for reference and are not executed.",
+  "scriptExecution": "Import stores resources without executing scripts or installing dependencies. Scripts can run through the local command tool after approval.",
   "fileCount": "{{count}} files",
   "failed": "Operation failed. Please try again.",
   "connectTimeout": "MCP startup or handshake timed out. If using npx, check the network and dependencies before retrying.",

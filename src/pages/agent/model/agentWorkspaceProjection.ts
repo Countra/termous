@@ -326,7 +326,7 @@ function projectMessageParts(
         status: batch?.state === 'running' ? 'running' : result.tool_result.is_error ? 'failed' : 'completed',
         images: projectAgentToolImages(sessionID, result),
         desktop_batch: batch,
-        local_file: toolDetails.localFile(result),
+        web_search: toolDetails.webSearch(result), local_file: toolDetails.localFile(result),
         runtime_wait: readRuntimeWait(undefined, result.tool_result),
         detail: toolDetails.detail(undefined, result),
       }]
@@ -387,7 +387,7 @@ function projectToolPart(
         ?? toolEvents.find(event => event.kind === 'tool_started')
       return { ...value, startedAt: started?.created_at }
     })(),
-    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch, local_file: toolDetails.localFile(result) } : {}),
+    ...(result ? { images: projectAgentToolImages(sessionID, result), desktop_batch: batch, web_search: toolDetails.webSearch(result), local_file: toolDetails.localFile(result) } : {}),
     detail: toolDetails.detail(call, result),
   }
 }

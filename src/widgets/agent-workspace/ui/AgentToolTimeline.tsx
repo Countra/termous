@@ -6,6 +6,7 @@ import type { AgentImageLoader, AgentWorkspaceToolPart } from '../model/types.ts
 import { AgentImage } from './AgentImage.tsx'
 import { DesktopBatchResult } from './tool-results/desktop-batch/DesktopBatchResult.tsx'
 import { LocalFileResult } from './tool-results/local-file/LocalFileResult.tsx'
+import { WebSearchResult } from './tool-results/web-search/WebSearchResult.tsx'
 import { RuntimeWaitStatus } from './tool-results/RuntimeWaitStatus.tsx'
 import styles from './AgentToolTimeline.module.scss'
 
@@ -51,15 +52,16 @@ export const AgentToolTimeline = memo(function AgentToolTimeline({ tool, onLoadT
         {cancelError && tool.status === 'running' ? <p role="alert">{t('agent.tool.batch.cancelFailed')}</p> : null}
         {expanded && tool.desktop_batch ? <DesktopBatchResult receipt={tool.desktop_batch} /> : null}
         {expanded && tool.local_file ? <LocalFileResult file={tool.local_file} onLoadFileReview={onLoadFileReview} /> : null}
+        {expanded && tool.web_search ? <WebSearchResult result={tool.web_search} /> : null}
         {expanded && tool.images?.length ? <div className={styles.images} aria-label={t('agent.images.toolResults')}>
           {tool.images.map((image, index) => (
             <AgentImage key={image.id} image={image} onLoad={onLoadToolImage} title={t('agent.images.result', { index: index + 1 })} />
           ))}
         </div> : null}
-        {expanded && tool.local_file && tool.detail ? <Button className={styles['raw-details']} type="text" size="small"
+        {expanded && (tool.local_file || tool.web_search) && tool.detail ? <Button className={styles['raw-details']} type="text" size="small"
           icon={<ChevronRight size={13} aria-hidden />}
           onClick={() => setRawDetails(value => !value)} aria-expanded={rawDetails}>{t('localTools.rawDetails')}</Button> : null}
-        {expanded && tool.detail && (!tool.local_file || rawDetails) ? <pre>{tool.detail}</pre> : null}
+        {expanded && tool.detail && (!(tool.local_file || tool.web_search) || rawDetails) ? <pre>{tool.detail}</pre> : null}
       </details>
     </div>
   )

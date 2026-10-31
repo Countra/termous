@@ -155,6 +155,7 @@ export interface AgentWorkspaceToolPart {
   detail?: string
   images?: AgentWorkspaceImage[]
   desktop_batch?: DesktopBatchReceipt
+  web_search?: import('#common/contracts').WebSearchResult
 }
 
 export interface AgentWorkspaceImage extends AgentToolImageSource {

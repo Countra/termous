@@ -28,6 +28,7 @@ import { attachIntegrationTools } from './integrationTools.ts'
 import type { IntegrationDirectory } from '../contracts/integrationIPC.ts'
 import { integrationSkills } from './integrationSkills.ts'
 import { readIntegrationDirectory } from './integrationDirectory.ts'
+import { attachWebSearch } from './webSearch.ts'
 import { attachLocalTools } from './localTools.ts'
 
 const maximumSteerBytes = 1 << 20
@@ -162,7 +163,7 @@ export class AgentWorkerRuntime {
         protocolVersion: bootstrap.mcp.protocol_version,
         signal: this.startupAbort.signal,
       })
-      if (start.integrations_version === 2) {
+      if (start.integrations_version === 3) {
         if (!this.sendIntegration) throw new Error('INTEGRATION_PROTOCOL_UNAVAILABLE')
         this.integrations = new WorkerIntegrationProxy({ run_id: start.run_id, generation: start.generation, bearer: bootstrap.runtime_bearer }, this.sendIntegration)
         const initial = await readIntegrationDirectory(this.integrations, this.startupAbort.signal)
@@ -170,6 +171,10 @@ export class AgentWorkerRuntime {
         const directory: IntegrationDirectory = initial
         this.mcp = attachIntegrationTools(this.mcp, directory, this.integrations)
         lazySkills = integrationSkills(directory, this.integrations)
+      }
+      if (this.core.readWebSearchContext && this.core.searchWeb) {
+        const context = await this.core.readWebSearchContext(start, bootstrap.runtime_bearer, this.startupAbort.signal)
+        this.mcp = attachWebSearch(this.mcp, context, (input, signal) => this.core.searchWeb!(start, bootstrap.runtime_bearer, input, signal))
       }
       if (bootstrap.local_tools) {
         if (!this.core.callLocalTool) throw new Error('LOCAL_TOOLS_PROTOCOL_UNAVAILABLE')

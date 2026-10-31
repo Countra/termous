@@ -20,7 +20,7 @@ export function integrationSkills(directory: IntegrationDirectory, proxy: Worker
         const content = value.text ?? JSON.stringify({path:value.path,mime_type:value.mime_type,resource:value.resource,image_ref:value.image_ref})
         return { uri, content, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex'), image_ref:value.image_ref,
           media_type: 'text/markdown; charset=utf-8' as const, next_offset: value.next_offset, done: value.done,
-          references: value.files?.map(file => root + file.path), missing_dependencies: value.missing_dependencies }
+          references: value.files?.map(file => root + file.path), missing_dependencies: value.missing_dependencies, execution_context: value.execution_context, execution_unavailable_reason: value.execution_unavailable_reason }
       },
     }]
   })

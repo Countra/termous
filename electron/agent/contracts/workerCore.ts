@@ -5,6 +5,8 @@ import type { RuntimeEventInput, RuntimeSteerInput, RuntimeSteerResult } from '.
 import type { RuntimeCheckpointInput, RuntimeCheckpointResult } from './runtimeCheckpoint.ts'
 
 export interface WorkerCoreClientPort {
+  readWebSearchContext?(start: AgentWorkerStartMessage, runtimeBearer: string, signal?: AbortSignal): Promise<import('./webSearch.ts').WebSearchContext>
+  searchWeb?(start: AgentWorkerStartMessage, runtimeBearer: string, input: import('#common/contracts').WebSearchRequest, signal?: AbortSignal): Promise<unknown>
   callLocalTool?(start: AgentWorkerStartMessage, runtimeBearer: string, input: import('./localTools.ts').LocalToolCall, signal?: AbortSignal): Promise<unknown>
   readDesktopTasks?(start: AgentWorkerStartMessage, runtimeBearer: string, cursor: string, waitMS: number, signal?: AbortSignal): Promise<import('./desktopTasks.ts').DesktopTaskSnapshot>
   readToolPreparation?(start: AgentWorkerStartMessage, runtimeBearer: string, toolCallID: string, step: string, signal?: AbortSignal): Promise<import('./toolPreparation.ts').PreparedCall | undefined>

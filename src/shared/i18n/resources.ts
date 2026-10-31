@@ -1,3 +1,5 @@
+import enUSWebSearch from './locales/en-US/web-search.json'
+import zhCNWebSearch from './locales/zh-CN/web-search.json'
 import type { AppLanguage } from '#common/contracts'
 import enUSTranslation from './locales/en-US/translation.json'
 import zhCNTranslation from './locales/zh-CN/translation.json'
@@ -18,10 +20,10 @@ export const defaultNamespace = 'translation'
 
 export const resources = {
   'zh-CN': {
-    [defaultNamespace]: { ...zhCNTranslation, fileReview: zhCNFileReview, localTools: zhCNLocalTools, mcpPreparation: zhCNPreparation, extensions: zhCNExtensions, settings: { ...zhCNTranslation.settings, tabMcp: 'MCP 服务', descriptions: { ...zhCNTranslation.settings.descriptions, extensions: zhCNExtensions.description } }, desktopWorkflow: { ...zhCNDesktopWorkflow, analysisWorkspace: zhCNAnalysisWorkspace } },
+    [defaultNamespace]: { ...zhCNTranslation, webSearch: zhCNWebSearch, fileReview: zhCNFileReview, localTools: zhCNLocalTools, mcpPreparation: zhCNPreparation, extensions: zhCNExtensions, settings: { ...zhCNTranslation.settings, tabMcp: 'MCP 服务', descriptions: { ...zhCNTranslation.settings.descriptions, extensions: zhCNExtensions.description } }, desktopWorkflow: { ...zhCNDesktopWorkflow, analysisWorkspace: zhCNAnalysisWorkspace } },
   },
   'en-US': {
-    [defaultNamespace]: { ...enUSTranslation, fileReview: enUSFileReview, localTools: enUSLocalTools, mcpPreparation: enUSPreparation, extensions: enUSExtensions, settings: { ...enUSTranslation.settings, tabMcp: 'MCP server', descriptions: { ...enUSTranslation.settings.descriptions, extensions: enUSExtensions.description } }, desktopWorkflow: { ...enUSDesktopWorkflow, analysisWorkspace: enUSAnalysisWorkspace } },
+    [defaultNamespace]: { ...enUSTranslation, webSearch: enUSWebSearch, fileReview: enUSFileReview, localTools: enUSLocalTools, mcpPreparation: enUSPreparation, extensions: enUSExtensions, settings: { ...enUSTranslation.settings, tabMcp: 'MCP server', descriptions: { ...enUSTranslation.settings.descriptions, extensions: enUSExtensions.description } }, desktopWorkflow: { ...enUSDesktopWorkflow, analysisWorkspace: enUSAnalysisWorkspace } },
   },
 } as const satisfies Record<AppLanguage, Record<typeof defaultNamespace, object>>
 

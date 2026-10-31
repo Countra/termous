@@ -86,7 +86,7 @@ export function IntegrationImport({ kind, gateway, source, onClose, onImported }
         <input hidden ref={zip} type="file" multiple={!source} accept=".zip" onChange={event => void preview(event.target.files)} />
         <Space><Button icon={<FolderOpen size={15} />} disabled={busy} onClick={() => directory.current?.click()}>{t('extensions.chooseDirectory')}</Button>
           <Button icon={<FileArchive size={15} />} disabled={busy} onClick={() => zip.current?.click()}>{t('extensions.chooseZIP')}</Button></Space>
-        <span className={styles.muted}>{t('extensions.scriptsReadOnly')}</span>
+        <span className={styles.muted}>{t('extensions.scriptExecution')}</span>
       </>}
       <ul className={styles['import-list']}>{items.map((item, index) => <li key={`${index}:${item.name}`} className={styles['import-item']}>
         <Checkbox checked={item.selected} disabled={busy || !item.mcp && !item.skill || item.saved} onChange={event => setItems(current => current.map((value,i) => i === index ? {...value, selected:event.target.checked} : value))}>{item.name}</Checkbox>

@@ -59,7 +59,7 @@
   "network": {
     "title": "Local command and MCP proxy",
     "enabled": "Enable proxy",
-    "scope": "Applies to local commands, MCP installation, MCP processes, HTTP MCP and OAuth requests. Model APIs, cloud sync and updates are not affected.",
+    "scope": "Applies to local commands, MCP installation, MCP processes, HTTP MCP, OAuth and web search requests. Model APIs, cloud sync and updates are not affected.",
     "url": "Proxy URL",
     "urlHint": "HTTP or HTTPS proxy without authentication. This setting overrides proxy variables in MCP configuration.",
     "bypass": "Bypass hosts",
