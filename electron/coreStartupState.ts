@@ -4,10 +4,9 @@ import type {
   DatabaseStartupState,
 } from '#common/contracts'
 import type { CoreStartupEvent } from './coreStartupProtocol.ts'
+import { coreReadyTimeoutMs, coreStartupSilenceMs } from './coreLifecyclePolicy.ts'
 
-const readyTimeoutMs = 12_000
 const databaseSlowMs = 60_000
-const startupSilenceMs = 15_000
 
 export function initialCoreStartupSnapshot(): CoreStartupSnapshot {
   return {
@@ -25,9 +24,15 @@ export class CoreStartupState {
   private databaseStartedAt: number | null = null
   private bindFailure: CoreStartupFailure | null = null
   private readonly onChange: (snapshot: CoreStartupSnapshot) => void
+  private readonly timeoutNow: (wallTime: number) => number
 
-  constructor(onChange: (snapshot: CoreStartupSnapshot) => void = () => undefined) {
+  constructor(
+    onChange: (snapshot: CoreStartupSnapshot) => void = () => undefined,
+    timeoutNow: (wallTime: number) => number = (wallTime) => wallTime,
+  ) {
     this.onChange = onChange
+    // 状态保留真实日期；超时使用宿主注入的单调时钟，未注入时沿用调用方显式时间。
+    this.timeoutNow = timeoutNow
   }
 
   getSnapshot(): CoreStartupSnapshot {
@@ -43,8 +48,8 @@ export class CoreStartupState {
     this.bindFailure = null
     this.expectedPID = undefined
     this.databaseStartedAt = null
-    this.lastEventAt = now
-    this.readyDeadline = now + readyTimeoutMs
+    this.lastEventAt = this.timeoutNow(now)
+    this.readyDeadline = this.lastEventAt + coreReadyTimeoutMs
     this.publish({
       ...initialCoreStartupSnapshot(), attemptId, revision: this.snapshot.revision,
       phase: 'starting', startedAt: new Date(now).toISOString(),
@@ -55,8 +60,8 @@ export class CoreStartupState {
     this.sequence = 0
     this.bindFailure = null
     this.expectedPID = undefined
-    this.lastEventAt = now
-    this.readyDeadline = now + readyTimeoutMs
+    this.lastEventAt = this.timeoutNow(now)
+    this.readyDeadline = this.lastEventAt + coreReadyTimeoutMs
     this.databaseStartedAt = null
     this.publish({ ...this.snapshot, database: null, databases: [], instanceId, phase: 'starting', failure: null, attention: null }, now)
   }
@@ -75,22 +80,25 @@ export class CoreStartupState {
     // 旧阶段的迟到消息不能重新打开已经结束的数据库等待窗口。
     if (this.snapshot.phase === 'services' && (event.phase === 'database' || event.phase === 'starting')) return false
     if (this.snapshot.phase === 'database' && event.phase === 'starting') return false
+    // 迟到的服务回执不能续期；首次确认正在处理数据库时保留安全等待，明确失败仍保留原因。
+    if (!event.error && event.phase !== 'database' && this.hasReadyTimedOut(now)) return false
     this.sequence = event.sequence
-    this.lastEventAt = now
+    const elapsed = this.timeoutNow(now)
+    this.lastEventAt = elapsed
     if (event.error?.code === 'CORE_BIND_FAILED') {
       // 端口冲突允许受控重试，最终耗尽前不向启动窗口发布终态错误。
       this.bindFailure = event.error
       return true
     }
-    if (event.phase === 'database' && this.databaseStartedAt === null) this.databaseStartedAt = now
-    if (event.phase === 'services' && this.snapshot.phase !== 'services') this.readyDeadline = now + readyTimeoutMs
+    if (event.phase === 'database' && this.databaseStartedAt === null) this.databaseStartedAt = elapsed
+    if (event.phase === 'services' && this.snapshot.phase !== 'services') this.readyDeadline = elapsed + coreReadyTimeoutMs
     const database = this.mergeDatabase(event.database)
     const next: CoreStartupSnapshot = {
       ...this.snapshot, phase: event.phase, database,
       databases: event.databases ? structuredClone(event.databases) : this.snapshot.databases,
       failure: event.error ?? null,
       attention: event.phase === 'database' && this.databaseStartedAt !== null
-        && now - this.databaseStartedAt >= databaseSlowMs ? 'slow' : null,
+        && elapsed - this.databaseStartedAt >= databaseSlowMs ? 'slow' : null,
       coreVersion: event.coreVersion ?? this.snapshot.coreVersion,
     }
     // 心跳只更新接收时间，相同状态不反复广播或刷新界面展示计时。
@@ -102,15 +110,16 @@ export class CoreStartupState {
 
   tick(now: number) {
     if (this.snapshot.phase !== 'database') return
-    const attention = now - this.lastEventAt >= startupSilenceMs
+    const elapsed = this.timeoutNow(now)
+    const attention = elapsed - this.lastEventAt >= coreStartupSilenceMs
       ? 'unresponsive'
-      : this.databaseStartedAt !== null && now - this.databaseStartedAt >= databaseSlowMs ? 'slow' : null
+      : this.databaseStartedAt !== null && elapsed - this.databaseStartedAt >= databaseSlowMs ? 'slow' : null
     if (this.snapshot.attention !== attention) this.publish({ ...this.snapshot, attention }, now)
   }
 
   hasReadyTimedOut(now: number) {
-    return this.snapshot.phase !== 'database' && this.snapshot.phase !== 'ready'
-      && this.snapshot.phase !== 'failed' && now >= this.readyDeadline
+    return (this.snapshot.phase === 'starting' || this.snapshot.phase === 'services')
+      && this.timeoutNow(now) >= this.readyDeadline
   }
 
   ready(now: number) {

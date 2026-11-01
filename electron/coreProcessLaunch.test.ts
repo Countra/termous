@@ -101,6 +101,8 @@ test('托管 Core 启动使用构造参数并持续消费标准输出和错误�
   assert.equal(launch.options.env?.TERMOUS_ADDR, '127.0.0.1:8152')
   assert.equal(launch.options.env?.TERMOUS_API_TOKEN, 'test-token')
   assert.equal(launch.options.env?.TERMOUS_PARENT_PID, '4242')
+  assert.equal(launch.options.env?.TERMOUS_REQUIRE_HEARTBEAT, '1')
+  assert.equal(launch.options.env?.TERMOUS_HEARTBEAT_TIMEOUT, '60000ms')
   assert.equal(stdout.listenerCount('data'), 1)
   assert.equal(stderr.listenerCount('data'), 1)
 })

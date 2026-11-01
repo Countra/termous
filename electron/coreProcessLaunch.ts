@@ -6,6 +6,7 @@ import {
 import path from 'node:path'
 import { CoreStartupEventParser, type CoreStartupEvent } from './coreStartupProtocol.ts'
 import { isCoreBindFailure } from './coreStartupState.ts'
+import { coreHeartbeatTimeoutMs } from './coreLifecyclePolicy.ts'
 import {
   hasChildProcessExited,
   waitForChildProcessExit,
@@ -85,7 +86,7 @@ export function spawnManagedCoreProcess(
       TERMOUS_ADDR: addr,
       TERMOUS_API_TOKEN: token,
       TERMOUS_REQUIRE_HEARTBEAT: '1',
-      TERMOUS_HEARTBEAT_TIMEOUT: '30s',
+      TERMOUS_HEARTBEAT_TIMEOUT: `${coreHeartbeatTimeoutMs}ms`,
       TERMOUS_PARENT_PID: String(parentPid),
       TERMOUS_STARTUP_PROTOCOL: startupInstance ? '1' : '',
       TERMOUS_STARTUP_INSTANCE: startupInstance ?? '',
@@ -157,9 +158,9 @@ export async function waitForManagedCoreFailureExit(
   isStopping: () => boolean,
   timeoutMs = 12_000,
 ) {
-  const deadline = Date.now() + timeoutMs
+  const deadline = performance.now() + timeoutMs
   while (!hasChildProcessExited(child) && !isStopping()) {
-    const remaining = deadline - Date.now()
+    const remaining = deadline - performance.now()
     if (remaining <= 0) return false
     if (await waitForChildProcessExit(child, Math.min(remaining, 250))) return true
   }

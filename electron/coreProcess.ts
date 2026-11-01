@@ -28,6 +28,7 @@ import { CoreStartupError, CoreStartupState } from './coreStartupState'
 import { sanitizeCoreStartupText } from './coreStartupProtocol'
 import { fetchCoreRuntimeProbe } from './coreRuntimeProbe'
 import { awaitCoreShutdown } from './coreShutdown'
+import { coreHeartbeatIntervalMs, coreHeartbeatTimeoutMs, coreRequestTimeoutMs, coreReadyTimeoutMs } from './coreLifecyclePolicy'
 
 export type CoreShutdownReason = 'frontend_exit' | 'application_update'
 
@@ -42,9 +43,6 @@ type CoreProcessState = Omit<CoreStatus, 'config'> & {
 }
 
 const maxPortSwitches = 3
-const heartbeatIntervalMs = 10_000
-const heartbeatTimeoutMs = 30_000
-const requestTimeoutMs = 5_000
 const failedChildGracefulExitTimeoutMs = 2_000
 const failedChildForceExitTimeoutMs = 2_000
 const coreStartupFailureMessage = '核心服务启动失败，请查看错误详情和日志后重试。'
@@ -66,7 +64,8 @@ export class CoreProcessManager {
   private fatal: CoreFatalEvent | null = null
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatGeneration = 0
-  private lastHeartbeatAt = Date.now()
+  private heartbeatInFlightGeneration: number | null = null
+  private lastHeartbeatAt = performance.now()
   private shuttingDown = false
   private exitRequested = false
   private shutdownPreparing = false
@@ -76,7 +75,7 @@ export class CoreProcessManager {
   private readonly shutdownSingleflight = new AsyncSingleflight<boolean>()
   private readonly restoreRestartSingleflight = new AsyncSingleflight<CoreRestartResult>()
   private readonly statusListeners = new Set<(snapshot: CoreStartupSnapshot) => void>()
-  private readonly startup = new CoreStartupState((snapshot) => this.publishStartupStatus(snapshot))
+  private readonly startup = new CoreStartupState((snapshot) => this.publishStartupStatus(snapshot), () => performance.now())
   private readonly options: CoreProcessManagerOptions
 
   constructor(options: CoreProcessManagerOptions) {
@@ -175,7 +174,7 @@ export class CoreProcessManager {
   async getRuntimeVersion() {
     const config = await this.initialize()
     try {
-      const runtime = await fetchCoreRuntimeProbe(config.apiBaseUrl, config.apiToken, requestTimeoutMs)
+      const runtime = await fetchCoreRuntimeProbe(config.apiBaseUrl, config.apiToken, coreRequestTimeoutMs)
       return runtime?.version ?? null
     } catch {
       return null
@@ -215,20 +214,31 @@ export class CoreProcessManager {
     const result = await awaitCoreShutdown({
       maintenance: async () => {
         const headers = { 'X-Termous-Token': this.config.apiToken }
-        const response = await this.fetchWithTimeout('/api/v1/ai-service/runtime', { headers })
-        if (response.status === 404 || response.status === 503) return false
-        if (!response.ok) throw new Error('runtime_status_unavailable')
-        const value = await response.json() as { task?: { id: string; phase: string; cancellable: boolean } }
-        const task = value.task
+        const task = await this.fetchUrlWithTimeout(
+          new URL('/api/v1/ai-service/runtime', this.config.apiBaseUrl).toString(), { headers }, coreRequestTimeoutMs,
+          async (response) => {
+            if (response.status === 404 || response.status === 503) return null
+            if (!response.ok) throw new Error('runtime_status_unavailable')
+            const value: unknown = await response.json()
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('runtime_status_invalid')
+            const task: unknown = (value as { task?: unknown }).task
+            if (task === undefined || task === null) return null
+            if (typeof task !== 'object' || Array.isArray(task)) throw new Error('runtime_status_invalid')
+            const fields = task as Record<string, unknown>
+            if (typeof fields.id !== 'string' || !fields.id.trim() || typeof fields.phase !== 'string'
+              || !fields.phase.trim() || typeof fields.cancellable !== 'boolean') throw new Error('runtime_status_invalid')
+            return { id: fields.id, phase: fields.phase, cancellable: fields.cancellable }
+          },
+        )
         if (!task || ['complete', 'failed', 'cancelled'].includes(task.phase)) return false
         if (task.cancellable) {
-          const cancelled = await this.fetchWithTimeout(`/api/v1/ai-service/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE', headers })
+          const cancelled = await this.fetchStatusWithTimeout(`/api/v1/ai-service/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE', headers })
           // 取消与进入写入阶段可能并发；冲突时继续等待，其他错误不能无限轮询。
           if (!cancelled.ok && cancelled.status !== 404 && cancelled.status !== 409) throw new Error('runtime_cancel_failed')
         }
         return true
       },
-      request: async () => (await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
+      request: async () => (await this.fetchStatusWithTimeout('/api/v1/runtime/shutdown', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,10 +246,10 @@ export class CoreProcessManager {
         },
         body: JSON.stringify({ reason, force }),
       })).ok,
-      probe: () => fetchCoreRuntimeProbe(this.config.apiBaseUrl, this.config.apiToken, requestTimeoutMs),
+      probe: () => fetchCoreRuntimeProbe(this.config.apiBaseUrl, this.config.apiToken, coreRequestTimeoutMs),
       exited: () => hasChildProcessExited(child),
       expectedPID: child.pid,
-      now: Date.now,
+      now: () => performance.now(),
       wait: delay,
       committed: () => { this.shutdownPreparing = false; this.stopHeartbeat() },
     })
@@ -425,7 +435,6 @@ export class CoreProcessManager {
       })
     }
     ready = true
-    this.lastHeartbeatAt = Date.now()
   }
 
   private async waitUntilReady(
@@ -452,13 +461,19 @@ export class CoreProcessManager {
       if (failure) throw new CoreStartupError(failure)
       this.startup.tick(Date.now())
       if (this.startup.hasReadyTimedOut(Date.now())) {
-        throw new CoreStartupError({ code: 'CORE_START_TIMEOUT', message: '等待核心服务就绪超时，请查看启动日志。' })
+        throw new CoreStartupError({ code: 'CORE_START_TIMEOUT', message: `等待核心服务就绪超过 ${coreReadyTimeoutMs / 1000} 秒，请查看启动日志。` })
       }
       try {
-        const status = await fetchCoreRuntimeProbe(apiBaseUrl, token, 1200)
-        if (status?.pid === expectedPID) {
+        const status = await fetchCoreRuntimeProbe(apiBaseUrl, token, coreRequestTimeoutMs)
+        // 探针返回时重新检查取消、所属进程和期限，迟到响应不能放行旧实例。
+        if (this.shuttingDown || this.child !== child || hasChildProcessExited(child)
+          || this.startup.hasReadyTimedOut(Date.now())) continue
+        if (status && expectedPID !== undefined && status.pid === expectedPID) {
           const pendingFailure = this.startup.getPendingFailure()
           if (pendingFailure) throw new CoreStartupError(pendingFailure)
+          if (status.shutdown_phase === 'closing' || status.shutdown_phase === 'closed') {
+            throw new CoreStartupError({ code: 'CORE_START_FAILED', message: '核心服务在就绪确认前已开始关闭，请查看启动日志。' })
+          }
           return
         }
       } catch (error) {
@@ -471,14 +486,17 @@ export class CoreProcessManager {
 
   private startHeartbeat() {
     this.stopHeartbeat()
-    this.lastHeartbeatAt = Date.now()
+    this.lastHeartbeatAt = performance.now()
     this.heartbeatTimer = setInterval(() => {
       void this.sendHeartbeat()
-    }, heartbeatIntervalMs)
+    }, coreHeartbeatIntervalMs)
+    // 就绪和恢复后立即续约，不再消耗一个完整发送间隔。
+    void this.sendHeartbeat()
   }
 
   private stopHeartbeat() {
     this.heartbeatGeneration += 1
+    this.heartbeatInFlightGeneration = null
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
@@ -490,45 +508,50 @@ export class CoreProcessManager {
       return
     }
     const generation = this.heartbeatGeneration
+    if (this.heartbeatInFlightGeneration === generation) return
+    this.heartbeatInFlightGeneration = generation
     const child = this.child
     const config = this.config
     const stillCurrent = () => generation === this.heartbeatGeneration && this.child === child
       && this.config === config && (!this.shuttingDown || this.shutdownPreparing)
     try {
-      const response = await this.fetchWithTimeout('/api/v1/runtime/heartbeat', {
+      const response = await this.fetchStatusWithTimeout('/api/v1/runtime/heartbeat', {
         method: 'POST',
         headers: { 'X-Termous-Token': this.config.apiToken },
       })
       if (!stillCurrent()) return
       if (response.ok) {
-        this.lastHeartbeatAt = Date.now()
+        this.lastHeartbeatAt = performance.now()
         return
       }
     } catch {
-      // 下面按最近一次成功心跳判断是否超过 30 秒。
+      // 单次请求失败允许重试，下面按最近一次成功心跳判定持续失联。
+    } finally {
+      if (this.heartbeatInFlightGeneration === generation) this.heartbeatInFlightGeneration = null
     }
     if (!stillCurrent()) return
-    if (!this.shuttingDown && Date.now() - this.lastHeartbeatAt > heartbeatTimeoutMs) {
+    if (!this.shuttingDown && performance.now() - this.lastHeartbeatAt >= coreHeartbeatTimeoutMs) {
       this.raiseFatal({
         title: '后端连接异常',
-        message: 'Termous Core 超过 30 秒无响应。',
+        message: `Termous Core 连续 ${coreHeartbeatTimeoutMs / 1000} 秒无响应。`,
         code: 'CORE_HEARTBEAT_TIMEOUT',
       })
     }
   }
 
-  private fetchWithTimeout(pathname: string, init: RequestInit = {}) {
-    return this.fetchUrlWithTimeout(new URL(pathname, this.config.apiBaseUrl).toString(), init, requestTimeoutMs)
+  private fetchStatusWithTimeout(pathname: string, init: RequestInit = {}) {
+    return this.fetchUrlWithTimeout(new URL(pathname, this.config.apiBaseUrl).toString(), init, coreRequestTimeoutMs,
+      (response) => ({ ok: response.ok, status: response.status }))
   }
 
-  private async fetchUrlWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  private async fetchUrlWithTimeout<T>(url: string, init: RequestInit, timeoutMs: number, consume: (response: Response) => T | Promise<T>) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      return await fetch(url, { ...init, signal: controller.signal })
+      return await consume(await fetch(url, { ...init, signal: controller.signal }))
     } finally {
       clearTimeout(timeout)
-      // 关闭与心跳接口只读取状态码，不保留未消费的响应体连接。
+      // 响应消费完成后再释放连接，期限同时覆盖响应头和 JSON 正文读取。
       controller.abort()
     }
   }
