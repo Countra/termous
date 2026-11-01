@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { DesktopSourceSchema, DesktopTargetSchema } from '@termous/remote-protocol/desktop-protocol'
 import type { RemoteClient } from '#entities/remote-control'
@@ -34,4 +34,25 @@ test('缺少共享权限不会自动连接或选择来源', async () => {
   render(<RemoteHostDesktop client={{ desktop: vi.fn().mockRejectedValue(new Error('remote_forbidden')) } as unknown as RemoteClient} active />)
   expect(await screen.findByText('无法读取设备桌面，请确认被控端已允许共享。')).toBeInTheDocument()
   expect(fixture.target).not.toHaveBeenCalled()
+})
+
+test('Core 提供的备用名称原样显示，选择仍绑定来源身份', async () => {
+  const request = vi.fn(async () => ({ sources: [
+    create(DesktopSourceSchema, {
+      target: create(DesktopTargetSchema, { kind: 'host_desktop', instanceId: 'core', sourceId: 'second', sourceKind: 'screen', sourceGeneration: 3n }),
+      title: 'Display 12',
+    }),
+    create(DesktopSourceSchema, {
+      target: create(DesktopTargetSchema, { kind: 'host_desktop', instanceId: 'core', sourceId: 'first', sourceKind: 'screen', sourceGeneration: 2n }),
+      title: 'Display 7',
+    }),
+  ] }))
+  render(<RemoteHostDesktop client={{ desktop: request } as unknown as RemoteClient} active />)
+  await waitFor(() => expect(request).toHaveBeenCalled())
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '画面来源' }))
+  expect(await screen.findByText('Display 7')).toBeInTheDocument()
+  fireEvent.click(await screen.findByText('Display 12'))
+  expect(await screen.findByText('测试观看器')).toBeInTheDocument()
+  expect(within(screen.getByRole('region', { name: '设备桌面' })).getByTitle('Display 12')).toBeInTheDocument()
+  expect(fixture.target.mock.lastCall?.[0]).toMatchObject({ sourceId: 'second', sourceGeneration: 3n })
 })
