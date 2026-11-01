@@ -5,6 +5,7 @@ import { Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type PresentationSettings, type PresentationState } from '@termous/remote-protocol/presentation'
 import { DesktopQualityFields } from './DesktopQualityFields.tsx'
+import { DesktopStabilityNotice } from './DesktopStabilityNotice.tsx'
 import { DesktopQualityDetails, DesktopQualityField } from './DesktopQualityLayout'
 import styles from './DesktopPresentationControls.module.scss'
 
@@ -22,8 +23,9 @@ function qualityStatus(state: PresentationState | undefined, text: (cn: string, 
   }
 }
 
-export function DesktopPresentationControls({ state, onChange, resizeAvailable = false, resizeSupported = resizeAvailable, onResize, resolutionStatus, scale, onScale, disabled = false }: {
+export function DesktopPresentationControls({ state, sessionKey = '', onChange, resizeAvailable = false, resizeSupported = resizeAvailable, onResize, resolutionStatus, scale, onScale, disabled = false }: {
   state?: PresentationState
+  sessionKey?: string
   onChange(settings: PresentationSettings): void
   resizeAvailable?: boolean
   resizeSupported?: boolean
@@ -34,6 +36,10 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
   disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  // 忽略状态保留在弹窗之外，不同会话和新建议不能继承旧的选择。
+  const [dismissed, setDismissed] = useState('')
+  const adviceKey = `${sessionKey}:${state?.stability?.adviceRevision}:${state?.stability?.phase}`
+  const showAdvice = dismissed !== adviceKey && Boolean(state?.stability?.pressure || state?.stability?.phase === 'attention')
   const { i18n } = useTranslation()
   const zh = i18n?.language?.startsWith('zh')
   const text = (cn: string, en: string) => zh ? cn : en
@@ -41,7 +47,7 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
   const caps = state?.capabilities, settings = state?.requested
   const status = qualityStatus(state, text)
   return <>
-    <Button size="small" type="text" icon={<Settings2 size={16} />} aria-label={title} title={title} onClick={() => setOpen(true)} />
+    <Button size="small" type="text" icon={<Settings2 size={16} />} aria-label={title} title={title} onClick={() => setOpen(true)}>{showAdvice ? text('画质需确认', 'Quality needs attention') : null}</Button>
     <Modal open={open} title={title} width={580} centered onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
       <div className={`${styles.controls} ${styles.dialog}`}>
         <p className={styles.intro}>{text('仅用于当前会话，不修改默认设置。', 'Applies to this session only. Your defaults stay unchanged.')}</p>
@@ -55,6 +61,7 @@ export function DesktopPresentationControls({ state, onChange, resizeAvailable =
           {resolutionStatus && resolutionStatus !== 'idle' && <p className={styles.status} data-status={resolutionStatus} role="status">{resolutionStatus === 'timeout' ? text('分辨率尚未确认，请检查远端画面。', 'Resolution not confirmed. Check the remote picture.') : resolutionStatus === 'failed' ? text('分辨率更改失败，请重试。', 'Resolution change failed. Please retry.') : text('正在更改分辨率…', 'Changing resolution…')}</p>}
         </div>}
         <div className={styles.panel}>
+          {showAdvice && <DesktopStabilityNotice state={state} onChange={onChange} onDismiss={() => setDismissed(adviceKey)} disabled={disabled} zh={Boolean(zh)} />}
           {caps && !caps.available && <p className={styles.notice}>{caps.reason === 'desktop_video_reconfigure_unsupported' ? text('远端版本不支持调整，请更新远端 Termous。', 'Update Termous on the remote device to adjust these settings.') : text('暂时无法调整，请等待连接就绪。', 'Settings are unavailable until the connection is ready.')}</p>}
           {settings && caps ? <><DesktopQualityFields settings={settings} capabilities={caps} disabled={disabled} onChange={onChange} />{caps.available && <p className={styles.status} data-status={state?.status} role="status">{status}</p>}</> : <p className={styles.notice}>{text('当前连接不支持画质调整。', 'Quality adjustment is unavailable for this connection.')}</p>}
           {state?.warning && <p className={styles.notice} role="alert">{state.warning === 'desktop_video_receiver_limited' ? text('本次观看已按接收端能力降低上限，原画质偏好仍保留。', 'This receiver requires lower limits. Your quality preference is preserved.') : text('默认设置加载失败，暂用推荐设置。', 'Could not load defaults. Using recommended settings.')}</p>}

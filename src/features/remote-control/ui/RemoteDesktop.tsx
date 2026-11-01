@@ -33,6 +33,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
   const entry = useMemo(() => preferences.capture(preferenceID, preferenceGeneration), [preferences, preferenceID, preferenceGeneration])
   const preference = entry.preference
   const [presentation, setPresentation] = useState<PresentationState>()
+  const [presentationEpoch, setPresentationEpoch] = useState(0)
   const [resolutionStatus, setResolutionStatus] = useState('idle')
   const [sample, setSample] = useState<DesktopMediaSnapshot>()
   const [receiver, setReceiver] = useState<H264ReceiverState>()
@@ -78,6 +79,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
     }, preference, hostTarget)
     nativeNext.current = false
     runtime.current = view
+    setPresentationEpoch(value => value + 1)
     pending.current = false
     setWorking(false); setPhase('connecting'); setChallenge(undefined); setPassword(''); setUsername('')
     setResolutionStatus('idle'); setSample(undefined); setReceiver(undefined); setPresentation(undefined); setState(undefined); setCursor(undefined); setError(''); setPath('—')
@@ -124,7 +126,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
         <Select size="small" value={fit ? 'fit' : 'actual'} aria-label={copy.fit} options={[{ value: 'fit', label: copy.fit }, { value: 'actual', label: copy.actual }]} onChange={mode => { setFit(mode === 'fit'); runtime.current?.display(mode === 'fit') }} />
         <Tooltip title={copy.keyboard}><Button size="small" type="text" disabled={!owned || !state?.capabilities.includes('text')} icon={<Keyboard size={16} />} aria-label={copy.keyboard} onClick={() => { setText(''); setTool('text') }} /></Tooltip>
         <Tooltip title={copy.clipboard}><Button size="small" type="text" disabled={!owned || !state?.capabilities.includes('clipboard')} icon={<Clipboard size={16} />} aria-label={copy.clipboard} onClick={() => { setText(remoteClipboard); setTool('clipboard') }} /></Tooltip>
-        <DesktopPresentationControls resolutionStatus={resolutionStatus} scale={fit ? 'fit' : 'actual'} onScale={mode => { setFit(mode === 'fit'); runtime.current?.display(mode === 'fit') }} state={presentation} disabled={phase !== 'viewing'} onChange={value => runtime.current?.configure(value)} resizeSupported={state?.capabilities.includes('resize') === true} resizeAvailable={owned && state?.capabilities.includes('resize') === true} onResize={(width, height) => void act(() => runtime.current!.resize(width, height))} />
+        <DesktopPresentationControls sessionKey={String(presentationEpoch)} resolutionStatus={resolutionStatus} scale={fit ? 'fit' : 'actual'} onScale={mode => { setFit(mode === 'fit'); runtime.current?.display(mode === 'fit') }} state={presentation} disabled={phase !== 'viewing'} onChange={value => runtime.current?.configure(value)} resizeSupported={state?.capabilities.includes('resize') === true} resizeAvailable={owned && state?.capabilities.includes('resize') === true} onResize={(width, height) => void act(() => runtime.current!.resize(width, height))} />
         <Tooltip title={copy.fullscreen}><Button size="small" type="text" icon={<Maximize size={16} />} aria-label={copy.fullscreen} onClick={() => void act(async () => { if (document.fullscreenElement) await document.exitFullscreen(); else await root.current?.requestFullscreen() })} /></Tooltip>
       </div>
     </div>

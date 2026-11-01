@@ -324,7 +324,7 @@ function RemoteDesktopToolbar({
   return (
     <div className={styles.toolbar}>
       <RemoteDesktopDisplayControls state={viewerState} onScale={onDisplayMode} onFollow={onFollowWindow} />
-      <DesktopPresentationControls state={viewerState?.presentation} disabled={!connected} onChange={onPresentation} scale={viewerState?.displayMode} onScale={onDisplayMode} onResize={onResize} resizeSupported={viewerState?.resolution?.supported === true} resizeAvailable={viewerState?.resolution?.supported === true && viewerState?.controlOwned === true && !viewOnly} resolutionStatus={viewerState?.resolution?.status} />
+      <DesktopPresentationControls sessionKey={`${session.id}:${session.connection_generation}`} state={viewerState?.presentation} disabled={!connected} onChange={onPresentation} scale={viewerState?.displayMode} onScale={onDisplayMode} onResize={onResize} resizeSupported={viewerState?.resolution?.supported === true} resizeAvailable={viewerState?.resolution?.supported === true && viewerState?.controlOwned === true && !viewOnly} resolutionStatus={viewerState?.resolution?.status} />
       <span className={styles.divider} />
       <label className={styles['view-only']}>
         <Switch size="small" aria-label={t('remoteDesktop.disableInput')} checked={viewOnly} onChange={onViewOnly} />
