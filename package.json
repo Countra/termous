@@ -45,6 +45,8 @@
     "test:detached:production": "tsc --noEmit -p scripts/agent/tsconfig.detached.json && node scripts/agent/run-detached-acceptance.mjs --production",
     "test:workflow-window": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-window.json && node scripts/agent/run-detached-acceptance.mjs --workflow",
     "test:workflow-window:production": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-window.json && node scripts/agent/run-detached-acceptance.mjs --workflow --production",
+    "test:workflow-exchange:electron": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-exchange.json && node scripts/desktop/run-workflow-exchange-acceptance.mjs",
+    "test:workflow-exchange:ui": "tsc --noEmit -p scripts/desktop/tsconfig.workflow-exchange.json && node scripts/desktop/run-workflow-exchange-ui.mjs",
     "test:ui": "vitest run",
     "test:release": "node --test \"scripts/ci/**/*.test.mjs\"",
     "test:system-clipboard:electron": "node scripts/system-clipboard/run-electron-acceptance.mjs",

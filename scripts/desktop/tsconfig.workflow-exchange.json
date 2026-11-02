@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["workflow-exchange-*.ts", "workflow-exchange-*.tsx", "../../src/features/remote-desktop/runtime/protocols/vnc/novnc.d.ts"],
+  "references": []
+}

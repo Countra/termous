@@ -1738,6 +1738,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onDetachedChange={setWorkflowDetached}
                           onReturnToPage={() => navigateToPage('remote-desktop')}
                           workflow={gateways.desktopWorkflow}
+                          workflowExchange={gateways.workflowExchange}
                           profiles={data.remoteDesktopProfiles}
                           hosts={data.hostAssets}
                           sshAccessProfiles={data.sshAccessProfiles}

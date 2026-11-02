@@ -170,3 +170,6 @@ export type * from './agent-integrations.ts'
 export type { LocalNetworkSettings, MCPIntegrationSettings, IntegrationConfiguration, IntegrationDiagnostic } from './local-integrations.ts'
 
 export * from './web-search.ts'
+
+export { workflowExchangeChannels, isWorkflowFileRequest } from './workflow-exchange.ts'
+export type { WorkflowFileBridge, WorkflowFileRequest, WorkflowFileResponse, WorkflowFileProgress, WorkflowExportLayout, WorkflowFileErrorDetails } from './workflow-exchange.ts'

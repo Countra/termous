@@ -1,0 +1,26 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.template {
+  margin: 0;
+  text-align: center;
+
+  img { object-fit: contain; }
+}

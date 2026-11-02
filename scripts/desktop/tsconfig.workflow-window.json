@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["workflow-window-*.ts", "workflow-window-*.tsx", "workflow-ui.tsx", "analysis-fixture.ts"],
+  "include": ["workflow-window-*.ts", "workflow-window-*.tsx", "workflow-ui.tsx", "analysis-fixture.ts", "../../src/features/remote-desktop/runtime/protocols/vnc/novnc.d.ts"],
   "references": []
 }

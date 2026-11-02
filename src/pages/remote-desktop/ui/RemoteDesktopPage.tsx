@@ -5,7 +5,7 @@ import {
 import { ArrowLeft, Workflow } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
 import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import type { DetachedAppearance } from '#common/contracts'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
@@ -17,6 +17,7 @@ export type RemoteDesktopPageProps = Omit<RemoteDesktopWorkspaceProps, 'tools' |
   aiRuntimeGateway?: AIRuntimeGateway
   onOpenAnalysisSettings?: () => Promise<void>
   workflow: WorkflowGateway
+  workflowExchange?: WorkflowExchangeGateway
   profiles: RemoteDesktopAccessProfile[]
   onDirtyChange: (dirty: boolean) => void
   active?: boolean
@@ -28,7 +29,7 @@ export type RemoteDesktopPageProps = Omit<RemoteDesktopWorkspaceProps, 'tools' |
   guided?: boolean
 }
 
-export function RemoteDesktopPage({ workflow, aiRuntimeGateway, onOpenAnalysisSettings, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, guideIntent, guided, ...props }: RemoteDesktopPageProps) {
+export function RemoteDesktopPage({ workflow, workflowExchange, aiRuntimeGateway, onOpenAnalysisSettings, profiles, onDirtyChange, active = true, appearance, workflowResetKey, onReturnToPage, onDetachedChange, guideIntent, guided, ...props }: RemoteDesktopPageProps) {
   const { t } = useTranslation()
   const runtime = useRemoteDesktopRuntime()
   const [view, setView] = useState<'desktops' | 'workflow'>('desktops')
@@ -50,7 +51,7 @@ export function RemoteDesktopPage({ workflow, aiRuntimeGateway, onOpenAnalysisSe
       { key: 'automation', label: t('desktopWorkflow.workflow'), icon: <Workflow size={17} />, onClick: () => { setWorkflowOpened(true); setView('workflow') } },
     ]} />}</div>
     {workflowOpened && <div ref={automation} id="remote-desktop-workflow" className={styles.content} role="region" aria-label={t('desktopWorkflow.workflow')} tabIndex={-1} hidden={view !== 'workflow'} inert={view !== 'workflow'}><WorkflowWorkspace key={workflowResetKey} gateway={workflow} sessions={runtime.sessions} activeSessionId={runtime.activeSessionId ?? undefined} profiles={profiles} onDirtyChange={onDirtyChange}
-      aiRuntimeGateway={aiRuntimeGateway} onOpenAnalysisSettings={onOpenAnalysisSettings} active={active && view === 'workflow'} guided={guided} appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
+      exchangeGateway={workflowExchange} aiRuntimeGateway={aiRuntimeGateway} onOpenAnalysisSettings={onOpenAnalysisSettings} active={active && view === 'workflow'} guided={guided} appearance={appearance} onDetachedChange={onDetachedChange} onReturnToPage={async () => {
         if (onReturnToPage && !await onReturnToPage()) return false
         setView('workflow'); return true
       }} headerActions={

@@ -14,8 +14,8 @@ import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
 import { RemoteDesktopClient, type RemoteDesktopGateway } from '#features/remote-desktop'
-import { WorkflowClient } from '#features/desktop-workflows'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import { WorkflowClient, WorkflowExchangeClient } from '#features/desktop-workflows'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
@@ -88,6 +88,7 @@ export interface RuntimeGateways {
   readonly mcpAccess: McpAccessGateway
   readonly remoteDesktop: RemoteDesktopGateway
   readonly desktopWorkflow: WorkflowGateway
+  readonly workflowExchange: WorkflowExchangeGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -128,6 +129,7 @@ export function createRuntimeGatewaysFromConfig(
     aiRuntime: new AIRuntimeClient(config),
     agentIntegrations: new AgentIntegrationsClient(config),
     desktopWorkflow: new WorkflowClient(config),
+    workflowExchange: new WorkflowExchangeClient(config),
     cloud: new CloudClient(config),
     invalidateFileRenamePresets: () => fileRename.invalidateFileRenamePresets(),
     notifications,

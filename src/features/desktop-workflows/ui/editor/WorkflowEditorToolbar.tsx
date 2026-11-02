@@ -21,6 +21,7 @@ interface Props {
   onRun: (debug: boolean) => void
   onParameters: () => void
   onHistory: () => void
+  onExport?: () => void
   onCopy: () => void
   onRemove: () => void
 }
@@ -42,6 +43,7 @@ export function WorkflowEditorToolbar(props: Props) {
           { key: 'parameters', label: t('desktopWorkflow.parameters'), icon: <SlidersHorizontal size={15} />, disabled: props.busy, onClick: props.onParameters },
           { type: 'divider' },
           { key: 'history', label: t('desktopWorkflow.history'), icon: <History size={15} />, disabled: !props.revision || props.busy, onClick: props.onHistory },
+          ...(props.onExport ? [{ key: 'export', label: t('desktopWorkflow.exchange.export'), disabled: !props.revision || props.busy, onClick: props.onExport }] : []),
           { key: 'copy', label: t('desktopWorkflow.copy'), icon: <Copy size={15} />, disabled: props.busy, onClick: props.onCopy },
           { key: 'delete', label: t('desktopWorkflow.delete'), icon: <Trash2 size={15} />, disabled: !props.revision || props.busy, danger: true, onClick: props.onRemove },
         ] }}><Button type="text" aria-label={t('desktopWorkflow.moreActions')} disabled={props.busy} icon={<MoreHorizontal size={17} />} /></Dropdown>

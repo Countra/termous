@@ -28,6 +28,10 @@ export class WorkflowMediaHost {
   async handle(payload: WorkflowDetachedMedia) {
     if (!isWorkflowDetachedMedia(payload)) throw new Error('workflow_media_invalid')
     const epoch = this.epoch
+    if (payload.kind === 'import-asset') {
+      if (!this.gateway.importAsset) throw new Error('workflow_asset_unavailable')
+      return this.binary(await this.gateway.importAsset(payload.id, payload.hash))
+    }
     if (payload.kind === 'analysis-read-cancel') { this.analysisReads.get(payload.id)?.abort(); return }
     if (payload.kind === 'ocr-defaults') return this.gateway.ocrDefaults()
     if (payload.kind === 'ocr-report') {

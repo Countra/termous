@@ -1,3 +1,4 @@
+import { createWorkflowFileBridge } from './workflow-exchange/preload'
 import { appDebugModeArgument, decodeAppBuildInfo, notificationIPCChannels as notificationChannels } from '#common/contracts'
 import { createSystemClipboardCapabilitiesBridge } from './system-clipboard/preload'
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
@@ -107,6 +108,7 @@ const bridge = {
   debugMode: process.argv.includes(appDebugModeArgument),
   systemClipboard: createSystemClipboardCapabilitiesBridge(),
   detachedWindows: createDetachedOwnerBridge(),
+  workflowFiles: createWorkflowFileBridge(),
   fileSystemClipboard: {
     importClipboard: (request) => ipcRenderer.invoke('file-system-clipboard:import', request),
     status: () => ipcRenderer.invoke('file-system-clipboard:status'),

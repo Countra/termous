@@ -1,3 +1,4 @@
+import { registerWorkflowExchange } from './workflow-exchange/ipc'
 import { desktopChannel, identity, initializeDesktopEnvironment, registerDevelopmentLease } from './platform/environment'
 import { prepareNativeNotifications } from './platform/nativeNotifications'
 import { nativeNotificationOptions } from './notifications/nativeOptions'
@@ -1815,6 +1816,10 @@ async function initializeApplication() {
     debugMode: isAppDebugMode(),
   })
   app.once('before-quit', () => detachedWindows.close())
+  const closeWorkflowExchange = registerWorkflowExchange({ ipc: ipcMain, config: () => coreProcess.initialize(), trusted: isTrustedMainIPCEvent,
+    owner: origin => origin ? detachedWindows.workflowDialogOwner(origin) : win ?? undefined, language: () => appLanguage })
+  app.once('will-quit', closeWorkflowExchange)
+
   const desktopAutomation = new DesktopAutomationRuntime({
     config: () => coreProcess.initialize(),
     appearance: () => ({ theme: appTheme, language: appLanguage }),

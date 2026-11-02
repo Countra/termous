@@ -5,6 +5,7 @@ import { isWorkflowEditorPanels } from './workflow-layout.ts'
 import { analysisPanelLimits } from './screen-analysis-records.ts'
 
 export const workflowDetachedActions = [
+  'exchange',
   'create', 'load', 'change', 'selectStep', 'target', 'view', 'showRun', 'save', 'validate',
   'history', 'closeHistory', 'restore', 'remove', 'copy', 'openRun', 'closeRun', 'changeRun',
   'start', 'control', 'refresh', 'refreshReport', 'viewDesktop', 'dismissNotice', 'presentation',
@@ -25,6 +26,7 @@ export interface WorkflowDetachedCommand {
 export const workflowDetachedInputs = ['change', 'selectStep', 'target', 'view', 'changeRun', 'presentation'] as const
 export const workflowMediaLimit = 32 * 1024 * 1024
 export type WorkflowDetachedMedia =
+  | { kind: 'import-asset'; id: string; hash: string }
   | { kind: 'ocr-defaults' }
   | { kind: 'ocr-preview'; id: string; request: string; query: WorkflowOCRQuery }
   | { kind: 'ocr-cancel'; id: string; request: string }
@@ -75,6 +77,12 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
   if (!safeJSON(value.args, { size: 0 })) return false
   const [arg] = value.args
   switch (value.name) {
+    case 'exchange': return record(arg) && (
+      ['import', 'cancel', 'close', 'commit'].includes(String(arg.kind)) && fields(arg, ['kind'])
+      || arg.kind === 'name' && fields(arg, ['kind', 'name']) && typeof arg.name === 'string' && arg.name.length <= 160
+      || arg.kind === 'target' && fields(arg, ['kind', 'id']) && (arg.id === undefined || id(arg.id))
+      || arg.kind === 'export' && fields(arg, ['kind', 'version', 'layout']) && ['zip', 'json', 'directory'].includes(String(arg.layout))
+        && (arg.version === undefined || Number.isSafeInteger(arg.version) && Number(arg.version) > 0))
     case 'create': case 'copy': return value.args.length === 1 && typeof arg === 'string' && arg.length <= 240
     case 'load': case 'showRun': case 'viewDesktop': case 'dismissNotice': return value.args.length === 1 && id(arg)
     case 'selectStep': return value.args.length === 1 && (arg === undefined || id(arg))
@@ -120,6 +128,7 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
 
 export function isWorkflowDetachedMedia(value: unknown): value is WorkflowDetachedMedia {
   if (!record(value)) return false
+  if (value.kind === 'import-asset') return fields(value, ['kind', 'id', 'hash']) && id(value.id) && typeof value.hash === 'string' && /^[a-f0-9]{64}$/.test(value.hash)
   if (value.kind === 'ocr-defaults') return fields(value, ['kind'])
   if (value.kind === 'ocr-preview') return fields(value, ['kind','id','request','query']) && id(value.id) && id(value.request) && isWorkflowOCRQuery(value.query)
   if (value.kind === 'ocr-cancel') return fields(value, ['kind','id','request']) && id(value.id) && id(value.request)

@@ -52,6 +52,7 @@ export interface OpenLocalDirectoryResult {
 }
 
 export interface TermousBridge {
+  workflowFiles?: import('./workflow-exchange').WorkflowFileBridge
   debugMode?: boolean
   systemClipboard?: import('./system-clipboard').SystemClipboardCapabilitiesBridge
   detachedWindows?: import('./detached-window').DetachedOwnerBridge

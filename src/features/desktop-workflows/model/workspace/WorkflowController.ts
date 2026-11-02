@@ -1,5 +1,7 @@
 import { bindAnalysisGateway } from '#entities/screen-analysis'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
+import type { WorkflowFileBridge } from '#common/contracts'
+import { WorkflowExchangeController } from '../exchange/WorkflowExchangeController'
 import { newDefinition } from '../steps'
 import { sessionTarget } from '../target'
 import { WorkflowExecution } from './WorkflowExecution'
@@ -19,15 +21,31 @@ export class WorkflowController {
   private mediaTasks = new Set<Promise<unknown>>()
   readonly execution: WorkflowExecution
   readonly media: WorkflowMediaGateway
+  readonly exchange: WorkflowExchangeController
   reload = () => {}
   onViewDesktop: (id: string) => void | Promise<void> = () => {}
   runtimeStatus?: WorkflowMediaGateway['runtimeStatus']
   warmupRuntime?: WorkflowMediaGateway['warmupRuntime']
   onRuntimeSettings?: () => Promise<void>
 
-  constructor(private readonly gateway: WorkflowGateway) {
+  constructor(private readonly gateway: WorkflowGateway, exchangeGateway?: WorkflowExchangeGateway, files?: WorkflowFileBridge) {
+    this.exchange = new WorkflowExchangeController(exchangeGateway, files, gateway, {
+      context: () => ({ draft: this.state.draft, dirty: this.state.dirty, token: `${this.serial}:${this.edits}:${this.state.draft?.editingID}` }),
+      changed: exchange => this.update({ exchange }),
+      committed: async (receipt, context) => {
+        this.reload()
+        if (this.state.busy || context.token !== `${this.serial}:${this.edits}:${this.state.draft?.editingID}`) return
+        const value = await gateway.get(receipt.script.id)
+        if (context.token !== `${this.serial}:${this.edits}:${this.state.draft?.editingID}`) return
+        this.serial++
+        this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), script: value.script, name: value.script.name,
+          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined, versions: undefined })
+      },
+    })
+    this.state.exchange = this.exchange.getSnapshot()
     // 原生类字段先于参数属性赋值；在构造函数内绑定，避免捕获未初始化的 gateway。
     this.media = {
+      importAsset: (...args) => this.exchange.asset(...args),
       runtimeStatus: async () => this.runtimeStatus?.() ?? {},
       warmupRuntime: async () => { await this.warmupRuntime?.() },
       openRuntimeSettings: async () => { await this.onRuntimeSettings?.() },
@@ -67,6 +85,7 @@ export class WorkflowController {
     finally { this.update({ busy: false }) }
   }
   readonly actions: WorkflowActions = {
+    exchange: command => this.exchange.dispatch(command),
     create: name => {
       if (this.state.busy) return
       this.serial++
@@ -153,5 +172,6 @@ export class WorkflowController {
       this.update({ presentation })
     },
   }
-  dispose() { this.serial++; this.execution.dispose() }
+  activate() { this.exchange.activate() }
+  dispose() { this.serial++; this.exchange.dispose(); this.execution.dispose() }
 }

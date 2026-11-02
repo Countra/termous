@@ -70,7 +70,7 @@ export class WorkflowRemoteAdapter {
         this.echoes.set(key, { sequence: command.inputSequence!, command: echo }); this.changed()
         this.inputs.push({ id: crypto.randomUUID(), command })
         operation = this.flushInputs(false)
-      } else operation = this.flushInputs(false).then(() => this.request('command', command))
+      } else operation = this.flushInputs(false).then(() => this.request('command', command, undefined, name === 'exchange' ? 360000 : 120000))
       void operation.catch(this.report)
       return operation
     }])) as unknown as WorkflowActions
@@ -78,6 +78,11 @@ export class WorkflowRemoteAdapter {
     return this.model
   }
   readonly media: WorkflowMediaGateway = {
+    importAsset: async (id, hash, signal) => {
+      signal?.throwIfAborted()
+      const result = await this.mediaRequest({ kind: 'import-asset', id, hash }) as Binary
+      signal?.throwIfAborted(); return blob(result)
+    },
     ocrDefaults: async signal => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-defaults'}) as Awaited<ReturnType<WorkflowMediaGateway['ocrDefaults']>>; signal?.throwIfAborted(); return result },
     ocrReport: async (id,index,offset=0,limit=20,signal) => { signal?.throwIfAborted(); const result = await this.mediaRequest({kind:'ocr-report',id,index,offset,limit}) as Awaited<ReturnType<WorkflowMediaGateway['ocrReport']>>; signal?.throwIfAborted(); return result },
     previewOCR: async (id,query,signal) => {

@@ -2,7 +2,8 @@ import { Alert, Button } from 'antd'
 import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DetachedAppearance } from '#common/contracts'
-import type { WorkflowGateway } from '#entities/desktop-workflow'
+import type { WorkflowGateway, WorkflowExchangeGateway } from '#entities/desktop-workflow'
+import { getTermousBridge } from '#shared/bridge'
 import type { AIRuntimeGateway } from '#entities/ai-runtime'
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import { DetachedStatePublisher, finishDetachedMotion, useDetachedOwner } from '#shared/detached-window'
@@ -17,6 +18,7 @@ import { WorkflowWorkspaceView } from './WorkflowWorkspaceView'
 
 const identity = { module: 'desktop-workflow', instance: 'workspace' }
 export interface WorkflowWorkspaceProps {
+  exchangeGateway?: WorkflowExchangeGateway
   aiRuntimeGateway?: AIRuntimeGateway; onOpenAnalysisSettings?: () => Promise<void>
   gateway: WorkflowGateway; sessions: RemoteDesktopSession[]; profiles: RemoteDesktopAccessProfile[]
   activeSessionId?: string; headerActions?: ReactNode; appearance?: DetachedAppearance
@@ -25,7 +27,7 @@ export interface WorkflowWorkspaceProps {
   active?: boolean; guided?: boolean
 }
 
-export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSettings, sessions, activeSessionId, profiles, headerActions, appearance,
+export function WorkflowWorkspace({ gateway, exchangeGateway, aiRuntimeGateway, onOpenAnalysisSettings, sessions, activeSessionId, profiles, headerActions, appearance,
   onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, active = true, guided }: WorkflowWorkspaceProps) {
   const { t, i18n } = useTranslation()
   const root = useRef<HTMLDivElement>(null)
@@ -33,7 +35,7 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
   const data = useWorkflowData(gateway)
   const hostSources = useWorkflowHostSources(gateway, active)
   const { reload, scripts, runs, loading, error: dataError } = data
-  const controller = useMemo(() => new WorkflowController(gateway), [gateway])
+  const controller = useMemo(() => new WorkflowController(gateway, exchangeGateway, getTermousBridge()?.workflowFiles), [gateway, exchangeGateway])
   const model = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
   const adapter = useMemo(() => new WorkflowSurfaceAdapter(controller), [controller])
   const publisher = useMemo(() => new DetachedStatePublisher(), [])
@@ -82,9 +84,12 @@ export function WorkflowWorkspace({ gateway, aiRuntimeGateway, onOpenAnalysisSet
     if (background) return
     void adapter.media.reset().catch(() => { console.warn('[termous:workflow] 独立窗口截图观察清理失败，将由预览租约回收') })
   }, [adapter, background])
-  useEffect(() => () => {
-    controller.dispose()
-    void adapter.media.reset().catch(() => { console.warn('[termous:workflow] 独立窗口截图观察清理失败，将由预览租约回收') })
+  useEffect(() => {
+    controller.activate()
+    return () => {
+      controller.dispose()
+      void adapter.media.reset().catch(() => { console.warn('[termous:workflow] 独立窗口截图观察清理失败，将由预览租约回收') })
+    }
   }, [adapter, controller])
   return <div ref={root} className={styles.surface} data-tour="automation-workspace">
     {windowState.error && <Alert className={styles.error} type="warning" showIcon title={t('desktopWorkflow.window.failed')}

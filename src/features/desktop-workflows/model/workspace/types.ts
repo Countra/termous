@@ -3,9 +3,11 @@ import type { Definition, Diagnostic, Run, Script, StartInput, StepResult, Versi
 import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { WorkflowTarget } from '../target'
 import type { AIRuntimeStatus } from '#entities/ai-runtime'
+import type { ExchangeCommand, ExchangeState } from '../exchange/types'
+import type { WorkflowFailure } from '../failure'
+export { workflowFailure, type WorkflowFailure } from '../failure'
 
 export interface WorkflowDraft { editingID: string; script?: Script; name: string; description: string; tags: string[]; definition: Definition }
-export interface WorkflowFailure { message: string; code?: string; status?: number }
 export type WorkflowNotice = { id: string } & (
   | { kind: 'error'; error: WorkflowFailure }
   | { kind: 'validation'; editor: string; diagnostics: Diagnostic[] }
@@ -28,6 +30,7 @@ export type WorkflowMediaGateway = Pick<WorkflowGateway, 'openPreview' | 'closeP
   runtimeStatus?: () => Promise<Pick<AIRuntimeStatus, 'service'>>
   warmupRuntime?: () => Promise<void>
   openRuntimeSettings?: () => Promise<void>
+  importAsset?: (id: string, hash: string, signal?: AbortSignal) => Promise<Blob>
 }
 export interface WorkflowLaunch {
   script: Script; definition: Definition; target: WorkflowTarget; debug: boolean
@@ -40,12 +43,14 @@ export interface WorkflowReport {
 }
 export interface WorkflowExecutionState { launch?: WorkflowLaunch; report: WorkflowReport }
 export interface WorkflowState {
+  exchange?: ExchangeState
   draft?: WorkflowDraft; dirty: boolean; view: 'scripts' | 'runs'; selected?: string; selectedRun?: string
   notice?: WorkflowNotice; busy: boolean; versions?: Version[]; chosenTarget?: WorkflowTarget
   presentation: WorkflowPresentation
 }
 export interface WorkflowEnvironment { hostSources?: HostDesktopSource[]; sessions: WorkflowSession[]; profiles: WorkflowProfile[]; activeSessionId?: string }
 export interface WorkflowActions {
+  exchange?: (command: ExchangeCommand) => Promise<void>
   create: (name: string) => void
   load: (id: string) => Promise<void>
   change: (patch: Partial<Pick<WorkflowDraft, 'name' | 'description' | 'tags' | 'definition'>>) => void
@@ -75,10 +80,4 @@ export interface WorkflowSurfaceModel {
   state: WorkflowState; execution: WorkflowExecutionState; environment: WorkflowEnvironment
   scripts: Script[]; runs: Run[]; loading: boolean; dataError?: WorkflowFailure
   target: WorkflowTarget; actions: WorkflowActions
-}
-
-export function workflowFailure(error: unknown): WorkflowFailure {
-  return { message: error instanceof Error ? error.message : 'Request failed',
-    ...(error && typeof error === 'object' && 'code' in error ? { code: String(error.code) } : {}),
-    ...(error && typeof error === 'object' && 'status' in error ? { status: Number(error.status) } : {}) }
 }
