@@ -7,6 +7,7 @@ import type {
   McpApprovalSnapshot,
   McpApprovalState,
 } from '#entities/mcp-access'
+import { decodeWorkflowExchangeApproval } from './workflowExchangeApproval.ts'
 import { decodeLocalApproval } from './localApproval.ts'
 import {
   McpAccessProtocolError,
@@ -215,6 +216,9 @@ function decodeMcpApprovalOperation(
   if (kind === 'screen_analysis') {
     requireString(operation.resource_id, 'MCP 分析记录审批目标缺失')
     if (action !== 'delete' || operation.domain !== 'screen_analysis' || resourceKind) throw new McpAccessProtocolError('MCP 分析记录审批范围无效')
+  }
+  if (kind === 'desktop_workflow' && ['import', 'export', 'export_template'].includes(action)) {
+    return decodeWorkflowExchangeApproval(operation, action, state)
   }
   if (kind === 'desktop_workflow') {
     requireString(operation.script_id, 'MCP 脚本审批目标缺失')

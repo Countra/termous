@@ -68,6 +68,15 @@ test('MCP 管理协议接受 Agent 托管投影并兼容旧 Core 与外部写响
   assert.equal(externalWriteResponse?.read_only, false)
 })
 
+test('工作流交换权限在外部与内置客户端投影中保持一致', () => {
+  const scopes = ['desktop_workflows:read', 'desktop_workflows:exchange']
+  const clients = decodeMcpClients([
+    { ...clientFixture(), scopes },
+    { ...clientFixture(), id: 'builtin-exchange', scopes, source: 'builtin_agent', read_only: true, token_prefix: '' },
+  ])
+  assert.deepEqual(clients.map((client) => client.scopes), [scopes, scopes])
+})
+
 test('MCP 文件权限仅接受新名称，存储兼容不能混入 HTTP 投影', () => {
   const scopes = ['files:read', 'files:connect', 'files:close', 'files:write', 'files:delete',
     'files:transfer', 'files:cancel', 'files:batch_rename', 'files:search']

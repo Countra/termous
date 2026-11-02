@@ -1,3 +1,4 @@
+import { WorkflowExchangeApprovalRenderer } from './WorkflowExchangeApprovalRenderer'
 import { Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { McpApprovalOperation } from '#entities/mcp-access'
@@ -8,6 +9,7 @@ import styles from './ApprovalDetails.module.scss'
 
 export function WorkflowApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
+  if (['import', 'export', 'export_template'].includes(operation.action)) return <WorkflowExchangeApprovalRenderer operation={operation} />
   const running = operation.action === 'run'
   const host = operation.resource_kind === 'host_desktop'
   const items = [

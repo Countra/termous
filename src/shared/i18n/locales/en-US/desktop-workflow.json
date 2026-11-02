@@ -1,6 +1,6 @@
 {
   "exchange": {
-    "title": "Workflow file exchange",
+    "title": "Workflow import and export",
     "import": "Import workflow",
     "export": "Export workflow",
     "template": "Template image",
@@ -234,7 +234,21 @@
   "externalUpdateHint": "Your draft is preserved. Unsaved changes are confirmed before loading.",
   "loadLatest": "Load latest",
   "initiator": "Started by: {{name}}",
-  "approval": {"version":"Pinned version","connectionEnd":"Connection after run","bindingEnd":"After run","binding_only":"Release this desktop binding","hostRunHint":"Approval runs this version on the local desktop without confirming each step; the run is cancelled when its caller ends. Keyboard input affects the currently focused application. Selecting a display does not isolate applications. You can reclaim control at any time.","close_owned":"Close this exclusively owned connection","keep_connection":"Keep connection","existing_connection":"Keep existing connection","run":"Run desktop flow","takeover":"Take over and run","runHint":"Approval applies to this version without confirming each step. The run can access existing shared resources and is cancelled when its caller ends."},
+  "approval": {
+    "exchange": {
+      "import": "Import workflow configuration",
+      "export": "Export workflow",
+      "export_template": "Export template PNG",
+      "path": "Core host path",
+      "template": "Template asset",
+      "format": "Format",
+      "overwrite": "If the target exists",
+      "replace": "Explicit overwrite with a target check before publishing",
+      "noReplace": "Fail without replacing",
+      "host": "Files are on the Termous Core host",
+      "readHint": "Read only the selected ZIP, or JSON and its declared, referenced images in the adjacent assets directory. A frozen preview does not save or run a workflow.",
+      "writeHint": "Write to the selected location. Literal text and template images are retained. Directories must be new; replacing a file requires explicit authorization."
+    },"version":"Pinned version","connectionEnd":"Connection after run","bindingEnd":"After run","binding_only":"Release this desktop binding","hostRunHint":"Approval runs this version on the local desktop without confirming each step; the run is cancelled when its caller ends. Keyboard input affects the currently focused application. Selecting a display does not isolate applications. You can reclaim control at any time.","close_owned":"Close this exclusively owned connection","keep_connection":"Keep connection","existing_connection":"Keep existing connection","run":"Run desktop flow","takeover":"Take over and run","runHint":"Approval applies to this version without confirming each step. The run can access existing shared resources and is cancelled when its caller ends."},
   "workflow": "Desktop automation",
   "backToDesktop": "Back to desktop",
   "library": "Flow library",

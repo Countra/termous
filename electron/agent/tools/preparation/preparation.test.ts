@@ -323,3 +323,23 @@ test('本机截图准备通过精确来源发现附着，不查询或建立协�
   assert.deepEqual(h.calls[1]!.args.target, { ...target, host: { ...target.host, title: '' } })
   assert.equal(h.calls[1]!.args.session_id, undefined)
 })
+
+
+test('工作流交换只托管请求标识，不补目标、修订或覆盖意图', async () => {
+  const name = 'termous.desktop_workflows.imports.commit'
+  const commit = definition(name, { client_request_id: string, import_id: string, mode: string, script_id: string, expected_revision: integer }, ['client_request_id', 'import_id', 'mode'], false)
+  const h = harness([commit], () => ({ import: { state: 'committed' } }))
+  const schema = h.tool(name).parameters as { properties: Record<string, unknown> }
+  assert.ok(!('client_request_id' in schema.properties))
+  assert.ok('script_id' in schema.properties && 'expected_revision' in schema.properties)
+  const imported = output(await h.run(name, 'import', { import_id: 'preview', mode: 'create' }))
+  assert.equal(h.calls.length, 1, JSON.stringify(imported))
+  assert.deepEqual(Object.keys(h.calls[0]!.args).sort(), ['client_request_id', 'import_id', 'mode'])
+  const exportName = 'termous.desktop_workflows.exports.save'
+  const save = definition(exportName, { client_request_id: string, script_id: string, version: integer, path: string, overwrite: { type: 'boolean' } }, ['client_request_id', 'script_id', 'version', 'path'], false)
+  const exporting = harness([save], () => ({ file: { path: 'D:/out.zip' } }))
+  await exporting.run(exportName, 'save', { script_id: 'script', version: 2, path: 'D:/out.zip' })
+  assert.equal(exporting.calls.length, 1)
+  assert.equal(exporting.calls[0]!.args.version, 2)
+  assert.ok(!('overwrite' in exporting.calls[0]!.args))
+})

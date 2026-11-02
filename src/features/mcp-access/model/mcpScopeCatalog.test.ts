@@ -58,10 +58,10 @@ test('桌面脚本紧邻远程桌面，编辑免审批且不扩大默认权限',
   const index = mcpScopeGroups.findIndex((group) => group.key === 'desktops')
   assert.ok(index > 0)
   assert.equal(mcpScopeGroups[index + 1]?.key, 'desktop_workflows')
-  for (const action of ['read', 'write', 'run', 'delete']) {
+  for (const action of ['read', 'exchange', 'write', 'run', 'delete']) {
     const entry = mcpScopeCatalog.find((item) => item.scope === `desktop_workflows:${action}`)
     assert.ok(entry)
     assert.equal(entry.defaultEnabled, false)
-    assert.equal(entry.requiresApproval, action === 'run' || action === 'delete')
+    assert.equal(entry.requiresApproval, action === 'exchange' || action === 'run' || action === 'delete')
   }
 })

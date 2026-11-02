@@ -37,3 +37,18 @@ test('能力文档只在 URI、哈希和正文同时存在时去重，压缩移�
   assert.equal(context.content([{ ...present, content: [...message.content, { type: 'text', text: skillResourceMarker({ ...resource, sha256: 'old' }) }] }]).length, 2)
   assert.equal(context.content([]).length, 2)
 })
+
+
+test('导入配置、导出工作流和保存模板能发现独立的文件交换工具', async () => {
+  const suffixes = ['imports.preview', 'imports.get', 'imports.commit', 'imports.cancel', 'exports.save', 'assets.export', 'create', 'update']
+  const tools = suffixes.map(suffix => {
+    const name = `termous.desktop_workflows.${suffix}`
+    return identifyTool({ name, label: name, description: '工作流', parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) }, termousToolSource)
+  })
+  const discovery = new RuntimeToolDiscovery(tools, name => name, [])
+  for (const [query, suffix] of [['导入配置', 'imports.preview'], ['导出工作流', 'exports.save'], ['保存模板', 'assets.export']]) {
+    const result = await discovery.tool.execute(query!, { query })
+    const data = JSON.parse(result.content.find(part => part.type === 'text')!.text)
+    assert.ok(data.tools.some((tool: { original_name: string }) => tool.original_name === `termous.desktop_workflows.${suffix}`))
+  }
+})

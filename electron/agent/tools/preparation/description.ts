@@ -4,7 +4,9 @@ import { desktopBatchDescription } from './desktopBatch/description.ts'
 export function builtinDescription(name: string, original: string, adapter: BuiltinToolAdapter): string {
   const purpose = original.split(/。|\n/u)[0]
   let usage = 'Specify business choices; request identity is supplied by the runtime.'
-  if (name === 'termous.desktops.execute') usage = desktopBatchDescription
+  if (name === 'termous.desktop_workflows.imports.commit') usage = 'Choose create or update explicitly. For update provide script_id and expected_revision; neither is inferred. Commit uses the frozen import_id, never rereads files, and does not execute the workflow. Query imports.get for a lost commit receipt.'
+  else if (/^termous\.desktop_workflows\.(imports\.preview|exports\.save|assets\.export)$/u.test(name)) usage = 'Paths are absolute paths on the Termous Core host. File access follows current approval policy. Export requires an explicit version where applicable; overwrite is never inferred and directories must be new. Choose configuration files or direct create/update calls, including targeted changes in update, as appropriate.'
+  else if (name === 'termous.desktops.execute') usage = desktopBatchDescription
   else if (adapter.adapter === 'desktop_execution') usage = 'Provide either execution_id or tool_call_id from the original execute call, never both. Query or cancel that batch only; this does not reattach, acquire control, or submit input.'
   else if (name === 'termous.screen_analyses.create') usage = 'Analyze the current verified desktop directly: {"parameters":{"detector_enabled":true,"ocr_enabled":true}}. Omit source for automatic observation preparation; no separate attach or capture is needed. Keep analysis_id and read that task. For historical reanalysis, specify source explicitly.'
   else if (name === 'termous.desktop_workflows.runs.start') usage = 'Run the chosen script: {"script_id":"actual-script-id","parameters":{}}. The runtime pins the version and target; Core handles approval and safe control handoff. Do not manually release control first. Read the returned run_id for completion.'

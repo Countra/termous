@@ -58,7 +58,7 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
     ],
   },
   { key: 'desktops', scopes: ['desktops:read', 'desktops:connect', 'desktops:capture', 'desktops:control', 'desktops:close'] },
-  { key: 'desktop_workflows', scopes: ['desktop_workflows:read', 'desktop_workflows:write', 'desktop_workflows:run', 'desktop_workflows:delete'] },
+  { key: 'desktop_workflows', scopes: ['desktop_workflows:read', 'desktop_workflows:exchange', 'desktop_workflows:write', 'desktop_workflows:run', 'desktop_workflows:delete'] },
   { key: 'system', scopes: ['system:read'] },
   { key: 'processes', scopes: ['processes:read', 'processes:terminate'] },
   { key: 'services', scopes: ['services:read', 'services:manage'] },

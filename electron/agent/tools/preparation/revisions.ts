@@ -16,6 +16,8 @@ function revisionKey(ctx: PreparationContext, args: Arguments) {
 }
 
 export function prepareRevisions(ctx: PreparationContext, args: Arguments) {
+  // 导入提交的 create/update 为显式业务选择，不能借通用修订缓存补入目标或版本。
+  if (ctx.name === 'termous.desktop_workflows.imports.commit') return
   const groups = ctx.read('groups:revisions')
   if (ctx.name === 'termous.snippets.groups.reorder' && Array.isArray(args.items)) {
     args.items = args.items.map((item) => {

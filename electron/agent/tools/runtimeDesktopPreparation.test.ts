@@ -39,15 +39,15 @@ test('首次查询按控制条件给出建议，阻断条件不会被残留 gran
     const navigation = runtimeToolNavigation(get, receipt({ state, reason: 'remote_viewer' }, grant))!
     assert.equal(navigation.names.includes(acquire), state !== 'blocked')
     assert.ok(!navigation.names.some((name) => name.includes('keyboard.')))
-    if (state === 'takeover_required') assert.match(navigation.guidance, /首次即可.*takeover=true.*授权尚不明确/)
-    if (state === 'blocked') assert.match(navigation.guidance, /takeover 不能解决/)
+    if (state === 'takeover_required') assert.match(navigation.guidance, /explicitly authorized.*first request may use takeover=true.*Otherwise.*clarify authorization/)
+    if (state === 'blocked') assert.match(navigation.guidance, /Takeover does not resolve these states/)
   }
   const legacy = runtimeToolNavigation(get, receipt())!
-  assert.match(legacy.guidance, /未知.*不能推断无人占用/)
+  assert.match(legacy.guidance, /occupancy is unknown.*do not assume it is free/)
   for (const grant of [undefined, { id: 'old', expires_at: '2000-01-01T00:00:00Z', idle_expires_at: '2000-01-01T00:00:00Z' }]) {
     const expired = runtimeToolNavigation(get, receipt({ state: 'held' }, grant))!
     assert.deepEqual(expired.names, [get])
-    assert.match(expired.guidance, /重新核验/)
+    assert.match(expired.guidance, /same attachment to revalidate/)
   }
 })
 
