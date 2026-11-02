@@ -47,7 +47,9 @@ test('已持有与旧版占用错误都引导核验，不建议释放或自动�
   for (const code of ['desktop_control_already_held', 'desktop_control_locked']) {
     const navigation = runtimeToolNavigation(acquire, receipt({ error: { code } }), [], true)!
     assert.deepEqual(navigation.names, [get])
-    assert.match(navigation.guidance, /查询|核验/)
+    assert.match(navigation.guidance, /Query the current attachment_id/)
+    assert.match(navigation.guidance, /takeover only with user authorization/)
+    assert.match(navigation.guidance, /not a reason to release or acquire repeatedly/)
   }
 })
 
