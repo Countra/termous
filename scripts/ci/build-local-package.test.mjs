@@ -47,7 +47,7 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     from: 'public/termous-icon.png', to: 'icon.png',
   })
   assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
-    ['termous-core.exe', 'termous-core', 'termous-rdp.exe', 'termous-rdp'])
+    ['termous-core.exe', 'termous-core', 'termous-desktop.exe', 'termous-desktop', 'termous-rdp.exe', 'termous-rdp'])
   assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
     from: '../termous-rdp/licenses', to: 'licenses/rdp', filter: ['*-LICENSE.txt'],
   })
@@ -169,6 +169,14 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       }
       const decoy = path.join(outputDirectory, 'decoy')
       await mkdir(decoy)
+      const desktopPath = path.join(path.dirname(result.corePaths[0]),
+        target.platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop')
+      const movedDesktop = path.join(decoy, path.basename(desktopPath))
+      await rename(desktopPath, movedDesktop)
+      await assert.rejects(validatePackageArtifacts({
+        outputDirectory, version: '1.2.3', ...target,
+      }), /包内桌面进程不存在/u)
+      await rename(movedDesktop, desktopPath)
       await rename(workerPath, path.join(decoy, path.basename(workerPath)))
       await assert.rejects(validatePackageArtifacts({
         outputDirectory, version: '1.2.3', ...target,
@@ -547,6 +555,7 @@ async function writeCompleteFixture({
     { mode: 0o755 },
   )
   await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'), 'fixture-rdp', { mode: 0o755 })
+  await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'), 'fixture-desktop', { mode: 0o755 })
   const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
   await mkdir(rdpLicenses, { recursive: true })
   for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {

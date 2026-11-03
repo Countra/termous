@@ -111,6 +111,8 @@
       "filter": [
         "termous-core.exe",
         "termous-core",
+        "termous-desktop.exe",
+        "termous-desktop",
         "termous-rdp.exe",
         "termous-rdp"
       ]

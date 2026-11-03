@@ -185,9 +185,11 @@ export async function validatePackageArtifacts({
   const packagedApplication = path.dirname(packagedResources)
   const corePaths = [path.join(packagedApplication, coreName)]
   const workerName = normalizedPlatform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'
+  const desktopName = normalizedPlatform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'
   for (const [binaryPath, label] of [
     [corePaths[0], `包内 Core ${coreName}`],
     [path.join(packagedApplication, workerName), '包内 RDP worker'],
+    [path.join(packagedApplication, desktopName), '包内桌面进程'],
   ]) {
     await assertFile(binaryPath, label)
     if (normalizedPlatform !== 'win32' && process.platform !== 'win32'
