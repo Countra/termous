@@ -1,0 +1,231 @@
+.modal :global(.ant-modal-body) {
+  padding-top: 18px;
+}
+
+.modal :global(.ant-modal-footer) {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title > svg { color: var(--text-secondary); }
+
+.body {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+  max-height: min(65dvh, 640px);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 2px 4px;
+}
+
+.source-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.source-name {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 5px;
+}
+
+.source-name > strong {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.source-name > span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.status[data-tone='success'] { color: var(--success); }
+
+.status[data-tone='error'] { color: var(--danger); }
+
+.section { min-width: 0; }
+
+.section > h4 {
+  margin: 0 0 9px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.facts {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.facts > div {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.facts > div + div { border-top: 1px solid var(--border); }
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.facts code, .package > code {
+  font-family: 'JetBrains Mono', 'Cascadia Code', SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.installation {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.package {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 14px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+
+.package > svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.package > code {
+  min-width: 0;
+  flex: 1;
+}
+
+.installation-state {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.installation-state[data-ready] { color: var(--success); }
+
+.installation .facts {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.installation > :global(.ant-skeleton) { padding: 16px; }
+
+.install-hint, .unavailable {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.install-hint { border-top: 1px solid var(--border); }
+
+.policy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.policy > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.footer-note {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+@media (width <= 540px) {
+  .facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .status { width: 100%; }
+}

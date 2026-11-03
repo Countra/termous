@@ -88,3 +88,18 @@ test('不同账号的相同文案分别归属，隐藏父页面时子弹窗也�
   rerender(<FeedbackMessageScope active={false}><FeedbackMessageScope active><FeedbackMessage type="error" title="读取失败" /></FeedbackMessageScope></FeedbackMessageScope>)
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
 })
+
+test('进行中的操作以浮动加载消息呈现，保留控制入口并随页面隐藏收起', async () => {
+  const cancel = vi.fn()
+  const view = (active: boolean) => <FeedbackMessageScope active={active}><FeedbackMessage type="loading" title="正在测试连接" description="合成 MCP" action={<Button onClick={cancel}>取消</Button>} /></FeedbackMessageScope>
+  const { container, rerender } = render(view(true))
+  const notice = await screen.findByRole('status')
+  expect(container).not.toContainElement(notice)
+  expect(notice).toHaveTextContent('正在测试连接')
+  expect(notice).toHaveTextContent('合成 MCP')
+  expect(within(notice).queryByRole('button', { name: '关闭' })).not.toBeInTheDocument()
+  fireEvent.click(within(notice).getByRole('button', { name: /取\s*消/u }))
+  expect(cancel).toHaveBeenCalledOnce()
+  rerender(view(false))
+  await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+})

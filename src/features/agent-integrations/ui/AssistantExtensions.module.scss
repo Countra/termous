@@ -1,8 +1,100 @@
 .root {
   display: grid;
-  gap: 14px;
+  gap: 20px;
   min-width: 0;
-  padding: 20px;
+  padding-block: 6px 24px;
+}
+
+.root[data-editing] {
+  display: block;
+  height: 100%;
+  padding-block: 0;
+}
+
+.content {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  padding-top: 24px;
+}
+
+.tabs :global(.ant-tabs-nav) {
+  margin-bottom: 0;
+}
+
+.tabs :global(.ant-tabs-tab-btn) > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tabs :global(.ant-tabs-nav) small {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.toolbar p {
+  margin: 5px 0 0;
+  max-width: 52ch;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.runtime {
+  margin-top: 5px;
+  border-top: 1px solid var(--border);
+}
+
+.runtime > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-block: 20px 8px;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.runtime > summary::-webkit-details-marker {
+  display: none;
+}
+
+.runtime > summary > small {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.runtime > summary > svg:last-child {
+  transition: transform 160ms;
+}
+
+.runtime[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+
+.runtime > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.runtime > div {
+  padding-top: 18px;
 }
 
 .toolbar {
@@ -13,7 +105,6 @@
   gap: 12px;
 }
 
-.hint,
 .muted {
   margin: 0;
   color: var(--text-muted);
@@ -21,56 +112,11 @@
   line-height: 1.6;
 }
 
-.source {
-  display: grid;
-  gap: 5px;
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  padding: 8px 0;
-  color: var(--text-primary);
-  text-align: start;
-  cursor: pointer;
-  transition: color 160ms ease;
-
-  &:hover { color: var(--accent); }
-
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
-
-  span {
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
 .details,
-.importer,
-.import-item,
 .tool {
   display: grid;
   min-width: 0;
   gap: 10px;
-}
-
-.import-list {
-  display: grid;
-  gap: 12px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-
-  > li {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
-  }
 }
 
 .tool {
@@ -99,7 +145,9 @@
   overflow-wrap: anywhere;
 }
 
-.picker { width: min(340px, 80vw); }
+.picker {
+  width: min(340px, 80vw);
+}
 
 .picker-items {
   overflow: auto;
@@ -115,7 +163,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .source { transition: none; }
+  .runtime > summary > svg:last-child {
+    transition: none;
+  }
 }
 
 .skill-image {

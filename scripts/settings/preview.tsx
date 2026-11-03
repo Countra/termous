@@ -1,4 +1,5 @@
 import { createModelServiceFixture } from './modelServiceFixture'
+import { createIntegrationFixture } from '../integrations/fixture'
 import { PreviewMcpProvider } from './PreviewMcpProvider'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -51,6 +52,7 @@ const agentGateway: AgentSetupGateway = {
 }
 
 const snapshots = new Map<SettingsModuleId, SettingsSnapshot>([
+  ['web_search', { id: 'web_search', schema_version: 1, revision: 1, value: { mode: 'cloud', base_url: '' }, state: { status: 'saved' } }],
   ['local_network', { id: 'local_network', schema_version: 1, revision: 1, value: { enabled: false, url: '', bypass: ['localhost', '127.0.0.1', '::1'] }, state: { status: 'saved' } }],
   ['mcp_integrations', { id: 'mcp_integrations', schema_version: 1, revision: 1, value: { install_root: '', install_timeout_seconds: 1800, startup_timeout_seconds: 120 }, state: { status: 'saved' } }],
   ['desktop_presentation', { id: 'desktop_presentation', schema_version: 1, revision: 1, value: { ...presentationDefaults() }, state: { status: 'saved' } }],
@@ -76,7 +78,9 @@ const store = new SettingsModuleStore({
     return next
   },
 })
-const gateway = { getModule: store.snapshot.bind(store), readModule: store.read.bind(store), updateModule: store.update.bind(store), subscribeSettings: store.subscribe }
+const gateway = { getModule: store.snapshot.bind(store), readModule: store.read.bind(store), updateModule: store.update.bind(store), subscribeSettings: store.subscribe,
+  testWebSearch: async () => ({ provider: 'searxng' as const, query: 'Termous', page: 1, retrieved_at: new Date().toISOString(), results: [], partial: false, truncated: false, warnings: [] }) }
+const integrationsGateway = createIntegrationFixture()
 async function unsupported(): Promise<never> { throw new Error('此验收入口不执行外部资源操作') }
 const dataGateway: DataPortabilityGateway = {
   dataPortabilitySummary: async () => ({ total_items: 26, asset_count: 2, asset_bytes: 24576,
@@ -107,7 +111,7 @@ export function Preview() {
   const [open, setOpen] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [appearance, setAppearance] = useState({ theme: new URLSearchParams(location.search).has('light') ? 'light' as const : 'dark' as const })
-  const [language, setLanguage] = useState<'zh-CN' | 'en-US'>('zh-CN')
+  const [language, setLanguage] = useState<'zh-CN' | 'en-US'>(new URLSearchParams(location.search).has('en') ? 'en-US' : 'zh-CN')
   const [terminal, setTerminal] = useState(defaultTerminalSettings)
   const [connection, setConnection] = useState(defaultConnectionSettings)
   const [completion, setCompletion] = useState(defaultCompletionSettings)
@@ -126,7 +130,7 @@ export function Preview() {
         <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('connection') ? 'connection' : new URLSearchParams(location.search).has('extensions') ? 'extensions' : new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
           terminalSettings={terminal} sshSmoothScrollEnabled={false} completionSettings={completion}
           connectionSettings={connection} shortcutSettings={defaultShortcutSettings} windowSettings={windowSettings}
-          terminalFonts={[]} appVersion="0.0.0-preview" dataPortabilityGateway={dataGateway}
+          terminalFonts={[]} appVersion="0.0.0-preview" dataPortabilityGateway={dataGateway} integrationsGateway={integrationsGateway}
           auditSettingsGateway={gateway} mountSettingsGateway={gateway} agentSetupGateway={agentGateway} actionBusy={false}
           updatePreferencesRuntime={previewUpdateRuntime}
           onLanguageChange={async value => setLanguage(value)} onAppearanceSettingsChange={async value => setAppearance(value)}

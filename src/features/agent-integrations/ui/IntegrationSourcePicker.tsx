@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Empty, Popover, Space, Spin, Switch, Tabs, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Popover, Space, Spin, Switch, Tabs, Tag, Tooltip } from 'antd'
 import { Blocks } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { IntegrationPolicy, IntegrationSelection } from '#entities/agent-integrations'
 import styles from './AssistantExtensions.module.scss'
+import { IntegrationEmptyState } from './IntegrationEmptyState'
 
 export function IntegrationSourcePicker({sessionKey,read,change,disabled}: {
   sessionKey:string;read?:()=>Promise<IntegrationSelection>;change?:(policy:IntegrationPolicy)=>Promise<void>;disabled?:boolean
@@ -58,7 +59,8 @@ export function IntegrationSourcePicker({sessionKey,read,change,disabled}: {
           {source.kind === 'mcp' && source.connection && <Tag>{t(`mcpPreparation.connectionStates.${source.connection}`)}</Tag>}
         </div>
       })}
-      {data && !data.sources.some(source=>source.kind===kind) && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('extensions.empty')}/>}
+      {data && !data.sources.some(source=>source.kind===kind) && <IntegrationEmptyState kind={kind === 'mcp' ? 'mcp' : 'skill'}
+        title={t(kind === 'mcp' ? 'extensions.emptyMCP' : 'extensions.emptySkills')} description={t('extensions.emptySessionHint')} />}
     </div></Spin>
     {error && <Alert type="error" title={error} />}
   </div>}><Tooltip title={t('extensions.title')}><Button type="text" icon={<Blocks size={15}/>} disabled={disabled} aria-label={t('extensions.title')}/></Tooltip></Popover>

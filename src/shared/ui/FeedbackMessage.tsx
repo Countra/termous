@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
-import { App } from 'antd'
+import { App, Spin } from 'antd'
 import type { NotificationArgsProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { termousNotificationClassName } from './notificationStyles'
@@ -12,7 +12,7 @@ export function FeedbackMessageScope({ active = true, scope, children }: { activ
 }
 
 interface Props {
-  type: 'error' | 'warning' | 'info' | 'success'
+  type: 'error' | 'warning' | 'info' | 'success' | 'loading'
   title: string
   description?: ReactNode
   action?: ReactNode
@@ -47,13 +47,14 @@ export function FeedbackMessage({ type, title, description, action, onClose }: P
 
   useEffect(() => {
     owner.current.options = {
-      type, title, description, actions: action ? <span onClickCapture={event => {
+      type: type === 'loading' ? undefined : type, icon: type === 'loading' ? <Spin size="small" /> : undefined,
+      title, description, actions: action ? <span onClickCapture={event => {
         const notice = notices.get(notification)?.get(key)
         if (!notice?.owners.has(token.current) || notice.dismissed) { event.preventDefault(); event.stopPropagation() }
       }}>{action}</span> : undefined, placement: 'bottomRight',
       className: termousNotificationClassName,
-      closable: { 'aria-label': t('app.close') },
-      duration: type === 'error' || type === 'warning' || action ? 0 : 5,
+      closable: type === 'loading' ? false : { 'aria-label': t('app.close') },
+      duration: type === 'error' || type === 'warning' || type === 'loading' || action ? 0 : 5,
       showProgress: type === 'success' || type === 'info',
       role: type === 'error' || type === 'warning' ? 'alert' : 'status',
     }

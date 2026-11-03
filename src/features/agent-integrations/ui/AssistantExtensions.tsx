@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, App, Button, Empty, Popconfirm, Space, Switch, Table, Tabs, Tag, Tooltip } from 'antd'
-import { FileInput, Plus, RefreshCw, Settings2, Trash2, Unplug } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { App, Button, Space, Tabs, Tooltip } from 'antd'
+import { ChevronRight, FileInput, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
+import { FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import type { AgentIntegrationSource, AgentIntegrationsGateway } from '#entities/agent-integrations'
 import { MCPSourceEditor } from './MCPSourceEditor'
 import { IntegrationImport } from './IntegrationImport'
@@ -12,15 +13,21 @@ import type { IntegrationConnectionStatus } from '#common/agent-integrations'
 import { MCPProvisionDialog } from './MCPProvisionDialog'
 import { invokeIntegration } from '../model/nativeOperation'
 import { integrationFailure } from '../model/errors'
+import { IntegrationSourceList, type IntegrationSourceAction } from './IntegrationSourceList'
+import { IntegrationEmptyState } from './IntegrationEmptyState'
 
-export function AssistantExtensions({gateway,active = true}: {gateway?:AgentIntegrationsGateway;active?:boolean}) {
+type IntegrationOperation = 'toggle' | 'test' | 'login' | 'reconnect' | 'remove'
+
+export function AssistantExtensions({gateway,active = true, installationSettings, searchSettings}: {
+  gateway?:AgentIntegrationsGateway;active?:boolean;installationSettings?:ReactNode;searchSettings?:ReactNode
+}) {
   const { t } = useTranslation()
-  const { message } = App.useApp()
-  const [kind,setKind] = useState<'mcp' | 'skill'>('mcp')
+  const { message, modal } = App.useApp()
+  const [kind,setKind] = useState<'mcp' | 'skill' | 'search'>('mcp')
   const [sources,setSources] = useState<AgentIntegrationSource[]>([])
   const [connections,setConnections] = useState<IntegrationConnectionStatus[]>([])
   const [loading,setLoading] = useState(false)
-  const [busy,setBusy] = useState('')
+  const [busy,setBusy] = useState<{ id: string; operation: IntegrationOperation; cancelling?: boolean }>()
   const [error,setError] = useState('')
   const [editor,setEditor] = useState<AgentIntegrationSource | 'new'>()
   const [importing,setImporting] = useState<AgentIntegrationSource | 'new'>()
@@ -42,7 +49,7 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
     finally { if (!abort.signal.aborted) setLoading(false) }
   },[gateway,active,t,native])
   useEffect(() => {
-    setBusy(''); setLoading(false)
+    setBusy(undefined); setLoading(false)
     void reload()
     return () => {loadController.current?.abort();controller.current?.abort();controller.current=null}
   },[reload])
@@ -58,19 +65,34 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
     timer = setTimeout(() => { void update() }, 2000)
     return () => { disposed = true; clearTimeout(timer) }
   }, [active, native, t])
-  const perform = async (id:string, operation:(signal:AbortSignal)=>Promise<unknown>) => {
+  const perform = async (id:string, operation:(signal:AbortSignal)=>Promise<unknown>, activity: IntegrationOperation) => {
     if (controller.current) return
     const abort = new AbortController();controller.current=abort
-    setBusy(id);setError('')
-    try {await operation(abort.signal)}
-    catch (error) {if (!abort.signal.aborted) setError(integrationFailure(error, t))}
-    finally {
-      if (controller.current===abort) {
-        controller.current=null;setBusy('')
-        // 登录取消也可能已使旧认证版本失效，始终重新读取实际状态。
-        await reload()
+    setBusy({ id, operation: activity });setError('')
+    if (activity === 'toggle') {
+      // 旧查询不能覆盖本次开关操作已确认的新版本。
+      loadController.current?.abort();setLoading(false)
+    }
+    let reconcile = true
+    try {await operation(abort.signal);reconcile = activity !== 'toggle'}
+    catch (error) {
+      if (controller.current === abort && (!abort.signal.aborted || error !== abort.signal.reason)) {
+        setError(abort.signal.aborted ? t('extensions.cancelFailed') : integrationFailure(error, t))
       }
     }
+    finally {
+      if (controller.current===abort) {
+        // 失败或取消后仍需对账；登录取消也可能已使旧认证版本失效。
+        if (reconcile) await reload()
+        if (controller.current===abort) {controller.current=null;setBusy(undefined)}
+      }
+    }
+  }
+  const cancelOperation = () => {
+    const abort = controller.current
+    if (!abort || abort.signal.aborted) return
+    setBusy(value => value ? { ...value, cancelling: true } : value)
+    abort.abort()
   }
   const nativeOperation = async (source:AgentIntegrationSource,operation:'test' | 'login' | 'reconnect',signal:AbortSignal) => {
     if (!native) throw new Error(t('extensions.desktopRequired'))
@@ -78,44 +100,57 @@ export function AssistantExtensions({gateway,active = true}: {gateway?:AgentInte
   }
   const test = async (source:AgentIntegrationSource,signal:AbortSignal) => nativeOperation(source,'test',signal) as Promise<{tools:unknown[]}>
   const completed = (saved?: AgentIntegrationSource | AgentIntegrationSource[]) => {setEditor(undefined);setImporting(undefined); if (saved) setProvision(Array.isArray(saved) ? saved : [saved]); void reload()}
-  if (!gateway) return <Empty description={t('extensions.unavailable')} />
-  return <section className={styles.root}>
+  const toggle = (source: AgentIntegrationSource, enabled: boolean) => {
+    if (!gateway || controller.current) return
+    if (enabled && source.kind === 'mcp') { setProvision([source]); return }
+    void perform(source.id, async signal => {
+      const updated = await gateway.enabled(source, enabled, signal)
+      if (!signal.aborted) {
+        // 操作期间详情关闭也可能触发查询，确认回执后使这些旧快照一并失效。
+        loadController.current?.abort();setLoading(false)
+        setSources(values => values.map(value => value.id === updated.id && value.revision <= updated.revision ? updated : value))
+      }
+    }, 'toggle')
+  }
+  const action = (source: AgentIntegrationSource, action: IntegrationSourceAction) => {
+    if (!gateway || busy) return
+    if (action === 'edit') { setEditor(source); return }
+    if (action === 'update') { setImporting(source); return }
+    if (action === 'remove' || action === 'reconnect') {
+      modal.confirm({ title: t(action === 'remove' ? 'extensions.deleteConfirm' : 'extensions.reconnectConfirm', { name: source.name }),
+        okText: t(action === 'remove' ? 'extensions.delete' : 'extensions.reconnect'), cancelText: t('extensions.cancel'), okButtonProps: { danger: action === 'remove' },
+        onOk: () => perform(source.id, signal => action === 'remove' ? gateway.remove(source, signal) : nativeOperation(source, 'reconnect', signal), action) })
+      return
+    }
+    if (action === 'test' && (!source.startup_confirmed || source.mcp?.mode === 'managed_npm' && !source.mcp.dependency_id)) { setProvision([source]); return }
+    void perform(source.id, async signal => {
+      if (action === 'login') await nativeOperation(source, 'login', signal)
+      else { const result = await test(source, signal); void message.success(t('extensions.connected', { count: result.tools.length })) }
+    }, action)
+  }
+  const content = <div className={styles.content}>{kind === 'search' ? searchSettings : <>
     <div className={styles.toolbar}>
-      <Tabs activeKey={kind} onChange={value => setKind(value as typeof kind)} items={[{key:'mcp',label:'MCP'},{key:'skill',label:'Skills'}]} />
-      <Space><Tooltip title={t('extensions.refresh')}><Button aria-label={t('extensions.refresh')} icon={<RefreshCw size={15}/>} loading={loading} disabled={Boolean(busy)} onClick={() => void reload()} /></Tooltip>
-        <Button icon={<FileInput size={15}/>} disabled={Boolean(busy)} onClick={() => setImporting('new')}>{t('extensions.import')}</Button>
-        {kind==='mcp' && <Button type="primary" icon={<Plus size={15}/>} disabled={Boolean(busy)} onClick={() => setEditor('new')}>{t('extensions.addMCP')}</Button>}</Space>
+      <div><h3>{t(kind === 'mcp' ? 'extensions.mcpHeading' : 'extensions.skillHeading')}</h3><p>{t(kind === 'mcp' ? 'extensions.mcpHint' : 'extensions.skillHint')}</p></div>
+      <Space size={8}><Tooltip title={t('extensions.refresh')}><Button type="text" aria-label={t('extensions.refresh')} icon={<RefreshCw size={15}/>} loading={loading} disabled={Boolean(busy) || !gateway} onClick={() => { setError(''); void reload() }} /></Tooltip>
+        <Button type={kind === 'skill' ? 'primary' : 'default'} icon={<FileInput size={15}/>} disabled={Boolean(busy) || !gateway} onClick={() => setImporting('new')}>{t(kind === 'skill' ? 'extensions.importSkills' : 'extensions.importJSON')}</Button>
+        {kind==='mcp' && <Button type="primary" icon={<Plus size={15}/>} disabled={Boolean(busy) || !gateway} onClick={() => setEditor('new')}>{t('extensions.addMCP')}</Button>}</Space>
     </div>
-    <p className={styles.hint}>{t(kind==='mcp' ? 'extensions.mcpHint' : 'extensions.skillHint')}</p>
-    {busy && <Button onClick={() => controller.current?.abort()}>{t('extensions.cancel')}</Button>}
-    {error && <Alert type="error" title={error} showIcon closable onClose={() => setError('')} />}
-    <Table rowKey="id" size="small" tableLayout="fixed" scroll={{x:560}} loading={loading} dataSource={sources.filter(source => source.kind===kind)} pagination={{pageSize:12,showSizeChanger:false}}
-      locale={{emptyText:<Empty image={<Unplug size={30}/>} description={t('extensions.empty')} />}}
-      columns={[
-        {title:t('extensions.name'),dataIndex:'name',render:(_,source:AgentIntegrationSource) => <button className={styles.source} onClick={() => setDetails(source)}><strong>{source.name}</strong>
-          <span title={source.kind==='skill' ? source.skill?.description : source.mcp?.transport==='stdio' ? source.mcp.command : source.mcp?.url}>{source.kind==='skill' ? source.skill?.description : source.mcp?.transport==='stdio' ? source.mcp.command : source.mcp?.url}</span>
-          <span>{source.kind==='mcp' ? source.mcp?.transport==='http' ? 'HTTP' : 'stdio' : 'Skill'}</span></button>},
-        {title:t('extensions.status'),width:88,render:(_,source:AgentIntegrationSource)=>{
-          const status=connections.filter(value=>value.source===source.id && value.revision===source.revision)
-          const current = status.find(value => value.state === 'connected') ?? status.sort((a,b) => (b.status_revision ?? 0) - (a.status_revision ?? 0))[0]
-          return source.kind==='mcp' ? <Tooltip title={current?.diagnostic?.message}><Tag>{t(source.auth_state==='required' ? 'extensions.loginRequired' : current ? `mcpPreparation.connectionStates.${current.state}` : 'extensions.idle')}</Tag></Tooltip> : null
-        }},
-        {title:t('extensions.enabled'),width:64,render:(_,source:AgentIntegrationSource)=><Switch size="small" checked={source.enabled} loading={busy===source.id} disabled={Boolean(busy)}
-          aria-label={`${t('extensions.enabled')} ${source.name}`} onChange={enabled => { if (enabled && source.kind==='mcp') { setProvision([source]); return }; void perform(source.id, signal => gateway.enabled(source,enabled,signal)) }} />},
-        {title:t('extensions.actions'),width:208,render:(_,source:AgentIntegrationSource)=><Space size={4} wrap>
-          {source.mcp?.auth==='oauth' && <Button size="small" disabled={Boolean(busy)} onClick={() => void perform(source.id,signal => nativeOperation(source,'login',signal))}>{t(source.auth_state==='authorized' ? 'extensions.relogin' : 'extensions.login')}</Button>}
-          {source.kind==='mcp' && source.enabled && <Popconfirm title={t('extensions.reconnectConfirm')} onConfirm={()=>perform(source.id,signal=>nativeOperation(source,'reconnect',signal))}>
-            <Button size="small" disabled={Boolean(busy)}>{t('extensions.reconnect')}</Button></Popconfirm>}
-          {source.kind==='mcp' ? <Button size="small" disabled={Boolean(busy)} onClick={() => { if (!source.startup_confirmed || source.mcp?.mode === 'managed_npm' && !source.mcp.dependency_id) { setProvision([source]); return }; void perform(source.id,async signal => {const result=await test(source,signal);void message.success(t('extensions.connected',{count:result.tools.length}))}) }}>{t('extensions.test')}</Button>
-            : <Button size="small" disabled={Boolean(busy)} onClick={() => setImporting(source)}>{t('extensions.update')}</Button>}
-          {source.kind==='mcp' && <Button size="small" aria-label={t('extensions.edit')} icon={<Settings2 size={14}/>} disabled={Boolean(busy)} onClick={() => setEditor(source)} />}
-          <Popconfirm title={t('extensions.deleteConfirm',{name:source.name})} onConfirm={() => perform(source.id,signal => gateway.remove(source,signal))}>
-            <Button size="small" danger aria-label={t('extensions.delete')} icon={<Trash2 size={14}/>} disabled={Boolean(busy)} /></Popconfirm>
-        </Space>},
-      ]} />
-    {provision.length > 0 && <MCPProvisionDialog sources={provision} gateway={gateway} onClose={() => {setProvision([]);void reload()}} onChanged={() => void reload()} />}
-    {editor && <MCPSourceEditor gateway={gateway} source={editor==='new' ? undefined : editor} onClose={() => setEditor(undefined)} onSaved={completed} />}
-    {importing && <IntegrationImport kind={kind} gateway={gateway} source={importing==='new' ? undefined : importing} onClose={() => setImporting(undefined)} onImported={completed} />}
-    {details && <IntegrationDetails source={details} gateway={gateway} onClose={() => {setDetails(undefined);void reload()}} onChanged={source => {setDetails(source);void reload()}} />}
-  </section>
+    {error && <FeedbackMessage type="error" title={error} onClose={() => setError('')} />}
+    {gateway ? <IntegrationSourceList key={kind} sources={sources.filter(source => source.kind === kind)} connections={connections} kind={kind} loading={loading} busy={busy?.id ?? ''} toggling={busy?.operation === 'toggle'} onInspect={setDetails} onToggle={toggle} onAction={action} /> : <IntegrationEmptyState kind={kind} title={t('extensions.unavailable')} description={t('extensions.unavailableHint')} />}
+    {kind === 'mcp' && installationSettings && <details className={styles.runtime}><summary><Settings2 size={15} /><span>{t('extensions.installationTitle')}</span><small>{t('extensions.installationHint')}</small><ChevronRight size={14} /></summary><div>{installationSettings}</div></details>}
+    </>}</div>
+  return <FeedbackMessageScope active={active} scope="settings:extensions"><section className={styles.root} data-editing={Boolean(editor) || undefined}>
+    {busy && busy.operation !== 'toggle' && <FeedbackMessage type="loading" title={t(busy.cancelling ? 'extensions.cancelling' : `extensions.operation.${busy.operation}`)} description={sources.find(source => source.id === busy.id)?.name}
+      action={<Button size="small" disabled={busy.cancelling} onClick={cancelOperation}>{t('extensions.cancel')}</Button>} />}
+    {gateway && editor ? <MCPSourceEditor gateway={gateway} source={editor==='new' ? undefined : editor} onClose={() => setEditor(undefined)} onSaved={completed} /> : <Tabs className={styles.tabs} activeKey={kind} onChange={value => setKind(value as typeof kind)} destroyOnHidden items={[
+      { key: 'mcp', label: <span>{t('extensions.mcpTab')}<small>{sources.filter(source => source.kind === 'mcp').length}</small></span>, children: kind === 'mcp' ? content : undefined },
+      { key: 'skill', label: <span>{t('extensions.skillTab')}<small>{sources.filter(source => source.kind === 'skill').length}</small></span>, children: kind === 'skill' ? content : undefined },
+      ...(searchSettings ? [{ key: 'search', label: t('webSearch.title'), children: kind === 'search' ? content : undefined }] : []),
+    ]} />}
+    {gateway && <>
+      {provision.length > 0 && <MCPProvisionDialog sources={provision} gateway={gateway} onClose={() => {setProvision([]);void reload()}} onChanged={() => void reload()} />}
+      {importing && <IntegrationImport kind={kind === 'skill' ? 'skill' : 'mcp'} gateway={gateway} source={importing==='new' ? undefined : importing} onClose={() => setImporting(undefined)} onImported={completed} />}
+      {details && <IntegrationDetails source={details} gateway={gateway} onClose={() => {setDetails(undefined);void reload()}} onChanged={source => {setDetails(source);void reload()}} />}
+    </>}
+  </section></FeedbackMessageScope>
 }
