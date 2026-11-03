@@ -35,6 +35,7 @@ export class WorkflowExchangeController {
   }
   async dispatch(command: ExchangeCommand, origin?: DetachedConnection) {
     if (command.kind === 'cancel' || command.kind === 'close') { await this.cancel(); return }
+    if (command.kind === 'open-directory') { await this.openDirectory(command.location_id, origin); return }
     if (!this.gateway || !this.files || this.state.busy || this.disposed) return
     if (this.state.uncertain && command.kind !== 'commit') return
     if (command.kind === 'name') { if (!this.state.uncertain) this.update({ name: command.name }); return }
@@ -42,7 +43,7 @@ export class WorkflowExchangeController {
     const current = () => !this.disposed && generation === this.generation
     const update = (patch: Partial<ExchangeState>) => { if (current()) this.update(patch) }
     const context = this.host.context()
-    this.update({ busy: true, error: undefined, exported: undefined })
+    this.update({ busy: true, error: undefined, exported: undefined, exportedLocation: undefined, openingDirectory: false, directoryError: undefined })
     const abort = new AbortController(); this.abort = abort
     try {
       if (command.kind === 'import') {
@@ -97,8 +98,10 @@ export class WorkflowExchangeController {
       } else if (command.kind === 'export') {
         const script = context.draft?.script
         if (!script || command.version === undefined && context.dirty) throw Object.assign(new Error('请先保存工作流'), { code: 'workflow_exchange_save_first' })
+        if (this.state.preview) throw Object.assign(new Error('请先完成或关闭导入预览'), { code: 'desktop_workflow_exchange_busy' })
+        update({ receipt: undefined, target: undefined, conflict: false })
         const response = await this.native({ kind: 'export', origin, script_id: script.id, version: command.version ?? script.revision, layout: command.layout })
-        update({ exported: response.file_name })
+        update({ exported: response.file_name, exportedLocation: response.location_id })
       }
     } catch (error) {
       // 普通读取取消只结束当前交互；提交取消仍需查询回执并保留不确定状态。
@@ -112,6 +115,20 @@ export class WorkflowExchangeController {
     if (response.error) throw Object.assign(new Error(response.error.message), response.error)
     return response
   }
+  private async openDirectory(location: string, origin?: DetachedConnection) {
+    // 独立窗口可能仍展示上一份回执，不能把迟到点击转换为打开新的导出位置。
+    if (!this.files || !this.state.exported || !location || location !== this.state.exportedLocation || this.state.busy || this.state.openingDirectory || this.disposed) return
+    const generation = this.generation
+    const current = () => !this.disposed && generation === this.generation && this.state.exportedLocation === location
+    this.update({ openingDirectory: true, directoryError: undefined })
+    try {
+      const response = await this.files.openDirectory({ location_id: location, origin })
+      if (response.error) throw Object.assign(new Error(response.error.message), response.error)
+    } catch (error) {
+      // 打开目录失败不能覆盖导出回执；关闭窗口或开始新操作后忽略迟到结果。
+      if (current()) this.update({ directoryError: workflowFailure(error) })
+    } finally { if (current()) this.update({ openingDirectory: false }) }
+  }
   private async cancel() {
     if (this.disposed) return
     if (this.state.busy) {
@@ -123,7 +140,8 @@ export class WorkflowExchangeController {
     const generation = this.generation
     try {
       if (this.state.preview) await this.gateway?.release(this.state.preview.id)
-      if (generation === this.generation) this.update({ preview: undefined, error: undefined, receipt: undefined, exported: undefined, target: undefined })
+      if (generation === this.generation) this.update({ preview: undefined, error: undefined, receipt: undefined, exported: undefined, target: undefined,
+        exportedLocation: undefined, openingDirectory: false, directoryError: undefined })
     } catch (error) { if (generation === this.generation) this.update({ error: workflowFailure(error) }) }
   }
   dispose() {
@@ -133,7 +151,7 @@ export class WorkflowExchangeController {
     const uncertain = this.state.uncertain || !!this.pendingCommit
     const cleanup = this.operation ? this.files?.cancel(this.operation) : !uncertain && this.state.preview ? this.gateway?.release(this.state.preview.id) : undefined
     this.operation = undefined; this.abort = undefined
-    this.state = { ...this.state, busy: false, progress: undefined, uncertain, ...(!uncertain ? { preview: undefined } : {}) }
+    this.state = { ...this.state, busy: false, progress: undefined, openingDirectory: false, uncertain, ...(!uncertain ? { preview: undefined } : {}) }
     void cleanup?.catch(() => console.warn('[termous:workflow] 文件交换资源将由租约回收'))
   }
 }

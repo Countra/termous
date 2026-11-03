@@ -90,7 +90,7 @@ export class WorkflowController {
       if (this.state.busy) return
       this.serial++
       this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), name, description: '', tags: [], definition: newDefinition() },
-        dirty: true, selected: undefined, presentation: { ...this.state.presentation, foldedSteps: [] } })
+        dirty: true, selected: undefined, versions: undefined, presentation: { ...this.state.presentation, foldedSteps: [] } })
     },
     load: async id => {
       if (this.state.busy) return
@@ -98,7 +98,7 @@ export class WorkflowController {
       await this.work(async () => {
         const value = await this.gateway.get(id)
         if (serial === this.serial) this.update({ view: 'scripts', draft: { editingID: crypto.randomUUID(), script: value.script, name: value.script.name,
-          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined,
+          description: value.script.description, tags: value.script.tags ?? [], definition: value.version.definition }, dirty: false, selected: undefined, versions: undefined,
           presentation: { ...this.state.presentation, foldedSteps: [] } })
       })
     },
@@ -143,12 +143,12 @@ export class WorkflowController {
       if (!script) return
       if (this.state.busy) return
       this.update({ busy: true })
-      try { await this.gateway.remove(script.id, script.revision); this.update({ draft: undefined, dirty: false }); this.reload() }
+      try { await this.gateway.remove(script.id, script.revision); this.update({ draft: undefined, dirty: false, versions: undefined }); this.reload() }
       catch (reason) { this.update({ notice: { id: crypto.randomUUID(), kind: 'error', error: workflowFailure(reason) } }); throw reason }
       finally { this.update({ busy: false }) }
     },
     copy: name => {
-      if (this.state.draft && !this.state.busy) this.update({ draft: { ...structuredClone(this.state.draft), editingID: crypto.randomUUID(), script: undefined, name }, dirty: true })
+      if (this.state.draft && !this.state.busy) this.update({ draft: { ...structuredClone(this.state.draft), editingID: crypto.randomUUID(), script: undefined, name }, dirty: true, versions: undefined })
     },
     openRun: debug => {
       const draft = this.state.draft

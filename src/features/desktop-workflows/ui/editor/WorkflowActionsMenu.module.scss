@@ -1,0 +1,69 @@
+.menu :global(.ant-dropdown-menu) {
+  width: 292px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border-radius: 12px;
+}
+
+.menu :global(.ant-dropdown-menu-item) {
+  padding: 9px 10px;
+  border-radius: 7px;
+}
+
+.menu :global(.ant-dropdown-menu-item-group-title) {
+  padding: 9px 10px 5px;
+  font-size: 11px;
+}
+
+.menu :global(.ant-dropdown-menu-item-icon) {
+  align-self: center;
+  margin-inline-end: 5px;
+}
+
+.menu :global(.ant-dropdown-menu-item-divider) {
+  margin: 6px 8px;
+  background: var(--border);
+}
+
+.label {
+  display: grid;
+  gap: 3px;
+  line-height: 1.45;
+}
+
+.label > span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.label > small {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: normal;
+}
+
+.menu :global(.ant-dropdown-menu-item-disabled) .label > small {
+  color: inherit;
+}
+
+.trigger[class] {
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.trigger[aria-expanded='true'] {
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+
+.chevron {
+  transition: transform 160ms ease;
+}
+
+.chevron[data-open] {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+}

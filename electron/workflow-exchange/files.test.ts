@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { AppConfig } from '#common/contracts'
 import { ExchangeCore } from './core.ts'
@@ -76,7 +76,7 @@ test('目录导出固定快照并拒绝覆盖，单文件失败保护已有目�
     w.setHeader('Content-Length', bad ? data.length + 1 : data.length); w.end(data)
   })
   const destination = path.join(dir, '配置目录')
-  assert.equal(await exportFile(client, 'script', 2, 'directory', destination, new AbortController().signal, () => {}), '配置目录')
+  assert.deepEqual(await exportFile(client, 'script', 2, 'directory', destination, new AbortController().signal, () => {}), { file_name: '配置目录', directory: await realpath(destination) })
   assert.deepEqual(await readFile(path.join(destination, 'workflow.json')), configuration)
   assert.deepEqual(await readFile(path.join(destination, asset.path)), image)
   await assert.rejects(exportFile(client, 'script', 2, 'directory', destination, new AbortController().signal, () => {}), { code: 'workflow_exchange_target_exists' })

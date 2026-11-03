@@ -1,12 +1,12 @@
 import { Button } from 'antd'
-import { ArrowRight, Crosshair, Layers2, ListChecks, Play, Workflow } from 'lucide-react'
+import { ArrowRight, Crosshair, FileInput, Layers2, ListChecks, Play, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Run } from '#entities/desktop-workflow'
 import { isRunActive } from '../../model/messages'
 import { WorkflowRunStatus } from '../shared/WorkflowRunStatus'
 import styles from './WorkflowOverview.module.scss'
 
-export function WorkflowOverview({ scriptCount, runs, onCreate, onRun }: { scriptCount: number; runs: Run[]; onCreate: () => void; onRun: (id: string) => void }) {
+export function WorkflowOverview({ scriptCount, runs, busy, onCreate, onImport, onRun }: { scriptCount: number; runs: Run[]; busy?: boolean; onCreate: () => void; onImport?: () => void; onRun: (id: string) => void }) {
   const { t } = useTranslation()
   const active = runs.filter((run) => isRunActive(run.state))
   const recent = [...runs].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 4)
@@ -15,7 +15,10 @@ export function WorkflowOverview({ scriptCount, runs, onCreate, onRun }: { scrip
       <div className={styles.mark}><Workflow size={28} strokeWidth={1.4} /></div>
       <h2>{t('desktopWorkflow.overviewTitle')}</h2>
       <p>{t('desktopWorkflow.overviewDescription')}</p>
-      <Button type="primary" icon={<ArrowRight size={16} />} iconPlacement="end" onClick={onCreate}>{t('desktopWorkflow.create')}</Button>
+      <div className={styles.actions}>
+        <Button type="primary" disabled={busy} icon={<ArrowRight size={16} />} iconPlacement="end" onClick={onCreate}>{t('desktopWorkflow.create')}</Button>
+        {onImport && <Button type="text" disabled={busy} icon={<FileInput size={16} />} onClick={onImport}>{t('desktopWorkflow.exchange.import')}</Button>}
+      </div>
     </div>
     <div className={styles.summary}>
       <div><strong>{scriptCount}</strong><span>{t('desktopWorkflow.library')}</span></div>

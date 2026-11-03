@@ -10,7 +10,7 @@ function deferred<T>() {
 }
 function setup() {
   const listeners = new Set<(value: WorkflowFileProgress) => void>()
-  const files: WorkflowFileBridge = { run: vi.fn(), cancel: vi.fn(async () => {}),
+  const files: WorkflowFileBridge = { run: vi.fn(), openDirectory: vi.fn(async () => ({})), cancel: vi.fn(async () => {}),
     onProgress: listener => { listeners.add(listener); return () => { listeners.delete(listener) } } }
   const gateway: WorkflowExchangeGateway = { inspect: vi.fn(), commit: vi.fn(), release: vi.fn(async () => {}), asset: vi.fn() }
   const host = { context: () => ({ dirty: false, token: 'editor' }), changed: vi.fn(), committed: vi.fn(async () => {}) }

@@ -1,10 +1,11 @@
-import { dialog, type BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import { dialog, shell, type BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type { AppConfig, AppLanguage, DetachedConnection, WorkflowFileProgress, WorkflowFileResponse } from '#common/contracts'
-import { isWorkflowFileRequest, workflowExchangeChannels as channels } from '#common/contracts'
+import { isWorkflowFileRequest, isWorkflowExportLocationRequest, workflowExchangeChannels as channels } from '#common/contracts'
 import { ExchangeCore } from './core.ts'
 import { importFile } from './import.ts'
 import { exportFile } from './export.ts'
 import { ExchangeFailure } from './files.ts'
+import { ExportLocations } from './export-locations.ts'
 
 interface Options {
   ipc: IpcMain
@@ -15,6 +16,17 @@ interface Options {
 }
 export function registerWorkflowExchange(options: Options) {
   const operations = new Map<string, { sender: number; abort: AbortController }>()
+  const locations = new ExportLocations(directory => shell.openPath(directory))
+  options.ipc.handle(channels.openDirectory, async (event, value: unknown): Promise<WorkflowFileResponse> => {
+    if (!options.trusted(event) || !isWorkflowExportLocationRequest(value)) return { error: { code: 'workflow_exchange_sender_denied', message: '导出目录请求无效' } }
+    const owner = options.owner(value.origin)
+    if (!owner || owner.isDestroyed()) return { error: { code: 'workflow_exchange_sender_denied', message: '导出窗口已失效' } }
+    try { await locations.open(event.sender.id, value.location_id); return {} }
+    catch (error) {
+      const code = error instanceof ExchangeFailure ? error.code : 'workflow_exchange_directory_open_failed'
+      return { error: { code, message: code } }
+    }
+  })
   options.ipc.handle(channels.run, async (event, value: unknown): Promise<WorkflowFileResponse> => {
     if (!options.trusted(event) || !isWorkflowFileRequest(value)) return { error: { code: 'workflow_exchange_sender_denied', message: '工作流文件请求无效' } }
     const owner = options.owner(value.origin)
@@ -35,11 +47,11 @@ export function registerWorkflowExchange(options: Options) {
       const zh = options.language() === 'zh-CN'; emit({ phase: 'selecting' })
       let selected: string | undefined
       if (value.kind === 'import') {
-        const choice = await dialog.showOpenDialog(owner, { title: zh ? '导入工作流' : 'Import workflow', properties: ['openFile'], filters: [{ name: 'Workflow', extensions: ['zip', 'json'] }] })
+        const choice = await dialog.showOpenDialog(owner, { title: zh ? '导入流程' : 'Import workflow', properties: ['openFile'], filters: [{ name: 'Workflow', extensions: ['zip', 'json'] }] })
         selected = choice.canceled ? undefined : choice.filePaths[0]
       } else {
         const directory = value.layout === 'directory'
-        const choice = await dialog.showSaveDialog(owner, { title: zh ? (directory ? '导出到新的配置目录' : '导出工作流') : (directory ? 'Export to a new workflow directory' : 'Export workflow'),
+        const choice = await dialog.showSaveDialog(owner, { title: zh ? (directory ? '导出到新目录' : '导出流程') : (directory ? 'Export to a new directory' : 'Export workflow'),
           defaultPath: directory ? 'workflow.termous-workflow' : value.layout === 'zip' ? 'workflow.termous-workflow.zip' : 'workflow.json',
           filters: directory ? undefined : [{ name: 'Workflow', extensions: [value.layout === 'zip' ? 'zip' : 'json'] }], properties: ['showOverwriteConfirmation'],
         })
@@ -53,9 +65,10 @@ export function registerWorkflowExchange(options: Options) {
         if (abort.signal.aborted) { await core.release('imports', id); return { canceled: true } }
         emit({ phase: 'complete' }); return { import_id: id }
       }
-      const name = await exportFile(core, value.script_id!, value.version!, value.layout!, selected, abort.signal,
+      const result = await exportFile(core, value.script_id!, value.version!, value.layout!, selected, abort.signal,
         (bytes, total, publishing) => emit({ phase: publishing ? 'publishing' : 'transferring', transferred_bytes: bytes, total_bytes: total }))
-      emit({ phase: 'complete' }); return { file_name: name }
+      const location = locations.remember(event.sender.id, result.directory)
+      emit({ phase: 'complete' }); return { file_name: result.file_name, location_id: location }
     } catch (error) {
       const reason = abort.signal.reason
       if (abort.signal.aborted && !(reason instanceof ExchangeFailure)) return { canceled: true }
@@ -68,5 +81,5 @@ export function registerWorkflowExchange(options: Options) {
     if (!options.trusted(event) || typeof id !== 'string') return
     const entry = operations.get(id); if (entry?.sender === event.sender.id) entry.abort.abort()
   })
-  return () => { for (const entry of operations.values()) entry.abort.abort(); options.ipc.removeHandler(channels.run); options.ipc.removeHandler(channels.cancel) }
+  return () => { for (const entry of operations.values()) entry.abort.abort(); locations.clear(); options.ipc.removeHandler(channels.run); options.ipc.removeHandler(channels.cancel); options.ipc.removeHandler(channels.openDirectory) }
 }

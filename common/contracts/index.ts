@@ -171,5 +171,5 @@ export type { LocalNetworkSettings, MCPIntegrationSettings, IntegrationConfigura
 
 export * from './web-search.ts'
 
-export { workflowExchangeChannels, isWorkflowFileRequest } from './workflow-exchange.ts'
-export type { WorkflowFileBridge, WorkflowFileRequest, WorkflowFileResponse, WorkflowFileProgress, WorkflowExportLayout, WorkflowFileErrorDetails } from './workflow-exchange.ts'
+export { workflowExchangeChannels, isWorkflowFileRequest, isWorkflowExportLocationRequest } from './workflow-exchange.ts'
+export type { WorkflowFileBridge, WorkflowFileRequest, WorkflowFileResponse, WorkflowFileProgress, WorkflowExportLayout, WorkflowFileErrorDetails, WorkflowExportLocationRequest } from './workflow-exchange.ts'

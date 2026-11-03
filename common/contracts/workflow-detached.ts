@@ -79,6 +79,7 @@ export function isWorkflowDetachedCommand(value: unknown): value is WorkflowDeta
   switch (value.name) {
     case 'exchange': return record(arg) && (
       ['import', 'cancel', 'close', 'commit'].includes(String(arg.kind)) && fields(arg, ['kind'])
+      || arg.kind === 'open-directory' && fields(arg, ['kind', 'location_id']) && typeof arg.location_id === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(arg.location_id)
       || arg.kind === 'name' && fields(arg, ['kind', 'name']) && typeof arg.name === 'string' && arg.name.length <= 160
       || arg.kind === 'target' && fields(arg, ['kind', 'id']) && (arg.id === undefined || id(arg.id))
       || arg.kind === 'export' && fields(arg, ['kind', 'version', 'layout']) && ['zip', 'json', 'directory'].includes(String(arg.layout))

@@ -1,5 +1,5 @@
 import { Button, Input, Segmented, Tooltip } from 'antd'
-import { FileCode2, History, Import, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Workflow } from 'lucide-react'
+import { FileCode2, History, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Run, Script } from '#entities/desktop-workflow'
 import { isRunActive } from '../../model/messages'
@@ -16,7 +16,6 @@ interface Props {
   busy: boolean
   loading: boolean
   onCreate: () => void
-  onImport?: () => void
   onSelectScript: (id: string) => void
   onSelectRun: (id: string) => void
   onRefresh: () => void
@@ -42,7 +41,6 @@ export function WorkflowCatalog(props: Props) {
     <div className={styles.rail} hidden={!props.collapsed}>
       <Tooltip title={t('desktopWorkflow.expandLibrary')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.expandLibrary')} aria-expanded={false} icon={<PanelLeftOpen size={18} />} onClick={props.onToggle} /></Tooltip>
       <span className={styles['rail-divider']} />
-      {props.onImport && <Tooltip title={t('desktopWorkflow.exchange.import')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.exchange.import')} disabled={props.busy} icon={<Import size={18} />} onClick={props.onImport} /></Tooltip>}
       <Tooltip title={t('desktopWorkflow.createWorkflow')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.createWorkflow')} disabled={props.busy} icon={<Plus size={18} />} onClick={props.onCreate} /></Tooltip>
     </div>
     <div className={styles.expanded} hidden={props.collapsed}>
@@ -55,7 +53,6 @@ export function WorkflowCatalog(props: Props) {
         <Tooltip title={t('desktopWorkflow.collapseLibrary')}><Button type="text" size="small" aria-label={t('desktopWorkflow.collapseLibrary')} aria-expanded={true} icon={<PanelLeftClose size={16} />} onClick={props.onToggle} /></Tooltip>
       </header>
       <div className={styles.tools}>
-        {!history && props.onImport && <Button icon={<Import size={16} />} disabled={props.busy} onClick={props.onImport}>{t('desktopWorkflow.exchange.import')}</Button>}
         {!history && <Button type="primary" block icon={<Plus size={16} />} disabled={props.busy} onClick={props.onCreate}>{t('desktopWorkflow.createWorkflow')}</Button>}
         <Input size="small" aria-label={t('desktopWorkflow.search')} prefix={<Search size={14} />} placeholder={t('desktopWorkflow.search')} value={search} allowClear onChange={(event) => props.onQueriesChange({ ...queries, [props.view]: event.target.value })} />
         {history && <Segmented block size="small" value={runFilter} options={[{ value: 'all', label: t('desktopWorkflow.allRuns') }, { value: 'active', label: t('desktopWorkflow.activeRuns', { count: activeCount }) }]} onChange={props.onRunFilterChange} />}

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import type { WorkflowFileBridge } from '#common/contracts'
+import type { WorkflowFileBridge, WorkflowFileResponse } from '#common/contracts'
 import type { WorkflowImportView, WorkflowImportReceipt } from '#entities/desktop-workflow'
 import { WorkflowController } from '../workspace/WorkflowController'
 import { WorkflowClient } from '../../api/WorkflowClient'
@@ -19,7 +19,7 @@ function setup() {
     throw new Error(`未声明请求 ${url.pathname}`)
   })
   vi.stubGlobal('fetch', requests)
-  const files: WorkflowFileBridge = { run: vi.fn(async () => ({ import_id: 'import' })), cancel: vi.fn(async () => {}), onProgress: () => () => {} }
+  const files: WorkflowFileBridge = { run: vi.fn(async () => ({ import_id: 'import' })), openDirectory: vi.fn(async () => ({})), cancel: vi.fn(async () => {}), onProgress: () => () => {} }
   const config = { apiBaseUrl: 'http://127.0.0.1:8122', apiToken: '' }
   const controller = new WorkflowController(new WorkflowClient(config), new WorkflowExchangeClient(config), files)
   return { controller, requests, files }
@@ -108,5 +108,86 @@ it('独立窗口迟到的提交不能覆盖另一编辑上下文', async () => {
     expect(response).toMatchObject({ ok: false, error: { message: 'workflow_editor_changed' } })
     expect(requests.mock.calls.some(([url]) => String(url).endsWith('/commit'))).toBe(false)
     expect(controller.getSnapshot().state.draft?.name).toBe('新草稿')
+  } finally { controller.dispose() }
+})
+
+it('导出成功后独立窗口按原回执打开目录，失败可重试且保留成功状态', async () => {
+  const { controller, files } = setup()
+  try {
+    await controller.actions.load('script')
+    vi.mocked(files.run).mockResolvedValue({ file_name: '流程.zip', location_id: 'location' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    vi.mocked(files.openDirectory).mockResolvedValueOnce({ error: { code: 'workflow_exchange_directory_open_failed', message: 'failed' } })
+    const adapter = new WorkflowSurfaceAdapter(controller)
+    const connection = { module: 'desktop-workflow', instance: 'workspace', generation: 'current' }
+    await adapter.handle({ connection, kind: 'request', operation: 'command', payload: { name: 'exchange', args: [{ kind: 'open-directory', location_id: 'location' }] } })
+    expect(files.openDirectory).toHaveBeenCalledWith({ location_id: 'location', origin: connection })
+    expect(controller.getSnapshot().state.exchange).toMatchObject({ busy: false, exported: '流程.zip', exportedLocation: 'location', openingDirectory: false,
+      directoryError: { code: 'workflow_exchange_directory_open_failed' } })
+    expect(controller.getSnapshot().state.exchange?.error).toBeUndefined()
+    await controller.actions.exchange!({ kind: 'open-directory', location_id: 'location' })
+    expect(files.openDirectory).toHaveBeenCalledTimes(2)
+    expect(controller.getSnapshot().state.exchange?.directoryError).toBeUndefined()
+    expect(files.run).toHaveBeenCalledOnce()
+  } finally { controller.dispose() }
+})
+
+it('打开目录期间防止重复点击，关闭成功窗后迟到失败不重开窗口', async () => {
+  const { controller, files } = setup()
+  try {
+    await controller.actions.load('script')
+    vi.mocked(files.run).mockResolvedValue({ file_name: '流程.zip', location_id: 'location' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    let complete!: (value: WorkflowFileResponse) => void
+    vi.mocked(files.openDirectory).mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))
+    const opening = controller.actions.exchange!({ kind: 'open-directory', location_id: 'location' })
+    expect(controller.getSnapshot().state.exchange).toMatchObject({ busy: false, openingDirectory: true, exported: '流程.zip' })
+    await controller.actions.exchange!({ kind: 'open-directory', location_id: 'location' })
+    expect(files.openDirectory).toHaveBeenCalledOnce()
+    await controller.actions.exchange!({ kind: 'close' })
+    complete({ error: { code: 'workflow_exchange_directory_open_failed', message: 'late' } }); await opening
+    expect(controller.getSnapshot().state.exchange).toMatchObject({ busy: false, openingDirectory: false })
+    expect(controller.getSnapshot().state.exchange?.exported).toBeUndefined()
+    expect(controller.getSnapshot().state.exchange?.directoryError).toBeUndefined()
+    await controller.actions.exchange!({ kind: 'open-directory', location_id: 'location' })
+    expect(files.openDirectory).toHaveBeenCalledOnce()
+  } finally { controller.dispose() }
+})
+
+it('旧打开请求结束不能覆盖新导出的回执与加载状态', async () => {
+  const { controller, files } = setup()
+  try {
+    await controller.actions.load('script')
+    vi.mocked(files.run).mockResolvedValueOnce({ file_name: '旧流程.zip', location_id: 'old' }).mockResolvedValueOnce({ file_name: '新流程.zip', location_id: 'next' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    let complete!: (value: WorkflowFileResponse) => void
+    vi.mocked(files.openDirectory).mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))
+    const opening = controller.actions.exchange!({ kind: 'open-directory', location_id: 'old' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    complete({ error: { code: 'workflow_exchange_directory_open_failed', message: 'late' } }); await opening
+    expect(controller.getSnapshot().state.exchange).toMatchObject({ busy: false, exported: '新流程.zip', exportedLocation: 'next', openingDirectory: false })
+    expect(controller.getSnapshot().state.exchange?.directoryError).toBeUndefined()
+    await controller.actions.exchange!({ kind: 'open-directory', location_id: 'old' })
+    expect(files.openDirectory).toHaveBeenCalledOnce()
+    await controller.actions.exchange!({ kind: 'open-directory', location_id: 'next' })
+    expect(files.openDirectory).toHaveBeenLastCalledWith({ location_id: 'next', origin: undefined })
+  } finally { controller.dispose() }
+})
+
+it('新导出清除旧导入回执，未结束的导入预览不会被导出覆盖', async () => {
+  const { controller, files } = setup()
+  try {
+    await controller.actions.load('script')
+    await controller.actions.exchange!({ kind: 'import' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    expect(files.run).toHaveBeenCalledOnce()
+    expect(controller.getSnapshot().state.exchange?.preview?.id).toBe('import')
+    expect(controller.getSnapshot().state.exchange?.error?.code).toBe('desktop_workflow_exchange_busy')
+    await controller.actions.exchange!({ kind: 'commit' })
+    expect(controller.getSnapshot().state.exchange?.receipt).toEqual(receipt)
+    vi.mocked(files.run).mockResolvedValue({ file_name: '流程.zip', location_id: 'location' })
+    await controller.actions.exchange!({ kind: 'export', layout: 'zip' })
+    expect(controller.getSnapshot().state.exchange?.exported).toBe('流程.zip')
+    expect(controller.getSnapshot().state.exchange?.receipt).toBeUndefined()
   } finally { controller.dispose() }
 })

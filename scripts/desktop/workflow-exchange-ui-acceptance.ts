@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron'
 import { DetachedWindows } from '../../electron/detached-windows/manager'
 import { registerWorkflowExchange } from '../../electron/workflow-exchange/ipc'
 import { click, exchangeClosed, exportWorkflow, importWorkflow, js, until } from './workflow-exchange-ui-driver'
@@ -40,7 +40,16 @@ async function main() {
   await writeFile(input, JSON.stringify(manifest))
   const choices: { kind: 'open' | 'save'; file?: string; owner: number }[] = []
   const calls: { kind: string; owner: number }[] = []
-  const originalOpen = dialog.showOpenDialog, originalSave = dialog.showSaveDialog
+  const originalOpen = dialog.showOpenDialog, originalSave = dialog.showSaveDialog, originalOpenPath = shell.openPath
+  const opened: string[] = []
+  // 目录打开验证走真实 UI 和 IPC，仅替代文件管理器，避免干扰用户桌面。
+  shell.openPath = async directory => { opened.push(directory); return '' }
+  const openDirectory = async (window: BrowserWindow, expected: string) => {
+    const count = opened.length
+    await click(window, '打开目录')
+    await until(() => opened.length === count + 1, '打开目录没有经过原生桥接')
+    assert.equal(opened[count], expected)
+  }
   const choose = (kind: 'open' | 'save', owner: BrowserWindow) => {
     const choice = choices.shift(); assert(choice, `未声明的 ${kind} 对话框`)
     assert.equal(choice.kind, kind); assert.equal(choice.owner, owner.id)
@@ -59,7 +68,7 @@ async function main() {
   ipcMain.on(detachedChannels.packet, record)
   try {
     await host.loadURL(page)
-    queue('open'); await click(host, '导入工作流')
+    queue('open'); await click(host, '导入流程')
     await until(() => calls.length === 1, 'StrictMode 挂载后没有调用原生文件选择')
     await exchangeClosed(host)
     assert.deepEqual(await request(''), [])
@@ -70,7 +79,7 @@ async function main() {
     const script = scripts[0]
     assert.equal(script.name, manifest.name)
     const single = path.join(directory, '导出.json')
-    queue('save', single); await exportWorkflow(host, 'json')
+    queue('save', single); await exportWorkflow(host, 'json', false, () => openDirectory(host, directory))
     assert.equal(JSON.parse(await readFile(single, 'utf8')).name, manifest.name)
     const zip = path.join(directory, '导出.zip')
     queue('save', zip); await exportWorkflow(host, 'zip')
@@ -94,7 +103,7 @@ async function main() {
     await writeFile(path.join(imageInput, '无关.txt'), '不可读取的无关内容')
     queue('open', path.join(imageInput, '别名.json')); await importWorkflow(host, true)
     const folder = path.join(directory, '带图导出')
-    queue('save', folder); await exportWorkflow(host, 'directory')
+    queue('save', folder); await exportWorkflow(host, 'directory', false, () => openDirectory(host, folder))
     const exported = JSON.parse(await readFile(path.join(folder, 'workflow.json'), 'utf8'))
     assert.equal(exported.assets.length, 1)
     assert.deepEqual(exported.assets[0], { path: 'assets/image_001.png' })
@@ -110,11 +119,12 @@ async function main() {
     await until(() => js(child, `!!document.querySelector('button[aria-label="返回主窗口"]')&&!document.body.inert`), '独立窗口未取得编辑权')
     assert.equal(await js(child, 'typeof window.termous'), 'undefined')
     const detachedZIP = path.join(directory, '独立窗口.zip')
-    queue('save', detachedZIP, child); await exportWorkflow(child, 'zip')
+    queue('save', detachedZIP, child); await exportWorkflow(child, 'zip', false, () => openDirectory(child, directory))
     queue('open', detachedZIP, child); await importWorkflow(child, true)
     await click(child, '返回主窗口')
     await until(() => child.isDestroyed(), '独立窗口返回未完成')
     cases.push('独立窗口经宿主 Controller 导出导入与原生对话框归属')
+    cases.push('主窗口与独立窗口成功回执打开对应导出目录')
 
     // 更新源脚本后从历史面板导出 v1，核对快照仍含 v1 的元数据。
     const old = await request(`/${script.id}`)
@@ -139,7 +149,7 @@ async function main() {
     console.error(errors); throw error
   } finally {
     ipcMain.removeListener(detachedChannels.packet, record)
-    stop(); manager.close(); dialog.showOpenDialog = originalOpen; dialog.showSaveDialog = originalSave
+    stop(); manager.close(); dialog.showOpenDialog = originalOpen; dialog.showSaveDialog = originalSave; shell.openPath = originalOpenPath
     for (const window of BrowserWindow.getAllWindows()) window.destroy()
   }
   app.quit()

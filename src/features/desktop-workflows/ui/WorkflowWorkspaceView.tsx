@@ -2,7 +2,7 @@ import { Alert, App, Button, ConfigProvider, Modal, Segmented } from 'antd'
 import { ChevronRight, Workflow } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Step } from '#entities/desktop-workflow'
+import type { Definition, Step } from '#entities/desktop-workflow'
 import type { WorkflowMediaGateway, WorkflowSurfaceModel } from '../model/workspace/types'
 import { copyStep, editStep, findStep, insertStep, moveStep, newStep } from '../model/steps'
 import { isRunActive } from '../model/messages'
@@ -27,7 +27,6 @@ import { useOCRDefaults } from './editor/useOCRDefaults'
 import { newOCRQuery } from '../model/ocr'
 import { WorkflowExchangeDialog } from './exchange/WorkflowExchangeDialog'
 import { WorkflowExportDialog } from './exchange/WorkflowExportDialog'
-import { workflowSummary } from '../model/exchange/summary'
 
 export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAction, onMediaTask, active = true, guided = false }: {
   model: WorkflowSurfaceModel; gateway: WorkflowMediaGateway; headerActions?: ReactNode; windowAction?: ReactNode; onMediaTask: (task: Promise<unknown>) => void
@@ -53,7 +52,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
   const root = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(1400)
   const [parametersOpen, setParametersOpen] = useState(false)
-  const [exportVersion, setExportVersion] = useState<{ number?: number; editingID: string }>()
+  const [exportVersion, setExportVersion] = useState<{ number: number; editingID: string; name: string; definition: Definition }>()
   const [analysisSlot, setAnalysisSlot] = useState<ImageSlot>('target')
   const [analysisTransfer, setAnalysisTransfer] = useState<AnalysisTransfer>()
   const catalogCollapsed = presentation.catalogCollapsed ?? width < 1100
@@ -82,10 +81,15 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
   const history = actions.history
   const restore = (version: number) => guard(() => { void actions.restore(version) })
   const openRun = actions.openRun
+  const openImport = state.exchange?.available ? () => { void actions.exchange?.({ kind: 'import' }) } : undefined
   const openExport = (number?: number) => {
     if (!draft?.script) return
     if (number === undefined && dirty) { void message.warning(t('desktopWorkflow.exchange.saveFirst')); return }
-    setExportVersion({ number, editingID: draft.editingID })
+    const version = number === undefined ? undefined : versions?.find(version => version.script_id === draft.script!.id && version.number === number)
+    const definition = number === undefined ? draft.definition : version?.definition
+    if (!definition) return
+    // 弹窗展示与最终导出绑定同一已保存版本，避免等待用户选择时草稿刷新改变目标。
+    setExportVersion({ number: number ?? draft.script.revision, editingID: draft.editingID, name: version?.name ?? draft.script.name, definition })
   }
   const remove = () => confirm({ title: t('desktopWorkflow.deleteScript'), content: t('desktopWorkflow.deleteHint'), okButtonProps: { danger: true }, onOk: actions.remove })
   const showRun = actions.showRun
@@ -107,13 +111,13 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
       </div>
     </header>
     <div className={styles.body} data-collapsed={catalogCollapsed || undefined} data-overlay={compact && !catalogCollapsed || undefined}>
-      <WorkflowCatalog onImport={state.exchange?.available ? () => { void actions.exchange?.({ kind: 'import' }) } : undefined} scripts={model.scripts} runs={model.runs} view={view} selectedScript={draft?.script?.id} selectedRun={selectedRun} busy={busy} loading={model.loading} collapsed={catalogCollapsed} onToggle={() => setCatalogPreference(!catalogCollapsed)} onCreate={() => { create(); if (compact) setCatalogPreference(true) }} onSelectScript={(id) => guard(() => { void load(id); if (compact) setCatalogPreference(true) })} onSelectRun={(id) => { showRun(id); if (compact) setCatalogPreference(true) }} queries={presentation.queries} runFilter={presentation.runFilter} onQueriesChange={queries => actions.presentation({ queries })} onRunFilterChange={runFilter => actions.presentation({ runFilter })} onRefresh={actions.refresh} />
+      <WorkflowCatalog scripts={model.scripts} runs={model.runs} view={view} selectedScript={draft?.script?.id} selectedRun={selectedRun} busy={busy} loading={model.loading} collapsed={catalogCollapsed} onToggle={() => setCatalogPreference(!catalogCollapsed)} onCreate={() => { create(); if (compact) setCatalogPreference(true) }} onSelectScript={(id) => guard(() => { void load(id); if (compact) setCatalogPreference(true) })} onSelectRun={(id) => { showRun(id); if (compact) setCatalogPreference(true) }} queries={presentation.queries} runFilter={presentation.runFilter} onQueriesChange={queries => actions.presentation({ queries })} onRunFilterChange={runFilter => actions.presentation({ runFilter })} onRefresh={actions.refresh} />
       {compact && !catalogCollapsed && <button type="button" className={styles['catalog-mask']} aria-label={t('desktopWorkflow.collapseLibrary')} onClick={() => setCatalogPreference(true)} />}
       <main className={styles.main} inert={compact && !catalogCollapsed}>
         {view === 'scripts' ? draft ? <>
           {ocrDefaults.error != null && <Alert type="warning" title={t('desktopWorkflow.ocr.settingsFailed')} action={<Button onClick={ocrDefaults.refresh}>{t('app.retry')}</Button>} />}
           {externallyUpdated && <Alert type="info" title={t('desktopWorkflow.externalUpdate')} description={t('desktopWorkflow.externalUpdateHint')} action={<Button size="small" disabled={busy} onClick={() => guard(() => void load(draft!.script!.id))}>{t('desktopWorkflow.loadLatest')}</Button>} />}
-          <WorkflowEditorToolbar key={draft.editingID} name={draft.name} description={draft.description} tags={draft.tags} revision={draft.script?.revision} parameterCount={draft.definition.parameters.length} dirty={dirty} busy={busy} onChange={change} onSave={() => void save()} onValidate={() => void validate()} onRun={openRun} onParameters={() => setParametersOpen(true)} onHistory={() => void history()} onExport={state.exchange?.available ? () => openExport() : undefined} onCopy={() => guard(() => actions.copy(t('desktopWorkflow.copyName', { name: draft.name })))} onRemove={remove} />
+          <WorkflowEditorToolbar key={draft.editingID} name={draft.name} description={draft.description} tags={draft.tags} revision={draft.script?.revision} parameterCount={draft.definition.parameters.length} dirty={dirty} busy={busy} onChange={change} onSave={() => void save()} onValidate={() => void validate()} onRun={openRun} onParameters={() => setParametersOpen(true)} onHistory={() => void history()} onImport={openImport} onExport={state.exchange?.available ? () => openExport() : undefined} exchangeBusy={state.exchange?.busy} onCopy={() => guard(() => actions.copy(t('desktopWorkflow.copyName', { name: draft.name })))} onRemove={remove} />
           <WorkflowEditorLayout width={editorWidth} busy={busy} presentation={presentation} onPresentation={actions.presentation} properties={properties}
             chain={(onCollapse, onSelected) => <StepTree steps={draft.definition.steps} selected={selected} onCollapse={onCollapse} onSelect={id => { actions.selectStep(id); onSelected() }}
               foldedSteps={presentation.foldedSteps ?? []} onFoldChange={foldedSteps => actions.presentation({ foldedSteps })}
@@ -129,14 +133,14 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
           </WorkflowEditorLayout>
           {parametersOpen && <ParameterDialog value={draft.definition.parameters} onSave={(parameters) => change({ definition: { ...draft.definition, parameters } })} onClose={() => setParametersOpen(false)} />}
           {model.execution.launch && <RunDialogView launch={model.execution.launch} environment={model.environment} onTargetChange={actions.target} onChange={actions.changeRun} onSubmit={actions.start} onClose={actions.closeRun} />}
-        </> : <div className={styles['overview-scroll']}><WorkflowOverview scriptCount={model.scripts.length} runs={model.runs} onCreate={create} onRun={showRun} /></div> : null}
+        </> : <div className={styles['overview-scroll']}><WorkflowOverview scriptCount={model.scripts.length} runs={model.runs} busy={busy || state.exchange?.busy} onCreate={create} onImport={openImport} onRun={showRun} /></div> : null}
         {/* 保留未确认控制请求的标识；隐藏报告只暂停读取，不取消远端执行。 */}
         <RunReportView gateway={gateway} id={selectedRun} report={model.execution.report} active={view === 'runs'} onControl={actions.control} onRefresh={actions.refreshReport} onView={actions.viewDesktop}
           expansion={state.presentation.reportExpansion} onExpansionChange={reportExpansion => actions.presentation({ reportExpansion })} />
       </main>
     </div>
     <WorkflowExchangeDialog model={model} gateway={gateway} guard={guard} />
-    {exportVersion && exportVersion.editingID === draft?.editingID && <WorkflowExportDialog hasAssets={workflowSummary(exportVersion.number === undefined ? draft?.definition : versions?.find(v => v.number === exportVersion.number)?.definition).hasAssets}
+    {exportVersion && exportVersion.editingID === draft?.editingID && <WorkflowExportDialog name={exportVersion.name} revision={exportVersion.number} definition={exportVersion.definition}
       onClose={() => setExportVersion(undefined)} onExport={layout => { void actions.exchange?.({ kind: 'export', version: exportVersion.number, layout }); setExportVersion(undefined) }} />}
     <Modal open={!!versions} title={t('desktopWorkflow.history')} footer={null} onCancel={actions.closeHistory}><div className={styles['version-list']}>{versions?.map((version) => <div key={version.number}><strong>v{version.number}</strong>{state.exchange?.available && <Button disabled={busy || state.exchange.busy} onClick={() => openExport(version.number)}>{t('desktopWorkflow.exchange.export')}</Button>}<span>{workflowAuthor(version.author, t)} · {new Date(version.created_at).toLocaleString()}</span><Button disabled={busy || version.number === draft?.script?.revision} onClick={() => restore(version.number)}>{t('desktopWorkflow.restore')}</Button></div>)}</div></Modal>
   </div></ConfigProvider>
