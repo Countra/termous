@@ -3,8 +3,10 @@ import { createIntegrationFixture } from '../integrations/fixture'
 import { PreviewMcpProvider } from './PreviewMcpProvider'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { useTranslation } from 'react-i18next'
 import { presentationDefaults } from '@termous/remote-protocol/presentation'
 import '#shared/styles'
+import type { PageKey } from '#shared/model'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { SettingsDialog } from '#pages/settings'
 import { AppShell } from '#app/app-shell'
@@ -108,7 +110,9 @@ const previewUpdateRuntime: UpdatePreferencesRuntime = {
 }
 
 export function Preview() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(true)
+  const [page, setPage] = useState<PageKey>('workbench')
   const [collapsed, setCollapsed] = useState(false)
   const [appearance, setAppearance] = useState({ theme: new URLSearchParams(location.search).has('light') ? 'light' as const : 'dark' as const })
   const [language, setLanguage] = useState<'zh-CN' | 'en-US'>(new URLSearchParams(location.search).has('en') ? 'en-US' : 'zh-CN')
@@ -120,12 +124,12 @@ export function Preview() {
     <ShortcutRuntimeContextProvider value={shortcuts}>
       <UpdateRuntimeContext.Provider value={updates}>
       <PreviewMcpProvider>
-      <AppShell page="workbench" appVersion="0.0.0-preview" windowCloseBehavior="exit" sidebarCollapsed={collapsed}
+      <AppShell page={page} appVersion="0.0.0" windowCloseBehavior="exit" sidebarCollapsed={collapsed}
         contentInert={open}
-        actionBusy={false} onNavigate={target => { if (target === 'settings') setOpen(true) }}
+        actionBusy={false} onNavigate={target => { if (target === 'settings') setOpen(true); else setPage(target) }}
         onOpenConnectionLauncher={() => undefined} onOpenLocalTerminal={() => undefined}
         onOpenProductTour={() => undefined} onToggleSidebar={() => setCollapsed(value => !value)}>
-        <WorkspaceEmptyState icon={<SquareTerminal size={24} />} title="工作站" description="连接主机，开始终端会话" />
+        <WorkspaceEmptyState icon={<SquareTerminal size={24} />} title={t(`nav.${page}`)} description={language === 'zh-CN' ? '导航交互预览' : 'Navigation preview'} />
       </AppShell>
         <SettingsDialog open={open} onClose={() => setOpen(false)} initialTab={new URLSearchParams(location.search).has('connection') ? 'connection' : new URLSearchParams(location.search).has('extensions') ? 'extensions' : new URLSearchParams(location.search).has('models') ? 'models' : 'agent'} settingsGateway={gateway} language={language} appearanceSettings={appearance}
           terminalSettings={terminal} sshSmoothScrollEnabled={false} completionSettings={completion}

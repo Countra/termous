@@ -17,12 +17,8 @@
   }
 }
 
-.is-collapsed {
-  grid-template-columns: var(--sidebar-collapsed) minmax(0, 1fr);
-}
-
 .app-shell.is-collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-collapsed) minmax(0, 1fr);
 }
 
 .sidebar {
@@ -39,16 +35,18 @@
 .brand-row {
   position: relative;
   display: flex;
-  align-items: center;
+  flex: 0 0 68px;
+  align-items: flex-start;
   gap: 10px;
-  min-height: 44px;
-  padding: 2px 4px 14px;
+  height: 68px;
+  padding: 0 4px 12px;
 }
 
 .brand-mark {
   display: grid;
   width: 32px;
   height: 32px;
+  flex: 0 0 32px;
   place-items: center;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, #fff 76%, var(--border));
@@ -70,6 +68,7 @@
   display: flex;
   flex: 1;
   min-width: 0;
+  height: 32px;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
@@ -77,6 +76,7 @@
 }
 
 .brand-copy strong {
+  max-width: 140px;
   overflow: hidden;
   font-size: 14px;
   letter-spacing: 0;
@@ -86,65 +86,69 @@
 }
 
 .app-shell.is-collapsed .brand-copy {
-  display: flex;
   flex: 0 0 auto;
-  align-items: center;
+  height: 20px;
+  gap: 0;
 }
 
 .app-shell.is-collapsed .brand-copy strong {
-  display: none;
-}
-
-.app-shell.is-collapsed .sidebar {
-  align-items: center;
-  padding-inline: 8px;
+  max-width: 0;
+  visibility: hidden;
 }
 
 .app-shell.is-collapsed .brand-row {
   width: 100%;
   flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  padding: 2px 0 14px;
+  align-items: center;
+  gap: 4px;
+  padding-inline: 0;
 }
 
 .primary-nav {
-  display: grid;
-  flex: 1;
-  align-content: start;
-  gap: 3px;
-}
+  --nav-row-height: 42px;
+  --nav-row-gap: 4px;
 
-.app-shell.is-collapsed .primary-nav {
-  width: 100%;
-  justify-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  align-content: start;
+  gap: var(--nav-row-gap);
 }
 
 .nav-item:global(.ant-btn) {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
-  height: 38px;
-  min-height: 40px;
-  border: 0;
-  border-radius: 9px;
+  min-width: 0;
+  height: var(--nav-row-height);
+  min-height: var(--nav-row-height);
+
+  // 与组件库悬停边框保持同宽，防止图标在状态切换时横向偏移。
+  border: 1px solid transparent;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 0 10px;
+  box-shadow: none;
+  padding: 0 12px;
+  overflow: hidden;
   text-align: left;
+  font-weight: 500;
   transition:
-    transform 0.12s ease,
-    background 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease;
+    background-color 0.18s ease-out,
+    color 0.18s ease-out;
 }
 
 .nav-item:global(.ant-btn) > :global(.ant-btn-icon) {
+  display: inline-flex;
   flex: 0 0 auto;
+  color: var(--text-secondary);
+  transition: color 0.18s ease-out;
 }
 
 .nav-item:global(.ant-btn) > :global(span:not(.ant-btn-icon)) {
@@ -154,73 +158,67 @@
   white-space: nowrap;
 }
 
-.nav-item:global(.ant-btn):hover,
-.nav-item.is-active:global(.ant-btn) {
-  background: var(--nav-active-bg);
+.nav-item:global(.ant-btn):hover {
+  background: color-mix(in srgb, var(--nav-active-bg) 65%, transparent);
   color: var(--text-primary);
-  box-shadow: var(--inner-highlight);
 }
 
-.nav-item:global(.ant-btn):active {
-  transform: translateY(1px);
+.nav-item:global(.ant-btn):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .nav-item.is-active:global(.ant-btn) {
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: transparent;
+  color: var(--text-primary);
 }
 
-.app-shell.is-collapsed .nav-item:global(.ant-btn) {
-  position: relative;
-  justify-content: center;
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  min-height: 44px;
-  border-radius: 14px;
-  padding: 0;
-  overflow: visible;
-  box-shadow: none;
+// 底色独立淡变，避免与悬停背景叠用同一过渡而削弱选中反馈。
+.nav-item:global(.ant-btn)::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--nav-active-bg) 70%, var(--accent-soft));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.app-shell.is-collapsed .nav-item:global(.ant-btn) > :global(.ant-btn-icon) {
-  display: inline-flex;
-  margin-inline-end: 0;
+// 竖线在当前条目内展开，展开和折叠侧栏使用相同反馈。
+.nav-item:global(.ant-btn)::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(50% - 8px);
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transform: scaleY(0.5);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.app-shell.is-collapsed .nav-item:global(.ant-btn) > :global(.ant-btn-icon) svg {
-  width: 19px;
-  height: 19px;
+.nav-item.is-active:global(.ant-btn)::after,
+.nav-item.is-active:global(.ant-btn)::before {
+  opacity: 1;
+}
+
+.nav-item.is-active:global(.ant-btn)::before {
+  transform: scaleY(1);
+}
+
+.nav-item.is-active:global(.ant-btn) > :global(.ant-btn-icon) {
+  color: var(--accent);
 }
 
 .app-shell.is-collapsed .nav-item:global(.ant-btn) > :global(span:not(.ant-btn-icon)) {
-  display: none;
-}
-
-.app-shell.is-collapsed .nav-item:global(.ant-btn):hover {
-  background: color-mix(in srgb, var(--nav-active-bg) 86%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 72%, transparent),
-    0 10px 22px rgb(0 0 0 / 10%);
-}
-
-.app-shell.is-collapsed .nav-item.is-active:global(.ant-btn) {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--nav-active-bg) 88%, #fff 4%), var(--nav-active-bg));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, var(--border)),
-    0 12px 24px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.app-shell.is-collapsed .nav-item.is-active:global(.ant-btn)::before {
-  content: "";
-  position: absolute;
-  top: 12px;
-  left: -5px;
-  width: 3px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 48%, transparent);
+  visibility: hidden;
 }
 
 .sidebar-footer {
@@ -683,6 +681,15 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--accent) 11%, var(--surface-strong) 89%);
   color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item:global(.ant-btn),
+  .nav-item:global(.ant-btn)::after,
+  .nav-item:global(.ant-btn)::before,
+  .nav-item:global(.ant-btn) > :global(.ant-btn-icon) {
+    transition: none;
+  }
 }
 
 @media (width <= 760px) {
