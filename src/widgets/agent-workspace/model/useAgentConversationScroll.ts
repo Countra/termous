@@ -82,9 +82,10 @@ export function useAgentConversationScroll({ active, sessionKey, presentation, c
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport || !active && !viewport.getClientRects().length) return
-    // 观察正文容器，而非前置的加载按钮；每个视图只保留一个跟随观察器。
+    // 正文增长和输入区挤压视口都需补齐尾部；每个视图共用一个尺寸观察器。
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(scheduleFollow)
     if (contentRef.current) observer?.observe(contentRef.current)
+    observer?.observe(viewport)
     return () => { observer?.disconnect(); cancelFrame() }
   }, [active, cancelFrame, scheduleFollow])
 
@@ -94,12 +95,13 @@ export function useAgentConversationScroll({ active, sessionKey, presentation, c
     if (pendingRestore.current && viewport.scrollTop === lastTop.current) return
     const movedUp = viewport.scrollTop < lastTop.current - 1
     const atEnd = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 2
-    // 取消跟随取决于上滚意图，恢复跟随必须真正到达末尾，不能用宽阈值拉回用户。
-    if (movedUp || !atEnd) pause()
-    else if (following.current || viewport.scrollTop > lastTop.current) {
+    // 内容增长会暂时拉开底部距离，折叠内容也可能向上钳制位置，这些布局变化不代表上滚意图。
+    if (movedUp && !atEnd) pause()
+    else if (atEnd && (following.current || viewport.scrollTop > lastTop.current)) {
       following.current = true
       setShowJumpToLatest(false)
     }
+    if (following.current && !atEnd) scheduleFollow()
     lastTop.current = viewport.scrollTop
     if (presentation) {
       const top = viewport.getBoundingClientRect().top

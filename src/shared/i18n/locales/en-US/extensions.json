@@ -1,5 +1,9 @@
 {
   "title": "Extensions",
+  "picker": {
+    "title": "Conversation extensions",
+    "loadFailed": "Could not load extensions"
+  },
   "description": "Manage MCP connections, skills and web search for the assistant.",
   "addMCP": "Add MCP",
   "editMCP": "Edit MCP",
@@ -122,7 +126,7 @@
   "binaryFile": "This file cannot be previewed as text.",
   "rememberSession": "Allow this tool from this source for this conversation",
   "sessionEnabled": "Available in this conversation",
-  "selectSkill": "Select this skill for new tasks",
+  "selectSkill": "Use for new tasks",
   "enableInSettings": "Enable this source in Extensions first",
   "reconnect": "Reconnect",
   "reconnectConfirm": "Reconnect this source? Existing temporary handles may expire. Active operations will finish before their connection closes.",

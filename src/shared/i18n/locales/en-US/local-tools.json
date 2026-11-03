@@ -1,6 +1,12 @@
 {
   "title": "Local tools",
   "directory": "Working directory",
+  "workspace": "Workspace",
+  "managedDirectory": "Default",
+  "customDirectory": "Custom",
+  "applyDirectory": "Apply",
+  "loadFailed": "Could not load the working directory",
+  "chooseFailed": "Could not choose a directory",
   "absolutePath": "Enter an absolute local directory path",
   "directoryHint": "Relative paths use this directory. Absolute paths are not restricted to it.",
   "runningDirectory": "You can change the directory when the current task finishes.",

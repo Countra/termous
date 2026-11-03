@@ -1,5 +1,7 @@
 import type { AgentWorkspaceGateway } from '#features/agent-runtime'
-import type { AgentAttachment, AgentSession } from '#entities/agent'
+import type { AgentAttachment, AgentLocalDirectory, AgentSession } from '#entities/agent'
+import type { IntegrationPolicy } from '#entities/agent-integrations'
+import { createIntegrationFixture } from '../integrations/fixture.ts'
 import { agentMessageFixture, agentRunFixture, agentSessionFixture, agentTextPartFixture } from '../../src/features/agent-runtime/model/agentRuntimeTestFixtures.ts'
 import { modelFixture, providerFixture, readinessFixture } from './detachedFixtureData.ts'
 
@@ -21,6 +23,13 @@ export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' |
     host_name: '验收主机', platform: 'linux', bound_at: '2026-08-29T00:00:00Z',
   }]
   const files = new Map<string, File>()
+  const directories = new Map<string, AgentLocalDirectory>()
+  const integrations = createIntegrationFixture()
+  const policies = new Map<string, IntegrationPolicy[]>()
+  integrations.policies = async id => structuredClone(policies.get(id) ?? [])
+  integrations.setPolicy = async (id, policy) => {
+    policies.set(id, [...(policies.get(id) ?? []).filter(value => value.source_id !== policy.source_id), structuredClone(policy)])
+  }
   let run = runStatus ? agentRunFixture({ session_id: 'session-one', model_id: 'model-one', status: runStatus }) : undefined
   const messages = [agentMessageFixture({ id: 'message-user', session_id: 'session-one', role: 'user', status: 'completed', sequence: 1,
     parts: [agentTextPartFixture({ text: '帮我整理这台主机的检查顺序，先不要执行任何命令。' })] }),
@@ -36,6 +45,13 @@ export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' |
     }))
   }
   const methods: Partial<AgentWorkspaceGateway> = {
+    localDirectory: async id => structuredClone(directories.get(id) ?? { path: `D:/Termous/workspaces/${id}`, managed: true, revision: 1 }),
+    setLocalDirectory: async (id, path, revision) => {
+      if (revision !== (directories.get(id)?.revision ?? 1)) throw new Error('合成目录版本已变化')
+      const value = { path, managed: false, revision: revision + 1 }
+      directories.set(id, value)
+      return structuredClone(value)
+    },
     runtimeOwnedByHost: true,
     subscribeWorkspace: observer => { const timer = setTimeout(() => { observer.open(); observer.event({ type: 'snapshot', revision: 1, sessions, active_runs: run && run.status !== 'cancelled' ? [run] : [] }) }, 5); return { close: () => clearTimeout(timer) } },
     run: async id => {
@@ -75,7 +91,7 @@ export function createDetachedFixture(scenario = 'ready', runStatus?: 'queued' |
     if (property in target) return target[property as keyof typeof target]
     return () => Promise.reject(new Error(`未实现的验收操作：${String(property)}`))
   } }) as AgentWorkspaceGateway
-  return { gateway, setup: {
+  return { gateway, integrations, setup: {
     readiness: async () => {
       if (scenario === 'loading') await new Promise(resolve => setTimeout(resolve, 2500))
       if (failRead) { failRead = false; throw new Error('合成状态读取失败') }

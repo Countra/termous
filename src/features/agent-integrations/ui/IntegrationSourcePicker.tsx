@@ -1,67 +1,83 @@
-import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Popover, Space, Spin, Switch, Tabs, Tag, Tooltip } from 'antd'
-import { Blocks } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Button, Input, Spin, Tooltip } from 'antd'
+import { Blocks, BookOpen, Search, Unplug, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { IntegrationPolicy, IntegrationSelection } from '#entities/agent-integrations'
-import styles from './AssistantExtensions.module.scss'
-import { IntegrationEmptyState } from './IntegrationEmptyState'
+import { FeedbackMessage, FeedbackMessageScope, FilterPopover, McpIcon, uiStyles } from '#shared/ui'
+import { useIntegrationSelection } from '../model/useIntegrationSelection'
+import { IntegrationPickerItem } from './IntegrationPickerItem'
+import styles from './IntegrationSourcePicker.module.scss'
 
-export function IntegrationSourcePicker({sessionKey,read,change,disabled}: {
-  sessionKey:string;read?:()=>Promise<IntegrationSelection>;change?:(policy:IntegrationPolicy)=>Promise<void>;disabled?:boolean
+export function IntegrationSourcePicker({ sessionKey, read, change, disabled, active = true }: {
+  sessionKey: string
+  read?: () => Promise<IntegrationSelection>
+  change?: (policy: IntegrationPolicy) => Promise<void>
+  disabled?: boolean
+  active?: boolean
 }) {
-  const { t }=useTranslation()
-  const [open,setOpen]=useState(false)
-  const [kind,setKind]=useState('mcp')
-  const [data,setData]=useState<IntegrationSelection>()
-  const [busy,setBusy]=useState(false)
-  const [error,setError]=useState('')
-  const epoch = useRef(0)
-  const mutation = useRef(false)
-  const mutationRevision = useRef(0)
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [kind, setKind] = useState<'mcp' | 'skill'>('mcp')
+  const [query, setQuery] = useState('')
+  const id = useId()
+  const tabs = useRef<Array<HTMLButtonElement | null>>([])
+  const visible = active && open && !disabled
+  const selection = useIntegrationSelection({ sessionKey, open: visible, read, change, fallbackError: t('extensions.failed') })
   useEffect(() => {
-    const readEpoch = ++epoch.current
-    mutation.current = false
-    setData(undefined);setBusy(false)
-    if (!open || !read) return
-    let active=true
-    let timer: ReturnType<typeof setTimeout> | undefined
-    setBusy(true);setError('')
-    const refresh = async () => {
-      const revision = mutationRevision.current
-      try { const value = await read(); if (active && !mutation.current && revision === mutationRevision.current) setData(value) }
-      catch (error) { if (active) setError(error instanceof Error ? error.message : t('extensions.failed')) }
-      finally { if (active) { if (!mutation.current) setBusy(false); timer = setTimeout(() => void refresh(), 2000) } }
-    }
-    void refresh()
-    return () => {active=false;clearTimeout(timer);epoch.current=readEpoch+1}
-  },[open,sessionKey,read,t])
-  const update=async (policy:IntegrationPolicy) => {
-    if (!change || busy || mutation.current) return
-    const currentEpoch = epoch.current
-    mutation.current = true
-    mutationRevision.current++
-    setBusy(true);setError('')
-    try {await change(policy);if (epoch.current === currentEpoch) setData(current => current && {...current,policies:[...current.policies.filter(value => value.source_id!==policy.source_id),policy]})}
-    catch(error) {if (epoch.current === currentEpoch) setError(error instanceof Error ? error.message : t('extensions.failed'))}
-    finally {if (epoch.current === currentEpoch) {mutation.current = false;setBusy(false)}}
-  }
+    if (!active) { setOpen(false); setQuery('') }
+  }, [active])
   if (!read || !change) return null
-  return <Popover open={open && !disabled} onOpenChange={setOpen} trigger="click" placement="topLeft" destroyOnHidden content={<div className={styles.picker}>
-    <Tabs activeKey={kind} onChange={setKind} items={[{key:'mcp',label:'MCP'},{key:'skill',label:'Skills'}]}/>
-    <Spin spinning={busy}><div className={styles['picker-items']}>
-      {data?.sources.filter(source => source.kind===kind).map(source => {
-        const policy=data.policies.find(policy => policy.source_id===source.id) ?? {source_id:source.id,disabled:false}
-        return <div className={styles['picker-item']} key={source.id}><Space><Switch size="small" checked={source.enabled && !policy.disabled} disabled={!source.enabled || busy}
-          aria-label={`${t('extensions.sessionEnabled')} ${source.name}`} onChange={checked => void update({...policy,disabled:!checked})}/><strong>{source.name}</strong></Space>
-          {source.kind==='skill' && <Checkbox disabled={!source.enabled || policy.disabled || busy} checked={Boolean(source.version && policy.skill_version===source.version)}
-            onChange={event => void update({...policy,skill_version:event.target.checked ? source.version : ''})}>{t('extensions.selectSkill')}</Checkbox>}
-          {!source.enabled && <span className={styles.muted}>{t('extensions.enableInSettings')}</span>}
-          {source.kind === 'mcp' && source.connection && <Tag>{t(`mcpPreparation.connectionStates.${source.connection}`)}</Tag>}
+  const sources = selection.data?.sources.filter(source => source.kind === kind) ?? []
+  const search = query.trim().toLocaleLowerCase()
+  const filtered = sources.filter(source => !search || `${source.name} ${source.description ?? ''}`.toLocaleLowerCase().includes(search))
+  const changeOpen = (value: boolean) => { setOpen(value); if (!value) setQuery('') }
+
+  return <FeedbackMessageScope scope={`session-extensions:${sessionKey}`} active={visible}>
+    {selection.error && <FeedbackMessage type="error" title={t('extensions.failed')} description={selection.error} />}
+    <FilterPopover open={visible} onOpenChange={changeOpen} placement="topLeft" destroyOnHidden
+      content={<section className={styles.panel} aria-label={t('extensions.picker.title')}
+        onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); changeOpen(false) } }}>
+        <header className={styles.heading}>
+          <strong>{t('extensions.picker.title')}</strong>
+          <Button type="text" className={styles.close} icon={<X size={15} />} aria-label={t('app.close')} onClick={() => changeOpen(false)} />
+        </header>
+        <div className={styles.tabs} role="tablist" aria-label={t('extensions.picker.title')}>
+          {(['mcp', 'skill'] as const).map((value, index) => <button key={value} ref={element => { tabs.current[index] = element }}
+            type="button" role="tab" id={`${id}-${value}`} aria-controls={`${id}-list`} aria-selected={kind === value}
+            tabIndex={kind === value ? 0 : -1} onClick={() => { setKind(value); setQuery('') }}
+            onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              event.preventDefault()
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - index
+              setKind(next === 0 ? 'mcp' : 'skill'); setQuery(''); tabs.current[next]?.focus()
+            }}>
+            {value === 'mcp' ? <McpIcon size={15} /> : <BookOpen size={14} />}
+            {t(value === 'mcp' ? 'extensions.mcpTab' : 'extensions.skillTab')}
+            {selection.data && <small>{selection.data.sources.filter(source => source.kind === value).length}</small>}
+          </button>)}
         </div>
-      })}
-      {data && !data.sources.some(source=>source.kind===kind) && <IntegrationEmptyState kind={kind === 'mcp' ? 'mcp' : 'skill'}
-        title={t(kind === 'mcp' ? 'extensions.emptyMCP' : 'extensions.emptySkills')} description={t('extensions.emptySessionHint')} />}
-    </div></Spin>
-    {error && <Alert type="error" title={error} />}
-  </div>}><Tooltip title={t('extensions.title')}><Button type="text" icon={<Blocks size={15}/>} disabled={disabled} aria-label={t('extensions.title')}/></Tooltip></Popover>
+        {sources.length > 0 && <Input className={`${uiStyles['search-input']} ${styles.search}`} prefix={<Search size={14} />}
+          allowClear value={query} onChange={event => setQuery(event.target.value)}
+          aria-label={t('extensions.filter')} placeholder={t('extensions.filter')} />}
+        <div id={`${id}-list`} role="tabpanel" aria-labelledby={`${id}-${kind}`} aria-busy={selection.loading} className={styles.list}>
+          {selection.loading ? <div className={styles.empty}><Spin size="small" /><span>{t('extensions.loading')}</span></div>
+            : !selection.data ? <div className={styles.empty}><Unplug size={24} strokeWidth={1.4} />
+              <strong>{t('extensions.picker.loadFailed')}</strong>
+              <Button size="small" className={uiStyles['secondary-button']} onClick={selection.retry}>{t('extensions.preferences.retry')}</Button>
+            </div>
+              : filtered.length === 0 ? <div className={styles.empty}>
+                {search ? <Search size={24} strokeWidth={1.4} /> : kind === 'mcp' ? <Unplug size={24} strokeWidth={1.4} /> : <BookOpen size={24} strokeWidth={1.4} />}
+                <strong>{t(search ? 'extensions.noMatches' : kind === 'mcp' ? 'extensions.emptyMCP' : 'extensions.emptySkills')}</strong>
+                <span>{t(search ? 'extensions.noMatchesHint' : 'extensions.emptySessionHint')}</span>
+              </div> : filtered.map(source => <IntegrationPickerItem key={source.id} source={source}
+                policy={selection.data!.policies.find(policy => policy.source_id === source.id) ?? { source_id: source.id, disabled: false }}
+                pending={selection.pending} update={selection.update} />)}
+        </div>
+      </section>}>
+      <Tooltip title={visible ? undefined : t('extensions.title')}>
+        <Button type="text" className={uiStyles['icon-action']} icon={<Blocks size={15} />}
+          disabled={disabled || !active} aria-label={t('extensions.title')} aria-expanded={visible} />
+      </Tooltip>
+    </FilterPopover>
+  </FeedbackMessageScope>
 }

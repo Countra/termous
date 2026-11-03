@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { agentResourceBindingKey } from '#entities/agent'
 import { IntegrationSourcePicker } from '#features/agent-integrations'
 import { LocalDirectoryPicker } from '#features/agent-local-tools'
+import { uiStyles } from '#shared/ui'
 import type {
   AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
@@ -482,8 +483,8 @@ export const AgentComposer = memo(function AgentComposer({
         />
         <div className={styles['composer-actions']}>
           <div className={styles['composer-secondary-actions']}>
-            <IntegrationSourcePicker sessionKey={sessionKey} read={onReadIntegrations} change={onChangeIntegration} disabled={disabled} />
-            <LocalDirectoryPicker sessionKey={sessionKey} read={onReadLocalDirectory} change={onChangeLocalDirectory} disabled={disabled} running={active} />
+            <IntegrationSourcePicker sessionKey={sessionKey} read={onReadIntegrations} change={onChangeIntegration} disabled={disabled} active={paneActive} />
+            <LocalDirectoryPicker sessionKey={sessionKey} read={onReadLocalDirectory} change={onChangeLocalDirectory} disabled={disabled} running={active} active={paneActive} />
             <>
                 <input
                   ref={fileInputRef}
@@ -500,7 +501,7 @@ export const AgentComposer = memo(function AgentComposer({
                 <Tooltip title={t('agent.attachments.add')}>
                   <Button
                     type="text"
-                    className={styles['composer-attachment-action']}
+                    className={uiStyles['icon-action']}
                     aria-label={t('agent.attachments.add')}
                     icon={<Paperclip size={15} />}
                     disabled={attachmentInputDisabled}

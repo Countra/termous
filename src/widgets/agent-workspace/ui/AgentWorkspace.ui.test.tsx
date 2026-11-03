@@ -1,4 +1,4 @@
-import { App as AntdApp } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,27 @@ describe('AgentWorkspace', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(props.onRemoveResourceBinding).not.toHaveBeenCalled()
     expect(screen.getByPlaceholderText('agent.composer.placeholder')).toHaveValue('保留用户草稿')
+  })
+
+  it.each(['extensions.title', 'localTools.workspace'])('助手页隐藏时收起 %s，返回后不恢复旧弹层', async name => {
+    const props = fixtureProps({
+      composerActive: true,
+      onReadIntegrations: vi.fn(async () => ({ sources: [], policies: [] })),
+      onChangeIntegration: vi.fn(async () => {}),
+      onReadLocalDirectory: vi.fn(async () => ({ path: 'D:/workspace', revision: 1, managed: true })),
+      onChangeLocalDirectory: vi.fn(),
+    })
+    const view = render(<AgentWorkspace {...props} />, {
+      wrapper: ({ children }) => <ConfigProvider theme={{ token: { motion: false } }}><AntdApp>{children}</AntdApp></ConfigProvider>,
+    })
+    fireEvent.click(screen.getByRole('button', { name }))
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
+    view.rerender(<AgentWorkspace {...props} composerActive={false} />)
+    await waitFor(() => expect(screen.queryByRole('region', {
+      name: name === 'extensions.title' ? 'extensions.picker.title' : 'localTools.workspace',
+    })).not.toBeInTheDocument())
+    view.rerender(<AgentWorkspace {...props} composerActive />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('将立即连接策略传递至 SSH Profile 资源卡换绑入口', async () => {

@@ -24,7 +24,7 @@ export function DetachedPreview() {
       </nav>
       <div style={{ position: 'relative', minHeight: 0, padding: 12 }}>
         <div style={{ height: '100%', display: active ? 'block' : 'none' }} inert={!active}>
-          <AgentPage gateway={fixture.gateway} setupGateway={fixture.setup} enabled active={active} sshResourcesReady
+          <AgentPage gateway={fixture.gateway} integrationsGateway={fixture.integrations} setupGateway={fixture.setup} enabled active={active} sshResourcesReady
             appearance={{ theme, language }} onOpenSettings={() => setActive(false)}
             onReturnToPage={() => active ? Promise.resolve(true) : new Promise<boolean>(resolve => setConfirm({ resolve }))} />
         </div>

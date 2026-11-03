@@ -1,6 +1,12 @@
 {
   "title": "本地工具",
   "directory": "工作目录",
+  "workspace": "工作区",
+  "managedDirectory": "默认目录",
+  "customDirectory": "自选目录",
+  "applyDirectory": "应用",
+  "loadFailed": "无法读取工作目录",
+  "chooseFailed": "无法选择目录",
   "absolutePath": "输入本机目录的完整路径",
   "directoryHint": "相对路径以此目录为准，不限制绝对路径的访问范围。",
   "runningDirectory": "当前任务结束后可以更换目录。",
