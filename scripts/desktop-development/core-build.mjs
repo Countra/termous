@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { captureBuildEnvironment } from './native-build.mjs'
 
 // 稳定的开发产物位置使 macOS 权限归属不随 go run 临时目录变化。
 export async function buildDevelopmentCore({ workspace, env, run, platform = process.platform, arch = process.arch, includeDaemon = false }) {
@@ -8,8 +9,9 @@ export async function buildDevelopmentCore({ workspace, env, run, platform = pro
   await mkdir(directory, { recursive: true })
   const suffix = platform === 'win32' ? '.exe' : ''
   const tags = env.TERMOUS_DESKTOP_CAPTURE_NATIVE === '0' ? [] : ['-tags=desktopcapture_native']
+  const buildEnv = await captureBuildEnvironment({ workspace, env, run, platform, arch })
   for (const name of ['termous-desktop', 'termous-core']) {
-    await run('go', ['build', ...tags, '-o', path.join(directory, name + suffix), `./cmd/${name}`])
+    await run('go', ['build', ...tags, '-o', path.join(directory, name + suffix), `./cmd/${name}`], { env: buildEnv })
   }
   if (includeDaemon && platform === 'win32') {
     await buildDevelopmentDaemon({ workspace, env, run, platform, arch })
@@ -17,7 +19,7 @@ export async function buildDevelopmentCore({ workspace, env, run, platform = pro
     for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
       sha256[name] = createHash('sha256').update(await readFile(path.join(directory, name))).digest('hex')
     }
-    await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 1, build_version: 'development', sha256 }, null, 2) + '\n')
+    await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: 'development', sha256 }, null, 2) + '\n')
   }
   return path.join(directory, `termous-core${suffix}`)
 }

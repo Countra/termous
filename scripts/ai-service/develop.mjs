@@ -18,13 +18,19 @@ const signals = ['SIGINT', 'SIGTERM'].map(signal => {
   process.on(signal, stop)
   return [signal, stop]
 })
-const run = (command, parameters) => new Promise((resolve, reject) => {
+const run = (command, parameters, options = {}) => new Promise((resolve, reject) => {
   if (interrupted) { reject(new Error('开发启动已取消')); return }
-  child = spawn(command, parameters, { cwd: path.join(workspace, backend ? 'backend' : 'web'), env, stdio: 'inherit', windowsHide: true })
+  let output = ''
+  child = spawn(command, parameters, { cwd: path.join(workspace, backend ? 'backend' : 'web'), env: options.env ?? env,
+    stdio: options.captureOutput ? ['ignore', 'pipe', 'inherit'] : 'inherit', windowsHide: true })
+  if (options.captureOutput) {
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', chunk => { output += chunk })
+  }
   child.once('error', reject)
   child.once('close', code => {
     child = null
-    if (code === 0) resolve()
+    if (code === 0) resolve(output)
     else reject(Object.assign(new Error(`开发进程退出：${code ?? 'signal'}`), { exitCode: code ?? 1 }))
   })
 })

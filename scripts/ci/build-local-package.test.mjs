@@ -564,7 +564,7 @@ async function writeCompleteFixture({
     for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
       sha256[name] = (await hashRegularFile(path.join(applicationDirectory, name))).sha256
     }
-    await writeFile(path.join(applicationDirectory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 1, build_version: version, sha256 }))
+    await writeFile(path.join(applicationDirectory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: version, sha256 }))
   }
   const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
   await mkdir(rdpLicenses, { recursive: true })

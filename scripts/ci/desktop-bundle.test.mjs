@@ -16,7 +16,7 @@ async function fixture(t) {
     await writeFile(path.join(directory, name), `fixture:${name}`)
     sha256[name] = createHash('sha256').update(`fixture:${name}`).digest('hex')
   }
-  await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 1, build_version: version, sha256 }))
+  await writeFile(path.join(directory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 2, build_version: version, sha256 }))
   return directory
 }
 
@@ -26,7 +26,7 @@ test('完整配套产物通过流式摘要校验', async t => {
 
 for (const [name, change] of [
   ['空对象', () => ({})],
-  ['错误协议', b => ({ ...b, protocol_version: 2 })],
+  ['错误协议', b => ({ ...b, protocol_version: 1 })],
   ['错误构建版本', b => ({ ...b, build_version: 'development' })],
   ['额外顶层字段', b => ({ ...b, other: true })],
   ['缺失摘要', b => { delete b.sha256['termous-desktopd.exe']; return b }],

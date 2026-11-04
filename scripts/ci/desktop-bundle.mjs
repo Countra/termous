@@ -25,7 +25,7 @@ export async function validateDesktopBundle(directory, version) {
     throw new Error('桌面组件配套清单不是有效 JSON', { cause })
   }
   if (!exactKeys(bundle, ['protocol_version', 'build_version', 'sha256'])
-    || bundle.protocol_version !== 1 || bundle.build_version !== version
+    || bundle.protocol_version !== 2 || bundle.build_version !== version
     || typeof bundle.build_version !== 'string' || bundle.build_version.length > 128
     || !exactKeys(bundle.sha256, binaries)) {
     throw new Error('桌面组件配套清单格式、协议或构建版本不匹配')
