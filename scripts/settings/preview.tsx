@@ -33,7 +33,8 @@ const disconnectClipboard = systemClipboardCapabilities.connect({
 let readiness: AgentReadiness = {
   status: 'ready', mcp_runtime: { status: 'ready', message: '' }, mcp_client: { status: 'ready', message: '' },
   skills_bundle: { status: 'ready', message: '' }, default_model: { status: 'ready', message: '' },
-  mcp_policy: { client_id: 'preview', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 },
+  mcp_policy: { client_id: 'preview', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1,
+    host_desktop: { read: false, capture: false, control: false } },
   settings: { default_model_id: 'model-0', default_reasoning_level: 'off', global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
     max_concurrent_runs: 4, context_compaction_threshold_percent: 80, connect_ssh_profile_on_bind: false,
     show_turn_token_usage: true, execution_budget: defaultExecutionBudget, revision: 1, created_at: '', updated_at: '' },
@@ -48,7 +49,8 @@ const agentGateway: AgentSetupGateway = {
     return readiness.settings
   },
   updateMcpPolicy: async input => {
-    readiness = { ...readiness, mcp_policy: { ...readiness.mcp_policy!, approval_bypass: input.approval_bypass, revision: input.expected_revision + 1 } }
+    readiness = { ...readiness, mcp_policy: { ...readiness.mcp_policy!, approval_bypass: input.approval_bypass, revision: input.expected_revision + 1,
+      ...(input.host_desktop ? { host_desktop: input.host_desktop } : {}) } }
     return readiness.mcp_policy!
   },
 }

@@ -5590,7 +5590,7 @@
       "general": "界面、窗口行为与系统通知。",
       "shortcuts": "为常用操作设置快捷键。",
       "terminal": "调整终端显示与命令补全。",
-      "connection": "本地命令与 MCP 代理、SSH 保活和后台转发恢复。",
+      "connection": "网络代理、SSH 保活与后台转发重连。",
       "remote-desktop": "默认观看画质、RDP 桌面效果与连接会话设置。",
       "mount": "管理挂载缓存的位置与磁盘用量。",
       "agent": "统一配置默认模型、运行行为与任务限制。",
@@ -5965,10 +5965,16 @@
     "agent": {
       "hostDesktop": {
         "title": "本机桌面权限",
-        "description": "默认关闭。权限覆盖本机桌面，键盘输入影响当前系统焦点。跳过审批不会自动授予这些权限。",
-        "read": "发现显示器和窗口",
-        "capture": "读取桌面画面",
-        "control": "控制鼠标和键盘"
+        "description": "默认关闭，跳过审批也不会授予这些权限。",
+        "details": "权限说明",
+        "dependencies": "画面读取依赖桌面发现；鼠标与键盘控制依赖前两项。开关会同步调整。",
+        "read": "桌面发现",
+        "readHint": "列出本机显示器与窗口。",
+        "capture": "画面读取",
+        "captureHint": "获取桌面截图，查看屏幕内容。",
+        "control": "鼠标与键盘",
+        "controlHint": "允许点击、按键和文本输入。",
+        "focusHint": "键盘输入作用于当前活动窗口。"
       },
       "configuration": {
         "behavior": "运行行为",

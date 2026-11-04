@@ -1,15 +1,23 @@
 import type { SettingsSnapshot } from '#common/contracts'
 import type { SettingsGateway } from '#entities/settings'
 
-export type ExtensionPreferenceId = 'mcp_integrations' | 'web_search'
+export type ExtensionPreferenceId = 'mcp_integrations' | 'web_search' | 'local_network'
 export interface ExtensionPreferenceState {
   value?: Record<string, unknown>
   status: 'idle' | 'editing' | 'saving' | 'saved' | 'failed'
   error?: string
 }
 export const emptyExtensionPreference: ExtensionPreferenceState = { status: 'idle' }
-const difference = (value: Record<string, unknown>, base: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([key, item]) => item !== base[key]))
-const complete = (id: ExtensionPreferenceId, value: Record<string, unknown>) => id !== 'web_search' || value.mode === 'cloud' || typeof value.base_url === 'string' && Boolean(value.base_url.trim())
+// 确认快照会复制数组；直连清单按条目比较，避免相同内容被视为修改。
+const difference = (value: Record<string, unknown>, base: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([key, item]) => {
+  const previous = base[key]
+  return item !== previous && !(Array.isArray(item) && Array.isArray(previous)
+    && item.length === previous.length && item.every((entry, index) => entry === previous[index]))
+}))
+const complete = (id: ExtensionPreferenceId, value: Record<string, unknown>) => {
+  if (id === 'local_network') return !value.enabled || typeof value.url === 'string' && Boolean(value.url.trim())
+  return id !== 'web_search' || value.mode === 'cloud' || typeof value.base_url === 'string' && Boolean(value.base_url.trim())
+}
 
 // 草稿和提交队列跟随设置网关，切换分区或关闭设置不撤销已提交的修改。
 export class ExtensionPreferences {
@@ -52,6 +60,8 @@ export class ExtensionPreferences {
     this.publish({ value, error: undefined, status: this.pending ? 'saving' : Object.keys(difference(value, this.baseline.value)).length ? 'editing' : 'saved' })
   }
   commit = () => {
+    // 失焦、重试和离开设置共用此入口，统一处理地址两侧空白。
+    if (this.id === 'local_network' && typeof this.state.value?.url === 'string') this.change({ url: this.state.value.url.trim() })
     if (!this.state.value || !complete(this.id, this.state.value)) return
     this.queued = true; void this.drain()
   }

@@ -5616,7 +5616,7 @@
       "general": "Appearance, window behavior and system notifications.",
       "shortcuts": "Customize shortcuts for common actions.",
       "terminal": "Terminal appearance and command completion.",
-      "connection": "Local command and MCP proxy, SSH keepalive, and background forward recovery.",
+      "connection": "Network proxy, SSH keepalive, and background forward reconnection.",
       "remote-desktop": "Default viewing quality, RDP desktop effects and connection settings.",
       "mount": "Mount cache location and disk usage.",
       "agent": "Default model, runtime behavior and task limits.",
@@ -5991,10 +5991,16 @@
     "agent": {
       "hostDesktop": {
         "title": "Local desktop permissions",
-        "description": "Off by default. These permissions cover this device. Keyboard input follows system focus. Skipping approvals does not grant them.",
-        "read": "Discover displays and windows",
-        "capture": "Read desktop images",
-        "control": "Control mouse and keyboard"
+        "description": "Off by default. Skipping approvals does not grant these permissions.",
+        "details": "Permission details",
+        "dependencies": "Screen capture requires desktop discovery. Mouse and keyboard control requires both. Related permissions adjust together.",
+        "read": "Desktop discovery",
+        "readHint": "List displays and windows on this device.",
+        "capture": "Screen capture",
+        "captureHint": "Take screenshots to view screen content.",
+        "control": "Mouse and keyboard",
+        "controlHint": "Allow clicks, key presses and text input.",
+        "focusHint": "Keyboard input goes to the active window."
       },
       "configuration": {
         "behavior": "Runtime behavior",

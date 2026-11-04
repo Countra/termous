@@ -15,7 +15,7 @@ function fixture() {
     mcp_runtime: { status: 'ready', message: '' }, mcp_client: { status: 'ready', message: '' },
     skills_bundle: { status: 'ready', message: '' }, default_model: { status: 'ready', message: '' },
     mcp_policy: { client_id: 'test', approval_bypass: false, revision: 1, scope_count: 1,
-      required_scope_count: 1, scope_sync_required: false },
+      required_scope_count: 1, scope_sync_required: false, host_desktop: { read: false, capture: false, control: false } },
     settings: { default_reasoning_level: 'off', show_turn_token_usage: true, revision: 1,
       global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       max_concurrent_runs: 4, context_compaction_threshold_percent: 80, connect_ssh_profile_on_bind: false,
@@ -32,7 +32,7 @@ function fixture() {
     }),
     updateMcpPolicy: vi.fn<AgentSetupGateway['updateMcpPolicy']>(async input => {
       const policy = { ...readiness.mcp_policy!, approval_bypass: input.approval_bypass,
-        revision: input.expected_revision + 1 }
+        revision: input.expected_revision + 1, ...(input.host_desktop ? { host_desktop: input.host_desktop } : {}) }
       readiness = { ...readiness, mcp_policy: policy }
       return policy
     }),
@@ -45,6 +45,36 @@ function fixture() {
 
 const save = () => screen.getByRole('button', { name: 'app.save' })
 const threshold = () => screen.getByRole('spinbutton', { name: 'settings.agent.compaction.threshold' })
+
+it('本机权限仅在统一保存时写入策略，权限联动与修订号随回执保持一致', async () => {
+  const { gateway } = fixture()
+  const control = await screen.findByRole('switch', { name: 'settings.agent.hostDesktop.control' })
+  const capture = screen.getByRole('switch', { name: 'settings.agent.hostDesktop.capture' })
+  const read = screen.getByRole('switch', { name: 'settings.agent.hostDesktop.read' })
+  fireEvent.click(control)
+  expect(read).toBeChecked()
+  expect(capture).toBeChecked()
+  expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
+  expect(screen.getAllByRole('button', { name: 'app.save' })).toHaveLength(1)
+  fireEvent.click(save())
+  await screen.findByText('settings.editor.saved')
+  expect(gateway.updateMcpPolicy).toHaveBeenCalledExactlyOnceWith({ approval_bypass: false, sync_scopes: false,
+    expected_revision: 1, host_desktop: { read: true, capture: true, control: true },
+  }, expect.any(AbortSignal))
+  expect(control).toBeChecked()
+  fireEvent.click(capture)
+  expect(read).toBeChecked()
+  expect(control).not.toBeChecked()
+  fireEvent.click(save())
+  await waitFor(() => expect(gateway.updateMcpPolicy).toHaveBeenCalledTimes(2))
+  expect(gateway.updateMcpPolicy).toHaveBeenLastCalledWith({ approval_bypass: false, sync_scopes: false,
+    expected_revision: 2, host_desktop: { read: true, capture: false, control: false },
+  }, expect.any(AbortSignal))
+  await screen.findByText('settings.editor.saved')
+  expect(capture).not.toBeChecked()
+  expect(control).not.toBeChecked()
+  expect(gateway.updateSettings).not.toHaveBeenCalled()
+})
 
 it('模型、行为和执行限制共用唯一保存入口，输入和失焦不提交', async () => {
   const { gateway } = fixture()
