@@ -19,6 +19,9 @@
   "scripts": {
     "dev": "node scripts/ai-service/develop.mjs pnpm exec vite",
     "dev:core": "node scripts/ai-service/develop.mjs core",
+    "dev:desktop:build": "node scripts/ai-service/develop.mjs desktop-build",
+    "dev:desktopd": "node scripts/ai-service/develop.mjs desktopd",
+    "dev:desktop:status": "node scripts/ai-service/develop.mjs desktop-status",
     "dev:env": "node scripts/ai-service/develop.mjs pnpm",
     "dev:clean": "node scripts/desktop-development/clean.mjs",
     "dev:agent-fixture": "node scripts/agent/openai-compatible-fixture.mjs",

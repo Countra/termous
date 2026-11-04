@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { developmentEnvironment, workspace } from './environment.mjs'
-import { buildDevelopmentCore } from '../desktop-development/core-build.mjs'
+import { buildDevelopmentCore, buildDevelopmentDaemon } from '../desktop-development/core-build.mjs'
 
 const [mode, ...args] = process.argv.slice(2)
-const env = developmentEnvironment()
+const env = ['desktopd', 'desktop-build', 'desktop-status'].includes(mode) ? { ...process.env } : developmentEnvironment()
 const core = mode === 'core'
-if (!core && mode !== 'pnpm') throw new Error('用法：node scripts/ai-service/develop.mjs core | pnpm <命令>')
+const backend = mode !== 'pnpm'
+if (!['core', 'pnpm', 'desktopd', 'desktop-build', 'desktop-status'].includes(mode)) throw new Error('用法：node scripts/ai-service/develop.mjs core | desktopd | desktop-build | desktop-status | pnpm <命令>')
 // Core 仍由独立开发终端持有；前端开发只启动既有的 Vite/Electron 流程。
-const supplied = core ? args : [process.env.npm_execpath, ...args]
+const supplied = backend ? args : [process.env.npm_execpath, ...args]
 if (supplied.some(value => !value)) throw new Error('请通过 pnpm run dev 或 pnpm run dev:env 启动前端开发命令。')
 let child
 let interrupted = false
@@ -19,7 +20,7 @@ const signals = ['SIGINT', 'SIGTERM'].map(signal => {
 })
 const run = (command, parameters) => new Promise((resolve, reject) => {
   if (interrupted) { reject(new Error('开发启动已取消')); return }
-  child = spawn(command, parameters, { cwd: path.join(workspace, core ? 'backend' : 'web'), env, stdio: 'inherit', windowsHide: true })
+  child = spawn(command, parameters, { cwd: path.join(workspace, backend ? 'backend' : 'web'), env, stdio: 'inherit', windowsHide: true })
   child.once('error', reject)
   child.once('close', code => {
     child = null
@@ -28,8 +29,17 @@ const run = (command, parameters) => new Promise((resolve, reject) => {
   })
 })
 try {
-  const command = core ? await buildDevelopmentCore({ workspace, env, run }) : process.execPath
-  await run(command, supplied)
+  if (mode === 'desktop-build') {
+    await buildDevelopmentCore({ workspace, env, run, includeDaemon: true })
+  } else if (mode === 'desktopd') {
+    const command = await buildDevelopmentDaemon({ workspace, env, run })
+    await run(command, ['foreground', ...supplied])
+  } else if (mode === 'desktop-status') {
+    await run(path.join(workspace, 'TEMP', 'core-development', `${process.platform}-${process.arch}`, 'termous-desktopd.exe'), ['status', ...supplied])
+  } else {
+    const command = core ? await buildDevelopmentCore({ workspace, env, run }) : process.execPath
+    await run(command, supplied)
+  }
 } catch (error) {
   console.error(error.message)
   process.exitCode = error.exitCode ?? 1

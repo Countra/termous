@@ -47,12 +47,14 @@ test('electron-builder 固定更新源、平台资产名称与 macOS 双格式',
     from: 'public/termous-icon.png', to: 'icon.png',
   })
   assert.deepEqual(config.extraFiles.find(({ from }) => from === 'build/core').filter,
-    ['termous-core.exe', 'termous-core', 'termous-desktop.exe', 'termous-desktop', 'termous-rdp.exe', 'termous-rdp'])
+    ['termous-core.exe', 'termous-core', 'termous-desktop.exe', 'termous-desktop', 'termous-desktopd.exe', 'desktop-bundle.json', 'termous-rdp.exe', 'termous-rdp'])
+  assert.equal(config.nsis.perMachine, true)
   assert.deepEqual(config.extraFiles.find(({ to }) => to === 'licenses/rdp'), {
     from: '../termous-rdp/licenses', to: 'licenses/rdp', filter: ['*-LICENSE.txt'],
   })
   const expectedSources = new Map([
     ['THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'],
+    ['licenses/go-winio-LICENSE.txt', 'third_party_licenses/go-winio-LICENSE.txt'],
     ['licenses/pi-LICENSE.txt', 'third_party_licenses/pi-LICENSE.txt'],
     ['licenses/cgofuse-LICENSE.txt', 'third_party_licenses/cgofuse-LICENSE.txt'],
     ['licenses/WinFsp-LICENSE.txt', 'third_party_licenses/WinFsp-LICENSE.txt'],
@@ -556,6 +558,14 @@ async function writeCompleteFixture({
   )
   await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-rdp.exe' : 'termous-rdp'), 'fixture-rdp', { mode: 0o755 })
   await writeFile(path.join(applicationDirectory, platform === 'win32' ? 'termous-desktop.exe' : 'termous-desktop'), 'fixture-desktop', { mode: 0o755 })
+  if (platform === 'win32') {
+    await writeFile(path.join(applicationDirectory, 'termous-desktopd.exe'), 'fixture-desktopd')
+    const sha256 = {}
+    for (const name of ['termous-core.exe', 'termous-desktop.exe', 'termous-desktopd.exe']) {
+      sha256[name] = (await hashRegularFile(path.join(applicationDirectory, name))).sha256
+    }
+    await writeFile(path.join(applicationDirectory, 'desktop-bundle.json'), JSON.stringify({ protocol_version: 1, build_version: version, sha256 }))
+  }
   const rdpLicenses = path.join(applicationDirectory, 'licenses', 'rdp')
   await mkdir(rdpLicenses, { recursive: true })
   for (const library of ['FreeRDP', 'OpenSSL', 'OpenH264', 'zlib', 'libyuv', 'GCC-GPLv3', 'GCC-Runtime-Exception', 'MinGW-winpthreads']) {

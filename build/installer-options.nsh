@@ -2,6 +2,7 @@
 !include "nsDialogs.nsh"
 !include "WinMessages.nsh"
 !include /CHARSET=UTF8 "${BUILD_RESOURCES_DIR}\install-discovery.nsh"
+!include /CHARSET=UTF8 "${BUILD_RESOURCES_DIR}\desktop-service.nsh"
 
 !ifndef BUILD_UNINSTALLER
   Var TermousOptionsDialog
@@ -16,17 +17,25 @@
 !macroend
 
 !macro termousAddInstallDirToUserPath
+  !if "${APP_ID}" == "com.termous.app"
+    !insertmacro termousDesktopCommand "path-add"
+  !else
   nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$$entry = '$INSTDIR'; $$path = [Environment]::GetEnvironmentVariable('Path', 'User'); $$items = @($$path -split ';' | Where-Object { $$_ }); if ($$items -notcontains $$entry) { [Environment]::SetEnvironmentVariable('Path', (($$items + $$entry) -join ';'), 'User') }"`
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION "Termous 已安装，但未能写入当前用户 PATH。你可以稍后手动添加：$INSTDIR"
   ${EndIf}
+  !endif
   !insertmacro termousBroadcastEnvironmentChange
 !macroend
 
 !macro termousRemoveInstallDirFromUserPath
+  !if "${APP_ID}" == "com.termous.app"
+    !insertmacro termousDesktopCommand "path-remove"
+  !else
   nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$$entry = '$INSTDIR'; $$path = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($$null -ne $$path) { $$items = @($$path -split ';' | Where-Object { $$_ -and $$_ -ne $$entry }); [Environment]::SetEnvironmentVariable('Path', ($$items -join ';'), 'User') }"`
   Pop $0
+  !endif
   !insertmacro termousBroadcastEnvironmentChange
 !macroend
 
@@ -52,6 +61,7 @@
 
 !ifndef BUILD_UNINSTALLER
   !macro customInit
+    !insertmacro termousDesktopMigrationCheck
     StrCpy $TermousDesktopShortcut ${BST_CHECKED}
     StrCpy $TermousPathEntry ${BST_UNCHECKED}
 
@@ -88,7 +98,7 @@
     Pop $TermousDesktopShortcutCheckbox
     ${NSD_SetState} $TermousDesktopShortcutCheckbox $TermousDesktopShortcut
 
-    ${NSD_CreateCheckbox} 0 48u 100% 12u "将 Termous 安装目录添加到当前用户 PATH"
+    ${NSD_CreateCheckbox} 0 48u 100% 12u "将 Termous 安装目录添加到 PATH（机器级安装对所有用户生效）"
     Pop $TermousPathEntryCheckbox
     ${NSD_SetState} $TermousPathEntryCheckbox $TermousPathEntry
 
@@ -100,9 +110,11 @@
     ${NSD_GetState} $TermousPathEntryCheckbox $TermousPathEntry
   FunctionEnd
   !macro customInstall
+    !insertmacro termousDesktopCommand "verify-install-dir"
     !ifmacrodef termousRuntimeInstall
       !insertmacro termousRuntimeInstall
     !endif
+    !insertmacro termousDesktopCommand "install"
     !insertmacro termousWriteInstallDiscovery
     ${If} $TermousDesktopShortcut == ${BST_CHECKED}
       !insertmacro termousCreateDesktopShortcut
@@ -145,6 +157,7 @@
 !macroend
 
 !macro customUnInstall
+  !insertmacro termousDesktopBeforeUninstall
   ; 升级保留用户选择；正式卸载只清理当前安装目录的无参数启动项。
   ${IfNot} ${isUpdated}
     !insertmacro termousRemoveLoginItem "${APP_ID}"
@@ -167,6 +180,7 @@
   !ifmacrodef termousRuntimeHeader
     !insertmacro termousRuntimeHeader
   !endif
+  !insertmacro termousDesktopHeader
   !ifdef BUILD_UNINSTALLER
     Function un.onUninstSuccess
       !insertmacro termousRemoveInstallDiscovery

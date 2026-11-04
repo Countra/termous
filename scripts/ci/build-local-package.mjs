@@ -16,12 +16,14 @@ import {
   validateUpdateManifest,
 } from './release-manifest-contract.mjs'
 import { validateAgentSkillsBundleDirectory } from '../agent/validate-skills-bundle.mjs'
+import { validateDesktopBundle } from './desktop-bundle.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const scriptDirectory = path.dirname(scriptPath)
 const defaultWebDirectory = path.resolve(scriptDirectory, '..', '..')
 export const packagedThirdPartyFiles = Object.freeze([
   'THIRD_PARTY_NOTICES.txt',
+  'licenses/go-winio-LICENSE.txt',
   'licenses/pi-LICENSE.txt',
   'licenses/cgofuse-LICENSE.txt',
   'licenses/WinFsp-LICENSE.txt',
@@ -190,12 +192,19 @@ export async function validatePackageArtifacts({
     [corePaths[0], `包内 Core ${coreName}`],
     [path.join(packagedApplication, workerName), '包内 RDP worker'],
     [path.join(packagedApplication, desktopName), '包内桌面进程'],
+    ...(normalizedPlatform === 'win32' ? [
+      [path.join(packagedApplication, 'termous-desktopd.exe'), '包内桌面管理服务'],
+      [path.join(packagedApplication, 'desktop-bundle.json'), '桌面组件配套清单'],
+    ] : []),
   ]) {
     await assertFile(binaryPath, label)
     if (normalizedPlatform !== 'win32' && process.platform !== 'win32'
       && ((await lstat(binaryPath)).mode & 0o111) === 0) {
       throw new Error(`${label}不可执行: ${binaryPath}`)
     }
+  }
+  if (normalizedPlatform === 'win32') {
+    await validateDesktopBundle(packagedApplication, normalizedVersion)
   }
   const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
   const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
