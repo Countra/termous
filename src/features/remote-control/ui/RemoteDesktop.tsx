@@ -65,7 +65,8 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
   useEffect(() => {
     if (!running || !canvas.current || !video.current) { setPhase('idle'); setChallenge(undefined); return }
     let alive = true
-    const view = new RemoteDesktopSession({ receiverPolicy: nativeNext.current ? 'native' : client.bridge?.desktopReceiverPolicy, capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
+    const view = new RemoteDesktopSession({ receiverPolicy: nativeNext.current ? 'native' : client.bridge?.desktopReceiverPolicy, capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, onEnvironment: listener => client.onEvent(event => { if (event.value.case === 'desktopEnvironment') listener(event.value.value) }), request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
+      inputReset: () => { if (alive) { setCursor(undefined); setTool(undefined); setText('') } },
       resolution: value => { if (alive) setResolutionStatus(value.status) },
       presentation: value => { if (alive) setPresentation(value) },
       state: value => { if (alive) setState(value) },
@@ -113,7 +114,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
     setAttempt(value => value + 1)
   }
   const owned = running && phase === 'viewing' && runtime.current?.owned === true
-  const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : copy.connecting
+  const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : phase === 'switching' ? copy.switching : phase === 'paused' ? copy.windowPaused : copy.connecting
   const errorText = desktopErrorText(error, copy)
   const errorCode = /^(?:desktop|remote|rdp)_[a-z0-9_]{1,80}$/.test(error) ? error : 'desktop_operation_failed'
   const certificate = challenge && (challenge.kind === 'certificate' || challenge.kind === 'vnc_certificate' || challenge.kind === 'ssh_certificate')
@@ -135,7 +136,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
       <div ref={canvas} className={styles.canvas} hidden={engine !== 'vnc'} />
       <video ref={video} className={`${styles.video} ${!fit ? styles.actual : ''}`} hidden={engine === 'vnc'}  tabIndex={0} muted playsInline aria-label={copy.desktop} />
       {engine === 'rdp' && phase === 'viewing' ? <DesktopCursorOverlay cursor={cursor} video={video} source={state} owned={owned} fit={fit} /> : null}
-      {phase !== 'viewing' || !running ? <div className={styles.overlay}>
+      {phase !== 'viewing' || !running ? <div className={`${styles.overlay} ${phase === 'switching' ? styles.switching : ''}`}>
         {running && phase !== 'closed' ? <Spin /> : <Monitor size={28} />}
         <strong>{!joined ? copy.vncJoin : status}</strong>
         {!joined ? <><p>{copy.vncHint}</p><Button type="primary" onClick={() => setJoined(true)}>{copy.vncJoin}</Button></> : null}

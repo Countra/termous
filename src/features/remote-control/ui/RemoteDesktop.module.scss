@@ -84,6 +84,15 @@
   line-height: 1.7;
 }
 
+.switching {
+  animation: desktop-switch-mask 1s step-end forwards;
+}
+
+@keyframes desktop-switch-mask {
+  from { background: transparent; }
+  to { background: var(--surface); }
+}
+
 .footer {
   border-top: 1px solid var(--border);
   border-bottom: 0;

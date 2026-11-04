@@ -9,7 +9,7 @@ function fixture() {
   target.setPointerCapture = vi.fn()
   target.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100 }) as DOMRect
   const input = vi.fn()
-  const session = { owned: true, controlGeneration: 1n, dimensions: { width: 200, height: 100 }, input }
+  const session = { owned: true, controlGeneration: 1n, switchRevision: 0, get inputEpoch() { return `${this.switchRevision}:${this.controlGeneration}` }, dimensions: { width: 200, height: 100 }, input }
   const dispose = bindDesktopInput(target, session as unknown as RemoteDesktopSession, error => { throw error })
   const pointer = (type: string, x: number, y: number) => target.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0 }))
   return { target, session, input, pointer, dispose }
@@ -46,5 +46,17 @@ it('clears held keys and buttons when pointer capture is lost', () => {
     { kind: 'key', code: 'ControlLeft', down: false },
     { kind: 'button', button: 'left', down: false, x: 10, y: 20 },
   ])
+  f.dispose()
+})
+
+it('切换立即丢弃旧按下状态，即使保留原控制租约', () => {
+  const f = fixture()
+  f.pointer('pointerdown', 10, 20)
+  f.session.switchRevision++
+  f.session.owned = false
+  f.target.dispatchEvent(new Event('lostpointercapture'))
+  f.session.owned = true
+  f.pointer('pointerup', 10, 20)
+  expect(f.input).toHaveBeenCalledTimes(1)
   f.dispose()
 })

@@ -23,7 +23,7 @@ export function RemoteHostDesktop({ client, active, onMediaDetails }: { onMediaD
     const current = ++revision.current
     setLoading(true); setError('')
     try {
-      const response = await client.desktop({ action: 'sources', sourceKind: kind })
+      const response = await client.desktop({ action: 'sources', sourceKind: kind, ...(client.connection?.capabilities?.includes('desktop-environment-switch-v1') ? { environmentSwitchVersion: 1 } : {}) })
       if (current !== revision.current) return
       setSources(response.sources)
     } catch { if (current === revision.current) setError(zh ? '无法读取设备桌面，请确认被控端已允许共享。' : 'Cannot list desktops. Check sharing permissions on the host.') }

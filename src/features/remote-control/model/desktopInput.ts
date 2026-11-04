@@ -6,10 +6,10 @@ export function bindDesktopInput(target: HTMLVideoElement, session: RemoteDeskto
   const keys = new Set<string>()
   const buttons = new Set<'left' | 'middle' | 'right'>()
   let position = { x: 0, y: 0 }
-  let generation = session.controlGeneration
+  let generation = session.inputEpoch
   const current = () => {
-    if (generation !== session.controlGeneration) {
-      generation = session.controlGeneration
+    if (generation !== session.inputEpoch) {
+      generation = session.inputEpoch
       keys.clear(); buttons.clear()
     }
     return session.owned
