@@ -27,7 +27,7 @@ test('CI 与 Release 共用三平台构建和同一份提交锁', async () => {
   assert.match(publishing.run, /--web-sha/)
 })
 
-test('CI 保持只读且不消费发布凭据或上传构建产物', async () => {
+test('CI 保持只读且不消费 GitHub 发布凭据', async () => {
   const ci = await load('workflows/ci.yml')
   assert.deepEqual(ci.permissions, { contents: 'read' })
   assert.match(ci.jobs.sources.if, /head.repo.full_name == github.repository/)
@@ -63,4 +63,41 @@ test('工具准备在固定源码检出后读取版本，Git 令牌不流入编�
   assert.deepEqual(tokenSteps.map(s => s.name), ['Checkout locked sources'])
   assert.ok(steps.some(s => s.run?.includes('libfuse3-dev')))
   assert.ok(steps.some(s => s.run?.includes('macfuse')))
+})
+
+test('可选 MinIO 归档仅使用本次报告，失败后执行且取消后停止', async () => {
+  for (const name of ['ci', 'release']) {
+    const w = await load(`workflows/${name}.yml`)
+    assert.equal(w.on.workflow_dispatch.inputs.upload.type, 'boolean')
+    assert.equal(w.on.workflow_dispatch.inputs.upload.default, false)
+    const steps = w.jobs.build.steps
+    const build = steps.find(s => s.id === 'desktop-build')
+    const archive = steps.find(s => s.name === 'Archive build artifacts')
+    assert.match(build.run, /build\.py build --no-upload/)
+    assert.equal(build.env.TERMOUS_ARCHIVE_KIND, name)
+    assert.match(build.env.TERMOUS_ARCHIVE_STARTED, /needs\..*outputs.archive_started/)
+    assert.match(archive.if, /!cancelled\(\)/)
+    assert.match(archive.if, /steps.desktop-build.outputs.run_report != ''/)
+    assert.match(archive.if, /inputs.upload == true/)
+    assert.match(archive.if, /vars.TERMOUS_UPLOAD_ARTIFACTS == 'true'/)
+    assert.equal(archive.env.RUN_REPORT, '${{ steps.desktop-build.outputs.run_report }}')
+    assert.match(archive.run, /build\.py upload.*--report "\$RUN_REPORT"/)
+    assert.equal(archive['continue-on-error'], undefined)
+    assert.ok(steps.indexOf(archive) > steps.indexOf(build))
+    const credentialSteps = Object.values(w.jobs).flatMap(job => job.steps ?? [])
+      .filter(s => Object.keys(s.env ?? {}).some(key => key.startsWith('TERMOUS_MINIO_')))
+    assert.deepEqual(credentialSteps.map(s => s.name), ['Archive build artifacts'])
+    for (const key of ['ACCESS_KEY', 'SECRET_KEY', 'SESSION_TOKEN']) {
+      assert.equal(archive.env[`TERMOUS_MINIO_${key}`], '${{ secrets.TERMOUS_MINIO_' + key + ' }}')
+    }
+    if (name === 'release') assert.ok(steps.indexOf(archive) < steps.findIndex(s => s.name.startsWith('Upload')))
+  }
+  const ci = await load('workflows/ci.yml')
+  const release = await load('workflows/release.yml')
+  assert.equal(ci.jobs.sources.outputs.archive_started, '${{ steps.sources.outputs.archive_started }}')
+  assert.equal(release.jobs.metadata.outputs.archive_started, '${{ steps.sources.outputs.archive_started }}')
+  assert.equal(release.jobs['prepare-release'].outputs.archive_started, '${{ needs.metadata.outputs.archive_started }}')
+  const action = await load('actions/buildtoolchain/action.yml')
+  assert.ok(action.runs.steps.some(s => s.run === 'python termous-buildtools/ci.py bootstrap'))
+  assert.ok(action.runs.steps.every(s => !s.run?.includes('pip install ./termous-buildtools')))
 })

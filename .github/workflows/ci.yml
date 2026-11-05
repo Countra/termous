@@ -6,7 +6,13 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 将安装包和日志归档到 MinIO
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 jobs:
@@ -17,6 +23,7 @@ jobs:
     outputs:
       source_lock: ${{ steps.sources.outputs.source_lock }}
       buildtools_sha: ${{ steps.sources.outputs.buildtools_sha }}
+      archive_started: ${{ steps.sources.outputs.archive_started }}
     steps:
       - name: Checkout pinned Web
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -82,12 +89,25 @@ jobs:
           source-lock: ${{ needs.sources.outputs.source_lock }}
           token: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
       - name: Build and verify desktop package
+        id: desktop-build
         shell: bash
         env:
+          TERMOUS_ARCHIVE_KIND: ci
+          TERMOUS_ARCHIVE_STARTED: ${{ needs.sources.outputs.archive_started }}
           TARGET_PLATFORM: ${{ matrix.platform }}
           TERMOUS_ELECTRON_ACCEPTANCE_NO_SANDBOX: ${{ matrix.platform == 'linux' && '1' || '0' }}
           TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
         run: |
-          args=(termous-buildtools/build.py build --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)
+          args=(termous-buildtools/build.py build --no-upload --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)
           if [[ -n "${TERMOUS_VERSION:-}" ]]; then args+=(--version "$TERMOUS_VERSION"); fi
           if [[ "$TARGET_PLATFORM" == "linux" ]]; then xvfb-run -a python "${args[@]}"; else python "${args[@]}"; fi
+      - name: Archive build artifacts
+        if: ${{ !cancelled() && steps.desktop-build.outputs.run_report != '' && (inputs.upload == true || vars.TERMOUS_UPLOAD_ARTIFACTS == 'true') }}
+        shell: bash
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          RUN_REPORT: ${{ steps.desktop-build.outputs.run_report }}
+          TERMOUS_MINIO_ACCESS_KEY: ${{ secrets.TERMOUS_MINIO_ACCESS_KEY }}
+          TERMOUS_MINIO_SECRET_KEY: ${{ secrets.TERMOUS_MINIO_SECRET_KEY }}
+          TERMOUS_MINIO_SESSION_TOKEN: ${{ secrets.TERMOUS_MINIO_SESSION_TOKEN }}
+        run: python termous-buildtools/build.py upload --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --report "$RUN_REPORT"

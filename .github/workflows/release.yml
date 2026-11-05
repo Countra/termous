@@ -2,6 +2,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      upload:
+        description: 将安装包和日志归档到 MinIO
+        type: boolean
+        required: false
+        default: false
       version:
         description: Release version; CLI/API --ref must select the matching protected v* tag
         required: true
@@ -23,6 +28,7 @@ jobs:
     outputs:
       source_lock: ${{ steps.sources.outputs.source_lock }}
       buildtools_sha: ${{ steps.sources.outputs.buildtools_sha }}
+      archive_started: ${{ steps.sources.outputs.archive_started }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       release_date: ${{ steps.release.outputs.release_date }}
       tag: ${{ steps.release.outputs.tag }}
@@ -128,6 +134,7 @@ jobs:
     outputs:
       source_lock: ${{ needs.metadata.outputs.source_lock }}
       buildtools_sha: ${{ needs.metadata.outputs.buildtools_sha }}
+      archive_started: ${{ needs.metadata.outputs.archive_started }}
       prerelease: ${{ needs.metadata.outputs.prerelease }}
       release_date: ${{ needs.metadata.outputs.release_date }}
       tag: ${{ needs.metadata.outputs.tag }}
@@ -236,15 +243,28 @@ jobs:
           config["checks"]["tests"] = False
           config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
       - name: Build and verify desktop package
+        id: desktop-build
         shell: bash
         env:
+          TERMOUS_ARCHIVE_KIND: release
+          TERMOUS_ARCHIVE_STARTED: ${{ needs.prepare-release.outputs.archive_started }}
           TARGET_PLATFORM: ${{ matrix.platform }}
           TERMOUS_ELECTRON_ACCEPTANCE_NO_SANDBOX: ${{ matrix.platform == 'linux' && '1' || '0' }}
           TERMOUS_REPOSITORIES_READ_TOKEN: ${{ secrets.TERMOUS_REPOSITORIES_READ_TOKEN }}
         run: |
-          args=(termous-buildtools/build.py build --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)
+          args=(termous-buildtools/build.py build --no-upload --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --source-lock termous-buildtools/build/work/source-lock.json)
           if [[ -n "${TERMOUS_VERSION:-}" ]]; then args+=(--version "$TERMOUS_VERSION"); fi
           if [[ "$TARGET_PLATFORM" == "linux" ]]; then xvfb-run -a python "${args[@]}"; else python "${args[@]}"; fi
+      - name: Archive build artifacts
+        if: ${{ !cancelled() && steps.desktop-build.outputs.run_report != '' && (inputs.upload == true || vars.TERMOUS_UPLOAD_ARTIFACTS == 'true') }}
+        shell: bash
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          RUN_REPORT: ${{ steps.desktop-build.outputs.run_report }}
+          TERMOUS_MINIO_ACCESS_KEY: ${{ secrets.TERMOUS_MINIO_ACCESS_KEY }}
+          TERMOUS_MINIO_SECRET_KEY: ${{ secrets.TERMOUS_MINIO_SECRET_KEY }}
+          TERMOUS_MINIO_SESSION_TOKEN: ${{ secrets.TERMOUS_MINIO_SESSION_TOKEN }}
+        run: python termous-buildtools/build.py upload --config "termous-buildtools/configs/ci.$TARGET_PLATFORM.json" --report "$RUN_REPORT"
       - name: Create Windows asset receipts
         if: matrix.platform == 'windows'
         shell: pwsh
