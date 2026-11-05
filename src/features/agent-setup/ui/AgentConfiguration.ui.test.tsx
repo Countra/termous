@@ -59,7 +59,7 @@ it('本机权限仅在统一保存时写入策略，权限联动与修订号随�
   fireEvent.click(save())
   await screen.findByText('settings.editor.saved')
   expect(gateway.updateMcpPolicy).toHaveBeenCalledExactlyOnceWith({ approval_bypass: false, sync_scopes: false,
-    expected_revision: 1, host_desktop: { read: true, capture: true, control: true },
+    expected_revision: 1, host_desktop: { read: true, capture: true, control: true, secure_capture: false, secure_control: false },
   }, expect.any(AbortSignal))
   expect(control).toBeChecked()
   fireEvent.click(capture)
@@ -68,7 +68,7 @@ it('本机权限仅在统一保存时写入策略，权限联动与修订号随�
   fireEvent.click(save())
   await waitFor(() => expect(gateway.updateMcpPolicy).toHaveBeenCalledTimes(2))
   expect(gateway.updateMcpPolicy).toHaveBeenLastCalledWith({ approval_bypass: false, sync_scopes: false,
-    expected_revision: 2, host_desktop: { read: true, capture: false, control: false },
+    expected_revision: 2, host_desktop: { read: true, capture: false, control: false, secure_capture: false, secure_control: false },
   }, expect.any(AbortSignal))
   await screen.findByText('settings.editor.saved')
   expect(capture).not.toBeChecked()

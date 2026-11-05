@@ -17,7 +17,7 @@ test('来源必须显式选择；切换种类释放旧观看，窗口标为只�
     title: sourceKind === 'screen' ? '显示器 A' : '测试窗口', readOnly: sourceKind === 'window',
   })] }))
   render(<RemoteHostDesktop client={{ desktop: request } as unknown as RemoteClient} active />)
-  await waitFor(() => expect(request).toHaveBeenCalledWith({ action: 'sources', sourceKind: 'screen' }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith({ action: 'sources', sourceKind: 'screen', continuityVersion: 1 }))
   expect(fixture.target).not.toHaveBeenCalled()
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '画面来源' }))
   fireEvent.click(await screen.findByText('显示器 A'))
@@ -25,7 +25,7 @@ test('来源必须显式选择；切换种类释放旧观看，窗口标为只�
   expect(fixture.target.mock.lastCall?.[0]).toMatchObject({ instanceId: 'core', sourceGeneration: 3n })
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '来源类型' }))
   fireEvent.click(screen.getByText('窗口（只读）'))
-  await waitFor(() => expect(request).toHaveBeenLastCalledWith({ action: 'sources', sourceKind: 'window' }))
+  await waitFor(() => expect(request).toHaveBeenLastCalledWith({ action: 'sources', sourceKind: 'window', continuityVersion: 1 }))
   expect(screen.queryByText('测试观看器')).not.toBeInTheDocument()
   expect(screen.getByText('窗口仅供观看，无法控制。')).toBeInTheDocument()
 })

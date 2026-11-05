@@ -13,7 +13,7 @@ const toggle = (name: string) => screen.getByRole('switch', { name: key(name) })
 function setup({ busy = false, available = true } = {}) {
   const change = vi.fn()
   function Form() {
-    const [draft, setDraft] = useState({ hostRead: false, hostCapture: false, hostControl: false } as AgentConfigurationDraft)
+    const [draft, setDraft] = useState({ hostRead: false, hostCapture: false, hostControl: false, hostSecureCapture: false, hostSecureControl: false } as AgentConfigurationDraft)
     const editor = { draft, busy, change: (patch: Partial<AgentConfigurationDraft>) => {
       change(patch)
       setDraft(current => ({ ...current, ...patch }))
@@ -29,6 +29,10 @@ it('开关保持原有依赖关系，关闭上级权限时同步关闭依赖项'
   for (const input of screen.getAllByRole('switch')) expect(input).not.toBeChecked()
   expect(change).not.toHaveBeenCalled()
   fireEvent.click(toggle('control'))
+  for (const name of ['read', 'capture', 'control']) expect(toggle(name)).toBeChecked()
+  expect(toggle('secureCapture')).not.toBeChecked()
+  expect(toggle('secureControl')).not.toBeChecked()
+  fireEvent.click(toggle('secureControl'))
   for (const input of screen.getAllByRole('switch')) expect(input).toBeChecked()
   fireEvent.click(toggle('capture'))
   expect(toggle('read')).toBeChecked()

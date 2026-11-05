@@ -65,11 +65,11 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
   useEffect(() => {
     if (!running || !canvas.current || !video.current) { setPhase('idle'); setChallenge(undefined); return }
     let alive = true
-    const view = new RemoteDesktopSession({ receiverPolicy: nativeNext.current ? 'native' : client.bridge?.desktopReceiverPolicy, capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, onEnvironment: listener => client.onEvent(event => { if (event.value.case === 'desktopEnvironment') listener(event.value.value) }), request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
+    const view = new RemoteDesktopSession({ receiverPolicy: nativeNext.current ? 'native' : client.bridge?.desktopReceiverPolicy, capabilities: client.connection?.capabilities, protocol: engine === 'rdp' || engine === 'vnc' ? engine : undefined, onStreamState: listener => client.onEvent(event => { if (event.value.case === 'desktopStreamState') listener(event.value.value) }), request: value => client.desktop(value), ice: () => client.desktopICE() }, id, generation, {
       inputReset: () => { if (alive) { setCursor(undefined); setTool(undefined); setText('') } },
       resolution: value => { if (alive) setResolutionStatus(value.status) },
       presentation: value => { if (alive) setPresentation(value) },
-      state: value => { if (alive) setState(value) },
+      state: value => { if (alive) setState({ ...value }) },
       status: (phase, reason) => { if (alive) { setPhase(phase); setError(reason ?? ''); if (phase === 'closed') { reply.current?.({ accept: false }); reply.current = undefined; setChallenge(undefined); setPassword(''); setUsername('') }; if (!hostTarget && reason === 'desktop_display_changed') setAttempt(value => value + 1) } },
       clipboard: value => { if (alive) setRemoteClipboard(value) },
       media: value => { if (alive) setSample(value) },
@@ -114,7 +114,8 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
     setAttempt(value => value + 1)
   }
   const owned = running && phase === 'viewing' && runtime.current?.owned === true
-  const status = phase === 'viewing' ? owned ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : phase === 'switching' ? copy.switching : phase === 'paused' ? copy.windowPaused : copy.connecting
+  const holdsControl = running && phase === 'viewing' && runtime.current?.holdsControl === true
+  const status = phase === 'viewing' ? holdsControl ? copy.control : state?.control ? ['local', 'local-viewer'].includes(state.control.owner) ? copy.local : copy.other : copy.watching : phase === 'closed' ? copy.failed : !running ? copy.paused : phase === 'recovering' ? copy.recovering : phase === 'paused' ? desktopErrorText(error, copy) : copy.connecting
   const errorText = desktopErrorText(error, copy)
   const errorCode = /^(?:desktop|remote|rdp)_[a-z0-9_]{1,80}$/.test(error) ? error : 'desktop_operation_failed'
   const certificate = challenge && (challenge.kind === 'certificate' || challenge.kind === 'vnc_certificate' || challenge.kind === 'ssh_certificate')
@@ -123,7 +124,7 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
       <div className={styles.identity}><Monitor size={15} /><Tag>{engine === 'host' ? (hostTarget?.sourceKind === 'window' ? (i18n.language?.startsWith('zh') ? '只读窗口' : 'View-only window') : (i18n.language?.startsWith('zh') ? '设备桌面' : 'Device desktop')) : engine.toUpperCase()}</Tag><span role="status">{status}</span></div>
       <div className={styles.actions}>
         {session && state?.capabilities.includes('files') ? <RemoteDesktopFiles key={`${session.id}:${session.generation}`} client={client} session={session} desktop={runtime.current} available={active && phase === 'viewing'} localTasks={localTasks} changed={changed} getContainer={() => root.current!} /> : null}
-        <Button size="small" disabled={phase !== 'viewing' || working || !state?.capabilities.includes('pointer')} loading={working} onClick={() => void act(() => owned ? runtime.current!.release() : runtime.current!.acquire(true))}>{owned ? copy.release : copy.take}</Button>
+        <Button size="small" disabled={phase !== 'viewing' || !runtime.current?.controlAvailable || working || !state?.capabilities.includes('pointer')} loading={working} onClick={() => void act(() => holdsControl ? runtime.current!.release() : runtime.current!.acquire(true))}>{holdsControl ? copy.release : copy.take}</Button>
         <Select size="small" value={fit ? 'fit' : 'actual'} aria-label={copy.fit} options={[{ value: 'fit', label: copy.fit }, { value: 'actual', label: copy.actual }]} onChange={mode => { setFit(mode === 'fit'); runtime.current?.display(mode === 'fit') }} />
         <Tooltip title={copy.keyboard}><Button size="small" type="text" disabled={!owned || !state?.capabilities.includes('text')} icon={<Keyboard size={16} />} aria-label={copy.keyboard} onClick={() => { setText(''); setTool('text') }} /></Tooltip>
         <Tooltip title={copy.clipboard}><Button size="small" type="text" disabled={!owned || !state?.capabilities.includes('clipboard')} icon={<Clipboard size={16} />} aria-label={copy.clipboard} onClick={() => { setText(remoteClipboard); setTool('clipboard') }} /></Tooltip>
@@ -136,8 +137,8 @@ export function RemoteDesktop({ onMediaDetails, client, session, target: hostTar
       <div ref={canvas} className={styles.canvas} hidden={engine !== 'vnc'} />
       <video ref={video} className={`${styles.video} ${!fit ? styles.actual : ''}`} hidden={engine === 'vnc'}  tabIndex={0} muted playsInline aria-label={copy.desktop} />
       {engine === 'rdp' && phase === 'viewing' ? <DesktopCursorOverlay cursor={cursor} video={video} source={state} owned={owned} fit={fit} /> : null}
-      {phase !== 'viewing' || !running ? <div className={`${styles.overlay} ${phase === 'switching' ? styles.switching : ''}`}>
-        {running && phase !== 'closed' ? <Spin /> : <Monitor size={28} />}
+      {phase !== 'viewing' || !running ? <div className={styles.overlay}>
+        {running && !['closed', 'paused'].includes(phase) ? <Spin /> : <Monitor size={28} />}
         <strong>{!joined ? copy.vncJoin : status}</strong>
         {!joined ? <><p>{copy.vncHint}</p><Button type="primary" onClick={() => setJoined(true)}>{copy.vncJoin}</Button></> : null}
         {phase === 'closed' ? <><p>{errorText}<br /><code>{errorCode}</code></p><Button icon={<RotateCcw size={14} />} disabled={working} onClick={() => setAttempt(value => value + 1)}>{copy.retry}</Button>{error === 'desktop_h264_unsupported' ? <Button loading={working} onClick={() => void act(reconnectNative)}>{i18n.language.startsWith('zh') ? '以兼容模式重新连接' : 'Reconnect with native capabilities'}</Button> : null}{error === 'desktop_control_locked' ? <Popconfirm {...termousPopconfirmProps} title={copy.replace} description={copy.replaceHint} onConfirm={() => { replaceNext.current = true; setAttempt(value => value + 1) }}><Button>{copy.replace}</Button></Popconfirm> : null}</> : null}

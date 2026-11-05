@@ -5974,6 +5974,10 @@
         "captureHint": "获取桌面截图，查看屏幕内容。",
         "control": "鼠标与键盘",
         "controlHint": "允许点击、按键和文本输入。",
+        "secureCapture": "观看安全桌面",
+        "secureCaptureHint": "允许观看锁屏、登录页和 UAC。默认关闭。",
+        "secureControl": "控制安全桌面",
+        "secureControlHint": "允许操作安全桌面和提升权限的窗口；仍需有效控制授权。",
         "focusHint": "键盘输入作用于当前活动窗口。"
       },
       "configuration": {
@@ -6423,6 +6427,8 @@
         "host-desktop_read": "发现本机来源",
         "host-desktop_capture": "读取本机画面",
         "host-desktop_control": "控制本机桌面",
+        "host-desktop_secure-capture": "观看安全桌面",
+        "host-desktop_secure-control": "控制安全桌面",
         "screen_analyses_read": "读取画面分析",
         "screen_analyses_create": "创建画面分析",
         "screen_analyses_delete": "删除分析记录",
@@ -6477,6 +6483,8 @@
         "host-desktop_read": "只列出显示器和窗口，不读取画面。",
         "host-desktop_capture": "读取本机画面，独立于远程协议桌面权限。",
         "host-desktop_control": "需要画面权限。输入影响当前系统焦点，显示器选择不隔离应用。",
+        "host-desktop_secure-capture": "允许观看锁屏、登录页和 UAC，需普通画面权限。",
+        "host-desktop_secure-control": "允许安全桌面及提升权限窗口输入，需普通控制和安全查看权限。",
         "screen_analyses_read": "读取本机分析历史、检测区域、识别文字和结果图。",
         "screen_analyses_create": "分析本人附着的桌面或重算历史原图，不发送输入。",
         "screen_analyses_delete": "按审批策略删除指定终态记录，共享内容按引用回收。",

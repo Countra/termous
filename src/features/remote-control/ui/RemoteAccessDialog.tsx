@@ -20,7 +20,7 @@ interface Props {
   onSelectExchanges?(value: string[]): void
   onSelectDesktops?(value: string[]): void
   onDesktops?(): void
-	onHostDesktop?(observe: boolean, control: boolean): void
+	onHostDesktop?(observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean): void
   enabled: boolean
   loading: boolean
   working?: 'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop'

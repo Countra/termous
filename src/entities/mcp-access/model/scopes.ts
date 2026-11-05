@@ -1,7 +1,9 @@
 export const mcpScopes = [
   'host-desktop:read',
   'host-desktop:capture',
+  'host-desktop:secure-capture',
   'host-desktop:control',
+  'host-desktop:secure-control',
   'screen_analyses:read',
   'screen_analyses:create',
   'screen_analyses:delete',
@@ -59,6 +61,7 @@ export const defaultMcpScopes: McpScope[] = ['hosts:read', 'sessions:read']
 
 export const approvalRequiredScopes: readonly McpScope[] = [
   'host-desktop:control',
+  'host-desktop:secure-control',
   'screen_analyses:delete',
   'desktops:control',
   'desktop_workflows:exchange',

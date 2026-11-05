@@ -6000,6 +6000,10 @@
         "captureHint": "Take screenshots to view screen content.",
         "control": "Mouse and keyboard",
         "controlHint": "Allow clicks, key presses and text input.",
+        "secureCapture": "View secure desktops",
+        "secureCaptureHint": "Allow viewing lock, sign-in and UAC screens. Off by default.",
+        "secureControl": "Control secure desktops",
+        "secureControlHint": "Allow secure desktop and elevated window input with a valid control grant.",
         "focusHint": "Keyboard input goes to the active window."
       },
       "configuration": {
@@ -6449,6 +6453,8 @@
         "host-desktop_read": "Discover local sources",
         "host-desktop_capture": "Read local desktop",
         "host-desktop_control": "Control local desktop",
+        "host-desktop_secure-capture": "View secure desktops",
+        "host-desktop_secure-control": "Control secure desktops",
         "screen_analyses_read": "Read screen analyses",
         "screen_analyses_create": "Create screen analyses",
         "screen_analyses_delete": "Delete analysis records",
@@ -6503,6 +6509,8 @@
         "host-desktop_read": "List displays and windows without reading pixels.",
         "host-desktop_capture": "Read this device’s desktop independently of protocol desktop permissions.",
         "host-desktop_control": "Requires capture permission. Input follows system focus; display selection does not isolate apps.",
+        "host-desktop_secure-capture": "View lock, sign-in and UAC screens; requires ordinary capture.",
+        "host-desktop_secure-control": "Control secure desktops and elevated windows; requires control and secure capture.",
         "screen_analyses_read": "Read local analysis history, detected regions, recognized text and result images.",
         "screen_analyses_create": "Analyze your attached desktop or reanalyze saved images; no input is sent.",
         "screen_analyses_delete": "Delete terminal records according to approval policy; shared content is retained while referenced.",

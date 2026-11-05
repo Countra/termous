@@ -27,7 +27,7 @@ export interface RemoteDevice {
   advertisement: { protocol: string; host_enabled: boolean; platform: string; policy_revision: string }
 }
 export interface RemotePolicy {
-	host_desktop?: { observe: boolean; control: boolean }
+	host_desktop?: { observe: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
   revision: number; enabled: boolean
   agent_enabled?: boolean
   // 首次授权或清空授权后，后端的空切片可能序列化为 null。
@@ -62,7 +62,7 @@ export interface RemoteLauncher {
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
   configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
-	configureHostDesktop?(generation: string, revision: number, observe: boolean, control: boolean): Promise<RemoteResult<RemotePolicy>>
+	configureHostDesktop?(generation: string, revision: number, observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean): Promise<RemoteResult<RemotePolicy>>
   configureDesktops?(generation: string, revision: number, profiles: string[], exchangeProfiles?: string[]): Promise<RemoteResult<RemotePolicy>>
   desktopProfiles?(): Promise<RemoteResult<{ id: string; host_id: string; name: string; protocol: string }[]>>
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>

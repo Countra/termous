@@ -14,6 +14,8 @@ export interface AgentConfigurationDraft {
   hostRead: boolean
   hostCapture: boolean
   hostControl: boolean
+  hostSecureCapture: boolean
+  hostSecureControl: boolean
   budgetEnabled: boolean
   model_requests: number | null
   total_tokens: number | null
@@ -41,6 +43,8 @@ export function createAgentConfigurationDraft(settings: AgentSettings, policy?: 
     hostRead: policy?.host_desktop?.read ?? false,
     hostCapture: policy?.host_desktop?.capture ?? false,
     hostControl: policy?.host_desktop?.control ?? false,
+    hostSecureCapture: policy?.host_desktop?.secure_capture ?? false,
+    hostSecureControl: policy?.host_desktop?.secure_control ?? false,
     budgetEnabled: budget.enabled,
     ...budget.limits,
   }

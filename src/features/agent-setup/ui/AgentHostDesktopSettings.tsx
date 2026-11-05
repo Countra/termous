@@ -6,7 +6,7 @@ import type { AgentConfigurationEditor } from '../model/useAgentConfiguration'
 import styles from './AgentSetup.module.scss'
 import desktopStyles from './AgentHostDesktopSettings.module.scss'
 
-const permissions = [['Read', 'read', ScanLine], ['Capture', 'capture', Camera], ['Control', 'control', MousePointer2]] as const
+const permissions = [['Read', 'read', ScanLine], ['Capture', 'capture', Camera], ['Control', 'control', MousePointer2], ['SecureCapture', 'secureCapture', Camera], ['SecureControl', 'secureControl', MousePointer2]] as const
 
 export function AgentHostDesktopSettings({ editor, available }: { editor: AgentConfigurationEditor; available: boolean }) {
   const { t } = useTranslation()
@@ -32,9 +32,11 @@ export function AgentHostDesktopSettings({ editor, available }: { editor: AgentC
           </div>
           <Switch id={`${id}-${key}`} checked={draft[`host${kind}`]} disabled={busy || !available}
             aria-describedby={`${id}-${key}-hint${kind === 'Control' ? ` ${id}-focus-hint` : ''}`}
-            onChange={value => change(kind === 'Read' ? { hostRead: value, ...(!value ? { hostCapture: false, hostControl: false } : {}) }
-              : kind === 'Capture' ? { hostCapture: value, ...(value ? { hostRead: true } : { hostControl: false }) }
-              : { hostControl: value, ...(value ? { hostRead: true, hostCapture: true } : {}) })} />
+            onChange={value => change(kind === 'Read' ? { hostRead: value, ...(!value ? { hostCapture: false, hostControl: false, hostSecureCapture: false, hostSecureControl: false } : {}) }
+              : kind === 'Capture' ? { hostCapture: value, ...(value ? { hostRead: true } : { hostControl: false, hostSecureCapture: false, hostSecureControl: false }) }
+              : kind === 'Control' ? { hostControl: value, ...(value ? { hostRead: true, hostCapture: true } : { hostSecureControl: false }) }
+              : kind === 'SecureCapture' ? { hostSecureCapture: value, ...(value ? { hostRead: true, hostCapture: true } : { hostSecureControl: false }) }
+              : { hostSecureControl: value, ...(value ? { hostRead: true, hostCapture: true, hostControl: true, hostSecureCapture: true } : {}) })} />
         </div>)}
       </div>
       <p id={`${id}-focus-hint`} className={desktopStyles.note}><Info size={14} aria-hidden="true" />{t('settings.agent.hostDesktop.focusHint')}</p>

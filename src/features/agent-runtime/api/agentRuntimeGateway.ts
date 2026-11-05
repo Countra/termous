@@ -146,7 +146,7 @@ export interface AgentWorkspaceGateway {
   steerRuntime(run: Pick<AgentRun, 'id' | 'generation'>, message: string): Promise<AgentRuntimeCommandResult>
   onRuntimeStatus(callback: (status: AgentRuntimeStatus) => void): () => void
   updateMcpPolicy(input: {
-    host_desktop?: { read: boolean; capture: boolean; control: boolean }
+    host_desktop?: { read: boolean; capture: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
     approval_bypass: boolean
     sync_scopes: boolean
     expected_revision: number

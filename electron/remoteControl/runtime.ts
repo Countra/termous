@@ -117,10 +117,10 @@ export class RemoteControlRuntime {
       if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean') throw new RemoteCoreError('remote_invalid_request')
       return this.options.core.request<RemotePolicy>('/remote-control/agent-policy', { generation, revision, enabled }, 'PUT')
     }))
-	  ipcMain.handle('remote:configure-host-desktop', (event, generation: string, revision: number, observe: boolean, control: boolean) => result(async () => {
+	  ipcMain.handle('remote:configure-host-desktop', (event, generation: string, revision: number, observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean) => result(async () => {
 		this.main(event, generation)
-		if (!Number.isSafeInteger(revision) || revision < 0 || typeof observe !== 'boolean' || typeof control !== 'boolean' || control && !observe) throw new RemoteCoreError('remote_invalid_request')
-		return this.options.core.request<RemotePolicy>('/remote-control/host-desktop-policy', { generation, revision, observe, control }, 'PUT')
+		if (!Number.isSafeInteger(revision) || revision < 0 || typeof observe !== 'boolean' || typeof control !== 'boolean' || typeof secureCapture !== 'boolean' || typeof secureControl !== 'boolean' || control && !observe || secureCapture && !observe || secureControl && (!control || !secureCapture)) throw new RemoteCoreError('remote_invalid_request')
+		return this.options.core.request<RemotePolicy>('/remote-control/host-desktop-policy', { generation, revision, observe, control, secure_capture: secureCapture, secure_control: secureControl }, 'PUT')
 	  }))
     ipcMain.handle('remote:agent-upload', (event, data: unknown, mime: unknown, id: string) => result(async () => {
       const { entry, base } = await this.active(event, id)

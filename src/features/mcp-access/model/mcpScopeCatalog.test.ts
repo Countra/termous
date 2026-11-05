@@ -5,7 +5,17 @@ import {
   defaultMcpScopes,
   mcpScopes,
 } from '#entities/mcp-access'
-import { mcpScopeCatalog, mcpScopeGroups } from './mcpScopeCatalog.ts'
+import { mcpScopeCatalog, mcpScopeGroups, normalizeMcpScopes, toggleMcpScopes } from './mcpScopeCatalog.ts'
+
+test('安全权限依赖只由显式选择建立，撤销观察会移除依赖权限', () => {
+  assert.deepEqual(normalizeMcpScopes(['host-desktop:control']), ['host-desktop:control'])
+  const secure = toggleMcpScopes([], ['host-desktop:secure-control'], true)
+  assert.deepEqual(new Set(secure), new Set(['host-desktop:capture', 'host-desktop:control', 'host-desktop:secure-capture', 'host-desktop:secure-control']))
+  assert.deepEqual(toggleMcpScopes(secure, ['host-desktop:capture'], false), [])
+  const ordinary = toggleMcpScopes([], ['host-desktop:control'], true)
+  assert.equal(ordinary.some(scope => scope.includes('secure')), false)
+  assert.deepEqual(new Set(toggleMcpScopes(secure, ['host-desktop:secure-capture'], false)), new Set(ordinary))
+})
 
 test('每个 MCP Scope 恰好归属一个权限组', () => {
   const groupedScopes = mcpScopeGroups.flatMap((group) => group.scopes)

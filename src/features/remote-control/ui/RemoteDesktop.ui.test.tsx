@@ -13,13 +13,15 @@ import { RemoteDesktop } from './RemoteDesktop'
 function WithoutMotion({ children }: PropsWithChildren) { return <ConfigProvider theme={{ token: { motion: false } }}>{children}</ConfigProvider> }
 function desktopClient(request = vi.fn()) { return { request, connection: { id: 'parent' }, presentations: new DesktopPresentationPreferences() } as unknown as RemoteClient }
 
-const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as { receiverPolicy?: string }[], cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
-beforeEach(() => { fixture.gateways = []; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
+const fixture = vi.hoisted(() => ({ events: undefined as DesktopSessionEvents | undefined, gateways: [] as { receiverPolicy?: string }[], controlAvailable: true, cleanupConfirmed: true, start: vi.fn(), close: vi.fn(), input: vi.fn(), display: vi.fn(), openFileExchange: vi.fn() }))
+beforeEach(() => { fixture.gateways = []; fixture.controlAvailable = true; fixture.cleanupConfirmed = true; fixture.start.mockReset(); fixture.close.mockReset().mockResolvedValue(undefined); fixture.input.mockReset(); fixture.display.mockReset(); fixture.openFileExchange.mockReset() })
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }))
 vi.mock('@termous/remote-protocol/desktop', () => ({
   RemoteDesktopSession: class {
     // 模拟尚未过期的旧租约，验证界面不依赖远端清理消息才能禁用操作。
-    owned = true
+    get owned() { return fixture.controlAvailable }
+    holdsControl = true
+    get controlAvailable() { return fixture.controlAvailable }
     controlGeneration = 1n
     get cleanupConfirmed() { return fixture.cleanupConfirmed }
     dimensions = { width: 1920, height: 1080 }
@@ -36,6 +38,32 @@ vi.mock('@termous/remote-protocol/desktop', () => ({
     openFileExchange = fixture.openFileExchange
   },
 }))
+
+test('内容恢复只更新输入可用性，保留画面且不显示切换加载层', async () => {
+  const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })
+  const view = render(<RemoteDesktop client={desktopClient()} session={session} active />, { wrapper: WithoutMotion })
+  await waitFor(() => expect(fixture.start).toHaveBeenCalledTimes(1))
+  const video = view.container.querySelector('video')
+  const state = create(DesktopStateSchema, { width: 1920, height: 1080, capabilities: ['pointer', 'keyboard', 'text'] })
+  act(() => fixture.events?.state(state))
+  expect(screen.getByRole('button', { name: '键盘' })).toBeEnabled()
+  act(() => {
+    fixture.controlAvailable = false
+    fixture.events?.inputReset?.()
+    fixture.events?.state(state)
+  })
+  expect(screen.getByRole('button', { name: '键盘' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '释放控制' })).toBeDisabled()
+  expect(screen.getByRole('status')).toHaveTextContent('当前由你控制')
+  expect(view.container.querySelector('.ant-spin')).toBeNull()
+  expect(screen.queryByText('正在切换桌面')).not.toBeInTheDocument()
+  expect(screen.queryByText('正在连接桌面')).not.toBeInTheDocument()
+  expect(view.container.querySelector('video')).toBe(video)
+  act(() => { fixture.controlAvailable = true; fixture.events?.state(state) })
+  expect(screen.getByRole('button', { name: '键盘' })).toBeEnabled()
+  expect(fixture.start).toHaveBeenCalledTimes(1)
+  expect(fixture.close).not.toHaveBeenCalled()
+})
 
 test('兼容重连等待清理时切换代次，迟到结果不重启新会话', async () => {
   const session = create(SessionSchema, { id: 'desktop', kind: 'desktop', engine: 'rdp', generation: 1n, state: 'streaming' })

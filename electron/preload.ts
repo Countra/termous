@@ -119,7 +119,7 @@ const bridge = {
   remoteControl: {
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
     configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),
-  configureHostDesktop: (generation, revision, observe, control) => ipcRenderer.invoke('remote:configure-host-desktop', generation, revision, observe, control),
+  configureHostDesktop: (generation, revision, observe, control, secureCapture, secureControl) => ipcRenderer.invoke('remote:configure-host-desktop', generation, revision, observe, control, secureCapture, secureControl),
   hostDesktopAccesses: generation => ipcRenderer.invoke('remote:host-desktop-accesses', generation),
   stopHostDesktopAccess: (generation, id) => ipcRenderer.invoke('remote:stop-host-desktop-access', generation, id),
     configureDesktops: (generation, revision, profiles, exchangeProfiles) => ipcRenderer.invoke('remote:configure-desktops', generation, revision, profiles, exchangeProfiles),

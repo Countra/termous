@@ -30,7 +30,7 @@ export interface AgentReadinessComponent {
 }
 
 export interface AgentMcpPolicy {
-  host_desktop?: { read: boolean; capture: boolean; control: boolean }
+  host_desktop?: { read: boolean; capture: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
   client_id: string
   approval_bypass: boolean
   scope_count: number

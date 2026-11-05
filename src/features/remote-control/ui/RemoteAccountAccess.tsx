@@ -136,7 +136,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
     {connectionError ? <FeedbackMessage type="warning" title={remoteErrorText(copy, connectionError)} onClose={() => setConnectionError(undefined)} /> : null}
     <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
       hostDesktopAccesses={open && api ? <HostDesktopAccesses api={api} generation={generation} /> : undefined}
-	  onHostDesktop={api?.configureHostDesktop ? (observe, control) => void changePolicy('host-desktop', revision => api.configureHostDesktop!(generation, revision, observe, control)) : undefined}
+	  onHostDesktop={api?.configureHostDesktop ? (observe, control, secureCapture, secureControl) => void changePolicy('host-desktop', revision => api.configureHostDesktop!(generation, revision, observe, control, secureCapture, secureControl)) : undefined}
       desktops={desktops} selectedDesktops={selectedDesktops} onSelectDesktops={value => { setSelectedDesktops(value); setSelectedExchanges(current => current.filter(id => value.includes(id))) }}
       selectedExchanges={selectedExchanges} onSelectExchanges={setSelectedExchanges}
       onDesktops={api?.configureDesktops ? () => void changePolicy('desktop', revision => api.configureDesktops!(generation, revision, selectedDesktops, selectedExchanges)) : undefined}
