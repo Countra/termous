@@ -10,7 +10,7 @@ afterEach(() => vi.useRealTimers())
 const data: IntegrationSelection = { sources: [
   { id: 'docs', name: 'Documentation', kind: 'mcp', enabled: true, connection: 'connected' },
   { id: 'disabled', name: 'Disabled MCP', kind: 'mcp', enabled: false },
-  { id: 'review', name: 'Design review', description: 'Inspect keyboard access', kind: 'skill', enabled: true, version: 'v1' },
+  { id: 'review', name: 'Design review', description: 'Inspect keyboard access', kind: 'skill', enabled: true, version: 'v1', allow_implicit: true },
 ], policies: [] }
 
 async function open() {
@@ -31,21 +31,114 @@ it('打开与搜索只读取声明，不更新策略；未全局启用的来源�
   expect(change).not.toHaveBeenCalled()
 })
 
-it('Skill 可用开关保留原固定版本，主动选择新任务单独更新版本', async () => {
+it('普通 Skill 仅需会话开关，打开列表不建立显式选择或固定版本', async () => {
   const change = vi.fn(async () => {})
-  render(<IntegrationSourcePicker sessionKey="one" read={async () => ({ ...data, policies: [{ source_id: 'review', disabled: false, skill_version: 'v1' }] })} change={change} />)
+  render(<IntegrationSourcePicker sessionKey="one" read={async () => data} change={change} />)
   await open()
   fireEvent.click(screen.getByRole('tab', { name: /extensions.skillTab/u }))
-  const checkbox = screen.getByRole('checkbox', { name: 'extensions.selectSkill' })
-  expect(checkbox).toBeChecked()
-  fireEvent.click(checkbox)
-  await waitFor(() => expect(checkbox).not.toBeChecked())
-  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: false, skill_version: '' })
-  fireEvent.click(checkbox)
-  await waitFor(() => expect(checkbox).toBeChecked())
-  fireEvent.click(screen.getByRole('switch', { name: 'extensions.sessionEnabled Design review' }))
-  await waitFor(() => expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: true, skill_version: 'v1' }))
-  expect(checkbox).toBeDisabled()
+  const toggle = screen.getByRole('switch', { name: 'extensions.sessionEnabled Design review' })
+  expect(toggle).toBeChecked()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByText('Inspect keyboard access')).toBeVisible())
+  expect(change).not.toHaveBeenCalled()
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).not.toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: true })
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: false })
+})
+
+it('仅允许显式选用的 Skill 默认关闭，主动开启时选定版本，关闭时保留版本', async () => {
+  const change = vi.fn(async () => {})
+  const read = async () => ({ ...data, sources: data.sources.map(source => ({ ...source, allow_implicit: false })) })
+  render(<IntegrationSourcePicker sessionKey="one" read={read} change={change} />)
+  await open()
+  fireEvent.click(screen.getByRole('tab', { name: /extensions.skillTab/u }))
+  const toggle = screen.getByRole('switch', { name: 'extensions.sessionEnabled Design review' })
+  expect(toggle).not.toBeChecked()
+  await waitFor(() => expect(screen.getByText('extensions.skillManual')).toBeVisible())
+  expect(change).not.toHaveBeenCalled()
+  fireEvent.focus(toggle)
+  await waitFor(() => expect(screen.getByRole('tooltip', { name: 'extensions.skillManualHint' })).toBeVisible())
+  fireEvent.blur(toggle)
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: false, skill_version: 'v1' })
+  expect(screen.getByText('Inspect keyboard access')).toBeVisible()
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).not.toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: true, skill_version: 'v1' })
+})
+
+it.each([true, false])('Skill 新版不覆盖已有选择，开关保留版本，仅明确更新才切换（自动选用：%s）', async allow_implicit => {
+  const change = vi.fn(async () => {})
+  const read = async () => ({ ...data, sources: data.sources.map(source => ({ ...source, allow_implicit })),
+    policies: [{ source_id: 'review', disabled: false, skill_version: 'v0' }] })
+  render(<IntegrationSourcePicker sessionKey="one" read={read} change={change} />)
+  await open()
+  fireEvent.click(screen.getByRole('tab', { name: /extensions.skillTab/u }))
+  const toggle = screen.getByRole('switch', { name: 'extensions.sessionEnabled Design review' })
+  const latest = () => screen.queryByRole('button', { name: 'extensions.skillUpdate Design review' })
+  expect(toggle).toBeChecked()
+  expect(latest()).toBeEnabled()
+  expect(change).not.toHaveBeenCalled()
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).not.toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: true, skill_version: 'v0' })
+  expect(latest()).not.toBeInTheDocument()
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).toBeChecked())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: false, skill_version: 'v0' })
+  fireEvent.click(latest()!)
+  await waitFor(() => expect(latest()).not.toBeInTheDocument())
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: false, skill_version: 'v1' })
+})
+
+it('切换 Skill 版本失败时保留原选择，重复点击不会重放请求', async () => {
+  let fail!: (cause: Error) => void
+  const change = vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject }))
+  const read = async () => ({ ...data, policies: [{ source_id: 'review', disabled: false, skill_version: 'v0' }] })
+  render(<IntegrationSourcePicker sessionKey="one" read={read} change={change} />)
+  await open()
+  fireEvent.click(screen.getByRole('tab', { name: /extensions.skillTab/u }))
+  const latest = screen.getByRole('button', { name: 'extensions.skillUpdate Design review' })
+  fireEvent.focus(latest)
+  await waitFor(() => expect(screen.getByRole('tooltip', { name: 'extensions.skillUpdateHint' })).toBeVisible())
+  fireEvent.blur(latest)
+  fireEvent.click(latest); fireEvent.click(latest)
+  expect(change).toHaveBeenCalledOnce()
+  expect(latest).toBeDisabled()
+  await act(async () => fail(new Error('合成版本切换失败')))
+  const notice = await screen.findByRole('alert')
+  expect(notice).toHaveTextContent('合成版本切换失败')
+  expect(screen.getByRole('region', { name: 'extensions.picker.title' })).not.toContainElement(notice)
+  expect(latest).toBeEnabled()
+  const toggle = screen.getByRole('switch', { name: 'extensions.sessionEnabled Design review' })
+  expect(toggle).toBeChecked()
+  fireEvent.click(toggle)
+  expect(change).toHaveBeenLastCalledWith({ source_id: 'review', disabled: true, skill_version: 'v0' })
+  await act(async () => fail(new Error('合成关闭失败')))
+})
+
+it('全局未启用或声明缺失的 Skill 不能通过会话开关绕过', async () => {
+  const change = vi.fn(async () => {})
+  const source = data.sources[2]
+  const read = async () => ({ sources: [
+    { ...source, enabled: false },
+    { ...source, id: 'missing-version', name: 'Missing version', version: undefined },
+    { ...source, id: 'missing-policy', name: 'Missing policy', allow_implicit: undefined },
+  ], policies: [] })
+  render(<IntegrationSourcePicker sessionKey="one" read={read} change={change} />)
+  fireEvent.click(screen.getByRole('button', { name: 'extensions.title' }))
+  await screen.findByText('extensions.emptyMCP')
+  fireEvent.click(screen.getByRole('tab', { name: /extensions.skillTab/u }))
+  for (const toggle of screen.getAllByRole('switch')) {
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toBeDisabled()
+    fireEvent.click(toggle)
+  }
+  expect(change).not.toHaveBeenCalled()
 })
 
 it('保存失败保留原开关状态，错误使用浮动消息，重复点击不重复提交', async () => {

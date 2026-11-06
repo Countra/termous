@@ -167,17 +167,13 @@
   background: var(--warning);
 }
 
-.skill-selection:global(.ant-checkbox-wrapper) {
-  min-width: 0;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 16px;
-}
+.version-action:global(.ant-btn) {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
 
-.skill-selection > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  &:not(:disabled):hover, &:focus-visible { color: var(--accent); }
 }
 
 .empty {
