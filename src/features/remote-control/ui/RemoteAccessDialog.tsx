@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Grid, Modal, Popconfirm, Skeleton, Switch, Tabs } from 'antd'
-import { Bot, Folder, Monitor, PanelsTopLeft, Server, Settings2, ShieldCheck } from 'lucide-react'
+import { Bot, Folder, Monitor, PanelsTopLeft, RotateCw, Server, Settings2, ShieldCheck } from 'lucide-react'
 import type { RemotePolicyChange } from '#common/contracts'
 import { modalSurfaceStyles, termousPopconfirmProps, WorkspaceEmptyState } from '#shared/ui'
 import type { RemoteCopy } from '../model/copy'
@@ -45,12 +45,12 @@ export function RemoteAccessDialog({ hostDesktopAccesses, copy, state, change, o
   }
   return <Modal open={open} centered width={920} rootClassName={modalSurfaceStyles.root} className={styles.modal} destroyOnHidden closable={!busy} mask={{ closable: !busy }} keyboard={!busy} onCancel={onClose}
     title={<div className={styles.title}><span className={styles['title-icon']}><ShieldCheck size={21} aria-hidden="true" /></span><div><strong>{copy.configure}</strong><p>{copy.trustedScope}</p></div></div>}
-    footer={<div className={styles.footer}><div className={styles['footer-actions']}>{blocked && !loading ? <Button onClick={onRefresh}>{copy.refresh}</Button> : null}<Button type="primary" loading={busy} disabled={busy} onClick={onClose}>{copy.done}</Button></div></div>}>
+    footer={null}>
     <RemoteAccessFeedback notice={state.notice} copy={copy} active={open} />
     <div className={styles.body}>
       {loading ? <div className={styles.loading} role="status" aria-label={copy.accessLoading}><Skeleton active paragraph={{ rows: 5 }} /></div> : !policy || !view ? <WorkspaceEmptyState icon={<Settings2 size={18} />} title={copy.accessReadFailed} action={<Button onClick={onRefresh}>{copy.refresh}</Button>} /> : <>
-        <div className={styles['remote-control']}><h3>{copy.hostSettings}</h3><Popconfirm {...confirmProps} trigger={[]} open={open && confirmation?.kind === 'enabled'}><Switch checked={policy.enabled} disabled={inactive || pending.has('enabled')} loading={pending.has('enabled')} onChange={enabled => modeChange({ kind: 'enabled', enabled })} aria-label={copy.hostSettings} /></Popconfirm></div>
-        <Popconfirm {...confirmProps} trigger={[]} open={open && confirmation?.kind === 'mode'}><div><RemoteAccessModeControl mode={policy.access_mode ?? 'custom'} copy={copy} disabled={inactive || pending.has('mode')} onChange={mode => modeChange({ kind: 'mode', mode })} /></div></Popconfirm>
+        <div className={styles['remote-control']}><h3>{copy.hostSettings}</h3>{blocked ? <Button type="text" size="small" icon={<RotateCw size={14} aria-hidden="true" />} onClick={onRefresh}>{copy.refresh}</Button> : null}<Popconfirm {...confirmProps} trigger={[]} open={open && confirmation?.kind === 'enabled'}><Switch checked={policy.enabled} disabled={inactive || pending.has('enabled')} loading={pending.has('enabled')} onChange={enabled => modeChange({ kind: 'enabled', enabled })} aria-label={copy.hostSettings} /></Popconfirm></div>
+        <Popconfirm {...confirmProps} trigger={[]} open={open && confirmation?.kind === 'mode'}><div className={styles['mode-control']}><RemoteAccessModeControl mode={policy.access_mode ?? 'custom'} copy={copy} disabled={inactive || pending.has('mode')} onChange={mode => modeChange({ kind: 'mode', mode })} /></div></Popconfirm>
         <Tabs className={styles.tabs} tabPlacement={screens.md ? 'start' : 'top'} activeKey={activeTab} onChange={setActiveTab} animated={false} items={[
           { key: 'hosts', label: label(<Server size={16} aria-hidden="true" />, copy.hostConnections, full ? fullHosts.length : selected.length),
             children: <RemoteHostAccessPanel copy={copy} hosts={view.hosts} selected={full ? fullHosts : selected} full={full} disabled={inactive || full} pending={pending} onChange={change} /> },

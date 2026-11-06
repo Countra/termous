@@ -2,7 +2,7 @@ import { renderWithFeedback as render } from '../../../test/renderWithFeedback'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { ConfigProvider } from 'antd'
 import { beforeAll, expect, test, vi } from 'vitest'
-import type { RemoteLauncher, RemotePolicyReceipt, RemoteResult } from '#common/contracts'
+import type { RemoteLauncher, RemotePolicyEditor, RemotePolicyReceipt, RemoteResult } from '#common/contracts'
 import { changeLanguage } from '#shared/i18n'
 import { deferred, ok, policyGateway } from '../../../test/remotePolicyEditor'
 import { RemoteAccountAccess } from './RemoteAccountAccess'
@@ -21,7 +21,7 @@ test('勾选主机后立即切换桌面编辑，不必等待保存，两个写�
   const pending = deferred<RemoteResult<RemotePolicyReceipt>>()
   const gateway = policyGateway({}, { changePolicy: vi.fn().mockReturnValueOnce(pending.promise).mockImplementation(async (_g, _e, revision, change) => gateway.apply(revision, change)) })
   bridge.current = gateway.api; render(view()); await open()
-  expect(screen.queryByRole('button', { name: /保存/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /保存|完成/ })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
   tab(/桌面访问/)
   const desktop = screen.getByRole('checkbox', { name: /开发桌面/ })
@@ -38,7 +38,7 @@ test('桌面独立授权，取消主机后仍保留桌面与文件交换', async
   const gateway = policyGateway({ hosts: [{ id: 'build', terminal_file_access: true, connections: [{ id: 'rdp', kind: 'desktop' }, { id: 'rdp', kind: 'desktop_exchange' }] }] })
   bridge.current = gateway.api; render(view()); await open()
   fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: '完成' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '构建主机' })).toBeEnabled())
   tab(/桌面访问/)
   expect(screen.getByRole('checkbox', { name: /开发桌面/ })).toBeChecked()
   expect(screen.getByRole('checkbox', { name: /文件交换/ })).toBeChecked()
@@ -56,12 +56,19 @@ test('未授权主机也能直接选择桌面，总开关关闭时可以预配�
 
 test('失败使用弹出消息，不重放；分类切换保留搜索', async () => {
   const { api } = policyGateway({}, { changePolicy: vi.fn(async () => ({ ok: false as const, code: 'remote_policy_changed' })) })
+  const read = api.editPolicy!
+  const refresh = deferred<RemoteResult<RemotePolicyEditor>>()
+  api.editPolicy = vi.fn().mockImplementationOnce(read).mockReturnValueOnce(refresh.promise).mockImplementation(read)
   bridge.current = api; render(view()); await open()
   fireEvent.change(screen.getByRole('textbox', { name: '搜索主机' }), { target: { value: '构建' } })
   fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
   await screen.findByText('访问设置已变化，已停止后续修改。')
   expect(within(screen.getByRole('dialog')).queryByText('访问设置已变化，已停止后续修改。')).not.toBeInTheDocument()
   await waitFor(() => expect(api.editPolicy).toHaveBeenCalledTimes(2))
+  await act(async () => refresh.resolve({ ok: false, code: 'remote_unavailable' }))
+  expect(screen.getByRole('checkbox', { name: '构建主机' })).toBeDisabled()
+  fireEvent.click(await screen.findByRole('button', { name: '刷新' }))
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '构建主机' })).toBeEnabled())
   tab(/桌面访问/); tab(/主机连接/)
   expect(screen.getByRole('textbox', { name: '搜索主机' })).toHaveValue('构建')
   expect(api.changePolicy).toHaveBeenCalledTimes(1)

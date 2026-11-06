@@ -13,10 +13,12 @@ const hosts = empty ? [] : [
   { id: 'build', name: '构建工作站' }, { id: 'production', name: '生产服务器' },
   { id: 'lab', name: '测试环境' }, { id: 'storage', name: '文件存储' },
   { id: 'development', name: '开发主机' }, { id: 'archive', name: '归档服务器' },
+  ...(query.has('long') ? Array.from({ length: 18 }, (_, i) => ({ id: `host-${i}`, name: `预览主机 ${i + 1}` })) : []),
 ]
 const desktops = empty ? [] : [
   { id: 'rdp', host_id: 'build', name: 'Windows 开发环境', protocol: 'rdp' },
   { id: 'vnc', host_id: 'build', name: 'Linux 测试桌面', protocol: 'vnc' },
+  ...(query.has('long') ? Array.from({ length: 10 }, (_, i) => ({ id: `desktop-${i}`, host_id: 'lab', name: `测试桌面 ${i + 1}`, protocol: 'rdp' })) : []),
 ]
 let policy: RemotePolicy = {
   access_mode: query.has('full') ? 'full' : 'custom', revision: 1, enabled: true, agent_enabled: false,
@@ -25,6 +27,7 @@ let policy: RemotePolicy = {
   directories: empty ? [] : [
     { id: 'reports', name: '项目文档', path: 'D:\\Workspace\\Termous\\documents', read: true, write: false },
     { id: 'releases', name: '构建产物', path: 'D:\\Workspace\\Termous\\releases', read: true, write: true },
+    ...(query.has('long') ? Array.from({ length: 10 }, (_, i) => ({ id: `folder-${i}`, name: `共享目录 ${i + 1}`, path: `D:\\Shared\\folder-${i + 1}`, read: true, write: false })) : []),
   ],
 }
 const ok = <T,>(value: T): RemoteResult<T> => ({ ok: true, value: structuredClone(value) })
