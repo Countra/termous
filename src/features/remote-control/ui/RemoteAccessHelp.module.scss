@@ -1,0 +1,23 @@
+.trigger:global(.ant-btn) {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+
+  &:hover, &:focus-visible { color: var(--accent); }
+}
+
+.content {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+
+  p {
+    margin: 0;
+    font-weight: 400;
+  }
+  p + p { margin-top: 8px; }
+  strong { font-weight: 600; }
+}

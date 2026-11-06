@@ -1,0 +1,367 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  p {
+    margin: 3px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.heading-title, .permission-title {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.protocol-help {
+  margin: 0;
+
+  > div {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  > div + div { margin-top: 10px; }
+  dt { font-weight: 600; }
+
+  dd {
+    margin: 0;
+    font-weight: 400;
+  }
+}
+
+.hint, .note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.note {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  padding-block: 3px;
+  font-size: 12px;
+}
+
+.pending {
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :global(.ant-checkbox-wrapper) { font-size: 12px; }
+}
+
+.host-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choice:global(.ant-checkbox-wrapper) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  min-height: 56px;
+  padding: 10px 12px;
+  transition: border-color 120ms, background 120ms;
+
+  > span:last-child {
+    flex: 1;
+    min-width: 0;
+    padding-inline: 10px 0;
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  &:global(.ant-checkbox-wrapper-checked) {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+
+  &:global(.ant-checkbox-wrapper-disabled) {
+    opacity: 0.6;
+
+    &:hover { border-color: var(--border); }
+  }
+}
+
+.choice-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text-primary);
+  line-height: 1.6;
+
+  > .resource-copy {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  :global(.ant-tag) {
+    flex-shrink: 0;
+    margin: 0;
+    font-size: 10px;
+  }
+}
+
+.resource-icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+
+.desktop-list, .directory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.desktop-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  .choice:global(.ant-checkbox-wrapper) {
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+.exchange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-subtle) 38%, transparent);
+  padding: 8px 12px 8px 38px;
+
+  > svg { color: var(--text-muted); }
+
+  :global(.ant-checkbox-wrapper) { font-size: 12px; }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.folder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  :global(.ant-btn) { font-size: 12px; }
+}
+
+.directory {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 76px;
+  padding: 12px;
+
+  :global(.ant-tag) {
+    flex-shrink: 0;
+    margin: 0;
+    font-size: 11px;
+  }
+}
+
+.directory-copy {
+  flex: 1;
+  min-width: 0;
+
+  strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  > span {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  strong, > span {
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+}
+
+.revoke {
+  flex-shrink: 0;
+  color: var(--text-muted);
+
+  &:hover { color: var(--danger); }
+}
+
+.permission-group {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  .permission-row {
+    border: 0;
+    border-radius: 0;
+  }
+  .permission-row + .permission-row { border-top: 1px solid var(--border); }
+}
+
+.permission-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+
+  > div {
+    flex: 1;
+    min-width: 0;
+  }
+
+  h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+}
+
+.subheading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 0 -4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.accesses {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+
+  &:first-child {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+
+.access-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.access-actions :global(.ant-tag) { margin: 0; }
+
+@media (width <= 600px) {
+  .host-list { grid-template-columns: minmax(0, 1fr); }
+
+  .directory {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .heading { gap: 8px; }
+  .note { font-size: 11px; }
+  .directory-copy { flex-basis: calc(100% - 48px); }
+  .directory > :global(.ant-tag) { margin-left: 40px; }
+  .directory .revoke { margin-left: auto; }
+  .permission-row { gap: 10px; }
+
+  .permission-row > .resource-icon {
+    width: 26px;
+    height: 30px;
+    background: transparent;
+  }
+
+  .accesses .permission-row { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice:global(.ant-checkbox-wrapper) { transition: none; }
+}

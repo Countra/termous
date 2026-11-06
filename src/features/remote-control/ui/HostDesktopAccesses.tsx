@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Space, Tag } from 'antd'
+import { Button, Tag } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { HostDesktopAccess, RemoteLauncher } from '#common/contracts'
 import { unwrap } from '#entities/remote-control'
 import { FeedbackMessage } from '#shared/ui'
-import styles from './RemoteAccessDialog.module.scss'
+import styles from './RemoteAccessPanels.module.scss'
 
 export function HostDesktopAccesses({ api, generation }: { api: RemoteLauncher; generation: string }) {
   const { t } = useTranslation()
@@ -34,15 +34,15 @@ export function HostDesktopAccesses({ api, generation }: { api: RemoteLauncher; 
     finally { setStopping(undefined) }
   }
   if (!api.hostDesktopAccesses) return null
-  return <section className={styles.panel} aria-label={t('hostDesktop.activeAccesses')}>
-    <h3>{t('hostDesktop.activeAccesses')}</h3>
+  return <section className={`${styles.panel} ${styles.accesses}`} aria-label={t('hostDesktop.activeAccesses')}>
+    <header className={styles.heading}><div><h3>{t('hostDesktop.activeAccesses')}</h3></div></header>
     {error && <FeedbackMessage type="warning" title={t('hostDesktop.accessFailed')} />}
     {!items.length && !error && <p className={styles.hint}>{t('hostDesktop.noAccesses')}</p>}
-    {items.map(item => <div className={styles['agent-control']} key={item.id}>
-      <div><strong>{item.title}</strong><p>{item.device_id}</p></div>
-      <Space><Tag>{t(item.stopping ? 'hostDesktop.stopping' : item.controlling ? 'hostDesktop.controlling' : 'hostDesktop.observing')}</Tag>
+    {items.map(item => <div className={styles['permission-row']} key={item.id}>
+      <div><h4>{item.title}</h4><p>{item.device_id}</p></div>
+      <span className={styles['access-actions']}><Tag>{t(item.stopping ? 'hostDesktop.stopping' : item.controlling ? 'hostDesktop.controlling' : 'hostDesktop.observing')}</Tag>
         <Button danger disabled={!!stopping || item.stopping} loading={stopping === item.id} onClick={() => void stop(item.id)}>{t('hostDesktop.stopAccess')}</Button>
-      </Space>
+      </span>
     </div>)}
   </section>
 }
