@@ -1,9 +1,10 @@
-import { Alert, Button, Segmented } from 'antd'
+import { Button, Segmented } from 'antd'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AnalysisGateway, AnalysisLayer, AnalysisPresentation } from '#common/contracts'
 import type { useAnalysisResults } from '../../model/useAnalysisResults'
+import type { AnalysisErrorReporter } from '../../model/useAnalysisError'
 import { AnalysisElementDetail } from '../AnalysisElementDetail'
 import { AnalysisFilterEditor } from './AnalysisFilterEditor'
 import { AnalysisFilterPopover } from './AnalysisFilterPopover'
@@ -13,7 +14,7 @@ import styles from './Explorer.module.scss'
 
 export function AnalysisResults({ gateway, id, state, onChange, result, cursor, onPage, onError }: {
   gateway: AnalysisGateway; id: string; state: AnalysisPresentation; onChange: (patch: Partial<AnalysisPresentation>) => void
-  result: ReturnType<typeof useAnalysisResults>; cursor: number; onPage: (next: boolean) => void; onError: (error: unknown) => void
+  result: ReturnType<typeof useAnalysisResults>; cursor: number; onPage: (next: boolean) => void; onError: AnalysisErrorReporter
 }) {
   const { t } = useTranslation()
   const [detail, setDetail] = useState({ key: '', open: true })
@@ -42,7 +43,6 @@ export function AnalysisResults({ gateway, id, state, onChange, result, cursor, 
     </div>
     <div className={styles['list-view']} hidden={showDetail}>
       <div className={styles['result-status']} role="status">{t('analysisCenter.matches', { count: data?.page.total ?? 0 })}{result.loading && <span>{t('desktopWorkflow.analysisWorkspace.loading')}</span>}</div>
-      {result.error != null && <Alert type="error" title={t('analysisCenter.readFailed')} action={<Button onClick={result.reload}>{t('app.retry')}</Button>} />}
       {data?.page.limited_by_inference && <small className={styles.hint}>{t('analysisCenter.inferenceLimited')}</small>}
       <div ref={list} className={styles['result-list']} role="list" aria-busy={result.loading} aria-label={t(`desktopWorkflow.analysisWorkspace.${state.layer}`)}>
         {data?.page.items.map(item => <AnalysisResultItem key={item.id} item={item} selected={item.id === state.selected} disabled={result.loading}

@@ -86,6 +86,30 @@
   gap: 8px;
 }
 
+.feedback {
+  display: inline-flex;
+  max-width: min(520px, calc(100vw - 96px));
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.feedback-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feedback-retry[class] {
+  height: auto;
+  flex: 0 0 auto;
+  padding: 0;
+  font: inherit;
+}
+
 
 @media (width < 848px) {
   .dialog[class] { height: calc(100dvh - 24px); }

@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { App } from 'antd'
 import { screenAnalysisDefaults, type AnalysisGateway, type AnalysisRecord, type AnalysisRenderedImage } from '#common/contracts'
 import { AnalysisFilterEditor } from './AnalysisFilterEditor'
 import { AnalysisToolsPanel } from './AnalysisToolsPanel'
 import { AnalysisExplorer } from './AnalysisExplorer'
+import { AnalysisHistoryList } from './AnalysisHistoryList'
 import { analysisMinimumFilter } from '../../model/analysisFilterInput'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -73,13 +75,15 @@ it('导出采用全部已提交筛选，非法裁剪拒绝请求，关闭后取�
   let finish!: (value: unknown) => void
   const renderImage = vi.fn<AnalysisGateway['renderAnalysisImage']>(() => new Promise<AnalysisRenderedImage>(resolve => { finish = value => resolve(value as AnalysisRenderedImage) }))
   const create = vi.spyOn(URL, 'createObjectURL')
+  const onError = vi.fn()
   const record = { id: 'record', state: 'succeeded', sha256: 'saved', parameters: screenAnalysisDefaults, image: { width: 800, height: 600, coordinate_space: 'original_pixels' } } as AnalysisRecord
   const view = render(<AnalysisToolsPanel kind="export" record={record} gateway={{ renderAnalysisImage: renderImage } as unknown as AnalysisGateway}
-    state={{ open: true, history: false, layer: 'ocr', filter: { text_gt: .5, limit: 20, cursor: 'next', sort: 'confidence_desc' } }} busy={false} onReanalyze={async () => {}} onCrop={() => {}} onClose={() => {}} />)
+    state={{ open: true, history: false, layer: 'ocr', filter: { text_gt: .5, limit: 20, cursor: 'next', sort: 'confidence_desc' } }} busy={false} onError={onError} onReanalyze={async () => {}} onCrop={() => {}} onClose={() => {}} />)
   const crop = screen.getByRole('textbox', { name: 'analysisCenter.image.crop' })
   fireEvent.change(crop, { target: { value: '0,0,801,600' } })
   fireEvent.click(screen.getByText('desktopWorkflow.analysisWorkspace.exportFiltered'))
-  await screen.findByText('analysisCenter.image.invalidCrop')
+  await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'analysis_invalid_crop' })))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expect(renderImage).not.toHaveBeenCalled()
   fireEvent.change(crop, { target: { value: '0,0,400,300' } })
   fireEvent.click(screen.getByText('desktopWorkflow.analysisWorkspace.exportFiltered'))
@@ -90,4 +94,26 @@ it('导出采用全部已提交筛选，非法裁剪拒绝请求，关闭后取�
   expect(signal?.aborted).toBe(true)
   await act(async () => finish({ blob: new Blob(['late']) }))
   expect(create).not.toHaveBeenCalled()
+})
+
+it.each(['success', 'failure'])('历史清理只打开一个确认窗，离开后忽略迟到的 %s 回执', async outcome => {
+  const destroy = vi.fn()
+  const confirm = vi.fn().mockReturnValue({ destroy })
+  vi.spyOn(App, 'useApp').mockReturnValue({ modal: { confirm } } as unknown as ReturnType<typeof App.useApp>)
+  let finish!: () => void
+  const error = new Error('analysis_storage_failed')
+  const clearAnalyses = vi.fn(() => new Promise<void>((resolve, reject) => { finish = () => outcome === 'success' ? resolve() : reject(error) }))
+  const onError = vi.fn(); const onCleared = vi.fn()
+  const gateway = { listAnalyses: vi.fn().mockResolvedValue({ items: [], total: 0 }), clearAnalyses } as unknown as AnalysisGateway
+  const view = render(<AnalysisHistoryList gateway={gateway} revision={0} onSelect={() => {}} onCleared={onCleared} onError={onError} />)
+  fireEvent.click(screen.getByRole('button', { name: 'analysisCenter.clear' }))
+  fireEvent.click(screen.getByRole('button', { name: 'analysisCenter.clear' }))
+  expect(confirm).toHaveBeenCalledOnce()
+  const complete = confirm.mock.calls[0][0].onOk().catch((reason: unknown) => reason)
+  expect(clearAnalyses).toHaveBeenCalledOnce()
+  view.unmount()
+  expect(destroy).toHaveBeenCalledOnce()
+  await act(async () => { finish(); await complete })
+  expect(onError).not.toHaveBeenCalled()
+  expect(onCleared).not.toHaveBeenCalled()
 })

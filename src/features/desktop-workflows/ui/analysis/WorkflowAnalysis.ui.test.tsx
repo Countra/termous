@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App, ConfigProvider } from 'antd'
 import { StrictMode, useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -63,8 +63,9 @@ it('应用校验失败保持弹层和草稿，重复点击只启动一次应用'
   const button = screen.getByRole('button', { name: 'desktopWorkflow.analysis.usePoint' })
   fireEvent.click(button); fireEvent.click(button)
   await waitFor(() => expect(gateway.validateAnalysisAction).toHaveBeenCalledOnce())
-  await act(async () => reject(new Error('expired preview')))
-  expect(await screen.findByText('expired preview')).toBeInTheDocument()
+  await act(async () => reject(new Error('analysis_runtime_changed')))
+  expect(await screen.findByText('desktopWorkflow.errors.analysis_runtime_changed')).toBeInTheDocument()
+  expect(within(screen.getByRole('dialog')).queryByRole('alert')).not.toBeInTheDocument()
   expect(changed).not.toHaveBeenCalled(); expect(applied).not.toHaveBeenCalled()
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 })
@@ -103,15 +104,52 @@ it('切换观察网关后旧提交回执不能覆盖新会话，旧预览仍正�
   expect(gateway.cancelAnalysis).not.toHaveBeenCalled()
 })
 
-it('原图读取失败只重试读取，不重新提交分析', async () => {
+it('原图连续读取失败可再次重试，不重新提交分析', async () => {
   const { View, gateway } = harness()
-  vi.mocked(gateway.analysisImage).mockRejectedValueOnce(new Error('temporary'))
+  const failure = new Error('temporary')
+  vi.mocked(gateway.analysisImage).mockRejectedValueOnce(failure).mockRejectedValueOnce(failure)
   render(<View />)
   await analyze()
-  fireEvent.click(await screen.findByRole('button', { name: 'app.retry' }))
+  const retry = await screen.findByRole('button', { name: 'app.retry' })
+  await act(async () => { fireEvent.click(retry); fireEvent.click(retry) })
+  await waitFor(() => expect(retry).not.toBeInTheDocument())
+  const nextRetry = await screen.findByRole('button', { name: 'app.retry' })
+  await act(async () => fireEvent.click(nextRetry))
   await screen.findByAltText('analysisCenter.originalImage')
   expect(gateway.submitAnalysis).toHaveBeenCalledOnce()
-  expect(gateway.analysisImage).toHaveBeenCalledTimes(2)
+  expect(gateway.analysisImage).toHaveBeenCalledTimes(3)
+})
+
+it('分析失败通过消息展示可读文案，弹窗不嵌入错误条，关闭后移除提示', async () => {
+  const { View, gateway } = harness()
+  vi.mocked(gateway.getAnalysis).mockResolvedValue({ ...result(), state: 'failed', error: 'analysis_unavailable', summary: undefined })
+  render(<View />)
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.analyze' }))
+  const content = 'desktopWorkflow.errors.analysis_unavailable'
+  expect(await screen.findByText(content)).toBeInTheDocument()
+  const dialog = within(screen.getByRole('dialog'))
+  expect(dialog.queryByRole('alert')).not.toBeInTheDocument()
+  expect(dialog.queryByText(content)).not.toBeInTheDocument()
+  expect(screen.queryByText('analysis_unavailable')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByText(content)).not.toBeInTheDocument())
+})
+
+it('重新打开分析后，旧操作的迟到错误不能进入新弹窗', async () => {
+  const { View, gateway } = harness()
+  let reject!: (error: Error) => void
+  vi.mocked(gateway.submitAnalysis).mockImplementation(() => new Promise((_, fail) => { reject = fail }))
+  render(<View />)
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.analyze' }))
+  await waitFor(() => expect(gateway.submitAnalysis).toHaveBeenCalledOnce())
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
+  await act(async () => reject(new Error('analysis_unavailable')))
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  expect(screen.queryByText('desktopWorkflow.errors.analysis_unavailable')).not.toBeInTheDocument()
 })
 
 it('删除回执只清理被删除记录，不清空等待期间切换的历史记录', async () => {

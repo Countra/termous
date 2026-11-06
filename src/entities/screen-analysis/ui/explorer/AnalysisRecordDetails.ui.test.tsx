@@ -15,7 +15,7 @@ it('概览区分本次和原始推理耗时，诊断按需读取，关闭后取�
   let resolve!: (value: AnalysisDiagnosticView) => void
   const diagnostics = vi.fn<AnalysisGateway['analysisDiagnostics']>(() => new Promise(done => { resolve = done }))
   const back = vi.fn()
-  const view = render(<ConfigProvider theme={{ token: { motion: false } }}><AnalysisRecordDetails record={record} gateway={{ analysisDiagnostics: diagnostics } as unknown as AnalysisGateway} onBack={back} /></ConfigProvider>)
+  const view = render(<ConfigProvider theme={{ token: { motion: false } }}><AnalysisRecordDetails record={record} gateway={{ analysisDiagnostics: diagnostics } as unknown as AnalysisGateway} onBack={back} onError={vi.fn()} /></ConfigProvider>)
   expect(screen.getByText('5 ms')).toBeInTheDocument()
   expect(screen.getByText(`${(2300).toLocaleString()} ms`)).toBeInTheDocument()
   expect(diagnostics).not.toHaveBeenCalled()
@@ -30,8 +30,8 @@ it('概览区分本次和原始推理耗时，诊断按需读取，关闭后取�
 
 it('未成功任务不读推理诊断，参数和空分布仍可查看', () => {
   const diagnostics = vi.fn()
-  render(<AnalysisRecordDetails record={{ ...record, state: 'failed', error: 'model unavailable', confidence_distribution: undefined, summary: undefined }} gateway={{ analysisDiagnostics: diagnostics } as unknown as AnalysisGateway} onBack={() => {}} />)
-  expect(screen.getByText('model unavailable')).toBeInTheDocument()
+  render(<AnalysisRecordDetails record={{ ...record, state: 'failed', error: 'model unavailable', confidence_distribution: undefined, summary: undefined }} gateway={{ analysisDiagnostics: diagnostics } as unknown as AnalysisGateway} onBack={() => {}} onError={vi.fn()} />)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expect(screen.queryByText('desktopWorkflow.analysis.diagnostics')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /desktopWorkflow.analysisWorkspace.detail.parameters/ }))
   expect(screen.getByText('5%')).toBeInTheDocument()

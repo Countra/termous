@@ -3,11 +3,12 @@ import { ArrowLeft, Clock3, ScanSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { analysisMode, type AnalysisGateway, type AnalysisRecord } from '#common/contracts'
 import { analysisTerminal } from '../../model/useVisibleQuery'
+import type { AnalysisErrorReporter } from '../../model/useAnalysisError'
 import { AnalysisDiagnostics } from '../AnalysisDiagnostics'
 import { AnalysisParameterFacts } from '../AnalysisParameterFacts'
 import styles from '../AnalysisDetails.module.scss'
 
-export function AnalysisRecordDetails({ record, gateway, onBack }: { record: AnalysisRecord; gateway: AnalysisGateway; onBack: () => void }) {
+export function AnalysisRecordDetails({ record, gateway, onBack, onError }: { record: AnalysisRecord; gateway: AnalysisGateway; onBack: () => void; onError: AnalysisErrorReporter }) {
   const { t } = useTranslation()
   const text = (key: string) => t(`desktopWorkflow.analysisWorkspace.detail.${key}`)
   const time = (value?: string) => value ? new Date(value).toLocaleString() : '—'
@@ -29,7 +30,6 @@ export function AnalysisRecordDetails({ record, gateway, onBack }: { record: Ana
           <div><dt>{t('analysisCenter.ocrSpans')}</dt><dd>{record.summary.ocr_span_count}</dd></div>
         </dl>}
         {record.summary?.truncated && <Alert type="warning" showIcon title={record.summary.truncation_reasons.map(reason => t(`desktopWorkflow.analysis.truncation.${reason}`)).join(' · ')} />}
-        {record.error && <Alert type="error" showIcon title={record.error} />}
       </section>
       <section className={styles.section}>
         <h3>{text('source')}</h3>
@@ -49,7 +49,7 @@ export function AnalysisRecordDetails({ record, gateway, onBack }: { record: Ana
           <tbody>{distribution.detection.map((count, index) => <tr key={index}><th scope="row">{index * 10}–{(index + 1) * 10}%</th>{[count, distribution.ocr[index] ?? 0].map((value, column) => <td key={column}><span className={styles.bar} data-kind={column === 0 ? 'detection' : 'ocr'} style={{ width: `${value / maximum * 100}%` }} /><span className={styles.value}>{value}</span></td>)}</tr>)}</tbody>
         </table></> }] : []),
       ]} />
-      {record.state === 'succeeded' && <AnalysisDiagnostics record={record} gateway={gateway} active />}
+      {record.state === 'succeeded' && <AnalysisDiagnostics record={record} gateway={gateway} active onError={onError} />}
     </div>
   </section>
 }

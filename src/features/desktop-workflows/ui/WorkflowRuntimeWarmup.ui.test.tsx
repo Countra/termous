@@ -77,7 +77,8 @@ it('工作区头部打开推理设置失败时显示操作错误', async () => {
   try {
     fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.analysisWorkspace.title' }))
     fireEvent.click(await screen.findByRole('button', { name: 'settings.aiRuntime.cpu' }))
-    expect(await screen.findByText('设置暂不可用')).toBeVisible()
+    expect(await screen.findByText('desktopWorkflow.errors.analysis_settings_unavailable')).toBeVisible()
+    expect(screen.queryByText('设置暂不可用')).not.toBeInTheDocument()
     expect(settings).toHaveBeenCalledTimes(1)
   } finally { view.unmount() }
 })

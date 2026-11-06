@@ -1,14 +1,15 @@
 import { hostDesktopTargetKey } from '#common/contracts'
-import { Alert, App, Button, Dropdown, Modal, Select, Tag, Tooltip } from 'antd'
+import { App, Button, Dropdown, Modal, Select, Tag, Tooltip } from 'antd'
 import { Download, Info, MoreHorizontal, RotateCw, ScanSearch, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { analysisModeParameters, type AnalysisMode, type AnalysisPresentation, type AnalysisRecord, type ScreenAnalysisParameters } from '#common/contracts'
-import { AnalysisExplorer, AnalysisHistoryList, AnalysisToolsPanel, analysisMinimumFilter, analysisTerminal, useVisibleQuery } from '#entities/screen-analysis'
+import { AnalysisExplorer, AnalysisHistoryList, AnalysisToolsPanel, analysisMinimumFilter, analysisTerminal, useAnalysisError, useVisibleQuery } from '#entities/screen-analysis'
 import { contextActionMenuPopupClassName } from '#shared/ui'
 import type { Snapshot, Step } from '#entities/desktop-workflow'
 import { findStep, editStep } from '../../model/steps'
 import { stepOCR } from '../../model/ocr'
+import { analysisError } from '../../model/messages'
 import { isTargetAvailable, sessionTarget } from '../../model/target'
 import type { ImageSlot } from '../../model/images'
 import type { WorkflowMediaGateway, WorkflowSurfaceModel } from '../../model/workspace/types'
@@ -27,7 +28,13 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
   model: WorkflowSurfaceModel; gateway: WorkflowMediaGateway; slot: ImageSlot; active: boolean; guided: boolean
   onMediaTask: (task: Promise<unknown>) => void; onApplied: (value: AnalysisTransfer) => void
 }) {
-  const { t } = useTranslation(); const { modal } = App.useApp()
+  const { t } = useTranslation(); const { modal, message } = App.useApp()
+  const feedbackKey = useId()
+  const feedbackRevision = useRef(0)
+  const clearFeedback = useCallback(() => {
+    // 已销毁的消息可能仍在退出动画中，新一轮提示使用新的键。
+    message.destroy(`${feedbackKey}:${feedbackRevision.current++}`)
+  }, [message, feedbackKey])
   const runtime = useAnalysisRuntime(gateway, active && !guided)
   const presentation = model.state.presentation.analysis ?? initial
   const state = useMemo(() => ({ ...presentation, filter: analysisMinimumFilter(presentation.filter) }), [presentation])
@@ -37,7 +44,6 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
   const cancelPending = useRef(false)
   const [expired, setExpired] = useState(false)
   const working = useRef(false)
-  const [error, setError] = useState<string>()
   const [mode, setMode] = useState<AnalysisMode>()
   const [panel, setPanel] = useState<'parameters' | 'export' | 'details'>()
   const [crop, setCrop] = useState<[number, number, number, number]>()
@@ -46,11 +52,24 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
   const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(undefined)
   const mounted = useRef(true)
   const closing = useRef(false)
-  const latest = useRef({ model, state, slot, onApplied }); latest.current = { model, state, slot, onApplied }
+  // 提示绑定本次可见窗口，旧操作的回执不能进入重新打开的窗口。
+  const feedbackScope = useMemo(() => ({ gateway, active, open: state.open }), [gateway, active, state.open])
+  const latest = useRef({ model, state, slot, onApplied, active, feedbackScope }); latest.current = { model, state, slot, onApplied, active, feedbackScope }
   const targetKey = JSON.stringify(model.target)
   const captureKey = model.target.host ? hostDesktopTargetKey(model.target.host) : `${model.target.id}:${model.target.connectionGeneration}`
   const liveTarget = session.current?.live?.key
-  const reportError = useCallback((reason: unknown) => setError(reason instanceof Error ? reason.message : t('analysisCenter.operationFailed')), [t])
+  const reportError = useCallback((reason: unknown, retry?: () => void) => {
+    const revision = feedbackRevision.current
+    const current = () => mounted.current && !closing.current && latest.current.state.open && latest.current.active && latest.current.feedbackScope === feedbackScope
+    if (!current()) return
+    void message.error({ key: `${feedbackKey}:${revision}`, duration: 6, content: <span className={styles.feedback}><span className={styles['feedback-text']}>{analysisError(reason, t)}</span>{retry && <Button className={styles['feedback-retry']} type="link" size="small" onClick={() => {
+      if (current() && feedbackRevision.current === revision) { clearFeedback(); retry() }
+    }}>{t('app.retry')}</Button>}</span> })
+  }, [message, feedbackKey, feedbackScope, clearFeedback, t])
+  useEffect(() => {
+    if (!state.open || !active) clearFeedback()
+    return clearFeedback
+  }, [state.open, active, clearFeedback, feedbackScope])
   useEffect(() => {
     const owner = new AnalysisSession(gateway)
     session.current = owner; mounted.current = true
@@ -75,6 +94,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
   }, [])
   const query = useVisibleQuery(`${state.id}:${revision}`, signal => gateway.getAnalysis(state.id!, signal), state.open && active && !!state.id, value => !analysisTerminal(value.state))
   const record = query.data?.id === state.id ? query.data : undefined
+  useAnalysisError(state.open && active ? query.error ?? record?.error : undefined, reportError, query.error ? query.reload : undefined)
   useEffect(() => {
     const remaining = record?.action_expires_at ? Date.parse(record.action_expires_at) - Date.now() : 0
     setExpired(!(remaining > 0))
@@ -84,13 +104,13 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     closing.current = false
     const draft = model.state.draft; const step = findStep(draft?.definition.steps ?? [], model.state.selected)
     context.current = draft && step && model.state.view === 'scripts' ? { editingID: draft.editingID, step: structuredClone(step), slot, target: targetKey } : undefined
-    setError(undefined); setPanel(undefined); setCrop(undefined); change({ open: true })
+    setPanel(undefined); setCrop(undefined); change({ open: true })
   }
-  const close = () => { if (!applying) { closing.current = true; setPanel(undefined); setCrop(undefined); setError(undefined); change({ open: false }) } }
+  const close = () => { if (!applying) { closing.current = true; setPanel(undefined); setCrop(undefined); change({ open: false }) } }
   const perform = (work: (owner: AnalysisSession) => Promise<void>, application = false) => {
     const owner = session.current
     if (working.current || !owner) return Promise.resolve()
-    working.current = true; setBusy(true); setApplying(application); setError(undefined)
+    working.current = true; setBusy(true); setApplying(application); clearFeedback()
     const current = () => mounted.current && session.current === owner
     const task = work(owner).catch(reason => { if (current()) reportError(reason) }).finally(() => { if (current()) { working.current = false; setBusy(false); setApplying(false) } })
     onMediaTask(task); return task
@@ -102,7 +122,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     change({ id: value.id, layer: value.parameters.detector_enabled ? 'elements' : 'ocr', filter: {}, selected: undefined, history: false })
   }
   const analyze = () => perform(async owner => {
-    if (!isTargetAvailable(model.target, model.environment.sessions, [], model.environment.hostSources)) throw new Error(t('desktopWorkflow.targetUnavailable'))
+    if (!isTargetAvailable(model.target, model.environment.sessions, [], model.environment.hostSources)) throw new Error('analysis_target_unavailable')
     await owner.submit({ id: model.target.id ?? '', generation: model.target.connectionGeneration ?? 0, target: model.target.host }, mode ? analysisModeParameters(mode) : undefined, value => submitted(value, owner))
   })
   const reanalyze = (parameters: ScreenAnalysisParameters) => perform(async owner => { if (record) submitted(await owner.reanalyze(record.id, parameters), owner) })
@@ -123,7 +143,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     const bound = context.current; const current = latest.current.model
     const step = findStep(current.state.draft?.definition.steps ?? [], bound?.step.id)
     if (!bound || !mounted.current || current.state.draft?.editingID !== bound.editingID || current.state.selected !== bound.step.id
-      || JSON.stringify(current.target) !== bound.target || JSON.stringify(step) !== JSON.stringify(bound.step) || latest.current.slot !== bound.slot) throw new Error(t('desktopWorkflow.analysisWorkspace.contextChanged'))
+      || JSON.stringify(current.target) !== bound.target || JSON.stringify(step) !== JSON.stringify(bound.step) || latest.current.slot !== bound.slot) throw new Error('analysis_context_changed')
     return bound
   }
   const validContext = (() => { try { return validateContext() } catch { return undefined } })()
@@ -141,7 +161,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     const preview = owner.live.preview
     const bound = validateContext()
     const validate = () => {
-      if (session.current !== owner || context.current !== bound) throw new Error(t('desktopWorkflow.analysisWorkspace.contextChanged'))
+      if (session.current !== owner || context.current !== bound) throw new Error('analysis_context_changed')
       validateContext()
     }
     const element = await gateway.analysisElement(record.id, state.selected)
@@ -156,7 +176,8 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     if (!record || confirmation.current) return
     const owner = session.current
     confirmation.current = modal.confirm({ title: t('analysisCenter.delete'), content: t('analysisCenter.deleteHint'), okButtonProps: { danger: true }, afterClose: () => { confirmation.current = undefined }, onOk: async () => {
-      await gateway.deleteAnalysis(record.id)
+      try { await gateway.deleteAnalysis(record.id) }
+      catch (reason) { if (mounted.current && session.current === owner) reportError(reason); throw reason }
       if (!mounted.current || session.current !== owner) return
       if (latest.current.state.id === record.id) change({ id: undefined, selected: undefined })
       setRevision(v => v + 1)
@@ -195,10 +216,9 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
             {!analysisTerminal(record.state) && <><span>{t(`analysisCenter.stages.${record.stage}`)}</span><Button size="small" disabled={applying || record.state === 'cancelling'} onClick={cancel}>{t('desktopWorkflow.analysis.cancel')}</Button></>}
           </> : <span>{t('desktopWorkflow.analysisWorkspace.emptyResult')}</span>}
         </div>
-        {(error || query.error || record?.error) && <Alert type="error" title={error || record?.error || t('analysisCenter.readFailed')} closable onClose={() => setError(undefined)} action={query.error ? <Button onClick={query.reload}>{t('app.retry')}</Button> : undefined} />}
         <div className={styles.content}><AnalysisExplorer gateway={gateway} record={record} state={state} onChange={change} onError={reportError} crop={crop}
-          history={<AnalysisHistoryList gateway={gateway} selected={state.id} revision={revision} onSelect={selectHistory} onCleared={() => { change({ id: undefined, selected: undefined }); setRevision(v => v + 1) }} />}
-          panel={panel && record ? { key: `${record.id}:${panel}`, content: <AnalysisToolsPanel key={`${record.id}:${panel}`} kind={panel} gateway={gateway} record={record} state={state} busy={busy} onReanalyze={reanalyze} onCrop={setCrop} onClose={() => { setPanel(undefined); setCrop(undefined) }} /> } : undefined} /></div>
+          history={<AnalysisHistoryList gateway={gateway} selected={state.id} revision={revision} onSelect={selectHistory} onError={reportError} onCleared={() => { change({ id: undefined, selected: undefined }); setRevision(v => v + 1) }} />}
+          panel={panel && record ? { key: `${record.id}:${panel}`, content: <AnalysisToolsPanel key={`${record.id}:${panel}`} kind={panel} gateway={gateway} record={record} state={state} busy={busy} onError={reportError} onReanalyze={reanalyze} onCrop={setCrop} onClose={() => { setPanel(undefined); setCrop(undefined) }} /> } : undefined} /></div>
       </>}
     </Modal>
   </>

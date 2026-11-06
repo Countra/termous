@@ -7,7 +7,7 @@ export function useVisibleQuery<T>(key: string, load: (signal: AbortSignal) => P
   const [loading, setLoading] = useState(false)
   const [revision, setRevision] = useState(0)
   const latest = useRef({ load, poll }); latest.current = { load, poll }
-  const reload = useCallback(() => setRevision(value => value + 1), [])
+  const reload = useCallback(() => { setError(undefined); setRevision(value => value + 1) }, [])
   useEffect(() => {
     // 同一查询刷新时保留已确认内容，避免布局塌缩和明细展开状态丢失；切换目标或停用时才清空。
     setData(undefined)

@@ -1,24 +1,26 @@
-import { Alert, Button, Dropdown, Empty, Tooltip } from 'antd'
+import { Button, Dropdown, Empty, Tooltip } from 'antd'
 import { ChevronDown, Crosshair, Eye, EyeOff, Maximize, Minus, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AnalysisGeometry, AnalysisImage, AnalysisLabelMode, AnalysisPresentation } from '#common/contracts'
 import { contextActionMenuPopupClassName, useImageViewport } from '#shared/ui'
 import { useCanvasSelection } from '../../model/useCanvasSelection'
+import { useAnalysisError, type AnalysisErrorReporter } from '../../model/useAnalysisError'
 import { AnalysisCandidates } from './AnalysisCandidates'
 import { AnalysisOverlay } from '../AnalysisOverlay'
 import styles from './Explorer.module.scss'
 
-export function AnalysisCanvas({ blob, image, geometry, selected, onSelect, crop, preference, onViewChange, disabled = false, contextKey = '' }: {
+export function AnalysisCanvas({ blob, image, geometry, selected, onSelect, crop, preference, onViewChange, onError, disabled = false, contextKey = '' }: {
   disabled?: boolean; contextKey?: string
   blob?: Blob; image?: AnalysisImage; geometry: AnalysisGeometry[]; selected?: number; onSelect: (id: number) => void; crop?: [number, number, number, number]
-  preference?: AnalysisPresentation['view']; onViewChange?: (view: NonNullable<AnalysisPresentation['view']>) => void
+  preference?: AnalysisPresentation['view']; onViewChange?: (view: NonNullable<AnalysisPresentation['view']>) => void; onError: AnalysisErrorReporter
 }) {
   const { t } = useTranslation()
   const [url, setURL] = useState<string>()
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
+  useAnalysisError(failed ? 'analysis_image_unavailable' : undefined, onError, () => setRevision(value => value + 1))
   const [visible, setVisible] = useState(preference?.boxes ?? true)
   const [labelMode, setLabelMode] = useState<AnalysisLabelMode>(preference?.labelMode ?? 'auto')
   const view = useImageViewport(image, ready, preference?.zoom)
@@ -37,7 +39,6 @@ export function AnalysisCanvas({ blob, image, geometry, selected, onSelect, crop
   }, [blob, revision])
   const chosen = geometry.find(item => item.id === selected)
   return <section className={styles.canvas} aria-label={t('desktopWorkflow.analysisWorkspace.canvas')}>
-    {failed && <Alert type="error" title={t('imagePreview.failed')} action={<Button onClick={() => setRevision(value => value + 1)}>{t('app.retry')}</Button>} />}
     <div className={styles.viewport} ref={view.viewport} tabIndex={0} {...view.handlers} {...selection.handlers}>
       {url && image ? <div className={styles.image} ref={selection.image} style={{ width: image.width * view.scale, height: image.height * view.scale,
         transform: `translate(-50%, -50%) translate(${view.offset.x}px, ${view.offset.y}px)` }}>

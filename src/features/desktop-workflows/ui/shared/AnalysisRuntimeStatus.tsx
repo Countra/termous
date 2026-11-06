@@ -21,7 +21,7 @@ export function AnalysisRuntimeStatusView({ gateway, onError, state: { service, 
   const failed = preparationFailed && service?.state === 'idle'
   return <Button size="small" type="text" icon={<Cpu size={14} />} aria-label={label}
     title={t(failed ? 'settings.aiRuntime.preparationFailed' : `settings.aiRuntime.serviceStates.${phase}`)}
-    onClick={() => { void gateway.openRuntimeSettings?.().catch(onError) }}>
+    onClick={() => { void gateway.openRuntimeSettings?.().catch(() => onError({ code: 'analysis_settings_unavailable' })) }}>
     {label} · {t(`settings.aiRuntime.serviceShortStates.${failed ? 'failed' : phase}`)}
   </Button>
 }

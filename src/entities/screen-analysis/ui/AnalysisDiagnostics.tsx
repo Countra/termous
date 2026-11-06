@@ -1,21 +1,22 @@
-import { Alert, Button, Collapse, Skeleton } from 'antd'
+import { Collapse, Skeleton } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AnalysisGateway, AnalysisRecord } from '#common/contracts'
 import { useVisibleQuery } from '../model/useVisibleQuery'
+import { useAnalysisError, type AnalysisErrorReporter } from '../model/useAnalysisError'
 import { AnalysisParameterFacts } from './AnalysisParameterFacts'
 import styles from './AnalysisDetails.module.scss'
 
-export function AnalysisDiagnostics({ record, gateway, active }: { record: AnalysisRecord; gateway: AnalysisGateway; active: boolean }) {
+export function AnalysisDiagnostics({ record, gateway, active, onError }: { record: AnalysisRecord; gateway: AnalysisGateway; active: boolean; onError: AnalysisErrorReporter }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const query = useVisibleQuery(record.id, signal => gateway.analysisDiagnostics(record.id, signal), active && open)
+  useAnalysisError(query.error, onError, query.reload)
   const d = query.data?.diagnostics
   const text = (key: string) => t(`desktopWorkflow.analysisWorkspace.detail.${key}`)
   return <Collapse className={styles.collapse} ghost onChange={keys => setOpen(keys.includes('diagnostics'))} items={[{
     key: 'diagnostics', label: t('desktopWorkflow.analysis.diagnostics'), children: <>
       {query.loading && <Skeleton active title={false} paragraph={{ rows: 3 }} />}
-      {query.error != null && <Alert type="error" showIcon title={t('analysisCenter.readFailed')} action={<Button size="small" onClick={query.reload}>{t('app.retry')}</Button>} />}
       {d && <div className={styles.diagnostic}>
         <dl className={styles.facts}>
           <div><dt>{t('desktopWorkflow.analysis.device')}</dt><dd>{d.device}</dd></div>

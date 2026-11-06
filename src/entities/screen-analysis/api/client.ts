@@ -48,7 +48,7 @@ export class ScreenAnalysisClient extends TermousApiTransport implements Analysi
   exportAnalysis(id: string, signal?: AbortSignal) { return this.requestBlob(`${path(id)}/export`, { signal }) }
   analysisStorage(signal?: AbortSignal) { return this.request<AnalysisStorageUsage>(`${root}/storage`, { signal }) }
   private check(record: AnalysisRecord) {
-    if (record.schema_version !== 2) throw new TermousApiError('画面分析协议版本不匹配，请同步更新 Core、Python 和 Web', 'analysis_version_mismatch', 502)
+    if (record.schema_version !== 2) throw new TermousApiError('画面分析版本不兼容，请更新应用', 'analysis_version_mismatch', 502)
     return record
   }
 }

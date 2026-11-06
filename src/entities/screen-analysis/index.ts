@@ -4,6 +4,7 @@ export type { AnalysisGateway, AnalysisSubmit, AnalysisRecord, AnalysisRecordQue
 export { ScreenAnalysisClient } from './api/client'
 export { analysisRemoteGateway, handleAnalysisMedia, bindAnalysisGateway } from './api/bridge'
 export { useVisibleQuery, analysisTerminal, saveAnalysisDownload } from './model/useVisibleQuery'
+export { useAnalysisError } from './model/useAnalysisError'
 export { AnalysisOverlay } from './ui/AnalysisOverlay'
 export { AnalysisModeSelect } from './ui/AnalysisModeSelect'
 export { AnalysisExplorer } from './ui/explorer/AnalysisExplorer'
