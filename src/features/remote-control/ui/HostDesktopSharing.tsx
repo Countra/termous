@@ -15,7 +15,6 @@ export function HostDesktopSharing({ policy, disabled, working, change }: { poli
   return <section className={styles.panel} aria-label={zh ? '设备桌面' : 'Device desktop'}>
     <header className={styles.heading}>
       <h3>{zh ? '设备桌面' : 'Device desktop'}</h3>
-      <span className={styles.note}>{zh ? '立即生效' : 'Applies immediately'}</span>
     </header>
     <div className={styles['permission-group']}>
       <div className={styles['permission-row']}>

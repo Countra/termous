@@ -8,6 +8,7 @@ import { RemoteCore, RemoteCoreError, result, validId } from './core'
 import { RemoteTerminalStream } from './stream'
 import { RemoteLocalTransfers } from './files'
 import { RemoteAgentContent } from './agentContent'
+import { RemotePolicyEditorSession } from './policyEditor'
 
 interface Options {
   core: RemoteCore
@@ -79,6 +80,28 @@ export class RemoteControlRuntime {
   }
 
   private register() {
+    const editor = new RemotePolicyEditorSession(this.options.core)
+    ipcMain.handle('remote:edit-policy', (event, generation: string, id: string) => result(() => {
+      this.main(event, generation)
+      return editor.open(event.sender.id, generation, id)
+    }))
+    ipcMain.handle('remote:close-policy-editor', (event, id: string) => result(async () => {
+      this.main(event)
+      return editor.close(event.sender.id, id)
+    }))
+    ipcMain.handle('remote:change-policy', (event, generation: string, id: string, revision: number, change: unknown) => result(() => {
+      this.main(event, generation)
+      return editor.change(event.sender.id, generation, id, revision, change)
+    }))
+    ipcMain.handle('remote:select-policy-directory', (event, generation: string, id: string) => result(() => {
+      this.main(event, generation)
+      return editor.select(event.sender.id, generation, id, async () => {
+        const window = BrowserWindow.fromWebContents(event.sender)
+        if (!window) throw new RemoteCoreError('remote_ipc_forbidden')
+        const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
+        return selection.canceled ? undefined : selection.filePaths[0]
+      })
+    }))
     ipcMain.handle('remote:host-desktop-accesses', (event, generation: string) => result(async () => {
       this.main(event, generation)
       return this.options.core.request(`/remote-control/host-desktop-accesses?generation=${encodeURIComponent(generation)}`)

@@ -101,6 +101,11 @@
 
   :global(.ant-tabs-content) {
     height: 100%;
+    overflow: hidden;
+  }
+
+  :global(.ant-tabs-tabpane) {
+    height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
@@ -181,32 +186,9 @@
 .footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
-}
-
-.footer-hint {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.6;
-  text-align: left;
-}
-
-.footer-hint.pending {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-secondary);
-
-  &::before {
-    width: 5px;
-    height: 5px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: var(--warning);
-    content: '';
-  }
 }
 
 .footer-actions {
@@ -219,7 +201,6 @@
   .modal :global(.ant-modal-header) { margin-bottom: 16px; }
   .title { gap: 10px; }
   .title strong { font-size: 16px; }
-  .footer-hint { flex-basis: 100%; }
 
   .footer-actions {
     width: 100%;

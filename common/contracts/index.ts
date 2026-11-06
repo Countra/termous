@@ -3,6 +3,7 @@ export { isHostDesktopTarget, hostDesktopTargetKey, type HostDesktopTarget, type
 export { isAgentProgressData, type AgentProgressData, type AgentProgressActivity } from './agent-progress.ts'
 export type { NotificationKind, NotificationOutcome, NotificationMessage, NotificationPage, NotificationEvent, NotificationTarget, NotificationActivation, NotificationPreferences, NotificationCapabilities, NotificationBridge } from './notification.ts'
 export type { RemoteAccessMode, RemoteAgentQuote, RemoteConnection, RemoteDevice, RemotePolicy, RemoteBootstrap, RemoteResult, RemoteLauncher, RemoteWindowBridge, RemoteLocalSelection, RemoteLocalTask } from './remote-control'
+export type { RemotePolicyChange, RemotePolicyEditor, RemotePolicyResource, RemotePolicyReceipt } from './remote-control'
 export { notificationIPCChannels, decodeNotification, decodeNotificationPage, decodeNotificationEvent, validateNotificationPreferences, notificationTarget, notificationText } from './notification.ts'
 export type {
   AgentRuntimeCommandResult,

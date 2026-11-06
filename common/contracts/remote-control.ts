@@ -34,7 +34,7 @@ export interface RemotePolicy {
   revision: number; enabled: boolean
   agent_enabled?: boolean
   // 首次授权或清空授权后，后端的空切片可能序列化为 null。
-  hosts: { id: string; connections?: { id: string; kind: string }[] | null }[] | null
+  hosts: { id: string; terminal_file_access?: boolean; connections?: { id: string; kind: string }[] | null }[] | null
   directories: { id: string; name: string; path: string; read: boolean; write: boolean }[] | null
 }
 export interface RemoteAgentQuote { key: number; text: string; sessionId: string; capturedAt: string }
@@ -57,6 +57,10 @@ export interface RemoteLocalSelection {
   directory?: boolean
 }
 export interface RemoteLauncher {
+  editPolicy?(generation: string, editor: string): Promise<RemoteResult<RemotePolicyEditor>>
+  closePolicyEditor?(editor: string): Promise<RemoteResult<boolean>>
+  changePolicy?(generation: string, editor: string, revision: number, change: RemotePolicyChange): Promise<RemoteResult<RemotePolicyReceipt>>
+  selectPolicyDirectory?(generation: string, editor: string): Promise<RemoteResult<string | null>>
   hostDesktopAccesses?(generation: string): Promise<RemoteResult<HostDesktopAccess[]>>
   stopHostDesktopAccess?(generation: string, id: string): Promise<RemoteResult<unknown>>
   openAgent(generation: string, target: Extract<NotificationTarget, { kind: 'remote_agent' }>): Promise<RemoteResult<boolean>>
@@ -71,6 +75,25 @@ export interface RemoteLauncher {
   hosts(): Promise<RemoteResult<{ id: string; name: string }[]>>
   addDirectory(generation: string, revision: number, write: boolean): Promise<RemoteResult<RemotePolicy | null>>
   removeDirectory(generation: string, revision: number, id: string): Promise<RemoteResult<RemotePolicy>>
+}
+
+export type RemotePolicyChange =
+  | { kind: 'enabled' | 'agent'; enabled: boolean }
+  | { kind: 'mode'; mode: RemoteAccessMode }
+  | { kind: 'hosts' | 'desktops' | 'exchange'; add?: string[]; remove?: string[]; reauthorize?: string[] }
+  | { kind: 'host_desktop'; host_desktop: Required<NonNullable<RemotePolicy['host_desktop']>> }
+  | { kind: 'directory_add'; selection: string; write: boolean }
+  | { kind: 'directory_remove'; directory_id: string }
+
+export interface RemotePolicyResource {
+  id: string; name: string; host_id?: string; protocol?: string
+  status: 'available' | 'changed' | 'unavailable'
+}
+export interface RemotePolicyEditor {
+  policy: RemotePolicy; hosts: RemotePolicyResource[]; desktops: RemotePolicyResource[]
+}
+export interface RemotePolicyReceipt {
+  policy: RemotePolicy; cleanup_pending: boolean; reconnect_desktop: boolean
 }
 export interface RemoteWindowBridge {
   desktopReceiverPolicy?: 'native' | 'prefer_level_51'

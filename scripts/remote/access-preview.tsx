@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import type { RemoteLauncher, RemotePolicy, RemoteResult } from '#common/contracts'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { RemoteAccountAccess } from '#features/remote-control'
+import { projectPolicy } from '../../src/features/remote-control/model/policyEditor'
 import '#shared/styles'
 
 // 只使用内存合成数据；不连接账号、远程设备或原生目录选择器。
@@ -27,33 +28,20 @@ let policy: RemotePolicy = {
   ],
 }
 const ok = <T,>(value: T): RemoteResult<T> => ({ ok: true, value: structuredClone(value) })
-const update = (revision: number, changes: Partial<RemotePolicy>): RemoteResult<RemotePolicy> => {
-  if (revision !== policy.revision) return { ok: false, code: 'remote_policy_changed' }
-  policy = { ...policy, ...changes, revision: revision + 1 }
-  return ok(policy)
-}
+const unsupported = async () => ({ ok: false as const, code: 'remote_not_supported' })
 const api: RemoteLauncher = {
-  policy: async () => ok(policy), hosts: async () => ok(hosts), desktopProfiles: async () => ok(desktops),
-  devices: async () => ok([]), open: async () => ({ ok: false, code: 'remote_not_supported' }),
-  openAgent: async () => ({ ok: false, code: 'remote_not_supported' }),
-  configure: async (_generation, revision, enabled, ids, mode) => update(revision, {
-    enabled, access_mode: mode,
-    hosts: ids === undefined ? policy.hosts : ids.map(id => (policy.hosts ?? []).find(host => host.id === id) ?? { id }),
-  }),
-  configureAgent: async (_generation, revision, enabled) => update(revision, { agent_enabled: enabled }),
-  configureHostDesktop: async (_generation, revision, observe, control, secureCapture, secureControl) => update(revision, {
-    host_desktop: { observe, control, secure_capture: secureCapture, secure_control: secureControl },
-  }),
-  configureDesktops: async (_generation, revision, ids, exchanges = []) => update(revision, {
-    hosts: (policy.hosts ?? []).map(host => ({ ...host, connections: [
-      ...ids.filter(id => desktops.some(profile => profile.id === id && profile.host_id === host.id)).map(id => ({ id, kind: 'desktop' })),
-      ...exchanges.filter(id => ids.includes(id) && desktops.some(profile => profile.id === id && profile.host_id === host.id)).map(id => ({ id, kind: 'desktop_exchange' })),
-    ] })),
-  }),
-  addDirectory: async (_generation, revision, write) => update(revision, {
-    directories: [...(policy.directories ?? []), { id: crypto.randomUUID(), name: '共享目录', path: 'D:\\Shared', read: true, write }],
-  }),
-  removeDirectory: async (_generation, revision, id) => update(revision, { directories: (policy.directories ?? []).filter(root => root.id !== id) }),
+  editPolicy: async () => ok({ policy, hosts: hosts.map(h => ({ ...h, status: 'available' as const })), desktops: desktops.map(d => ({ ...d, status: 'available' as const })) }),
+  closePolicyEditor: async () => ok(true), selectPolicyDirectory: async () => ok('fixture-selection'),
+  changePolicy: async (_generation, _editor, revision, change) => {
+    if (revision !== policy.revision) return { ok: false, code: 'remote_policy_changed' }
+    await new Promise(resolve => setTimeout(resolve, 350))
+    policy = { ...projectPolicy(policy, change, desktops.map(d => ({ ...d, status: 'available' }))), revision: revision + 1 }
+    if (change.kind === 'directory_add') policy.directories = [...(policy.directories ?? []), { id: crypto.randomUUID(), name: '共享目录', path: 'D:\\Shared', read: true, write: change.write }]
+    return ok({ policy, cleanup_pending: false, reconnect_desktop: false })
+  },
+  policy: async () => ok(policy), hosts: async () => ok(hosts),
+  devices: async () => ok([]), open: unsupported, openAgent: unsupported,
+  configure: unsupported, configureAgent: unsupported, addDirectory: unsupported, removeDirectory: unsupported,
   hostDesktopAccesses: async () => ok([]), stopHostDesktopAccess: async () => ok(null),
 }
 Object.defineProperty(window, 'termous', { configurable: true, value: { remoteControl: api } })

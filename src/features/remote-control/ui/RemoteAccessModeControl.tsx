@@ -8,11 +8,10 @@ interface Props {
   mode: RemoteAccessMode
   copy: RemoteCopy
   disabled: boolean
-  pending: boolean
   onChange(mode: RemoteAccessMode): void
 }
 
-export function RemoteAccessModeControl({ mode, copy, disabled, pending, onChange }: Props) {
+export function RemoteAccessModeControl({ mode, copy, disabled, onChange }: Props) {
   return <section className={styles.control} aria-label={copy.accessMode}>
     <div className={styles.heading}>
       <span>{copy.accessMode}</span>
@@ -47,6 +46,5 @@ export function RemoteAccessModeControl({ mode, copy, disabled, pending, onChang
         </span>
       </Radio>
     </Radio.Group>
-    {pending ? <p className={styles.pending} role="status">{copy.modePending}</p> : null}
   </section>
 }

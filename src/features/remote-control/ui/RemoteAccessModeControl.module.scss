@@ -143,12 +143,6 @@
 
 .choice:global(.ant-radio-wrapper-checked) .option-content > svg { color: var(--accent); }
 
-.pending {
-  margin: 8px 0 0;
-  color: var(--warning);
-  font-size: 12px;
-  line-height: 1.6;
-}
 
 @media (width <= 600px) {
   .options { gap: 8px; }

@@ -117,6 +117,10 @@ const bridge = {
   },
   desktopFiles: createDesktopFileBridge(),
   remoteControl: {
+    editPolicy: (generation, editor) => ipcRenderer.invoke('remote:edit-policy', generation, editor),
+    closePolicyEditor: editor => ipcRenderer.invoke('remote:close-policy-editor', editor),
+    changePolicy: (generation, editor, revision, change) => ipcRenderer.invoke('remote:change-policy', generation, editor, revision, change),
+    selectPolicyDirectory: (generation, editor) => ipcRenderer.invoke('remote:select-policy-directory', generation, editor),
     openAgent: (generation, target) => ipcRenderer.invoke('remote:open-agent', generation, target),
     configureAgent: (generation, revision, enabled) => ipcRenderer.invoke('remote:configure-agent', generation, revision, enabled),
   configureHostDesktop: (generation, revision, observe, control, secureCapture, secureControl) => ipcRenderer.invoke('remote:configure-host-desktop', generation, revision, observe, control, secureCapture, secureControl),
