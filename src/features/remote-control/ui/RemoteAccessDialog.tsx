@@ -1,17 +1,20 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Checkbox, Input, Modal, Popconfirm, Skeleton, Switch, Tabs, Tag } from 'antd'
 import { Bot, Folder, FolderPlus, Monitor, Search, Server, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
-import type { RemotePolicy } from '#common/contracts'
+import type { RemoteAccessMode, RemotePolicy } from '#common/contracts'
 import { modalSurfaceStyles, termousPopconfirmProps, WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { type RemoteCopy, remoteErrorText } from '../model/copy'
 import styles from './RemoteAccessDialog.module.scss'
 import { HostDesktopSharing } from './HostDesktopSharing'
+import { RemoteAccessModeControl } from './RemoteAccessModeControl'
 
 interface Props {
   hostDesktopAccesses?: ReactNode
   open: boolean
   copy: RemoteCopy
   policy?: RemotePolicy
+  accessMode: RemoteAccessMode
+  onAccessMode(mode: RemoteAccessMode): void
   hosts: { id: string; name: string }[]
   selected: string[]
   desktops?: { id: string; host_id: string; name: string; protocol: string }[]
@@ -36,10 +39,13 @@ interface Props {
   onDirectory(write: boolean, id?: string): void
 }
 
-export function RemoteAccessDialog({ open, copy, policy, hosts, selected, desktops = [], selectedDesktops = [], selectedExchanges = [], onSelectExchanges, onSelectDesktops, onDesktops, onHostDesktop, hostDesktopAccesses, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
+export function RemoteAccessDialog({ open, copy, policy, accessMode, onAccessMode, hosts, selected, desktops = [], selectedDesktops = [], selectedExchanges = [], onSelectExchanges, onSelectDesktops, onDesktops, onHostDesktop, hostDesktopAccesses, enabled, loading, working, error, mustRefresh, updated, onClose, onRefresh, onSave, onEnabled, onSelect, onAgent, onDirectory }: Props) {
   const [query, setQuery] = useState('')
   useEffect(() => { if (!open) setQuery('') }, [open])
   const inactive = loading || !!working || !policy || mustRefresh
+  const full = accessMode === 'full'
+  const modePending = !!policy && accessMode !== (policy.access_mode ?? 'custom')
+  const detailsInactive = inactive || modePending
   const matching = hosts.filter(host => host.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   const selectedIDs = new Set(selected)
   const matchingIDs = new Set(matching.map(host => host.id))
@@ -53,7 +59,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
     : (query.trim() ? copy.selectHostResults : copy.selectHosts)
   const directories = policy?.directories ?? []
   const savedHosts = new Set((policy?.hosts ?? []).map(host => host.id).filter(id => hosts.some(host => host.id === id)))
-  const dirty = !!policy && (enabled !== policy.enabled || savedHosts.size !== selected.length || selected.some(id => !savedHosts.has(id)))
+  const dirty = !!policy && (modePending || enabled !== policy.enabled || (!full && (savedHosts.size !== selected.length || selected.some(id => !savedHosts.has(id)))))
   const label = (icon: ReactNode, text: string, count?: number) => <span className={styles['tab-label']}>{icon}{text}{count !== undefined ? <span className={styles.count}>{count}</span> : null}</span>
 
   const availableDesktops = desktops.filter(profile => savedHosts.has(profile.host_id))
@@ -72,9 +78,9 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
   const hostPanel = <section className={styles.panel} aria-label={copy.hostConnections}>
     <p className={styles.hint}>{copy.hostsHint}</p>
     <div className={styles.toolbar}>
-      <Input aria-label={copy.searchHosts} placeholder={copy.searchHosts} prefix={<Search size={15} aria-hidden="true" />} allowClear value={query} disabled={inactive} onChange={event => setQuery(event.target.value)} />
+      <Input aria-label={copy.searchHosts} placeholder={copy.searchHosts} prefix={<Search size={15} aria-hidden="true" />} allowClear value={query} disabled={detailsInactive} onChange={event => setQuery(event.target.value)} />
       <div className={styles['bulk-selection']}>
-        <Checkbox className={styles['bulk-toggle']} checked={allMatchesSelected} indeterminate={hasSelectedMatches && !allMatchesSelected} disabled={inactive || matching.length === 0 || (!canSelectMatches && !hasSelectedMatches)} onChange={() => {
+        <Checkbox className={styles['bulk-toggle']} checked={allMatchesSelected} indeterminate={hasSelectedMatches && !allMatchesSelected} disabled={detailsInactive || matching.length === 0 || (!canSelectMatches && !hasSelectedMatches)} onChange={() => {
           // 超出上限时仍允许批量取消，避免半选状态无法清空。
           onSelect(clearMatches ? selected.filter(id => !matchingIDs.has(id)) : [...selected, ...unselectedMatches.map(host => host.id)])
         }}>{bulkLabel}</Checkbox>
@@ -84,7 +90,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
     {hosts.length === 0 ? <WorkspaceEmptyState icon={<Server size={18} />} title={copy.noConnections} description={copy.noHostsHint} /> : matching.length === 0 ? <WorkspaceEmptyState icon={<Search size={18} />} title={copy.noMatchingHosts} /> : <div className={styles['host-list']}>
       {matching.map(host => {
         const checked = selectedIDs.has(host.id)
-        return <Checkbox key={host.id} className={`${styles['host-choice']} ${checked ? styles.selected : ''}`} checked={checked} disabled={inactive || (!checked && selected.length >= 256)} onChange={event => onSelect(event.target.checked ? [...selected, host.id] : selected.filter(id => id !== host.id))}>
+        return <Checkbox key={host.id} className={`${styles['host-choice']} ${checked ? styles.selected : ''}`} checked={checked} disabled={detailsInactive || (!checked && selected.length >= 256)} onChange={event => onSelect(event.target.checked ? [...selected, host.id] : selected.filter(id => id !== host.id))}>
           <span className={styles['host-name']}><Server size={16} aria-hidden="true" /><span>{host.name}</span></span>
         </Checkbox>
       })}
@@ -95,16 +101,16 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
   const directoryPanel = <section className={styles.panel} aria-label={copy.allowedFolders}>
     <div className={styles['panel-heading']}><p className={styles.hint}>{copy.folderHint}</p><span className={styles['immediate-note']}>{copy.immediate}</span></div>
     <div className={styles['folder-actions']}>
-      <Button icon={<FolderPlus size={15} />} disabled={inactive || directories.length >= 32} onClick={() => onDirectory(false)}>{copy.addRead}</Button>
-      <Button icon={<FolderPlus size={15} />} disabled={inactive || directories.length >= 32} onClick={() => onDirectory(true)}>{copy.addWrite}</Button>
+      {!full ? <Button icon={<FolderPlus size={15} />} disabled={detailsInactive || directories.length >= 32} onClick={() => onDirectory(false)}>{copy.addRead}</Button> : null}
+      <Button icon={<FolderPlus size={15} />} disabled={detailsInactive || directories.length >= 32} onClick={() => onDirectory(true)}>{copy.addWrite}</Button>
     </div>
     {directories.length === 0 ? <WorkspaceEmptyState icon={<Folder size={18} />} title={copy.noAllowedFolders} description={copy.noAllowedFoldersHint} /> : <ul className={styles['directory-list']}>
       {directories.map(root => <li key={root.id} className={styles.directory}>
         <span className={styles['directory-icon']}><Folder size={19} aria-hidden="true" /></span>
         <div className={styles['directory-copy']}><strong>{root.name}</strong><span>{root.path}</span></div>
-        <Tag className={styles.permission} color={root.write ? 'blue' : undefined}>{root.write ? copy.readWrite : copy.readOnly}</Tag>
-        <Popconfirm {...termousPopconfirmProps} title={copy.revokeFolderTitle} description={copy.revokeFolderHint} okText={copy.revokeFolder} cancelText={copy.cancel} okButtonProps={{ danger: true }} disabled={inactive} onConfirm={() => onDirectory(false, root.id)}>
-          <Button type="text" className={styles.revoke} disabled={inactive} icon={<Trash2 size={15} />} aria-label={`${copy.revokeFolder} · ${root.name}`} />
+        <Tag className={styles.permission} color={full || root.write ? 'blue' : undefined}>{full || root.write ? copy.readWrite : copy.readOnly}</Tag>
+        <Popconfirm {...termousPopconfirmProps} title={copy.revokeFolderTitle} description={copy.revokeFolderHint} okText={copy.revokeFolder} cancelText={copy.cancel} okButtonProps={{ danger: true }} disabled={detailsInactive} onConfirm={() => onDirectory(false, root.id)}>
+          <Button type="text" className={styles.revoke} disabled={detailsInactive} icon={<Trash2 size={15} />} aria-label={`${copy.revokeFolder} · ${root.name}`} />
         </Popconfirm>
       </li>)}
     </ul>}
@@ -115,7 +121,7 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
     <div className={styles['agent-control']}>
       <span className={styles['agent-icon']}><Bot size={22} aria-hidden="true" /></span>
       <div><h3>{copy.agentPermission}</h3><span className={styles['immediate-note']}>{copy.immediate}</span></div>
-      <Switch checked={policy?.agent_enabled === true} disabled={inactive} loading={working === 'agent'} onChange={onAgent} aria-label={copy.agentPermission} />
+      <Switch checked={policy?.agent_enabled === true} disabled={detailsInactive} loading={working === 'agent'} onChange={onAgent} aria-label={copy.agentPermission} />
     </div>
     <dl className={styles.scope}>
       <div><dt>{copy.agentScope}</dt><dd>{copy.agentScopeHint}</dd></div>
@@ -133,12 +139,13 @@ export function RemoteAccessDialog({ open, copy, policy, hosts, selected, deskto
       {error && !loading ? <FeedbackMessage type="warning" title={policy ? remoteErrorText(copy, error) : copy.accessReadFailed} description={!policy ? remoteErrorText(copy, error) : undefined} /> : null}
       {loading ? <div className={styles.loading} role="status" aria-label={copy.accessLoading}><Skeleton active paragraph={{ rows: 5 }} /></div> : !policy ? <WorkspaceEmptyState icon={<Settings2 size={18} />} title={copy.configure} action={<Button onClick={onRefresh}>{copy.refresh}</Button>} /> : <>
         <div className={styles['remote-control']}><Monitor size={20} aria-hidden="true" /><div><h3>{copy.hostSettings}</h3><p>{copy.accessSwitchHint}</p></div><Switch checked={enabled} disabled={inactive} onChange={onEnabled} aria-label={copy.hostSettings} /></div>
-        <Tabs className={styles.tabs} defaultActiveKey="hosts" animated={false} items={[
-          { key: 'hosts', label: label(<Server size={15} aria-hidden="true" />, copy.hostConnections, selected.length), children: hostPanel },
-          ...(onHostDesktop ? [{ key: 'host-desktop', label: label(<Monitor size={15} />, copy.deviceDesktop), children: <><HostDesktopSharing policy={policy} disabled={inactive} working={working === 'host-desktop'} change={onHostDesktop} />{hostDesktopAccesses}</> }] : []),
+        <RemoteAccessModeControl mode={accessMode} copy={copy} disabled={inactive} pending={modePending} onChange={onAccessMode} />
+        <Tabs key={accessMode} className={styles.tabs} defaultActiveKey={full ? 'folders' : 'hosts'} animated={false} items={[
+          ...(!full ? [{ key: 'hosts', label: label(<Server size={15} aria-hidden="true" />, copy.hostConnections, selected.length), children: hostPanel }] : []),
+          ...(onHostDesktop ? [{ key: 'host-desktop', label: label(<Monitor size={15} />, copy.deviceDesktop), children: <>{!full ? <HostDesktopSharing policy={policy} disabled={detailsInactive} working={working === 'host-desktop'} change={onHostDesktop} /> : null}{hostDesktopAccesses}</> }] : []),
           { key: 'folders', label: label(<Folder size={15} aria-hidden="true" />, copy.allowedFolders, directories.length), children: directoryPanel },
-          ...(onDesktops ? [{ key: 'desktops', label: label(<Monitor size={15} />, copy.desktopAccess, selectedDesktops.length), children: desktopPanel }] : []),
-          { key: 'agent', label: label(<Bot size={15} aria-hidden="true" />, copy.agent), children: agentPanel },
+          ...(!full && onDesktops ? [{ key: 'desktops', label: label(<Monitor size={15} />, copy.desktopAccess, selectedDesktops.length), children: desktopPanel }] : []),
+          ...(!full ? [{ key: 'agent', label: label(<Bot size={15} aria-hidden="true" />, copy.agent), children: agentPanel }] : []),
         ]} />
         {updated && !error ? <FeedbackMessage type="success" title={copy.accessUpdated} /> : null}
       </>}

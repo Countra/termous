@@ -1,6 +1,12 @@
 import type { AppLanguage } from '#common/contracts'
 
 const en = {
+  accessMode: 'Access mode', fullControl: 'Full control', customControl: 'Custom',
+  fullControlHint: 'Allows all current and future hosts, connections, device desktops (including secure desktops), RDP file exchange and remote AI assistant access.',
+  fullControlBoundary: 'Local file access is limited to selected folders, with read and write access. Device trust, system permissions and AI tool approvals still apply.',
+  customControlHint: 'Choose individual permissions. Switching back restores your saved custom settings.',
+  modePending: 'Save the access mode before editing individual permissions or folders.',
+  modeRequired: 'Refresh access settings. Save Custom mode before editing individual permissions; update the app if needed.',
 	deviceDesktop: 'Device desktop',
   desktopExchange: 'RDP file exchange', desktopExchangeHint: 'Allow transfers through a dedicated exchange folder. Personal mapped folders and local file clipboard are suspended during remote access.',
   desktopExchangeUsage: 'Files are placed in the exchange folder. Copy them to the target disk from the remote desktop.',
@@ -94,7 +100,7 @@ const en = {
   readWrite: 'Read and write', revokeFolder: 'Remove access', revokeFolderTitle: 'Remove folder access?',
   revokeFolderHint: 'Remote devices will lose access. The folder and its files stay on this computer.',
   folderLimit: 'Up to 32 folders can be authorized.', immediate: 'Takes effect immediately', accessUpdated: 'Access updated',
-  saveHosts: 'Save settings', hostSaveHint: 'Remote control and host selection take effect after saving.',
+  saveHosts: 'Save settings', hostSaveHint: 'Remote control, access mode and host selection take effect after saving.',
   pendingHosts: 'Unsaved settings', accessLoading: 'Loading access settings', accessReadFailed: 'Could not load access settings',
   agentScope: 'Access scope', agentScopeHint: 'All AI conversations on this computer',
   agentTools: 'Tool permissions', agentToolsHint: 'Uses this computer’s existing tool permissions and approval rules.',
@@ -106,6 +112,12 @@ const en = {
   emptyDirectory: 'This folder is empty', operationPending: 'File operation started', shellNotice: 'Commands use the selected account permissions.',
 }
 const zh: typeof en = {
+  accessMode: '访问模式', fullControl: '完全控制', customControl: '自定义',
+  fullControlHint: '允许全部现有及以后新增的主机、连接、本机普通与安全桌面、RDP 文件交换和远程 AI 助手访问。',
+  fullControlBoundary: '本机文件仅限已选目录，允许读写；设备信任、系统权限和 AI 工具审批仍然生效。',
+  customControlHint: '逐项选择权限；从完全控制切回时恢复已保存的自定义设置。',
+  modePending: '请先保存访问模式，再修改细分权限或目录范围。',
+  modeRequired: '请刷新访问设置，先保存自定义模式再修改细分权限；必要时更新客户端。',
   desktopExchange: 'RDP 文件交换', desktopExchangeHint: '允许通过专属交换区传输文件。远控期间暂停个人目录映射及本机文件剪贴板发布。',
   desktopExchangeUsage: '文件先放入交换区，再在目标桌面中复制到目标磁盘。',
   desktopTargetLocation: '在目标 Windows 中访问', desktopFileSearch: '搜索此目录的文件', desktopSelected: '项已选择', desktopEntries: '个条目',
@@ -199,7 +211,7 @@ const zh: typeof en = {
   readWrite: '读写', revokeFolder: '移除授权', revokeFolderTitle: '移除此目录的授权？',
   revokeFolderHint: '远端将无法访问，电脑中的目录和文件会保留。',
   folderLimit: '最多授权 32 个目录。', immediate: '立即生效', accessUpdated: '访问权限已更新',
-  saveHosts: '保存设置', hostSaveHint: '远控开关和主机选择需保存后生效。',
+  saveHosts: '保存设置', hostSaveHint: '远控开关、访问模式和主机选择需保存后生效。',
   pendingHosts: '有未保存的设置', accessLoading: '正在加载访问设置', accessReadFailed: '访问设置加载失败',
   agentScope: '对话范围', agentScopeHint: '此电脑的全部 AI 对话',
   agentTools: '工具权限', agentToolsHint: '沿用此电脑的工具权限与审批规则。',
@@ -224,6 +236,7 @@ export function remoteErrorText(copy: RemoteCopy, error: unknown) {
   if (code === 'desktop_directory_path_too_long') return copy.desktopFilesPathLong
   if (code === 'desktop_files_expired') return copy.desktopFilesExpired
   if (code === 'remote_policy_changed') return copy.policyChanged
+  if (code === 'remote_policy_mode_required') return copy.modeRequired
   if (code === 'agent_revision_conflict' || code === 'revision_conflict' || code === 'mcp_conflict') return copy.contentChanged
   if (code === 'remote_agent_disabled') return copy.agentDisabled
   if (code === 'remote_agent_unsupported') return copy.agentUnsupported

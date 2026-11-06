@@ -161,10 +161,11 @@ export class RemoteControlRuntime {
       return (await this.options.core.request<{ devices: RemoteDevice[] }>(`/remote-control/devices?generation=${encodeURIComponent(generation)}`)).devices ?? []
     }))
     ipcMain.handle('remote:policy', (event, generation: string) => result(async () => { this.main(event, generation); return this.policy(generation) }))
-    ipcMain.handle('remote:configure', (event, generation: string, revision: number, enabled: boolean, ids: string[]) => result(async () => {
+    ipcMain.handle('remote:configure', (event, generation: string, revision: number, enabled: boolean, ids: unknown, accessMode: unknown) => result(async () => {
       this.main(event, generation)
-      if (!Number.isSafeInteger(revision) || typeof enabled !== 'boolean' || !Array.isArray(ids) || ids.length > 256 || !ids.every(validId)) throw new RemoteCoreError('remote_invalid_request')
-      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, host_ids: ids }, 'PUT')
+      if (!Number.isSafeInteger(revision) || revision < 0 || typeof enabled !== 'boolean' || (accessMode !== 'full' && accessMode !== 'custom')) throw new RemoteCoreError('remote_invalid_request')
+      if (ids !== undefined && (!Array.isArray(ids) || ids.length > 256 || !ids.every(validId))) throw new RemoteCoreError('remote_invalid_request')
+      return this.options.core.request<RemotePolicy>('/remote-control/policy', { generation, revision, enabled, host_ids: ids, access_mode: accessMode }, 'PUT')
     }))
     ipcMain.handle('remote:hosts', event => result(async () => {
       this.main(event)

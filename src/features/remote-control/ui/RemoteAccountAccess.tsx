@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Space, Tag } from 'antd'
 import { Monitor, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDevice, RemotePolicy, RemoteResult } from '#common/contracts'
+import type { RemoteAccessMode, RemoteDevice, RemotePolicy, RemoteResult } from '#common/contracts'
 import { getTermousBridge } from '#shared/bridge'
 import { unwrap } from '#entities/remote-control'
 import { remoteCopy, remoteErrorText } from '../model/copy'
@@ -28,6 +28,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [enabled, setEnabled] = useState(false)
+  const [accessMode, setAccessMode] = useState<RemoteAccessMode>('custom')
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState<'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop'>()
@@ -74,11 +75,13 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
       if (!current()) return
       const value = unwrap(policy)
       const availableHosts = unwrap(hosts)
+      const availableDesktops = profiles ? unwrap(profiles) : []
       const availableIDs = new Set(availableHosts.map(host => host.id))
-      setPolicy(value); setEnabled(value.enabled)
+      // 所有配置读取成功后再开放编辑，避免部分失败时保存不完整的授权视图。
+      setPolicy(value); setEnabled(value.enabled); setAccessMode(value.access_mode ?? 'custom')
       setSelected((value.hosts ?? []).map(item => item.id).filter(id => availableIDs.has(id)))
       setHosts(availableHosts)
-      setDesktops(profiles ? unwrap(profiles) : [])
+      setDesktops(availableDesktops)
       setSelectedDesktops((value.hosts ?? []).flatMap(host => (host.connections ?? []).filter(item => item.kind === 'desktop').map(item => item.id)))
       setSelectedExchanges((value.hosts ?? []).flatMap(host => (host.connections ?? []).filter(item => item.kind === 'desktop_exchange').map(item => item.id)))
     } catch (reason) { if (current()) setError(reason) } finally { if (current()) setLoading(false) }
@@ -90,6 +93,7 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
   }
   const changePolicy = async (operation: 'save' | 'agent' | 'directory' | 'desktop' | 'host-desktop', action: (revision: number) => Promise<RemoteResult<RemotePolicy | null>>) => {
     if (!api || !trusted || !policy || loading || pending.current || mustRefresh) return
+    if (operation !== 'save' && accessMode !== (policy.access_mode ?? 'custom')) return
     const scope = lifetime.current
     const request = editor.current
     const current = () => scope === lifetime.current && request === editor.current
@@ -134,14 +138,19 @@ export function RemoteAccountAccess({ generation, currentDevice, trusted, childr
       return <Space size="small"><Tag className={styles.status} color={online ? 'green' : undefined}>{online ? copy.online : state?.online === 'offline' ? copy.offline : copy.unknown}</Tag>{api ? <Button size="small" icon={<Monitor size={13} />} disabled={!trusted || !available} onClick={() => void connect(device)}>{copy.connect}</Button> : null}</Space>
     })}
     {connectionError ? <FeedbackMessage type="warning" title={remoteErrorText(copy, connectionError)} onClose={() => setConnectionError(undefined)} /> : null}
-    <RemoteAccessDialog open={open} copy={copy} policy={policy} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
+    <RemoteAccessDialog open={open} copy={copy} policy={policy} accessMode={accessMode} onAccessMode={setAccessMode} hosts={hosts} selected={selected} enabled={enabled} loading={loading} working={working} error={error} mustRefresh={mustRefresh} updated={updated}
       hostDesktopAccesses={open && api ? <HostDesktopAccesses api={api} generation={generation} /> : undefined}
 	  onHostDesktop={api?.configureHostDesktop ? (observe, control, secureCapture, secureControl) => void changePolicy('host-desktop', revision => api.configureHostDesktop!(generation, revision, observe, control, secureCapture, secureControl)) : undefined}
       desktops={desktops} selectedDesktops={selectedDesktops} onSelectDesktops={value => { setSelectedDesktops(value); setSelectedExchanges(current => current.filter(id => value.includes(id))) }}
       selectedExchanges={selectedExchanges} onSelectExchanges={setSelectedExchanges}
       onDesktops={api?.configureDesktops ? () => void changePolicy('desktop', revision => api.configureDesktops!(generation, revision, selectedDesktops, selectedExchanges)) : undefined}
       onClose={close} onRefresh={() => void edit()} onEnabled={setEnabled} onSelect={setSelected}
-      onSave={() => { if (api) void changePolicy('save', revision => api.configure(generation, revision, enabled, selected)) }}
+      onSave={() => {
+        if (!api || !policy) return
+        // 切换模式只恢复已保存的授权快照，不能顺带批准已经变化的连接身份。
+        const ids = accessMode === 'custom' && accessMode === (policy.access_mode ?? 'custom') ? selected : undefined
+        void changePolicy('save', revision => api.configure(generation, revision, enabled, ids, accessMode))
+      }}
       onAgent={value => { if (api) void changePolicy('agent', revision => api.configureAgent(generation, revision, value)) }}
       onDirectory={(write, id) => { if (api) void changePolicy('directory', revision => id ? api.removeDirectory(generation, revision, id) : api.addDirectory(generation, revision, write)) }} />
   </>

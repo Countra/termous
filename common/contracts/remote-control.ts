@@ -26,7 +26,10 @@ export interface RemoteDevice {
   id: string; name: string; trust: string; online: string
   advertisement: { protocol: string; host_enabled: boolean; platform: string; policy_revision: string }
 }
+export type RemoteAccessMode = 'full' | 'custom'
+
 export interface RemotePolicy {
+  access_mode?: RemoteAccessMode
 	host_desktop?: { observe: boolean; control: boolean; secure_capture?: boolean; secure_control?: boolean }
   revision: number; enabled: boolean
   agent_enabled?: boolean
@@ -60,7 +63,7 @@ export interface RemoteLauncher {
   open(generation: string, deviceId: string, deviceName: string): Promise<RemoteResult<boolean>>
   devices(generation: string): Promise<RemoteResult<RemoteDevice[]>>
   policy(generation: string): Promise<RemoteResult<RemotePolicy>>
-  configure(generation: string, revision: number, enabled: boolean, hostIds: string[]): Promise<RemoteResult<RemotePolicy>>
+  configure(generation: string, revision: number, enabled: boolean, hostIds: string[] | undefined, accessMode: RemoteAccessMode): Promise<RemoteResult<RemotePolicy>>
   configureAgent(generation: string, revision: number, enabled: boolean): Promise<RemoteResult<RemotePolicy>>
 	configureHostDesktop?(generation: string, revision: number, observe: boolean, control: boolean, secureCapture: boolean, secureControl: boolean): Promise<RemoteResult<RemotePolicy>>
   configureDesktops?(generation: string, revision: number, profiles: string[], exchangeProfiles?: string[]): Promise<RemoteResult<RemotePolicy>>

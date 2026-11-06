@@ -20,7 +20,7 @@ function gateway(overrides: Partial<RemoteLauncher> = {}): RemoteLauncher {
     openAgent: vi.fn(async () => ok(true)), open: vi.fn(async () => ok(true)), devices: vi.fn(async () => ok([])),
     policy: vi.fn(async () => ok(initial)),
     hosts: vi.fn(async () => ok([{ id: 'build', name: '构建主机' }, { id: 'prod', name: '生产主机' }])),
-    configure: vi.fn<RemoteLauncher['configure']>(async (_generation, revision, enabled, ids) => ok({ ...initial, revision: revision + 1, enabled, hosts: ids.map(id => ({ id })) })),
+    configure: vi.fn<RemoteLauncher['configure']>(async (_generation, revision, enabled, ids) => ok({ ...initial, revision: revision + 1, enabled, hosts: ids?.map(id => ({ id })) ?? initial.hosts })),
     configureAgent: vi.fn<RemoteLauncher['configureAgent']>(async (_generation, revision, enabled) => ok({ ...initial, revision: revision + 1, agent_enabled: enabled })),
     addDirectory: vi.fn(async () => ok(null)), removeDirectory: vi.fn<RemoteLauncher['removeDirectory']>(async (_generation, revision) => ok({ ...initial, revision: revision + 1, directories: [] })),
     ...overrides,
@@ -68,7 +68,7 @@ test.each([null, []])('未配置访问范围时兼容空授权列表 %j，仍可
   expect(api.configureAgent).toHaveBeenCalledWith('account', 0, true)
   fireEvent.click(screen.getByRole('switch', { name: '允许远程控制' }))
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 1, true, []))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 1, true, [], 'custom'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
@@ -91,7 +91,7 @@ test('已有主机但尚未授权时不默认选中主机或开放桌面访问',
   fireEvent.click(screen.getByRole('switch', { name: '允许远程控制' }))
   expect(api.configure).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 0, true, ['build']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 0, true, ['build'], 'custom'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(api.configureDesktops).not.toHaveBeenCalled()
 })
@@ -107,7 +107,7 @@ test('清空最后一台主机后兼容空授权响应，重新打开不恢复�
   expect(screen.getByRole('checkbox', { name: '构建主机' })).toBeChecked()
   fireEvent.click(screen.getByRole('checkbox', { name: '构建主机' }))
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, []))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, [], 'custom'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   vi.mocked(api.policy).mockResolvedValue(ok(cleared))
   await open()
@@ -116,7 +116,7 @@ test('清空最后一台主机后兼容空授权响应，重新打开不恢复�
   expect(screen.queryByText('有未保存的设置')).not.toBeInTheDocument()
   expect(screen.getByRole('switch', { name: '允许远程控制' })).toBeChecked()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenLastCalledWith('account', 5, true, []))
+  await waitFor(() => expect(api.configure).toHaveBeenLastCalledWith('account', 5, true, [], 'custom'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
@@ -131,7 +131,7 @@ test('搜索保留隐藏的主机选择，远控开关和主机草稿仅在保�
   expect(api.configure).not.toHaveBeenCalled()
   expect(screen.getByText('有未保存的设置')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, false, ['build', 'prod']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, false, ['build', 'prod'], 'custom'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
@@ -146,7 +146,7 @@ test('助手权限立即更新修订号，保留待保存的主机草稿', async
   expect(api.configureAgent).toHaveBeenCalledWith('account', 4, true)
   expect(screen.getByRole('switch', { name: '允许远程使用 AI 助手' })).toBeChecked()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 5, true, ['build', 'prod']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 5, true, ['build', 'prod'], 'custom'))
 })
 
 test('单个全选复选框支持半选、全选与取消，保存前不写入授权', async () => {
@@ -167,7 +167,7 @@ test('单个全选复选框支持半选、全选与取消，保存前不写入�
   expect(selectAll).not.toBePartiallyChecked()
   expect(api.configure).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, []))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, [], 'custom'))
 })
 
 test('筛选结果批量选择不清除隐藏的选择，空结果不允许批量操作', async () => {
@@ -182,7 +182,7 @@ test('筛选结果批量选择不清除隐藏的选择，空结果不允许批�
   fireEvent.change(screen.getByRole('textbox', { name: '搜索主机' }), { target: { value: '不存在的主机' } })
   expect(screen.getByRole('checkbox', { name: '全选结果' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, ['build']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, ['build'], 'custom'))
 })
 
 test('移除目录必须确认，取消保留授权，确认后只撤销该目录权限', async () => {
@@ -218,7 +218,7 @@ test('原生目录选择期间阻止重复写入与关闭，取消选择不修�
   expect(screen.queryByText('访问权限已更新')).not.toBeInTheDocument()
   expect(screen.getByText('D:\\Reports')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, ['build']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('account', 4, true, ['build'], 'custom'))
 })
 
 test('再次读取失败不沿用旧授权，刷新成功后才允许保存', async () => {
@@ -282,7 +282,7 @@ test('关闭后重新打开不接受旧读取结果，信任撤销后丢弃目�
   display.rerender(view('new-account'))
   await open()
   fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
-  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('new-account', 7, true, ['build']))
+  await waitFor(() => expect(api.configure).toHaveBeenCalledWith('new-account', 7, true, ['build'], 'custom'))
 })
 
 test.each([false, true])('保存后的在线状态不被较早轮询的结果或失败覆盖：%s', async (failed) => {
