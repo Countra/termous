@@ -14,7 +14,7 @@ export function RemoteMediaDetails({ value, zh }: { value: RemoteDesktopMediaDet
       ...(p?.stability?.target ? [[label('固定会话目标', 'Fixed session target'), `${p.stability.target.width} × ${p.stability.target.height} · ${p.stability.target.framerate} fps · Level ${h264LevelLabel(p.stability.level)}`],
         [label('GCC 网络估计', 'GCC network estimate'), bitrate(p.stability.networkEstimate || undefined)],
         [label('实际发送帧率', 'Actual sent FPS'), p.stability.outputFramerate === undefined ? '—' : `${p.stability.outputFramerate.toFixed(1)} fps`],
-        [label('码率限制原因', 'Bitrate limit'), ({user_limit:label('用户上限','User limit'),encoding_limit:label('协商或编码能力','Negotiated or encoder limit'),transport_limit:label('媒体路径限制','Media path limit'),network_estimate:label('GCC 网络预算','GCC network budget'),receiver_feedback:label('接收端拥塞反馈','Receiver congestion feedback')} as Record<string,string>)[p.stability.bitrateLimitReason ?? ''] ?? '—']] : []),
+        [label('码率限制原因', 'Bitrate limit'), ({user_limit:label('用户上限','User limit'),encoding_limit:label('协商或编码能力','Negotiated or encoder limit'),transport_limit:label('媒体路径限制','Media path limit'),network_estimate:label('GCC 网络预算','GCC network budget'),receiver_feedback:label('接收端丢包／抖动反馈','Receiver loss/jitter feedback'),local_delivery:label('主机交付背压','Host delivery backpressure')} as Record<string,string>)[p.stability.bitrateLimitReason ?? ''] ?? '—']] : []),
       [label('接收声明上限', 'Receiver declaration'), h264LevelLabel(n?.receiverLevel)],
       [label('协商上限', 'Negotiated ceiling'), h264LevelLabel(n?.negotiatedLevel)],
       [label('已应用编码等级', 'Applied encoder level'), h264LevelLabel(applied?.level)],

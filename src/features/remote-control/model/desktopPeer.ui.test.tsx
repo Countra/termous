@@ -218,3 +218,25 @@ test('旧租约拒绝携带的状态不能覆盖已经获得的新控制权', as
     expect(channel.send).toHaveBeenCalledTimes(2)
   } finally { peer.close() }
 })
+
+test('ACK 中的控制撤销先于待合并移动恢复', async () => {
+  const { peer, events, channel } = recoveryPeer()
+  const receiver = channel as unknown as RTCDataChannel
+  try {
+    peer.input({ kind: 'move', x: 10, control: { generation: 1n } })
+    await vi.advanceTimersByTimeAsync(17)
+    peer.input({ kind: 'move', x: 20, control: { generation: 1n } })
+    peer.input({ kind: 'move', x: 30, control: { generation: 1n } })
+    await vi.advanceTimersByTimeAsync(20)
+    // 会话消费控制状态时同步清理旧代次，基础模块必须在此之后才恢复派发。
+    events.packet.mockImplementation(packet => {
+      if (packet.state && !packet.state.control) peer.resetInputSequence()
+    })
+    const packet = create(DesktopPacketSchema, { kind: 'ack', controlGeneration: 1n, sequence: 2n, state: { available: true } })
+    receiver.onmessage?.call(receiver, new MessageEvent('message', { data: toBinary(DesktopPacketSchema, packet).buffer }))
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(channel.send).toHaveBeenCalledTimes(2)
+    expect(events.packet).toHaveBeenCalledTimes(1)
+    expect(events.closed).not.toHaveBeenCalled()
+  } finally { peer.close() }
+})

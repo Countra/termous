@@ -41,3 +41,13 @@ test('高压缩提示保留固定目标，保持按钮不发送降档请求', ()
   fireEvent.click(screen.getByRole('button', { name: '保持当前配置' }))
   expect(changed).not.toHaveBeenCalled()
 })
+
+test.each([
+  ['local_delivery', '主机视频交付持续超时'],
+  ['network', '检测到持续传输丢包或抖动'],
+  ['unknown_reason', '当前画质需要确认'],
+])('压力 %s 显示证据或通用提示', (pressure, message) => {
+  render(<DesktopStabilityNotice state={{ ...state, stability: { ...state.stability!, pressure } }} onChange={vi.fn()} onDismiss={vi.fn()} disabled={false} zh />)
+  expect(screen.getByText(new RegExp(message))).toBeInTheDocument()
+  expect(screen.queryByText(/持续拥塞/)).not.toBeInTheDocument()
+})

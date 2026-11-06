@@ -11,11 +11,12 @@ export function DesktopStabilityNotice({ state, onChange, onDismiss, disabled, z
     capture_processing: text('采集或色彩转换未能维持目标帧率。', 'Capture or color processing cannot sustain the target frame rate.'),
     encoding: text('编码耗时超过当前帧预算。', 'Encoding exceeds the current frame budget.'),
     decoding: text('接收端解码未能维持目标帧率。', 'The receiver cannot sustain the target decoding rate.'),
-    network: text('当前网络持续拥塞。', 'The current network is persistently congested.'),
+    network: text('检测到持续传输丢包或抖动。', 'Sustained packet loss or jitter was observed during transmission.'),
+    local_delivery: text('主机视频交付持续超时，画面可能暂时停顿。', 'Video delivery on the host is repeatedly timing out; the picture may briefly freeze.'),
 	compression: text('当前编码预算下持续出现高压缩，画面细节可能明显受损。可保持当前配置，或采用较低档位。', 'Sustained heavy compression may be reducing picture detail. Keep the current configuration or choose a lower target.'),
   }
   return <Alert type="warning" showIcon title={text('画质需要确认', 'Quality needs your attention')}
-    description={<><p>{stable.phase === 'attention' ? text('目标配置未确认，已请求恢复此前画面。请选择重试或调整画质。', 'The target was not confirmed. Restoration was requested; retry or choose another quality.') : reasons[stable.pressure ?? '']}</p>
+    description={<><p>{stable.phase === 'attention' ? text('目标配置未确认，已请求恢复此前画面。请选择重试或调整画质。', 'The target was not confirmed. Restoration was requested; retry or choose another quality.') : reasons[stable.pressure ?? ''] ?? text('当前画质需要确认。', 'The current quality needs your attention.')}</p>
       <Space wrap>
         <Button disabled={disabled} onClick={onDismiss}>{text('保持当前配置', 'Keep current configuration')}</Button>
         {stable.suggested && <Button disabled={disabled} onClick={() => onChange(stable.suggested!)}>{text('采用建议配置', 'Apply suggested configuration')}</Button>}
