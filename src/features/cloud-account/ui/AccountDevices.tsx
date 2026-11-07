@@ -3,7 +3,7 @@ import { Button, Checkbox, Form, Modal, Table, Tag, Tooltip } from 'antd'
 import { Laptop, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudAuthorization, CloudAuthorizationTarget, CloudDevice, CloudMFAProof, CloudStatus } from '#common/contracts'
-import type { CloudGateway } from '#entities/cloud'
+import { DevicePlatformIcon, type CloudGateway } from '#entities/cloud'
 import { WorkspaceEmptyState, FeedbackMessage, FeedbackMessageScope } from '#shared/ui'
 import { useCloudReconnect } from '../model/useCloudReconnect'
 import { useCloudChanges } from '../model/useCloudChanges'
@@ -127,7 +127,7 @@ export function AccountDevices({ api, status, busy, run, target, onOpenAuthoriza
         {
           title: t('cloud.deviceColumns.name'), key: 'device', width: 280,
           render: (_, device) => <div className={styles['list-identity']}>
-            <span className={styles['list-icon']} aria-hidden="true"><Laptop size={18} /></span>
+            <span className={styles['list-icon']}><DevicePlatformIcon platform={device.platform} /></span>
             <div className={styles.identity}>
               {device.id === status.device_id
                 ? <AccountDeviceName api={api} generation={generation} device={device} busy={busy} run={run} onChanged={() => void load()} />

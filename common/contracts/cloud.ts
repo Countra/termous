@@ -40,8 +40,11 @@ export interface CloudQRLoginInput {
   reauthenticate?: boolean
 }
 
+export type DevicePlatform = 'windows' | 'linux' | 'darwin' | 'android' | 'unknown'
+
 export interface CloudDevice {
   id: string
+  platform: DevicePlatform
   user_id: string
   name: string
   name_revision?: string

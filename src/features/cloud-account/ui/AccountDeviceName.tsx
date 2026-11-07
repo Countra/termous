@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Button, Form, Input, Modal, Tooltip, type InputRef } from 'antd'
-import { Check, CircleAlert, Laptop, Pencil, RefreshCw } from 'lucide-react'
+import { Check, CircleAlert, Pencil, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CloudDevice } from '#common/contracts'
-import type { CloudGateway } from '#entities/cloud'
+import { DevicePlatformIcon, type CloudGateway } from '#entities/cloud'
 import { useCloudOperationFeedback } from '../model/useCloudOperationFeedback'
 import styles from './AccountDeviceName.module.scss'
 
@@ -68,7 +68,7 @@ export function AccountDeviceName({ api, generation, device, busy, run, onChange
     </div>
     <Modal forceRender centered width={440} className={styles.modal} open={Boolean(editing)} afterOpenChange={open => { if (open) input.current?.focus({ cursor: 'all' }) }}
       title={<div className={styles.heading}>
-        <span className={styles.glyph} aria-hidden="true"><Laptop size={23} strokeWidth={1.6} /></span>
+        <span className={styles.glyph}><DevicePlatformIcon platform={editing?.platform ?? device.platform} size={23} /></span>
         <div className={styles['heading-copy']}><h2>{t('cloud.deviceName.title')}</h2><p title={editing?.name}>{editing?.name}</p></div>
       </div>}
       closable={!inactive} mask={{ closable: !inactive }} keyboard={!inactive} onCancel={close}

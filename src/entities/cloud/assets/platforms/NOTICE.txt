@@ -1,0 +1,5 @@
+平台图标取自 Font Awesome Free 6.7.2，Copyright 2024 Fonticons, Inc.。
+来源：https://github.com/FortAwesome/Font-Awesome/tree/6.7.2/svgs/brands
+图标许可：CC BY 4.0（https://creativecommons.org/licenses/by/4.0/）。
+Android 图标基于原图标重绘，采用圆顶头部、圆角底边、胶囊眼及短触角；其余图标路径未修改。
+界面按主题着色。平台商标属于各自权利人。

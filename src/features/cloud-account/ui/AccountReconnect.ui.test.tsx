@@ -9,7 +9,7 @@ import { AccountSecurity } from './AccountSecurity'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
 const ready: CloudStatus = { revision: 1, generation: 'fixture', configured: true, authenticated: true, user_id: 'fixture', phase: 'ready', device_status: 'active', confirmed: false, auto_sync: false, pending: 0, conflicts: 0 }
-const device = (name: string): CloudDevice => ({ id: name, name, user_id: 'fixture', signing_key: '', recipient: '', status: 'active', created_at: '2026-09-30T00:00:00Z' })
+const device = (name: string): CloudDevice => ({ id: name, name, platform: 'android', user_id: 'fixture', signing_key: '', recipient: '', status: 'active', created_at: '2026-09-30T00:00:00Z' })
 const session = (id: string): CloudSession => ({ id, device_id: id, created_at: '2026-09-30T00:00:00Z', expires_at: '2026-10-01T00:00:00Z', revoked: false })
 const run = async <T,>(action: () => Promise<T>) => action()
 function gateway(overrides: Partial<CloudGateway> = {}) {

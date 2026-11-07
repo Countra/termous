@@ -85,7 +85,7 @@ test('设备表格保留撤销权限和验证步骤，读取失败时保留已�
     recovery: { available: false, reason: 'not_enabled', policy: { workspace_id: 'workspace', status: 'disabled', revision: '0', updated_at: '2026-10-07T00:00:00Z' } },
   }
   const devices: CloudDevice[] = ['current', 'active', 'pending', 'revoked'].map(id => ({
-    id, user_id: 'fixture-user', name: `合成设备 ${id}`, status: id === 'pending' ? 'pending' : id === 'revoked' ? 'revoked' : 'active', created_at: id === 'revoked' ? '' : '2026-10-07T00:00:00Z', signing_key: '', recipient: '',
+    id, platform: 'unknown', user_id: 'fixture-user', name: `合成设备 ${id}`, status: id === 'pending' ? 'pending' : id === 'revoked' ? 'revoked' : 'active', created_at: id === 'revoked' ? '' : '2026-10-07T00:00:00Z', signing_key: '', recipient: '',
   }))
   const api = gateway({ getStatus: () => current, security: vi.fn(async () => overview), deviceRequests: vi.fn(async () => []), recoveryOperations: vi.fn(async () => []), devices: vi.fn(async () => devices), revokeDevice: vi.fn(async () => {}) })
   render(<AccountDevices api={api} status={current} busy={false} run={run} />)

@@ -1,4 +1,5 @@
 import type { CloudConflict, CloudDevice, CloudEvent, CloudPreview, CloudRekeyStatus, CloudSession, CloudStatus } from '#common/contracts'
+import { normalizeDevicePlatform } from './devicePlatform.ts'
 import type { CloudProfile, CloudQRLogin } from '#common/contracts'
 import { cloudAccountAreas } from '#common/contracts'
 
@@ -76,7 +77,7 @@ export function decodeCloudDevice(value: unknown): CloudDevice {
   const r = record(value)
   const revision = r.name_revision === undefined ? undefined : text(r.name_revision, 19)
   if (revision !== undefined && (!/^(0|[1-9]\d*)$/.test(revision) || BigInt(revision) > 9223372036854775807n)) throw new Error('CLOUD_RESPONSE_INVALID')
-  return { id: text(r.id), user_id: text(r.user_id), name: text(r.name), name_revision: revision, signing_key: text(r.signing_key), recipient: text(r.recipient), status: choice(r.status, ['pending', 'active', 'revoked']), created_at: date(r.created_at) }
+  return { id: text(r.id), platform: normalizeDevicePlatform(r.platform === undefined ? undefined : text(r.platform, 64)), user_id: text(r.user_id), name: text(r.name), name_revision: revision, signing_key: text(r.signing_key), recipient: text(r.recipient), status: choice(r.status, ['pending', 'active', 'revoked']), created_at: date(r.created_at) }
 }
 export function decodeCloudSession(value: unknown): CloudSession {
   const r = record(value)

@@ -601,6 +601,7 @@
       "revision_conflict": "云端出现新修改，请重新同步并处理冲突。"
     },
     "deviceList": "已登记设备",
+    "unknownPlatform": "未知系统",
     "deviceColumns": {
       "name": "设备名称",
       "authorization": "授权状态",

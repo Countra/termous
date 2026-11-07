@@ -601,6 +601,7 @@
       "revision_conflict": "Cloud data changed. Sync again and resolve any conflicts."
     },
     "deviceList": "Registered devices",
+    "unknownPlatform": "Unknown system",
     "deviceColumns": {
       "name": "Device name",
       "authorization": "Authorization",

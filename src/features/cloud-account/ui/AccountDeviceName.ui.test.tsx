@@ -7,7 +7,7 @@ import { CloudState, type CloudGateway } from '#entities/cloud'
 import { AccountDeviceName } from './AccountDeviceName'
 
 beforeAll(async () => { await changeLanguage('zh-CN') })
-const device: CloudDevice = { id: 'mine', user_id: 'owner', name: 'Termous Desktop', name_revision: '0', signing_key: 'key', recipient: 'recipient', status: 'active', created_at: '2026-10-08T00:00:00Z' }
+const device: CloudDevice = { id: 'mine', platform: 'windows', user_id: 'owner', name: 'Termous Desktop', name_revision: '0', signing_key: 'key', recipient: 'recipient', status: 'active', created_at: '2026-10-08T00:00:00Z' }
 const status: CloudStatus = { generation: 'account', revision: 1, configured: true, authenticated: true, phase: 'ready', confirmed: false, auto_sync: false, pending: 0, conflicts: 0, device_id: 'mine', device_status: 'active' }
 const run = async <T,>(action: () => Promise<T>) => { try { return await action() } catch { return undefined } }
 function fixture() {
