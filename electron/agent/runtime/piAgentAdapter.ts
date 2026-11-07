@@ -403,16 +403,18 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
     steeringMode: 'one-at-a-time',
     followUpMode: 'one-at-a-time',
     toolExecution: 'sequential',
-    beforeToolCall: async ({ toolCall }, signal) => {
+    beforeToolCall: async ({ toolCall, args }, signal) => {
       validatedCalls.add(toolCall.id)
+      // 拦截与结果关联使用实际执行参数；模型原始参数仍留在对话中。
+      callArguments.set(toolCall.id, args)
       if (signal?.aborted) { aborted = true; return { block: true, terminate: true, reason: '任务已取消' } }
       const name = options.mcp.originalName(toolCall.name) ?? toolCall.name
-      const decision = inputSafety.failure() ? undefined : budget.evaluate({ type: 'before_tool', name, args: toolCall.arguments })
+      const decision = inputSafety.failure() ? undefined : budget.evaluate({ type: 'before_tool', name, args })
       const failure = inputSafety.failure() ?? (decision && !decision.allowed ? decision.reason : undefined)
       if (failure) return { block: true, terminate: true, reason: failure.message }
-      const safetyBlock = inputSafety.blockedTool(name, toolCall.arguments)
+      const safetyBlock = inputSafety.blockedTool(name, args)
       if (safetyBlock) return { block: true, reason: safetyBlock }
-      const progressBlock = toolProgress.beforeCall(name, toolCall.arguments)
+      const progressBlock = toolProgress.beforeCall(name, args)
       if (progressBlock) return { block: true, reason: progressBlock }
       discovery.touch(toolCall.name)
       if (!model.input.includes('image') && requiresDesktopImages(options.mcp.originalName(toolCall.name))) {
@@ -420,11 +422,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       }
       return undefined
     },
-    afterToolCall: async ({ result, toolCall, isError }) => {
+    afterToolCall: async ({ result, toolCall, args, isError }) => {
       const original = options.mcp.originalName(toolCall.name) ?? toolCall.name
       const failed = isError || isMCPToolDetails(result.details)
         && runtimeToolOutcome(original, progressData(result), result.details.result.isError === true) === 'failed'
-      const guidance = observeToolResult(toolCall.id, toolCall.name, toolCall.arguments, result, failed)
+      const guidance = observeToolResult(toolCall.id, toolCall.name, args, result, failed)
       if (failed) {
         return { isError: true, ...(guidance ? { content: [...result.content, { type: 'text' as const, text: guidance }] } : {}) }
       }
@@ -435,6 +437,11 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const unsubscribe = agent.subscribe((event) =>
     handlePiEvent(event, {
       handle: async (value) => {
+        if (value.type === 'agent_end') {
+          observedCalls.clear()
+          validatedCalls.clear()
+          callArguments.clear()
+        }
         options.audit?.capture(value)
         if (value.type === 'message_end' && value.message.role === 'user') {
           const source = steerSources.get(value.message)
@@ -506,6 +513,9 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       desktopTasks?.close()
       unsubscribe()
       agent.clearAllQueues()
+      observedCalls.clear()
+      validatedCalls.clear()
+      callArguments.clear()
     },
   }
 }

@@ -178,6 +178,7 @@ function isWindowsSymlinkPermissionError(error) {
 
 function validWorkerBundle() {
   return [
+    '//#region node_modules/@earendil-works/pi-schema/dist/index.js',
     piAPIModuleMarker('openai-completions.js'),
     piAPIModuleMarker('openai-responses-shared.js'),
     piAPIModuleMarker('openai-responses.js'),

@@ -37,6 +37,7 @@ const forbiddenProviderSources = Object.freeze([
 const allowedRuntimePackages = new Set([
   '@earendil-works/pi-agent-core',
   '@earendil-works/pi-ai',
+  '@earendil-works/pi-schema',
   '@earendil-works/pi-telemetry',
   '@modelcontextprotocol/client',
   '@modelcontextprotocol/core',

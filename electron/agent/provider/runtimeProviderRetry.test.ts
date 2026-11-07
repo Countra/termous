@@ -66,6 +66,9 @@ for (const detail of [
   '400 invalid_request_error: upstream_error',
   'upstream_error: insufficient_quota',
   'upstream_error: content_filter',
+  '429 {"error":{"code":"1308","message":"Usage limit reached"}}',
+  '429 {"error":{"code":1308,"message":"upstream_error"}}',
+  'ContextWindowExceededError: context window exceeded; try again',
 ]) {
   test(`确定性错误直接失败：${detail}`, async () => {
     const message = failed(10, detail)
