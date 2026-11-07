@@ -1,8 +1,9 @@
 # 构建产物归档
 
-CI／Release 可选将本次安装包、构建日志和提交摘要归档到 MinIO。默认关闭，GitHub Release 和自动更新方式不变。
+CI／Release 使用 buildtools 将本次安装包、构建日志和提交摘要归档到 MinIO。CI 的 `main` 分支自动上传，Release 默认关闭。GitHub Release 和自动更新方式不变。
 
-- 手动运行工作流时勾选 `upload`；或将仓库变量 `TERMOUS_UPLOAD_ARTIFACTS` 设为 `true`。
+- CI 在 `main` 分支 push 或手动运行时自动上传；其他分支及 PR 构建不上传，也不受仓库上传变量影响。
+- Release 手动运行时勾选 `upload`，或将仓库变量 `TERMOUS_UPLOAD_ARTIFACTS` 设为 `true` 开启上传。
 - 仓库 Secrets 配置 `TERMOUS_MINIO_ACCESS_KEY`、`TERMOUS_MINIO_SECRET_KEY`，临时凭据可再配置 `TERMOUS_MINIO_SESSION_TOKEN`。
 - 位置沿用 buildtools 的 `upload` 配置，默认地址 `https://s3.drive.k8x.net/`、桶 `termous-build`、前缀 `desktop`。
 

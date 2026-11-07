@@ -65,11 +65,9 @@ test('工具准备在固定源码检出后读取版本，Git 令牌不流入编�
   assert.ok(steps.some(s => s.run?.includes('macfuse')))
 })
 
-test('可选 MinIO 归档仅使用本次报告，失败后执行且取消后停止', async () => {
+test('MinIO 归档遵循分支与发布规则，仅使用本次报告且取消后停止', async () => {
   for (const name of ['ci', 'release']) {
     const w = await load(`workflows/${name}.yml`)
-    assert.equal(w.on.workflow_dispatch.inputs.upload.type, 'boolean')
-    assert.equal(w.on.workflow_dispatch.inputs.upload.default, false)
     const steps = w.jobs.build.steps
     const build = steps.find(s => s.id === 'desktop-build')
     const archive = steps.find(s => s.name === 'Archive build artifacts')
@@ -78,8 +76,15 @@ test('可选 MinIO 归档仅使用本次报告，失败后执行且取消后停�
     assert.match(build.env.TERMOUS_ARCHIVE_STARTED, /needs\..*outputs.archive_started/)
     assert.match(archive.if, /!cancelled\(\)/)
     assert.match(archive.if, /steps.desktop-build.outputs.run_report != ''/)
-    assert.match(archive.if, /inputs.upload == true/)
-    assert.match(archive.if, /vars.TERMOUS_UPLOAD_ARTIFACTS == 'true'/)
+    if (name === 'ci') {
+      assert.equal(w.on.workflow_dispatch, null)
+      assert.equal(archive.if, "${{ !cancelled() && github.ref == 'refs/heads/main' && steps.desktop-build.outputs.run_report != '' }}")
+    } else {
+      assert.equal(w.on.workflow_dispatch.inputs.upload.type, 'boolean')
+      assert.equal(w.on.workflow_dispatch.inputs.upload.default, false)
+      assert.match(archive.if, /inputs.upload == true/)
+      assert.match(archive.if, /vars.TERMOUS_UPLOAD_ARTIFACTS == 'true'/)
+    }
     assert.equal(archive.env.RUN_REPORT, '${{ steps.desktop-build.outputs.run_report }}')
     assert.match(archive.run, /build\.py upload.*--report "\$RUN_REPORT"/)
     assert.equal(archive['continue-on-error'], undefined)
