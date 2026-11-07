@@ -26,7 +26,7 @@ function qualityStatus(state: PresentationState | undefined, text: (cn: string, 
 export function DesktopPresentationControls({ state, sessionKey = '', onChange, resizeAvailable = false, resizeSupported = resizeAvailable, onResize, resolutionStatus, scale, onScale, disabled = false }: {
   state?: PresentationState
   sessionKey?: string
-  onChange(settings: PresentationSettings): void
+  onChange(settings: PresentationSettings, retryTarget?: boolean): void
   resizeAvailable?: boolean
   resizeSupported?: boolean
   onResize?(width: number, height: number): void
@@ -47,11 +47,12 @@ export function DesktopPresentationControls({ state, sessionKey = '', onChange, 
   const caps = state?.capabilities, settings = state?.requested
   const status = qualityStatus(state, text)
   return <>
-    <Button size="small" type="text" icon={<Settings2 size={16} />} aria-label={title} title={title} onClick={() => setOpen(true)}>{showAdvice ? text('画质需确认', 'Quality needs attention') : null}</Button>
+    <Button size="small" type="text" icon={<Settings2 size={16} />} aria-label={title} title={title} onClick={() => setOpen(true)}>{showAdvice && (caps?.videoQualityVersion !== 1 || state?.stability?.phase === 'attention') ? text('画质需确认', 'Quality needs attention') : null}</Button>
     <Modal open={open} title={title} width={580} centered onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
       <div className={`${styles.controls} ${styles.dialog}`}>
         <p className={styles.intro}>{text('仅用于当前会话，不修改默认设置。', 'Applies to this session only. Your defaults stay unchanged.')}</p>
         {(onScale || onResize && resizeSupported) && <div className={styles.panel}>
+          {caps?.videoQualityVersion === 1 && <p className={styles.intro}>{text('优先保留清晰度，必要时临时降低帧率或尺寸；条件改善后自动恢复目标。', 'Clarity comes first. Frame rate or size may temporarily decrease and recover automatically.')}</p>}
           {onScale && <DesktopQualityField label={text('显示方式', 'Display mode')}>
             {attributes => <SelectControl {...attributes} value={scale} options={[{ value: 'fit', label: text('适应窗口', 'Fit to window') }, { value: 'actual', label: text('原始大小（100%）', 'Actual size (100%)') }]} onChange={onScale} />}
           </DesktopQualityField>}
@@ -67,6 +68,7 @@ export function DesktopPresentationControls({ state, sessionKey = '', onChange, 
           {state?.warning && <p className={styles.notice} role="alert">{state.warning === 'desktop_video_receiver_limited' ? text('本次观看已按接收端能力降低上限，原画质偏好仍保留。', 'This receiver requires lower limits. Your quality preference is preserved.') : text('默认设置加载失败，暂用推荐设置。', 'Could not load defaults. Using recommended settings.')}</p>}
           {Boolean(state?.encodedWidth || state?.observed || state?.transport) && <DesktopQualityDetails title={text('连接信息', 'Connection details')}>
             <dl className={styles.statistics}>
+              {state?.stability?.target && <><dt>{text('用户目标规格', 'Requested profile')}</dt><dd>{state.stability.target.width} × {state.stability.target.height} · {state.stability.target.framerate} fps</dd></>}
               {settings?.kind === 'video' && <><dt>{text('用户码率上限', 'Requested bitrate limit')}</dt><dd>{settings.bitrate / 1_000_000} Mbps</dd></>}
               {caps?.kind === 'video' && <><dt>{text('协商码率上限', 'Negotiated bitrate limit')}</dt><dd>{(caps.maxBitrate ?? 8_000_000) / 1_000_000} Mbps</dd></>}
               {state?.transport && <><dt>{text('媒体路径', 'Media path')}</dt><dd>{state.transport.path === 'direct' ? text('P2P 直连', 'P2P direct') : state.transport.path === 'relay' ? text('中继', 'Relay') : text('待确认', 'Unconfirmed')}</dd><dt>{text('路径码率上限', 'Path bitrate limit')}</dt><dd>{state.transport.bitrateLimit / 1_000_000} Mbps</dd></>}

@@ -31,7 +31,7 @@ test('失败只显示恢复信息，重试必须由用户触发', () => {
   expect(changed).not.toHaveBeenCalled()
   expect(screen.getByText(/目标配置未确认/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '重试目标配置' }))
-  expect(changed).toHaveBeenCalledExactlyOnceWith(state.requested)
+  expect(changed).toHaveBeenCalledExactlyOnceWith(state.requested, true)
 })
 
 test('高压缩提示保留固定目标，保持按钮不发送降档请求', () => {
