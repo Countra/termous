@@ -91,7 +91,7 @@ function AgentConversationSession({
         aria-busy={runStatus === 'queued' || runStatus === 'starting' || runStatus === 'running'}
         {...scrollEvents}
       >
-        <div ref={contentRef}>
+        <div ref={contentRef} className={empty ? styles['empty-content'] : undefined}>
         {onLoadOlder && <Button type="text" loading={historyLoading} onClick={() => { void loadHistory(onLoadOlder) }}>{t('agent.conversation.loadOlder')}</Button>}
         {empty ? (
           <div className={styles['conversation-empty']}>

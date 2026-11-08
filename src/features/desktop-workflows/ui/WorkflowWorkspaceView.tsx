@@ -1,6 +1,6 @@
 import { Alert, App, Button, ConfigProvider, Modal, Segmented } from 'antd'
-import { ChevronRight, Workflow } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Workflow } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Definition, Step } from '#entities/desktop-workflow'
 import type { WorkflowMediaGateway, WorkflowSurfaceModel } from '../model/workspace/types'
@@ -33,6 +33,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
   active?: boolean; guided?: boolean
 }) {
   const { t } = useTranslation(); const { modal, message } = App.useApp()
+  const viewGroupID = useId()
   useWorkflowFeedback(model)
   const ocrDefaults = useOCRDefaults(gateway)
   const confirmations = useRef(new Set<ReturnType<typeof modal.confirm>>())
@@ -103,7 +104,15 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
     modal={{ classNames: { container: overlays.dialog, header: overlays['dialog-header'] } }}
   ><div ref={root} className={styles.workspace} data-narrow={narrow || undefined}>
     <header className={styles['workspace-header']}>
-      <div className={styles.breadcrumb}><Workflow size={18} /><strong>{t('desktopWorkflow.workflow')}</strong><ChevronRight size={13} /><Segmented data-tour="automation-history" value={view} options={[{ value: 'scripts', label: t('desktopWorkflow.analysisWorkspace.workbench') }, { value: 'runs', label: t('desktopWorkflow.executionHistory') }]} onChange={actions.view} /></div>
+      <div className={styles['header-navigation']}>
+        <div className={styles['workspace-title']}><Workflow size={18} aria-hidden="true" /><strong>{t('desktopWorkflow.workflow')}</strong></div>
+        <Segmented<'scripts' | 'runs'> className={styles['view-tabs']} classNames={{ item: styles['view-tab'], label: styles['view-tab-label'] }}
+          data-tour="automation-history" aria-label={t('desktopWorkflow.workflow')} name={`workflow-view-${viewGroupID}`} tabIndex={-1} value={view} onChange={actions.view}
+          options={[
+            { value: 'scripts', label: <span className={styles['view-tab-text']}>{t('desktopWorkflow.analysisWorkspace.workbench')}</span> },
+            { value: 'runs', label: <span className={styles['view-tab-text']}>{t('desktopWorkflow.executionHistory')}</span> },
+          ]} />
+      </div>
       <div className={styles['workspace-actions']} data-tour="automation-actions">
         <WorkflowAnalysis model={model} gateway={gateway} active={active} guided={guided} slot={step?.kind.startsWith('image.') || step?.kind.startsWith('ocr.') || step?.kind === 'if' ? 'image' : step?.kind === 'pointer.drag' ? analysisSlot : 'target'} onMediaTask={onMediaTask} onApplied={setAnalysisTransfer} />
         {activeCount > 0 && <button type="button" className={styles['active-runs']} onClick={() => { const first = model.runs.find((run) => isRunActive(run.state)); if (first) showRun(first.id) }}>{t('desktopWorkflow.activeRuns', { count: activeCount })}</button>}
