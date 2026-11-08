@@ -40,7 +40,7 @@ export function MCPInstallationSettings() {
       if (pending.current === controller) { pending.current = null;setPicking(false) }
     }
   }
-  return <div className={styles.installation}><SettingsGroup title={t('mcpPreparation.settingsTitle')} icon={<Package size={16} />}>
+  return <div className={styles.installation} data-tour-busy={picking || ['editing', 'saving', 'failed'].includes(editor.status) || undefined}><SettingsGroup title={t('mcpPreparation.settingsTitle')} icon={<Package size={16} />}>
     <SettingsField htmlFor="MCPInstallationSettings-root" descriptionId="MCPInstallationSettings-root-description" label={t('mcpPreparation.root')} description={t('mcpPreparation.rootHint')}
       control={null}>
       <div className={styles.directory}>

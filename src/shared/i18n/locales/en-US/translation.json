@@ -7040,7 +7040,7 @@
     "steps": {
       "welcome": {
         "title": "Welcome to Termous",
-        "description": "Manage terminals, remote desktops and files in one workspace, with AI assistance and desktop automation. This short overview covers the main entry points; focused guides explain the details."
+        "description": "Use terminals, remote desktops, files and the AI assistant in one app. Explore the main entry points, then choose a topic for details."
       },
       "vaultNav": {
         "title": "Manage credentials",
@@ -7079,8 +7079,8 @@
         "description": "Use session tabs to switch between local terminals and SSH sessions, then read output, enter commands, and handle daily remote work in the central terminal."
       },
       "workbenchTools": {
-        "title": "Explore the right-side toolbox",
-        "description": "The toolbox provides files, system monitoring, snippets, and alias management for the current session. You can also reference selected terminal text in the AI assistant together with its SSH connection for follow-up questions."
+        "title": "Session tools",
+        "description": "The right toolbar provides files, monitoring, snippets and aliases. Reference selected terminal text and its SSH connection in the AI assistant."
       },
       "files": {
         "title": "Manage remote files",
@@ -7107,108 +7107,118 @@
         "description": "Running instances show transferred and pending bytes, distinguishing transfer from finalization. The server may still need to confirm completion after transfer. Upload details explain the progress basis and any compatibility writeback. Sync, restart, or close instances here, and open error details when needed."
       },
       "forwards": {
-        "title": "Manage port forwarding",
-        "description": "Create local, remote, or dynamic forwarding, save reusable profiles, or open temporary tunnels. Enable automatic connection at startup when needed, and check runtime status, traffic, and connection failures here."
+        "title": "Port forwarding",
+        "description": "Create local, remote or dynamic forwarding with saved profiles or temporary tunnels. Check status, traffic and connection errors in the list."
       },
       "snippets": {
         "title": "Reuse common commands",
-        "description": "The Snippets page organizes commands by group and tag, supports variables and risk detection, and makes them ready to insert or run from the workbench."
+        "description": "Organize commands and variables in Snippets, then find them by group or tag. Insert or run them in a terminal, with risk checks before execution."
       },
       "audit": {
-        "title": "Review AI and MCP operations",
-        "description": "The Audit page records operations from the built-in AI assistant and external MCP clients. Filter by time, source, outcome, or keyword, then open details to review approvals, execution results, and related events."
+        "title": "Review action audit",
+        "description": "Filter AI and MCP actions by time, source or keyword. Expand a record to review the request and execution result."
       },
       "settings": {
         "title": "Adjust preferences",
-        "description": "Settings opens as a dialog. General, terminal and connection preferences apply automatically. Pages such as AI assistant and Model services use the Save action at the bottom; resource operations have their own confirmation."
+        "description": "Manage connections, the AI assistant and external extensions in Settings. Pages that require saving show Save changes at the bottom."
       },
       "settingsTerminal": {
-        "title": "Tune your terminal",
-        "description": "Adjust fonts, cursor, theme and scrollback, and choose completion sources. AI command suggestions require an available model in Model services."
+        "title": "Terminal preferences",
+        "description": "Adjust fonts, cursor, scrollback and completion sources. AI command suggestions require an available model in Model providers."
       },
       "settingsMount": {
         "title": "Manage the local mount cache",
         "description": "Set the cache directory, capacity limit, and reserved free space, and inspect clean, private reserved, and reclaimable usage. Clear unused cache skips content in use. Directory changes apply after Core restarts; the old directory is not moved or deleted automatically."
       },
       "settingsMcp": {
-        "title": "Control tool access through MCP",
-        "description": "Use the Termous endpoint and separate access tokens to connect external AI clients. Assign tool permissions and approval policies to control access to hosts, files, and remote operations."
+        "title": "Connect external AI clients",
+        "description": "Configure the Termous MCP endpoint and an access token in your AI client. Set tool permissions and approval rules for each client."
       },
       "settingsSkills": {
-        "title": "Install Skills for external AI clients",
-        "description": "In the desktop app, choose Install Skills, select Codex, Claude Code, or a custom directory, then review the destination and contents. Existing names are skipped by default. Reload Skills in your client and configure MCP access separately. The built-in assistant already includes these Skills."
+        "title": "Install client Skills",
+        "description": "Choose a client or directory from Install Skills, then reload Skills in your client. Configure MCP access and permissions separately."
       },
       "settingsAgent": {
-        "title": "Set assistant preferences",
-        "description": "Choose a default model and adjust context and session preferences, then use Save at the bottom. Manage service URLs, API keys and model lists separately in Model services."
+        "title": "Assistant preferences",
+        "description": "Choose the default model and adjust context and session preferences. Select Save changes at the bottom when finished."
       },
       "settingsData": {
         "title": "Back up your workspace",
         "description": "Export hosts, credentials, settings, and local resources as an encrypted backup. Preview an import before choosing replacement, merge, or selective restore, then restart after applying it."
       },
       "finish": {
-        "title": "Ready to explore",
-        "description": "You've explored the main entry points. Choose Finish & return to browse guides on connections, desktop automation, AI assistance and more, or close the tour to get started."
+        "title": "Get started",
+        "description": "You have explored the main entry points. Continue with another topic, or reopen the tour from Help at any time."
       },
       "desktop": {
         "title": "Remote desktop workspace",
-        "description": "Manage RDP and VNC sessions here. Add a desktop profile to a host, then select it using Connect or the session ＋ menu. Desktop automation is also accessible before connecting."
+        "description": "Manage RDP and VNC sessions. Add a desktop profile to a host, then open it from Connect or the + in the session bar."
       },
       "desktopConnect": {
-        "title": "Choose a desktop profile",
-        "description": "Connect opens the desktop connection page, prioritizing hosts with desktop profiles. The session ＋ menu lists available profiles; hover a profile to inspect its connection details."
+        "title": "Connect and switch desktops",
+        "description": "Connect opens the desktop connection page; the session bar’s + lists saved profiles. Switch between session tabs to change desktops."
       },
       "desktopTools": {
-        "title": "Desktop tools & retained sessions",
-        "description": "Desktop tools provides file and automation entry points. Reopen retained sessions after closing their tabs. Available tools depend on the protocol and connection state."
+        "title": "Desktop tools",
+        "description": "Open file exchange, retained sessions or desktop automation from Desktop tools. Available actions depend on the protocol and connection state.",
+        "fallbackDescription": "Open a remote desktop session to use file exchange and session actions in Desktop tools. Desktop automation is available from the same menu."
       },
       "desktopFiles": {
-        "title": "RDP file exchange",
-        "description": "With an RDP connection, open Files from Desktop tools for file exchange and clipboard access. Ctrl+V accepts files from the local clipboard. The bottom transfer entry opens progress and shows the rate during transfers."
+        "title": "File exchange",
+        "description": "After connecting through RDP, open file exchange from Desktop tools. The bottom entry shows transfer progress and speed.",
+        "fallbackDescription": "File exchange requires a connected RDP session. Open it from Desktop tools and check transfer progress at the bottom."
       },
       "automationEntry": {
         "title": "Open desktop automation",
-        "description": "Open Desktop automation from Desktop tools to build and run desktop tasks. Choose the Desktop automation guide to explore templates and execution steps. The tour never creates templates or starts a run."
+        "description": "Open Desktop automation from Desktop tools to build workflows and review execution history.",
+        "fallbackDescription": "Open Desktop automation from Desktop tools on the remote desktop page. Managing workflows does not require a connected desktop."
       },
       "automationLibrary": {
-        "title": "Templates & run history",
-        "description": "The collapsible left panel contains templates and run history. Select or create a template to display its steps and configuration; the overview appears when none is selected."
+        "title": "Workbench and workflow library",
+        "description": "Select or create a workflow in the library, and use search to find it quickly. Collapse the list for more editing space.",
+        "fallbackDescription": "Manage workflows in the automation Workbench. If the workspace is detached, use its separate window to view the library."
       },
       "automationEditor": {
-        "title": "Compose task steps",
-        "description": "After opening a template, add, reorder and configure steps, and manage parameters in Flow settings. Validate checks the configuration, Save keeps changes, and Run asks for a target and parameters. The guide performs none of these actions."
+        "title": "Edit a workflow",
+        "description": "Add and arrange steps, configure parameters, then save the workflow. Confirm the target and run parameters before execution.",
+        "fallbackDescription": "Open or create a workflow in the Workbench to edit steps. The tour preserves existing drafts and does not create a sample workflow."
       },
       "automationPreview": {
-        "title": "Select points & regions",
-        "description": "With a template and connected desktop selected, refresh the screenshot to pick points or regions. Scroll to zoom, Ctrl+drag to pan, and drag regions directly to adjust them. Ctrl+Z / Ctrl+Shift+Z undo and redo; Delete removes a selection. Zoom leaves configuration coordinates unchanged. New captures are paused during the guide."
+        "title": "Select points and regions",
+        "description": "Choose an available desktop and refresh its screenshot to set coordinates, templates or regions. Zooming does not change image coordinates.",
+        "fallbackDescription": "Open a workflow and select an available desktop to capture its screen and choose points or regions."
       },
       "automationHistory": {
-        "title": "Review task runs",
-        "description": "Switch to run history here. Select a run to inspect its state, step details, keys, input and screenshots, with controls to expand or collapse all details. History and template editing share the same workspace."
+        "title": "Execution history",
+        "description": "Select a run in Execution history to view step states, diagnostics and retained screenshots. Return to the Workbench to continue editing.",
+        "fallbackDescription": "Execution history contains step states and diagnostics. If the workspace is detached, view it in its separate window."
       },
       "automationWindow": {
-        "title": "Use a separate window",
-        "description": "On desktop, open automation in a separate window and return it to the main interface when needed. Desktop sessions stay in place. Use Back to remote desktop to view them."
+        "title": "Detach automation",
+        "description": "Open automation in a separate window while keeping workflows and execution state. Focus that window or return it to the main app at any time.",
+        "fallbackDescription": "The desktop app supports a separate automation window. Use the placeholder to focus it or bring it back when already detached."
       },
       "settingsModels": {
-        "title": "Prepare model services",
-        "description": "Add a service, enter its API URL and key, and choose or edit available models, then Save at the bottom. Select the assistant’s default model and preferences in the next step."
+        "title": "Configure model providers",
+        "description": "Configure endpoints and models in Model providers, then select Save changes at the bottom. Choose the default model in AI assistant settings."
       },
       "agent": {
-        "title": "AI assistant workspace",
-        "description": "When the assistant is not ready, this page lists the remaining setup tasks. Complete model and runtime setup to start chatting. The guide does not prepare the environment, send messages or call models."
+        "title": "AI assistant sessions",
+        "description": "Organize conversations, resources and tasks by session. Configure an available model before starting a conversation."
       },
       "agentContext": {
-        "title": "Reference resources & context",
-        "description": "When ready, reference SSH, file or desktop resources in the composer, or bring in text selected in a terminal. Type / to view shortcuts and provide a clear task target and context."
+        "title": "Resources and attachments",
+        "description": "Link SSH, file or desktop resources and add attachments in the composer. It also accepts text referenced from a terminal.",
+        "fallbackDescription": "Once the assistant is ready, link resources and add attachments in the session composer. Complete the setup shown on the page first if needed."
       },
       "agentApproval": {
-        "title": "Review operations before approval",
-        "description": "Operations requiring approval show their target and details before continuing. Review pending approvals in the message center and inspect results in Audit. Grant access according to the task."
+        "title": "Action approvals",
+        "description": "Actions requiring approval show their target and details before proceeding. Handle pending requests in the message center."
       },
       "agentWindow": {
-        "title": "Work in a separate assistant window",
-        "description": "On desktop, a ready assistant can open separately and return to the main interface while keeping the conversation. Complete setup first if it is not ready. Remote-device assistants follow the remote device’s readiness state."
+        "title": "Detach the assistant",
+        "description": "Open the assistant in a separate window while keeping the current conversation and tasks. Focus that window or return it to the main app.",
+        "fallbackDescription": "The desktop app supports a separate assistant window. Complete setup first if needed; when detached, use the placeholder to focus it or bring it back."
       },
       "account": {
         "title": "Account & devices",
@@ -7216,28 +7226,92 @@
       },
       "cloudSync": {
         "title": "Choose encrypted sync data",
-        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
+        "description": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything.",
+        "fallbackDescription": "After signing in and establishing device trust, choose data in Sync and review its status and conflicts. Sensitive data is end-to-end encrypted. The guide does not enable sync or upload anything."
       },
       "cloudSecurity": {
         "title": "Manage account security",
-        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
+        "description": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it.",
+        "fallbackDescription": "After signing in, use Security for two-factor authentication, recovery and device trust. Each security operation has its own confirmation flow. Keep recovery information safe; the guide does not read or change it."
       },
       "remoteDevices": {
-        "title": "Open device remote control",
-        "description": "After signing in, choose a trusted, online device in Devices to open remote control. Access depends on the remote device’s settings and availability, separately from host SSH or RDP profiles."
+        "title": "Connect to a device",
+        "description": "Choose a trusted, online device under Devices to open remote control. The remote device must allow access; host SSH and RDP profiles are separate.",
+        "fallbackDescription": "After signing in, choose a trusted, online device under Devices. The remote device must allow remote control first."
       },
       "remotePermissions": {
-        "title": "Limit remote access",
-        "description": "The controlled device manages access permissions. Enable only the features and file roots you need; remote AI access also requires its own permission. The guide does not grant access or connect to a device."
+        "title": "Remote access scope",
+        "description": "Choose full control or custom access. Local file access remains limited to authorized folders.",
+        "fallbackDescription": "After signing in, choose full control or custom access in this device’s access settings. File access still requires authorized folders."
       },
       "notifications": {
         "title": "Find results & approvals",
         "description": "The message center collects task results, file transfers and pending approvals. Open a message to visit its content. Enabled system notifications appear only when the entire app is unfocused, not when switching between Termous windows."
+      },
+      "desktopQuality": {
+        "title": "Connection status",
+        "description": "Check connection quality, latency and transfer rates. Available metrics depend on the connection type.",
+        "fallbackDescription": "Connection status and transfer metrics appear at the bottom after a desktop connects."
+      },
+      "settingsDesktop": {
+        "title": "Desktop display settings",
+        "description": "Adjust display, scaling and interaction preferences in Desktop & remote control settings. Some connection options apply to new connections."
+      },
+      "automationAnalysis": {
+        "title": "Screen analysis",
+        "description": "Use Screen analysis to identify desktop content and apply results to step coordinates, templates or regions. Configure an analysis service first.",
+        "fallbackDescription": "Open Screen analysis at the top of Desktop automation. If the workspace is detached, use its separate window."
+      },
+      "automationExchange": {
+        "title": "Import and export",
+        "description": "Import or export workflows from Actions. Use ZIP or a folder to preserve image assets.",
+        "fallbackDescription": "Import a workflow from the Workbench overview. After opening a saved workflow, use Actions to import or export."
+      },
+      "agentHostDesktop": {
+        "title": "Host desktop permissions",
+        "description": "Allow the assistant to view or control this computer as needed. These settings enable capabilities; individual actions still follow approval rules.",
+        "fallbackDescription": "Manage host desktop permissions under AI assistant in Settings. View and control options become available when the page is ready."
+      },
+      "agentWorkspace": {
+        "title": "Local workspace",
+        "description": "Choose the local working directory for this session. File and command tools use it to resolve relative paths.",
+        "fallbackDescription": "In an available session, use the composer’s folder icon to choose a local working directory. Use the separate window if the assistant is detached."
+      },
+      "agentExtensions": {
+        "title": "Session extensions",
+        "description": "Choose MCPs and Skills for this session. Add and enable sources in Extensions in Settings first.",
+        "fallbackDescription": "Once the assistant and session are ready, use the composer’s extensions icon to choose MCPs and Skills. Manage sources in Extensions."
+      },
+      "extensionsMcp": {
+        "title": "Add an MCP",
+        "description": "Add a configuration or import JSON. Recognized single-package npx commands support managed installation; other commands use the local environment.",
+        "fallbackDescription": "Add a configuration or import JSON under Extensions → MCP in Settings. Managed installation supports recognized single-package npx commands."
+      },
+      "extensionsInstallation": {
+        "title": "Installation & startup",
+        "description": "Set the managed installation root and timeouts. Changing the root affects new installations; existing ones keep their original paths.",
+        "fallbackDescription": "Expand Installation & startup at the bottom of Extensions → MCP. Changing the root does not move existing installations."
+      },
+      "extensionsSkills": {
+        "title": "Import Skills",
+        "description": "Enable imported Skills in a session. Bundled scripts run through the local command tool and follow its approval rules.",
+        "fallbackDescription": "Import resources under Extensions → Skills, then enable them in a session. Reading a Skill does not run scripts or install dependencies."
+      },
+      "extensionsSearch": {
+        "title": "Web search",
+        "description": "Choose Termous cloud service or a self-hosted SearXNG to retrieve web links and snippets. Cloud search requires sign-in.",
+        "fallbackDescription": "Choose Termous cloud service or a self-hosted SearXNG under Extensions → Web search. Cloud search requires sign-in."
+      },
+      "settingsNetwork": {
+        "title": "Network proxy",
+        "description": "Applies to MCP and local commands for new tasks and connections. It does not affect web search.",
+        "fallbackDescription": "Configure the network proxy under Connection in Settings. It applies to MCP and local commands and does not affect web search."
       }
     },
-    "chooseTopic": "Start with the basics or choose a topic. Return to this list during any guide, or close it and reopen it from Help.",
+    "startBasics": "Start tour",
+    "revisitBasics": "View again",
+    "browseTopics": "Explore by topic",
     "topicCompleted": "You've explored {{topic}}",
-    "continueTopic": "Choose another topic, or close the tour to get started.",
     "completed": "Completed",
     "stepCount": "{{count}} steps",
     "topics": {
@@ -7255,15 +7329,15 @@
       },
       "desktop": {
         "title": "Remote desktop",
-        "description": "Desktop profiles, tools and RDP file exchange"
+        "description": "Desktop connections, file exchange and display settings"
       },
       "automation": {
         "title": "Desktop automation",
-        "description": "Templates, steps, screen selection and run history"
+        "description": "Workflow editing, analysis, import, export and history"
       },
       "agent": {
         "title": "AI assistant",
-        "description": "Models, resource references and approvals"
+        "description": "Models, session resources, workspaces and approvals"
       },
       "cloud": {
         "title": "Sync & backup",
@@ -7275,7 +7349,11 @@
       },
       "tools": {
         "title": "Tools & integrations",
-        "description": "Session tools, forwarding, snippets, MCP and audit"
+        "description": "Terminal tools, port forwarding and external AI clients"
+      },
+      "extensions": {
+        "title": "Extensions & search",
+        "description": "Add MCPs, import Skills and configure web search"
       }
     }
   },

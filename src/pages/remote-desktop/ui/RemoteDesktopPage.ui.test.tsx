@@ -74,6 +74,24 @@ it('向导仅切换展示视图，往返后保留桌面会话和流程草稿', (
   expect(runtime.selectSession).not.toHaveBeenCalled()
 })
 
+it('向导指令只消费一次，退出后迟到或重新打开专题列表均不切换视图', () => {
+  const props = { workflow: {} as WorkflowGateway, profiles: [], onDirtyChange: vi.fn() }
+  const intent = { key: 1, view: 'workflow' as const }
+  const view = render(<RemoteDesktopPage {...props} guideIntent={intent} guided={false} />)
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={intent} guided />)
+  expect(screen.queryByLabelText('流程草稿')).not.toBeInTheDocument()
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={{ ...intent, key: 2 }} guided />)
+  fireEvent.change(screen.getByLabelText('流程草稿'), { target: { value: '保留草稿' } })
+  fireEvent.click(screen.getByRole('button', { name: 'desktopWorkflow.backToDesktop' }))
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={{ ...intent, key: 2 }} guided={false} />)
+  view.rerender(<RemoteDesktopPage {...props} guideIntent={{ ...intent, key: 2 }} guided />)
+  expect(screen.getByLabelText('桌面会话状态')).toBeVisible()
+  expect(screen.getByLabelText('流程草稿')).toHaveValue('保留草稿')
+  expect(screen.getByLabelText('流程草稿')).not.toBeVisible()
+  expect(runtime.automation.show).not.toHaveBeenCalled()
+  expect(runtime.selectSession).not.toHaveBeenCalled()
+})
+
 it('主页面隐藏释放观看视图但保留流程宿主，明确放弃修改时重置草稿', () => {
   const props = { workflow: {} as WorkflowGateway, profiles: [], onDirtyChange: () => undefined }
   const view = render(<RemoteDesktopPage {...props} />)

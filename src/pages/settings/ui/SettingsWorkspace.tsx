@@ -126,6 +126,7 @@ export function SettingsWorkspace({
   const [visited, setVisited] = useState(() => new Set<SettingsPageTabKey>([initialTab]))
   const [editors, setEditors] = useState<Partial<Record<SettingsPageTabKey, SettingsEditor>>>({})
   const [pendingTab, setPendingTab] = useState<SettingsPageTabKey | null>(null)
+  const [extensionsBusy, setExtensionsBusy] = useState(false)
   const registerEditor = useCallback((id: SettingsPageTabKey, editor: SettingsEditor | null) => {
     setEditors(current => {
       if (current[id] === (editor ?? undefined)) return current
@@ -137,7 +138,7 @@ export function SettingsWorkspace({
   }, [])
   const currentEditor = editors[activeTab]
   const dirty = Object.values(editors).some(editor => editor?.dirty)
-  const busy = Object.values(editors).some(editor => editor?.busy)
+  const busy = extensionsBusy || Object.values(editors).some(editor => editor?.busy)
   const navigationBusy = busy || pendingTab !== null
   useLayoutEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useLayoutEffect(() => { onBusyChange?.(navigationBusy) }, [navigationBusy, onBusyChange])
@@ -153,7 +154,7 @@ export function SettingsWorkspace({
   const modelStatus = useAgentDefaultModelStatus(defaultModelStatusGateway?.getDefaultModelStatus, activeTab === 'terminal')
 
   const panels: Record<SettingsPageTabKey, ReactNode> = {
-    extensions: <div className={styles['tab-scroll']}><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} installationSettings={<MCPInstallationSettings />} searchSettings={<WebSearchSettings />} /></div>,
+    extensions: <div className={styles['tab-scroll']} data-tour="settings-extensions"><AssistantExtensions gateway={integrationsGateway} active={activeTab==='extensions'} onBusyChange={setExtensionsBusy} installationSettings={<MCPInstallationSettings />} searchSettings={<WebSearchSettings />} /></div>,
     general: (
       <div className={styles['tab-scroll']}>
         <div className={styles['settings-stack']}>
@@ -194,7 +195,7 @@ export function SettingsWorkspace({
       </div>
     ),
     connection: (
-      <div className={styles['tab-scroll']}>
+      <div className={styles['tab-scroll']} data-tour="settings-connection">
         <LocalNetworkSettings />
         <ConnectionSettingsPanel
           value={connectionSettings}
@@ -204,7 +205,7 @@ export function SettingsWorkspace({
       </div>
     ),
     'remote-desktop': (
-      <div className={styles['tab-scroll']}>
+      <div className={styles['tab-scroll']} data-tour="settings-remote-desktop">
         <RemoteDesktopSettings value={connectionSettings} disabled={actionBusy} onChange={onConnectionSettingsChange} />
       </div>
     ),

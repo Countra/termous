@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prepareProductTourDom } from './productTourDomPreparation.ts'
 import { buildProductTourSteps } from './productTourSteps.ts'
 
 const steps = buildProductTourSteps((key) => key)
+afterEach(() => vi.restoreAllMocks())
 
 describe('使用向导页面准备', () => {
   beforeEach(() => {
     document.body.replaceChildren()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, 100, 40))
   })
 
   it('通过现有新增动作打开空白凭据编辑器', async () => {
@@ -278,5 +280,52 @@ describe('使用向导页面准备', () => {
     await preparation
 
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['extensionsMcp', 'mcp'], ['extensionsInstallation', 'mcp'], ['extensionsSkills', 'skill'], ['extensionsSearch', 'search'],
+  ] as const)('%s 先激活外层设置再切换内层页签，不触发导入、测试或安装', async (id, kind) => {
+    const panel = document.createElement('section')
+    panel.setAttribute('role', 'tabpanel')
+    panel.setAttribute('aria-hidden', 'true')
+    panel.innerHTML = '<div data-tour="settings-extensions"><div role="tabpanel" aria-hidden="true"><div data-tour="extensions-mcp"></div></div></div>'
+    const outer = panel.firstElementChild!
+    const old = outer.firstElementChild!
+    const inner = document.createElement('div')
+    inner.setAttribute('role', 'tabpanel')
+    inner.setAttribute('aria-hidden', 'true')
+    inner.innerHTML = `<div data-tour="extensions-${kind}"><button data-tour="extensions-installation"></button><button>业务操作</button></div>`
+    const operation = vi.fn()
+    inner.querySelector('button:last-child')!.addEventListener('click', operation)
+    const innerTab = document.createElement('button')
+    innerTab.dataset.tour = `extensions-${kind}-tab`
+    const selectInner = vi.fn(() => { old.setAttribute('aria-hidden', 'true'); inner.setAttribute('aria-hidden', 'false') })
+    innerTab.addEventListener('click', selectInner)
+    outer.append(innerTab, inner)
+    const outerTab = document.createElement('button')
+    outerTab.dataset.tour = 'settings-extensions-tab'
+    const selectOuter = vi.fn(() => panel.setAttribute('aria-hidden', 'false'))
+    outerTab.addEventListener('click', selectOuter)
+    document.body.append(outerTab, panel)
+    await prepareProductTourDom(steps.find(step => step.id === id)!, new AbortController().signal)
+    expect(selectOuter).toHaveBeenCalledOnce()
+    expect(selectInner).toHaveBeenCalledOnce()
+    expect(inner).toHaveAttribute('aria-hidden', 'false')
+    expect(old).toHaveAttribute('aria-hidden', 'true')
+    expect(operation).not.toHaveBeenCalled()
+  })
+
+  it('工作台视图准备等待有限时间，不替用户打开流程或修改目标', async () => {
+    vi.useFakeTimers()
+    const action = document.createElement('button')
+    const operation = vi.fn()
+    action.addEventListener('click', operation)
+    document.body.append(action)
+    try {
+      const preparation = prepareProductTourDom(steps.find(step => step.id === 'automationEditor')!, new AbortController().signal)
+      await vi.advanceTimersByTimeAsync(1200)
+      await expect(preparation).resolves.toBeUndefined()
+      expect(operation).not.toHaveBeenCalled()
+    } finally { vi.useRealTimers() }
   })
 })

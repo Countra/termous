@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { App, Button, Space, Tabs, Tooltip } from 'antd'
 import { ChevronRight, FileInput, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -18,8 +18,8 @@ import { IntegrationEmptyState } from './IntegrationEmptyState'
 
 type IntegrationOperation = 'toggle' | 'test' | 'login' | 'reconnect' | 'remove'
 
-export function AssistantExtensions({gateway,active = true, installationSettings, searchSettings}: {
-  gateway?:AgentIntegrationsGateway;active?:boolean;installationSettings?:ReactNode;searchSettings?:ReactNode
+export function AssistantExtensions({gateway,active = true, installationSettings, searchSettings, onBusyChange}: {
+  gateway?:AgentIntegrationsGateway;active?:boolean;installationSettings?:ReactNode;searchSettings?:ReactNode;onBusyChange?: (busy: boolean) => void
 }) {
   const { t } = useTranslation()
   const { message, modal } = App.useApp()
@@ -33,6 +33,9 @@ export function AssistantExtensions({gateway,active = true, installationSettings
   const [importing,setImporting] = useState<AgentIntegrationSource | 'new'>()
   const [provision,setProvision] = useState<AgentIntegrationSource[]>([])
   const [details,setDetails] = useState<AgentIntegrationSource>()
+  const interactionBusy = Boolean(busy || editor || importing || provision.length || details)
+  useLayoutEffect(() => { onBusyChange?.(interactionBusy) }, [interactionBusy, onBusyChange])
+  useLayoutEffect(() => () => onBusyChange?.(false), [onBusyChange])
   const controller = useRef<AbortController | null>(null)
   const loadController = useRef<AbortController | null>(null)
   const native = getTermousBridge()?.agentIntegrations
@@ -128,7 +131,7 @@ export function AssistantExtensions({gateway,active = true, installationSettings
       else { const result = await test(source, signal); void message.success(t('extensions.connected', { count: result.tools.length })) }
     }, action)
   }
-  const content = <div className={styles.content}>{kind === 'search' ? searchSettings : <>
+  const content = <div className={styles.content} data-tour={`extensions-${kind}`}>{kind === 'search' ? searchSettings : <>
     <div className={styles.toolbar}>
       <div><h3>{t(kind === 'mcp' ? 'extensions.mcpHeading' : 'extensions.skillHeading')}</h3><p>{t(kind === 'mcp' ? 'extensions.mcpHint' : 'extensions.skillHint')}</p></div>
       <Space size={8}><Tooltip title={t('extensions.refresh')}><Button type="text" aria-label={t('extensions.refresh')} icon={<RefreshCw size={15}/>} loading={loading} disabled={Boolean(busy) || !gateway} onClick={() => { setError(''); void reload() }} /></Tooltip>
@@ -137,15 +140,15 @@ export function AssistantExtensions({gateway,active = true, installationSettings
     </div>
     {error && <FeedbackMessage type="error" title={error} onClose={() => setError('')} />}
     {gateway ? <IntegrationSourceList key={kind} sources={sources.filter(source => source.kind === kind)} connections={connections} kind={kind} loading={loading} busy={busy?.id ?? ''} toggling={busy?.operation === 'toggle'} onInspect={setDetails} onToggle={toggle} onAction={action} /> : <IntegrationEmptyState kind={kind} title={t('extensions.unavailable')} description={t('extensions.unavailableHint')} />}
-    {kind === 'mcp' && installationSettings && <details className={styles.runtime}><summary><Settings2 size={15} /><span>{t('extensions.installationTitle')}</span><small>{t('extensions.installationHint')}</small><ChevronRight size={14} /></summary><div>{installationSettings}</div></details>}
+    {kind === 'mcp' && installationSettings && <details className={styles.runtime}><summary data-tour="extensions-installation"><Settings2 size={15} /><span>{t('extensions.installationTitle')}</span><small>{t('extensions.installationHint')}</small><ChevronRight size={14} /></summary><div>{installationSettings}</div></details>}
     </>}</div>
   return <FeedbackMessageScope active={active} scope="settings:extensions"><section className={styles.root} data-editing={Boolean(editor) || undefined}>
     {busy && busy.operation !== 'toggle' && <FeedbackMessage type="loading" title={t(busy.cancelling ? 'extensions.cancelling' : `extensions.operation.${busy.operation}`)} description={sources.find(source => source.id === busy.id)?.name}
       action={<Button size="small" disabled={busy.cancelling} onClick={cancelOperation}>{t('extensions.cancel')}</Button>} />}
     {gateway && editor ? <MCPSourceEditor gateway={gateway} source={editor==='new' ? undefined : editor} onClose={() => setEditor(undefined)} onSaved={completed} /> : <Tabs className={styles.tabs} activeKey={kind} onChange={value => setKind(value as typeof kind)} destroyOnHidden items={[
-      { key: 'mcp', label: <span>{t('extensions.mcpTab')}<small>{sources.filter(source => source.kind === 'mcp').length}</small></span>, children: kind === 'mcp' ? content : undefined },
-      { key: 'skill', label: <span>{t('extensions.skillTab')}<small>{sources.filter(source => source.kind === 'skill').length}</small></span>, children: kind === 'skill' ? content : undefined },
-      ...(searchSettings ? [{ key: 'search', label: t('webSearch.title'), children: kind === 'search' ? content : undefined }] : []),
+      { key: 'mcp', label: <span data-tour="extensions-mcp-tab">{t('extensions.mcpTab')}<small>{sources.filter(source => source.kind === 'mcp').length}</small></span>, children: kind === 'mcp' ? content : undefined },
+      { key: 'skill', label: <span data-tour="extensions-skill-tab">{t('extensions.skillTab')}<small>{sources.filter(source => source.kind === 'skill').length}</small></span>, children: kind === 'skill' ? content : undefined },
+      ...(searchSettings ? [{ key: 'search', label: <span data-tour="extensions-search-tab">{t('webSearch.title')}</span>, children: kind === 'search' ? content : undefined }] : []),
     ]} />}
     {gateway && <>
       {provision.length > 0 && <MCPProvisionDialog sources={provision} gateway={gateway} onClose={() => {setProvision([]);void reload()}} onChanged={() => void reload()} />}

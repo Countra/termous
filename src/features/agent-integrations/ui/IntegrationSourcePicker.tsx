@@ -75,7 +75,7 @@ export function IntegrationSourcePicker({ sessionKey, read, change, disabled, ac
         </div>
       </section>}>
       <Tooltip title={visible ? undefined : t('extensions.title')}>
-        <Button type="text" className={uiStyles['icon-action']} icon={<Blocks size={15} />}
+        <Button type="text" className={uiStyles['icon-action']} data-tour="agent-extensions" icon={<Blocks size={15} />}
           disabled={disabled || !active} aria-label={t('extensions.title')} aria-expanded={visible} />
       </Tooltip>
     </FilterPopover>

@@ -18,6 +18,7 @@ interface Options {
   intent?: ReferenceIntent
   controller: AgentWorkspaceController
   active: boolean
+  paused?: boolean
   ready: boolean
   modelReady: boolean
   resourcesReady: Record<ReferenceIntent['resource_reference']['kind'], boolean>
@@ -153,14 +154,14 @@ export function useAgentTerminalReferenceImport(options: Options) {
   }, [update])
 
   useEffect(() => {
-    if (!current || !options.active || !options.ready || !currentResourcesReady || busyRef.current) return
+    if (!current || options.paused || !options.active || !options.ready || !currentResourcesReady || busyRef.current) return
     if (current.stage !== 'pending' && current.stage !== 'configuration') return
     if (!current.targetId && current.request.target.kind === 'new' && !options.modelReady) {
       if (current.stage !== 'configuration') update(current.request.key, { stage: 'configuration' })
       return
     }
     void execute(current)
-  }, [current, currentResourcesReady, execute, options.active, options.modelReady, options.ready, update])
+  }, [current, currentResourcesReady, execute, options.active, options.paused, options.modelReady, options.ready, update])
 
   return {
     current,

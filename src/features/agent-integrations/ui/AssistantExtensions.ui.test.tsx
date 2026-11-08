@@ -63,6 +63,23 @@ it('分区只展示对应资源与设置，编辑在页内呈现并统一保存'
   expect(api.saveMCP).not.toHaveBeenCalled()
 })
 
+it('编辑与弹层向设置导航报告忙碌，返回列表和卸载后释放守卫', async () => {
+  const onBusyChange = vi.fn()
+  const api = gateway()
+  const view = render(<AssistantExtensions gateway={api} onBusyChange={onBusyChange} />, { wrapper })
+  await screen.findByText('Fixture MCP')
+  expect(onBusyChange).toHaveBeenLastCalledWith(false)
+  fireEvent.click(screen.getByRole('button', { name: 'extensions.configure' }))
+  expect(onBusyChange).toHaveBeenLastCalledWith(true)
+  fireEvent.click(screen.getByRole('button', { name: 'extensions.backToServers' }))
+  expect(onBusyChange).toHaveBeenLastCalledWith(false)
+  fireEvent.click(screen.getByRole('button', { name: 'extensions.configure' }))
+  expect(onBusyChange).toHaveBeenLastCalledWith(true)
+  view.unmount()
+  expect(onBusyChange).toHaveBeenLastCalledWith(false)
+  expect(api.saveMCP).not.toHaveBeenCalled()
+})
+
 it('页内编辑返回时保护未保存的修改，确认放弃才返回', async () => {
   const close = vi.fn()
   render(<MCPSourceEditor source={source} gateway={gateway()} onClose={close} onSaved={() => {}} />, { wrapper })

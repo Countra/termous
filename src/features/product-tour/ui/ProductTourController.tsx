@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ProductTourDriverFactory } from '../model/productTourDriverAdapter.ts'
-import type { ProductTourTopicId } from '../model/productTourTopics.ts'
+import { getProductTourTopic, type ProductTourTopicId } from '../model/productTourTopics.ts'
 import { prepareProductTourDom } from '../model/productTourDomPreparation.ts'
 import { ProductTourEngine, type ProductTourCompletionReason } from '../model/ProductTourEngine.ts'
 import {
@@ -87,6 +87,8 @@ export function ProductTourController({
 
   useEffect(() => {
     const initialContent = contentRef.current
+    let disposed = false
+    let completionReported = false
     const engine = new ProductTourEngine({
       steps: initialContent.steps,
       labels: initialContent.labels,
@@ -96,6 +98,7 @@ export function ProductTourController({
         skipButton: styles['skip-button'],
       },
       completionStore,
+      completionVersion: topic ? getProductTourTopic(topic).version : undefined,
       persistOnDismiss: !topic,
       driverFactory,
       isBlocked: () => !latestRef.current.ready || latestRef.current.blocked,
@@ -104,11 +107,16 @@ export function ProductTourController({
       ),
       onBlocked: () => latestRef.current.onBlocked(),
       onError: (error) => latestRef.current.onError(error),
-      onActiveChange: (active) => latestRef.current.onActiveChange?.(active),
+      onActiveChange: (active) => {
+        if (active) completionReported = false
+        latestRef.current.onActiveChange?.(active)
+        if (!active && !disposed && !completionReported) latestRef.current.onFinished?.('closed')
+      },
       decoratePopover: (target, step) => (
         decorateProductTourPopover(target, step, setPopoverDecoration)
       ),
       onCompleted: (reason) => {
+        completionReported = true
         autoHandledRef.current = true
         latestRef.current.onFinished?.(reason)
       },
@@ -123,6 +131,7 @@ export function ProductTourController({
     })
     engineRef.current = engine
     return () => {
+      disposed = true
       if (engineRef.current === engine) {
         engineRef.current = null
       }
@@ -149,7 +158,7 @@ export function ProductTourController({
     if (blocked) {
       return
     }
-    if (hasCompletedCurrentProductTour(completionStore)) {
+    if (hasCompletedCurrentProductTour(completionStore, topic ? getProductTourTopic(topic).version : undefined)) {
       autoHandledRef.current = true
       return
     }
@@ -172,7 +181,7 @@ export function ProductTourController({
       attemptController.abort()
       window.clearTimeout(timer)
     }
-  }, [autoStartEligible, blocked, completionStore, ready])
+  }, [autoStartEligible, blocked, completionStore, ready, topic])
 
   useEffect(() => {
     if (manualRequestKey <= lastManualRequestRef.current) {

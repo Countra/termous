@@ -101,7 +101,7 @@ export function LocalDirectoryPicker({ sessionKey, read, change, disabled, runni
             </>}
       </section>}>
       <Tooltip title={visible ? undefined : t('localTools.workspace')}>
-        <Button type="text" className={uiStyles['icon-action']} disabled={disabled || !active}
+        <Button type="text" className={uiStyles['icon-action']} data-tour="agent-local-workspace" disabled={disabled || !active}
           icon={<FolderOpen size={15} />} aria-label={t('localTools.workspace')} aria-expanded={visible} />
       </Tooltip>
     </FilterPopover>

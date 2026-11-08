@@ -10,6 +10,7 @@ import {
   type ProductTourStep,
 } from './productTourSteps.ts'
 import type { ProductTourCompletionStore } from './productTourStorage.ts'
+import { ProductTourTargetAttributes, resolveProductTourTarget } from './productTourTargets.ts'
 
 export type ProductTourCompletionReason = 'completed' | 'skipped' | 'closed'
 
@@ -31,6 +32,7 @@ export interface ProductTourEngineOptions {
   labels: ProductTourLabels
   styles: ProductTourStyleClasses
   completionStore: ProductTourCompletionStore
+  completionVersion?: number
   persistOnDismiss?: boolean
   prepareStep: (step: ProductTourStep, signal: AbortSignal) => boolean | void | Promise<boolean | void>
   isBlocked: () => boolean
@@ -64,6 +66,8 @@ export class ProductTourEngine {
   private starting = false
   private active = false
   private disposed = false
+  private resolvedTargets = new Map<number, ReturnType<typeof resolveProductTourTarget>>()
+  private readonly targetAttributes = new ProductTourTargetAttributes()
 
   constructor(options: ProductTourEngineOptions) {
     this.options = options
@@ -97,7 +101,7 @@ export class ProductTourEngine {
     ) {
       return false
     }
-    if (this.options.isBlocked()) {
+    if (this.options.isBlocked() || hasVisiblePortal(blockingPortalSelector, null)) {
       this.options.onBlocked()
       return false
     }
@@ -134,7 +138,7 @@ export class ProductTourEngine {
       }
       return false
     }
-    if (this.options.isBlocked()) {
+    if (this.options.isBlocked() || hasVisiblePortal(blockingPortalSelector, null)) {
       this.starting = false
       this.options.onBlocked()
       this.releaseTransition()
@@ -203,6 +207,7 @@ export class ProductTourEngine {
         }
       }
     } finally {
+      if (driverDestroyed) this.targetAttributes.restore()
       if (
         !driverDestroyed
         && activeDriver
@@ -242,18 +247,29 @@ export class ProductTourEngine {
   }
 
   private createDriverConfig(): Config {
+    this.resolvedTargets.clear()
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
     return {
       steps: this.content.steps.map((step, index) => ({
         element: step.element
-          ? () => (findVisibleTourTarget(step.element!)
-            ?? (step.fallbackElement ? findVisibleTourTarget(step.fallbackElement) : undefined)) as Element
+          ? () => {
+            const resolved = resolveProductTourTarget(step)
+            this.resolvedTargets.set(index, resolved)
+            return resolved.element as Element
+          }
           : undefined,
         waitForElement: 2500,
         skipMissingElement: false,
         disableActiveInteraction: step.disableActiveInteraction ?? false,
-        onHighlightStarted: () => this.clearPopoverDecoration(),
-        onHighlighted: () => this.releaseTransition(index),
+        onHighlightStarted: (element) => {
+          this.clearPopoverDecoration()
+          this.targetAttributes.capture(element)
+        },
+        onHighlighted: (element) => {
+          if (this.driver?.getActiveIndex() !== index) return
+          this.targetAttributes.restore(element)
+          this.releaseTransition(index)
+        },
         popover: {
           title: step.title,
           description: step.description,
@@ -306,6 +322,7 @@ export class ProductTourEngine {
       || !currentStep
       || !nextStep
       || this.options.isBlocked()
+      || hasVisiblePortal(blockingPortalSelector, null)
       || this.options.isTransitionBlocked(currentStep, nextStep)
     ) {
       if (nextIndex >= 0) {
@@ -335,6 +352,7 @@ export class ProductTourEngine {
     }
     if (
       this.options.isBlocked()
+      || hasVisiblePortal(blockingPortalSelector, null)
       || this.options.isTransitionBlocked(currentStep, nextStep)
     ) {
       this.options.onBlocked()
@@ -347,7 +365,8 @@ export class ProductTourEngine {
       try {
         this.options.onError(error)
       } finally {
-        this.stop()
+        try { this.options.onCompleted('closed', false) }
+        finally { this.stop() }
       }
     }
   }
@@ -394,7 +413,7 @@ export class ProductTourEngine {
     try {
       try {
         if (reason === 'completed' || this.options.persistOnDismiss !== false) {
-          persisted = this.options.completionStore.writeCompletedVersion(PRODUCT_TOUR_VERSION)
+          persisted = this.options.completionStore.writeCompletedVersion(this.options.completionVersion ?? PRODUCT_TOUR_VERSION)
         }
       } catch (error) {
         this.options.onError(error)
@@ -414,6 +433,7 @@ export class ProductTourEngine {
   }
 
   private handleDriverDestroyed() {
+    this.targetAttributes.restore()
     this.generation += 1
     const destroyedGeneration = this.generation
     const focusTarget = this.initialFocus
@@ -485,6 +505,11 @@ export class ProductTourEngine {
     skipButton.addEventListener('click', () => this.finish('skipped'), { once: true })
     meta.appendChild(skipButton)
     const step = this.content.steps[index ?? 0]
+    if (step) {
+      // 与 Driver 本次定位复用同一解析结果，避免父级高亮与操作说明错位。
+      const resolved = this.resolvedTargets.get(index ?? 0) ?? resolveProductTourTarget(step)
+      popover.description.textContent = resolved.description
+    }
     if (step && this.options.decoratePopover) {
       try {
         this.popoverDecorationCleanup = this.options.decoratePopover({
@@ -734,6 +759,7 @@ function isVisibleElement(element: Element) {
 const dropdownPortalSelector = '.ant-dropdown:not(.ant-dropdown-hidden)'
 
 const blockingPortalSelector = [
+  '[data-tour-busy="true"]',
   // 被讲解的设置弹层处于向导下方；其他弹层（特别是审批）继续优先处理。
   '.ant-modal-root:not(.termous-product-tour-surface)',
   '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',

@@ -25,7 +25,7 @@ const testState = vi.hoisted(() => {
     initializing: false,
     apiReady: false,
     dataError: null as string | null,
-    productTourProps: null as import('#features/product-tour').ProductTourControllerProps | null,
+    productTourProps: null as import('#features/product-tour').ProductTourGuideProps | null,
     productTourPageHarness: false,
     persistentStateSetter: vi.fn(),
     workbenchMounts: 0,
@@ -533,7 +533,7 @@ vi.mock('#pages/remote-desktop', () => ({
 }))
 
 vi.mock('#features/product-tour', () => ({
-  ProductTourGuide: (props: import('#features/product-tour').ProductTourControllerProps) => {
+  ProductTourGuide: (props: import('#features/product-tour').ProductTourGuideProps) => {
     testState.productTourProps = props
     return null
   },
@@ -1311,14 +1311,16 @@ describe('应用运行时组合合同', () => {
     expect(testState.hostAccessIntent).toEqual({ key: 1, hostId: 'host-existing' })
   })
 
-  it('组合级完成全部向导页面准备且不触发写操作、安装或连接动作', async () => {
+  it('组合级完成通用向导页面准备且不触发写操作、安装或连接动作', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 40))
     testState.apiReady = true
     testState.productTourPageHarness = true
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
 
     try {
       render(<App />)
-      const steps = buildProductTourSteps((key) => key).filter((step) => !['remote-desktop', 'agent', 'account'].includes(step.route ?? '') && step.id !== 'notifications')
+      const catalog = buildProductTourSteps((key) => key)
+      const steps = [...catalog.slice(0, 27), catalog.find(step => step.id === 'settingsModels')!, catalog[catalog.length - 1]!]
       const preparationController = new AbortController()
       const settingsSteps = steps.filter((step) => step.preparation?.startsWith('settings'))
       const settingsPanels = new Map<string, Element>()
@@ -1406,7 +1408,7 @@ describe('应用运行时组合合同', () => {
       'files', 'filesBookmarks', 'filesLocalDirectory', 'filesTransfers',
     ])
 
-    act(() => testState.productTourProps?.onActiveChange?.(true))
+    act(() => testState.productTourProps?.onSessionChange?.(true))
     for (const step of filesSteps) {
       const signal = new AbortController().signal
       await act(async () => {
@@ -1421,7 +1423,7 @@ describe('应用运行时组合合同', () => {
     expect(testState.launcherOpen).toBe(false)
     expect(testState.action).not.toHaveBeenCalled()
 
-    act(() => testState.productTourProps?.onActiveChange?.(false))
+    act(() => testState.productTourProps?.onSessionChange?.(false))
     await waitFor(() => expect(testState.filesAutomaticRemoteRequestsEnabled).toBe(true))
   })
 
@@ -1444,7 +1446,7 @@ describe('应用运行时组合合同', () => {
   it('未登录账号专题使用引导弹层，离开专题恢复原页面交互', async () => {
     testState.apiReady = true
     render(<App />)
-    act(() => testState.productTourProps?.onActiveChange?.(true))
+    act(() => testState.productTourProps?.onSessionChange?.(true))
     const signal = new AbortController().signal
     for (const step of buildProductTourSteps((key) => key).filter(step => step.route === 'account')) {
       await act(async () => { expect(await testState.productTourProps?.onPrepareStep(step, signal)).toBe(true) })
@@ -1793,6 +1795,7 @@ describe('应用运行时组合合同', () => {
   })
 
   it('连接引用等待导航确认后才交给 Agent，取消后再次进入不执行旧引用', async () => {
+    testState.apiReady = true
     const file: import('#entities/agent').AgentFileResourceState = {
       file_access_profile_id: 'file-a', file_access_profile_name: '文件配置', host_id: 'host-a',
       host_name: '主机', ssh_profile_id: 'ssh-a', engine: 'sftp', status: 'ready',
@@ -1834,6 +1837,14 @@ describe('应用运行时组合合同', () => {
     await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
     expect(testState.agentLaunchIntent).toMatchObject({ key: 2, source: 'connection_reference',
       resource_reference: { kind: 'file_profile', file_access_profile_id: file.file_access_profile_id } })
+    act(() => testState.productTourProps?.onSessionChange?.(true))
+    for (const route of ['workbench', 'agent'] as const) {
+      await act(async () => {
+        expect(await testState.productTourProps?.onPrepareStep({ id: 'agent', title: '', description: '', route }, new AbortController().signal)).toBe(true)
+      })
+    }
+    expect(testState.agentLaunchIntent).toMatchObject({ key: 2, source: 'connection_reference' })
+    act(() => testState.productTourProps?.onSessionChange?.(false))
     act(() => testState.onAgentLaunchIntentHandled?.(2))
     expect(testState.agentLaunchIntent).toBeNull()
   })

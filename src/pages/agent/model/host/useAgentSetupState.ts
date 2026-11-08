@@ -18,11 +18,13 @@ interface Context {
   tRef: React.RefObject<import('i18next').TFunction<"translation", undefined>>
   enabled: boolean
   active: boolean
+  guided?: boolean
 }
 
-export function useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active }: Context) {
+export function useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active, guided = false }: Context) {
   const preparationError = useCallback(() => notifyError(notificationRef.current, tRef.current), [notificationRef, tRef])
-  useIntegrationPreparation(controller, enabled && active && !remote, preparationError)
+  // 向导导航只暂停新准备，保留已取得的所有权；退出后恢复正常离页清理。
+  useIntegrationPreparation(controller, enabled && (active || guided) && !remote, preparationError, guided)
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
 
   const [providers, setProviders] = useState<AgentModelProvider[]>([])

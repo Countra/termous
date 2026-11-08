@@ -84,6 +84,7 @@ export function AgentWorkspaceHost({
   slashCandidates: providedSlashCandidates = noSlashCandidates,
   enabled,
   active,
+  guided = false,
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
@@ -109,6 +110,7 @@ export function AgentWorkspaceHost({
   slashCandidates?: AgentSlashCandidateCatalog
   enabled: boolean
   active: boolean
+  guided?: boolean
   notificationSessionId?: string
   onNotificationSessionHandled?: () => void
   launchIntent?: AgentLaunchIntent | null
@@ -174,7 +176,7 @@ export function AgentWorkspaceHost({
   const slashExecutionSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
-  const { readiness, setReadiness, providers, models, setupLoading, draftModelId, setDraftModelId, draftReasoningLevel, setDraftReasoningLevel, activeSetupEpochRef, activeSetupReadyEpochRef, activeSetupAbortRef, acceptSetupSnapshot, markActiveSetupReady, hydrateActiveSetup, activeSetupReady, activeSetupFailed } = useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active })
+  const { readiness, setReadiness, providers, models, setupLoading, draftModelId, setDraftModelId, draftReasoningLevel, setDraftReasoningLevel, activeSetupEpochRef, activeSetupReadyEpochRef, activeSetupAbortRef, acceptSetupSnapshot, markActiveSetupReady, hydrateActiveSetup, activeSetupReady, activeSetupFailed } = useAgentSetupState({ setupGateway, controller, remote, notificationRef, tRef, enabled, active, guided })
   const hostSources = useAgentHostDesktopSources(gateway, enabled && active && !remote && readiness?.mcp_policy?.host_desktop?.read === true)
   const desktopResources = useMemo(() => [...providedDesktopResources, ...hostSources.resources], [providedDesktopResources, hostSources.resources])
   const slashCandidates = useMemo(() => ({ ...providedSlashCandidates, session: { ...providedSlashCandidates.session, desktop: [...(providedSlashCandidates.session.desktop ?? []), ...hostSources.candidates] } }), [providedSlashCandidates, hostSources.candidates])
@@ -337,6 +339,7 @@ export function AgentWorkspaceHost({
     return createDraftSession(request.resource_reference, selectionRevision)
   }, [controller, createDraftSession, draftSessionCoordinator])
   const referenceImport = useAgentTerminalReferenceImport({
+    paused: guided,
     intent: launchIntent ?? undefined,
     controller,
     active,

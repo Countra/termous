@@ -102,7 +102,7 @@ export function WorkflowWorkspaceView({ model, gateway, headerActions, windowAct
     select={{ classNames: { popup: { root: overlays.select } } }}
     drawer={{ classNames: { section: overlays.drawer, header: overlays['overlay-header'], body: overlays['drawer-body'] } }}
     modal={{ classNames: { container: overlays.dialog, header: overlays['dialog-header'] } }}
-  ><div ref={root} className={styles.workspace} data-narrow={narrow || undefined}>
+  ><div ref={root} className={styles.workspace} data-narrow={narrow || undefined} data-tour="automation-view" data-active-view={view} data-tour-busy={busy || undefined}>
     <header className={styles['workspace-header']}>
       <div className={styles['header-navigation']}>
         <div className={styles['workspace-title']}><Workflow size={18} aria-hidden="true" /><strong>{t('desktopWorkflow.workflow')}</strong></div>

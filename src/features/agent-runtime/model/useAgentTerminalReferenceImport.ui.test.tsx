@@ -10,6 +10,37 @@ type Options = Parameters<typeof useAgentTerminalReferenceImport>[0]
 type Intent = Extract<AgentLaunchIntent, { source: 'terminal_selection' }>
 
 describe('useAgentTerminalReferenceImport', () => {
+  it('向导期间接管引用但不派发，退出后只执行一次', async () => {
+    const fixture = setup()
+    const options = fixture.options({ paused: true })
+    const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
+    await waitFor(() => expect(view.result.current.current?.stage).toBe('pending'))
+    expect(options.onHandled).toHaveBeenCalledOnce()
+    expect(options.createSession).not.toHaveBeenCalled()
+    expect(fixture.controller.reloadSession).not.toHaveBeenCalled()
+    expect(options.addReference).not.toHaveBeenCalled()
+    view.rerender({ ...options, paused: false, intent: undefined })
+    await waitFor(() => expect(view.result.current.current).toBeUndefined())
+    expect(options.addReference).toHaveBeenCalledOnce()
+    view.rerender({ ...options, paused: true })
+    view.rerender({ ...options, paused: false })
+    expect(options.addReference).toHaveBeenCalledOnce()
+  })
+
+  it('进入向导不取消已派发导入，也不派发后续排队资源', async () => {
+    const fixture = setup()
+    const pending = deferred<boolean>()
+    const options = fixture.options({ addReference: vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(true) })
+    const view = renderHook((value: Options) => useAgentTerminalReferenceImport(value), { initialProps: options })
+    await waitFor(() => expect(options.addReference).toHaveBeenCalledOnce())
+    view.rerender({ ...options, paused: true, intent: intent({ key: 2 }) })
+    await act(async () => pending.resolve(true))
+    await waitFor(() => expect(view.result.current.current?.request.key).toBe(2))
+    expect(options.addReference).toHaveBeenCalledOnce()
+    view.rerender({ ...options, paused: false, intent: undefined })
+    await waitFor(() => expect(options.addReference).toHaveBeenCalledTimes(2))
+  })
+
   it.each(['ssh_session', 'file_profile'] as const)('%s 引用排队时按各自资源就绪状态执行，不借用后续引用的状态', async (kind) => {
     const fixture = setup()
     const first = kind === 'ssh_session' ? intent() : fileIntent()

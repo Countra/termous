@@ -37,7 +37,7 @@ export function WorkflowCatalog(props: Props) {
   const activeCount = props.runs.filter((run) => isRunActive(run.state)).length
   const history = props.view === 'runs'
 
-  return <aside className={styles.catalog} data-collapsed={props.collapsed || undefined} aria-label={t(history ? 'desktopWorkflow.runs' : 'desktopWorkflow.library')}>
+  return <aside className={styles.catalog} data-tour="automation-library" data-collapsed={props.collapsed || undefined} aria-label={t(history ? 'desktopWorkflow.runs' : 'desktopWorkflow.library')}>
     <div className={styles.rail} hidden={!props.collapsed}>
       <Tooltip title={t('desktopWorkflow.expandLibrary')} placement="right"><Button type="text" aria-label={t('desktopWorkflow.expandLibrary')} aria-expanded={false} icon={<PanelLeftOpen size={18} />} onClick={props.onToggle} /></Tooltip>
       <span className={styles['rail-divider']} />

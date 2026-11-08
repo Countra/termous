@@ -184,7 +184,7 @@ export function WorkflowAnalysis({ model, gateway, slot, active, guided, onMedia
     } })
   }
   return <>
-    <Button size="small" type="text" icon={<ScanSearch size={15} />} onClick={open} disabled={guided}>{t('desktopWorkflow.analysisWorkspace.title')}</Button>
+    <span data-tour="automation-analysis"><Button size="small" type="text" icon={<ScanSearch size={15} />} onClick={open} disabled={guided}>{t('desktopWorkflow.analysisWorkspace.title')}</Button></span>
     <Modal open={state.open && active} width="min(1600px, calc(100vw - 48px))" centered footer={null} title={<div className={styles.title}>
       <span>{t('desktopWorkflow.analysisWorkspace.title')}</span>
       {validContext && <Tooltip title={applicationHint()}><div className={styles.apply}>

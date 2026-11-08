@@ -352,8 +352,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const agentLaunchPendingRef = useRef(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [productTourRequestKey, setProductTourRequestKey] = useState(0)
-  const [productTourActive, setProductTourActive] = useState(false)
-  const [productTourDesktopIntent, setProductTourDesktopIntent] = useState<{ key: number; view: 'desktops' | 'workflow' }>()
+  const [productTourGuided, setProductTourGuided] = useState(false)
+  const [productTourDesktopIntent, setProductTourDesktopIntent] = useState<{ key: number; view: 'desktops' | 'workflow'; workflowView?: 'scripts' | 'runs' }>()
+  const productTourDesktopSequence = useRef(0)
+  const handleProductTourSessionChange = useCallback((guided: boolean) => {
+    setProductTourGuided(guided)
+    if (!guided) setProductTourDesktopIntent(undefined)
+  }, [])
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [desktopConnectionBlocking, setDesktopConnectionBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
@@ -468,8 +473,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     navigationResultRef.current?.(false)
     navigationResultRef.current = undefined
     setPendingPage(null)
-    // 主页面导航只撤销尚未送入嵌入助手的引用；独立窗口中的引用继续由宿主处理。
-    if (nextPage !== 'agent' && !agentDetached) clearAgentLaunchIntent()
+    // 向导只暂缓待导入引用；普通离页仍撤销未接管的引用，独立窗口继续由宿主处理。
+    if (nextPage !== 'agent' && !agentDetached && !productTourGuided) clearAgentLaunchIntent()
     if (hostSavingRef.current || settingsBoundary.current.busy) return Promise.resolve(false)
     if (nextPage === 'account') setAccountTab(options?.accountTab ?? 'profile')
     if (nextPage === page) {
@@ -482,7 +487,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
     return Promise.resolve(true)
-  }, [accountAuthBusy, gateways.cloud, agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen])
+  }, [accountAuthBusy, gateways.cloud, agentDetached, clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, setPage, vaultDirty, workflowNavigationBlocked, settingsOpen, productTourGuided])
 
   const openAgentSettings = useCallback(() => {
     navigateToPage('settings', { settingsTab: 'agent' })
@@ -1344,7 +1349,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     reference, agentResources, agentReferenceTargets, reference.kind === 'ssh_session' ? agentReferenceResourcesReady : agentFileResourcesReady,
   ), [agentReferenceTargets, agentResources, agentReferenceResourcesReady, agentFileResourcesReady])
   const productTourBlocked = !productTourReady
-    || (accountAuthOpen && !productTourActive)
+    || (accountAuthOpen && !productTourGuided)
     || hostKeyApprovalBlocking
     || desktopConnectionBlocking
     || actionBusy
@@ -1376,7 +1381,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       if (!await navigateToPage(step.route, { accountTab: step.accountTab }) || signal.aborted) return false
       if (step.desktopView) {
         const view = step.desktopView
-        setProductTourDesktopIntent((previous) => ({ key: (previous?.key ?? 0) + 1, view }))
+        setProductTourDesktopIntent({ key: ++productTourDesktopSequence.current, view, workflowView: step.workflowView })
       }
     }
     return true
@@ -1567,6 +1572,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
+                          guided={productTourGuided}
                           launchIntent={page === 'agent' || agentDetached ? agentLaunchIntent : null}
                           onLaunchIntentHandled={(key) => {
                             if (agentLaunchIntent?.key === key) {
@@ -1643,7 +1649,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           notificationTransferId={notificationTransferId}
                           onNotificationTransferHandled={() => setNotificationTransferId(undefined)}
                           fileGateway={gateways.files}
-                          automaticRemoteRequestsEnabled={!productTourActive}
+                          automaticRemoteRequestsEnabled={!productTourGuided}
                           getHostIconUrl={getHostIconUrl}
                           data={filesPageData}
                           theme={theme}
@@ -1731,7 +1737,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       >
                         <RemoteDesktopPage
                           guideIntent={productTourDesktopIntent}
-                          guided={productTourActive}
+                          guided={productTourGuided}
                           active={page === 'remote-desktop'}
                           appearance={{ theme, language: data.settings.language }}
                           workflowResetKey={workflowResetKey}
@@ -1753,8 +1759,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       </div> : null}
                     </AppShell>
                     {accountAuthOpen && page !== 'account' ? <AccountAuthDialog api={gateways.cloud} onClose={closeAccountAuth} onAuthenticated={completeAccountAuth}
-                      guided={productTourActive} onBusyChange={setAccountAuthBusy} /> : null}
-                    <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourActive}
+                      guided={productTourGuided} onBusyChange={setAccountAuthBusy} /> : null}
+                    <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} guided={productTourGuided}
                       settingsGateway={gateways.settings} aiRuntimeGateway={gateways.aiRuntime} analysisGateway={gateways.desktopWorkflow} initialTab={settingsInitialTab}
                       onDirtyChange={handleSettingsDirtyChange} onBusyChange={handleSettingsBusyChange}
                       language={data.settings.language} appearanceSettings={data.settings.appearance}
@@ -1788,7 +1794,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onPrepareStep={prepareProductTourStep}
                       onBlocked={showProductTourBlocked}
                       onError={showActionError}
-                      onActiveChange={setProductTourActive}
+                      onSessionChange={handleProductTourSessionChange}
                     />
                     <ConnectionLauncherRuntimeBridge
                       open={hostLauncherState.open}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { browserProductTourProgress, type ProductTourProgress } from '../model/productTourProgress.ts'
 import type { ProductTourTopicId } from '../model/productTourTopics.ts'
 import { ProductTourController, type ProductTourControllerProps } from './ProductTourController.tsx'
@@ -6,10 +6,12 @@ import { ProductTourTopicPicker } from './ProductTourTopicPicker.tsx'
 
 export interface ProductTourGuideProps extends Omit<ProductTourControllerProps, 'completionStore' | 'topic' | 'onFinished'> {
   progress?: ProductTourProgress
+  onSessionChange?: (guided: boolean) => void
 }
 
 export function ProductTourGuide({ progress = browserProductTourProgress, ...props }: ProductTourGuideProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [sessionOpen, setSessionOpen] = useState(false)
   const [completedTopic, setCompletedTopic] = useState<ProductTourTopicId | null>(null)
   const [session, setSession] = useState<{ topic: ProductTourTopicId; key: number } | null>(null)
   const sequence = useRef(0)
@@ -24,10 +26,15 @@ export function ProductTourGuide({ progress = browserProductTourProgress, ...pro
   const begin = (topic: ProductTourTopicId) => {
     if (!latest.current.ready || latest.current.blocked) {
       latest.current.onBlocked()
+      setSessionOpen(false)
       return
     }
     setSession({ topic, key: ++sequence.current })
   }
+
+  // 选择、首步准备和返回列表属于同一轮向导，不能在浮层切换间恢复业务调度。
+  useLayoutEffect(() => { latest.current.onSessionChange?.(sessionOpen) }, [sessionOpen])
+  useLayoutEffect(() => () => { latest.current.onSessionChange?.(false) }, [])
 
   useEffect(() => {
     if (ready) return
@@ -36,25 +43,28 @@ export function ProductTourGuide({ progress = browserProductTourProgress, ...pro
     setPickerOpen(false)
     setSession(null)
     setCompletedTopic(null)
+    setSessionOpen(false)
   }, [ready])
 
   useEffect(() => {
     if (manualRequestKey <= manualHandled.current) return
     manualHandled.current = manualRequestKey
     if (!ready || blocked) { onBlocked(); return }
-    if (active.current) return
+    if (sessionOpen || active.current) return
     autoHandled.current = true
     selected.current = null
     setSession(null)
     setCompletedTopic(null)
     setPickerOpen(true)
-  }, [manualRequestKey, ready, blocked, onBlocked])
+    setSessionOpen(true)
+  }, [manualRequestKey, ready, blocked, onBlocked, sessionOpen])
 
   useEffect(() => {
     if (autoHandled.current || !props.ready || props.blocked || pickerOpen || session || props.manualRequestKey > 0) return
     if (!props.autoStartEligible || !progress.shouldOfferBasics()) { autoHandled.current = true; return }
     const timer = window.setTimeout(() => {
       autoHandled.current = true
+      setSessionOpen(true)
       setSession({ topic: 'basics', key: ++sequence.current })
     }, 0)
     return () => window.clearTimeout(timer)
@@ -64,7 +74,13 @@ export function ProductTourGuide({ progress = browserProductTourProgress, ...pro
     <ProductTourTopicPicker open={pickerOpen} progress={progress} completedTopic={completedTopic}
       onClose={() => { selected.current = null; setPickerOpen(false) }}
       onSelect={(topic) => { selected.current = topic; setPickerOpen(false) }}
-      afterClose={() => { const topic = selected.current; selected.current = null; if (topic) begin(topic) }} />
+      afterClose={() => {
+        if (pickerOpen) return
+        const topic = selected.current
+        selected.current = null
+        if (topic) begin(topic)
+        else setSessionOpen(false)
+      }} />
     {session && <ProductTourController {...props} key={session.key} topic={session.topic}
       autoStartEligible={false} manualRequestKey={1} completionStore={progress.forTopic(session.topic)}
       onActiveChange={(value) => {
@@ -74,9 +90,11 @@ export function ProductTourGuide({ progress = browserProductTourProgress, ...pro
       }} onFinished={(reason) => {
         setSession(null)
         setCompletedTopic(reason === 'completed' ? session.topic : null)
-        if (reason === 'completed' || reason === 'skipped') {
+        const returnToTopics = (reason === 'completed' || reason === 'skipped') && latest.current.ready && !latest.current.blocked
+        setSessionOpen(returnToTopics)
+        if (returnToTopics) {
           // 关闭与启动失败直接退出；返回列表时仍尊重审批等业务阻塞。
-          setPickerOpen(latest.current.ready && !latest.current.blocked)
+          setPickerOpen(true)
         }
       }} />}
   </>

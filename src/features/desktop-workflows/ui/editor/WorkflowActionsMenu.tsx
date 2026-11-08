@@ -33,7 +33,7 @@ export function WorkflowActionsMenu(props: Props) {
       { key: 'copy', label: t('desktopWorkflow.copy'), icon: <Copy size={16} />, disabled: props.busy, onClick: props.onCopy },
       { key: 'delete', label: t('desktopWorkflow.delete'), icon: <Trash2 size={16} />, disabled: !props.revision || props.busy, danger: true, onClick: props.onRemove },
     ] }}>
-    <Button type="text" className={styles.trigger} aria-label={t('desktopWorkflow.moreActions')} aria-haspopup="menu" aria-expanded={open} disabled={props.busy}>
+    <Button type="text" className={styles.trigger} data-tour="automation-functions" aria-label={t('desktopWorkflow.moreActions')} aria-haspopup="menu" aria-expanded={open} disabled={props.busy}>
       {t('desktopWorkflow.actionMenu.trigger')}<ChevronDown size={13} className={styles.chevron} data-open={open || undefined} />
     </Button>
   </Dropdown>

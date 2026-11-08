@@ -35,7 +35,7 @@ export function WebSearchSettings() {
       if (!controller.signal.aborted) setTest({ busy: false, error: cause instanceof Error ? cause.message : String(cause) })
     } finally { if (pending.current === controller) pending.current = null }
   }
-  return <section className={styles.search} aria-label={t('webSearch.title')}>
+  return <section className={styles.search} data-tour-busy={test.busy || ['editing', 'saving', 'failed'].includes(editor.status) || undefined} aria-label={t('webSearch.title')}>
     <header className={styles.heading}><span><Globe size={20} /></span><div><h3>{t('webSearch.title')}</h3><p>{t('webSearch.description')}</p></div></header>
     <Radio.Group className={styles.providers} aria-label={t('webSearch.mode')} value={value?.mode} disabled={editor.locked} onChange={event => {
       const mode = event.target.value as Value['mode']

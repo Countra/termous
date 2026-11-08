@@ -25,10 +25,11 @@ export interface WorkflowWorkspaceProps {
   onDirtyChange: (dirty: boolean) => void; onViewDesktop: (session: string) => void | Promise<void>
   onReturnToPage?: () => Promise<boolean>; onDetachedChange?: (detached: boolean) => void
   active?: boolean; guided?: boolean
+  guideView?: { key: number; workflowView?: 'scripts' | 'runs' }
 }
 
 export function WorkflowWorkspace({ gateway, exchangeGateway, aiRuntimeGateway, onOpenAnalysisSettings, sessions, activeSessionId, profiles, headerActions, appearance,
-  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, active = true, guided }: WorkflowWorkspaceProps) {
+  onDirtyChange, onViewDesktop, onReturnToPage, onDetachedChange, active = true, guided, guideView }: WorkflowWorkspaceProps) {
   const { t, i18n } = useTranslation()
   const root = useRef<HTMLDivElement>(null)
   const placeholder = useRef<HTMLElement>(null)
@@ -52,6 +53,14 @@ export function WorkflowWorkspace({ gateway, exchangeGateway, aiRuntimeGateway, 
   }, environment, true)
   const detached = windowState.phase === 'detached' || windowState.phase === 'returning'
   const background = windowState.phase !== 'embedded'
+  const handledGuideView = useRef<number | null>(null)
+  useEffect(() => {
+    if (!guideView || handledGuideView.current === guideView.key) return
+    handledGuideView.current = guideView.key
+    if (!guided || !guideView.workflowView || background) return
+    // 只切换视图，不创建或选中流程，也不改动草稿、目标与筛选。
+    controller.actions.view(guideView.workflowView)
+  }, [controller, guided, guideView, background])
   const reveal = windowState.reveal
   useEffect(() => { onDetachedChange?.(background); return () => onDetachedChange?.(false) }, [background, onDetachedChange])
   useEffect(() => { onDirtyChange(model.state.dirty); return () => onDirtyChange(false) }, [model.state.dirty, onDirtyChange])
@@ -97,7 +106,7 @@ export function WorkflowWorkspace({ gateway, exchangeGateway, aiRuntimeGateway, 
     {(!detached || windowState.restoring) && <div className={styles.content} data-motion={windowState.restoring ? 'restoring' : undefined}
       inert={windowState.restoring || windowState.phase === 'opening' && windowState.frozen}>
       <WorkflowWorkspaceView model={model} gateway={controller.media} headerActions={headerActions} onMediaTask={controller.trackMediaTask} active={active && !background} guided={guided}
-        windowAction={windowState.available ? <DetachedWindowButton label={t('desktopWorkflow.window.open')} busy={windowState.phase === 'opening'} onClick={() => void windowState.open(root.current)} /> : undefined} />
+        windowAction={windowState.available ? <DetachedWindowButton data-tour="automation-window" label={t('desktopWorkflow.window.open')} busy={windowState.phase === 'opening'} onClick={() => void windowState.open(root.current)} /> : undefined} />
     </div>}
     {detached && <DetachedWindowPlaceholder ref={placeholder} capture={windowState.capture} busy={windowState.phase === 'returning'} restoring={windowState.restoring} headerActions={headerActions}
       title={t('desktopWorkflow.window.detached')} description={t('desktopWorkflow.window.description')} returnLabel={t('desktopWorkflow.window.returnHere')} focusLabel={t('desktopWorkflow.window.focus')}

@@ -33,7 +33,7 @@ export function LocalNetworkSettings() {
     setBypassDraft({ value: bypass, text })
     editor.change({ bypass })
   }
-  return <div className={styles.root}>
+  return <div className={styles.root} data-tour="settings-network" data-tour-busy={['editing', 'saving', 'failed'].includes(editor.status) || undefined}>
     <SettingsGroup title={t('mcpPreparation.network.title')} icon={<Network size={16} aria-hidden="true" />}>
       <div className={styles.toggle}>
         <div className={styles.copy}>

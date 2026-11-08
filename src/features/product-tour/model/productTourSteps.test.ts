@@ -10,13 +10,20 @@ import { productTourTopics } from './productTourTopics.ts'
 const translate = (key: string) => key
 
 test('专题引导使用独立内容版本', () => {
-  assert.equal(PRODUCT_TOUR_VERSION, 5)
+  assert.equal(PRODUCT_TOUR_VERSION, 6)
+  for (const { id, version } of productTourTopics) {
+    assert.equal(version, ['files', 'cloud'].includes(id) ? 5 : 6, id)
+  }
+  const counts = { basics: 12, desktop: 7, automation: 8, agent: 10, extensions: 6, remote: 4 }
+  for (const [id, count] of Object.entries(counts)) {
+    assert.equal(productTourTopics.find(topic => topic.id === id)?.steps.length, count, id)
+  }
 })
 
 test('核心使用向导按页面集中介绍功能', () => {
   const steps = buildProductTourSteps(translate)
 
-  assert.deepEqual(steps.filter((step) => !['remote-desktop', 'agent', 'account'].includes(step.route ?? '') && !['settingsModels', 'notifications'].includes(step.id)).map((step) => step.id), [
+  assert.deepEqual([...steps.slice(0, 27), steps[steps.length - 1]!].map((step) => step.id), [
     'welcome',
     'vaultNav',
     'vaultActions',
@@ -100,7 +107,12 @@ test('专题步骤唯一、完整且不允许在讲解期间触发业务操作',
     steps.forEach((step) => referenced.add(step.id))
   }
   assert.deepEqual([...referenced].sort(), catalog.map((step) => step.id).sort())
-  assert.ok(buildProductTourSteps(translate, 'basics').length <= 15)
+  assert.equal(buildProductTourSteps(translate, 'basics').length, 12)
+  for (const step of catalog.filter(step => step.fallbackElement)) {
+    assert.equal(step.fallbackDescription, `productTour.steps.${step.id}.fallbackDescription`)
+  }
+  assert.equal(catalog.find(step => step.id === 'automationHistory')?.workflowView, 'runs')
+  assert.ok(catalog.filter(step => step.workflowView && step.id !== 'automationHistory').every(step => step.workflowView === 'scripts'))
 })
 
 test('Driver 文案保留进度占位符', () => {

@@ -80,6 +80,7 @@ it('在途提交不会覆盖直连清单的未完成输入，后续失焦沿用�
   const address = screen.getByLabelText('代理地址')
   const bypass = screen.getByLabelText('直连规则')
   fireEvent.change(address, { target: { value: 'http://proxy.test:8080' } })
+  expect(address.closest('[data-tour-busy]')).toHaveAttribute('data-tour-busy', 'true')
   fireEvent.blur(address)
   await waitFor(() => expect(update).toHaveBeenCalledOnce())
   fireEvent.change(bypass, { target: { value: 'localhost\n127.0.0.1\n::1\n' } })
@@ -119,6 +120,7 @@ it('保存失败通过浮动消息保留重试入口和草稿，不自动重发'
   fireEvent.blur(address)
   const notice = await screen.findByRole('alert')
   expect(notice).toHaveTextContent('代理配置提交失败')
+  expect(address.closest('[data-tour-busy]')).toHaveAttribute('data-tour-busy', 'true')
   expect(view.container).not.toContainElement(notice)
   expect(address).toHaveValue('http://proxy.test:8080')
   expect(update).toHaveBeenCalledOnce()
@@ -126,6 +128,7 @@ it('保存失败通过浮动消息保留重试入口和草稿，不自动重发'
   await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   expect(address).toHaveValue('http://proxy.test:8080')
+  expect(address.closest('[data-tour-busy="true"]')).toBeNull()
 })
 
 it('关闭代理只修改开关，保留地址与直连清单', async () => {

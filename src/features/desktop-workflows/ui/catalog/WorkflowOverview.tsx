@@ -17,7 +17,7 @@ export function WorkflowOverview({ scriptCount, runs, busy, onCreate, onImport, 
       <p>{t('desktopWorkflow.overviewDescription')}</p>
       <div className={styles.actions}>
         <Button type="primary" disabled={busy} icon={<ArrowRight size={16} />} iconPlacement="end" onClick={onCreate}>{t('desktopWorkflow.create')}</Button>
-        {onImport && <Button type="text" disabled={busy} icon={<FileInput size={16} />} onClick={onImport}>{t('desktopWorkflow.exchange.import')}</Button>}
+        {onImport && <Button type="text" data-tour="automation-import" disabled={busy} icon={<FileInput size={16} />} onClick={onImport}>{t('desktopWorkflow.exchange.import')}</Button>}
       </div>
     </div>
     <div className={styles.summary}>

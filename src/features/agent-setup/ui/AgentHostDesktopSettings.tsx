@@ -12,7 +12,7 @@ export function AgentHostDesktopSettings({ editor, available }: { editor: AgentC
   const { t } = useTranslation()
   const id = useId()
   const { draft, busy, change } = editor
-  return <section className={styles.surface} aria-labelledby={`${id}-title`}>
+  return <section className={styles.surface} data-tour="agent-host-desktop" aria-labelledby={`${id}-title`}>
     <header className={styles['section-title']}>
       <Monitor size={16} aria-hidden="true" /><h2 id={`${id}-title`}>{t('settings.agent.hostDesktop.title')}</h2>
       <Tooltip trigger={['hover', 'focus']} title={<div className={desktopStyles.help}>
