@@ -9,10 +9,12 @@ import {
 
 export function useAgentConfiguration(runtime: AgentSetupController, readiness: AgentReadiness) {
   const { t } = useTranslation()
-  const [baseline, setBaseline] = useState(() => readiness)
-  const [draft, setDraft] = useState(() => createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy))
-  const [externalChange, setExternalChange] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [{ baseline, draft, externalChange, saved }, setState] = useState(() => ({
+    baseline: readiness,
+    draft: createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy),
+    externalChange: false,
+    saved: false,
+  }))
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
   const pending = useRef(false)
@@ -29,36 +31,33 @@ export function useAgentConfiguration(runtime: AgentSetupController, readiness: 
 
   useEffect(() => {
     if (pending.current || baseline === readiness) return
-    const old = createAgentConfigurationDraft(baseline.settings, baseline.mcp_policy)
-    const latest = createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy)
-    const rebased = rebaseAgentConfiguration(old, draft, latest)
-    setBaseline(readiness)
-    setDraft(rebased.draft)
-    setExternalChange(previous => previous || rebased.conflict)
-    if (!sameAgentConfiguration(old, latest) || baseline.settings.revision !== readiness.settings.revision
-      || baseline.mcp_policy?.revision !== readiness.mcp_policy?.revision) setSaved(false)
-  }, [baseline, draft, readiness, saving])
+    // 回读 effect 可能晚于下一次输入；基于最新状态合并，避免旧草稿覆盖新编辑。
+    setState(current => {
+      const old = createAgentConfigurationDraft(current.baseline.settings, current.baseline.mcp_policy)
+      const latest = createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy)
+      const rebased = rebaseAgentConfiguration(old, current.draft, latest)
+      const changed = !sameAgentConfiguration(old, latest) || current.baseline.settings.revision !== readiness.settings.revision
+        || current.baseline.mcp_policy?.revision !== readiness.mcp_policy?.revision
+      return { baseline: readiness, draft: rebased.draft,
+        externalChange: current.externalChange || rebased.conflict, saved: current.saved && !changed }
+    })
+  }, [baseline, readiness, saving])
 
   const change = (patch: Partial<AgentConfigurationDraft>) => {
-    setDraft(current => ({ ...current, ...patch }))
-    setSaved(false)
+    setState(current => ({ ...current, draft: { ...current.draft, ...patch }, saved: false }))
   }
   const reset = () => {
     runtime.clearConfigurationFeedback()
-    setBaseline(readiness)
-    setDraft(createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy))
-    setExternalChange(false)
-    setSaved(false)
+    setState({ baseline: readiness, draft: createAgentConfigurationDraft(readiness.settings, readiness.mcp_policy),
+      externalChange: false, saved: false })
     setFailed(false)
   }
   const refresh = async () => {
     const snapshot = await runtime.resolveConflict()
     if (!snapshot || !active.current) return
     const latest = createAgentConfigurationDraft(snapshot.readiness.settings, snapshot.readiness.mcp_policy)
-    const rebased = rebaseAgentConfiguration(confirmed, draft, latest)
-    setBaseline(snapshot.readiness)
-    setDraft(rebased.draft)
-    setExternalChange(false)
+    setState(current => ({ ...current, baseline: snapshot.readiness,
+      draft: rebaseAgentConfiguration(confirmed, current.draft, latest).draft, externalChange: false }))
     setFailed(false)
   }
   const save = async () => {
@@ -78,10 +77,8 @@ export function useAgentConfiguration(runtime: AgentSetupController, readiness: 
       )
       if (!active.current) return false
       const next = { ...baseline, settings: result.settings, mcp_policy: result.policy }
-      setBaseline(next)
-      setDraft(createAgentConfigurationDraft(next.settings, next.mcp_policy))
-      setExternalChange(false)
-      setSaved(true)
+      setState({ baseline: next, draft: createAgentConfigurationDraft(next.settings, next.mcp_policy),
+        externalChange: false, saved: true })
       return true
     } catch {
       if (active.current) setFailed(true)

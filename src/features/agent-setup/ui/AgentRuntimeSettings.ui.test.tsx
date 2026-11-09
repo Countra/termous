@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentReadiness } from '#entities/agent'
 import type { AgentSetupController } from '../model/useAgentSetupController.ts'
@@ -126,7 +127,46 @@ describe('AI 助手统一保存反馈', () => {
     expect(threshold).toHaveValue('75')
     expect(runtime.saveConfiguration).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { serverThreshold: 80, revision: 1, conflict: false },
+    { serverThreshold: 75, revision: 2, conflict: true },
+  ])('回读提交与下一次编辑重叠时保留最新草稿并正确识别冲突：%j', async ({ serverThreshold, revision, conflict }) => {
+    const runtime = runtimeFixture()
+    const view = render(<><AgentRuntimeSettings runtime={runtime} /></>)
+    const threshold = screen.getByRole('spinbutton', { name: thresholdLabel })
+    const readiness = { ...runtime.readiness!, settings: { ...runtime.readiness!.settings,
+      revision, context_compaction_threshold_percent: serverThreshold } }
+
+    // 在回读 DOM 提交后、草稿同步 effect 执行前编辑，固定复现连续交互的竞态。
+    await act(async () => {
+      view.rerender(<>
+        <AgentRuntimeSettings runtime={{ ...runtime, readiness }} />
+        <EditAfterCommit edit={() => fireEvent.change(threshold, { target: { value: '85' } })} />
+      </>)
+    })
+
+    expect(threshold).toHaveValue('85')
+    expect(screen.getByText('settings.editor.unsaved')).toBeInTheDocument()
+    const warning = screen.queryByText('settings.agent.conflict.defaultsDescription')
+    if (conflict) {
+      expect(warning).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: saveLabel })).toBeDisabled()
+    } else {
+      expect(warning).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: saveLabel })).toBeEnabled()
+    }
+    expect(runtime.saveConfiguration).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: resetLabel }))
+    expect(threshold).toHaveValue(String(serverThreshold))
+    expect(screen.queryByText('settings.agent.conflict.defaultsDescription')).not.toBeInTheDocument()
+  })
 })
+
+function EditAfterCommit({ edit }: { edit: () => void }) {
+  useLayoutEffect(() => { edit() }, [edit])
+  return null
+}
 
 function runtimeFixture() {
   const readiness: AgentReadiness = {
