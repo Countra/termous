@@ -66,6 +66,11 @@ runs:
       run: |
         brew install bash pkg-config
         echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
-        if [[ ! -f /usr/local/include/fuse/fuse.h && ! -f /Library/Frameworks/macFUSE.framework/Headers/fuse.h ]]; then
+        if [[ ! -f /usr/local/include/fuse/fuse.h &&
+              ! -f /usr/local/include/osxfuse/fuse/fuse.h &&
+              ! -f /Library/Frameworks/macFUSE.framework/Headers/fuse.h &&
+              ! -f /opt/homebrew/include/fuse/fuse.h ]]; then
+          # 由 Homebrew 校验下载并最多重试 5 次；下载成功后才安装，避免重复执行安装器。
+          brew fetch --retry --cask macfuse
           brew install --cask macfuse
         fi
