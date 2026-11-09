@@ -65,6 +65,19 @@ test('工具准备在固定源码检出后读取版本，Git 令牌不流入编�
   assert.ok(steps.some(s => s.run?.includes('macfuse')))
 })
 
+test('Linux 构建准备提供合成 HDR 测试所需的 Vulkan 运行库和软件驱动', async () => {
+  const action = await load('actions/buildtoolchain/action.yml')
+  const linux = action.runs.steps.find(s => s.name === 'Install Linux native prerequisites')
+  assert.equal(linux.if, "inputs.platform == 'linux'")
+  const install = linux.run.replace(/\\\n/g, ' ').split('\n')
+    .find(line => line.includes('apt-get install'))
+  assert.ok(install)
+  const packages = new Set(install.trim().split(/\s+/))
+  for (const name of ['libvulkan1', 'mesa-vulkan-drivers']) {
+    assert.ok(packages.has(name), `Linux 缺少 HDR 测试运行依赖: ${name}`)
+  }
+})
+
 test('MinIO 归档遵循分支与发布规则，仅使用本次报告且取消后停止', async () => {
   for (const name of ['ci', 'release']) {
     const w = await load(`workflows/${name}.yml`)
